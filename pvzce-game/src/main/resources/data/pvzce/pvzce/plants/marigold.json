@@ -1,0 +1,21 @@
+{
+  "id": "pvzce:marigold",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:producer",
+      "resource": "pvzce:sun",
+      "amount": 25,
+      "every": 600
+    }
+  ],
+  "sounds": {
+    "produce": "pvzce:sfx/ui/coin"
+  }
+}

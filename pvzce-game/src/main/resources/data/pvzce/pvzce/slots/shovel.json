@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:shovel",
+  "kind": "tool",
+  "content": "pvzce:shovel",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/entities/shovel"
+}

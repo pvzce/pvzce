@@ -1,0 +1,1351 @@
+package com.pvzce.client;
+
+import com.pvzce.api.util.Identifier;
+import com.pvzce.client.animation.AnimationManager;
+import com.pvzce.client.config.PvzceClientConfig;
+import com.pvzce.client.gui.DebugOverlay;
+import com.pvzce.client.gui.Screen;
+import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.config.ConfigBuilder;
+import com.pvzce.client.gui.config.ConfigCategory;
+import com.pvzce.client.gui.config.ConfigEntryBuilder;
+import com.pvzce.client.gui.config.ConfigScreen;
+import com.pvzce.client.gui.mods.ModMenu;
+import com.pvzce.client.gui.mods.ModsScreen;
+import com.pvzce.client.gui.screens.ConsoleScreen;
+import com.pvzce.client.gui.screens.ChooseSeedsScreen;
+import com.pvzce.client.gui.screens.EditorScreen;
+import com.pvzce.client.gui.screens.InGameScreen;
+import com.pvzce.client.gui.screens.LevelSaveDialog;
+import com.pvzce.client.gui.screens.LevelSelectScreen;
+import com.pvzce.client.gui.screens.SettingsScreen;
+import com.pvzce.client.gui.screens.TitleScreen;
+import com.pvzce.client.gui.screens.WorldSelectScreen;
+import com.pvzce.client.particle.ParticleEngine;
+import com.pvzce.client.renderer.Matrix4f;
+import com.pvzce.client.renderer.PvzceCamera;
+import com.pvzce.client.renderer.RenderSystem;
+import com.pvzce.client.renderer.ShaderProgram;
+import com.pvzce.client.renderer.TextureUv;
+import com.pvzce.client.renderer.SpriteRenderer;
+import com.pvzce.client.renderer.font.FontRenderer;
+import com.pvzce.client.renderer.sprite.Sprite;
+import com.pvzce.client.renderer.texture.TextureManager;
+import com.pvzce.client.sound.PvzceMusicController;
+import com.pvzce.client.sound.SoundEngine;
+import com.pvzce.common.network.Connection;
+import com.pvzce.common.network.PvzcePackets;
+import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.network.packet.LevelListS2C;
+import com.pvzce.common.network.packet.LevelSavePromptS2C;
+import com.pvzce.common.network.packet.LeaveLevelC2S;
+import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.RequestLevelListC2S;
+import com.pvzce.common.network.packet.ResumeLevelC2S;
+import com.pvzce.common.network.packet.SeedOption;
+import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.resource.PvzceResourceManager;
+import com.pvzce.common.tag.PvzceTags;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import org.lwjgl.BufferUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.stb.STBImageWrite;
+
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Deque;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.locks.LockSupport;
+
+/** Client window + render loop + screen stack; server state stays authority. */
+public final class PvzceClient {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Client");
+
+    private final Connection connection;
+    private final Path gameDir;
+    private final ClassLoader classLoader;
+
+    private PvzceWindow window;
+    private PvzceResourceManager resources;
+    private TextureManager textures;
+    private FontRenderer font;
+    private SoundEngine sound;
+    private PvzceMusicController music;
+    private AnimationManager animations;
+    private PvzceClientConfig config;
+    private final ParticleEngine particles = new ParticleEngine();
+    private final com.pvzce.client.renderer.liquid.LiquidRipples liquidRipples =
+            new com.pvzce.client.renderer.liquid.LiquidRipples();
+    private final long startNanos = System.nanoTime();
+    private final ClientLevel level = new ClientLevel();
+    private final Deque<Screen> screens = new ArrayDeque<>();
+
+    private String currentWorld = "world";
+    private volatile List<LevelListS2C.LevelInfo> levelList = List.of();
+    private final Map<String, List<String>> rememberedSeeds = new LinkedHashMap<>();
+    private Path seedSelectionFile;
+    private long clientTick;
+    private int lastWindowWidth;
+    private int lastWindowHeight;
+    private final int captureFrame = Integer.getInteger("pvzce.captureFrame", -1);
+    private final String capturePath = System.getProperty("pvzce.capturePath");
+    private final int smokeFrames = Integer.getInteger("pvzce.smokeFrames", 0);
+    private final String smokeLevel = System.getProperty("pvzce.smokeLevel", "");
+    private final boolean smokeLevelRestart = Boolean.parseBoolean(
+            System.getProperty("pvzce.smokeLevelRestart", "true"));
+    private final String smokeSeedLevel = System.getProperty("pvzce.smokeSeedLevel", "");
+    private boolean smokeLevelRequested;
+    private boolean smokeSeedListRequested;
+    private boolean smokeSeedOpened;
+    private long backspaceNextNanos;
+    private boolean backspaceHeld;
+    private boolean leftMouseWasDown;
+    private char suppressNextChar;
+    private boolean debugOverlayEnabled;
+    private boolean savePromptOpen;
+    private LevelSavePromptS2C deferredSavePrompt;
+    private int fps;
+    private int fpsFrames;
+    private long fpsSampleNanos;
+    private float worldLightX;
+    private float worldLightY;
+    private boolean shaderEffectsActive;
+    /**
+     * The resolved day/night state, kept so passes that are not the sprite pass can
+     * read the same numbers instead of recomputing the cycle. The liquid shader
+     * needs exactly these; duplicating the maths in {@code applyTimeOfDayShader}
+     * is the one thing the architecture doc warns against.
+     */
+    private float worldTintR = 1F;
+    private float worldTintG = 1F;
+    private float worldTintB = 1F;
+    private float worldTintLift;
+    private float worldLightR = 1F;
+    private float worldLightG = 1F;
+    private float worldLightB = 1F;
+    private float worldLightStrength = 0.2F;
+    private float worldNightBlend;
+    /** Horizontal compensation for the 80x100 PvZ board cells; 1 in GUI/overlay space. */
+    private float spriteXScale = 1F;
+    private final java.util.Set<Identifier> missingTextures = new HashSet<>();
+    private final com.pvzce.client.gui.Clipping clipping = new com.pvzce.client.gui.Clipping(this);
+
+    public PvzceClient(Connection connection, Path gameDir, ClassLoader classLoader) {
+        this.connection = connection;
+        this.gameDir = gameDir;
+        this.classLoader = classLoader;
+    }
+
+    public void run() throws Exception {
+        PvzcePackets.register();
+        Files.createDirectories(gameDir);
+        resources = new PvzceResourceManager(classLoader);
+        resources.init(gameDir);
+        // Animation files are parsed lazily and cached; a reload must drop both the
+        // parsed files and the "missing/broken" marks, otherwise a fixed animation
+        // stays invisible for the rest of the session.
+        if (animations != null) {
+            animations.invalidate();
+        }
+        // Same reason as the animations above: which scene elements are liquid is
+        // cached by id, so a reload that changes a definition has to drop the cache
+        // or the old answer would be used for the rest of the session.
+        com.pvzce.client.renderer.liquid.LiquidTextures.invalidate();
+        var tagResult = PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
+        for (String error : tagResult.errors()) {
+            // The client used to discard this result entirely, so a broken tag file
+            // was silent on the client and reported only on the server.
+            LOGGER.warn("[tags] {}", error);
+        }
+
+        config = PvzceClientConfig.load(gameDir);
+        loadSeedSelections();
+        window = new PvzceWindow("PVZ Community Edition", config);
+        lastWindowWidth = window.width();
+        lastWindowHeight = window.height();
+        RenderSystem.init();
+        // Seed the shader gate from the config as well as setting it in
+        // beginWorldView, because the boards that render OUTSIDE a running level -
+        // the seed chooser's preview and the editor's canvas - never call
+        // beginWorldView, and without this they would take the shader path even
+        // when the player has turned shaders off.
+        RenderSystem.setShaderEffectsEnabled(config.shadersEnabled());
+        textures = new TextureManager(resources);
+        font = new FontRenderer(textures, resources);
+        sound = new SoundEngine(resources);
+        sound.setMasterVolume(config.masterVolume());
+        sound.setMusicVolume(config.musicVolume());
+        sound.setSfxVolume(config.sfxVolume());
+        music = new PvzceMusicController(sound);
+        animations = new AnimationManager(this, level, resources);
+        level.setAnimationManager(animations);
+        Button.setClickSoundHandler(() -> sound.play("pvzce:sfx/ui/click", 1F, 1F));
+        connection.setListener(new PvzceClientPacketListener(this, level));
+        ModMenu.setBuiltinConfigFactory(parent -> buildSettingsConfig());
+
+        String smokeScreen = System.getProperty("pvzce.smokeScreen", "");
+        if ("mods".equals(smokeScreen)) {
+            setScreenReplacing(new ModsScreen(this));
+        } else if ("settings".equals(smokeScreen)) {
+            setScreenReplacing(new SettingsScreen(this));
+        } else if ("console".equals(smokeScreen)) {
+            setScreenReplacing(new ConsoleScreen(this));
+        } else {
+            setScreenReplacing(new TitleScreen(this));
+        }
+
+        long nextFrameNanos = System.nanoTime();
+        while (!window.shouldClose()) {
+            window.pollEvents();
+            clientTick++;
+
+            connection.tick();
+
+            // Development smoke hook: request a level automatically so CI can
+            // render gameplay without driving the title/level screens.
+            if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
+                smokeLevelRequested = true;
+                requestLevel(smokeLevel, smokeLevelRestart);
+            }
+            if (!smokeSeedLevel.isBlank() && !smokeSeedListRequested && clientTick > 2) {
+                smokeSeedListRequested = true;
+                connection.send(new RequestLevelListC2S(currentWorld));
+            }
+
+            pollInput();
+            Screen screen = currentScreen();
+            screen.initIfNeeded();
+            if (screen instanceof ConsoleScreen) {
+                for (Screen lower : screens) {
+                    if (lower != screen) {
+                        lower.initIfNeeded();
+                        lower.tick();
+                    }
+                }
+            }
+            screen.tick();
+            music.tick();
+            animations.tick();
+            render();
+
+            if (smokeFrames > 0 && clientTick == smokeFrames) {
+                System.out.println("[SMOKE] frame " + smokeFrames + " rendered, screen=" + screen.getClass().getSimpleName());
+                break;
+            }
+            if (capturePath != null && clientTick == captureFrame) {
+                capture(capturePath);
+            }
+            window.swapBuffers();
+
+            // MC-style software frame limit (active below the "unlimited" cap).
+            if (config.maxFps() < PvzceClientConfig.UNLIMITED_FPS) {
+                long frameBudget = 1_000_000_000L / config.maxFps();
+                nextFrameNanos += frameBudget;
+                long remaining = nextFrameNanos - System.nanoTime();
+                if (remaining > 0) {
+                    LockSupport.parkNanos(remaining);
+                } else if (remaining < -frameBudget) {
+                    nextFrameNanos = System.nanoTime();
+                }
+            }
+        }
+
+        connection.send(new LeaveLevelC2S());
+        connection.tick();
+        connection.disconnect("window closed");
+        if (music != null) {
+            music.stopAll();
+        }
+        if (sound != null) {
+            sound.close();
+        }
+        textures.close();
+        window.close();
+    }
+
+    // ---------- input ----------
+
+    private void pollInput() {
+        Screen screen = currentScreen();
+        Integer key;
+        while ((key = window.pollKey()) != null) {
+            if (key == GLFW.GLFW_KEY_F11) {
+                setFullscreen(!window.isFullscreen());
+                continue;
+            }
+            if (key == GLFW.GLFW_KEY_F3) {
+                debugOverlayEnabled = !debugOverlayEnabled;
+                continue;
+            }
+            if (key == GLFW.GLFW_KEY_ESCAPE
+                    && !(screen instanceof InGameScreen)
+                    && !(screen instanceof EditorScreen)
+                    && !(screen instanceof ConsoleScreen)) {
+                screen.requestClose();
+                screen = currentScreen();
+                continue;
+            }
+            if (!(screen instanceof ConsoleScreen) && !screen.hasTextInputFocused()) {
+                if (key == GLFW.GLFW_KEY_SLASH) {
+                    suppressNextChar = '/';
+                    openConsole("/");
+                    screen = currentScreen();
+                    continue;
+                }
+                if (key == GLFW.GLFW_KEY_T) {
+                    suppressNextChar = 't';
+                    openConsole("");
+                    screen = currentScreen();
+                    continue;
+                }
+            }
+            screen = currentScreen();
+            screen.keyPressed(key);
+        }
+        Integer codepoint;
+        while ((codepoint = window.pollTypedChar()) != null) {
+            char ch = (char) codepoint.intValue();
+            if (suppressNextChar != 0 && Character.toLowerCase(ch) == suppressNextChar) {
+                suppressNextChar = 0;
+                continue;
+            }
+            suppressNextChar = 0;
+            screen = currentScreen();
+            screen.charTyped(ch);
+        }
+        screen = currentScreen();
+        boolean backspaceDown = window.isKeyDown(GLFW.GLFW_KEY_BACKSPACE);
+        if (backspaceDown && screen.hasTextInputFocused()) {
+            long now = System.nanoTime();
+            if (!backspaceHeld) {
+                // The press itself already deleted one character via keyPressed;
+                // only schedule the first frame-rate independent auto-repeat.
+                backspaceNextNanos = now + 500_000_000L;
+            }
+            if (now >= backspaceNextNanos) {
+                screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE);
+                backspaceNextNanos = now + 80_000_000L;
+            }
+        }
+        backspaceHeld = backspaceDown;
+        Integer button;
+        while ((button = window.pollMouseButton()) != null) {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT || button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                screen = currentScreen();
+                screen.mouseClicked(window.cursorX(), window.cursorY(), button);
+            }
+        }
+        screen = currentScreen();
+        boolean leftDown = window.isMouseButtonDown(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        if (leftDown) {
+            screen.mouseDragged(window.cursorX(), window.cursorY(), GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        } else if (leftMouseWasDown) {
+            screen.mouseReleased(window.cursorX(), window.cursorY(), GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        }
+        leftMouseWasDown = leftDown;
+        Double scroll;
+        while ((scroll = window.pollScroll()) != null) {
+            screen = currentScreen();
+            screen.mouseScrolled(window.cursorX(), window.cursorY(), scroll);
+        }
+        screen = currentScreen();
+        screen.mouseMoved(window.cursorX(), window.cursorY());
+    }
+
+    /** Opens the console with an explicit initial value (slash/t char events are suppressed by the caller). */
+    private void openConsole(String initialContents) {
+        if (!(currentScreen() instanceof ConsoleScreen)) {
+            openScreen(new ConsoleScreen(this, initialContents));
+        }
+    }
+
+    // ---------- rendering ----------
+
+    private void render() {
+        if (window.width() != lastWindowWidth || window.height() != lastWindowHeight) {
+            lastWindowWidth = window.width();
+            lastWindowHeight = window.height();
+            currentScreen().onResize();
+        }
+        RenderSystem.clear(0.53F, 0.75F, 0.98F, 1F);
+        RenderSystem.setShader();
+        updateFps();
+        Screen top = currentScreen();
+        if (top instanceof ConsoleScreen) {
+            for (Screen lower : screens) {
+                if (lower != top) {
+                    lower.render();
+                }
+            }
+        }
+        top.render();
+        if (debugOverlayEnabled) {
+            beginGuiView();
+            DebugOverlay.render(this);
+        }
+        // Safety net: every push has a matching pop, but a crash mid-draw must not
+        // leave the scissor test enabled for the rest of the session.
+        clipping.reset();
+        RenderSystem.checkGlError("frame");
+    }
+
+    /** One-second sliding window FPS sample, refreshed twice per second like MC's debug chart. */
+    private void updateFps() {
+        fpsFrames++;
+        long now = System.nanoTime();
+        long elapsed = now - fpsSampleNanos;
+        if (elapsed >= 500_000_000L) {
+            fps = (int) Math.round(fpsFrames * 1_000_000_000D / elapsed);
+            fpsFrames = 0;
+            fpsSampleNanos = now;
+        }
+    }
+
+    /** World-space viewport/projection for gameplay rendering. */
+    public PvzceCamera beginWorldView() {
+        PvzceCamera camera = camera();
+        spriteXScale = camera.unitY() / Math.max(0.0001F, camera.unitX());
+        RenderSystem.viewport(camera.viewportX(), camera.viewportY(), camera.viewportWidth(), camera.viewportHeight());
+        RenderSystem.setProjectionMatrix(camera.projection());
+        RenderSystem.setShaderEffectsEnabled(config.shadersEnabled());
+        if (config.shadersEnabled()) {
+            shaderEffectsActive = true;
+            applyTimeOfDayShader();
+            applyEntityLights();
+        } else {
+            // "Shaders" off: neutral lighting, tint and sun/point glows disabled.
+            shaderEffectsActive = false;
+            worldLightX = level.width() / 2F;
+            worldLightY = level.height() * 3F;
+            worldTintR = 1F;
+            worldTintG = 1F;
+            worldTintB = 1F;
+            worldTintLift = 0F;
+            worldLightR = 1F;
+            worldLightG = 1F;
+            worldLightB = 1F;
+            worldLightStrength = 0.2F;
+            worldNightBlend = 0F;
+            RenderSystem.setTimeOfDay(1F, 1F, 1F, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 0F);
+            RenderSystem.clearPointLights();
+        }
+        return camera;
+    }
+
+    /**
+     * Temporary world projection for overlay animations (seed-chooser zombie
+     * previews, future alive previews). Coordinates are logical GUI pixels;
+     * the method converts the viewport to raw framebuffer pixels for GL.
+     */
+    public void beginOverlayWorldView(float guiX, float guiY, float guiWidth, float guiHeight,
+                                      float worldLeft, float worldRight,
+                                      float worldBottom, float worldTop) {
+        spriteXScale = 1F;
+        int scale = Math.max(1, guiScale());
+        int viewportX = Math.round(guiX * scale);
+        int viewportY = Math.round(guiY * scale);
+        int viewportWidth = Math.max(1, Math.round(guiWidth * scale));
+        int viewportHeight = Math.max(1, Math.round(guiHeight * scale));
+        RenderSystem.viewport(viewportX, viewportY, viewportWidth, viewportHeight);
+        RenderSystem.setProjectionMatrix(Matrix4f.ortho(worldLeft, worldRight, worldBottom, worldTop, -10F, 10F));
+        RenderSystem.setGuiShader();
+    }
+
+    /** Sun drops act as warm point lights for the board around them. */
+    private void applyEntityLights() {
+        RenderSystem.clearPointLights();
+        float centerX = level.width() / 2F;
+        float centerY = level.height() / 2F;
+        List<ClientEntity> suns = level.entities().values().stream()
+                .filter(e -> e.kind().equals("sun"))
+                .sorted((a, b) -> Float.compare(
+                        distanceSq(a.cellX(), a.cellY() + a.height(), centerX, centerY),
+                        distanceSq(b.cellX(), b.cellY() + b.height(), centerX, centerY)))
+                .toList();
+        float nightBlend = level.nightBlendAt(level.smoothDayTicks());
+        int lightCount = Math.min(ShaderProgram.MAX_POINT_LIGHTS, suns.size());
+        for (int i = 0; i < lightCount; i++) {
+            ClientEntity sun = suns.get(i);
+            // Sun drops stay warm by day and crossfade to pale moonlit glows at night.
+            float r = lerp(1F, 0.72F, nightBlend);
+            float g = lerp(0.85F, 0.82F, nightBlend);
+            float b = lerp(0.35F, 1F, nightBlend);
+            float strength = lerp(0.5F, 0.38F, nightBlend);
+            RenderSystem.setPointLight(i, sun.cellX(), sun.cellY() + sun.height(),
+                    2.4F, r, g, b, strength);
+        }
+    }
+
+    private static float distanceSq(float x1, float y1, float x2, float y2) {
+        float dx = x1 - x2;
+        float dy = y1 - y2;
+        return dx * dx + dy * dy;
+    }
+
+    /**
+     * Time-of-day shader driven by the client-side interpolated clock so the
+     * sun/moon and tint change continuously instead of once per server sync.
+     * World x=0 is EAST (left), x=width is WEST (right).
+     */
+    private void applyTimeOfDayShader() {
+        var time = level.timeOfDay();
+        float dayTicks = level.smoothDayTicks();
+        float nightBlend = level.nightBlendAt(dayTicks);
+        int w = Math.max(1, level.width());
+        int h = Math.max(1, level.height());
+
+        // Day parameters.
+        float dayTintR;
+        float dayTintG;
+        float dayTintB;
+        float dayLift;
+        float daySunX;
+        float daySunY;
+        float daySunR;
+        float daySunG;
+        float daySunB;
+        float dayStrength;
+        float dayRadius = Math.max(w, h) * 0.9F;
+
+        if (time.dayLength() <= 0) {
+            // Permanent day: sun directly overhead, neutral warm light.
+            dayTintR = 1.04F;
+            dayTintG = 1.01F;
+            dayTintB = 0.94F;
+            dayLift = 0.015F;
+            dayStrength = 0.20F;
+            daySunX = w * 0.5F;
+            daySunY = h * 3F;
+            daySunR = 1F;
+            daySunG = 1F;
+            daySunB = 0.9F;
+        } else {
+            int cycle = Math.max(1, time.dayLength() + Math.max(0, time.nightLength()));
+            long dayPos = Math.floorMod((long) Math.floor(dayTicks), cycle);
+            int dayLength = Math.max(1, time.dayLength());
+            int nightLength = Math.max(0, time.nightLength());
+            int window = Math.max(1, Math.min(120, Math.min(dayLength, Math.max(1, nightLength)) / 4));
+            // Keep the setting sun in the west through dusk; use the pre-sunrise
+            // east position for the final dawn blend.
+            float progress = dayPos <= dayLength + window
+                    ? Math.min(1F, dayPos / (float) dayLength)
+                    : 0F;
+            daySunX = w * (0.05F + 0.9F * progress); // east(left) -> west(right)
+            daySunY = h * (0.5F + 1.6F * Math.abs((float) Math.sin(Math.PI * progress)));
+            dayStrength = 0.22F + 0.16F * (float) Math.sin(Math.PI * progress);
+            float morning = Math.max(0F, 1F - progress * 2F);
+            float evening = Math.max(0F, (progress - 0.5F) * 2F);
+            dayTintR = 1F + 0.08F * morning + 0.10F * evening;
+            dayTintG = 1F + 0.02F * morning - 0.15F * evening;
+            dayTintB = 1F - 0.10F * morning - 0.30F * evening;
+            dayLift = 0.01F;
+            daySunR = 1F;
+            daySunG = 0.75F + 0.25F * morning - 0.15F * evening;
+            daySunB = 0.45F + 0.25F * morning;
+        }
+
+        // Night parameters: PvZ-style cool blue moonlight.
+        float nightTintR = 0.40F;
+        float nightTintG = 0.46F;
+        float nightTintB = 0.78F;
+        float nightLift = -0.015F;
+        float nightStrength = 0.34F;
+        float nightSunX = w * 0.72F; // moon above the western side
+        float nightSunY = h * 2.1F;
+        float nightSunR = 0.68F;
+        float nightSunG = 0.80F;
+        float nightSunB = 1.0F;
+        float nightRadius = Math.max(w, h) * 1.05F;
+
+        float tintR = lerp(dayTintR, nightTintR, nightBlend);
+        float tintG = lerp(dayTintG, nightTintG, nightBlend);
+        float tintB = lerp(dayTintB, nightTintB, nightBlend);
+        float lift = lerp(dayLift, nightLift, nightBlend);
+        float sunX = lerp(daySunX, nightSunX, nightBlend);
+        float sunY = lerp(daySunY, nightSunY, nightBlend);
+        float sunR = lerp(daySunR, nightSunR, nightBlend);
+        float sunG = lerp(daySunG, nightSunG, nightBlend);
+        float sunB = lerp(daySunB, nightSunB, nightBlend);
+        float strength = lerp(dayStrength, nightStrength, nightBlend);
+        float radius = lerp(dayRadius, nightRadius, nightBlend);
+
+        worldLightX = sunX;
+        worldLightY = sunY;
+        worldTintR = tintR;
+        worldTintG = tintG;
+        worldTintB = tintB;
+        worldTintLift = lift;
+        worldLightR = sunR;
+        worldLightG = sunG;
+        worldLightB = sunB;
+        worldLightStrength = strength;
+        worldNightBlend = nightBlend;
+        RenderSystem.setTimeOfDay(tintR, tintG, tintB, lift, sunX, sunY, radius, sunR, sunG, sunB, strength);
+    }
+
+    private static float lerp(float a, float b, float t) {
+        return com.pvzce.common.util.MathUtil.lerp(a, b, t);
+    }
+
+    /** Full-window orthographic projection in logical (scaled) GUI pixels. */
+    public void beginGuiView() {
+        spriteXScale = 1F;
+        RenderSystem.viewport(0, 0, window.width(), window.height());
+        RenderSystem.setProjectionMatrix(Matrix4f.ortho(0, guiWidth(), 0, guiHeight(), -10, 10));
+        RenderSystem.setGuiShader();
+    }
+
+    /**
+     * MC {@code Window.calculateScale}-shaped GUI scale. Auto uses the max
+     * usable integer scale; a manual scale is clamped by the same constraints.
+     */
+    /** GUI-space clipping rectangles; see {@link com.pvzce.client.gui.Clipping}. */
+    public com.pvzce.client.gui.Clipping clipping() {
+        return clipping;
+    }
+
+    public int guiScale() {
+        return guiScaleFor(config.guiScale() == PvzceClientConfig.AUTO_GUI_SCALE
+                ? PvzceClientConfig.MAX_MANUAL_GUI_SCALE
+                : config.guiScale());
+    }
+
+    /** MC {@code Window.calculateScale(requested, false)}. */
+    public int guiScaleFor(int requestedScale) {
+        int maxScale = Math.max(1, requestedScale);
+        int scale = 1;
+        int width = window.width();
+        int height = window.height();
+        while (scale != maxScale
+                && scale < width
+                && scale < height
+                && width / (scale + 1) >= 320
+                && height / (scale + 1) >= 240) {
+            scale++;
+        }
+        return scale;
+    }
+
+    public int maxAvailableGuiScale() {
+        return guiScaleFor(PvzceClientConfig.MAX_MANUAL_GUI_SCALE);
+    }
+
+    public int guiWidth() {
+        return ceilDiv(window.width(), guiScale());
+    }
+
+    public int guiHeight() {
+        return ceilDiv(window.height(), guiScale());
+    }
+
+    private static int ceilDiv(int value, int divisor) {
+        return com.pvzce.common.util.MathUtil.ceilDiv(value, divisor);
+    }
+
+    /** Converts a raw framebuffer mouse X to logical GUI X. */
+    public double guiMouseX(double mouseX) {
+        return mouseX * guiWidth() / (double) Math.max(1, window.width());
+    }
+
+    /** Converts a raw framebuffer mouse Y (top-down) to logical bottom-up GUI Y. */
+    public double guiMouseY(double mouseY) {
+        return (window.height() - mouseY) * guiHeight() / (double) Math.max(1, window.height());
+    }
+
+    public PvzceCamera camera() {
+        return new PvzceCamera(window.width(), window.height(), Math.max(1, level.width()), Math.max(1, level.height()));
+    }
+
+    /** Horizontal sprite correction so square world-space sprites match the board cell aspect. */
+    public float spriteXScale() {
+        return spriteXScale;
+    }
+
+    public void drawTexture(Identifier id, float x, float y, float w, float h, float z, float r, float g, float b, float a) {
+        drawTextureRegion(id, 0F, 0F, 1F, 1F, x, y, w, h, z, r, g, b, a);
+    }
+
+    /** Draws a UV sub-region of a texture (u/v increase toward the world's +x/+y). */
+    public void drawTextureRegion(Identifier id, float u0, float v0, float u1, float v1,
+                                  float x, float y, float w, float h, float z, float r, float g, float b, float a) {
+        try {
+            SpriteRenderer.textured(new Sprite(textures.getOrLoad(id), u0, v0, u1, v1), x, y, w, h, z, r, g, b, a);
+        } catch (Exception e) {
+            warnMissingTexture(id);
+            SpriteRenderer.solid(x, y, w, h, z, r, g, b, a);
+        }
+    }
+
+    /**
+     * Draws an arbitrary textured quad (bl, br, tr, tl) for controller parts.
+     * Corner UVs are in top-left pixel coordinates; this method normalizes
+     * them against the loaded texture (which STB uploads vertically flipped).
+     */
+    public void drawTextureQuad(Identifier id,
+                                float x0, float y0, float x1, float y1,
+                                float x2, float y2, float x3, float y3,
+                                float u0, float v0, float u1, float v1,
+                                float u2, float v2, float u3, float v3,
+                                float z, float r, float g, float b, float a) {
+        try {
+            var texture = textures.getOrLoad(id);
+            SpriteRenderer.texturedQuad(texture,
+                    x0, y0, x1, y1, x2, y2, x3, y3,
+                    TextureUv.normalizeU(u0, texture.width()), TextureUv.normalizeV(v0, texture.height()),
+                    TextureUv.normalizeU(u1, texture.width()), TextureUv.normalizeV(v1, texture.height()),
+                    TextureUv.normalizeU(u2, texture.width()), TextureUv.normalizeV(v2, texture.height()),
+                    TextureUv.normalizeU(u3, texture.width()), TextureUv.normalizeV(v3, texture.height()),
+                    z, r, g, b, a);
+        } catch (Exception e) {
+            warnMissingTexture(id);
+            SpriteRenderer.solid(Math.min(Math.min(x0, x1), Math.min(x2, x3)),
+                    Math.min(Math.min(y0, y1), Math.min(y2, y3)),
+                    Math.max(Math.max(x0, x1), Math.max(x2, x3)) - Math.min(Math.min(x0, x1), Math.min(x2, x3)),
+                    Math.max(Math.max(y0, y1), Math.max(y2, y3)) - Math.min(Math.min(y0, y1), Math.min(y2, y3)),
+                    z, r, g, b, a);
+        }
+    }
+
+    /** True when a texture can be resolved from the built-in pack or an active resource pack. */
+    public boolean hasTexture(Identifier id) {
+        try {
+            return resources.getResource("assets/" + id.toPath() + ".png").isPresent()
+                    || resources.getAsset(id).isPresent();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Light-source projected entity shadow rendered by the shader shadow
+     * pass. The sprite silhouette is projected from the current interpolated
+     * sun/moon position onto the ground plane, and its tint crossfades with
+     * the smooth day/night factor.
+     */
+    public void drawEntityShadow(Identifier texture, float centerX, float centerY,
+                                 float width, float height, float alpha) {
+        float lightX = worldLightX;
+        float lightY = worldLightY;
+        if (!shaderEffectsActive) {
+            lightX = centerX;
+            lightY = centerY + height * 4F;
+        }
+        float nightBlend = level.nightBlendAt(level.smoothDayTicks());
+        float shadowR = lerp(0.02F, 0.03F, nightBlend);
+        float shadowG = lerp(0.03F, 0.06F, nightBlend);
+        float shadowB = lerp(0.08F, 0.22F, nightBlend);
+        try {
+            SpriteRenderer.projectedShadow(Sprite.whole(textures.getOrLoad(texture)),
+                    lightX, lightY, centerY, centerX, width, height, 0.04F,
+                    shadowR, shadowG, shadowB, alpha);
+        } catch (Exception e) {
+            warnMissingTexture(texture);
+            SpriteRenderer.shadow(centerX, centerY, width / 2F, Math.max(0.06F, width * 0.12F),
+                    0.04F, shadowR, shadowG, shadowB, alpha * 0.6F);
+        }
+    }
+
+    public float worldLightX() {
+        return worldLightX;
+    }
+
+    public float worldLightY() {
+        return worldLightY;
+    }
+
+    /**
+     * Wall-clock seconds since the client started, for continuously scrolling
+     * effects.
+     *
+     * <p>Deliberately not the server tick clock: the liquid surface keeps flowing
+     * while the game is paused or the tick rate is frozen, and a player who pauses
+     * should not come back to a surface that has to catch up.
+     */
+    public float renderTimeSeconds() {
+        return (System.nanoTime() - startNanos) / 1_000_000_000F;
+    }
+
+    /** The resolved day/night state; see the field comment for why it is cached. */
+    public float worldTintR() {
+        return worldTintR;
+    }
+
+    public float worldTintG() {
+        return worldTintG;
+    }
+
+    public float worldTintB() {
+        return worldTintB;
+    }
+
+    public float worldTintLift() {
+        return worldTintLift;
+    }
+
+    public float worldLightR() {
+        return worldLightR;
+    }
+
+    public float worldLightG() {
+        return worldLightG;
+    }
+
+    public float worldLightB() {
+        return worldLightB;
+    }
+
+    public float worldLightStrength() {
+        return worldLightStrength;
+    }
+
+    public float worldNightBlend() {
+        return worldNightBlend;
+    }
+
+    /** Surface disturbances from server effect events. */
+    public com.pvzce.client.renderer.liquid.LiquidRipples liquidRipples() {
+        return liquidRipples;
+    }
+
+    public boolean shaderEffectsActive() {
+        return shaderEffectsActive;
+    }
+
+    /** MC-style missing-texture warning, logged once per identifier. */
+    public void warnMissingTexture(Identifier id) {
+        if (missingTextures.add(id)) {
+            LOGGER.warn("Missing texture reference: {}", id);
+        }
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return com.pvzce.common.util.MathUtil.clamp(value, min, max);
+    }
+
+    public void drawSolid(float x, float y, float w, float h, float z, float r, float g, float b, float a) {
+        SpriteRenderer.solid(x, y, w, h, z, r, g, b, a);
+    }
+
+    // ---------- screen stack ----------
+
+    public void setScreenReplacing(Screen screen) {
+        screens.clear();
+        screens.push(screen);
+    }
+
+    public void openScreen(Screen screen) {
+        screens.push(screen);
+    }
+
+    public void closeScreen() {
+        if (screens.size() > 1) {
+            screens.pop();
+        }
+    }
+
+    public Screen currentScreen() {
+        return screens.peek();
+    }
+
+    /** How many screens are on the stack; diagnostics and tests. */
+    public int screenDepth() {
+        return screens.size();
+    }
+
+    public void toggleConsole() {
+        if (currentScreen() instanceof ConsoleScreen) {
+            closeScreen();
+        } else {
+            openScreen(new ConsoleScreen(this));
+        }
+    }
+
+    public void openEditor(String levelId) {
+        if (currentScreen() instanceof ConsoleScreen) {
+            closeScreen();
+        }
+        openScreen(new EditorScreen(this, levelId));
+    }
+
+    public void showTitle() {
+        setScreenReplacing(new TitleScreen(this));
+    }
+
+    public void showWorldSelect() {
+        setScreenReplacing(new WorldSelectScreen(this));
+    }
+
+    /**
+     * The peer speaks a different wire format. Refusing loudly beats decoding its
+     * packets as the wrong types.
+     */
+    public void onProtocolMismatch(int serverVersion, int clientVersion) {
+        String message = "协议版本不一致：服务器 " + serverVersion + "，客户端 " + clientVersion
+                + "。请使用同一版本的游戏。";
+        level.setDisconnected(message);
+        LOGGER.error(message);
+        showWorldSelect();
+    }
+
+    public void onLevelInit() {
+        particles.clear();
+        if (animations != null) {
+            animations.clear();
+        }
+        savePromptOpen = false;
+        if (music != null) {
+            music.startLevel("pvzce:music/grasswalk");
+        }
+        setScreenReplacing(new InGameScreen(this));
+        if (deferredSavePrompt != null) {
+            LevelSavePromptS2C prompt = deferredSavePrompt;
+            deferredSavePrompt = null;
+            showLevelSavePrompt(prompt);
+        }
+    }
+
+    /** Legacy entry point used by editor tests, smoke hooks and command helpers: all level slots. */
+    public void requestLevel(String levelId, boolean restart) {
+        connection.send(new RequestLevelC2S(levelId, currentWorld, restart));
+    }
+
+    /** Starts a level with an explicit seed selection and remembers it for next time. */
+    public void startLevelWithSeeds(String levelId, boolean restart, List<String> selectedSeeds) {
+        List<String> seeds = List.copyOf(selectedSeeds);
+        rememberSeedSelection(currentWorld, levelId, seeds);
+        connection.send(new StartLevelC2S(levelId, currentWorld, restart, seeds));
+    }
+
+    /** Opens the "Choose Your Seeds" screen before entering a level from the world map. */
+    public void openSeedSelection(LevelListS2C.LevelInfo info, boolean restart) {
+        List<String> initial = seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
+        openSeedSelection(info, restart, initial, null);
+    }
+
+    /**
+     * Opens seed selection with an explicit pre-filled list and optional custom
+     * back behaviour. The save-prompt restart path uses this to keep the loaded
+     * save frozen until the player either picks new cards or backs out.
+     */
+    public void openSeedSelection(LevelListS2C.LevelInfo info, boolean restart,
+                                  List<String> initialSelection, Runnable onBack) {
+        openScreen(createSeedSelection(info, restart, initialSelection, onBack));
+    }
+
+    /** Builds the seed chooser for a level; the only place its arguments are assembled. */
+    private ChooseSeedsScreen createSeedSelection(LevelListS2C.LevelInfo info, boolean restart,
+                                                  List<String> initialSelection, Runnable onBack) {
+        return new ChooseSeedsScreen(this, info.id(), info.name(), info.seedPool(),
+                info.maxSeedSlots(), info.previewZombies(), info.width(), info.height(),
+                info.sceneCells(), initialSelection, restart, onBack);
+    }
+
+    private LevelListS2C.LevelInfo findLevelInfo(String levelId) {
+        for (LevelListS2C.LevelInfo info : levelList) {
+            if (info.id().equals(levelId)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The save prompt's "重新开始" option: keep the loaded save untouched and
+     * paused while the client shows seed selection. Submitting the new cards
+     * sends {@code StartLevelC2S(restart=true)}, which deletes the old save and
+     * creates the fresh level with the chosen bar. Backing out re-opens the
+     * prompt so the player can still continue.
+     */
+    public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
+        LevelListS2C.LevelInfo info = findLevelInfo(prompt.levelId());
+        if (info == null) {
+            // No registry snapshot (for example a direct smoke request): fall
+            // back to the legacy server-side restart using the saved card bar.
+            connection.send(new ResumeLevelC2S(prompt.levelId(), prompt.worldName(), true));
+            return;
+        }
+        List<String> initial = prompt.levelId().equals(level.levelId())
+                ? level.slots().stream().map(slot -> slot.defId()).toList()
+                : seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
+        openSeedSelection(info, true, initial, () -> {
+            closeScreen();
+            showLevelSavePrompt(prompt);
+        });
+    }
+
+    private List<String> seedSelectionOrDefault(String levelId, List<SeedOption> pool, int maxSeedSlots) {
+        List<String> remembered = seedSelection(currentWorld, levelId);
+        if (remembered != null) {
+            return remembered;
+        }
+        int limit = Math.max(0, maxSeedSlots);
+        List<String> defaults = new ArrayList<>();
+        for (SeedOption option : pool) {
+            if (defaults.size() >= limit) {
+                break;
+            }
+            defaults.add(option.slotId());
+        }
+        return defaults;
+    }
+
+    /** Returns the remembered selection, or {@code null} when this world/level has never been played. */
+    public List<String> seedSelection(String world, String levelId) {
+        List<String> selection = rememberedSeeds.get(seedKey(world, levelId));
+        return selection == null ? null : List.copyOf(selection);
+    }
+
+    private void rememberSeedSelection(String world, String levelId, List<String> seeds) {
+        rememberedSeeds.put(seedKey(world, levelId), List.copyOf(seeds));
+        saveSeedSelections();
+    }
+
+    private static String seedKey(String world, String levelId) {
+        return (world == null ? "world" : world) + "|" + levelId;
+    }
+
+    private void loadSeedSelections() {
+        seedSelectionFile = gameDir.resolve("config/pvzce-seed-selections.json");
+        rememberedSeeds.clear();
+        if (!Files.isRegularFile(seedSelectionFile)) {
+            return;
+        }
+        try {
+            JsonElement parsed = JsonParser.parseString(Files.readString(seedSelectionFile));
+            if (!parsed.isJsonObject()) {
+                return;
+            }
+            for (Map.Entry<String, JsonElement> entry : parsed.getAsJsonObject().entrySet()) {
+                if (!entry.getValue().isJsonArray()) {
+                    continue;
+                }
+                List<String> seeds = new ArrayList<>();
+                for (JsonElement element : entry.getValue().getAsJsonArray()) {
+                    if (element.isJsonPrimitive()) {
+                        seeds.add(element.getAsString());
+                    }
+                }
+                rememberedSeeds.put(entry.getKey(), List.copyOf(seeds));
+            }
+        } catch (Throwable t) {
+            System.err.println("Failed to read seed selections: " + t.getMessage());
+        }
+    }
+
+    private void saveSeedSelections() {
+        if (seedSelectionFile == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(seedSelectionFile.getParent());
+            JsonObject root = new JsonObject();
+            for (Map.Entry<String, List<String>> entry : rememberedSeeds.entrySet()) {
+                JsonArray array = new JsonArray();
+                for (String seed : entry.getValue()) {
+                    array.add(seed);
+                }
+                root.add(entry.getKey(), array);
+            }
+            Files.writeString(seedSelectionFile, root.toString());
+        } catch (Throwable t) {
+            System.err.println("Failed to write seed selections: " + t.getMessage());
+        }
+    }
+
+    /** Server found a resumable save; show the continue/restart dialog over the loaded world. */
+    public void showLevelSavePrompt(LevelSavePromptS2C prompt) {
+        if (!(currentScreen() instanceof InGameScreen)) {
+            deferredSavePrompt = prompt;
+            return;
+        }
+        if (savePromptOpen) {
+            return;
+        }
+        savePromptOpen = true;
+        LevelSaveDialog dialog = LevelSaveDialog.create(this, prompt,
+                () -> {
+                    connection.send(new ResumeLevelC2S(prompt.levelId(), prompt.worldName(), false));
+                },
+                () -> {
+                    openSeedSelectionForRestart(prompt);
+                });
+        dialog.closeOnEscape(false);
+        dialog.onClose(() -> savePromptOpen = false);
+        currentScreen().showDialog(dialog);
+    }
+
+    public void leaveLevel() {
+        connection.send(new LeaveLevelC2S());
+        clearLevelClientState();
+        showWorldSelect();
+    }
+
+    /**
+     * Drops every piece of per-level client state. Shared by "leave to the menu" and
+     * "restart the level" so the two cannot drift; the old restart path cleared none
+     * of it because it never closed the level in the first place.
+     */
+    private void clearLevelClientState() {
+        savePromptOpen = false;
+        deferredSavePrompt = null;
+        if (music != null) {
+            music.leaveLevel();
+        }
+        particles.clear();
+        liquidRipples.clear();
+        if (animations != null) {
+            animations.clear();
+        }
+        level.reset();
+    }
+
+    /**
+     * The pause menu's 重新开始.
+     *
+     * <p>The old implementation pushed the seed chooser <em>on top of</em> the running
+     * level and left that level alive: backing out with ESC returned to the old
+     * level's pause menu, so "restart" never actually closed anything. Now the current
+     * level is genuinely closed first (the server writes a save on the way out, so
+     * backing out of the chooser still leaves the run resumable from the level list)
+     * and the seed chooser is entered exactly like a normal level entry - a screen
+     * replacement, with 返回/ESC leading to the level list rather than back into the
+     * level that was just closed.
+     */
+    public void restartCurrentLevel() {
+        String levelId = level.levelId();
+        LevelListS2C.LevelInfo info = findLevelInfo(levelId);
+        if (info == null) {
+            // No registry snapshot for this level (editor/smoke entry): fall back to a
+            // plain server-side restart, which still closes the old instance.
+            connection.send(new RequestLevelC2S(levelId, currentWorld, true));
+            return;
+        }
+        connection.send(new LeaveLevelC2S());
+        clearLevelClientState();
+        List<String> initial = seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
+        setScreenReplacing(createSeedSelection(info, true, initial, this::showLevelList));
+    }
+
+    /** Backs out of a level-entry flow to the level list of the current world. */
+    public void showLevelList() {
+        setScreenReplacing(new LevelSelectScreen(this));
+    }
+
+    // ---------- accessors ----------
+
+    public Connection connection() {
+        return connection;
+    }
+
+    public PvzceWindow window() {
+        return window;
+    }
+
+    public PvzceResourceManager resources() {
+        return resources;
+    }
+
+    public TextureManager textures() {
+        return textures;
+    }
+
+    public FontRenderer font() {
+        return font;
+    }
+
+    public SoundEngine sound() {
+        return sound;
+    }
+
+    public AnimationManager animations() {
+        return animations;
+    }
+
+    public PvzceMusicController music() {
+        return music;
+    }
+
+    public void onMusicEvent(String track, String event, boolean loop, boolean stop, float volume, float fadeSeconds) {
+        if (music != null) {
+            music.playCue(track, event, loop, stop, volume, fadeSeconds);
+        }
+    }
+
+    public void onGameState(String state, String winTeamId) {
+        if (music != null && state != null && !state.equals("running")) {
+            music.playWinLose(winTeamId == null || !winTeamId.contains("zombie"));
+        }
+    }
+
+    public PvzceClientConfig config() {
+        return config;
+    }
+
+    // ---------- video settings ----------
+
+    public void setFullscreen(boolean fullscreen) {
+        boolean applied = window.setFullscreen(fullscreen);
+        config.setFullscreen(applied);
+        config.save();
+        refreshGui();
+    }
+
+    public void setVsync(boolean vsync) {
+        window.setVsync(vsync);
+        config.setVsync(vsync);
+        config.save();
+    }
+
+    public void setMaxFps(int maxFps) {
+        config.setMaxFps(maxFps);
+        config.save();
+    }
+
+    public void setWindowResolution(int width, int height) {
+        window.setResolution(width, height);
+        config.setWindowSize(width, height);
+        config.save();
+        refreshGui();
+    }
+
+    public void setGuiScaleSetting(int guiScale) {
+        config.setGuiScale(guiScale);
+        config.save();
+        refreshGui();
+    }
+
+    /**
+     * Sets the water quality tier.
+     *
+     * <p>No GL state has to be touched: the tier only selects which terms the liquid
+     * shader evaluates, and the pass reads it from the config every frame. It is
+     * deliberately independent of {@code shadersEnabled}, which replaces the whole
+     * pass with a flat fallback.
+     */
+    public void setWaterQuality(int quality) {
+        config.setWaterQuality(quality);
+        config.save();
+    }
+
+    public void setShadersEnabled(boolean enabled) {
+        config.setShadersEnabled(enabled);
+        // Applied immediately as well as at the next world view, so the toggle takes
+        // effect on the board the player is looking at (and on the seed chooser, which
+        // never enters a world view at all).
+        RenderSystem.setShaderEffectsEnabled(enabled);
+        config.save();
+    }
+
+    /** Rebuilds all open screens after a resolution/scale change. */
+    public void refreshGui() {
+        for (Screen screen : screens) {
+            screen.onResize();
+        }
+    }
+
+    public float currentConfigValue(String id) {
+        if (currentScreen() instanceof ConfigScreen configScreen) {
+            return configScreen.valueOf(id);
+        }
+        return 0F;
+    }
+
+    /** Volume settings built through the public ConfigBuilder API. */
+    public ConfigScreen buildSettingsConfig() {
+        ConfigBuilder builder = ConfigBuilder.create(this).setTitle("音量设置");
+        builder.setSavingRunnable(() -> config.save());
+        ConfigCategory volume = builder.getOrCreateCategory("音量");
+        volume.addEntry(ConfigEntryBuilder.createFloat("master", "主音量",
+                config.masterVolume(), 0F, 1F, () -> {
+                    config.setMasterVolume(currentConfigValue("master"));
+                    sound.setMasterVolume(config.masterVolume());
+                }));
+        volume.addEntry(ConfigEntryBuilder.createFloat("music", "音乐",
+                config.musicVolume(), 0F, 1F, () -> {
+                    config.setMusicVolume(currentConfigValue("music"));
+                    sound.setMusicVolume(config.musicVolume());
+                    music.onVolumeChanged();
+                }));
+        volume.addEntry(ConfigEntryBuilder.createFloat("sfx", "音效",
+                config.sfxVolume(), 0F, 1F, () -> {
+                    config.setSfxVolume(currentConfigValue("sfx"));
+                    sound.setSfxVolume(config.sfxVolume());
+                }));
+        return builder.build();
+    }
+
+    public ParticleEngine particles() {
+        return particles;
+    }
+
+    public ClientLevel level() {
+        return level;
+    }
+
+    public Path gameDir() {
+        return gameDir;
+    }
+
+    public String currentWorld() {
+        return currentWorld;
+    }
+
+    public void setCurrentWorld(String currentWorld) {
+        this.currentWorld = currentWorld;
+    }
+
+    public List<LevelListS2C.LevelInfo> levelList() {
+        return levelList;
+    }
+
+    public void setLevelList(List<LevelListS2C.LevelInfo> levelList) {
+        this.levelList = levelList == null ? List.of() : List.copyOf(levelList);
+        if (!smokeSeedLevel.isBlank() && !smokeSeedOpened) {
+            for (LevelListS2C.LevelInfo info : this.levelList) {
+                if (smokeSeedLevel.equals(info.id())) {
+                    smokeSeedOpened = true;
+                    openSeedSelection(info, false);
+                    break;
+                }
+            }
+        }
+    }
+
+    public long clientTick() {
+        return clientTick;
+    }
+
+    public int fps() {
+        return fps;
+    }
+
+    private void capture(String path) {
+        int w = window.width();
+        int h = window.height();
+        ByteBuffer pixels = BufferUtils.createByteBuffer(w * h * 4);
+        GL11.glReadPixels(0, 0, w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        ByteBuffer flipped = BufferUtils.createByteBuffer(w * h * 4);
+        byte[] row = new byte[w * 4];
+        for (int y = h - 1; y >= 0; y--) {
+            pixels.get(w * y * 4, row, 0, w * 4);
+            flipped.put(row);
+        }
+        flipped.flip();
+        STBImageWrite.stbi_flip_vertically_on_write(true);
+        if (!STBImageWrite.stbi_write_png(path, w, h, 4, flipped, w * 4)) {
+            System.err.println("[SMOKE] failed to write screenshot " + path);
+        }
+    }
+}

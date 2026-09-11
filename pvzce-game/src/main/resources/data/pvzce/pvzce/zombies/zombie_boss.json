@@ -1,0 +1,41 @@
+{
+  "id": "pvzce:zombie_boss",
+  "health": 5000,
+  "move_speed": 0.15,
+  "capabilities": [
+    {
+      "type": "pvzce:boss_phases",
+      "phases": [
+        {
+          "at_hp": 0.8,
+          "summons": [
+            "pvzce:basic_zombie"
+          ],
+          "ability": "slam"
+        },
+        {
+          "at_hp": 0.5,
+          "summons": [
+            "pvzce:buckethead_zombie",
+            "pvzce:door_zombie"
+          ],
+          "ability": "summon"
+        },
+        {
+          "at_hp": 0.3,
+          "summons": [
+            "pvzce:gargantuar"
+          ],
+          "ability": "charge"
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/effect/siren",
+    "hit": "pvzce:sfx/projectile/hit",
+    "special": "pvzce:sfx/zombie/bossboulderattack",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/effect/bossexplosion"
+  }
+}

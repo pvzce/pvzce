@@ -1,0 +1,44 @@
+plugins {
+    id 'java-library'
+}
+
+base {
+    archivesName = 'pvzce-loader'
+}
+
+dependencies {
+    // Fabric Loader 0.19.5 core dependencies (kept inside the final shadow jar).
+    api "org.ow2.asm:asm:${project.asm_version}"
+    api "org.ow2.asm:asm-analysis:${project.asm_version}"
+    api "org.ow2.asm:asm-commons:${project.asm_version}"
+    api "org.ow2.asm:asm-tree:${project.asm_version}"
+    api "org.ow2.asm:asm-util:${project.asm_version}"
+    api "net.fabricmc:sponge-mixin:${project.mixin_version}"
+    api "org.ow2.sat4j:org.ow2.sat4j.core:${project.sat4j_version}"
+    api "org.ow2.sat4j:org.ow2.sat4j.pb:${project.sat4j_version}"
+    api "net.fabricmc:tiny-remapper:${project.tiny_remapper_version}"
+    api "net.fabricmc:mapping-io:${project.mapping_io_version}"
+    api "net.fabricmc:class-tweaker:${project.class_tweaker_version}"
+
+    compileOnly 'org.jetbrains:annotations:23.0.0'
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${project.junit_version}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+sourceSets {
+    main {
+        java.srcDirs = ['src/main/java', 'src/main/legacyJava']
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:-options', '-Xlint:-processing']
+}

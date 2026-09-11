@@ -1,0 +1,9 @@
+{
+  "id": "pvzce:redstone",
+  "default_value": 1,
+  "collectible": true,
+  "icon": "pvzce:textures/resource/redstone",
+  "drop_anim": "pvzce:sun_fall",
+  "max_stack": 9990,
+  "collectible_without_card": false
+}

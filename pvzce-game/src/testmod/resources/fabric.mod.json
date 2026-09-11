@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "example",
+  "version": "1.0.0",
+  "name": "Example PVZCE Mod",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.example.ExampleMod"]
+  },
+  "depends": {
+    "pvzce": "*"
+  }
+}

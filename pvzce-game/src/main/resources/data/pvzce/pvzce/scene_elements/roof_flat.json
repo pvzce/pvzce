@@ -1,0 +1,8 @@
+{
+  "id": "pvzce:roof_flat",
+  "surface": "ROOF",
+  "accepts": [
+    "flower_pot"
+  ],
+  "max_height": 0
+}

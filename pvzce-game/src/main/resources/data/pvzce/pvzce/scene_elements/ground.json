@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:ground",
+  "surface": "GROUND",
+  "accepts": [
+    "plantable",
+    "flower_pot",
+    "grave"
+  ],
+  "max_height": 0
+}

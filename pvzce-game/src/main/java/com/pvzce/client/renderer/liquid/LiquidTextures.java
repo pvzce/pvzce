@@ -1,0 +1,124 @@
+package com.pvzce.client.renderer.liquid;
+
+import com.pvzce.api.content.LiquidDef;
+import com.pvzce.api.content.SceneElementDef;
+import com.pvzce.api.util.Identifier;
+import com.pvzce.client.PvzceClient;
+import com.pvzce.client.renderer.Matrix4f;
+import com.pvzce.client.renderer.RenderSystem;
+import com.pvzce.client.renderer.SceneTileRenderer;
+import com.pvzce.common.core.BuiltInRegistries;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * The single place that answers "what should this scene element be drawn as?", and
+ * the entry point every board renderer goes through to draw liquid.
+ *
+ * <p>Mirrors {@link com.pvzce.client.renderer.EntityTextures}: content id to
+ * presentation, resolved once. Three call sites need this answer - the in-game
+ * board, the seed chooser's preview and the editor's canvas - and they must agree,
+ * so neither the resolution nor the request assembly is repeated per call site.
+ *
+ * <p>Results are cached by scene id because a board asks for the same few ids
+ * thousands of times per frame and a registry lookup per cell is pure waste. The
+ * cache is cleared on reload, since that is when the definitions can change.
+ */
+public final class LiquidTextures {
+    private static final Map<String, Optional<LiquidDef>> CACHE = new HashMap<>();
+
+    /** Neutral daylight, for the boards that are drawn outside a running level. */
+    private static final float[] DAY_ENVIRONMENT = {1F, 1F, 1F, 0F, 0F, 1F, 1F, 1F, 0.35F};
+
+    private LiquidTextures() {
+    }
+
+    /** Resolves a scene element id to the liquid it should be drawn as. */
+    public static Optional<LiquidDef> liquidFor(String sceneId) {
+        if (sceneId == null || sceneId.isEmpty()) {
+            return Optional.empty();
+        }
+        return CACHE.computeIfAbsent(sceneId, LiquidTextures::resolve);
+    }
+
+    private static Optional<LiquidDef> resolve(String sceneId) {
+        Identifier id = Identifier.tryParse(sceneId);
+        if (id == null) {
+            return Optional.empty();
+        }
+        SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(id);
+        if (element == null || element.liquid().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(BuiltInRegistries.LIQUIDS.get(element.liquid().get()));
+    }
+
+    /** Must be called on every resource/data reload; definitions may have changed. */
+    public static void invalidate() {
+        CACHE.clear();
+    }
+
+    /**
+     * Draws one liquid layer of the running level's board.
+     *
+     * <p>Cells are in world units, so the caller passes one cell as {@code 1x1}
+     * and the board origin. Lighting comes from the client's resolved day/night
+     * state, which is what keeps the water the same colour as the grass at dusk.
+     *
+     * @param sceneId the scene element whose cells this is, so neighbouring cells
+     *                of the same element join into one continuous body
+     */
+    public static void renderWorld(PvzceClient client, LiquidDef liquid, String sceneId,
+                                   int width, int height, SceneTileRenderer.SceneSource scene) {
+        draw(client, liquid, sceneId, width, height, scene, 0F, 0F, 1F, 1F,
+                RenderSystem.currentProjection(),
+                client.worldTintR(), client.worldTintG(), client.worldTintB(),
+                client.worldTintLift(), client.worldNightBlend(),
+                client.worldLightX(), client.worldLightY(),
+                client.worldLightR(), client.worldLightG(), client.worldLightB(),
+                client.worldLightStrength());
+    }
+
+    /**
+     * Draws a board seen through a GUI rectangle, as the seed chooser preview does.
+     *
+     * <p>That board is not the running level, so there is no day/night state to
+     * read: it uses neutral daylight and a light placed above the middle of the
+     * board, which is what the chooser's own still lighting looks like.
+     *
+     */
+    public static void renderGuiBoard(PvzceClient client, LiquidDef liquid, String sceneId,
+                                      int width, int height, SceneTileRenderer.SceneSource scene,
+                                      float originX, float originY,
+                                      float pixelsPerCell, float pixelsPerCellY,
+                                      Matrix4f projection) {
+        draw(client, liquid, sceneId, width, height, scene, originX, originY,
+                pixelsPerCell, pixelsPerCellY, projection,
+                DAY_ENVIRONMENT[0], DAY_ENVIRONMENT[1], DAY_ENVIRONMENT[2], DAY_ENVIRONMENT[3],
+                DAY_ENVIRONMENT[4],
+                width / 2F, height * 2F, DAY_ENVIRONMENT[5], DAY_ENVIRONMENT[6],
+                DAY_ENVIRONMENT[7], DAY_ENVIRONMENT[8]);
+    }
+
+    private static void draw(PvzceClient client, LiquidDef liquid, String sceneId,
+                             int width, int height, SceneTileRenderer.SceneSource scene,
+                             float originX, float originY, float cellWidth, float cellHeight,
+                             Matrix4f projection,
+                             float tintR, float tintG, float tintB, float tintLift, float night,
+                             float lightX, float lightY, float lightR, float lightG, float lightB,
+                             float lightStrength) {
+        LiquidGeometry.Occupancy occupancy = (x, y) -> sceneId.equals(scene.sceneAt(x, y));
+        LiquidRenderer.Request request = new LiquidRenderer.Request(
+                liquid, width, height, occupancy, originX, originY, cellWidth, cellHeight,
+                projection, client.renderTimeSeconds(),
+                tintR, tintG, tintB, tintLift, night,
+                lightX, lightY, lightR, lightG, lightB, lightStrength);
+        if (LiquidRenderer.available()) {
+            LiquidRenderer.render(client, request, client.liquidRipples());
+        } else {
+            LiquidRenderer.renderFallback(client, request);
+        }
+    }
+}

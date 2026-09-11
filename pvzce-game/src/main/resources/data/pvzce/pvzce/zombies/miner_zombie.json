@@ -1,0 +1,19 @@
+{
+  "id": "pvzce:miner_zombie",
+  "health": 200,
+  "move_speed": 0.3,
+  "capabilities": [
+    {
+      "type": "pvzce:dig",
+      "speed": 1.2,
+      "emerge_ticks": 60
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "special": "pvzce:sfx/zombie/digger_zombie",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  }
+}

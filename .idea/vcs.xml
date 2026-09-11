@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/refer/ModMenu" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/refer/cloth-config" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/refer/fabric-api" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/refer/fabric-loader" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/refer/geckolib" vcs="Git" />
+  </component>
+</project>

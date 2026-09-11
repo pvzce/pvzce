@@ -1,0 +1,9 @@
+{
+  "id": "pvzce:grass",
+  "surface": "GRASS",
+  "accepts": [
+    "plantable",
+    "grave"
+  ],
+  "max_height": 0
+}

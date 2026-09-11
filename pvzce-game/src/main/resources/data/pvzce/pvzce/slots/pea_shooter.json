@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:pea_shooter",
+  "kind": "plant",
+  "content": "pvzce:pea_shooter",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/pea_shooter"
+}

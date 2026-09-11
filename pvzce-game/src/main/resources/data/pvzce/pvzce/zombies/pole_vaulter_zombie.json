@@ -1,0 +1,18 @@
+{
+  "id": "pvzce:pole_vaulter_zombie",
+  "health": 200,
+  "move_speed": 0.3,
+  "capabilities": [
+    {
+      "type": "pvzce:vault",
+      "jump_distance": 1.4
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "special": "pvzce:sfx/zombie/polevault",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  }
+}

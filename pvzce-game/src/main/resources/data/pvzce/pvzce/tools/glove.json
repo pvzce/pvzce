@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:glove",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 180,
+  "targets": [
+    "plant"
+  ],
+  "effect": "pvzce:glove",
+  "uses": 3
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "example_mod",
+  "version": "1.0.0",
+  "name": "Example Mod",
+  "description": "PVZCE empty demo mod template.",
+  "authors": ["PVZCE"],
+  "license": "MIT",
+  "environment": "*",
+  "depends": { "pvzce": "*" }
+}

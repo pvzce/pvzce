@@ -1,0 +1,1666 @@
+{
+  "sfx/ui/achievement": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/achievement",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/awooga": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/awooga",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/balloon_pop": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/balloon_pop",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/ballooninflate": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/ballooninflate",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/basketball": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/basketball",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/bigchomp": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/bigchomp",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/bleep": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/bleep",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/blover": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/blover",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/boing": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/boing",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/bonk": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/bonk",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/bossboulderattack": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/bossboulderattack",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/bossexplosion": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/bossexplosion",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/bowling": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/bowling",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/bowlingimpact": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/bowlingimpact",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/bowlingimpact2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/bowlingimpact2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/bugspray": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/bugspray",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/bungee_scream": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/bungee_scream",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/bungee_scream2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/bungee_scream2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/bungee_scream3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/bungee_scream3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/butter": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/butter",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/buttonclick": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/buttonclick",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/buzzer": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/buzzer",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/ceramic": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/ceramic",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/cerebrawl": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/cerebrawl",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/plant/cherrybomb": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/cherrybomb",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/chime": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/chime",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/chomp": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/chomp",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/effect/chomp2",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/effect/chompsoft",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/chomp2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/chomp2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/chompsoft": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/chompsoft",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/choose_your_seeds": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/choose_your_seeds",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/plant/coblaunch": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/coblaunch",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/coffee": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/coffee",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/coin": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/coin",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazy_dave": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/crazy_dave",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/misc/crazydavecrazy": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydavecrazy",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydaveextralong1": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydaveextralong1",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydaveextralong2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydaveextralong2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydaveextralong3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydaveextralong3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydavelong1": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydavelong1",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydavelong2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydavelong2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydavelong3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydavelong3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydavescream": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydavescream",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydavescream2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydavescream2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydaveshort1": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydaveshort1",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydaveshort2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydaveshort2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/crazydaveshort3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/crazydaveshort3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/dancer": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/dancer",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/diamond": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/diamond",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/digger_zombie": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/digger_zombie",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/dirt_rise": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/dirt_rise",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/dolphin_appears": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/dolphin_appears",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/dolphin_before_jumping": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/dolphin_before_jumping",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/doomshroom": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/doomshroom",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/evillaugh": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/evillaugh",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/explosion": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/explosion",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/fertilizer": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/fertilizer",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/finalfanfare": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/finalfanfare",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/finalwave": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/finalwave",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/firepea": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/firepea",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/floop": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/floop",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/frozen": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/frozen",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/fume": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/fume",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/gargantuar_thump": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/gargantuar_thump",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/gargantudeath": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/gargantudeath",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/grassstep": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/grassstep",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/grasswalk": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/grasswalk",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/plant/gravebusterchomp": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/gravebusterchomp",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/gravebutton": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/gravebutton",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/gravestone_rumble": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/gravestone_rumble",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/graze_the_roof": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/graze_the_roof",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/zombie/groan": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan2",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan3",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan4",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan5",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan6",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/groan2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/groan3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/groan4": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan4",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/groan5": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan5",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/groan6": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/groan6",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/gulp": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/gulp",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/hatchback_close": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/hatchback_close",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/hatchback_open": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/hatchback_open",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/hugewave": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/hugewave",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/hydraulic": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/hydraulic",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/hydraulic_short": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/hydraulic_short",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/ignite": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/ignite",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/ignite2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/ignite2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/imp": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/imp",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/imp2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/imp2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/jack_surprise": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/jack_surprise",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/jack_surprise2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/jack_surprise2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/jackinthebox": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/jackinthebox",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/jalapeno": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/jalapeno",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/juicy": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/juicy",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/kernelpult": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/kernelpult",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/plant/kernelpult2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/kernelpult2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/kernelpult2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/ladder_zombie": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/ladder_zombie",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/lawnmower": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/lawnmower",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/lightfill": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/lightfill",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/limbs_pop": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/limbs_pop",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/loadingbar_flower": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/loadingbar_flower",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/loadingbar_zombie": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/loadingbar_zombie",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/loon_boon": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/loon_boon",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/ui/losemusic": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/losemusic",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/lowgroan": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/lowgroan",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/lowgroan2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/lowgroan2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/magnetshroom": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/magnetshroom",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/melonimpact": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/melonimpact",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/plant/melonimpact2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/melonimpact2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/melonimpact2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/mindcontrolled": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/mindcontrolled",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/moneyfalls": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/moneyfalls",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/moongrains": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/moongrains",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/zombie/newspaper_rarrgh": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/newspaper_rarrgh",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/newspaper_rarrgh2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/newspaper_rarrgh2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/newspaper_rip": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/newspaper_rip",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/paper": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/paper",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/pause": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/pause",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/phonograph": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/phonograph",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/plant": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/plant",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/plant2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/plant2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/plant_water": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/plant_water",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/plantern": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/plantern",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/plantgrow": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/plantgrow",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/plastichit": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/plastichit",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/effect/plastichit2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/plastichit2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/plastichit2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/pogo_zombie": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/pogo_zombie",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/points": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/points",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/polevault": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/polevault",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/pool_cleaner": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/pool_cleaner",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/portal": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/portal",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/potato_mine": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/potato_mine",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/prize": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/prize",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/puff": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/puff",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/rain": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/rain",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ambient/readysetplant": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/readysetplant",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/reverse_explosion": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/reverse_explosion",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/rigor_mormist": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/rigor_mormist",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/ambient/roll_in": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ambient/roll_in",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/rvthrow": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/rvthrow",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/scream": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/scream",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/seedlift": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/seedlift",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/shieldhit": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/shieldhit",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/zombie/shieldhit2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/shieldhit2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/shieldhit2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/shoop": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/shoop",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/shovel": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/shovel",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/siren": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/siren",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/slotmachine": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/slotmachine",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/slurp": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/slurp",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/snow_pea_sparkles": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/snow_pea_sparkles",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/splat": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/splat",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/splat2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/splat2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/splat3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/splat3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/squash_hmm": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/squash_hmm",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/squash_hmm2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/squash_hmm2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/sukhbir": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/sukhbir",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/sukhbir2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/sukhbir2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/sukhbir3": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/sukhbir3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/sukhbir4": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/sukhbir4",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/sukhbir5": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/sukhbir5",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/sukhbir6": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/misc/sukhbir6",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/swing": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/swing",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/tap": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/tap",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/tap2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/tap2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/tapglass": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/tapglass",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/throw": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/throw",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/plant/throw2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/plant/throw2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/throw2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/thunder": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/thunder",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/ultimate_battle": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/ultimate_battle",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/effect/vase_breaking": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/vase_breaking",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/wakeup": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/wakeup",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/watering": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/watering",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/watery_graves": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/watery_graves",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/ui/winmusic": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/winmusic",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/yuck": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/yuck",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/yuck2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/yuck2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/zamboni": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zamboni",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/misc/zen_garden": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/zen_garden",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/zombie/zombaquarium_die": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zombaquarium_die",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/zombie_entering_water": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zombie_entering_water",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/zombie_falling_1": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zombie_falling_1",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/zombie_falling_2": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zombie_falling_2",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/zombies_on_your_lawn": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zombies_on_your_lawn",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/zombie/zombiesplash": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/zombie/zombiesplash",
+        "stream": false
+      }
+    ]
+  },
+  "music/cerebrawl": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/cerebrawl",
+        "stream": true
+      }
+    ]
+  },
+  "music/choose_your_seeds": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/choose_your_seeds",
+        "stream": true
+      }
+    ]
+  },
+  "music/crazy_dave": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/crazy_dave",
+        "stream": true
+      }
+    ]
+  },
+  "music/grasswalk": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/grasswalk",
+        "stream": true
+      }
+    ]
+  },
+  "music/graze_the_roof": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/graze_the_roof",
+        "stream": true
+      }
+    ]
+  },
+  "music/loon_boon": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/loon_boon",
+        "stream": true
+      }
+    ]
+  },
+  "music/moongrains": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/moongrains",
+        "stream": true
+      }
+    ]
+  },
+  "music/rigor_mormist": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/rigor_mormist",
+        "stream": true
+      }
+    ]
+  },
+  "music/ultimate_battle": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/ultimate_battle",
+        "stream": true
+      }
+    ]
+  },
+  "music/watery_graves": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/watery_graves",
+        "stream": true
+      }
+    ]
+  },
+  "music/zen_garden": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/zen_garden",
+        "stream": true
+      }
+    ]
+  },
+  "sfx/plant/shoot_pea": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/plant/throw",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/effect/bite": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/effect/chomp",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/effect/chomp2",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/effect/chompsoft",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/click": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/buttonclick",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/collect": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/ui/points",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/projectile/hit": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/sfx/projectile/splat",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/projectile/splat2",
+        "stream": false
+      },
+      {
+        "name": "pvzce:sounds/sfx/projectile/splat3",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/win": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/winmusic",
+        "stream": false
+      }
+    ]
+  },
+  "sfx/ui/lose": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/losemusic",
+        "stream": false
+      }
+    ]
+  },
+  "music/win": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/winmusic",
+        "stream": true
+      }
+    ]
+  },
+  "music/lose": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/losemusic",
+        "stream": true
+      }
+    ]
+  }
+}

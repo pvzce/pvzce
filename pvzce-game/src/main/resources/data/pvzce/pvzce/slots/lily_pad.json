@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:lily_pad",
+  "kind": "plant",
+  "content": "pvzce:lily_pad",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/lily_pad"
+}

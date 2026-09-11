@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+base {
+    archivesName = 'example-mod'
+}
+
+dependencies {
+    // The template is part of the main build for end-to-end verification.
+    // Third-party copies replace these with com.pvzce:pvzce-game & pvzce-loader artifacts.
+    implementation project(':pvzce-game')
+    implementation project(':pvzce-loader')
+}
+

@@ -1,0 +1,25 @@
+{
+  "id": "pvzce:buckethead_zombie",
+  "health": 200,
+  "move_speed": 0.18,
+  "capabilities": [
+    {
+      "type": "pvzce:armor",
+      "post_armor_speed": -1,
+      "pieces": [
+        {
+          "id": "pvzce:bucket",
+          "durability": 1100,
+          "position": "top"
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "armor_hit": "pvzce:sfx/zombie/shieldhit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:flower_pot",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "placement": {
+    "feet": "ground",
+    "count": 1
+  },
+  "capabilities": []
+}

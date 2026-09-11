@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+base {
+    archivesName = 'pvzce-api'
+}
+
+dependencies {
+    // Mods compile against the loader API; the game API sits on top of it.
+    api project(':pvzce-loader')
+
+    api "com.mojang:datafixerupper:${project.dfu_version}"
+    api "com.google.code.gson:gson:${project.gson_version}"
+    compileOnly 'org.jetbrains:annotations:23.0.0'
+
+    testImplementation "org.junit.jupiter:junit-jupiter:${project.junit_version}"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

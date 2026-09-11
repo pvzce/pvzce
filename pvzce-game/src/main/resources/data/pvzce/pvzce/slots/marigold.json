@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:marigold",
+  "kind": "plant",
+  "content": "pvzce:marigold",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/marigold"
+}

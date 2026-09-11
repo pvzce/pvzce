@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:chomper",
+  "kind": "plant",
+  "content": "pvzce:chomper",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/chomper"
+}

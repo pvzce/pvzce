@@ -1,0 +1,21 @@
+{
+  "id": "pvzce:sunflower",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:producer",
+      "resource": "pvzce:sun",
+      "amount": 25,
+      "every": 1440
+    }
+  ],
+  "sounds": {
+    "produce": "pvzce:sfx/ui/points"
+  }
+}

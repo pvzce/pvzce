@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:imp",
+  "health": 120,
+  "move_speed": 0.23,
+  "capabilities": [],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/imp",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  }
+}

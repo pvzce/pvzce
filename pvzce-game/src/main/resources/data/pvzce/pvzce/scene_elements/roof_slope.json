@@ -1,0 +1,8 @@
+{
+  "id": "pvzce:roof_slope",
+  "surface": "ROOF_SLOPE",
+  "accepts": [
+    "flower_pot"
+  ],
+  "max_height": 0.4
+}
