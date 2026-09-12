@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:cabbage_pult",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 170,
+      "shots": [
+        {
+          "projectile": "pvzce:cabbage",
+          "damage": 40,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/cabbage_pult",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/throw"
+  }
+}

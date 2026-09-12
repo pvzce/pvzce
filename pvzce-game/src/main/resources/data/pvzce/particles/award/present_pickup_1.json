@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:present_pickup_1",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.2,
+    "color": [
+      1.0,
+      1.0,
+      0.6
+    ],
+    "life": 0.8333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/award/star40"
+  },
+  "motion": {
+    "speed": 0.0625,
+    "gravity": -1.73611e-05
+  },
+  "additive": true,
+  "count": 20
+}

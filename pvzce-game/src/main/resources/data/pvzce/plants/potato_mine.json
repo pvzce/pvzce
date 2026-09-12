@@ -1,0 +1,30 @@
+{
+  "id": "pvzce:potato_mine",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:explosive",
+      "trigger": "proximity",
+      "fuse_ticks": 900,
+      "radius": 0.55,
+      "damage": 1800,
+      "trigger_range": 0.6
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/plant/potato_mine"
+  },
+  "placement": {
+    "layer": 1,
+    "count": 1,
+    "group": "under_plant"
+  },
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/potato_mine"
+}

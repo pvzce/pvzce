@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:snow_pea",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 175
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:snow_pea",
+          "damage": 20,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/snow_pea",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  }
+}

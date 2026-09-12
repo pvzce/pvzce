@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:daisy",
+  "look": {
+    "alpha_to": 1.0,
+    "scale": 0.6,
+    "life": 300.0,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/effect/daisy"
+  },
+  "count": 8,
+  "count_spread": 2
+}

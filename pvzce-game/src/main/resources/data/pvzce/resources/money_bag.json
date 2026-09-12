@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:money_bag",
+  "default_value": 250,
+  "collectible": true,
+  "icon": "pvzce:textures/resource/money_bag",
+  "drop_anim": "pvzce:money_bag",
+  "max_stack": 9990,
+  "collectible_without_card": true,
+  "texture": "pvzce:textures/entities/resource/money_bag",
+  "drop_motion": "landed"
+}

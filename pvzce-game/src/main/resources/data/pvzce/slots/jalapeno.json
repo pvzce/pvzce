@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:jalapeno",
+  "kind": "plant",
+  "content": "pvzce:jalapeno",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/jalapeno"
+}

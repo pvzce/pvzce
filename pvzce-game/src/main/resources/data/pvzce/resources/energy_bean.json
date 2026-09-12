@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:energy_bean",
+  "default_value": 1,
+  "collectible": true,
+  "icon": "pvzce:textures/resource/energy_bean",
+  "drop_anim": "pvzce:sun_fall",
+  "max_stack": 99,
+  "collectible_without_card": false,
+  "texture": "pvzce:textures/entities/resource/energy_bean",
+  "drop_motion": "landed"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:split_pea",
+  "kind": "plant",
+  "content": "pvzce:split_pea",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/split_pea"
+}

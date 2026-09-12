@@ -1,0 +1,22 @@
+{
+  "id": "pvzce:mower_cloud_powie_big_clouds",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.6,
+    "color": [
+      0.5,
+      0.55,
+      0.45
+    ],
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/effect/explosioncloud"
+  },
+  "motion": {
+    "speed": 0.0833333
+  },
+  "count": 10
+}

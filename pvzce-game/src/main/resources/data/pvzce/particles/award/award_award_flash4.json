@@ -1,0 +1,18 @@
+{
+  "id": "pvzce:award_award_flash4",
+  "look": {
+    "alpha_from": 0.2,
+    "alpha_to": 0.2,
+    "color": [
+      1.0,
+      1.0,
+      0.8
+    ],
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/award/awardglow"
+  },
+  "count": 40,
+  "count_spread": 40
+}

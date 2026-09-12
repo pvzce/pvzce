@@ -1,0 +1,37 @@
+{
+  "id": "pvzce:puff_shroom_muzzle",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_from": 0.3,
+    "alpha_to": 0.3,
+    "scale": 0.2,
+    "scale_curve": [
+      [
+        0.0,
+        0.6
+      ],
+      [
+        0.3333,
+        0.6
+      ],
+      [
+        0.6667,
+        0.6
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "life": 0.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/puffshroom_puff2"
+  },
+  "motion": {
+    "gravity": -1.73611e-05
+  },
+  "count": 7,
+  "count_spread": 1
+}

@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:gloom_cloud_gloom_south",
+  "look": {
+    "alpha_from": 0.9,
+    "alpha_to": 0.9,
+    "scale": 0.7,
+    "life": 0.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/puffshroom_puff1"
+  },
+  "count": 10,
+  "count_spread": 10
+}

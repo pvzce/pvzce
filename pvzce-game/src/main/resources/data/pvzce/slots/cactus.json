@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:cactus",
+  "kind": "plant",
+  "content": "pvzce:cactus",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/cactus"
+}

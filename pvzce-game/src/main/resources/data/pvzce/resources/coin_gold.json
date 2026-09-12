@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:coin_gold",
+  "default_value": 50,
+  "collectible": true,
+  "icon": "pvzce:textures/resource/coin_gold",
+  "drop_anim": "pvzce:coin_gold",
+  "max_stack": 9990,
+  "collectible_without_card": true,
+  "animation_dir": "resource",
+  "texture": "pvzce:textures/entities/resource/coin_gold",
+  "drop_motion": "landed"
+}

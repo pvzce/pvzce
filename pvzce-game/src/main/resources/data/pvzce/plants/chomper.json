@@ -1,0 +1,23 @@
+{
+  "id": "pvzce:chomper",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 150
+    },
+    "cooldown": 600
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:melee",
+      "range": 0.7,
+      "swallow_max_health": 400,
+      "chew_ticks": 1800
+    }
+  ],
+  "sounds": {
+    "melee": "pvzce:sfx/plant/chomp"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/chomper"
+}

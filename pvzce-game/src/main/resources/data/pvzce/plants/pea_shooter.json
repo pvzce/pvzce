@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:pea_shooter",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/pea_shooter"
+}

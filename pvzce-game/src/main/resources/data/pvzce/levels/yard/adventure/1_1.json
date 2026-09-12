@@ -1,0 +1,114 @@
+{
+  "id": "pvzce:yard/adventure/1_1",
+  "name": "1-1",
+  "description": "冒险模式第一关：只有一行草坪，你只带了豌豆射手。撑过几只普通僵尸，就能获得向日葵。",
+  "width": 9,
+  "height": 1,
+  "scene": {
+    "pvzce:grass": [
+      "0,0",
+      "1,0",
+      "2,0",
+      "3,0",
+      "4,0",
+      "5,0",
+      "6,0",
+      "7,0",
+      "8,0"
+    ]
+  },
+  "teams": [
+    {
+      "id": "pvzce:plant_team",
+      "name": "植物方",
+      "win_condition": "survive_waves"
+    },
+    {
+      "id": "pvzce:zombie_team",
+      "name": "僵尸方",
+      "win_condition": "plant_side_lost"
+    }
+  ],
+  "win_team": "pvzce:plant_team",
+  "rules": {
+    "pvzce:day_length": 0,
+    "pvzce:night_length": -1,
+    "pvzce:sun_spawn_chance": 0.0017
+  },
+  "env_vars": {},
+  "wave_interval_end_multiplier": 1.0,
+  "waves": [
+    {
+      "type": "small",
+      "delay": 1500,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1
+        }
+      ],
+      "spawn_interval": 420
+    },
+    {
+      "type": "small",
+      "delay": 1500,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2
+        }
+      ],
+      "spawn_interval": 300
+    },
+    {
+      "type": "final",
+      "delay": 1500,
+      "warning_ticks": 180,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2
+        }
+      ],
+      "spawn_interval": 300
+    }
+  ],
+  "slots": [
+    "pvzce:pea_shooter",
+    "pvzce:sun"
+  ],
+  "max_seed_slots": 2,
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "initial_sun": 50,
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:sunflower"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 100
+      }
+    ],
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1,
+    "coin_drop": "pvzce:coin_silver"
+  },
+  "music": {
+    "cues": [
+      {
+        "at_tick": 0,
+        "track": "background",
+        "event": "pvzce:music/grasswalk",
+        "loop": true,
+        "volume": 0.85,
+        "fade_seconds": 1.0
+      }
+    ]
+  }
+}

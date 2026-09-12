@@ -1,0 +1,162 @@
+package com.pvzce.client.gui;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.resource.PvzceResourceManager;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Display names for content ids, read from {@code assets/<ns>/lang/<locale>.json}.
+ *
+ * <p>The language files have shipped since the first phase but nothing ever read
+ * them, so every UI that needed a name fell back to the raw id: the editor's
+ * palette listed {@code pvzce:pea_shooter}, the wave table listed
+ * {@code pvzce:buckethead_zombie}, and the seed chooser did the same on hover.
+ * MC's convention is {@code <namespace>.<path>} as the key, which is what the
+ * built-in files already use ({@code "pvzce.pea_shooter": "豌豆射手"}).
+ *
+ * <p>Lookup is a flat map with no fallback chain to the base language: the
+ * built-in {@code zh_cn} file is the base, and a resource pack that ships only a
+ * partial {@code en_us} would otherwise blank out every name it omits. Missing
+ * keys degrade to the path, and callers that want both show {@link #name} beside
+ * {@link #idLabel}.
+ *
+ * <p>Static rather than injected because it is read-only data with one game-wide
+ * value; it is loaded once at client start and again on {@code /reload}.
+ */
+public final class GuiLang {
+    /** The locale the built-in files are authored in; also the fallback. */
+    public static final String DEFAULT_LOCALE = "zh_cn";
+
+    private static volatile Map<String, String> strings = Map.of();
+    private static volatile String locale = DEFAULT_LOCALE;
+
+    private GuiLang() {
+    }
+
+    /** Loads the configured locale, falling back to {@link #DEFAULT_LOCALE}. */
+    public static void reload(PvzceResourceManager resources, String wantedLocale) {
+        String target = wantedLocale == null || wantedLocale.isBlank() ? DEFAULT_LOCALE : wantedLocale;
+        Map<String, String> loaded = read(resources, target);
+        if (loaded.isEmpty() && !DEFAULT_LOCALE.equals(target)) {
+            // A pack asked for a locale nothing provides; the built-in one is still
+            // better than showing ids everywhere.
+            loaded = read(resources, DEFAULT_LOCALE);
+            target = DEFAULT_LOCALE;
+        }
+        locale = target;
+        strings = Collections.unmodifiableMap(loaded);
+    }
+
+    public static void reload(PvzceResourceManager resources) {
+        reload(resources, DEFAULT_LOCALE);
+    }
+
+    public static String locale() {
+        return locale;
+    }
+
+    private static Map<String, String> read(PvzceResourceManager resources, String wantedLocale) {
+        if (resources == null) {
+            return Map.of();
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        // Every namespace that has a language file, the built-in one last so a
+        // pack's entry wins while the built-in file still provides the fallback for
+        // everything the pack omits.
+        java.util.List<String> namespaces = new java.util.ArrayList<>();
+        try {
+            for (String path : resources.listResources("assets").keySet()) {
+                String[] parts = path.split("/");
+                if (parts.length > 3 && "lang".equals(parts[2])
+                        && (wantedLocale + ".json").equals(parts[3]) && !namespaces.contains(parts[1])) {
+                    namespaces.add(parts[1]);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[PVZCE] Could not list language files: " + e.getMessage());
+        }
+        java.util.Collections.sort(namespaces);
+        // The built-in namespace is read last so a pack's translation wins while the
+        // built-in file still covers what the pack omits.
+        namespaces.remove("pvzce");
+        namespaces.add("pvzce");
+        for (String namespace : namespaces) {
+            try {
+                var resource = resources.getAsset(Identifier.of(namespace, "lang/" + wantedLocale + ".json"));
+                if (resource.isEmpty()) {
+                    continue;
+                }
+                JsonElement json = JsonParser.parseString(resource.get().readString());
+                if (!json.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = json.getAsJsonObject();
+                for (Map.Entry<String, JsonElement> entry : object.entrySet()) {
+                    if (entry.getValue().isJsonPrimitive()) {
+                        result.put(entry.getKey(), entry.getValue().getAsString());
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[PVZCE] Failed to read lang/" + wantedLocale
+                        + ".json from " + namespace + ": " + e.getMessage());
+            }
+        }
+        return result;
+    }
+
+    /** True when a language file was found and parsed. */
+    public static boolean isLoaded() {
+        return !strings.isEmpty();
+    }
+
+    /**
+     * The display name of a content id, or {@code null} when the language file has
+     * no entry. Callers that must show something use {@link #name} instead.
+     */
+    public static String lookup(Identifier id) {
+        if (id == null) {
+            return null;
+        }
+        return strings.get(id.namespace() + "." + id.path());
+    }
+
+    public static String lookup(String id) {
+        return lookup(Identifier.tryParse(id));
+    }
+
+    /**
+     * The display name of a content id, falling back to the id's path.
+     *
+     * <p>Deliberately never returns the raw {@code namespace:path}: a missing
+     * translation should look like a name the author can fix, not like a debugging
+     * dump in a list row.
+     */
+    public static String name(Identifier id) {
+        String found = lookup(id);
+        return found != null ? found : GuiText.shortId(id);
+    }
+
+    public static String name(String id) {
+        return name(Identifier.tryParse(id));
+    }
+
+    /**
+     * The {@code namespace:path} form, for the places that must stay unambiguous
+     * (a tooltip, the level id field). Kept separate from {@link #name} so callers
+     * choose explicitly instead of one function guessing.
+     */
+    public static String idLabel(Identifier id) {
+        return id == null ? "" : id.toString();
+    }
+
+    /** A translation by raw key, for the UI's own strings. */
+    public static String raw(String key, String fallback) {
+        return strings.getOrDefault(key, fallback);
+    }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:melon_pult",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 300
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 130,
+      "shots": [
+        {
+          "projectile": "pvzce:melon",
+          "damage": 80,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/melon_pult",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/throw"
+  }
+}

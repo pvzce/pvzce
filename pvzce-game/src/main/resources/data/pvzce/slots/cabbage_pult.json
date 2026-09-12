@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:cabbage_pult",
+  "kind": "plant",
+  "content": "pvzce:cabbage_pult",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/cabbage_pult"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "pvzce:mind_control",
+  "look": {
+    "alpha_from": 0.0,
+    "alpha_to": 0.7,
+    "alpha_curve": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.3333,
+        0.7
+      ],
+      [
+        0.6667,
+        0.7
+      ],
+      [
+        1.0,
+        0.7
+      ]
+    ],
+    "scale": 0.3,
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/effect/mindcontrol"
+  },
+  "motion": {
+    "speed": 0.0208333
+  },
+  "count": 20
+}

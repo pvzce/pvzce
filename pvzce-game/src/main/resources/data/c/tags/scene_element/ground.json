@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "pvzce:grass",
+    "pvzce:ground",
+    "pvzce:roof_flat",
+    "pvzce:roof_slope"
+  ]
+}

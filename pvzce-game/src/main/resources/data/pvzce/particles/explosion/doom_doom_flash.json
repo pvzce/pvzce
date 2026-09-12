@@ -1,0 +1,17 @@
+{
+  "id": "pvzce:doom_doom_flash",
+  "look": {
+    "alpha_to": 1.0,
+    "scale": 1600.0,
+    "color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "life": 0.8333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/whitepixel"
+  },
+  "count": 1
+}

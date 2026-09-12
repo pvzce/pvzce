@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:gargantuar",
+  "health": 2500,
+  "move_speed": 0.08,
+  "capabilities": [
+    {
+      "type": "pvzce:hammer",
+      "interval": 120,
+      "throws_imp": true,
+      "imp": "pvzce:imp",
+      "imp_interval": 600,
+      "imp_cells_ahead": 3
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "special": "pvzce:sfx/zombie/gargantuar_thump",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/gargantudeath"
+  },
+  "animation_dir": "zombie/giant",
+  "texture": "pvzce:textures/entities/zombie/giant/gargantuar"
+}

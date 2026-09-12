@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:butter",
+  "layer": "air",
+  "capabilities": [
+    {
+      "type": "pvzce:arc",
+      "speed": 2.2,
+      "gravity": 9.0
+    },
+    {
+      "type": "pvzce:status",
+      "effects": [
+        {
+          "status": "immobilized",
+          "ticks": 240
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/plant/butter"
+  },
+  "texture": "pvzce:textures/entities/projectile/butter"
+}

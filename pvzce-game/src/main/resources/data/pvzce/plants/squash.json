@@ -1,0 +1,25 @@
+{
+  "id": "pvzce:squash",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 1800
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:explosive",
+      "trigger": "proximity",
+      "fuse_ticks": 60,
+      "radius": 0.8,
+      "damage": 1800,
+      "trigger_range": 0.6
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/plant/squash_hmm"
+  },
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/squash"
+}

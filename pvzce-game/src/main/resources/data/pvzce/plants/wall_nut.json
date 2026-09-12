@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:wall_nut",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 300
+  },
+  "health": 4000,
+  "capabilities": [],
+  "animation_dir": "plant/defense",
+  "texture": "pvzce:textures/entities/plant/defense/wall_nut"
+}

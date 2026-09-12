@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:water",
+  "base_texture": "pvzce:textures/scene/water_base",
+  "shallow_color": "#4FA8C8C8",
+  "deep_color": "#1E6E8C",
+  "opacity": 0.68,
+  "depth_scale": 1.6,
+  "base_scale": 0.2857,
+  "foam": {
+    "color": "#BFE0DE",
+    "width": 0.04
+  },
+  "wave": {
+    "speed": 0.055,
+    "amplitude": 0.55,
+    "density": 2
+  },
+  "caustics": 0.55,
+  "reflect_color": "#9FC7E8",
+  "fresnel": 0.35,
+  "specular": 0.45,
+  "specular_power": 72,
+  "static_frames": 4
+}

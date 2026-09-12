@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:cherry_bomb",
+  "kind": "plant",
+  "content": "pvzce:cherry_bomb",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/cherry_bomb"
+}

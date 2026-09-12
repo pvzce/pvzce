@@ -1,0 +1,37 @@
+{
+  "id": "pvzce:zombie_newspaper_head_glasses",
+  "look": {
+    "spin": 0.0,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.3333,
+        1.0
+      ],
+      [
+        0.6667,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 0.8,
+    "life": 3.0,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/zombie/reanim/zombie_paper_glasses"
+  },
+  "motion": {
+    "speed": 0.104167,
+    "angle": 160.0,
+    "angle_spread": 20.0,
+    "gravity": -5.90278e-05,
+    "bounce": true
+  },
+  "count": 1
+}

@@ -1,0 +1,22 @@
+{
+  "id": "pvzce:powie",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.0,
+    "color": [
+      1.0,
+      0.7,
+      0.0
+    ],
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/explosioncloud"
+  },
+  "motion": {
+    "speed": 0.416667
+  },
+  "count": 14
+}

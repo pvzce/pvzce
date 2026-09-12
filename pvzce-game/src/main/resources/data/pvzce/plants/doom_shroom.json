@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:doom_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 3000
+  },
+  "health": 100,
+  "capabilities": [
+    {
+      "type": "pvzce:explosive",
+      "trigger": "timed",
+      "fuse_ticks": 90,
+      "radius": 3.5,
+      "damage": 1800
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/plant/doomshroom"
+  },
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/doom_shroom"
+}

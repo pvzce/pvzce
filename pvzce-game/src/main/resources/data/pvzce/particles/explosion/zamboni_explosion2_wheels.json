@@ -1,0 +1,37 @@
+{
+  "id": "pvzce:zamboni_explosion2_wheels",
+  "look": {
+    "spin": 0.0,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.3333,
+        1.0
+      ],
+      [
+        0.6667,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 0.8,
+    "life": 1.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/reanim/zombie_zamboni_wheel"
+  },
+  "motion": {
+    "speed": 0.166667,
+    "angle": 165.0,
+    "angle_spread": 70.0,
+    "gravity": -4.51389e-05
+  },
+  "count": 5,
+  "count_spread": 5
+}

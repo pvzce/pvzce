@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:melon_pult",
+  "kind": "plant",
+  "content": "pvzce:melon_pult",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/melon_pult"
+}

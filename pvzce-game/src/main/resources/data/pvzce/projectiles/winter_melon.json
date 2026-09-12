@@ -1,0 +1,29 @@
+{
+  "id": "pvzce:winter_melon",
+  "layer": "air",
+  "capabilities": [
+    {
+      "type": "pvzce:arc",
+      "speed": 2.0,
+      "gravity": 9.0
+    },
+    {
+      "type": "pvzce:splash",
+      "radius": 1.5
+    },
+    {
+      "type": "pvzce:status",
+      "effects": [
+        {
+          "status": "slow",
+          "ticks": 240,
+          "magnitude": 0.5
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/plant/melonimpact2"
+  },
+  "texture": "pvzce:textures/entities/projectile/melon"
+}

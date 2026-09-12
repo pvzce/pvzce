@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:newspaper_zombie",
+  "health": 200,
+  "move_speed": 0.18,
+  "capabilities": [
+    {
+      "type": "pvzce:armor",
+      "post_armor_speed": 0.45,
+      "pieces": [
+        {
+          "id": "pvzce:newspaper",
+          "durability": 440,
+          "position": "front"
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "armor_hit": "pvzce:sfx/effect/plastichit",
+    "special": "pvzce:sfx/zombie/newspaper_rarrgh",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation_dir": "zombie/armored",
+  "texture": "pvzce:textures/entities/zombie/armored/newspaper_zombie"
+}

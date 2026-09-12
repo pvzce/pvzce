@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:doom_doom_mushroom_top_center",
+  "look": {
+    "spin": 9000.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.6,
+    "life": 2.5,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/doomshroom_explosion_top"
+  },
+  "count": 2
+}

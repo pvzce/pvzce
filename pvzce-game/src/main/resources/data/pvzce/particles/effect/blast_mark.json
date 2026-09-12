@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:blast_mark",
+  "look": {
+    "alpha_to": 1.0,
+    "life": 0.5,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/effect/blastmark"
+  },
+  "count": 1
+}

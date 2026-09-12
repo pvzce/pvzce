@@ -1,0 +1,23 @@
+{
+  "id": "pvzce:marigold",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:producer",
+      "resource": "pvzce:coin_silver",
+      "amount": 10,
+      "every": 1440
+    }
+  ],
+  "sounds": {
+    "produce": "pvzce:sfx/ui/coin"
+  },
+  "animation_dir": "plant/producer",
+  "texture": "pvzce:textures/entities/plant/producer/marigold"
+}

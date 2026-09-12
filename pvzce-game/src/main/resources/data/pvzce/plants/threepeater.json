@@ -1,0 +1,42 @@
+{
+  "id": "pvzce:threepeater",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 325
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1,
+          "row_offset": -1,
+          "rows": 2
+        },
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1,
+          "row_offset": 0
+        },
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1,
+          "row_offset": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/threepeater",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  }
+}

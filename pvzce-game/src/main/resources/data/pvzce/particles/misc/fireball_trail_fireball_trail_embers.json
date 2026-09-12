@@ -1,0 +1,17 @@
+{
+  "id": "pvzce:fireball_trail_fireball_trail_embers",
+  "look": {
+    "alpha_to": 1.0,
+    "scale": 0.2,
+    "life": 0.1667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/zombie_boss_fireball_additiveparticle"
+  },
+  "motion": {
+    "speed": 0.003125,
+    "angle": 180.0,
+    "angle_spread": 120.0
+  },
+  "additive": true
+}

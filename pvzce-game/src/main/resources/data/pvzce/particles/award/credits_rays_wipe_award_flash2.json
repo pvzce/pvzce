@@ -1,0 +1,19 @@
+{
+  "id": "pvzce:credits_rays_wipe_award_flash2",
+  "look": {
+    "alpha_from": 0.2,
+    "alpha_to": 0.2,
+    "color": [
+      1.0,
+      1.0,
+      0.9
+    ],
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/award/awardglow"
+  },
+  "additive": true,
+  "count": 10,
+  "count_spread": 10
+}

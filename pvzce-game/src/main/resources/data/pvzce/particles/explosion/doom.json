@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:doom",
+  "look": {
+    "alpha_to": 1.0,
+    "scale": 0.9,
+    "life": 2.5,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/doomshroom_explosion_stem"
+  },
+  "count": 1
+}

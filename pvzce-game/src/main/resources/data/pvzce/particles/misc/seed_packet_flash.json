@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:seed_packet_flash",
+  "look": {
+    "alpha_to": 1.0,
+    "life": 0.4167,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/seedpacketflash"
+  },
+  "count": 1
+}

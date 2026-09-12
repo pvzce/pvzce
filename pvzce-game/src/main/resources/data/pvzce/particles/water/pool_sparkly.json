@@ -1,0 +1,30 @@
+{
+  "id": "pvzce:pool_sparkly",
+  "look": {
+    "alpha_from": 0.8,
+    "alpha_to": 0.8,
+    "scale": 0.3,
+    "scale_curve": [
+      [
+        0.0,
+        0.4
+      ],
+      [
+        0.3333,
+        0.4583
+      ],
+      [
+        0.6667,
+        0.4583
+      ],
+      [
+        1.0,
+        0.4
+      ]
+    ],
+    "life": 0.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/water/poolsparkly"
+  }
+}

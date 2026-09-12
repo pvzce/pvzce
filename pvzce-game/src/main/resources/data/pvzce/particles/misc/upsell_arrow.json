@@ -1,0 +1,16 @@
+{
+  "id": "pvzce:upsell_arrow",
+  "look": {
+    "scale": 1.2,
+    "color": [
+      1.0,
+      0.9,
+      0.4
+    ],
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/downarrow"
+  },
+  "count": 1
+}

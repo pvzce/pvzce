@@ -1,0 +1,30 @@
+{
+  "id": "pvzce:kernel_pult",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:thrower",
+      "interval": 170,
+      "shots": [
+        {
+          "projectile": "pvzce:kernel",
+          "damage": 80,
+          "count": 1
+        }
+      ],
+      "butter_chance": 0.25,
+      "butter_projectile": "pvzce:butter"
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/kernelpult"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/kernel_pult"
+}

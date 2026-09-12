@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:cherry_bomb",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 150
+    },
+    "cooldown": 600
+  },
+  "health": 100,
+  "capabilities": [
+    {
+      "type": "pvzce:explosive",
+      "trigger": "timed",
+      "fuse_ticks": 60,
+      "radius": 1.0,
+      "damage": 1800
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/plant/cherrybomb"
+  },
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/cherry_bomb"
+}

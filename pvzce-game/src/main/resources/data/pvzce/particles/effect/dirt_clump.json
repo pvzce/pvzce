@@ -1,0 +1,25 @@
+{
+  "id": "pvzce:dirt_clump",
+  "look": {
+    "texture": "pvzce:textures/particles/effect/daisy",
+    "scale": 0.16,
+    "life": 0.5,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "color": [
+      0.45,
+      0.32,
+      0.18
+    ],
+    "alpha_from": 1.0,
+    "alpha_to": 0.0
+  },
+  "motion": {
+    "speed": 0.12,
+    "angle": 90.0,
+    "angle_spread": 140.0,
+    "gravity": -0.02
+  },
+  "count": 6,
+  "count_spread": 2
+}

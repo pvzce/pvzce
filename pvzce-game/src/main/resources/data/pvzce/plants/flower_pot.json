@@ -1,0 +1,18 @@
+{
+  "id": "pvzce:flower_pot",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "placement": {
+    "layer": 0,
+    "count": 1,
+    "group": "carrier"
+  },
+  "capabilities": [],
+  "animation_dir": "plant/environment",
+  "texture": "pvzce:textures/entities/plant/environment/flower_pot"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:award_pickup_arrow",
+  "look": {
+    "alpha_to": 1.0,
+    "life": 1.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/award/awardpickupglow"
+  },
+  "count": 1
+}

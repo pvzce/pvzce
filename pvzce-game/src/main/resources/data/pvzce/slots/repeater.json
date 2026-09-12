@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:repeater",
+  "kind": "plant",
+  "content": "pvzce:repeater",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/repeater"
+}

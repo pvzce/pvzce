@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:glove",
+  "kind": "tool",
+  "content": "pvzce:glove",
+  "cost": {
+    "resources": {},
+    "cooldown": 180
+  },
+  "icon": "pvzce:textures/entities/tool/glove"
+}

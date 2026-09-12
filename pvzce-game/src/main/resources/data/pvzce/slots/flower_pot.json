@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:flower_pot",
+  "kind": "plant",
+  "content": "pvzce:flower_pot",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/flower_pot"
+}

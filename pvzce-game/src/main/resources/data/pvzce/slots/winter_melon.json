@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:winter_melon",
+  "kind": "plant",
+  "content": "pvzce:winter_melon",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/winter_melon"
+}

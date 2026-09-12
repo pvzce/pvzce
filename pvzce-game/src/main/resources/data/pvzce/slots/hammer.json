@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:hammer",
+  "kind": "tool",
+  "content": "pvzce:hammer",
+  "cost": {
+    "resources": {},
+    "cooldown": 120
+  },
+  "icon": "pvzce:textures/entities/tool/hammer/hammer"
+}

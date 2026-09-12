@@ -1,0 +1,36 @@
+{
+  "id": "pvzce:zamboni_explosion_hood",
+  "look": {
+    "spin": 0.0,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.3333,
+        1.0
+      ],
+      [
+        0.6667,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 0.8,
+    "life": 1.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/reanim/zombie_zamboni_1_damage_1"
+  },
+  "motion": {
+    "speed": 0.125,
+    "angle": 160.0,
+    "angle_spread": 20.0,
+    "gravity": -3.81944e-05
+  },
+  "count": 1
+}

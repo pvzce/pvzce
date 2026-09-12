@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:credits_zombie_head_wipe_1",
+  "look": {
+    "alpha_to": 1.0,
+    "scale": 0.5,
+    "life": 1.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/award/zombiehead"
+  },
+  "count": 19,
+  "count_spread": 19
+}

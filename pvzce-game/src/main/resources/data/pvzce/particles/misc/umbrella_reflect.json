@@ -1,0 +1,36 @@
+{
+  "id": "pvzce:umbrella_reflect",
+  "look": {
+    "spin": 0.0,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.3333,
+        1.0
+      ],
+      [
+        0.6667,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 1.1,
+    "life": 1.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/reanim/zombie_catapult_basketball"
+  },
+  "motion": {
+    "speed": 0.0895833,
+    "angle": 205.0,
+    "angle_spread": 30.0,
+    "gravity": -3.47222e-05
+  },
+  "count": 1
+}

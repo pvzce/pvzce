@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:gatling_pea",
+  "kind": "plant",
+  "content": "pvzce:gatling_pea",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/gatling_pea"
+}

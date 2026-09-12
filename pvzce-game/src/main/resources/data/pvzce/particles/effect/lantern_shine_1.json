@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:lantern_shine_1",
+  "look": {
+    "spin": 1800.0,
+    "random_spin": true,
+    "alpha_from": 0.5,
+    "alpha_to": 0.5,
+    "scale": 0.7,
+    "life": 1.0,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/effect/lanternshine"
+  },
+  "count": 10
+}

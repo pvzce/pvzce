@@ -1,0 +1,19 @@
+{
+  "id": "pvzce:puff_splat",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.6,
+    "life": 0.3333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/puffshroom_puff2"
+  },
+  "motion": {
+    "speed": 0.0104167,
+    "gravity": -1.04167e-05
+  },
+  "count": 8,
+  "count_spread": 2
+}

@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:coin_silver",
+  "default_value": 10,
+  "collectible": true,
+  "icon": "pvzce:textures/resource/coin_silver",
+  "drop_anim": "pvzce:coin_silver",
+  "max_stack": 9990,
+  "collectible_without_card": true,
+  "animation_dir": "resource",
+  "texture": "pvzce:textures/entities/resource/coin_silver",
+  "drop_motion": "landed"
+}

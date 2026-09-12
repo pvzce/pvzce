@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:sun",
+  "kind": "resource",
+  "content": "pvzce:sun",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/hud/sun_bank"
+}

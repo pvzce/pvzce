@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:potted_plant_glow",
+  "look": {
+    "alpha_to": 1.0,
+    "scale": 0.85,
+    "life": 1.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/reanim/pot_glow"
+  },
+  "additive": true,
+  "count": 1
+}

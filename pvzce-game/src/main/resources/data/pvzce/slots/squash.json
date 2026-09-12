@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:squash",
+  "kind": "plant",
+  "content": "pvzce:squash",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/squash"
+}

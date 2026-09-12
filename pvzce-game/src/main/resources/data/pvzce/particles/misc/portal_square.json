@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:portal_square",
+  "look": {
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.1,
+    "life": 1.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/whiteellipse"
+  },
+  "count": 20
+}

@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:snow_pea",
+  "kind": "plant",
+  "content": "pvzce:snow_pea",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/snow_pea"
+}

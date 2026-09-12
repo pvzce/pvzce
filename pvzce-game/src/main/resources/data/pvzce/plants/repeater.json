@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:repeater",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 200
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 2
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/repeater",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:boss_explosion_boss_explosion1",
+  "look": {
+    "alpha_from": 0.5,
+    "alpha_to": 0.5,
+    "scale": 0.7,
+    "life": 0.8333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/bossexplosion1"
+  },
+  "count": 1
+}

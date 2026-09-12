@@ -1,0 +1,22 @@
+{
+  "id": "pvzce:jack_explode_jack_explode_big_cloud",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 1.2,
+    "color": [
+      0.4,
+      0.0,
+      0.0
+    ],
+    "life": 0.6667,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/explosioncloud"
+  },
+  "motion": {
+    "speed": 0.104167
+  },
+  "count": 14
+}

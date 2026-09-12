@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:pea",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 2.0
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/projectile/hit"
+  },
+  "texture": "pvzce:textures/entities/projectile/pea"
+}

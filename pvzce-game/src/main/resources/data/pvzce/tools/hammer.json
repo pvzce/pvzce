@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:hammer",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 120,
+  "targets": [
+    "zombie"
+  ],
+  "effect": "pvzce:hammer",
+  "uses": -1
+}

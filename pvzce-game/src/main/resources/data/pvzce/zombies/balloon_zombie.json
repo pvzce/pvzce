@@ -1,0 +1,20 @@
+{
+  "id": "pvzce:balloon_zombie",
+  "health": 200,
+  "move_speed": 0.47,
+  "capabilities": [
+    {
+      "type": "pvzce:fly",
+      "height": 1.0
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/ballooninflate",
+    "hit": "pvzce:sfx/projectile/hit",
+    "special": "pvzce:sfx/zombie/balloon_pop",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/balloon_pop"
+  },
+  "animation_dir": "zombie/special",
+  "texture": "pvzce:textures/entities/zombie/special/balloon_zombie"
+}

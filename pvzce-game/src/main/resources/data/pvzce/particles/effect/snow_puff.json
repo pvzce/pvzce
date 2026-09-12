@@ -1,0 +1,25 @@
+{
+  "id": "pvzce:snow_puff",
+  "look": {
+    "texture": "pvzce:textures/particles/plant/ice_trap",
+    "scale": 0.2,
+    "life": 0.4,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "color": [
+      0.75,
+      0.9,
+      1.0
+    ],
+    "alpha_from": 1.0,
+    "alpha_to": 0.0
+  },
+  "motion": {
+    "speed": 0.1,
+    "angle": 90.0,
+    "angle_spread": 180.0,
+    "gravity": -0.02
+  },
+  "count": 4,
+  "count_spread": 2
+}

@@ -1,0 +1,137 @@
+package com.pvzce.client;
+
+import com.pvzce.client.gui.screens.ChooseSeedsScreen;
+import com.pvzce.common.network.Connection;
+import com.pvzce.common.network.PvzcePacket;
+import com.pvzce.common.network.PvzcePackets;
+import com.pvzce.common.network.packet.LevelListS2C;
+import com.pvzce.common.network.packet.LevelPayload;
+import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.SceneSyncS2C;
+import com.pvzce.common.network.packet.SeedOption;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Entering a level from a menu: which pre-game flow it takes, and what the level list does
+ * with its selection while the list is refreshed.
+ *
+ * <p>Reported symptom: entering a level that already had progress went through the seed
+ * chooser first, and the "发现存档" continue/restart prompt only appeared once cards had been
+ * picked - the list's 下一步 button sent every level through 关卡准备 and the chooser, and the
+ * chooser's submit is what made the server load the save and ask. A run that is about to be
+ * resumed must not ask the player to pick cards for it.
+ */
+class LevelEntryFlowTest {
+    @BeforeAll
+    static void register() {
+        PvzcePackets.register();
+    }
+
+    private record Fixture(PvzceClient client, Connection.Pair pair, List<PvzcePacket> sent) {
+        /** Drains the server end so packets the client sent are recorded. */
+        List<PvzcePacket> sentPackets() {
+            pair.server().tick();
+            return List.copyOf(sent);
+        }
+    }
+
+    private static Fixture newClient() throws Exception {
+        Path gameDir = Files.createTempDirectory("pvzce-entry-flow");
+        Connection.Pair pair = Connection.createMemoryPair();
+        List<PvzcePacket> sent = new ArrayList<>();
+        pair.server().setListener(sent::add);
+        PvzceClient client = new PvzceClient(pair.client(), gameDir,
+                Thread.currentThread().getContextClassLoader());
+        return new Fixture(client, pair, sent);
+    }
+
+    private static LevelListS2C.LevelInfo levelInfo(String levelId, String status) {
+        LevelPayload payload = new LevelPayload(9, 5,
+                List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
+                        "pvzce:textures/entities/pea_shooter", 100)),
+                6, List.of("pvzce:basic_zombie"),
+                List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
+        return LevelListS2C.LevelInfo.of(levelId, "第一关", "描述", "pvzce:plant_team",
+                List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves")),
+                status, "day", "pvzce:yard", "pvzce:adventure", payload,
+                LevelListS2C.UnlockInfo.OPEN);
+    }
+
+    /**
+     * A level with a resumable save is entered directly: the server loads the whole save and
+     * then asks continue/restart over it, so no seed chooser may appear on the way in.
+     */
+    @Test
+    void anInProgressLevelIsEnteredDirectlyWithoutTheSeedChooser() throws Exception {
+        Fixture fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1", LevelListS2C.LevelInfo.IN_PROGRESS);
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "resuming must not ask for a card bar that the save already has");
+        assertTrue(fixture.sentPackets().stream()
+                        .filter(RequestLevelC2S.class::isInstance)
+                        .map(RequestLevelC2S.class::cast)
+                        .anyMatch(request -> request.levelId().equals("pvzce:level_1") && !request.restart()),
+                "entering an in-progress level asks the server to load it (and not to restart it)");
+    }
+
+    /** A level with nothing to resume still picks its cards first, exactly as before. */
+    @Test
+    void aFreshLevelStillGoesThroughTheSeedChooser() throws Exception {
+        Fixture fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1", "");
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
+                "a level with no save is started by choosing its cards");
+        assertTrue(fixture.sentPackets().stream().noneMatch(RequestLevelC2S.class::isInstance),
+                "the seed chooser decides when the level actually starts");
+    }
+
+    /** 已通关 is not a run to resume: the save was cleared when the level was finished. */
+    @Test
+    void aCompletedLevelIsAFreshRun() throws Exception {
+        PvzceClient client = newClient().client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1", LevelListS2C.LevelInfo.COMPLETED);
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
+                "a completed level is replayed from a fresh card selection");
+    }
+
+    /**
+     * The cached list belongs to one world; entering another must not keep showing (or acting
+     * on) the previous world's 进行中 labels.
+     */
+    @Test
+    void changingWorldDropsTheCachedLevelList() throws Exception {
+        PvzceClient client = newClient().client();
+        client.setLevelList(List.of(levelInfo("pvzce:level_1", LevelListS2C.LevelInfo.IN_PROGRESS)));
+        client.setCurrentWorld("demo");
+
+        assertTrue(client.levelList().isEmpty(), "another world's save labels must not survive");
+
+        client.setLevelList(List.of(levelInfo("pvzce:level_1", LevelListS2C.LevelInfo.IN_PROGRESS)));
+        client.setCurrentWorld("demo");
+        assertFalse(client.levelList().isEmpty(), "re-setting the same world keeps the list");
+    }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:fume_cloud",
+  "look": {
+    "alpha_from": 0.9,
+    "alpha_to": 0.9,
+    "scale": 0.7,
+    "life": 0.8333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/puffshroom_puff1"
+  },
+  "count": 20,
+  "count_spread": 20
+}

@@ -1,0 +1,16 @@
+{
+  "id": "pvzce:award_award_ray1",
+  "look": {
+    "spin": -2700.0,
+    "alpha_from": 0.7,
+    "alpha_to": 0.7,
+    "scale": 0.4,
+    "life": 25.0,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/award/awardrays1"
+  },
+  "additive": true,
+  "count": 10,
+  "count_spread": 10
+}

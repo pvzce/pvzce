@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:powie_powie_word",
+  "look": {
+    "life": 0.5,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/explosionpowie"
+  },
+  "count": 1
+}

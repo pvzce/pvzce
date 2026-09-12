@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:threepeater",
+  "kind": "plant",
+  "content": "pvzce:threepeater",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/threepeater"
+}

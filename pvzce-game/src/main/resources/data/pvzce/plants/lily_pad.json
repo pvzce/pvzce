@@ -1,0 +1,21 @@
+{
+  "id": "pvzce:lily_pad",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "placement": {
+    "layer": 0,
+    "count": 1,
+    "group": "carrier"
+  },
+  "capabilities": [],
+  "sounds": {
+    "place": "pvzce:sfx/plant/plant_water"
+  },
+  "animation_dir": "plant/environment",
+  "texture": "pvzce:textures/entities/plant/environment/lily_pad"
+}

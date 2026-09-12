@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:kernel",
+  "layer": "air",
+  "capabilities": [
+    {
+      "type": "pvzce:arc",
+      "speed": 2.2,
+      "gravity": 9.0
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/plant/kernelpult2"
+  },
+  "texture": "pvzce:textures/entities/projectile/kernel"
+}

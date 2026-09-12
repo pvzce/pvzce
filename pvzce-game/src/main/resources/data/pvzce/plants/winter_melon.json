@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:winter_melon",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 200
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 130,
+      "shots": [
+        {
+          "projectile": "pvzce:winter_melon",
+          "damage": 80,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/winter_melon",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/throw"
+  }
+}

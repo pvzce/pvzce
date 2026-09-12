@@ -1,0 +1,22 @@
+{
+  "id": "pvzce:coffee_bean",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 75
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "placement": {
+    "layer": 2,
+    "count": 1,
+    "group": ""
+  },
+  "capabilities": [
+    {
+      "type": "pvzce:boost_below"
+    }
+  ],
+  "animation_dir": "plant/environment",
+  "texture": "pvzce:textures/entities/plant/environment/coffee_bean"
+}

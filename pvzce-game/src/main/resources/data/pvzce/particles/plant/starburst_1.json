@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:starburst_1",
+  "look": {
+    "spin": 0.0,
+    "random_spin": true,
+    "alpha_to": 1.0,
+    "scale": 0.1,
+    "color": [
+      1.0,
+      1.0,
+      0.6
+    ],
+    "life": 0.8333,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/plant/star40"
+  },
+  "motion": {
+    "speed": 0.104167,
+    "gravity": -1.73611e-06
+  },
+  "additive": true,
+  "count": 20
+}

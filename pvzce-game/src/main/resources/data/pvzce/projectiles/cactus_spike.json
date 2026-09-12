@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:cactus_spike",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 2.4
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/projectile/hit"
+  },
+  "texture": "pvzce:textures/entities/projectile/butter"
+}

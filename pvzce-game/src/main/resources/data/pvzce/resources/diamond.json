@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:diamond",
+  "default_value": 1000,
+  "collectible": true,
+  "icon": "pvzce:textures/resource/diamond",
+  "drop_anim": "pvzce:diamond",
+  "max_stack": 9990,
+  "collectible_without_card": true,
+  "animation_dir": "resource",
+  "texture": "pvzce:textures/entities/resource/diamond",
+  "drop_motion": "landed"
+}

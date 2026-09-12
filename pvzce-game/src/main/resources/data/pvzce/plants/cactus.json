@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:cactus",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:cactus_spike",
+          "damage": 20,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/cactus",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  }
+}

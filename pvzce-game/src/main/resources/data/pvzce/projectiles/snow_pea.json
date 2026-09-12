@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:snow_pea",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 2.0
+    },
+    {
+      "type": "pvzce:status",
+      "effects": [
+        {
+          "status": "slow",
+          "ticks": 240,
+          "magnitude": 0.5
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/plant/snow_pea_sparkles"
+  },
+  "texture": "pvzce:textures/entities/projectile/pea"
+}
