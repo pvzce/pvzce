@@ -6,8 +6,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.NbtIo;
-import com.pvzce.common.resource.PvzceDataLoader;
-import com.pvzce.common.resource.PvzceResourceManager;
+import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -61,12 +60,10 @@ class CoreSmokeTest {
 
     @Test
     void builtinDataPackLoadsDemoLevel() throws Exception {
-        BuiltInRegistries.bootstrap();
-        PvzceResourceManager resources = new PvzceResourceManager(Thread.currentThread().getContextClassLoader());
-        resources.init(Path.of(System.getProperty("java.io.tmpdir"), "pvzce-test-game-dir"));
-        PvzceDataLoader.LoadResult result = new PvzceDataLoader().load(resources, BuiltInRegistries.ACCESS);
-        assertTrue(result.errors().isEmpty(), result.errors().toString());
-        LevelDef demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("demo_level"));
+        // Content and convention tags together: the placement rules read tags,
+        // so a data-only load would leave every cell unplantable.
+        TestContent.loadBuiltInContentAndTags();
+        LevelDef demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/demo_level"));
         assertNotNull(demo);
         assertEquals(9, demo.width());
         assertEquals(5, demo.height());

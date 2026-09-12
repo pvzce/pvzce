@@ -26,6 +26,11 @@ import java.util.Optional;
  * wins. Statistics that used to live here - attack interval, shots, butter
  * chance, blast radius, chew time, produce schedule - moved into the capability
  * that owns them, so each number now has exactly one home.
+ *
+ * <p>{@code texture} is the flat sprite drawn when this plant has no animation
+ * resource, and {@code animation_dir} (inside {@link AnimationBindings}) is where
+ * its animation file lives. Both are optional: without them the paths are derived
+ * from the id, which is the convention a mod still gets for free.
  */
 public record PlantDef(
         Identifier id,
@@ -35,19 +40,37 @@ public record PlantDef(
         List<TypedCapability<PlantCapability>> capabilities,
         Optional<Identifier> behavior,
         PlantSounds sounds,
-        AnimationBindings animations
+        AnimationBindings animations,
+        Optional<Identifier> texture,
+        /**
+         * Presentation-only size multiplier; see {@link ContentDefs#RENDER_SCALE_CODEC}.
+         *
+         * <p>The client draws this content that many times bigger than its art declares,
+         * in both axes so the shape is kept. Nothing the server simulates changes.
+         */
+        float renderScale
 ) {
     public static final int DEFAULT_HEALTH = 300;
+
+    /** A definition that does not care about presentation size: {@code render_scale} 1. */
+    public PlantDef(Identifier id, ResourceCost cost, int health, PlacementDef placement,
+                    List<TypedCapability<PlantCapability>> capabilities, Optional<Identifier> behavior,
+                    PlantSounds sounds, AnimationBindings animations, Optional<Identifier> texture) {
+        this(id, cost, health, placement, capabilities, behavior, sounds, animations, texture,
+                ContentDefs.DEFAULT_RENDER_SCALE);
+    }
 
     public static final Codec<PlantDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(PlantDef::id),
             ResourceCost.CODEC.optionalFieldOf("cost", ResourceCost.defaultPlantCost()).forGetter(PlantDef::cost),
             Codec.INT.optionalFieldOf("health", DEFAULT_HEALTH).forGetter(PlantDef::health),
-            PlacementDef.CODEC.optionalFieldOf("placement", PlacementDef.PLANTABLE).forGetter(PlantDef::placement),
+            PlacementDef.CODEC.optionalFieldOf("placement", PlacementDef.PLANTABLE_DEF).forGetter(PlantDef::placement),
             PlantCapabilities.LIST_CODEC.optionalFieldOf("capabilities", List.of()).forGetter(PlantDef::capabilities),
             Identifier.CODEC.optionalFieldOf("behavior").forGetter(PlantDef::behavior),
             PlantSounds.CODEC.optionalFieldOf("sounds", PlantSounds.EMPTY).forGetter(PlantDef::sounds),
-            AnimationBindings.MAP_CODEC.forGetter(PlantDef::animations)
+            AnimationBindings.MAP_CODEC.forGetter(PlantDef::animations),
+            Identifier.CODEC.optionalFieldOf("texture").forGetter(PlantDef::texture),
+            ContentDefs.RENDER_SCALE_CODEC.forGetter(PlantDef::renderScale)
     ).apply(i, PlantDef::new));
 
     public PlantDef {

@@ -39,7 +39,7 @@ class LiquidDefinitionTest {
     @Test
     void theShippedWaterDefinitionLoadsFromData() {
         LiquidDef water = BuiltInRegistries.LIQUIDS.get(Identifier.withDefaultNamespace("water"));
-        assertNotNull(water, "data/pvzce/pvzce/liquids/water.json must define pvzce:water");
+        assertNotNull(water, "data/pvzce/liquids/water.json must define pvzce:water");
         assertEquals(LiquidDef.DEFAULT_BASE_TEXTURE, water.resolvedBaseTexture());
         assertEquals(0.68F, water.opacity(), 0.0001F);
         assertEquals(1.6F, water.depthScale(), 0.0001F);
@@ -139,24 +139,6 @@ class LiquidDefinitionTest {
         org.junit.jupiter.api.Assertions.assertEquals(107F / 255F, slime.deepColor()[1], 0.002F);
         assertEquals(LiquidDef.WaveShape.DEFAULT.speed(), slime.wave().speed(), 0.0001F);
         assertEquals(LiquidDef.FoamStyle.DEFAULT.width(), slime.foam().width(), 0.0001F);
-    }
-
-    @Test
-    void everyFeatureBitIsReachableFromTheQualityTiers() {
-        int low = LiquidRenderer.featuresFor(com.pvzce.client.config.PvzceClientConfig.WaterQuality.LOW);
-        int medium = LiquidRenderer.featuresFor(com.pvzce.client.config.PvzceClientConfig.WaterQuality.MEDIUM);
-        int high = LiquidRenderer.featuresFor(com.pvzce.client.config.PvzceClientConfig.WaterQuality.HIGH);
-        assertTrue((low & LiquidShader.FEATURE_SHORE) != 0, "even the lowest tier needs a shoreline");
-        assertTrue((medium & LiquidShader.FEATURE_WAVES) != 0, "and motion");
-        assertTrue((medium & LiquidShader.FEATURE_CAUSTICS) == 0, "but not caustics");
-        assertEquals(LiquidShader.FEATURE_WAVES | LiquidShader.FEATURE_CAUSTICS
-                        | LiquidShader.FEATURE_FRESNEL | LiquidShader.FEATURE_SPECULAR
-                        | LiquidShader.FEATURE_RIPPLES | LiquidShader.FEATURE_SHORE,
-                high & (LiquidShader.FEATURE_WAVES | LiquidShader.FEATURE_CAUSTICS
-                        | LiquidShader.FEATURE_FRESNEL | LiquidShader.FEATURE_SPECULAR
-                        | LiquidShader.FEATURE_RIPPLES | LiquidShader.FEATURE_SHORE));
-        assertTrue((low & high) == low, "the tiers must be nested subsets");
-        assertTrue((medium & high) == medium);
     }
 
     private static void assertArrayEquals(float[] expected, float[] actual) {

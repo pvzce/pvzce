@@ -11,6 +11,7 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
 
@@ -85,7 +86,7 @@ public final class MeleeCapability implements PlantCapability {
         target.remove();
         remainingChewTicks = Math.max(1, chewTicks);
         plant.setAnimation(EntityAnimations.CHEW);
-        level.emitEffect("pvzce:chomp", plant.cellX(), plant.cellY(),
+        level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().melee().orElse(PvzceSounds.EFFECT_BITE)));
     }
 

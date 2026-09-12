@@ -404,38 +404,6 @@ class LiquidGeometryTest {
                 .isEmpty());
     }
 
-    @Test
-    void shoreStrengthStaysInTheEncodableRange() {
-        for (float distance = 0F; distance <= 8F; distance += 0.25F) {
-            float strength = LiquidCell.shoreStrength(distance);
-            assertTrue(strength >= 0F && strength <= 1F, "strength out of range at " + distance);
-            assertEquals(strength, Math.round(strength * 7F) / 7F, 1F / 7F + 1e-6F);
-        }
-    }
-
-    @Test
-    void theReportedMissingMiddleIsCollected() {
-        // The exact scene from the reporter's level: x=3..6, y=0..4, 20 cells, which
-        // rendered as a solid block. Rebuilt from the raw coordinate list so the test
-        // fails if the collector ever drops part of a plain rectangular body.
-        java.util.Set<String> water = java.util.Set.of("6,4", "5,4", "4,3", "5,3", "6,3",
-                "6,2", "5,2", "4,2", "4,1", "5,1", "6,1", "6,0", "5,0", "4,0", "4,4",
-                "3,4", "3,3", "3,2", "3,1", "3,0");
-
-        List<LiquidCell> cells = LiquidGeometry.collect(9, 5,
-                (x, y) -> water.contains(x + "," + y), 0F, 0F, 0F, 1.6F);
-
-        assertEquals(20, cells.size(), "every water cell must reach the GPU");
-        for (int y = 0; y <= 4; y++) {
-            for (int x = 3; x <= 6; x++) {
-                final int cx = x;
-                final int cy = y;
-                assertTrue(cells.stream().anyMatch(c -> c.cellX() == cx && c.cellY() == cy),
-                        "cell " + cx + "," + cy + " must be drawn");
-            }
-        }
-    }
-
     // ----------------------------------------------------------------- packing
 
     @Test

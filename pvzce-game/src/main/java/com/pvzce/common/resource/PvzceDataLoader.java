@@ -7,8 +7,11 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import com.pvzce.api.content.EnvVarType;
 import com.pvzce.api.content.GameRuleType;
+import com.pvzce.api.content.LevelCategoryDef;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.LevelThemeDef;
 import com.pvzce.api.content.LiquidDef;
+import com.pvzce.api.content.ParticleDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ResourceDef;
@@ -34,31 +37,37 @@ import java.util.Map;
  * Data-driven registry loader modeled after
  * {@code net.minecraft.resources.RegistryDataLoader}.
  *
- * <p>Directory convention: {@code data/<namespace>/pvzce/<registry_path>/<id>.json},
+ * <p>Directory convention: {@code data/<namespace>/<registry_path>/<id>.json},
  * where {@code <registry_path>} may be nested ({@code plants/upgrades/pea.json}
  * registers {@code <namespace>:upgrades/pea} rather than colliding with a sibling
  * {@code plants/other/pea.json}).
  *
+ * <p>The pack root is the namespace, exactly as in Minecraft. The built-in data
+ * used to live one level deeper ({@code data/pvzce/plants/}) because the
+ * loader looked for a literal {@code pvzce} segment after the namespace, which
+ * meant the shipped pack spelled its own namespace twice for no gain.
+ *
  * <p>{@link #CONTENT_REGISTRIES} is the single table that maps a registry to its
  * directory. It used to be written twice - once here with plural directory names
  * and once in the tag loader with singular registry names - so a tag file under
- * {@code tags/pvzce/plants/} was rejected as an unknown registry even though the
+ * {@code tags/plants/} was rejected as an unknown registry even though the
  * matching content directory was {@code plants/}. Both loaders now read this table,
  * and each entry declares both spellings.
  */
 public final class PvzceDataLoader {
     /**
-     * {@code data/<ns>/pvzce/<registry path>/<file>.json} - the id is the whole
+     * {@code data/<ns>/<registry path>/<file>.json} - the id is the whole
      * relative path. The listing prefix has no separator (packs join it
      * themselves) while path parsing needs the separator to be part of the check.
      */
     private static final String LIST_PREFIX = "data";
     private static final String PATH_PREFIX = "data/";
-    private static final String CONTENT_SEGMENT = "pvzce";
     private static final String CONTENT_SUFFIX = ".json";
 
     private static final List<RegistryData<?>> REGISTRIES = List.of(
             new RegistryData<>(PvzceRegistries.LEVELS, LevelDef.CODEC, "levels"),
+            new RegistryData<>(PvzceRegistries.LEVEL_THEMES, LevelThemeDef.CODEC, "level_themes"),
+            new RegistryData<>(PvzceRegistries.LEVEL_CATEGORIES, LevelCategoryDef.CODEC, "level_categories"),
             new RegistryData<>(PvzceRegistries.PLANTS, PlantDef.CODEC, "plants"),
             new RegistryData<>(PvzceRegistries.ZOMBIES, ZombieDef.CODEC, "zombies"),
             new RegistryData<>(PvzceRegistries.PROJECTILES, ProjectileDef.CODEC, "projectiles"),
@@ -68,6 +77,7 @@ public final class PvzceDataLoader {
             new RegistryData<>(PvzceRegistries.SCENE_ELEMENTS, SceneElementDef.CODEC, "scene_elements"),
             new RegistryData<>(PvzceRegistries.LIQUIDS, LiquidDef.CODEC, "liquids"),
             new RegistryData<>(PvzceRegistries.SOUND_EVENTS, SoundEventDef.CODEC, "sound_events"),
+            new RegistryData<>(PvzceRegistries.PARTICLES, ParticleDef.CODEC, "particles"),
             new RegistryData<>(PvzceRegistries.GAME_RULES, null, "game_rules"),
             new RegistryData<>(PvzceRegistries.ENV_VAR_TYPES, null, "env_var_types"));
 
@@ -81,7 +91,7 @@ public final class PvzceDataLoader {
      *
      * @param key         the registry key; its singular id path is also the tag directory
      * @param codec       the entry codec, or {@code null} for registries that are code-only
-     * @param contentPath the content directory name ({@code data/<ns>/pvzce/<contentPath>/})
+     * @param contentPath the content directory name ({@code data/<ns>/<contentPath>/})
      */
     public record RegistryData<T>(ResourceKey<Registry<T>> key, Codec<T> codec, String contentPath) {
         /** The singular registry path, used by tags and by the {@code /pvzce registry} command. */
@@ -229,7 +239,7 @@ public final class PvzceDataLoader {
         }
     }
 
-    /** {@code data/<ns>/pvzce/<registry>/<relative>.json} split into its parts. */
+    /** {@code data/<ns>/<registry>/<relative>.json} split into its parts. */
     private record ParsedPath(String namespace, String registryPath, String relativePath) {
     }
 
@@ -239,19 +249,19 @@ public final class PvzceDataLoader {
         }
         String body = path.substring(PATH_PREFIX.length(), path.length() - CONTENT_SUFFIX.length());
         String[] parts = body.split("/");
-        // <namespace>/pvzce/<registry>/<relative...>
-        if (parts.length < 4 || !CONTENT_SEGMENT.equals(parts[1])) {
+        // <namespace>/<registry>/<relative...>
+        if (parts.length < 3) {
             return null;
         }
         String namespace = parts[0];
-        String registryPath = parts[2];
+        String registryPath = parts[1];
         StringBuilder relative = new StringBuilder();
         // Everything after the registry segment is part of the id, not just the
         // basename: two nested files used to collapse onto the same id and one
         // silently replaced the other (the shipped sound_events pack only works
         // because every nested file repeats its own "id").
-        for (int i = 3; i < parts.length; i++) {
-            if (i > 3) {
+        for (int i = 2; i < parts.length; i++) {
+            if (i > 2) {
                 relative.append('/');
             }
             relative.append(parts[i]);

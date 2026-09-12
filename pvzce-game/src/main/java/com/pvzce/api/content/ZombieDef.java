@@ -32,9 +32,26 @@ public record ZombieDef(
         List<TypedCapability<ZombieCapability>> capabilities,
         Optional<Identifier> behavior,
         ZombieSounds sounds,
-        AnimationBindings animations
+        AnimationBindings animations,
+        Optional<Identifier> texture,
+        /**
+         * Presentation-only size multiplier; see {@link ContentDefs#RENDER_SCALE_CODEC}.
+         *
+         * <p>The client draws this content that many times bigger than its art declares,
+         * in both axes so the shape is kept. Nothing the server simulates changes.
+         */
+        float renderScale
 ) {
     public static final int DEFAULT_HEALTH = 200;
+
+    /** A definition that does not care about presentation size: {@code render_scale} 1. */
+    public ZombieDef(Identifier id, int health, float moveSpeed, int biteDamage, int biteIntervalTicks,
+                     boolean canSwim, List<TypedCapability<ZombieCapability>> capabilities,
+                     Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
+                     Optional<Identifier> texture) {
+        this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
+                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE);
+    }
     /** Cells per second at the 60tps baseline. */
     public static final float DEFAULT_MOVE_SPEED = 0.47F;
     public static final int DEFAULT_BITE_DAMAGE = 100;
@@ -51,7 +68,9 @@ public record ZombieDef(
                     .forGetter(ZombieDef::capabilities),
             Identifier.CODEC.optionalFieldOf("behavior").forGetter(ZombieDef::behavior),
             ZombieSounds.CODEC.optionalFieldOf("sounds", ZombieSounds.EMPTY).forGetter(ZombieDef::sounds),
-            AnimationBindings.MAP_CODEC.forGetter(ZombieDef::animations)
+            AnimationBindings.MAP_CODEC.forGetter(ZombieDef::animations),
+            Identifier.CODEC.optionalFieldOf("texture").forGetter(ZombieDef::texture),
+            ContentDefs.RENDER_SCALE_CODEC.forGetter(ZombieDef::renderScale)
     ).apply(i, ZombieDef::new));
 
     public ZombieDef {

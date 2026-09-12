@@ -10,6 +10,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.List;
 
@@ -69,7 +70,7 @@ public final class BossPhasesCapability implements ZombieCapability {
             switch (phase.ability()) {
                 case "slam" -> {
                     level.damageArea(zombie.cellX(), zombie.cellY(), SLAM_RADIUS, SLAM_DAMAGE, zombie.team());
-                    level.emitEffect("pvzce:ash_smoke", zombie.cellX(), zombie.cellY(),
+                    level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), zombie.cellX(), zombie.cellY(),
                             zombie.def().sounds().special().orElse(PvzceSounds.ZOMBIE_BOSS_BOULDER));
                 }
                 case "charge" -> zombie.setSpeedBoost(CHARGE_TICKS);

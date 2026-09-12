@@ -123,15 +123,33 @@ public class PlantEntity extends PvzceEntity {
         return tag;
     }
 
-    @Override
-    public void restoreState(CompoundTag tag) {
-        restoreBaseState(tag);
+    /**
+     * Puts back everything about this plant except where it is standing.
+     *
+     * <p>Used by the glove, which re-spawns the plant where the player dropped it and then
+     * restores its state. A moved potato mine must not re-arm, a moved lily pad must still
+     * carry, and a damaged plant must stay damaged - but none of that includes its old
+     * cell or its old height in the stack.
+     */
+    public void restoreStateWithoutPosition(CompoundTag tag) {
+        super.restoreStateWithoutPosition(tag);
         age = tag.getInt("age");
+        restoreCapabilities(tag);
+    }
+
+    private void restoreCapabilities(CompoundTag tag) {
         CompoundTag saved = tag.getCompound("capabilities");
         for (Instance instance : capabilities) {
             CompoundTag capabilityTag = saved.getCompound(instance.type.toString());
             instance.capability.load(capabilityTag);
         }
+    }
+
+    @Override
+    public void restoreState(CompoundTag tag) {
+        restoreBaseState(tag);
+        age = tag.getInt("age");
+        restoreCapabilities(tag);
     }
 
     /** Convenience for callers that only know the definition id (HUD, tests). */

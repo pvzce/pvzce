@@ -94,4 +94,20 @@ public abstract class PvzceEntity extends Entity {
         setHealth(tag.getInt("health"));
         setAnimation(tag.getString("animation"));
     }
+
+    /**
+     * Reads everything {@link #saveBaseState()} wrote <em>except</em> the position.
+     *
+     * <p>For the glove: a moved plant is re-spawned at its new cell and then has its state
+     * put back, and restoring {@code x}/{@code y} as well would move it straight back to
+     * where it came from - which is exactly what happened, with the id copied as well so
+     * the cell it landed in looked empty.
+     *
+     * <p>Height is left alone too: it belongs to the new cell's terrain and the plant's
+     * new place in its stack, both of which {@code spawnPlant} has already worked out.
+     */
+    protected void restoreStateWithoutPosition(CompoundTag tag) {
+        setHealth(tag.getInt("health"));
+        setAnimation(tag.getString("animation"));
+    }
 }

@@ -8,13 +8,13 @@ numpy and writes a PNG, so the look can be checked - and the parameters tuned -
 before anyone launches the game.
 
 It is a preview, not a second implementation to keep in sync: the constants are
-read from the shipped data file (data/pvzce/pvzce/liquids/water.json) and the cell
+read from the shipped data file (data/pvzce/liquids/water.json) and the cell
 layout from a level file, so a change to either shows up here immediately. If the
 shader changes, this has to change with it - the alternative is tuning water by
 launching the game, which is slower and cannot be diffed.
 
 Usage:
-    python3 tools/preview_water.py [--level combat_test.json] [--time 3.0] [--out /tmp/water.png]
+    python3 tools/preview_water.py [--level yard/adventure/combat_test.json] [--time 3.0] [--out /tmp/water.png]
 """
 
 import argparse
@@ -28,8 +28,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 RESOURCES = ROOT / "pvzce-game/src/main/resources"
-LIQUID_FILE = RESOURCES / "data/pvzce/pvzce/liquids/water.json"
-LEVEL_DIR = RESOURCES / "data/pvzce/pvzce/levels"
+LIQUID_FILE = RESOURCES / "data/pvzce/liquids/water.json"
+LEVEL_DIR = RESOURCES / "data/pvzce/levels"
 
 # One board cell in preview pixels, matching the shipped cell aspect (80x100).
 CELL_W, CELL_H = 160, 200
@@ -165,7 +165,8 @@ def liquid_default(key, fallback):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--level", default="combat_test.json")
+    parser.add_argument("--level", default="yard/adventure/combat_test.json",
+                        help="relative to data/<ns>/levels/, e.g. yard/adventure/combat_test.json")
     parser.add_argument("--time", type=float, default=2.5)
     parser.add_argument("--out", default="/tmp/pvzce-water-preview.png")
     parser.add_argument("--quality", default="high", choices=["low", "medium", "high"])

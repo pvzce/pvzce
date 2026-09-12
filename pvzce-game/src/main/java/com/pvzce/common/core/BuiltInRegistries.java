@@ -4,8 +4,11 @@ import com.google.gson.JsonElement;
 import com.pvzce.api.content.EnvVarType;
 import com.pvzce.api.content.GameRuleType;
 import com.pvzce.api.content.JsonCodecs;
+import com.pvzce.api.content.LevelCategoryDef;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.LevelThemeDef;
 import com.pvzce.api.content.LiquidDef;
+import com.pvzce.api.content.ParticleDef;
 import com.pvzce.api.content.PlacementDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
@@ -61,7 +64,11 @@ public final class BuiltInRegistries {
     public static final Registry<GameRuleType<?>> GAME_RULES = ACCESS.newRegistry(PvzceRegistries.GAME_RULES);
     public static final Registry<EnvVarType<?>> ENV_VAR_TYPES = ACCESS.newRegistry(PvzceRegistries.ENV_VAR_TYPES);
     public static final Registry<SoundEventDef> SOUND_EVENTS = ACCESS.newRegistry(PvzceRegistries.SOUND_EVENTS);
+    public static final Registry<ParticleDef> PARTICLES = ACCESS.newRegistry(PvzceRegistries.PARTICLES);
     public static final Registry<LevelDef> LEVELS = ACCESS.newRegistry(PvzceRegistries.LEVELS);
+    public static final Registry<LevelThemeDef> LEVEL_THEMES = ACCESS.newRegistry(PvzceRegistries.LEVEL_THEMES);
+    public static final Registry<LevelCategoryDef> LEVEL_CATEGORIES =
+            ACCESS.newRegistry(PvzceRegistries.LEVEL_CATEGORIES);
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<PlantCapability>>
             PLANT_CAPABILITIES = ACCESS.newRegistry(PvzceRegistries.PLANT_CAPABILITIES);
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<
@@ -97,6 +104,7 @@ public final class BuiltInRegistries {
         registerGameRules();
         registerEnvVarTypes();
         registerSounds();
+        registerLevelGroups();
     }
 
     private static void registerPlants() {
@@ -105,13 +113,14 @@ public final class BuiltInRegistries {
                 new ResourceCost(Map.of(PvzceIds.SUN, PvzceConstants.PEA_SHOOTER_COST),
                         PvzceConstants.PLANT_CARD_COOLDOWN_TICKS),
                 300,
-                PlacementDef.PLANTABLE,
+                PlacementDef.PLANTABLE_DEF,
                 List.of(new TypedCapability<PlantCapability>(PlantCapabilities.SHOOTER.id(),
                         new ShooterCapability(ShooterCapability.DEFAULT_INTERVAL,
                                 List.of(new ProjectileRef(PvzceIds.id("pea"), 20, 1)), Optional.empty(), 0))),
                 Optional.empty(),
                 PlantDef.PlantSounds.EMPTY,
-                com.pvzce.api.content.AnimationBindings.EMPTY));
+                com.pvzce.api.content.AnimationBindings.EMPTY,
+                Optional.empty()));
     }
 
     private static void registerZombies() {
@@ -125,7 +134,8 @@ public final class BuiltInRegistries {
                 List.of(),
                 Optional.of(PvzceIds.id("basic")),
                 ZombieDef.ZombieSounds.EMPTY,
-                com.pvzce.api.content.AnimationBindings.EMPTY));
+                com.pvzce.api.content.AnimationBindings.EMPTY,
+                Optional.empty()));
     }
 
     private static void registerProjectiles() {
@@ -135,10 +145,14 @@ public final class BuiltInRegistries {
                 List.of(),
                 Optional.of(PvzceIds.id("linear")),
                 ProjectileDef.ProjectileSounds.EMPTY,
-                com.pvzce.api.content.AnimationBindings.EMPTY));
+                com.pvzce.api.content.AnimationBindings.EMPTY,
+                Optional.empty()));
     }
 
     private static void registerResources() {
+        // MUST match data/pvzce/resources/sun.json. Sun needs its card in the bar,
+        // which is why every level lists the SunBank card in `slots` and why the bank HUD
+        // appears only when the bar carries it.
         registerStatic(RESOURCES, "pvzce:sun", new ResourceDef(
                 PvzceIds.SUN,
                 PvzceConstants.SUN_VALUE,
@@ -147,6 +161,24 @@ public final class BuiltInRegistries {
                 PvzceIds.id("sun_fall"),
                 9990,
                 false));
+        // MUST match data/pvzce/resources/{coin_silver,coin_gold,diamond,money_bag}.json.
+        // Unlike sun they are collectible without a card: coins are currency, not a
+        // card slot. The default value IS the denomination's worth.
+        registerCoin(PvzceIds.COIN_SILVER, 10, "coin_silver");
+        registerCoin(PvzceIds.COIN_GOLD, 50, "coin_gold");
+        registerCoin(PvzceIds.DIAMOND, 1000, "diamond");
+        registerCoin(PvzceIds.MONEY_BAG, 250, "money_bag");
+    }
+
+    private static void registerCoin(Identifier id, int worth, String path) {
+        registerStatic(RESOURCES, id.toString(), new ResourceDef(
+                id,
+                worth,
+                true,
+                Identifier.withDefaultNamespace("textures/resource/" + path),
+                id,
+                PvzceConstants.COIN_CAP,
+                true));
     }
 
     private static void registerSlotsAndTools() {
@@ -175,7 +207,7 @@ public final class BuiltInRegistries {
      * the surface it refers to has to exist first even when only the bootstrap
      * fallback is in play.
      *
-     * <p>These literals MUST match {@code data/pvzce/pvzce/liquids/water.json} - the
+     * <p>These literals MUST match {@code data/pvzce/liquids/water.json} - the
      * pack entry replaces the static one whenever it loads, so a divergence means the
      * water looks different depending on whether a data pack was found.
      * {@code LiquidDefinitionTest.theBuiltInFallbackMatchesTheShippedData} compares
@@ -212,16 +244,26 @@ public final class BuiltInRegistries {
     }
 
     private static void registerSceneElements() {
-        // Kept in sync with data/pvzce/pvzce/scene_elements/*.json by hand; the pack
+        // Kept in sync with data/pvzce/scene_elements/*.json by hand; the pack
         // entry wins whenever it loads.
+        //
+        // What may be planted on each element is not stated here at all - it is the
+        // tags under data/c/tags/scene_element/ (see PlantPlacement). Terrain with no
+        // tag simply accepts nothing, which is the safe default for a new element.
         registerStatic(SCENE_ELEMENTS, "pvzce:grass", new SceneElementDef(
-                PvzceIds.GRASS, PvzceIds.SURFACE_GRASS, List.of(PvzceIds.FEET_PLANTABLE, "grave"), 0F));
+                PvzceIds.GRASS, PvzceIds.SURFACE_GRASS, 0F));
         registerStatic(SCENE_ELEMENTS, "pvzce:ground", new SceneElementDef(
-                PvzceIds.GROUND, PvzceIds.SURFACE_GROUND,
-                List.of(PvzceIds.FEET_PLANTABLE, "flower_pot", "grave"), 0F));
+                PvzceIds.GROUND, PvzceIds.SURFACE_GROUND, 0F));
         registerStatic(SCENE_ELEMENTS, "pvzce:water", new SceneElementDef(
-                PvzceIds.WATER, PvzceIds.SURFACE_WATER, List.of(PvzceIds.FEET_LILY), 0F,
-                Optional.of(PvzceIds.WATER)));
+                PvzceIds.WATER, PvzceIds.SURFACE_WATER, 0F, Optional.of(PvzceIds.WATER)));
+        registerStatic(SCENE_ELEMENTS, "pvzce:roof_flat", new SceneElementDef(
+                PvzceIds.id("roof_flat"), PvzceIds.SURFACE_ROOF, 0F));
+        registerStatic(SCENE_ELEMENTS, "pvzce:roof_slope", new SceneElementDef(
+                PvzceIds.id("roof_slope"), PvzceIds.SURFACE_ROOF_SLOPE, 0.4F));
+        registerStatic(SCENE_ELEMENTS, "pvzce:grave", new SceneElementDef(
+                PvzceIds.id("grave"), PvzceIds.SURFACE_GRAVE, 0F));
+        registerStatic(SCENE_ELEMENTS, "pvzce:crater", new SceneElementDef(
+                PvzceIds.id("crater"), PvzceIds.SURFACE_CRATER, 0F));
     }
 
     private static void registerGameRules() {
@@ -283,6 +325,20 @@ public final class BuiltInRegistries {
 
     private static void registerSound(Identifier id, String subtitle) {
         registerStatic(SOUND_EVENTS, id.toString(), new SoundEventDef(id, subtitle));
+    }
+
+    /**
+     * The built-in theme/category pair, mirroring
+     * {@code data/pvzce/{level_themes,level_categories}/*.json}.
+     *
+     * <p>Kept as a bootstrap fallback for the same reason as the other built-ins: with no
+     * data pack at all the level select screen still has to have somewhere to put the
+     * levels, and the unclassified bucket alone would hide the whole structure. The pack
+     * entry replaces the static one whenever it loads.
+     */
+    private static void registerLevelGroups() {
+        registerStatic(LEVEL_THEMES, "pvzce:yard", new LevelThemeDef(PvzceIds.id("yard"), 0));
+        registerStatic(LEVEL_CATEGORIES, "pvzce:adventure", new LevelCategoryDef(PvzceIds.id("adventure"), 0));
     }
 
     /**

@@ -8,11 +8,10 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
-import com.pvzce.common.resource.PvzceDataLoader;
-import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -35,11 +34,9 @@ class EntityModelRegressionTest {
 
     @BeforeAll
     static void load() throws Exception {
-        BuiltInRegistries.bootstrap();
-        PvzceResourceManager resources = new PvzceResourceManager(Thread.currentThread().getContextClassLoader());
-        resources.init(Path.of(System.getProperty("java.io.tmpdir"), "pvzce-entity-model-test"));
-        PvzceDataLoader.LoadResult result = new PvzceDataLoader().load(resources, BuiltInRegistries.ACCESS);
-        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        // Content and convention tags together: the placement rules read tags,
+        // so a data-only load would leave every cell unplantable.
+        TestContent.loadBuiltInContentAndTags();
     }
 
     private static LevelDef level(int width, int height) {

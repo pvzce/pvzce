@@ -106,6 +106,24 @@ public final class SlotResolver {
         return BuiltInRegistries.SLOT_TYPES.containsKey(slotId) || BuiltInRegistries.PLANTS.containsKey(slotId);
     }
 
+    /**
+     * True when this card is earned rather than always available.
+     *
+     * <p>Plants and tools are the backpack's business; resource cards are not,
+     * because a level without its sun card could not be played at all. An unknown
+     * card answers {@code false}, so a data error surfaces as "the server dropped
+     * it" rather than as "the player has not unlocked it yet".
+     *
+     * <p>Lives here, next to {@link #resolve}, because the server's
+     * {@code PlayerProfile} and the client's backpack screen both have to answer
+     * it, and a second copy is exactly how "locked" and "unavailable" drift apart.
+     */
+    public static boolean requiresUnlock(Identifier card) {
+        ResolvedCard resolved = resolve(card).orElse(null);
+        return resolved != null
+                && (resolved.kind() == Slot.Kind.PLANT || resolved.kind() == Slot.Kind.TOOL);
+    }
+
     private static void reportUnknown(Identifier slotId) {
         synchronized (REPORTED) {
             if (REPORTED.add(slotId)) {
@@ -122,15 +140,22 @@ public final class SlotResolver {
         }
     }
 
+    /**
+     * The sprite for a card whose slot definition names no icon.
+     *
+     * <p>Forwarded to {@link EntityArt#sprite} rather than built here: the fallback
+     * used to be "prefix + content path", which stopped being true the moment the
+     * shipped art was grouped by kind. The card in the bar and the entity on the
+     * board now resolve through the same answer.
+     */
     private static Optional<Identifier> fallbackIcon(Slot.Kind kind, Identifier content) {
         if (kind == Slot.Kind.RESOURCE) {
             ResourceDef resource = BuiltInRegistries.RESOURCES.get(content);
             if (resource != null) {
                 return Optional.of(resource.icon());
             }
-            return Optional.of(Identifier.withDefaultNamespace("textures/resource/" + content.path()));
         }
-        return Optional.of(Identifier.withDefaultNamespace("textures/entities/" + content.path()));
+        return Optional.ofNullable(EntityArt.sprite(content));
     }
 
     private SlotResolver() {

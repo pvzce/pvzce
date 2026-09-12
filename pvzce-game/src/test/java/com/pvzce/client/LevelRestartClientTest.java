@@ -189,6 +189,48 @@ class LevelRestartClientTest {
         assertInstanceOf(LevelSelectScreen.class, client.currentScreen());
     }
 
+    /**
+     * Testing a level from the editor must offer the seed chooser, exactly like opening it
+     * from the level list.
+     *
+     * <p>The test button used to send {@code RequestLevelC2S} directly, which asks the server
+     * to start the level - so testing skipped the chooser that the same level shows when it is
+     * opened from the list. It now saves, asks for a reload and waits for the refreshed level
+     * list, because the chooser has to describe the definition that was just written rather
+     * than the one from before the save.
+     */
+    @Test
+    void testingAnEditedLevelOpensTheSeedChooserAfterTheReloadedListArrives() throws Exception {
+        Fixture fixture = newClient();
+        PvzceClient client = fixture.client();
+
+        client.testEditedLevel("pvzce:level_1");
+        assertTrue(fixture.sentPackets().stream()
+                        .anyMatch(com.pvzce.common.network.packet.CommandC2S.class::isInstance),
+                "a test run asks the server to reload the saved level");
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "the chooser waits for the reloaded list; it must not open on stale data");
+
+        // The list the server sends after the reload carries the saved definition.
+        client.setLevelList(List.of(levelInfo("pvzce:level_1")));
+
+        assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
+                "a test run must reach the same seed chooser as opening the level from the list");
+    }
+
+    /** A level list that does not contain the edited level must not open a chooser for it. */
+    @Test
+    void testingALevelThatIsNotInTheListOpensNothing() throws Exception {
+        Fixture fixture = newClient();
+        PvzceClient client = fixture.client();
+
+        client.testEditedLevel("pvzce:level_1");
+        client.setLevelList(List.of(levelInfo("pvzce:other_level")));
+
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "a chooser with no options would be worse than not opening one");
+    }
+
     private static LevelListS2C.LevelInfo levelInfo(String levelId) {
         LevelPayload payload = new LevelPayload(9, 5,
                 List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
@@ -197,7 +239,8 @@ class LevelRestartClientTest {
                 List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
         return LevelListS2C.LevelInfo.of(levelId, "第一关", "描述", "pvzce:plant_team",
                 List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves")),
-                "in_progress", "day", payload);
+                "in_progress", "day", "pvzce:yard", "pvzce:adventure", payload,
+                LevelListS2C.UnlockInfo.OPEN);
     }
 
     /** Exiting a level clears the mirror so the next entry starts from nothing. */

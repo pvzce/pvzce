@@ -104,6 +104,18 @@ public class Dialog extends AbstractWidget {
         return this;
     }
 
+    /**
+     * Removes one child, for a dialog that rebuilds part of itself.
+     *
+     * <p>{@link #children()} hands out an immutable copy, so a caller cannot edit the list
+     * it reads; a dialog whose second row depends on its first (a category list that
+     * follows the chosen theme) has to be able to drop the old row's widgets.
+     */
+    public Dialog removeChild(AbstractWidget widget) {
+        children.remove(widget);
+        return this;
+    }
+
     public List<AbstractWidget> children() {
         return List.copyOf(children);
     }

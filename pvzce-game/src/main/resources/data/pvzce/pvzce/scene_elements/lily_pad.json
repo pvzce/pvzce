@@ -1,8 +1,0 @@
-{
-  "id": "pvzce:lily_pad",
-  "surface": "LILY",
-  "accepts": [
-    "plantable"
-  ],
-  "max_height": 0
-}

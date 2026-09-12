@@ -11,6 +11,7 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
 
@@ -94,7 +95,7 @@ public final class HammerCapability implements ZombieCapability {
                 plant.remove();
                 hammerCooldown = hammerIntervalTicks;
                 zombie.setAnimation(EntityAnimations.HAMMER);
-                level.emitEffect("pvzce:ash_smoke", zombie.cellX(), zombie.cellY(),
+                level.emitEffect(PvzceParticles.EXPLOSION_POWIE.toString(), zombie.cellX(), zombie.cellY(),
                         hammerSound.orElseGet(() -> zombie.def().sounds().special()
                                 .orElse(PvzceSounds.ZOMBIE_GARGANTUAR_THUMP)));
             }

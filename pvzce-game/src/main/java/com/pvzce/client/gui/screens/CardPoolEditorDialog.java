@@ -22,6 +22,7 @@ public final class CardPoolEditorDialog extends Dialog {
 
     public static final class Config {
         public int maxSeedSlots = 6;
+        /** The player's pickable cards, in bar order. */
         public final List<String> pool = new ArrayList<>();
         public final List<String> available = new ArrayList<>();
 

@@ -2,8 +2,11 @@ package com.pvzce.common.core;
 
 import com.pvzce.api.content.EnvVarType;
 import com.pvzce.api.content.GameRuleType;
+import com.pvzce.api.content.LevelCategoryDef;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.LevelThemeDef;
 import com.pvzce.api.content.LiquidDef;
+import com.pvzce.api.content.ParticleDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ResourceDef;
@@ -42,7 +45,10 @@ public final class PvzceRegistries {
     public static final ResourceKey<Registry<GameRuleType<?>>> GAME_RULES = key("game_rule");
     public static final ResourceKey<Registry<EnvVarType<?>>> ENV_VAR_TYPES = key("env_var_type");
     public static final ResourceKey<Registry<SoundEventDef>> SOUND_EVENTS = key("sound_event");
+    public static final ResourceKey<Registry<ParticleDef>> PARTICLES = key("particle");
     public static final ResourceKey<Registry<LevelDef>> LEVELS = key("level");
+    public static final ResourceKey<Registry<LevelThemeDef>> LEVEL_THEMES = key("level_theme");
+    public static final ResourceKey<Registry<LevelCategoryDef>> LEVEL_CATEGORIES = key("level_category");
     public static final ResourceKey<Registry<CapabilityType<PlantCapability>>> PLANT_CAPABILITIES =
             key("plant_capability");
     public static final ResourceKey<Registry<CapabilityType<ZombieCapability>>> ZOMBIE_CAPABILITIES =
@@ -73,7 +79,10 @@ public final class PvzceRegistries {
         map.put("game_rule", GAME_RULES);
         map.put("env_var_type", ENV_VAR_TYPES);
         map.put("sound_event", SOUND_EVENTS);
+        map.put("particle", PARTICLES);
         map.put("level", LEVELS);
+        map.put("level_theme", LEVEL_THEMES);
+        map.put("level_category", LEVEL_CATEGORIES);
         // Capability types are code-registered rather than data-driven, but they are
         // still registries: listing them is how a mod author checks what a data file
         // may reference, and including them keeps this table a complete index.
@@ -99,6 +108,8 @@ public final class PvzceRegistries {
                 java.util.Map.entry("env_var_types", "env_var_type"),
                 java.util.Map.entry("sound_events", "sound_event"),
                 java.util.Map.entry("levels", "level"),
+                java.util.Map.entry("level_themes", "level_theme"),
+                java.util.Map.entry("level_categories", "level_category"),
                 java.util.Map.entry("plant_capabilities", "plant_capability"),
                 java.util.Map.entry("zombie_capabilities", "zombie_capability"),
                 java.util.Map.entry("projectile_capabilities", "projectile_capability"));

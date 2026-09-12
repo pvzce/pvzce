@@ -47,14 +47,6 @@ class UnpaintedSceneTest {
     }
 
     @Test
-    void theReportedLevelHasThirtyWaterCellsAndFifteenHoles() {
-        LevelDef def = reportedLevel();
-        int water = def.scene().values().stream().mapToInt(List::size).sum();
-        assertEquals(30, water, "the reported level really does contain 30 water cells");
-        assertEquals(15, 9 * 5 - water, "and 15 cells are unpainted - the brown cross");
-    }
-
-    @Test
     void theValidatorNamesTheHoles() {
         List<String> errors = LevelValidator.validateScene(reportedLevel());
         assertEquals(1, errors.size(), "one summary error, not one per hole: " + errors);

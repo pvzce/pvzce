@@ -1,7 +1,9 @@
 package com.pvzce.common.network;
 
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.CommandC2S;
+import com.pvzce.common.network.packet.CreateWorldC2S;
 import com.pvzce.common.network.packet.DebugInfoS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
@@ -13,12 +15,16 @@ import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelPayload;
+import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
+import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.OpenEditorS2C;
+import com.pvzce.common.network.packet.MovePlantC2S;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
+import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.RequestLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
@@ -29,6 +35,7 @@ import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
+import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.common.network.packet.StartLevelC2S;
@@ -90,11 +97,25 @@ class PacketProtocolTest {
                 new CommandC2S("/time set 600"),
                 new SetGameSpeedC2S(2),
                 new PauseGameC2S(true),
+                new CreateWorldC2S("sandbox", true),
+                new UnlockLevelC2S("pvzce:yard/adventure/1_2", "world"),
+                new MovePlantC2S(2, 3, 4),
 
                 new LevelInitS2C("pvzce:level_1", slots, List.of("normal", "final"), payload,
                         "pvzce:zombie_team", "僵尸方", PvzcePackets.PROTOCOL_VERSION),
-                new LevelListS2C(List.of(LevelListS2C.LevelInfo.of("pvzce:level_1", "第一关", "描述",
-                        "pvzce:plant_team", teams, "in_progress", "day", payload))),
+                new LevelListS2C(List.of(LevelListS2C.LevelInfo.of("pvzce:yard/adventure/level_1", "第一关", "描述",
+                        "pvzce:plant_team", teams, "in_progress", "day",
+                        "pvzce:yard", "pvzce:adventure", payload,
+                        // A locked row, so the sample set covers the unlock fields too.
+                        new LevelListS2C.UnlockInfo(false, true, 500, "通关 1_1",
+                                List.of(com.pvzce.api.content.LevelUnlock.Requirement.level(
+                                        Identifier.of("pvzce", "yard/adventure/1_1"))),
+                                false)))),
+                // The tab table is its own packet so the select screen can render pages the
+                // level list does not mention; the unclassified bucket travels as the
+                // sentinel pair rather than as a null.
+                new LevelTabsS2C(List.of(new LevelTabsS2C.Tab("pvzce:yard", "pvzce:adventure"),
+                        new LevelTabsS2C.Tab("pvzce:uncategorized", "pvzce:uncategorized"))),
                 new LevelSavePromptS2C("pvzce:level_1", "world", "第一关", 1234, 7, 250),
                 new OpenEditorS2C("pvzce:demo_level"),
                 new SceneSyncS2C(List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass"))),
@@ -120,7 +141,11 @@ class PacketProtocolTest {
                 new TimeOfDayS2C(600, 1200, 600),
                 new DebugInfoS2C(98765L, false, true),
                 new GameSpeedS2C(180F),
-                new MusicEventS2C("background", "pvzce:music/grasswalk", true, false, 0.85F, 1.5F));
+                new MusicEventS2C("background", "pvzce:music/grasswalk", true, false, 0.85F, 1.5F),
+                // Non-default values: an empty unlock list or zero coins would hide a
+                // writer/reader swap in either column.
+                new ProfileS2C(350, List.of("pvzce:pea_shooter", "pvzce:sunflower", "pvzce:shovel"), false),
+                new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower"));
     }
 
     /**

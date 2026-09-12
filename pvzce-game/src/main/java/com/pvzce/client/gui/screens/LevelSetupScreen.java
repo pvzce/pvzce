@@ -114,19 +114,14 @@ public final class LevelSetupScreen extends Screen {
         if (plantTeam == null) {
             return;
         }
-        // A resumable save must be loaded and shown behind the
-        // continue/restart prompt before any seed selection happens.
-        if ("in_progress".equals(levelInfo.status())) {
-            client.requestLevel(levelInfo.id(), false);
-            return;
-        }
-        client.openSeedSelection(levelInfo, false);
+        // Same decision as the level list (and the only other place a level can be entered
+        // from a menu): a level with a resumable save is loaded and asked about, never sent
+        // through the seed chooser - its card bar is already in the save.
+        client.enterLevelFromMenu(levelInfo);
     }
 
     @Override
-    public void mouseClicked(double mouseX, double mouseY, int button) {
-        double guiX = client.guiMouseX(mouseX);
-        double guiY = client.guiMouseY(mouseY);
+    protected void onMouseClicked(double guiX, double guiY, int button) {
         if (button == 0 && plantTeam != null && inside(guiX, guiY, plantX, plantY, plantWidth, plantHeight)) {
             if (plantUnlocked) {
                 selectedTeam = plantTeam.id();
@@ -139,7 +134,6 @@ public final class LevelSetupScreen extends Screen {
             }
             return;
         }
-        super.mouseClicked(mouseX, mouseY, button);
     }
 
     private static boolean inside(double x, double y, int rx, int ry, int rw, int rh) {

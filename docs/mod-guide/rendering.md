@@ -2,7 +2,7 @@
 
 ## 渲染后端现状（第二阶段）
 
-- **动画后端**：已实现 **flipbook** 与 **自研 2D 控制器** 两种；统一走 `ClientEntity.playAnimation(state)`，按每实体 `assets/<ns>/animations/<entity_path>.json` 自动识别。详见 [animation.md](animation.md)。
+- **动画后端**：已实现 **flipbook** 与 **自研 2D 控制器** 两种；统一走 `ClientEntity.playAnimation(state)`，按每实体的 `assets/<ns>/animations/<animation_dir>/<entity_path>.json` 自动识别（`animation_dir` 缺省时就是 id 路径）。详见 [animation.md](animation.md)。
 - **缺失纹理**：红-橙占位块；控制台输出一次 `WARN  PVZCE/Client - Missing texture reference: <id>`。
 - **静态回退**：没有动画 JSON 的实体显示 `<id>.png` 首帧；旧的 `_2.png` 自动切换已移除。当前已接入原版 reanim 的实体见 [animation.md](animation.md)。
 
@@ -22,18 +22,19 @@
 ### 内容怎么加
 
 ```jsonc
-// data/<ns>/pvzce/scene_elements/water.json
+// data/<ns>/scene_elements/water.json
 {
   "id": "pvzce:water",
   "surface": "WATER",
-  "accepts": ["lily"],
   "max_height": 0,
-  "liquid": "pvzce:water"        // 新字段：我要用哪个液体来画
+  "liquid": "pvzce:water"        // 我要用哪个液体来画
 }
+// 能不能种、能种什么由标签决定，不写在这里：
+// data/c/tags/scene_element/water.json -> #c:water
 ```
 
 ```jsonc
-// data/<ns>/pvzce/liquids/water.json —— 渲染参数的唯一出处，每个字段都有默认值
+// data/<ns>/liquids/water.json —— 渲染参数的唯一出处，每个字段都有默认值
 {
   "id": "pvzce:water",
   "base_texture": "pvzce:textures/scene/water_base",  // 水底，必须可无缝平铺
@@ -79,7 +80,7 @@ level.emitRipple(PvzceIds.WATER, x, y, 0.6F);          // 指定液体与强度
 `tools/preview_water.py` 是 shader 的 CPU 镜像，直接读**发布的数据文件**出图：
 
 ```bash
-python3 tools/preview_water.py --level combat_test.json --out /tmp/water.png
+python3 tools/preview_water.py --level yard/adventure/combat_test.json --out /tmp/water.png
 python3 tools/preview_water.py --level <关卡> --quality low --probe 500,250   # 打印某像素的中间值
 python3 tools/preview_water.py --level <关卡> --seams --grid                  # 接缝与逐格判定
 ```
@@ -90,10 +91,10 @@ python3 tools/preview_water.py --level <关卡> --seams --grid                  
 
 | 实体 | 路径 |
 |---|---|
-| 植物 | `assets/<ns>/textures/entities/<plant_id>.png` |
-| 僵尸 | `assets/<ns>/textures/entities/<zombie_id>.png` |
-| 子弹 | `assets/<ns>/textures/entities/<projectile_id>.png` |
-| 资源掉落 | `assets/<ns>/textures/entities/<resource_id>.png` |
+| 植物 | 定义里的 `texture` 字段，否则 `assets/<ns>/textures/entities/<plant_id>.png` |
+| 僵尸 | 同上，`<zombie_id>` |
+| 子弹 | 同上，`<projectile_id>` |
+| 资源掉落 | 资源自己的 `icon`，否则 `assets/<ns>/textures/entities/<resource_id>.png` |
 | 场景 | `assets/<ns>/textures/scene/<element_id>.png` |
 
 资源包放入 `resourcepacks/<pack>/`，`/reload` 后按包优先级覆盖。

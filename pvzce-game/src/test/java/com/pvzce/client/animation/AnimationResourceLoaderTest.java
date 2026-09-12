@@ -2,6 +2,7 @@ package com.pvzce.client.animation;
 
 import com.google.gson.JsonParser;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStreamReader;
@@ -155,14 +156,31 @@ class AnimationResourceLoaderTest {
     }
 
     private static AnimationFile parseClasspath(String path) throws Exception {
-        try (var stream = AnimationResourceLoaderTest.class.getResourceAsStream("/assets/pvzce/animations/" + path + ".json")) {
+        String resolved = animationPath(path);
+        try (var stream = AnimationResourceLoaderTest.class.getResourceAsStream(resolved)) {
             if (stream == null) {
-                throw new IllegalStateException("Missing test resource " + path);
+                throw new IllegalStateException("Missing test resource " + resolved);
             }
             var reader = new InputStreamReader(stream, StandardCharsets.UTF_8);
             return AnimationResourceLoader.parse(JsonParser.parseReader(reader).getAsJsonObject(),
                     Identifier.withDefaultNamespace(path));
         }
+    }
+
+    /**
+     * Where a content id's animation file actually lives.
+     *
+     * <p>Asked of the production resolver rather than written out here: the shipped
+     * art is grouped by kind ({@code animations/plant/attacker/pea_shooter.json}), and
+     * a test that hardcodes the path would keep passing against a layout the game no
+     * longer loads.
+     */
+    private static String animationPath(String defId) throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        Identifier fileId = com.pvzce.common.core.EntityArt.animationFile(
+                Identifier.withDefaultNamespace(defId));
+        assertNotNull(fileId, defId + " must resolve to an animation file id");
+        return "/assets/" + fileId.namespace() + "/animations/" + fileId.path() + ".json";
     }
 
     @Test

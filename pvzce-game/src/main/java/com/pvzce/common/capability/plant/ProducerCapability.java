@@ -10,6 +10,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
 
@@ -90,8 +91,8 @@ public final class ProducerCapability implements PlantCapability {
         }
         cooldown = everyTicks;
         plant.setAnimation(EntityAnimations.PRODUCE);
-        level.spawnResource(resource, amount, plant.cellX(), plant.cellY(), plant.team());
-        level.emitEffect("pvzce:sparkle", plant.cellX(), plant.cellY(),
+        level.spawnProducedResource(resource, amount, plant.cellX(), plant.cellY(), plant.team());
+        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().produce().orElse(PvzceSounds.UI_POINTS)));
     }
 

@@ -15,6 +15,43 @@ public final class PvzceIds {
     public static final Identifier REDSTONE = id("redstone");
     public static final Identifier ENERGY_BEAN = id("energy_bean");
 
+    /**
+     * The persistent currency, in the original's four denominations.
+     *
+     * <p>Unlike sun it outlives a run: whatever a level collected is banked into the
+     * world's {@code profile.dat} when the level ends, win or lose. They are separate
+     * resources rather than one resource with an amount because each is a different
+     * <em>object</em> with its own sprite and its own worth - a single "coin" id could
+     * not tell the player whether they just picked up 10 or 1000.
+     *
+     * <p>What one is worth is {@code ResourceDef.defaultValue} in
+     * {@code data/pvzce/resources/}, and a drop is spawned with that value as its
+     * amount, so a team's resource count for a denomination already reads in coins.
+     */
+    public static final Identifier COIN_SILVER = id("coin_silver");
+    public static final Identifier COIN_GOLD = id("coin_gold");
+    public static final Identifier DIAMOND = id("diamond");
+    public static final Identifier MONEY_BAG = id("money_bag");
+
+    /** Every denomination, in ascending worth; the HUD and the bank sum over this. */
+    public static final java.util.List<Identifier> COIN_DENOMINATIONS =
+            java.util.List.of(COIN_SILVER, COIN_GOLD, DIAMOND, MONEY_BAG);
+
+    /** True when this resource is money rather than a level resource like sun. */
+    public static boolean isCoin(Identifier resource) {
+        return resource != null && COIN_DENOMINATIONS.contains(resource);
+    }
+
+    /** True when this wire id names money; tolerant of ids the client cannot parse. */
+    public static boolean isCoin(String resourceId) {
+        return isCoin(Identifier.tryParse(resourceId));
+    }
+
+    /** The plant a fresh profile starts with, and the first level's only plant card. */
+    public static final Identifier STARTER_PLANT = id("pea_shooter");
+    /** The one tool a fresh profile starts with, so a misplaced plant can be dug up. */
+    public static final Identifier STARTER_TOOL = id("shovel");
+
     public static final Identifier PLANT_TEAM = id("plant_team");
     public static final Identifier ZOMBIE_TEAM = id("zombie_team");
 
@@ -49,11 +86,13 @@ public final class PvzceIds {
     public static final String SURFACE_CRATER = "CRATER";
     public static final String SURFACE_GRAVE = "GRAVE";
 
-    /** Placement feet values. */
-    public static final String FEET_GROUND = "ground";
-    public static final String FEET_LILY = "lily";
-    public static final String FEET_PLANT = "plant";
-    public static final String FEET_PLANTABLE = "plantable";
+    /**
+     * The placement "feet" strings are gone. What a plant may be planted on is
+     * now {@code #c:*} tags ({@code #c:plantable}, {@code #c:water},
+     * {@code #c:requires_ground}, ...) declared in
+     * {@code data/c/tags/}; see {@link com.pvzce.common.tag.PvzceTags} and
+     * {@link com.pvzce.common.core.PlantPlacement}.
+     */
 
     public static Identifier id(String path) {
         return Identifier.withDefaultNamespace(path);

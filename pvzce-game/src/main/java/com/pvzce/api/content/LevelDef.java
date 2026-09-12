@@ -6,12 +6,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** A level definition loaded from {@code data/<ns>/pvzce/levels/<id>.json}. */
+/** A level definition loaded from {@code data/<ns>/levels/<id>.json}. */
 public record LevelDef(
         Identifier id,
         String name,
@@ -30,10 +31,26 @@ public record LevelDef(
         int initialSun,
         LevelMusicDef music,
         List<InitialEntityDef> initialEntities,
-        int maxSeedSlots
+        int maxSeedSlots,
+        LevelRewards rewards,
+        LevelUnlock unlock
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     public static final int DEFAULT_MAX_SEED_SLOTS = 6;
+
+    /**
+     * A level's own cards must fit in its bar, so the declared slot count is raised to the
+     * number of cards when it is too small.
+     *
+     * <p>Nothing else is consistent: a level that fixes three cards while declaring two
+     * slots could not grant its own design, and clamping would silently drop one of them.
+     * Every level authored before this rule lists its whole card pool and leaves
+     * {@code max_seed_slots} at the default, so they all become fixed decks - which is what
+     * "a card the level chose is fixed" means when applied to data that already exists.
+     */
+    public LevelDef {
+        maxSeedSlots = Math.max(maxSeedSlots, slots.size());
+    }
 
     /** Backwards-compatible constructor for callers/tests written before seed selection existed. */
     public LevelDef(Identifier id, String name, String description, int width, int height,
@@ -44,7 +61,19 @@ public record LevelDef(
                     LevelMusicDef music, List<InitialEntityDef> initialEntities) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                DEFAULT_MAX_SEED_SLOTS);
+                DEFAULT_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE);
+    }
+
+    /** As above, but with an explicit slot count and the standard rewards block. */
+    public LevelDef(Identifier id, String name, String description, int width, int height,
+                    Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
+                    Map<Identifier, JsonElement> rules, Map<Identifier, EnvValue> envVars,
+                    List<WaveDef> waves, float waveIntervalEndMultiplier, List<Identifier> slots,
+                    Map<Identifier, Boolean> unlockResources, int initialSun,
+                    LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots) {
+        this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
+                waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
+                maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE);
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -73,21 +102,27 @@ public record LevelDef(
             waveIntervalEndMultiplier, slots, unlockResources, initialSun, tail) ->
             new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                     waveIntervalEndMultiplier, slots, unlockResources, initialSun,
-                    tail.music(), tail.initialEntities(), tail.maxSeedSlots())));
+                    tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
+                    tail.unlock())));
 
     public LevelTail tail() {
-        return new LevelTail(music, initialEntities, maxSeedSlots);
+        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock);
     }
 
     /** Grouped tail fields keep the outer codec inside DFU's 16-field limit. */
-    public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots) {
+    public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
+                            LevelRewards rewards, LevelUnlock unlock) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
                         InitialEntityDef.CODEC.listOf().optionalFieldOf("initial_entities", List.of())
                                 .forGetter(LevelTail::initialEntities),
                         Codec.INT.optionalFieldOf("max_seed_slots", DEFAULT_MAX_SEED_SLOTS)
-                                .forGetter(LevelTail::maxSeedSlots)
+                                .forGetter(LevelTail::maxSeedSlots),
+                        LevelRewards.CODEC.optionalFieldOf("rewards", LevelRewards.DEFAULT)
+                                .forGetter(LevelTail::rewards),
+                        LevelUnlock.CODEC.optionalFieldOf("unlock", LevelUnlock.NONE)
+                                .forGetter(LevelTail::unlock)
                 ).apply(i, LevelTail::new));
     }
 
@@ -139,6 +174,67 @@ public record LevelDef(
             }
         }
         return List.copyOf(ids);
+    }
+
+    /**
+     * The seed chooser's contract for this level: the cards the level fixed, the cards the
+     * player may pick, and how many slots there are in total.
+     *
+     * <p>There is no per-card "fixed" flag. A card in {@code slots} is part of the level's
+     * design and is pinned; the player fills the slots the level left over from the rest of
+     * the card list. Fewer level cards than {@code max_seed_slots} is what creates room for
+     * that choice at all - a level that fills every slot hands the player a fixed deck.
+     */
+    public record SeedPlan(List<Identifier> lockedSlots, List<Identifier> pickableSlots, int maxSlots) {
+        public SeedPlan {
+            lockedSlots = List.copyOf(lockedSlots);
+            pickableSlots = List.copyOf(pickableSlots);
+        }
+
+        /** True when the level's own cards already fill every slot. */
+        public boolean isFullyFixed() {
+            return lockedSlots.size() >= maxSlots;
+        }
+    }
+
+    /**
+     * Builds the plan from the full card list.
+     *
+     * <p>Takes that list as an argument rather than reading a registry, because what the
+     * player may pick is "every card the game has, minus the level's own" and this record
+     * deliberately knows nothing about registries (see {@code LevelValidator} for the
+     * checks that do).
+     */
+    public SeedPlan seedPlan(List<Identifier> allCards) {
+        List<Identifier> locked = new ArrayList<>();
+        for (Identifier slot : slots) {
+            if (slot != null && !locked.contains(slot) && locked.size() < maxSeedSlots) {
+                locked.add(slot);
+            }
+        }
+        List<Identifier> pickable = new ArrayList<>();
+        for (Identifier card : allCards) {
+            if (card != null && !locked.contains(card) && !pickable.contains(card)) {
+                pickable.add(card);
+            }
+        }
+        return new SeedPlan(locked, pickable, maxSeedSlots);
+    }
+
+    /**
+     * The bar a player gets when they make no choices: the level's cards, then pickable
+     * cards in registration order until the slots run out.
+     */
+    public List<Identifier> defaultSeedSelection(List<Identifier> allCards) {
+        SeedPlan plan = seedPlan(allCards);
+        List<Identifier> bar = new ArrayList<>(plan.lockedSlots());
+        for (Identifier card : plan.pickableSlots()) {
+            if (bar.size() >= plan.maxSlots()) {
+                break;
+            }
+            bar.add(card);
+        }
+        return List.copyOf(bar);
     }
 
     private static List<TeamDef> defaultTeams() {

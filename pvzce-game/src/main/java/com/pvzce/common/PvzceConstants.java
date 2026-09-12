@@ -19,6 +19,12 @@ public final class PvzceConstants {
     public static final int INITIAL_SUN = 150;
     public static final int SUN_VALUE = 25;
     public static final float SUN_SPAWN_CHANCE = 0.001F;
+    /**
+     * Bank cap for {@code pvzce:coin}; matches {@code max_stack} in
+     * {@code data/pvzce/resources/coin.json}, so the in-level resource and
+     * the persistent wallet cannot disagree about the ceiling.
+     */
+    public static final int COIN_CAP = 9990;
     public static final int SAVE_DATA_VERSION = 2;
 
     private PvzceConstants() {

@@ -9,6 +9,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.server.entity.ProjectileEntity;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
 
@@ -55,7 +56,7 @@ public final class SplashImpactCapability implements ProjectileCapability {
         float x = zombie != null ? zombie.cellX() : projectile.cellX();
         float y = zombie != null ? zombie.cellY() : projectile.cellY();
         level.damageArea(x, y, radius, projectile.damage(), projectile.team());
-        level.emitEffect("pvzce:splash", x, y,
+        level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), x, y,
                 sound.orElseGet(() -> projectile.def().sounds().impact().orElse(PvzceSounds.PROJECTILE_HIT)));
     }
 }

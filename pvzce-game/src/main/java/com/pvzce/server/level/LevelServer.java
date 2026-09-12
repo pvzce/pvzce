@@ -1,6 +1,8 @@
 package com.pvzce.server.level;
 
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.LevelRewards;
+import com.pvzce.api.content.PlacementDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ProjectileRef;
@@ -18,6 +20,8 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.PlantPlacement;
+import com.pvzce.common.core.PlantPlacement.PlantLayer;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.level.DayNightCycle;
@@ -41,10 +45,12 @@ import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
+import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.WaveProgressS2C;
+import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.PvzcePlayer;
 import com.pvzce.server.Slot;
 import com.pvzce.server.Team;
@@ -57,6 +63,7 @@ import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.env.LevelEnvVars;
 import com.pvzce.server.gamerule.GameRules;
 import com.pvzce.server.gamerule.PvzceClock;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -83,15 +90,11 @@ import java.util.Random;
 public final class LevelServer implements LevelAccess {
     public static final int DEFAULT_COLUMNS = PvzceConstants.DEFAULT_GRID_WIDTH;
     public static final int DEFAULT_ROWS = PvzceConstants.DEFAULT_GRID_HEIGHT;
-    /** Small right nudge so a plant sits visually centred on a flower pot/lily pad. */
-    private static final float CARRIER_X_OFFSET = 0.06F;
-    /** Visual heights of the two carriers, in world cells. */
-    private static final float FLOWER_POT_TOP = 0.38F;
-    private static final float LILY_PAD_TOP = 0.10F;
 
     private final LevelDef def;
     private final List<WaveDef> waves;
     private final SceneGrid<SceneElementDef> scene;
+    private final SeedContext seedContext;
     private final Map<Identifier, Team> teams = new HashMap<>();
     private final List<PvzceEntity> entities = new ArrayList<>();
     private final List<PvzceEntity> pendingAdd = new ArrayList<>();
@@ -117,8 +120,44 @@ public final class LevelServer implements LevelAccess {
     private String gameState = GameStateS2C.RUNNING;
     private Identifier winner;
     private Identifier humanTeamId = PvzceIds.PLANT_TEAM;
+    /**
+     * Where the most recent zombie died, in cells, or NaN when none has.
+     *
+     * <p>The end-of-level reward lands there: the original drops the seed packet or money
+     * bag on the spot the fight finished, which is a better answer to "where should this
+     * appear" than the middle of the lawn.
+     */
+    private float lastKillX = Float.NaN;
+    private float lastKillY = Float.NaN;
     private boolean gameEndPacketSent;
     private boolean waveDirty = true;
+    /**
+     * Wave indices whose arrival has already been announced.
+     *
+     * <p>{@code triggerWave} is the only emitter, and it advances the index, so in a clean
+     * run each wave announces once by construction. This makes it a guarantee instead:
+     * a save restored from the middle of a wave, a replayed tick, or a future caller that
+     * triggers a wave directly cannot make the siren play twice - which is the one way
+     * "the last wave's sound" could loop, since the sound itself does not.
+     */
+    private final java.util.Set<Integer> announcedWaves = new java.util.HashSet<>();
+    /**
+     * The plant the glove is holding, or {@code -1}.
+     *
+     * <p>A move is two clicks, so the level has to remember the first one. Kept as an
+     * entity id rather than a cell: the cell could be filled by something else between
+     * the clicks, and the id cannot.
+     */
+    private int carriedPlantId = -1;
+    /** Ticks left before an abandoned carry is put back where it came from. */
+    private int carryTimeoutTicks;
+    /**
+     * How long an unfinished move waits before it is abandoned (15s at 60tps).
+     *
+     * <p>Nothing is removed during a carry, so giving up simply drops the reference and
+     * the plant is where it always was.
+     */
+    public static final int CARRY_TIMEOUT_TICKS = 900;
 
     public LevelServer(LevelDef def) {
         this(def, def.slots());
@@ -126,7 +165,22 @@ public final class LevelServer implements LevelAccess {
 
     /** Creates a level whose plant player starts with the supplied seed selection, in order. */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots) {
+        this(def, selectedSlots, SeedContext.all(def));
+    }
+
+    /**
+     * Creates a level with the chooser pool the client will be shown.
+     *
+     * <p>The pool is an input rather than something this class derives, because
+     * deriving it would mean reading the player's backpack, and a level does not
+     * know which world - let alone which profile - it was started from. The
+     * server resolves it once and hands it in; {@link #sendFullState} then only
+     * replays what it was given, so the cards the client sees and the cards
+     * {@code PvzceServer.sanitizeSeedSelection} accepts cannot drift apart.
+     */
+    public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext) {
         this.def = def;
+        this.seedContext = seedContext == null ? SeedContext.all(def) : seedContext;
         this.waves = normalizeWaves(def.waves());
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
@@ -177,9 +231,14 @@ public final class LevelServer implements LevelAccess {
      */
     private void reportLevelProblems() {
         List<String> problems = new java.util.ArrayList<>();
+        problems.addAll(LevelValidator.validatePlacementTags());
         problems.addAll(GameRules.validate(def.rules()));
         problems.addAll(LevelValidator.validateEnvVars(def.envVars()));
         problems.addAll(LevelValidator.validateSlots(def.slots()));
+        problems.addAll(LevelValidator.validateSeedSelection(def));
+        problems.addAll(LevelValidator.validateRewards(def));
+        problems.addAll(LevelValidator.validateUnlock(def));
+        problems.addAll(LevelValidator.validateUnlockCycles());
         problems.addAll(LevelValidator.validateScene(def));
         problems.addAll(LevelValidator.validateInitialEntities(def));
         if (!problems.isEmpty()) {
@@ -187,6 +246,12 @@ public final class LevelServer implements LevelAccess {
             for (String problem : problems) {
                 System.err.println("[PVZCE]   - " + problem);
             }
+        }
+        // Notes are not defects: a fixed deck is exactly what the first level is. They
+        // are reported separately so that "has N problem(s)" keeps meaning something.
+        String note = LevelValidator.describeFixedDeck(def);
+        if (note != null) {
+            System.err.println("[PVZCE] Level " + def.id() + " note: " + note);
         }
     }
 
@@ -287,6 +352,15 @@ public final class LevelServer implements LevelAccess {
         return gameState;
     }
 
+    /** Where the last zombie died, or NaN when none has; the level's reward lands there. */
+    public float lastKillX() {
+        return lastKillX;
+    }
+
+    public float lastKillY() {
+        return lastKillY;
+    }
+
     public Identifier winner() {
         return winner;
     }
@@ -354,23 +428,38 @@ public final class LevelServer implements LevelAccess {
     }
 
     /**
-     * Explicit stack layer, lower first. Carriers (flower pot / lily pad) sit
-     * below normal plants, and {@code feet=plant} supports (coffee bean and
-     * future covers) sit above them. Ties are broken by entity id, so the
-     * later-planted plant is on top.
+     * The cell's stack, as the tag-driven placement rules see it.
+     *
+     * <p>Built fresh per query rather than cached: a cell holds at most a handful
+     * of plants, and a cache would have to be invalidated on every spawn, removal
+     * and scene write - three places that already disagree often enough.
      */
-    private static int stackLayer(PlantDef def) {
-        return switch (def.placement().feet()) {
-            case PvzceIds.FEET_GROUND, PvzceIds.FEET_LILY -> 0;
-            case PvzceIds.FEET_PLANT -> 2;
-            default -> 1;
-        };
-    }
+    private final PlantPlacement.Ctx placementContext = new PlantPlacement.Ctx() {
+        @Override
+        public PlantPlacement.Terrain terrain(int x, int y) {
+            SceneElementDef element = sceneAt(x, y);
+            return element == null
+                    ? PlantPlacement.Terrain.NONE
+                    : new PlantPlacement.Terrain(element, element.heightAt(x + 0.5F, width()));
+        }
 
-    /** Plants in a cell ordered bottom-to-top by the explicit stacking rules. */
+        @Override
+        public List<PlantPlacement.PlantLayer> plants(int x, int y) {
+            List<PlantLayer> layers = new ArrayList<>();
+            for (PlantEntity plant : plantsAt(x, y)) {
+                layers.add(new PlantLayer(plant.def(), plant.id()));
+            }
+            // Bottom-to-top, the order PlantPlacement documents: a caller that zips
+            // this list with plantsAt() must get the same order.
+            layers.sort(PlantPlacement.bottomFirst());
+            return layers;
+        }
+    };
+
+    /** Plants in a cell ordered bottom-to-top by the tag-driven stacking rules. */
     public List<PlantEntity> plantsBottomFirst(int column, int row) {
         return plantsAt(column, row).stream()
-                .sorted(Comparator.comparingInt((PlantEntity p) -> stackLayer(p.def()))
+                .sorted(Comparator.comparingInt((PlantEntity p) -> PlantPlacement.layerIndex(p.def()))
                         .thenComparingInt(PlantEntity::id))
                 .toList();
     }
@@ -382,44 +471,23 @@ public final class LevelServer implements LevelAccess {
         return plants.isEmpty() ? null : plants.get(plants.size() - 1);
     }
 
-    public boolean hasPlantWithFeet(int column, int row, String feet) {
-        return plantsAt(column, row).stream().anyMatch(p -> feet.equals(p.def().placement().feet()));
-    }
-
     /**
-     * Stacking matrix: plantable needs grass/ground or a carrier (lily pad,
-     * flower pot); lily needs water; ground-feet pots go on grass/roof; and
-     * plant-feet items (coffee bean) stack on any plant.
+     * Whether {@code def} may be planted at a cell.
+     *
+     * <p>The rules themselves live in {@link PlantPlacement}: this method only
+     * adapts the level to them, so a unit test can exercise the whole matrix
+     * without a running level. It used to be a five-branch switch over the
+     * {@code feet} string plus a handful of hard-coded element ids
+     * ({@code "flower_pot"}, {@code SURFACE_WATER}, ...), which is why a mod could
+     * not add terrain or a carrier without a code change.
      */
     public boolean canPlacePlant(PlantDef def, int x, int y) {
-        if (!inBounds(x, y)) {
-            return false;
-        }
-        String feet = def.placement().feet();
-        SceneElementDef base = sceneAt(x, y);
-        List<PlantEntity> stacked = plantsAt(x, y);
-        if (PvzceIds.FEET_PLANT.equals(feet)) {
-            return !stacked.isEmpty();
-        }
-        if (PvzceIds.FEET_LILY.equals(feet)) {
-            return base != null && (PvzceIds.SURFACE_WATER.equals(base.surfaceClass()) || base.accepts(PvzceIds.FEET_LILY));
-        }
-        if (PvzceIds.FEET_GROUND.equals(feet)) {
-            return base != null && (base.accepts("flower_pot") || base.accepts(PvzceIds.FEET_GROUND)
-                    || PvzceIds.SURFACE_GROUND.equals(base.surfaceClass())
-                    || PvzceIds.SURFACE_ROOF.equals(base.surfaceClass())
-                    || PvzceIds.SURFACE_ROOF_SLOPE.equals(base.surfaceClass()));
-        }
-        boolean carrier = stacked.stream().anyMatch(p -> isCarrier(p));
-        if (PvzceIds.FEET_PLANTABLE.equals(feet)) {
-            return carrier || (base != null && base.accepts(PvzceIds.FEET_PLANTABLE));
-        }
-        return base != null && base.accepts(feet);
+        return inBounds(x, y) && PlantPlacement.canPlace(def, placementContext, x, y);
     }
 
-    /** Carrier plants are identified by their placement layer, not by a hard-coded id list. */
+    /** True when this plant occupies the carrier layer (flower pot, lily pad). */
     public static boolean isCarrier(PlantEntity plant) {
-        return stackLayer(plant.def()) == 0;
+        return plant != null && PlantPlacement.isCarrier(plant.def());
     }
 
     public List<PvzceEntity> entities() {
@@ -471,42 +539,23 @@ public final class LevelServer implements LevelAccess {
         PlantEntity plant = new PlantEntity(def, team, x, y);
         plant.setGridBounds(width(), height());
         if (plantsAt(x, y).stream().anyMatch(LevelServer::isCarrier)) {
-            plant.setCellX(plant.cellX() + CARRIER_X_OFFSET);
+            plant.setCellX(plant.cellX() + PlantPlacement.CARRIER_X_OFFSET);
         }
-        plant.setHeight(stackedPlantHeight(x, y));
+        plant.setHeight(PlantPlacement.placementHeight(placementContext, x, y));
         addEntity(plant);
         flushPending();
         plant.onPlaced(this);
         flushPending();
         if (!plant.isRemoved()) {
-            emitEffect("pvzce:plant", x + 0.5F, y + 0.5F, placementSound(def, x, y));
+            emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, placementSound(def, x, y));
         }
         return plant;
     }
 
-    /**
-     * Placement height including any carrier already in the cell (flower pot /
-     * lily pad). The constants are visual carrier tops in world cells.
-     */
-    private float stackedPlantHeight(int x, int y) {
-        SceneElementDef base = sceneAt(x, y);
-        float height = base == null ? 0F : base.heightAt(x + 0.5F, width());
-        for (PlantEntity existing : plantsAt(x, y)) {
-            int layer = stackLayer(existing.def());
-            if (layer == 0) {
-                height = Math.max(height, existing.height() + carrierTop(existing));
-            }
-        }
-        return height;
-    }
-
-    private static float carrierTop(PlantEntity carrier) {
-        return carrier.def().id().path().equals("flower_pot") ? FLOWER_POT_TOP : LILY_PAD_TOP;
-    }
-
     private Identifier placementSound(PlantDef def, int x, int y) {
         SceneElementDef base = sceneAt(x, y);
-        Identifier fallback = base != null && PvzceIds.SURFACE_WATER.equals(base.surfaceClass())
+        Identifier fallback = base != null && PlantPlacement.terrainTagged(
+                PlantPlacement.Terrain.of(base), PvzceTags.SCENE_WATER)
                 ? PvzceSounds.PLANT_PLANT_WATER
                 : PvzceSounds.PLANT_PLANT;
         return def.sounds().place().orElse(fallback);
@@ -534,11 +583,22 @@ public final class LevelServer implements LevelAccess {
 
     @Override
     public void spawnResource(Identifier resourceId, int amount, float x, float y, Team team) {
+        spawnResource(resourceId, amount, x, y, team, null);
+    }
+
+    @Override
+    public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team) {
+        spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE);
+    }
+
+    private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
+                               ResourceDef.DropMotion motion) {
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(resourceId);
         if (resource == null) {
             return;
         }
-        addEntity(new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y), amount));
+        addEntity(new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y),
+                amount, motion));
     }
 
     @Override
@@ -579,6 +639,13 @@ public final class LevelServer implements LevelAccess {
                 }
                 addEntity(new ProjectileEntity(def, null, teams.get(PvzceIds.PLANT_TEAM),
                         x + 0.5F, y + 0.5F, sceneAt(x, y) == null ? 0F : sceneAt(x, y).heightAt(x + 0.5F, width())));
+                yield true;
+            }
+            case "resource", "drop", "sun" -> {
+                if (BuiltInRegistries.RESOURCES.get(id) == null) {
+                    yield false;
+                }
+                spawnResource(id, 25, x, y, teams.get(PvzceIds.PLANT_TEAM));
                 yield true;
             }
             default -> false;
@@ -664,6 +731,41 @@ public final class LevelServer implements LevelAccess {
         void send(PvzcePacket packet);
     }
 
+    /**
+     * The card pool one level instance offers its client, resolved once by the
+     * server.
+     *
+     * <p>{@code pool} is what the chooser may show and {@code lockedSlotIds} is
+     * what the level pinned; the difference between them is the player's choice.
+     * Both travel into {@code LevelPayload} so the chooser and the in-game bar
+     * describe the same deck. The locked ids are the wire spelling, not
+     * {@code Identifier}s, because that is the only form they are ever used in.
+     */
+    public record SeedContext(List<SeedOption> pool, List<String> lockedSlotIds) {
+        public SeedContext {
+            pool = List.copyOf(pool);
+            lockedSlotIds = List.copyOf(lockedSlotIds);
+        }
+
+        /**
+         * Everything is owned: the pool is every registered card.
+         *
+         * <p>Used by tests, by the plant AI and by any caller that has no profile
+         * to filter with, so "no backpack" behaves exactly like it did before the
+         * backpack existed.
+         */
+        public static SeedContext all(LevelDef def) {
+            return new SeedContext(SeedOptions.forLevel(def), SeedOptions.lockedSlotIds(def));
+        }
+
+        /** The pool a player with this backpack may actually pick from. */
+        public static SeedContext forProfile(LevelDef def, com.pvzce.server.PlayerProfile profile) {
+            java.util.function.Predicate<Identifier> owns =
+                    profile == null ? null : profile::owns;
+            return new SeedContext(SeedOptions.forLevel(def, owns), SeedOptions.lockedSlotIds(def));
+        }
+    }
+
     /** Runs an action with an ambient bridge and always restores the previous one. */
     private <T> T withBridge(ServerBridge bridge, java.util.function.Supplier<T> action) {
         ServerBridge previous = this.bridge;
@@ -709,6 +811,7 @@ public final class LevelServer implements LevelAccess {
             clock.tick();
 
             processMusicCues(bridge);
+            tickCarry();
             tickWaves(bridge);
             syncWaveAndTime(bridge);
             maybeSpawnSun();
@@ -789,6 +892,22 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
+    /**
+     * Puts an abandoned carry back where it came from.
+     *
+     * <p>Re-spawning it in place is enough: the plant never left its cell in the world's
+     * eyes until the drop, so "put it back" is just "stop carrying it". Nothing is
+     * removed, so nothing can be lost.
+     */
+    private void tickCarry() {
+        if (carriedPlantId < 0) {
+            return;
+        }
+        if (--carryTimeoutTicks <= 0 || plantById(carriedPlantId) == null) {
+            clearCarry();
+        }
+    }
+
     private void tickWaves(ServerBridge bridge) {
         if (nextWaveIndex < waves.size()) {
             waveIntervalTicks++;
@@ -815,12 +934,14 @@ public final class LevelServer implements LevelAccess {
 
         List<Identifier> zombies = expandEntries(wave.entries());
         Collections.shuffle(zombies, random);
-        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows()));
+        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(), wave.spawnInterval()));
 
-        if (wave.isHuge()) {
+        int announcedIndex = nextWaveIndex - 1;
+        boolean firstAnnouncement = announcedWaves.add(announcedIndex);
+        if (firstAnnouncement && wave.isHuge()) {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE, 1F, 1F);
         }
-        if (wave.type() == WaveDef.WaveType.FINAL) {
+        if (firstAnnouncement && wave.type() == WaveDef.WaveType.FINAL) {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.EFFECT_AWOOGA, 1F, 1F);
         }
 
@@ -837,7 +958,20 @@ public final class LevelServer implements LevelAccess {
         WaveDef next = waves.get(nextWaveIndex);
         int remaining = nextWaveDelayTicks - waveIntervalTicks;
         int warningTicks = Math.max(0, next.warningTicks());
-        boolean active = next.isHuge() && warningTicks > 0 && remaining <= warningTicks && remaining > 0;
+        // The wave has to be counting down, not still spawning: ``waveIntervalTicks`` also
+        // runs past ``nextWaveDelayTicks`` while the previous wave's zombies are being
+        // released, and ``remaining`` goes negative there - which used to leave the
+        // warning on for the whole release window and made the banner blink on and off
+        // long after the wave it announced had arrived.
+        // ``nextWaveDelayTicks`` is -1 once the last wave has been released - that is the
+        // "no more waves" sentinel, not a countdown of minus one. Testing it for
+        // positivity is the whole fix: without it ``remaining`` was negative, the
+        // second half of the range check is trivially true for a negative number, and the
+        // banner stayed lit from the final wave until the level ended. That is the
+        // "a huge wave is coming" that never stops.
+        boolean countingDown = nextWaveDelayTicks > 0
+                && remaining > 0 && remaining <= nextWaveDelayTicks;
+        boolean active = next.isHuge() && warningTicks > 0 && countingDown && remaining <= warningTicks;
         boolean finalWarning = active && next.type() == WaveDef.WaveType.FINAL;
         if (active != waveWarningActive || finalWarning != waveWarningFinal) {
             waveDirty = true;
@@ -868,7 +1002,7 @@ public final class LevelServer implements LevelAccess {
             Identifier zombieId = queue.zombies.poll();
             int row = queue.rows.get(queue.rowIndex++ % queue.rows.size());
             spawnZombie(zombieId, zombieTeam, width() + 0.6F, row);
-            queue.ticksUntilNext = WaveDef.SPAWN_INTERVAL_TICKS;
+            queue.ticksUntilNext = queue.intervalTicks;
             if (queue.zombies.isEmpty()) {
                 iterator.remove();
             }
@@ -936,15 +1070,24 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
+    /**
+     * One wave's zombies, trickling out at that wave's own pace.
+     *
+     * <p>The interval belongs to the wave rather than to the level: an easy level's early
+     * waves should take ten seconds between zombies and its last wave three, which is a
+     * property of the wave, not of the file.
+     */
     private static final class PendingWaveSpawn {
         private final ArrayDeque<Identifier> zombies;
         private final List<Integer> rows;
+        private final int intervalTicks;
         private int rowIndex;
         private int ticksUntilNext;
 
-        private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows) {
+        private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows, int intervalTicks) {
             this.zombies = new ArrayDeque<>(zombies);
             this.rows = rows;
+            this.intervalTicks = Math.max(1, intervalTicks);
         }
     }
 
@@ -1012,12 +1155,56 @@ public final class LevelServer implements LevelAccess {
         markEnd(teams.get(PvzceIds.ZOMBIE_TEAM));
     }
 
+    /**
+     * Rolls the level's coin drop for a dead zombie.
+     *
+     * <p>Coins land where the zombie fell so the player can click them like sun;
+     * the amount and the chance come from {@code rewards} in the level data, and a
+     * level that declares neither drops nothing. The roll is skipped once the game
+     * is over, so the last zombie of a won wave cannot shower the player with
+     * coins that the end-of-level payout has already read.
+     */
+    @Override
+    public void zombieDied(ZombieEntity zombie) {
+        if (!gameState.equals(GameStateS2C.RUNNING)) {
+            return;
+        }
+        // Recorded before the drop roll: a zombie that drops nothing still died here, and
+        // this is where the level's reward will land.
+        lastKillX = zombie.cellX();
+        lastKillY = zombie.cellY();
+        LevelRewards rewards = def.rewards();
+        if (!rewards.hasCoinDrops() || random.nextFloat() >= rewards.coinDropChance()) {
+            return;
+        }
+        Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
+        if (plantTeam == null) {
+            return;
+        }
+        // The drop's amount is the denomination's own worth, so what the team collects
+        // already reads in coins and the bank does not have to know the ladder.
+        ResourceDef drop = BuiltInRegistries.RESOURCES.get(rewards.coinDrop());
+        int worth = drop == null
+                ? rewards.coinDropAmount()
+                : drop.defaultValue() * rewards.coinDropAmount();
+        spawnResource(drop == null ? rewards.coinDrop() : drop.id(), worth,
+                zombie.cellX(), zombie.cellY(), plantTeam);
+    }
+
     private void markEnd(Team winnerTeam) {
         if (!gameState.equals(GameStateS2C.RUNNING) || winnerTeam == null) {
             return;
         }
         gameState = GameStateS2C.WON;
         winner = winnerTeam.id();
+        // The level stops ticking, so anything that only gets cleared by a tick has to be
+        // cleared here. The wave warning was the one that mattered: a win that lands
+        // *during* the final warning left the banner lit on the client for good, because
+        // the wave that would have turned it off is the one whose zombies just died.
+        waveWarningActive = false;
+        waveWarningFinal = false;
+        waveProgress = 1F;
+        waveDirty = true;
     }
 
     // ------------------------------------------------------------------
@@ -1062,11 +1249,6 @@ public final class LevelServer implements LevelAccess {
             bridge.send(new ServerMessageS2C("该格不能种植。"));
             return false;
         }
-        String feet = plantDef.placement().feet();
-        if (!PvzceIds.FEET_PLANT.equals(feet) && hasPlantWithFeet(x, y, feet)) {
-            bridge.send(new ServerMessageS2C("该格已有同类植物。"));
-            return false;
-        }
         int cost = slot.costSun() > 0 ? slot.costSun() : plantDef.cost().amountOf(PvzceIds.SUN);
         if (!plantPlayer.team().consume(PvzceIds.SUN, cost)) {
             bridge.send(new ServerMessageS2C("阳光不足！"));
@@ -1109,7 +1291,7 @@ public final class LevelServer implements LevelAccess {
             }
             drop.markCollected();
             plantPlayer.team().addResource(drop.defId(), drop.amount());
-            emitEffect("pvzce:sun_glow", drop.cellX(), drop.cellY(), PvzceSounds.UI_COLLECT);
+            emitEffect(PvzceParticles.LANTERN_SHINE.toString(), drop.cellX(), drop.cellY(), PvzceSounds.UI_COLLECT);
             // The visual fly-to-bank animation is client-side only, but it still
             // needs the server-confirmed drop position and icon.
             bridge.send(new ResourceCollectS2C(drop.id(), drop.defId().toString(), drop.amount(),
@@ -1145,7 +1327,12 @@ public final class LevelServer implements LevelAccess {
             bridge.send(new ServerMessageS2C("不是工具卡。"));
             return false;
         }
-        if (!slot.ready()) {
+        // A glove that is already holding something ignores its own cooldown: the second
+        // click is the other half of the move the first one started, and its cooldown
+        // began then. Charging a cooldown for the drop as well would also consume two
+        // uses for one move.
+        boolean finishingMove = carriedPlantId >= 0 && isGlove(slot);
+        if (!slot.ready() && !finishingMove) {
             bridge.send(new ServerMessageS2C("工具冷却中。"));
             return false;
         }
@@ -1157,43 +1344,127 @@ public final class LevelServer implements LevelAccess {
         if (!inBounds(x, y)) {
             return false;
         }
-        applyToolEffect(tool, x, y);
-        slot.startCooldown(tool.cooldownTicks());
-        slot.consumeUse();
+        if (!applyToolEffect(tool, x, y)) {
+            // The click was understood and refused (an empty cell, a plant in the way).
+            // Spending a use on it would cost the player a charge for nothing, and would
+            // leave the glove unusable for the case that comes next.
+            bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+            return false;
+        }
+        if (!finishingMove) {
+            slot.startCooldown(tool.cooldownTicks());
+            slot.consumeUse();
+        }
         bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
         return true;
     }
 
-    private void applyToolEffect(ToolDef tool, int x, int y) {
-        switch (tool.effect()) {
+    /**
+     * Applies a tool's effect to a cell.
+     *
+     * @return false when the click was refused, so the caller can leave the card ready
+     *         instead of charging a cooldown and a use for nothing
+     */
+    private boolean applyToolEffect(ToolDef tool, int x, int y) {
+        return switch (tool.effect()) {
+            // PVZ original: one shovel click removes exactly one plant, always the
+            // topmost layer of the target cell.
             case "pvzce:shovel" -> {
-                // PVZ original: one shovel click removes exactly one plant,
-                // always the topmost layer of the target cell.
                 PlantEntity plant = plantAt(x, y);
                 if (plant != null) {
                     plant.remove();
                     flushPending();
-                    emitEffect("pvzce:dirt", x + 0.5F, y + 0.5F, PvzceSounds.EFFECT_SHOVEL);
+                    emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.EFFECT_SHOVEL);
                 }
+                yield true;
             }
-            case "pvzce:glove" -> {
-                PlantEntity plant = plantAt(x, y);
-                if (plant != null) {
-                    plant.boost();
-                    emitEffect("pvzce:sparkle", x + 0.5F, y + 0.5F, PvzceSounds.UI_TAP);
-                }
-            }
+            case "pvzce:glove" -> movePlant(x, y);
             case "pvzce:hammer" -> {
                 for (ZombieEntity zombie : zombiesInRow(y)) {
                     if (!zombie.isRemoved() && Math.abs(zombie.cellX() - (x + 0.5F)) < 0.8F) {
                         zombie.damageBody(200, this);
-                        emitEffect("pvzce:hit_spark", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
+                        emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
                     }
                 }
+                yield true;
             }
-            default -> {
+            // An effect this build does not implement: refused, so no use is spent.
+            default -> false;
+        };
+    }
+
+    /**
+     * One click of the glove: lift, or drop.
+     *
+     * <p>Two clicks, as the original does - the first lifts the plant off its cell and the
+     * second puts it down. A carry that is never finished times out and the plant goes
+     * back where it came from, so a mis-click cannot delete it.
+     *
+     * <p>The plant is re-spawned rather than teleported: {@code spawnPlant} is the one
+     * path that applies the carrier offset, the stacking height and the {@code onPlaced}
+     * hook, and its state is carried across so a moved lily pad is still a carrier and a
+     * moved potato mine does not re-arm.
+     */
+    private boolean movePlant(int x, int y) {
+        if (carriedPlantId >= 0) {
+            PlantEntity carried = plantById(carriedPlantId);
+            if (carried == null || carried.isRemoved()) {
+                clearCarry();
+                return false;
+            }
+            PlantDef def = carried.def();
+            if (!canPlacePlant(def, x, y)) {
+                bridge.send(new ServerMessageS2C("不能放在这里。"));
+                return false;
+            }
+            // Captured before the old entity goes away: ``saveState`` reads the live
+            // object, and a removed one no longer has anything to read.
+            CompoundTag state = carried.saveState();
+            Team team = carried.team();
+            carried.remove();
+            flushPending();
+            PlantEntity moved = spawnPlant(def, team, x, y);
+            if (moved != null && !moved.isRemoved()) {
+                moved.restoreStateWithoutPosition(state);
+            }
+            clearCarry();
+            emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.PLANT_PLANT);
+            return true;
+        }
+        PlantEntity plant = plantAt(x, y);
+        if (plant == null) {
+            // The original treats a click on grass as picking up nothing at all: the glove
+            // stays in hand, ready for the cell the player meant. Not an error, and not a
+            // use spent either.
+            bridge.send(new ServerMessageS2C("这一格没有植物。"));
+            return false;
+        }
+        carriedPlantId = plant.id();
+        carryTimeoutTicks = CARRY_TIMEOUT_TICKS;
+        emitEffect(PvzceParticles.LANTERN_SHINE.toString(), x + 0.5F, y + 0.5F, PvzceSounds.UI_TAP);
+        bridge.send(new ServerMessageS2C("已拿起 " + plant.def().id() + "，再点一次放下。"));
+        return true;
+    }
+
+    /** True when this slot is the glove, by its tool effect rather than its id. */
+    private static boolean isGlove(Slot slot) {
+        ToolDef tool = BuiltInRegistries.TOOLS.get(slot.defId());
+        return tool != null && "pvzce:glove".equals(tool.effect());
+    }
+
+    private void clearCarry() {
+        carriedPlantId = -1;
+        carryTimeoutTicks = 0;
+    }
+
+    /** The plant with this entity id, or {@code null}; the glove only ever moves plants. */
+    private PlantEntity plantById(int id) {
+        for (PvzceEntity entity : entities) {
+            if (entity.id() == id && entity instanceof PlantEntity plant) {
+                return plant;
             }
         }
+        return null;
     }
 
     public SlotInfo toSlotInfo(Slot slot) {
@@ -1219,8 +1490,9 @@ public final class LevelServer implements LevelAccess {
         List<String> waveTypes = waves.stream()
                 .map(wave -> wave.type().name().toLowerCase(Locale.ROOT))
                 .toList();
-        LevelPayload payload = new LevelPayload(width(), height(), SeedOptions.forLevel(def),
-                def.maxSeedSlots(), def.previewZombieIds(), SceneCells.forLevel(def));
+        LevelPayload payload = new LevelPayload(width(), height(), seedContext.pool(),
+                def.maxSeedSlots(), def.previewZombieIds(), SceneCells.forLevel(def),
+                seedContext.lockedSlotIds());
         bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waveTypes, payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
         withBridge(bridge, () -> {
@@ -1312,6 +1584,7 @@ public final class LevelServer implements LevelAccess {
                 rows.add(new IntTag(row));
             }
             queueTag.put("Rows", rows);
+            queueTag.putInt("IntervalTicks", queue.intervalTicks);
             queueTag.putInt("RowIndex", queue.rowIndex);
             queueTag.putInt("TicksUntilNext", queue.ticksUntilNext);
             pendingWaves.add(queueTag);
@@ -1408,6 +1681,15 @@ public final class LevelServer implements LevelAccess {
         tickCount = Math.max(0, root.getInt("Tick"));
         clock.setDayTicks(root.getLong("DayTicks"));
         nextWaveIndex = Math.max(0, Math.min(waves.size(), root.getInt("NextWaveIndex")));
+        // Everything below the index has already walked in, so it has already announced
+        // itself. Without this, resuming a save taken after the last wave started made
+        // ``triggerWave`` see an empty ``announcedWaves`` and play the siren and the
+        // huge-wave call a second time - the sound the player reported as looping, since it
+        // lands while that wave's zombies are still coming in.
+        announcedWaves.clear();
+        for (int i = 0; i < nextWaveIndex; i++) {
+            announcedWaves.add(i);
+        }
         waveIntervalTicks = Math.max(0, root.getInt("WaveIntervalTicks"));
         nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
@@ -1498,7 +1780,12 @@ public final class LevelServer implements LevelAccess {
             if (rows.isEmpty()) {
                 continue;
             }
-            PendingWaveSpawn queue = new PendingWaveSpawn(zombieIds, rows);
+            // The interval is saved with the queue: a save taken mid-release has to
+            // keep trickling at the wave's own pace, not at today's default.
+            PendingWaveSpawn queue = new PendingWaveSpawn(zombieIds, rows,
+                    queueTag.getInt("IntervalTicks") > 0
+                            ? queueTag.getInt("IntervalTicks")
+                            : WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS);
             queue.rowIndex = Math.max(0, queueTag.getInt("RowIndex"));
             queue.ticksUntilNext = Math.max(0, queueTag.getInt("TicksUntilNext"));
             pendingWaveSpawns.add(queue);

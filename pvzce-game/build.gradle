@@ -93,6 +93,25 @@ run {
     dependsOn tasks.named('extractLwjglNatives')
     systemProperty 'fabric.development', 'true'
     systemProperty 'org.lwjgl.librarypath', lwjglNativesDir.get().asFile.absolutePath
+
+    // Forward smoke-test properties into the game JVM. Gradle's -D goes to the
+    // Gradle daemon, not to a forked JavaExec, so without this the client's
+    // pvzce.smoke*/capture hooks were unreachable from the command line and every
+    // screenshot run needed a hand-edited build file.
+    if (project.hasProperty('pvzce.smoke')) {
+        project.property('pvzce.smoke').toString().split('\\s+').findAll { !it.isBlank() }.each { entry ->
+            def parts = entry.split('=', 2)
+            systemProperty parts[0], parts.length > 1 ? parts[1] : 'true'
+        }
+    }
+
+    // Where the game keeps saves/, config/, mods/ and datapacks/. Defaults to
+    // ~/.pvzce; a smoke run wants a throwaway directory instead of the real one, so
+    // -Ppvzce.gameDir=... overrides it. Without this, every screenshot run wrote a save
+    // into the developer's actual game directory.
+    if (project.hasProperty('pvzce.gameDir')) {
+        args '--gameDir', project.property('pvzce.gameDir').toString()
+    }
 }
 
 tasks.named('jar') {

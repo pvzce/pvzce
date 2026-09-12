@@ -4,8 +4,9 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.components.EditBox;
-import com.pvzce.client.gui.layout.GuiLayout;
+import com.pvzce.common.network.packet.CreateWorldC2S;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -20,6 +21,8 @@ public final class WorldSelectScreen extends Screen {
     private final List<String> worlds = new ArrayList<>();
     private AbstractSelectionList<String> list;
     private EditBox nameBox;
+    /** Sandbox switch: a world created with it starts with every card unlocked. */
+    private boolean unlockAll;
 
     public WorldSelectScreen(PvzceClient client) {
         super(client);
@@ -62,7 +65,38 @@ public final class WorldSelectScreen extends Screen {
         addWidget(new Button(startX + smallWidth + actionGap, actionY, smallWidth, actionHeight, "删除选中", this::deleteWorld));
         addWidget(new Button(startX + (smallWidth + actionGap) * 2, actionY, smallWidth, actionHeight, "进入", this::enterWorld));
 
+        // The sandbox switch sits between the name box and the list, on the same
+        // row as the 世界名称 label so it cannot be mistaken for a world action.
+        int toggleHeight = Math.max(24, Math.min(34, nameHeight - 6));
+        int toggleWidth = Math.min(240, guiW - 16);
+        addWidget(toggleButton(centerX(nameWidth) + nameWidth + 8 > guiW - 8
+                ? centerX(toggleWidth) : centerX(nameWidth) + nameWidth + 8,
+                nameY + (nameHeight - toggleHeight) / 2, toggleWidth, toggleHeight));
+
         addWidget(new Button(centerX(backWidth), 4, backWidth, backHeight, "返回", client::showTitle));
+    }
+
+    /**
+     * The sandbox toggle.
+     *
+     * <p>A plain {@link Button} whose label carries the state instead of a new
+     * checkbox widget: labels are what the smoke-test click helper can find, and a
+     * checkbox would have to reimplement the same "click to switch" behaviour.
+     */
+    private Button toggleButton(int x, int y, int width, int height) {
+        // The button cannot reference itself inside its own constructor, so the
+        // label is updated through a one-slot holder.
+        Button[] holder = new Button[1];
+        Button toggle = new Button(x, y, width, height, unlockLabel(), () -> {
+            unlockAll = !unlockAll;
+            holder[0].setLabel(unlockLabel());
+        });
+        holder[0] = toggle;
+        return toggle;
+    }
+
+    private String unlockLabel() {
+        return GuiLang.raw("pvzce.unlock_all", "全解锁") + "：" + (unlockAll ? "开" : "关");
     }
 
     private void refreshWorlds() {
@@ -94,6 +128,10 @@ public final class WorldSelectScreen extends Screen {
             System.err.println("Failed to create world " + name + ": " + e.getMessage());
             return;
         }
+        // The directory is the client's (the list reads the disk), but the profile
+        // inside it is the server's: it is the one that knows what "unlocked" means,
+        // and it writes the file the level list will be filtered by.
+        client.connection().send(new CreateWorldC2S(name, unlockAll));
         nameBox.setValue("");
         refreshWorlds();
         list.setEntries(worlds);

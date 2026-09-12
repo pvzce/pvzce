@@ -239,9 +239,7 @@ public final class ConsoleScreen extends Screen {
     }
 
     @Override
-    public void mouseClicked(double mouseX, double mouseY, int button) {
-        double guiX = client.guiMouseX(mouseX);
-        double guiY = client.guiMouseY(mouseY);
+    protected void onMouseClicked(double guiX, double guiY, int button) {
         if (!suggestions.isEmpty() && button == 0 && inSuggestionRect(guiX, guiY)) {
             int line = suggestionOffset + (int) ((guiY - suggestionRectY()) / SUGGESTION_LINE_HEIGHT);
             if (line >= 0 && line < suggestions.size()) {
@@ -250,13 +248,10 @@ public final class ConsoleScreen extends Screen {
             }
             return;
         }
-        super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
-    public void mouseScrolled(double mouseX, double mouseY, double amount) {
-        double guiX = client.guiMouseX(mouseX);
-        double guiY = client.guiMouseY(mouseY);
+    protected void onMouseScrolled(double guiX, double guiY, double amount) {
         if (!suggestions.isEmpty()) {
             if (inSuggestionRect(guiX, guiY)) {
                 suggestionOffset = Math.max(0, Math.min(suggestionOffset - (int) amount,

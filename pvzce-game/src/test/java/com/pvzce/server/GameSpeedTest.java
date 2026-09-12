@@ -31,7 +31,7 @@ class GameSpeedTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new RequestLevelC2S("pvzce:level_1", "speedtest", true));
+        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "speedtest", true));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream().anyMatch(p -> p instanceof LevelInitS2C));
 
@@ -44,7 +44,7 @@ class GameSpeedTest {
         assertEquals(180F, server.tickRateManager().tickRate(), 0.001F);
 
         clientPackets.clear();
-        pair.client().send(new RequestLevelC2S("pvzce:level_1", "speedtest", true));
+        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "speedtest", true));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream()
                         .filter(GameSpeedS2C.class::isInstance)

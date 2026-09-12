@@ -1,5 +1,7 @@
 package com.pvzce.client.sound;
 
+import com.pvzce.common.network.packet.MusicEventS2C;
+
 import java.util.Locale;
 
 /**
@@ -11,10 +13,14 @@ import java.util.Locale;
  * explicitly changed; one-shot tracks return to silence when they finish.</p>
  */
 public final class PvzceMusicController {
-    public static final String TRACK_MENU = "menu";
-    public static final String TRACK_BACKGROUND = "background";
-    public static final String TRACK_BATTLE = "battle";
-    public static final String TRACK_STINGER = "stinger";
+    /**
+     * The track names are the wire values the server sends ({@link MusicEventS2C}), spelled
+     * the same way in level data - one list of them instead of three copies.
+     */
+    public static final String TRACK_MENU = MusicEventS2C.TRACK_MENU;
+    public static final String TRACK_BACKGROUND = MusicEventS2C.TRACK_BACKGROUND;
+    public static final String TRACK_BATTLE = MusicEventS2C.TRACK_BATTLE;
+    public static final String TRACK_STINGER = MusicEventS2C.TRACK_STINGER;
     public static final float DEFAULT_FADE_SECONDS = 1F;
 
     private static final int TRACK_COUNT = 4;
@@ -43,11 +49,26 @@ public final class PvzceMusicController {
     }
 
     /** Starts a menu track only when the menu track is currently silent. */
+    /**
+     * Plays a menu theme, unless that exact theme is already on the menu track.
+     *
+     * <p>The point of {@code ensure*} is idempotence: every screen calls it from
+     * {@code init()}, which also runs on every window resize, and restarting the same
+     * track there would stutter. It used to mean "only if the menu track is silent",
+     * which quietly broke every hand-over between menus - leaving the award page's
+     * Zen Garden playing over the level list, because that screen's request for the
+     * chooser theme found the track busy and did nothing.
+     */
     public void ensureMenu(String event) {
         TrackState state = tracks[trackIndex(TRACK_MENU)];
-        if (state.currentSource < 0 && state.incomingSource < 0) {
-            playMenu(event);
+        if (event == null) {
+            return;
         }
+        String playing = state.incomingSource >= 0 ? state.incomingEvent : state.currentEvent;
+        if (event.equals(playing) && (state.currentSource >= 0 || state.incomingSource >= 0)) {
+            return;
+        }
+        playMenu(event);
     }
 
     /** Enters a level: menu track stops, background starts on grasswalk. */
@@ -61,6 +82,21 @@ public final class PvzceMusicController {
         stopCue(TRACK_BACKGROUND, 0.5F);
         stopCue(TRACK_BATTLE, 0.5F);
         stopCue(TRACK_STINGER, 0.5F);
+    }
+
+    /**
+     * The event a track is playing, or {@code null} when the track is silent.
+     *
+     * <p>While a crossfade runs this is the incoming event - what the player is about to
+     * hear; a track that is only fading out keeps reporting the outgoing event until its fade
+     * ends and the source stops. Diagnostics and tests; the client itself reads no state here.
+     */
+    public String currentEvent(String trackName) {
+        TrackState state = tracks[trackIndex(trackName)];
+        if (state.incomingSource >= 0) {
+            return state.incomingEvent;
+        }
+        return state.currentSource >= 0 ? state.currentEvent : null;
     }
 
     /** Applies a server-sent music cue ({@code /level} music timeline). */

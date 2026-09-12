@@ -6,10 +6,9 @@ import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.PvzcePacket;
-import com.pvzce.common.resource.PvzceDataLoader;
-import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.server.env.LevelEnvVars;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -28,12 +27,10 @@ class EnvironmentAndAiTest {
 
     @BeforeAll
     static void load() throws Exception {
-        BuiltInRegistries.bootstrap();
-        PvzceResourceManager resources = new PvzceResourceManager(Thread.currentThread().getContextClassLoader());
-        resources.init(Path.of(System.getProperty("java.io.tmpdir"), "pvzce-env-ai-test"));
-        PvzceDataLoader.LoadResult result = new PvzceDataLoader().load(resources, BuiltInRegistries.ACCESS);
-        assertTrue(result.errors().isEmpty(), result.errors().toString());
-        demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("demo_level"));
+        // Content and convention tags together: the placement rules read tags,
+        // so a data-only load would leave every cell unplantable.
+        TestContent.loadBuiltInContentAndTags();
+        demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/demo_level"));
     }
 
     @Test

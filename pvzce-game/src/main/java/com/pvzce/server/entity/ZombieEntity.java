@@ -13,10 +13,13 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
+import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
+import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -129,10 +132,13 @@ public class ZombieEntity extends PvzceEntity {
             return false;
         }
         var scene = level.sceneAt(gridX(), gridY());
-        if (scene != null && PvzceIds.SURFACE_WATER.equals(scene.surfaceClass())) {
+        // The tag, not the surface class string: a pack that adds its own water tile
+        // (swamp, pool) tags it #c:water and drowning follows without a code change.
+        if (scene != null && PlantPlacement.terrainTagged(
+                PlantPlacement.Terrain.of(scene), PvzceTags.SCENE_WATER)) {
             remove();
             setAnimation(EntityAnimations.DEATH);
-            level.emitEffect("pvzce:splash", cellX(), cellY(), PvzceSounds.ZOMBIE_SPLASH);
+            level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), cellX(), cellY(), PvzceSounds.ZOMBIE_SPLASH);
             // A body going under disturbs the surface, and this is the one place the
             // simulation decides that happened - so the ripple is raised here rather
             // than guessed at by the renderer from a zombie disappearing from view.
@@ -161,7 +167,7 @@ public class ZombieEntity extends PvzceEntity {
                         * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
                 plant.damage(damage);
                 biteCooldown = def.biteIntervalTicks();
-                level.emitEffect("pvzce:bite", plant.cellX(), plant.cellY(),
+                level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
                         def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
             }
             return;
@@ -227,7 +233,7 @@ public class ZombieEntity extends PvzceEntity {
         if (!removed) {
             Identifier hitSound = projectile.sounds().impact()
                     .orElse(def.sounds().hit().orElse(PvzceSounds.PROJECTILE_HIT));
-            level.emitEffect("pvzce:hit_spark", cellX(), cellY(), hitSound);
+            level.emitEffect(PvzceParticles.HIT_SPARK.toString(), cellX(), cellY(), hitSound);
         }
     }
 
@@ -240,11 +246,16 @@ public class ZombieEntity extends PvzceEntity {
         setAnimation(EntityAnimations.HIT);
         if (health() <= 0) {
             remove();
+            // No detached-head particle: the sprite is a whole head with its own motion,
+            // and drawn as one burst per death it read as a second zombie rather than as
+            // the first one coming apart. The sound is the death cue.
             level.emitEffect("", cellX(), cellY(),
                     def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
             for (Instance instance : capabilities) {
                 instance.capability.onDeath(this, level);
             }
+            // Last, so a capability cannot resurrect a zombie that already paid out.
+            level.zombieDied(this);
         }
     }
 

@@ -17,9 +17,10 @@ import java.util.function.Consumer;
  * rewrote it for nothing.
  */
 public class Slider extends AbstractWidget {
-    private final float min;
-    private final float max;
-    private final Consumer<Slider> onChange;
+    /** Not final: {@link #configure} retargets one slider at another rule. */
+    private float min;
+    private float max;
+    private Consumer<Slider> onChange;
     private float value;
     private boolean dragging;
     private Runnable onCommit;
@@ -36,6 +37,22 @@ public class Slider extends AbstractWidget {
     /** Runs once when a drag or a wheel adjustment finishes. */
     public Slider onCommit(Runnable onCommit) {
         this.onCommit = onCommit;
+        return this;
+    }
+
+    /**
+     * Retargets the slider at a different range and value in one call.
+     *
+     * <p>The editor's rule page points one slider at whichever rule is selected.
+     * Setting range and value separately fires the change callback while only half
+     * the bounds are updated, which writes a clamped value for the rule that was
+     * selected a moment ago.
+     */
+    public Slider configure(float min, float max, float value, Consumer<Slider> onChange) {
+        this.min = min;
+        this.max = max;
+        this.value = Math.max(min, Math.min(max, value));
+        this.onChange = onChange;
         return this;
     }
 

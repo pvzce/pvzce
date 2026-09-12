@@ -11,6 +11,7 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
 
@@ -139,7 +140,7 @@ public final class ExplosiveCapability implements PlantCapability {
     private void detonate(PlantEntity plant, LevelAccess level) {
         plant.setAnimation(EntityAnimations.EXPLODE);
         level.damageArea(plant.cellX(), plant.cellY(), Math.max(MIN_RADIUS, radius), damage, plant.team());
-        level.emitEffect("pvzce:ash_smoke", plant.cellX(), plant.cellY(),
+        level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));
         plant.remove();
     }

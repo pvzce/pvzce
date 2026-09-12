@@ -29,6 +29,20 @@ public final class MathUtil {
     }
 
     /** Cubic ease-out, the curve the UI tweens use. */
+    /**
+     * Smooth start and end, for transitions that both begin and stop at rest.
+     *
+     * <p>Lived as a private copy in {@code ChooseSeedsScreen} until the reward drop
+     * needed the same curve; easings belong here (see the conventions section of
+     * {@code docs/当前项目架构.md}).
+     */
+    public static float easeInOut(float value) {
+        float t = clamp01(value);
+        return t < 0.5F
+                ? 2F * t * t
+                : 1F - (float) Math.pow(-2F * t + 2F, 2F) / 2F;
+    }
+
     public static float easeOutCubic(float t) {
         float inv = 1F - clamp01(t);
         return 1F - inv * inv * inv;

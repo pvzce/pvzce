@@ -38,7 +38,9 @@ public final class LinearMotionCapability implements ProjectileCapability {
 
     @Override
     public boolean move(ProjectileEntity projectile, LevelAccess level) {
-        projectile.setCellX(projectile.cellX() + speedPerTick());
+        // The direction lives on the shot, so one projectile definition serves both a
+        // forward and a backward firing plant.
+        projectile.setCellX(projectile.cellX() + speedPerTick() * projectile.direction());
         return true;
     }
 }

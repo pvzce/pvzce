@@ -99,13 +99,12 @@ public final class PlantAIPlayer {
     /** A cell the chosen plant may legally occupy; uses the level's own placement rule. */
     private int[] findFreeCell(LevelServer level, PlantDef chosen) {
         List<int[]> cells = new ArrayList<>();
-        String feet = chosen.placement().feet();
         for (int x = 1; x <= PLANTABLE_COLUMNS && x < level.width(); x++) {
             for (int y = 0; y < level.height(); y++) {
+                // canPlacePlant now covers the group conflict ("one ordinary plant
+                // per cell") as well as terrain and carrier rules, so the AI no
+                // longer repeats the check with the feet string.
                 if (!level.canPlacePlant(chosen, x, y)) {
-                    continue;
-                }
-                if (!PvzceIds.FEET_PLANT.equals(feet) && level.hasPlantWithFeet(x, y, feet)) {
                     continue;
                 }
                 cells.add(new int[]{x, y});

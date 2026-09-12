@@ -14,6 +14,7 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,7 +99,7 @@ public final class ArmorCapability implements ZombieCapability {
         }
         Identifier armorSound = projectile.sounds().impact()
                 .orElse(zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
-        level.emitEffect("pvzce:hit_spark", zombie.cellX(), zombie.cellY(), armorSound);
+        level.emitEffect(PvzceParticles.ZOMBIE_HELMET.toString(), zombie.cellX(), zombie.cellY(), armorSound);
         if (broke && zombie.def().sounds().special().isPresent()) {
             level.emitEffect("", zombie.cellX(), zombie.cellY(), zombie.def().sounds().special().get());
         }

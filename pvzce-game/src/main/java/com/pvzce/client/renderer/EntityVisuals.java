@@ -34,7 +34,37 @@ public final class EntityVisuals {
     private static final Visuals PLANT = new Visuals(0.38F, 0.76F, 0.76F, 0.38F, 0.38F, 0.2F, 0);
     private static final Visuals ZOMBIE = new Visuals(0.36F, 0.7F, 0.95F, 0.38F, 0.36F, 0.15F, 10);
     private static final Visuals PROJECTILE = new Visuals(0.10F, 0.24F, 0.24F, 0.12F, 0.10F, 0.3F, 20);
-    private static final Visuals RESOURCE = new Visuals(0.22F, 0.56F, 0.56F, 0.28F, 0.22F, 0.35F, 30);
+    /** Drops drawn from a flat sprite rather than an animation (no shipped drop is). */
+    private static final Visuals RESOURCE = new Visuals(0.16F, 0.40F, 0.40F, 0.20F, 0.16F, 0.35F, 30);
+    /**
+     * How big a drop is drawn, whatever it is drawn from.
+     *
+     * <p>This is the number that mattered: the sun's own animation is authored at 0.56
+     * cells, so it read as a speck in a 1-cell lawn square - and a speck the player has to
+     * click. {@link com.pvzce.client.animation.AnimationManager} scales an animated drop by
+     * {@code dropWidth / its own width}, so one number here resizes the art.
+     *
+     * <p>The factor is uniform in both axes, so this is the drop's real on-screen width
+     * <em>and</em> height in cells: an 0.8-cell sun is a circle that covers four fifths of
+     * a lawn square. It used to be applied to the width alone, which made the circle art
+     * arrive as an ellipse 1.7x wider than tall; see
+     * {@code AnimationManager.xScaleFor} for the full story.
+     *
+     * <p>0.8 cells: the sun is the one thing on the board the player has to click, so it
+     * should read as a distinct object rather than a speck. This is the size a drop is
+     * drawn at when its definition declares no {@code render_scale}; the sun declares
+     * {@code 1.2} on top of it, because it is the drop the player has to aim at.
+     */
+    private static final Visuals DROP = new Visuals(0.38F, 0.8F, 0.8F, 0.4F, 0.38F, 0.35F, 30);
+    /**
+     * Drops are drawn dimmer than their art.
+     *
+     * <p>The sun's animation stacks several additive glow layers, and at the size above
+     * they clipped to flat white - the sun read as a bright blob with no shape to it, which
+     * is worse than small. Scaling the draw colour back keeps the shape readable; the alpha
+     * is untouched, so it is not "more transparent", just less blown out.
+     */
+    public static final float DROP_TINT = 0.72F;
     /** Underground zombies are drawn under the lawn rather than among the entities. */
     public static final int UNDERGROUND_SORT_BUCKET = -100;
 
@@ -43,7 +73,7 @@ public final class EntityVisuals {
             case EntityKind.PLANT -> PLANT;
             case EntityKind.ZOMBIE -> ZOMBIE;
             case EntityKind.PROJECTILE -> PROJECTILE;
-            case EntityKind.RESOURCE -> RESOURCE;
+            case EntityKind.RESOURCE -> DROP;
             default -> DEFAULT;
         };
     }

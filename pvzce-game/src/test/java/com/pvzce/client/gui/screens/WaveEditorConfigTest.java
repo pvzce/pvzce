@@ -9,19 +9,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class WaveEditorConfigTest {
     @Test
     void configRoundTripsThroughLevelJson() {
-        WaveEditorDialog.Config config = new WaveEditorDialog.Config();
+        WaveEditorModel.Config config = new WaveEditorModel.Config();
         config.intervalEndMultiplier = 0.75F;
 
-        WaveEditorDialog.WaveModel wave = new WaveEditorDialog.WaveModel();
+        WaveEditorModel.WaveModel wave = new WaveEditorModel.WaveModel();
         wave.type = "huge";
         wave.delay = 1200;
         wave.warningTicks = 300;
-        wave.entries.add(new WaveEditorDialog.EntryModel("pvzce:basic_zombie", 2));
-        wave.entries.add(new WaveEditorDialog.EntryModel("pvzce:buckethead_zombie", 1));
+        wave.entries.add(new WaveEditorModel.EntryModel("pvzce:basic_zombie", 2));
+        wave.entries.add(new WaveEditorModel.EntryModel("pvzce:buckethead_zombie", 1));
         config.waves.add(wave);
 
         JsonObject json = config.toJson();
-        WaveEditorDialog.Config parsed = WaveEditorDialog.Config.fromJson(json);
+        WaveEditorModel.Config parsed = WaveEditorModel.Config.fromJson(json);
 
         assertEquals(0.75F, parsed.intervalEndMultiplier, 0.0001F);
         assertEquals(1, parsed.waves.size());

@@ -45,6 +45,9 @@ public final class PvzceSounds {
     public static final Identifier UI_CLICK = id("sfx/ui/click");
     public static final Identifier UI_TAP = id("sfx/ui/tap");
     public static final Identifier UI_POINTS = id("sfx/ui/points");
+    public static final Identifier UI_COIN = id("sfx/ui/coin");
+    /** The original's coin-shower cue, used by the award page's money bag. */
+    public static final Identifier UI_MONEY_FALLS = id("sfx/ui/moneyfalls");
     public static final Identifier UI_WIN = id("sfx/ui/win");
     public static final Identifier UI_LOSE = id("sfx/ui/lose");
 

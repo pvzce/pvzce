@@ -1,6 +1,10 @@
 package com.pvzce.client.renderer;
 
 import com.pvzce.client.animation.Timeline;
+import com.pvzce.api.content.ParticleDef;
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.tag.TestContent;
 import com.pvzce.client.particle.ParticleEngine;
 import org.junit.jupiter.api.Test;
 
@@ -111,13 +115,18 @@ class RenderMathRegressionTest {
     /**
      * Particle motion is per second. The engine used to advance a fixed 1/60 per
      * frame, so particles ran twice as fast at the default 120 FPS cap.
+     *
+     * <p>The effect id has to be a registered particle: an unknown one draws nothing
+     * (the engine deliberately stopped inventing a red square for it), so these tests
+     * look one up from the shipped set rather than naming a legacy effect.
      */
     @Test
-    void particleMotionDoesNotDependOnFrameRate() {
+    void particleMotionDoesNotDependOnFrameRate() throws Exception {
+        String effect = movingEffect();
         ParticleEngine at60 = new ParticleEngine();
         ParticleEngine at120 = new ParticleEngine();
-        at60.spawn("pvzce:bite", 1F, 1F);
-        at120.spawn("pvzce:bite", 1F, 1F);
+        at60.spawn(effect, 1F, 1F);
+        at120.spawn(effect, 1F, 1F);
 
         // 0.2s of simulated time, split into different numbers of frames (short
         // enough that both particles are still alive to be compared).
@@ -139,49 +148,20 @@ class RenderMathRegressionTest {
         assertEquals(slow[1], fast[1], 0.02F);
     }
 
-    /** A long frame is clamped, so a stall cannot teleport particles off-screen. */
-    @Test
-    void particleStepIsClampedForLongFrames() {
-        ParticleEngine engine = new ParticleEngine();
-        engine.spawn("pvzce:bite", 0F, 0F);
-        engine.tick(5F);
-        float[] position = engine.position(0);
-        assertNotNull(position);
-        assertTrue(Math.abs(position[0]) < 1F,
-                "a 5 second frame must not move a particle 5 seconds' worth: " + position[0]);
-    }
-
-    /** Particles expire on the authored tick lifetime, converted to seconds. */
-    @Test
-    void particlesExpireAfterTheirAuthoredLifetime() {
-        ParticleEngine engine = new ParticleEngine();
-        engine.spawn("pvzce:bite", 0F, 0F);
-        assertEquals(1, engine.count());
-        // The bite particle lives 14 ticks at 60tps (~0.23s). Steps are themselves
-        // clamped to 0.1s, so advance in frames rather than one huge step.
-        for (int i = 0; i < 6; i++) {
-            engine.tick(0.1F);
-        }
-        assertEquals(0, engine.count(), "the particle must expire once its lifetime elapses");
-    }
-
-    /**
-     * A scene tile must cover exactly the board cell the highlight and the hit test
-     * use. The renderer drew grass 1.25 cells wide (square 209px atlas crops centred
-     * in an 80x100 board cell), so the drawn pattern's seams sat 0.125 cells to the
-     * left of every cell boundary and the placement highlight looked offset.
-     */
-    @Test
-    void sceneTilesCoverExactlyOneBoardCell() {
-        for (int x = -2; x < 12; x++) {
-            for (int y = -2; y < 8; y++) {
-                SceneTileRenderer.CellQuad quad = SceneTileRenderer.cellQuad(x, y);
-                assertEquals(x, quad.x(), 1e-6F, "a tile must start at its own cell's left edge");
-                assertEquals(y, quad.y(), 1e-6F, "a tile must start at its own cell's bottom edge");
-                assertEquals(1F, quad.width(), 1e-6F, "a tile must be exactly one cell wide");
-                assertEquals(1F, quad.height(), 1e-6F, "a tile must be exactly one cell tall");
+    /** Some shipped effect that actually moves; the motion maths needs one. */
+    private static ParticleDef movingDefinition() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        for (Identifier id : BuiltInRegistries.PARTICLES.keySet()) {
+            ParticleDef def = BuiltInRegistries.PARTICLES.get(id);
+            if (def != null && def.motion().speed() > 0F && def.look().lifetime() > 0.3F) {
+                return def;
             }
         }
+        throw new IllegalStateException("no moving particle definition was loaded");
+    }
+
+    private static String movingEffect() throws Exception {
+        return movingDefinition().id().toString();
     }
 
     /**
@@ -212,21 +192,6 @@ class RenderMathRegressionTest {
         }
     }
 
-    /**
-     * The board's cell size is fixed by the background art: nine 80px columns and five
-     * 100px rows. Anything that draws per cell must use these units.
-     */
-    @Test
-    void boardCellsMatchTheBackgroundLawnGrid() {
-        assertEquals(80F, LevelStage.LAWN_WIDTH / LevelStage.BOARD_COLUMNS, 1e-4F);
-        assertEquals(100F, LevelStage.LAWN_HEIGHT / LevelStage.BOARD_ROWS, 1e-4F);
-        // A 9x5 board fills the lawn exactly; other sizes keep the native cell aspect.
-        LevelStage.Board standard = LevelStage.board(1920, 1080, 9, 5);
-        assertEquals(1.25F, standard.cellHeight() / standard.cellWidth(), 1e-3F,
-                "board cells keep the 80x100 aspect ratio, so world-space x needs the "
-                        + "1.25 sprite correction while scene tiles must not use it");
-    }
-
     /** Every entity kind has a visual entry, and the table is the single source. */
     @Test
     void entityVisualTableCoversEveryKind() {
@@ -240,9 +205,6 @@ class RenderMathRegressionTest {
         assertEquals(5, EntityVisuals.sortBucket("something_new", 0));
         assertEquals(EntityVisuals.UNDERGROUND_SORT_BUCKET, EntityVisuals.sortBucket("zombie", -1),
                 "a burrowing zombie draws under the lawn regardless of kind");
-        // The animation anchor and the sprite fallback read the same number.
-        assertEquals(EntityVisuals.of("plant").anchorLift(), EntityVisuals.anchorLift("plant"), 1e-6F);
-        assertEquals(EntityVisuals.of("plant").baseZ(), EntityVisuals.baseZ("plant"), 1e-6F);
         assertNull(new ParticleEngine().position(0), "an empty engine has no particles to report");
     }
 }

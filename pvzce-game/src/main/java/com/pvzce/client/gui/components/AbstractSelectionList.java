@@ -26,7 +26,7 @@ public class AbstractSelectionList<E> extends AbstractWidget {
 
     private final List<E> entries = new ArrayList<>();
     private final int entryHeight;
-    private final EntryRenderer<E> entryRenderer;
+    private EntryRenderer<E> entryRenderer;
     private int selectedIndex = -1;
     private int scrollOffset;
 
@@ -36,10 +36,26 @@ public class AbstractSelectionList<E> extends AbstractWidget {
         this.entryRenderer = entryRenderer;
     }
 
+    /**
+     * Replaces the row renderer.
+     *
+     * <p>Public because callers that build a bespoke list in place ({@code EditorScreen}'s
+     * card pool, {@code WaveEditorModel}'s wave table) need the renderer to close over
+     * widget state that only exists after the list is constructed. A subclass could
+     * not do this from outside its own constructor.
+     */
+    public void setEntryRenderer(EntryRenderer<E> entryRenderer) {
+        this.entryRenderer = entryRenderer;
+    }
+
     public void setEntries(List<E> entries) {
         this.entries.clear();
         this.entries.addAll(entries);
-        if (selectedIndex >= entries.size()) {
+        // Rows are laid out bottom-up, so index 0 is the bottom row. A fresh list
+        // must therefore select index 0, not "whatever index was selected before":
+        // -1 means "nothing yet", and leaving it there meant a newly filled list had
+        // no highlight, no scroll position and no selected item for its owner to read.
+        if (selectedIndex < 0 || selectedIndex >= entries.size()) {
             selectedIndex = entries.isEmpty() ? -1 : 0;
         }
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll()));

@@ -1,6 +1,7 @@
 package com.pvzce.client.renderer;
 
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.core.EntityArt;
 
 /**
  * The single place that turns a content id into a texture id.
@@ -11,14 +12,25 @@ import com.pvzce.api.util.Identifier;
  * preview but requested a {@code pvzce:} texture on the in-game board, so it was
  * invisible during play. Namespace preservation is the correct rule - a mod's
  * textures live under its own namespace.
+ *
+ * <p>The path itself now comes from {@link EntityArt}: a definition may declare its
+ * own {@code texture}, which is how the built-in content survives being grouped into
+ * {@code textures/entities/<kind>/<category>/}. The prefixes below remain the
+ * convention for everything that declares nothing.
  */
 public final class EntityTextures {
-    public static final String ENTITY_PREFIX = "textures/entities/";
-    public static final String RESOURCE_PREFIX = "textures/resource/";
+    public static final String ENTITY_PREFIX = EntityArt.ENTITY_PREFIX;
+    public static final String RESOURCE_PREFIX = EntityArt.RESOURCE_PREFIX;
     public static final String SCENE_PREFIX = "textures/scene/";
 
+    /**
+     * The fallback sprite of a content id: its declared texture, or the id-derived
+     * path.
+     *
+     * @return the texture id, or {@code null} when {@code defId} is null
+     */
     public static Identifier forEntity(Identifier defId) {
-        return resolve(defId, ENTITY_PREFIX);
+        return EntityArt.sprite(defId);
     }
 
     public static Identifier forEntity(String defId) {
@@ -26,7 +38,7 @@ public final class EntityTextures {
     }
 
     public static Identifier forResource(Identifier resourceId) {
-        return resolve(resourceId, RESOURCE_PREFIX);
+        return EntityArt.sprite(resourceId);
     }
 
     public static Identifier forScene(Identifier sceneId) {

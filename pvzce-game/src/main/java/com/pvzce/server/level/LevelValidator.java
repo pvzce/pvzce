@@ -1,11 +1,14 @@
 package com.pvzce.server.level;
 
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.LevelRewards;
+import com.pvzce.api.content.LevelUnlock;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.ZombieDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.LevelUnlocks;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.SceneGrid;
@@ -27,6 +30,171 @@ import java.util.Map;
  * loads, minus the broken part, with the reason on the log.
  */
 public final class LevelValidator {
+    /**
+     * Reports placement tags that no loaded pack declares.
+     *
+     * <p>Placement is entirely tag-driven, so a missing tag does not throw: every
+     * cell simply stops accepting plants and the game looks broken in a way that
+     * points nowhere. Naming the missing tags here is what turns "I cannot plant
+     * anything" into "your pack dropped {@code #c:plantable}".
+     */
+    public static List<String> validatePlacementTags() {
+        List<String> errors = new ArrayList<>();
+        for (com.pvzce.api.tag.TagKey<?> tag : com.pvzce.common.tag.PvzceTags.missingPlacementTags()) {
+            errors.add("No pack declares the placement tag " + tag
+                    + " - planting will refuse every cell that needs it");
+        }
+        return errors;
+    }
+
+    /**
+     * Checks the level's card setup.
+     *
+     * <p>A level that fills every slot with its own cards gives the player no choice at all.
+     * That is legal - it is what a fixed-deck level is - but it is worth saying out loud,
+     * because the symptom of doing it by accident is "there is no card selection screen".
+     */
+    public static List<String> validateSeedSelection(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        if (def.slots().isEmpty()) {
+            errors.add("This level has no cards, so the player enters with an empty card bar");
+            return errors;
+        }
+        for (Identifier slot : def.slots()) {
+            if (slot != null && SlotResolver.resolve(slot).isEmpty()) {
+                errors.add("Unknown card '" + slot + "': no slot, plant, tool or resource with that id");
+            }
+        }
+        return errors;
+    }
+
+    /**
+     * Reports reward entries the simulation cannot carry out.
+     *
+     * <p>{@code type} is a string discriminator rather than a codec-built sum type,
+     * so a typo ({@code "unlcok"}) decodes fine and then pays nothing at all - the
+     * one failure mode the DFU codec cannot see. Unlocking a card that does not
+     * exist is reported too: it would otherwise only show up as "the level said it
+     * gave me something" with nothing in the backpack.
+     */
+    public static List<String> validateRewards(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        LevelRewards rewards = def.rewards();
+        if (rewards == null) {
+            return errors;
+        }
+        reportRewards(errors, "first_clear", rewards.firstClear());
+        reportRewards(errors, "repeat", rewards.repeat());
+        if (rewards.hasCoinDrops() && BuiltInRegistries.RESOURCES.get(rewards.coinDrop()) == null) {
+            errors.add("rewards.coin_drop names unknown resource '" + rewards.coinDrop()
+                    + "', so a dying zombie would spawn nothing");
+        }
+        if (rewards.coinDropChance() > 0F && rewards.coinDropAmount() <= 0) {
+            errors.add("rewards.coin_drop_chance is " + rewards.coinDropChance()
+                    + " but coin_drop_amount is 0, so no zombie will ever drop a coin");
+        }
+        return errors;
+    }
+
+    /**
+     * Reports unlock entries that could never be satisfied, and unlock cycles.
+     *
+     * <p>A malformed requirement is the same trap {@code rewards} has: the type is a
+     * string, so a typo decodes and then blocks forever with no explanation. A cycle is
+     * worse - two levels each waiting for the other can never be entered again, and
+     * nothing in the running game would say why.
+     *
+     * <p>The cycle check wants every level, so it is a separate entry point that the
+     * server calls once per reload rather than per level.
+     */
+    public static List<String> validateUnlock(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        LevelUnlock unlock = def.unlock();
+        if (unlock == null) {
+            return errors;
+        }
+        for (LevelUnlock.Requirement requirement : unlock.requires()) {
+            String problem = LevelUnlocks.problemWith(requirement);
+            if (problem != null) {
+                errors.add("unlock.requires: " + problem);
+                continue;
+            }
+            if (requirement.isLevel() && BuiltInRegistries.LEVELS.get(requirement.id().get()) == null) {
+                errors.add("unlock.requires references unknown level '" + requirement.id().get()
+                        + "', so this level can never be entered");
+            }
+            if (requirement.isCard() && SlotResolver.resolve(requirement.id().get()).isEmpty()) {
+                errors.add("unlock.requires references unknown card '" + requirement.id().get()
+                        + "': no slot, plant, tool or resource with that id");
+            }
+        }
+        if (unlock.cost().isPresent() && unlock.cost().get() > 100_000) {
+            errors.add("unlock.cost is " + unlock.cost().get() + ", far beyond the wallet cap of "
+                    + com.pvzce.common.PvzceConstants.COIN_CAP);
+        }
+        if (unlock.isOpen() && unlock.hidden()) {
+            // Legal but pointless: an open level is always listed, so "hidden" does nothing.
+            errors.add("unlock.hidden is set on a level with no requirements, which changes nothing");
+        }
+        return errors;
+    }
+
+    /** Circular unlock chains across every loaded level, as messages. */
+    public static List<String> validateUnlockCycles() {
+        Map<Identifier, LevelUnlock> unlocks = new java.util.LinkedHashMap<>();
+        for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(id);
+            if (def != null && !def.unlock().isOpen()) {
+                unlocks.put(id, def.unlock());
+            }
+        }
+        return LevelUnlocks.findCycles(unlocks);
+    }
+
+    private static void reportRewards(List<String> errors, String block, List<LevelRewards.Reward> rewards) {
+        for (LevelRewards.Reward reward : rewards) {
+            if (reward == null) {
+                continue;
+            }
+            if (reward.isUnlock()) {
+                Identifier card = reward.id().orElse(null);
+                if (card == null) {
+                    errors.add("rewards." + block + ": an unlock entry needs an \"id\"");
+                } else if (SlotResolver.resolve(card).isEmpty()) {
+                    errors.add("rewards." + block + ": unknown card '" + card
+                            + "': no slot, plant, tool or resource with that id");
+                }
+            } else if (reward.isCoins()) {
+                if (reward.amount() <= 0) {
+                    errors.add("rewards." + block + ": a coins entry needs a positive \"amount\"");
+                }
+            } else {
+                errors.add("rewards." + block + ": unknown type '" + reward.type()
+                        + "' (expected \"unlock\" or \"coins\")");
+            }
+        }
+    }
+
+    /**
+     * An authoring note rather than a problem: this level fixes its whole deck.
+     *
+     * <p>That is a legitimate design - it is exactly what the first level is - so it
+     * must not be reported as a defect. It is still worth saying out loud, because
+     * the same shape also happens by accident when an author lists their whole pool
+     * and leaves {@code max_seed_slots} alone, and then wonders why the player never
+     * gets to choose anything.
+     *
+     * @return the note, or {@code null} when the level leaves the player a choice
+     */
+    public static String describeFixedDeck(LevelDef def) {
+        if (def.slots().isEmpty() || def.slots().size() < def.maxSeedSlots()) {
+            return null;
+        }
+        return "fixed deck: the level's " + def.slots().size() + " cards fill all "
+                + def.maxSeedSlots() + " slots, so the player only picks when they unlock more"
+                + " (raise max_seed_slots above " + def.slots().size() + " to leave room)";
+    }
+
     public static List<String> validateSlots(List<Identifier> slots) {
         List<String> errors = new ArrayList<>();
         if (slots == null) {

@@ -19,10 +19,26 @@ public record WaveDef(
         WaveType type,
         int delay,
         int warningTicks,
-        List<Entry> entries
+        List<Entry> entries,
+        int spawnIntervalTicks
 ) {
-    /** Zombies are released one at a time on this fixed interval within a wave. */
-    public static final int SPAWN_INTERVAL_TICKS = 15;
+    /** A wave that uses {@link #DEFAULT_SPAWN_INTERVAL_TICKS}. */
+    public WaveDef(WaveType type, int delay, int warningTicks, List<Entry> entries) {
+        this(type, delay, warningTicks, entries, DEFAULT_SPAWN_INTERVAL_TICKS);
+    }
+
+    /** Ticks between two of this wave's zombies, never below a quarter second. */
+    public int spawnInterval() {
+        return Math.max(15, spawnIntervalTicks);
+    }
+    /**
+     * How long a wave waits between two of its zombies when it does not say.
+     *
+     * <p>The original's pacing: an easy level trickles, a late one pours. At the 15 ticks
+     * this used to be, a three-zombie wave emptied in half a second, which read as "they
+     * all appeared at once".
+     */
+    public static final int DEFAULT_SPAWN_INTERVAL_TICKS = 300;
     public static final int DEFAULT_WARNING_TICKS = 600;
 
     public enum WaveType {
@@ -52,7 +68,9 @@ public record WaveDef(
             WaveType.CODEC.optionalFieldOf("type", WaveType.SMALL).forGetter(WaveDef::type),
             Codec.INT.fieldOf("delay").forGetter(WaveDef::delay),
             Codec.INT.optionalFieldOf("warning_ticks", DEFAULT_WARNING_TICKS).forGetter(WaveDef::warningTicks),
-            Entry.CODEC.listOf().fieldOf("entries").forGetter(WaveDef::entries)
+            Entry.CODEC.listOf().fieldOf("entries").forGetter(WaveDef::entries),
+            Codec.INT.optionalFieldOf("spawn_interval", DEFAULT_SPAWN_INTERVAL_TICKS)
+                    .forGetter(WaveDef::spawnIntervalTicks)
     ).apply(i, WaveDef::new));
 
     public int totalZombies() {
@@ -63,7 +81,16 @@ public record WaveDef(
         return type.isHuge();
     }
 
+    /**
+     * This wave with a different type, keeping every other field.
+     *
+     * <p>The canonical constructor is deliberately not used here: it takes the four
+     * "default interval" arguments and silently replaces a level's own
+     * {@code spawn_interval}. {@code normalizeWaves} calls this for the last wave of every
+     * level, so that would quietly reset the final wave's pacing - the one wave whose
+     * pacing a level tunes hardest.
+     */
     public WaveDef asType(WaveType type) {
-        return new WaveDef(type, delay, warningTicks, entries);
+        return new WaveDef(type, delay, warningTicks, entries, spawnIntervalTicks);
     }
 }

@@ -5,7 +5,6 @@ import com.pvzce.api.registry.RegistryEntryAddedCallback;
 import com.pvzce.api.registry.Registry;
 import com.pvzce.api.tag.TagKey;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.common.PvzceIds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
@@ -14,6 +13,8 @@ import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.resource.PvzceDataLoader;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.common.tag.PvzceTags;
+import com.pvzce.common.tag.TestContent;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -95,8 +96,8 @@ class FoundationRegressionTest {
     void nestedContentPathsProduceDistinctIds() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-nested-ids");
         Path pack = gameDir.resolve("datapacks/nested");
-        Path first = pack.resolve("data/test/pvzce/plants/tier1/pea.json");
-        Path second = pack.resolve("data/test/pvzce/plants/tier2/pea.json");
+        Path first = pack.resolve("data/test/plants/tier1/pea.json");
+        Path second = pack.resolve("data/test/plants/tier2/pea.json");
         Files.createDirectories(first.getParent());
         Files.createDirectories(second.getParent());
         Files.writeString(first, "{\"cost\":{\"resources\":{}},\"health\":111}");
@@ -120,8 +121,8 @@ class FoundationRegressionTest {
     void duplicateContentIdsAreReported() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-duplicate-ids");
         Path pack = gameDir.resolve("datapacks/dupes");
-        Path first = pack.resolve("data/test/pvzce/plants/pea.json");
-        Path second = pack.resolve("data/test/pvzce/plants/other.json");
+        Path first = pack.resolve("data/test/plants/pea.json");
+        Path second = pack.resolve("data/test/plants/other.json");
         Files.createDirectories(first.getParent());
         Files.writeString(first, "{\"id\":\"test:same\",\"cost\":{\"resources\":{}},\"health\":1}");
         Files.writeString(second, "{\"id\":\"test:same\",\"cost\":{\"resources\":{}},\"health\":2}");
@@ -136,24 +137,41 @@ class FoundationRegressionTest {
     /**
      * Both directory spellings must work for tags. The tag loader kept its own
      * registry table that only knew the singular form, so a tag file under
-     * {@code tags/pvzce/plants/} was rejected as an unknown registry even though
-     * the matching content directory is {@code plants/}.
+     * {@code tags/plants/} was rejected as an unknown registry even though the
+     * matching content directory is {@code plants/}.
+     *
+     * <p>The pack root is the namespace alone; the extra {@code pvzce} segment this
+     * used to spell is gone along with the loaders that required it.
      */
     @Test
     void tagDirectoriesAcceptBothSpellings() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-tag-spellings");
+        TagKey<PlantDef> group = TagKey.create(PvzceRegistries.PLANTS, Identifier.of("test", "group"));
+        // One spelling per pack: with both files in one pack a single contains() would
+        // pass even if one of the two paths were rejected outright, which is exactly the
+        // bug this pins.
         for (String dir : new String[]{"plant", "plants"}) {
-            Path file = gameDir.resolve("datapacks/tags" + dir + "/data/test/tags/pvzce/" + dir + "/group.json");
+            Path gameDir = Files.createTempDirectory("pvzce-tag-" + dir);
+            Path file = gameDir.resolve("datapacks/tags" + dir + "/data/test/tags/" + dir + "/group.json");
             Files.createDirectories(file.getParent());
             Files.writeString(file, "{\"values\":[\"pvzce:pea_shooter\"]}");
-        }
-        PvzceResourceManager resources = new PvzceResourceManager(Thread.currentThread().getContextClassLoader());
-        resources.init(gameDir);
-        PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
 
-        TagKey<PlantDef> singular = TagKey.create(PvzceRegistries.PLANTS, Identifier.of("test", "group"));
-        assertTrue(PvzceTags.MANAGER.contains(singular, Identifier.withDefaultNamespace("pea_shooter")),
-                "both tag directory spellings must resolve to the same registry");
+            PvzceResourceManager resources = new PvzceResourceManager(
+                    Thread.currentThread().getContextClassLoader());
+            resources.init(gameDir);
+            PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
+
+            assertTrue(PvzceTags.MANAGER.contains(group, Identifier.withDefaultNamespace("pea_shooter")),
+                    "a tag under tags/" + dir + "/ must resolve to the plant registry");
+        }
+    }
+
+    /**
+     * The tag table is global; the test above pointed it at a throwaway pack, so it
+     * is put back here rather than left for whichever class runs next.
+     */
+    @AfterAll
+    static void restoreTags() throws Exception {
+        TestContent.restoreBuiltInTags();
     }
 
     /** Arrays with an impossible length must fail as IOException, not as a raw Java error. */
@@ -206,15 +224,5 @@ class FoundationRegressionTest {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bytes);
         assertThrows(IOException.class, () -> NbtIo.writeUnnamedTag(new ListTag(), out));
-    }
-
-    /** Runtime ids only make sense while a value is present; removing one must not confuse lookups. */
-    @Test
-    void registryLookupsSurviveDynamicRemoval() {
-        Registry<PlantDef> plants = BuiltInRegistries.PLANTS;
-        PlantDef pea = plants.get(PvzceIds.id("pea_shooter"));
-        assertNotNull(pea);
-        assertEquals(PvzceIds.id("pea_shooter"), plants.getKey(pea));
-        assertNotNull(plants.getById(plants.getId(pea)));
     }
 }

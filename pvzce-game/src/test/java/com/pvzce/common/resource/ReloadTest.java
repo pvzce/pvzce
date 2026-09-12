@@ -17,9 +17,9 @@ class ReloadTest {
         BuiltInRegistries.bootstrap();
         Path gameDir = Files.createTempDirectory("pvzce-reload");
         Path pack = gameDir.resolve("datapacks/testpack");
-        Files.createDirectories(pack.resolve("data/test/pvzce/plants"));
+        Files.createDirectories(pack.resolve("data/test/plants"));
 
-        Path plantFile = pack.resolve("data/test/pvzce/plants/peashooter.json");
+        Path plantFile = pack.resolve("data/test/plants/peashooter.json");
         Files.writeString(plantFile, """
                 {"id":"test:peashooter","cost":{"resources":{"pvzce:sun":125},"cooldown":300},"health":400,"attack_interval":45,"shots":[],
                  "animation":"test:pea_whole","animations":{"walk":"test:pea_walk"}}

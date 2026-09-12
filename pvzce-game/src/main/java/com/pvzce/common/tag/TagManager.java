@@ -23,19 +23,30 @@ import java.util.Set;
 /**
  * MC {@code TagLoader}-shaped data pack tag loader.
  *
- * <p>Directory convention: {@code data/<ns>/tags/pvzce/<registry>/<name>.json},
- * where {@code <registry>} is either the singular registry id path ({@code plant})
- * or the content directory name ({@code plants}). Both spellings are accepted
+ * <p>Directory convention: {@code data/<ns>/tags/<registry>/<name>.json}, where
+ * {@code <registry>} is either the singular registry id path ({@code plant}) or
+ * the content directory name ({@code plants}). Both spellings are accepted
  * because the registry-to-directory mapping lives in
  * {@link PvzceDataLoader#CONTENT_REGISTRIES} - this class used to keep a second,
  * hand-typed table that only knew the singular form and rejected the plural one.
  *
+ * <p>The tag id is {@code <ns>:<name>}, exactly like Minecraft, so
+ * {@code data/c/tags/plant/plantable.json} is {@code #c:plantable}. Mods are
+ * expected to extend the convention tags shipped under {@code data/c}.
+ *
+ * <p>The older three-segment spelling {@code data/<ns>/tags/pvzce/<registry>/<name>.json}
+ * is gone: it was the tag-side twin of the doubled namespace the data pack used to
+ * carry, and with the pack root flat there is nothing left for it to mean.
+ *
  * <p>JSON format is {@code {"replace": false, "values": [...]}}; values may
  * reference other tags with a leading {@code #}.
+ *
+ * <p>Tags are per registry: {@code #c:plantable} on scene elements and
+ * {@code #c:plantable} on plants are two unrelated tags, which is how the
+ * placement rules give the same name a terrain meaning and a plant meaning.
  */
 public final class TagManager {
     private static final String TAG_SEGMENT = "tags";
-    private static final String CONTENT_SEGMENT = "pvzce";
     private static final String SUFFIX = ".json";
 
     private final Map<RawKey, Set<Identifier>> resolvedTags = new LinkedHashMap<>();
@@ -238,24 +249,30 @@ public final class TagManager {
         return new RawKey(contentPath, tag.id());
     }
 
-    /** {@code data/<ns>/tags/pvzce/<registry>/<name>.json} split into its parts. */
+    /** {@code data/<ns>/tags/<registry>/<name>.json} split into its parts. */
     private record ParsedTagPath(String registryPath, String tagId) {
     }
 
+    /**
+     * {@code data/<ns>/tags/<registry>/<name>.json} - the tag id is the namespace
+     * plus the whole relative path under the registry directory, so nested names
+     * ({@code plant/plantable/flowers}) stay nested.
+     */
     private static ParsedTagPath parseTagPath(String path) {
         if (!path.startsWith("data/") || !path.endsWith(SUFFIX)) {
             return null;
         }
         String body = path.substring("data/".length(), path.length() - SUFFIX.length());
         String[] parts = body.split("/");
-        if (parts.length < 5 || !TAG_SEGMENT.equals(parts[1]) || !CONTENT_SEGMENT.equals(parts[2])) {
+        // <namespace>/tags/<registry>/<relative...>
+        if (parts.length < 4 || !TAG_SEGMENT.equals(parts[1])) {
             return null;
         }
         String namespace = parts[0];
-        String registryPath = parts[3];
+        String registryPath = parts[2];
         StringBuilder relative = new StringBuilder();
-        for (int i = 4; i < parts.length; i++) {
-            if (i > 4) {
+        for (int i = 3; i < parts.length; i++) {
+            if (i > 3) {
                 relative.append('/');
             }
             relative.append(parts[i]);

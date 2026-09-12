@@ -22,6 +22,24 @@ public final class RenderSystem {
     }
 
     /**
+     * Additive blending, for light rather than for paint.
+     *
+     * <p>The original blends its glows this way, and drawing them with ordinary alpha
+     * is visibly wrong: a soft radial gradient becomes a flat opaque disc that hides
+     * what is underneath (the coin's glow was cut from the art entirely because of
+     * this). Anything that turns this on must turn it back off - {@link #blendNormal}
+     * is the counterpart, and {@code PvzceClient}'s frame loop resets it as a backstop.
+     */
+    public static void blendAdditive() {
+        GL20.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE);
+    }
+
+    /** Ordinary source-over alpha blending; the state {@link #init()} starts in. */
+    public static void blendNormal() {
+        GL20.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+    }
+
+    /**
      * Whether shader-driven effects may run.
      *
      * <p>Set from the client config once per world view. The liquid pass reads it

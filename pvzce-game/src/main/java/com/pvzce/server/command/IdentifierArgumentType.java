@@ -107,6 +107,8 @@ public final class IdentifierArgumentType implements ArgumentType<Identifier> {
 
     @Override
     public Collection<String> getExamples() {
-        return List.of("pvzce:demo_level", "pvzce:basic_zombie");
+        // A nested level id on purpose: the example is where an author learns that a level
+        // lives at <theme>/<category>/<name>.
+        return List.of("pvzce:yard/adventure/demo_level", "pvzce:basic_zombie");
     }
 }

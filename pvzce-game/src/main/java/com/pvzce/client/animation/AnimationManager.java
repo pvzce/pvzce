@@ -6,10 +6,11 @@ import com.pvzce.api.content.AnimationBindings;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.ClientLevel;
-import com.pvzce.client.PvzceClient;
 import com.pvzce.api.entity.EntityKind;
+import com.pvzce.client.PvzceClient;
+import com.pvzce.client.renderer.EntityVisuals;
 import com.pvzce.client.api.Animatable;
-import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.EntityArt;
 import com.pvzce.common.resource.PvzceResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -204,8 +205,85 @@ public final class AnimationManager {
             return false;
         }
         float[] anchor = anchor(entity);
-        playback.render(client, anchor[0], anchor[1], baseZ(entity), client.spriteXScale());
+        float vs = visualScale(entity);
+        if (EntityKind.RESOURCE.equals(entity.kind())) {
+            client.pushEntityTint(EntityVisuals.DROP_TINT);
+        }
+        try {
+            playback.render(client, anchor[0], anchor[1], baseZ(entity), xScaleFor(entity, vs));
+        } finally {
+            if (EntityKind.RESOURCE.equals(entity.kind())) {
+                client.popEntityTint();
+            }
+        }
         return true;
+    }
+
+    /**
+     * The horizontal scale this entity's animation part geometry is drawn with.
+     *
+     * <p>Two factors, and only two:
+     *
+     * <ol>
+     *   <li>the board's own aspect correction - everything but a drop is drawn with it,
+     *       because the projection maps a world cell to {@code unitY / unitX} (1.25, the
+     *       original's 80x100 cell) and plant, zombie and tool art is authored to be
+     *       widened by that same factor. A drop is drawn <em>without</em> it because its
+     *       geometry already carries it: {@link #visualScale} fits a drop to one target
+     *       size in both axes, so applying the board factor on top stretched the sun and
+     *       the coins sideways - a circle authored in the art arrived as an ellipse 1.7x
+     *       wider than it was tall;</li>
+     *   <li>{@code render_scale} from the entity's own definition
+     *       ({@link EntityArt#renderScale}), which is the per-content size knob and is
+     *       applied to both axes so the shape is never changed by it.</li>
+     * </ol>
+     */
+    private float xScaleFor(ClientEntity entity, float visualScale) {
+        float board = EntityKind.RESOURCE.equals(entity.kind())
+                ? 1F
+                : client.spriteXScale();
+        return board * visualScale * renderScale(entity);
+    }
+
+    /** The definition's {@code render_scale}, or 1 for anything that declares none. */
+    float renderScale(ClientEntity entity) {
+        return EntityArt.renderScale(entity.defId());
+    }
+
+    /**
+     * How much bigger this entity should be drawn than its animation file says.
+     *
+     * <p>Without this, resizing a drop by editing {@link EntityVisuals} does nothing:
+     * anything with an animation is drawn from the sizes baked into that file, and
+     * {@code EntityVisuals} only applies to the sprite fallback. The sun's animation is
+     * 0.56 cells wide, which is what made it look like a speck no matter what the visual
+     * table said.
+     *
+     * <p>One factor for both axes, taken from the art's <em>larger</em> dimension, so the
+     * shape the art drew is the shape the lawn shows: the sun is a circle and the silver
+     * coin is a circle, while the gold coin's model is slightly taller than it is wide and
+     * has to stay that way. Fitting each axis to the same target instead squashed the
+     * gold coin and stretched the sun.
+     *
+     * <p>Capped at 3x so a badly scaled animation file cannot fill the lawn by accident.
+     */
+    private float visualScale(ClientEntity entity) {
+        // Drops only. A plant's or a zombie's animation is already authored at the size the
+        // creature is meant to be, and their entries in the visual table are about shadows
+        // and sort order; scaling them by the same rule made every zombie 12% bigger.
+        if (!EntityKind.RESOURCE.equals(entity.kind())) {
+            return 1F;
+        }
+        float[] size = visualSize(entity);
+        if (size == null) {
+            return 1F;
+        }
+        float largest = Math.max(size[0], size[1]);
+        if (largest <= 0.0001F) {
+            return 1F;
+        }
+        float target = EntityVisuals.of(entity.kind()).spriteWidth();
+        return Math.max(0.05F, Math.min(3F, target / largest));
     }
 
     void onPlaybackStopped(AnimationPlayback playback) {
@@ -233,6 +311,57 @@ public final class AnimationManager {
 
     public Optional<AnimationFile> file(Identifier id) {
         return load(id);
+    }
+
+    /**
+     * A single texture that stands for this content when a full render is not wanted.
+     *
+     * <p>Used by list rows and palette entries. The old sprites under
+     * {@code textures/entities/<id>.png} are the pre-controller art and look nothing like
+     * what the game draws, so a list built from them showed art the player never sees.
+     * This picks the largest part of a controller model (the body, usually) or the first
+     * flipbook frame, which is the art the game actually uses.
+     *
+     * @return the texture id, or empty when this content has no animation resource
+     */
+    public Optional<Identifier> iconTexture(Identifier id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        Optional<AnimationFile> file = load(id);
+        if (file.isEmpty()) {
+            return Optional.empty();
+        }
+        if (file.get() instanceof ControllerFile controller) {
+            ControllerModel.Part best = null;
+            float bestArea = -1F;
+            for (ControllerModel.Bone bone : controller.model().renderOrder()) {
+                if (bone.restPose() != null && !bone.restPose().visible()) {
+                    continue;
+                }
+                for (ControllerModel.Part part : bone.parts()) {
+                    if (part.texture() == null) {
+                        continue;
+                    }
+                    float area = Math.abs(part.sizeX() * part.sizeY());
+                    if (area > bestArea) {
+                        bestArea = area;
+                        best = part;
+                    }
+                }
+            }
+            return best == null ? Optional.empty() : Optional.of(best.texture());
+        }
+        if (file.get() instanceof FlipbookFile flipbook) {
+            // clip() is typed to the AnimationClip interface, so narrow before reading frames.
+            AnimationClip idle = flipbook.clip("idle").orElse(null);
+            FlipbookClip chosen = idle instanceof FlipbookClip f ? f
+                    : flipbook.clips().values().stream().findFirst().orElse(null);
+            if (chosen != null && !chosen.frames().isEmpty()) {
+                return Optional.of(chosen.frames().get(0));
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -270,8 +399,10 @@ public final class AnimationManager {
             return Optional.empty();
         }
         AnimationBindings bindings = bindings(entity.kind(), defId);
+        // An override names a file directly; otherwise the entity's own file lives in
+        // the directory its definition declares (or mirrors the id when it declares none).
         Identifier fileId = bindings.resolve(state)
-                .orElseGet(() -> Identifier.of(defId.namespace(), defId.path()));
+                .orElseGet(() -> bindings.fileId(defId));
         return load(fileId);
     }
 
@@ -281,22 +412,12 @@ public final class AnimationManager {
      * <p>The per-kind switch used to be written out three times in this class and
      * twice more in the screen layer, and had already drifted: {@code anchor} and
      * {@code baseZ} handled {@code "sun"} while {@code bindings} did not, so a
-     * resource drop could never use an animation override. The registry lookup and
-     * the switch now agree by construction.
+     * resource drop could never use an animation override. The lookup now lives in
+     * {@link EntityArt}, which is also what the renderer asks for fallback sprites -
+     * so "which art does this id use" has one answer again.
      */
     private AnimationBindings bindings(String kind, Identifier defId) {
-        if (defId == null) {
-            return AnimationBindings.EMPTY;
-        }
-        AnimationBindings bindings = switch (kind) {
-            case EntityKind.PLANT -> BuiltInRegistries.PLANTS.getOptional(defId)
-                    .map(com.pvzce.api.content.PlantDef::animations).orElse(null);
-            case EntityKind.ZOMBIE -> BuiltInRegistries.ZOMBIES.getOptional(defId)
-                    .map(com.pvzce.api.content.ZombieDef::animations).orElse(null);
-            case EntityKind.PROJECTILE -> BuiltInRegistries.PROJECTILES.getOptional(defId)
-                    .map(com.pvzce.api.content.ProjectileDef::animations).orElse(null);
-            default -> null;
-        };
+        AnimationBindings bindings = EntityArt.bindings(defId);
         return bindings == null ? AnimationBindings.EMPTY : bindings;
     }
 

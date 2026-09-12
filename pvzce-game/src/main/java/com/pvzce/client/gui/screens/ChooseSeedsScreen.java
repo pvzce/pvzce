@@ -86,6 +86,17 @@ public final class ChooseSeedsScreen extends Screen {
     private static final long PREVIEW_DELAY_NANOS = 350_000_000L;
     private static final long PREVIEW_FADE_NANOS = 850_000_000L;
     private static final long FLY_NANOS = 360_000_000L;
+    /** Panel-slides-out + camera-pans-home beat before the level is actually started. */
+    private static final long EXIT_NANOS = 520_000_000L;
+    /**
+     * How long a level with nothing to choose shows its fixed deck before starting.
+     *
+     * <p>The preview and the panel must both have finished first (they need 1.7s), so
+     * this is the total: the player sees the zombies walk in, sees which cards the
+     * level fixed, and is then taken into the level without touching anything - which
+     * is what the original's first level does.
+     */
+    private static final long AUTO_START_NANOS = 3_000_000_000L;
 
     private final String levelId;
     private final String levelName;
@@ -98,11 +109,17 @@ public final class ChooseSeedsScreen extends Screen {
     private final boolean restart;
     private final Runnable onBack;
     private final List<String> selectedOrder = new ArrayList<>();
+    /** The level's own cards; always in the bar and never removable. */
+    private final Set<String> lockedSlots = new LinkedHashSet<>();
     private final List<Flight> flights = new ArrayList<>();
     private final List<ClientEntity> previewEntities = new ArrayList<>();
     private boolean previewAnimationsReady;
 
     private long startNanos;
+    /** Non-zero once the start has been requested; the packet waits for the animation. */
+    private long exitNanos;
+    /** True once the start packet went out, so the auto-start cannot fire twice. */
+    private boolean startSent;
     private float panelX;
     private float panelY;
     private float panelW;
@@ -183,6 +200,20 @@ public final class ChooseSeedsScreen extends Screen {
                              List<String> previewZombies, int levelWidth, int levelHeight,
                              List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
                              boolean restart, Runnable onBack) {
+        this(client, levelId, levelName, options, maxSeedSlots, previewZombies, levelWidth,
+                levelHeight, sceneCells, initialSelection, restart, onBack, List.of());
+    }
+
+    /**
+     * @param lockedSlots slot ids the level fixes in the bar. They start selected and
+     *                    cannot be removed; everything else the player may toggle, up to
+     *                    {@code maxSeedSlots} slots in total.
+     */
+    public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
+                             List<SeedOption> options, int maxSeedSlots,
+                             List<String> previewZombies, int levelWidth, int levelHeight,
+                             List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
+                             boolean restart, Runnable onBack, List<String> lockedSlots) {
         super(client);
         this.levelId = levelId;
         this.levelName = levelName;
@@ -207,13 +238,25 @@ public final class ChooseSeedsScreen extends Screen {
         }
         this.restart = restart;
         this.onBack = onBack;
+        // The level's cards first and always; then whatever was remembered or defaulted
+        // into the slots it left over.
+        if (lockedSlots != null) {
+            for (String locked : lockedSlots) {
+                if (locked != null && containsOption(locked)) {
+                    this.lockedSlots.add(locked);
+                    if (selectedOrder.size() < this.maxSeedSlots) {
+                        selectedOrder.add(locked);
+                    }
+                }
+            }
+        }
         if (initialSelection != null) {
-            Set<String> seen = new LinkedHashSet<>();
+            Set<String> seen = new LinkedHashSet<>(selectedOrder);
             for (String seed : initialSelection) {
                 if (selectedOrder.size() >= this.maxSeedSlots) {
                     break;
                 }
-                if (seen.add(seed) && containsOption(seed)) {
+                if (seen.add(seed) && containsOption(seed) && !isLocked(seed)) {
                     selectedOrder.add(seed);
                 }
             }
@@ -494,20 +537,71 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     private void clearSelection() {
-        if (selectedOrder.isEmpty()) {
+        // "Clear" means "drop my choices", not "drop the level's fixed cards".
+        if (selectedOrder.size() <= lockedSlots.size()) {
             return;
         }
-        selectedOrder.clear();
-        flights.clear();
+        selectedOrder.removeIf(id -> !isLocked(id));
+        flights.removeIf(flight -> !isLocked(flight.option.slotId()));
         playSound(SOUND_TAP, 1F, 1F);
     }
 
+    private boolean isLocked(String slotId) {
+        return lockedSlots.contains(slotId);
+    }
+
+    /**
+     * Requests the start, after the exit animation.
+     *
+     * <p>Used to send the packet immediately, so the level appeared between two
+     * frames with the wooden panel still on screen - the "生硬" jump. Now the panel
+     * slides back out and the camera pans home first, and {@link #tick} sends the
+     * packet when that beat is over. The delay is a constant rather than a callback
+     * so backing out cannot leave a pending start behind.
+     */
     private void start() {
+        if (exitNanos != 0L || startSent) {
+            return;
+        }
+        exitNanos = System.nanoTime();
+    }
+
+    /** Sends the start packet exactly once, when the exit animation has played out. */
+    private void finishStart() {
+        if (startSent || exitNanos == 0L || exitProgress() < 1F) {
+            return;
+        }
+        startSent = true;
         client.startLevelWithSeeds(levelId, restart, new ArrayList<>(selectedOrder));
+    }
+
+    /**
+     * True when the level leaves the player nothing to choose.
+     *
+     * <p>Either every slot is pinned by the level, or the backpack has nothing left
+     * to offer. Both mean the same thing to the player: no cards to pick, so the
+     * chooser would be a page with one button on it.
+     */
+    private boolean hasNothingToChoose() {
+        int freeSlots = maxSeedSlots - selectedOrder.size();
+        if (freeSlots <= 0) {
+            return true;
+        }
+        for (SeedOption option : options) {
+            if (!lockedSlots.contains(option.slotId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void toggleOption(SeedOption option) {
         String id = option.slotId();
+        if (isLocked(id)) {
+            // Already in the bar and staying there; clicking it is a no-op, not a remove.
+            playSound(SOUND_TAP, 1F, 1F);
+            return;
+        }
         if (selectedOrder.contains(id)) {
             selectedOrder.remove(id);
             flights.removeIf(flight -> flight.option.slotId().equals(id));
@@ -535,13 +629,24 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     private float panelProgress() {
+        if (exitNanos != 0L) {
+            return 1F - easeOut(exitProgress());
+        }
         long elapsed = System.nanoTime() - startNanos;
         return easeOut(clamp01((elapsed - PANEL_DELAY_NANOS) / (float) PANEL_SLIDE_NANOS));
     }
 
     private float panProgress() {
+        if (exitNanos != 0L) {
+            return 1F - easeInOut(exitProgress());
+        }
         long elapsed = System.nanoTime() - startNanos;
         return easeInOut(clamp01(elapsed / (float) PAN_NANOS));
+    }
+
+    /** 0..1 through the exit beat; the start packet goes out when it reaches 1. */
+    private float exitProgress() {
+        return clamp01((System.nanoTime() - exitNanos) / (float) EXIT_NANOS);
     }
 
     private float previewProgress() {
@@ -582,15 +687,20 @@ public final class ChooseSeedsScreen extends Screen {
         updateButtonState();
         long now = System.nanoTime();
         flights.removeIf(flight -> now - flight.startNanos >= FLY_NANOS);
+        if (exitNanos != 0L) {
+            finishStart();
+            return;
+        }
+        // A fixed deck still shows the preview and the panel, then starts itself.
+        if (hasNothingToChoose() && now - startNanos >= AUTO_START_NANOS) {
+            start();
+        }
     }
 
     @Override
-    public void mouseClicked(double mouseX, double mouseY, int button) {
-        double guiX = client.guiMouseX(mouseX);
-        double guiY = client.guiMouseY(mouseY);
+    protected void onMouseClicked(double guiX, double guiY, int button) {
         for (AbstractWidget widget : widgets) {
             if (widget.isMouseOver(guiX, guiY)) {
-                super.mouseClicked(mouseX, mouseY, button);
                 return;
             }
         }
@@ -607,7 +717,14 @@ public final class ChooseSeedsScreen extends Screen {
             List<String> ordered = orderedSelection();
             if (index >= 0 && index < ordered.size()
                     && inSlotX >= 0F && inSlotX <= topCardW) {
-                selectedOrder.remove(ordered.get(index));
+                String removed = ordered.get(index);
+                if (isLocked(removed)) {
+                    // A fixed card is part of the level, not a choice; clicking it does
+                    // nothing rather than silently dropping the level's setup.
+                    playSound(SOUND_TAP, 1F, 1F);
+                    return;
+                }
+                selectedOrder.remove(removed);
                 flights.clear();
                 playSound(SOUND_TAP, 1F, 1F);
             }
@@ -657,14 +774,11 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     @Override
-    public void mouseScrolled(double mouseX, double mouseY, double amount) {
-        double guiX = client.guiMouseX(mouseX);
-        double guiY = client.guiMouseY(mouseY);
+    protected void onMouseScrolled(double guiX, double guiY, double amount) {
         boolean overPool = gridMaxScroll > 0F
                 && guiX >= panelX && guiX <= panelX + panelW
                 && guiY >= gridViewBottom && guiY <= gridViewTop;
         if (!overPool) {
-            super.mouseScrolled(mouseX, mouseY, amount);
             return;
         }
         int delta = amount > 0 ? -1 : 1;
@@ -827,11 +941,26 @@ public final class ChooseSeedsScreen extends Screen {
         client.font().draw(title, currentPanelX + titleInset, titleY,
                 titleScale, 1F, 0.95F, 0.8F, alpha);
 
-        String counter = "已选 " + selectedOrder.size() + "/" + maxSeedSlots;
+        // Fixed cards count towards the total, so the hint names them: otherwise the
+        // player sees "3/6" on a fresh screen and cannot tell why.
+        String counter = lockedSlots.isEmpty()
+                ? "已选 " + selectedOrder.size() + "/" + maxSeedSlots
+                : "已选 " + selectedOrder.size() + "/" + maxSeedSlots
+                        + "（锁定 " + lockedSlots.size() + "）";
         float counterScale = clamp(panelW / 360F, 0.58F, 0.9F);
         client.font().draw(counter,
                 currentPanelX + panelW - titleInset - client.font().width(counter, counterScale),
                 titleY, counterScale, 1F, 0.95F, 0.62F, alpha);
+
+        // A level that fixes its whole deck starts itself; saying so (rather than
+        // showing a button nobody has to press) is what keeps the auto-start from
+        // reading as the screen closing on its own.
+        if (hasNothingToChoose()) {
+            String hint = "本关卡组固定，即将开始";
+            float hintScale = clamp(panelW / 420F, 0.5F, 0.72F);
+            client.font().draw(hint, currentPanelX + titleInset, titleY - client.font().lineHeight(hintScale) - 2F,
+                    hintScale, 1F, 0.88F, 0.5F, alpha);
+        }
 
         if (levelName != null && !levelName.isBlank()) {
             float levelScale = clamp(panelW / 420F, 0.5F, 0.75F);
@@ -991,6 +1120,37 @@ public final class ChooseSeedsScreen extends Screen {
                         SeedCardRenderer.CardKind.fromJson(option.kind()),
                         option.costSun(), brightness, alpha, true, 0F, false),
                 x, y, width, height);
+        if (isLocked(option.slotId())) {
+            drawLockBadge(x, y, width, height, alpha);
+        }
+    }
+
+    /**
+     * Marks a card the level fixes in the bar.
+     *
+     * <p>A fixed card is drawn as chosen (it is in the bar from the start) and is not
+     * removable, so without a mark it looks like a card the player simply happened to
+     * pick. The badge is a filled corner plus a horizontal bar - the padlock a player
+     * reads instantly, drawn from primitives because the UI has no icon font.
+     */
+    private void drawLockBadge(float x, float y, float width, float height, float alpha) {
+        float size = Math.max(10F, Math.min(width, height) * 0.34F);
+        client.drawSolid(x + width - size, y, size, size, 0.4F, 0.15F, 0.16F, 0.2F, 0.85F * alpha);
+        // Body.
+        float bodyW = size * 0.56F;
+        float bodyH = size * 0.42F;
+        float bodyX = x + width - size / 2F - bodyW / 2F;
+        float bodyY = y + size * 0.18F;
+        client.drawSolid(bodyX, bodyY, bodyW, bodyH, 0.45F, 1F, 0.86F, 0.35F, alpha);
+        // Shackle: two uprights and a top bar, so it reads as a padlock at this size.
+        float legW = Math.max(1F, bodyW * 0.16F);
+        float shackleH = size * 0.26F;
+        client.drawSolid(bodyX + bodyW * 0.16F, bodyY + bodyH, legW, shackleH, 0.45F,
+                1F, 0.86F, 0.35F, alpha);
+        client.drawSolid(bodyX + bodyW * 0.68F, bodyY + bodyH, legW, shackleH, 0.45F,
+                1F, 0.86F, 0.35F, alpha);
+        client.drawSolid(bodyX + bodyW * 0.16F, bodyY + bodyH + shackleH, bodyW * 0.68F,
+                Math.max(1F, legW * 0.8F), 0.45F, 1F, 0.86F, 0.35F, alpha);
     }
 
     /**
@@ -1024,9 +1184,7 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     private static float easeInOut(float value) {
-        return value < 0.5F
-                ? 2F * value * value
-                : 1F - (float) Math.pow(-2F * value + 2F, 2F) / 2F;
+        return com.pvzce.common.util.MathUtil.easeInOut(value);
     }
 
     private static float lerp(float from, float to, float delta) {

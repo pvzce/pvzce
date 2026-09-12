@@ -11,6 +11,7 @@ import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.api.tag.TagKey;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PvzceRegistries;
 import com.pvzce.common.network.packet.GameSpeedS2C;
@@ -37,6 +38,16 @@ public final class PvzceCommands {
     private PvzceCommands() {
     }
 
+    /**
+     * The command tree, for tests and for anything that only needs to parse.
+     *
+     * <p>A few subcommands ({@code /tick}, {@code /editor open}, {@code /reload}) act on a
+     * running server. They are registered by {@link #create} and simply absent here.
+     */
+    public static CommandDispatcher<PvzceCommandSource> create() {
+        return create(null);
+    }
+
     public static CommandDispatcher<PvzceCommandSource> create(PvzceServer server) {
         CommandDispatcher<PvzceCommandSource> dispatcher = new CommandDispatcher<>();
         dispatcher.register(pvzce());
@@ -49,6 +60,12 @@ public final class PvzceCommands {
                 .then(argKind("kind").then(argIdentifier("id", "any_entity").then(argInt("x", 0).then(argInt("y", 0))
                         .executes(ctx -> spawn(ctx, get(ctx, "kind"), ctx.getArgument("id", Identifier.class).toString(),
                                 ctx.getArgument("x", Integer.class), ctx.getArgument("y", Integer.class)))))));
+        if (server == null) {
+            // Parse-only tree: the data commands are all here, the ones that need a
+            // running server are not.
+            return dispatcher;
+        }
+        dispatcher.register(profile(server));
         dispatcher.register(tick(server));
         dispatcher.register(time(server));
         dispatcher.register(lit("editor")
@@ -59,6 +76,10 @@ public final class PvzceCommands {
                 }))));
         dispatcher.register(lit("reload").executes(ctx -> {
             server.reloadData(true);
+            // Push the reloaded level list right away. The editor saves a level and then
+            // wants to offer its seed chooser, which needs the new definition; without this
+            // the client would have to guess how long the reload takes before asking.
+            server.refreshLevelList();
             return 1;
         }));
         dispatcher.register(lit("save").executes(ctx -> {
@@ -72,8 +93,10 @@ public final class PvzceCommands {
         }));
         dispatcher.register(lit("help").executes(ctx -> {
             ctx.getSource().sendFeedback("/pvzce registry list <category> · /pvzce tags list|get · /level load|stop|rules · /gamerule <id> [value]"
-                    + " · /team list|join <team> · /resource give <team> <id> <amount> · /spawn <plant|zombie|projectile> <id> [x] [y]"
+                    + " · /team list|join <team> · /resource give <team> <id> <amount>"
+                    + " · /resource spawn <id> [x] [y] · /spawn <plant|zombie|projectile> <id> [x] [y]"
                     + " · /time query|set|add · /tick query|rate|reset|freeze|step|sprint|unfreeze"
+                    + " · /profile info|unlock <level>|unlockall"
                     + " · /reload /save /stop /editor open <level>");
             return 1;
         }));
@@ -82,10 +105,19 @@ public final class PvzceCommands {
 
     /** Spawnable entity kinds; the three registries a {@code /spawn} can draw from. */
     private static RequiredArgumentBuilder<PvzceCommandSource, String> argKind(String name) {
+        // Everything ``LevelServer.spawnEntity`` accepts. ``resource`` was missing, so
+        // ``/spawn resource ...`` parsed as far as the literal and then failed with
+        // "unknown command at position 5" - which reads like a typo in the command name
+        // rather than an unsupported kind.
         return argument(name, EnumArgumentType.of(
                 com.pvzce.api.entity.EntityKind.PLANT,
                 com.pvzce.api.entity.EntityKind.ZOMBIE,
-                com.pvzce.api.entity.EntityKind.PROJECTILE));
+                com.pvzce.api.entity.EntityKind.PROJECTILE,
+                // The kind constant is "sun" - it names the thing the player sees - but the
+                // argument is positional, so the systematic word has to come first for
+                // "/spawn resource <id>" to be what the completion offers.
+                "resource",
+                com.pvzce.api.entity.EntityKind.RESOURCE));
     }
 
     /**
@@ -208,6 +240,38 @@ public final class PvzceCommands {
                         .then(argTime("time", 0).executes(ctx -> setTime(ctx, ctx.getArgument("time", Integer.class)))))
                 .then(lit("add").then(argTime("time", Integer.MIN_VALUE)
                         .executes(ctx -> addTime(ctx, ctx.getArgument("time", Integer.class)))));
+    }
+
+    /**
+     * The wallet, the backpack, and which levels are open.
+     *
+     * <p>{@code /profile unlock <level>} exists because progression is otherwise only
+     * reachable by playing: a smoke run, a test level behind a chain, or a player who
+     * wants to show someone level 1-4 without clearing 1-3 first all need a way in.
+     * It records the level as <em>bought</em>, so the effect is exactly the one a coin
+     * purchase has and it survives a reload.
+     */
+    private static LiteralArgumentBuilder<PvzceCommandSource> profile(PvzceServer server) {
+        return lit("profile")
+                .then(lit("info").executes(ctx -> {
+                    PvzceServer.ProfileSnapshot snapshot = server.profileSnapshot();
+                    ctx.getSource().sendFeedback("世界 " + snapshot.world()
+                            + "：金币 " + snapshot.coins()
+                            + "，已解锁卡 " + snapshot.cards() + " 张"
+                            + "，已购买关卡 " + snapshot.levels() + " 个"
+                            + (snapshot.sandbox() ? "（沙盒：全部解锁）" : ""));
+                    return 1;
+                }))
+                .then(lit("unlock").then(argIdentifier("level", "level").executes(ctx -> {
+                    Identifier id = ctx.getArgument("level", Identifier.class);
+                    String result = server.grantLevelUnlock(id);
+                    ctx.getSource().sendFeedback(result);
+                    return 1;
+                })))
+                .then(lit("unlockall").executes(ctx -> {
+                    ctx.getSource().sendFeedback(server.grantEverything());
+                    return 1;
+                }));
     }
 
     private static LiteralArgumentBuilder<PvzceCommandSource> tick(PvzceServer server) {
@@ -441,6 +505,7 @@ public final class PvzceCommands {
 
     private static LiteralArgumentBuilder<PvzceCommandSource> resource() {
         return lit("resource")
+                .then(resourceSpawn())
                 .then(lit("give")
                         .then(argIdentifier("team", "team")
                                 .then(argIdentifier("resource", "resource")
@@ -462,6 +527,37 @@ public final class PvzceCommands {
                                             ctx.getSource().sendFeedback("已给予资源。");
                                             return 1;
                                         })))));
+    }
+
+    /**
+     * {@code /resource spawn <id> [x] [y]}: puts a drop on the board.
+     *
+     * <p>The sibling of {@code /resource give}, which adds to the bank. Drops are the
+     * things with physics - a sun falls, a coin is simply there - so being able to place
+     * one is what makes their motion checkable without waiting for a sunflower or a kill.
+     */
+    private static LiteralArgumentBuilder<PvzceCommandSource> resourceSpawn() {
+        return lit("spawn")
+                .then(argIdentifier("resource", "any_resource")
+                        .then(argInt("x", 0)
+                                .then(argInt("y", 0).executes(ctx -> {
+                                    LevelServer level = ctx.getSource().server().level();
+                                    if (level == null) {
+                                        ctx.getSource().sendFeedback("没有进行中的关卡。");
+                                        return 0;
+                                    }
+                                    Identifier resource = ctx.getArgument("resource", Identifier.class);
+                                    Team team = level.team(PvzceIds.PLANT_TEAM);
+                                    if (BuiltInRegistries.RESOURCES.get(resource) == null || team == null) {
+                                        ctx.getSource().sendFeedback("未知资源 " + resource);
+                                        return 0;
+                                    }
+                                    level.spawnResource(resource, 25,
+                                            ctx.getArgument("x", Integer.class),
+                                            ctx.getArgument("y", Integer.class), team);
+                                    ctx.getSource().sendFeedback("已生成掉落物 " + resource);
+                                    return 1;
+                                }))));
     }
 
     private static LiteralArgumentBuilder<PvzceCommandSource> spawn() {

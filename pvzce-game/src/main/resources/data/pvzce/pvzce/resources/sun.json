@@ -1,9 +1,0 @@
-{
-  "id": "pvzce:sun",
-  "default_value": 25,
-  "collectible": true,
-  "icon": "pvzce:textures/resource/sun",
-  "drop_anim": "pvzce:sun_fall",
-  "max_stack": 9990,
-  "collectible_without_card": false
-}

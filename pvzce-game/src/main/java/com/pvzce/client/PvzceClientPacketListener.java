@@ -13,9 +13,12 @@ import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
+import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
+import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.OpenEditorS2C;
+import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
 import com.pvzce.common.network.packet.SceneSyncS2C;
@@ -27,6 +30,9 @@ import com.pvzce.common.network.packet.WaveProgressS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 
 public final class PvzceClientPacketListener implements PacketListener {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("pvzce-client-packets");
+
     private final PvzceClient client;
     private final ClientLevel level;
 
@@ -49,10 +55,17 @@ public final class PvzceClientPacketListener implements PacketListener {
             client.onLevelInit();
         } else if (packet instanceof LevelListS2C list) {
             client.setLevelList(list.levels());
+        } else if (packet instanceof LevelTabsS2C tabs) {
+            client.setLevelTabs(tabs.tabs());
         } else if (packet instanceof LevelSavePromptS2C prompt) {
             client.showLevelSavePrompt(prompt);
         } else if (packet instanceof OpenEditorS2C editor) {
-            client.openEditor(editor.levelId());
+            Identifier editorLevel = Identifier.tryParse(editor.levelId());
+            if (editorLevel == null) {
+                LOGGER.warn("[editor] server asked to edit an invalid level id '{}'", editor.levelId());
+            } else {
+                client.openEditor(editorLevel);
+            }
         } else if (packet instanceof SceneSyncS2C scene) {
             level.applyScene(scene.cells());
         } else if (packet instanceof EntitySpawnS2C spawn) {
@@ -95,6 +108,9 @@ public final class PvzceClientPacketListener implements PacketListener {
             level.setControlledTeam(team.teamId(), team.teamName());
         } else if (packet instanceof SuggestionsS2C suggestions) {
             level.addSuggestions(suggestions);
+        } else if (packet instanceof ServerMessageS2C message
+                && Boolean.getBoolean("pvzce.traceMessages")) {
+            LOGGER.info("[msg] {}", message.message());
         } else if (packet instanceof WaveProgressS2C wave) {
             level.setWaveProgress(wave.currentWave(), wave.totalWaves(), wave.progress(),
                     wave.warningActive(), wave.finalWarning());
@@ -104,6 +120,12 @@ public final class PvzceClientPacketListener implements PacketListener {
             level.setTargetTickRate(speed.tickRate());
         } else if (packet instanceof DebugInfoS2C debug) {
             level.setDebugInfo(debug.tickCount(), debug.frozen(), debug.sprinting());
+        } else if (packet instanceof ProfileS2C profile) {
+            client.setProfile(profile.coins(), profile.unlocked(), profile.unlockAll());
+        } else if (packet instanceof LevelRewardS2C reward) {
+            // Arrives right after GameStateS2C; the client is already showing the
+            // victory overlay, and this is what turns it into the award screen.
+            client.onLevelReward(reward);
         } else if (packet instanceof ServerMessageS2C message) {
             level.addMessage(message.message());
         }

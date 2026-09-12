@@ -32,6 +32,7 @@ public abstract class Screen {
 
     protected final PvzceClient client;
     protected final List<AbstractWidget> widgets = new ArrayList<>();
+
     private final FocusManager focusManager = new FocusManager();
     private boolean initialized;
 
@@ -197,9 +198,31 @@ public abstract class Screen {
     // Input
     // ------------------------------------------------------------------
 
-    public void mouseClicked(double mouseX, double mouseY, int button) {
-        double guiX = client.guiMouseX(mouseX);
-        double guiY = client.guiMouseY(mouseY);
+    /**
+     * Dispatches a click to the modal dialog when one is open, otherwise to the widgets.
+     *
+     * <p>{@code final} on purpose. A modal dialog must see input before the screen
+     * behind it, and that used to be a convention each subclass had to honour by
+     * calling {@code super.mouseClicked} <em>first</em> - which is not what a subclass
+     * with its own hit regions naturally does. {@code LevelSelectScreen} checked its
+     * card grid (most of the window) before delegating, so every button in the
+     * "new level" dialog was unreachable: the grid swallowed the click and returned.
+     * Screen-specific hit testing now goes in {@link #onMouseClicked}, which only runs
+     * when no dialog is open.
+     */
+    public final void mouseClicked(double mouseX, double mouseY, int button) {
+        dispatchMouseClicked(client.guiMouseX(mouseX), client.guiMouseY(mouseY), button);
+    }
+
+    /**
+     * The click dispatch itself, on logical GUI coordinates.
+     *
+     * <p>Separate from {@link #mouseClicked} so it can be driven without a window: the
+     * only thing the raw entry point adds is the framebuffer-to-GUI conversion, and a
+     * test that wants to prove a dialog receives a click should not have to create a GL
+     * context to do it.
+     */
+    public void dispatchMouseClicked(double guiX, double guiY, int button) {
         Dialog modal = modalDialog();
         if (modal != null) {
             if (!modal.mouseClicked(guiX, guiY, button)) {
@@ -216,10 +239,41 @@ public abstract class Screen {
             }
         }
         focusManager.clear();
+        onMouseClicked(guiX, guiY, button);
     }
 
-    /** Called every frame so widgets can keep their hover state in sync with the cursor. */
-    public void mouseMoved(double mouseX, double mouseY) {
+    /**
+     * Screen-specific click handling on logical GUI coordinates, called only when no
+     * modal dialog is open. Override this instead of {@link #mouseClicked}.
+     */
+    protected void onMouseClicked(double guiX, double guiY, int button) {
+    }
+
+    /**
+     * Raw framebuffer X for a logical GUI X.
+     *
+     * <p>Exists for the one caller that cannot work in GUI space: the in-game camera
+     * maps raw GLFW cursor positions to board cells itself (including the top-down Y
+     * flip), so {@code InGameScreen} needs the raw pair. Everywhere else should use the
+     * GUI coordinates the hooks receive.
+     */
+    protected final double rawMouseX(double guiX) {
+        return guiX * Math.max(1, client.window().width()) / (double) Math.max(1, client.guiWidth());
+    }
+
+    /** Raw framebuffer Y (top-down, as GLFW reports it) for a logical GUI Y. */
+    protected final double rawMouseY(double guiY) {
+        return Math.max(1, client.window().height())
+                - guiY * Math.max(1, client.window().height()) / (double) Math.max(1, client.guiHeight());
+    }
+
+    /**
+     * Called every frame so widgets can keep their hover state in sync with the cursor.
+     *
+     * <p>{@code final} for the same reason as {@link #mouseClicked}: with a dialog open
+     * the screen behind it must not also track hover, or both highlight at once.
+     */
+    public final void mouseMoved(double mouseX, double mouseY) {
         double guiX = client.guiMouseX(mouseX);
         double guiY = client.guiMouseY(mouseY);
         Dialog modal = modalDialog();
@@ -230,6 +284,11 @@ public abstract class Screen {
         for (AbstractWidget widget : widgets) {
             widget.mouseMoved(guiX, guiY);
         }
+        onMouseMoved(guiX, guiY);
+    }
+
+    /** Screen-specific hover tracking, called only when no modal dialog is open. */
+    protected void onMouseMoved(double guiX, double guiY) {
     }
 
     public void mouseReleased(double mouseX, double mouseY, int button) {
@@ -258,7 +317,7 @@ public abstract class Screen {
         }
     }
 
-    public void mouseScrolled(double mouseX, double mouseY, double amount) {
+    public final void mouseScrolled(double mouseX, double mouseY, double amount) {
         double guiX = client.guiMouseX(mouseX);
         double guiY = client.guiMouseY(mouseY);
         Dialog modal = modalDialog();
@@ -271,6 +330,11 @@ public abstract class Screen {
                 widget.mouseScrolled(guiX, guiY, amount);
             }
         }
+        onMouseScrolled(guiX, guiY, amount);
+    }
+
+    /** Screen-specific scroll handling, called only when no modal dialog is open. */
+    protected void onMouseScrolled(double guiX, double guiY, double amount) {
     }
 
     public void keyPressed(int key) {

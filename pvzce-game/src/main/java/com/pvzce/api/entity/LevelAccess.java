@@ -48,6 +48,17 @@ public interface LevelAccess {
 
     void spawnResource(Identifier resourceId, int amount, float x, float y, Team team);
 
+    /**
+     * Spawns a resource that came out of a plant.
+     *
+     * <p>Same as {@link #spawnResource} except for how the drop arrives: a harvested
+     * sun pops out of the flower that made it and settles back, rather than falling in
+     * from above the lawn. The distinction belongs here rather than in the resource
+     * definition because the same sun is both - the sky drops one and a sunflower
+     * makes one.
+     */
+    void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team);
+
     void spawnZombie(Identifier zombieId, Team team, float x, int row);
 
     void damageArea(float centerX, float centerY, float radius, int damage, Team sourceTeam);
@@ -76,13 +87,28 @@ public interface LevelAccess {
     /** A zombie walked off the left edge and stayed there long enough to lose the level. */
     void zombieReachedLeft(ZombieEntity zombie);
 
-    /** Read-only view of a scene element used by placement and movement checks. */
+    /**
+     * A zombie's body reached zero health and it was removed.
+     *
+     * <p>The level, not the zombie, decides what a death is worth: the coin drop is
+     * level data ({@code rewards.coin_drop_chance}), and an entity has no business
+     * reading the level's reward block. Mirrors {@link #zombieReachedLeft}, the
+     * other "the simulation did something the level may care about" callback.
+     */
+    void zombieDied(ZombieEntity zombie);
+
+    /**
+     * Read-only view of a scene element used by placement and movement checks.
+     *
+     * <p>There is no {@code accepts(feet)} here any more: what a plant may be
+     * planted on is answered by tags ({@code #c:water}, {@code #c:plantable}, ...)
+     * through {@code PlantPlacement}, not by asking the element about a stack
+     * class string.
+     */
     interface SceneElementAccess {
         Identifier id();
 
         String surfaceClass();
-
-        boolean accepts(String feet);
 
         float heightAt(float worldX, int levelWidth);
     }

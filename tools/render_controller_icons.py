@@ -45,11 +45,72 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "lily_pad": ("idle", 0.0),
     "flower_pot": ("idle", 0.0),
     "coffee_bean": ("idle", 0.0),
+    # The shooter and pult lines added with the original's own art.
+    "snow_pea": ("idle", 0.0),
+    "repeater": ("idle", 0.0),
+    "gatling_pea": ("idle", 0.0),
+    "threepeater": ("idle", 0.0),
+    "split_pea": ("idle", 0.0),
+    "cactus": ("idle", 0.0),
+    "cabbage_pult": ("idle", 0.0),
+    "melon_pult": ("idle", 0.0),
+    "winter_melon": ("idle", 0.0),
+    "jalapeno": ("idle", 0.0),
+    "doom_shroom": ("idle", 0.0),
+    "squash": ("idle", 0.0),
+}
+
+# Content id -> the directory its animation lives in, mirroring the content JSON's
+# ``animation_dir``. The art is grouped by kind while the ids stay flat, so this table
+# is what lets a tool that reads the files directly find them.
+ANIMATION_DIRS: Dict[str, str] = {
+    "sun": "resource",
+    "coin_silver": "resource",
+    "coin_gold": "resource",
+    "diamond": "resource",
+    "pea_shooter": "plant/attacker",
+    "chomper": "plant/attacker",
+    "kernel_pult": "plant/attacker",
+    "snow_pea": "plant/attacker",
+    "repeater": "plant/attacker",
+    "gatling_pea": "plant/attacker",
+    "threepeater": "plant/attacker",
+    "split_pea": "plant/attacker",
+    "cactus": "plant/attacker",
+    "cabbage_pult": "plant/attacker",
+    "melon_pult": "plant/attacker",
+    "winter_melon": "plant/attacker",
+    "sunflower": "plant/producer",
+    "marigold": "plant/producer",
+    "wall_nut": "plant/defense",
+    "lily_pad": "plant/environment",
+    "flower_pot": "plant/environment",
+    "coffee_bean": "plant/environment",
+    "cherry_bomb": "plant/special",
+    "potato_mine": "plant/special",
+    "jalapeno": "plant/special",
+    "doom_shroom": "plant/special",
+    "squash": "plant/special",
+    "basic_zombie": "zombie/basic",
+    "flag_zombie": "zombie/basic",
+    "conehead_zombie": "zombie/armored",
+    "buckethead_zombie": "zombie/armored",
+    "door_zombie": "zombie/armored",
+    "newspaper_zombie": "zombie/armored",
+    "balloon_zombie": "zombie/special",
+    "pole_vaulter_zombie": "zombie/special",
+    "miner_zombie": "zombie/underground",
+    "gargantuar": "zombie/giant",
+    "imp": "zombie/giant",
+    "zombie_boss": "zombie/boss",
 }
 
 PLANT_ENTITIES = [
     "pea_shooter", "sunflower", "cherry_bomb", "wall_nut", "potato_mine",
     "chomper", "kernel_pult", "marigold", "lily_pad", "flower_pot", "coffee_bean",
+    # The shooter and pult lines, converted from the original's own reanims.
+    "snow_pea", "repeater", "gatling_pea", "threepeater", "split_pea", "cactus",
+    "cabbage_pult", "melon_pult", "winter_melon", "jalapeno", "doom_shroom", "squash",
 ]
 
 
@@ -224,7 +285,8 @@ def draw_quad(canvas: np.ndarray, source: np.ndarray, points, uvs) -> None:
 
 
 def render_entity(entity: str, resources: Path, namespace: str) -> Path:
-    animation_path = resources / "assets" / namespace / "animations" / f"{entity}.json"
+    animation_path = (resources / "assets" / namespace / "animations"
+                      / ANIMATION_DIRS.get(entity, "") / f"{entity}.json")
     if not animation_path.is_file():
         raise SystemExit(f"Missing animation JSON: {animation_path}")
     data = json.loads(animation_path.read_text(encoding="utf-8"))
@@ -286,7 +348,7 @@ def render_entity(entity: str, resources: Path, namespace: str) -> Path:
                 max_x = max(max_x, px)
                 min_y = min(min_y, py)
                 max_y = max(max_y, py)
-            quads.append((texture_path, points, uvs))
+            quads.append((float(part.get("z", 0.0)), texture_path, points, uvs))
 
     if not quads or not math.isfinite(min_x):
         raise SystemExit(f"{entity}: no visible parts to render")
@@ -297,7 +359,10 @@ def render_entity(entity: str, resources: Path, namespace: str) -> Path:
     offset_y = -min_y + PADDING
     canvas = np.zeros((max(1, height), max(1, width), 4), dtype=np.float32)
 
-    for texture_path, points, uvs in quads:
+    # Painter's order by the part's own ``z``. Drawing in model order put the front
+    # leaf over the heads it is supposed to sit behind, which is what made the
+    # threepeater, split pea and repeater icons come out as a bare leaf.
+    for _, texture_path, points, uvs in sorted(quads, key=lambda quad: quad[0]):
         source = np.asarray(Image.open(texture_path).convert("RGBA"), dtype=np.float32) / 255.0
         shifted = [(x + offset_x, y + offset_y) for x, y in points]
         draw_quad(canvas, source, shifted, uvs)

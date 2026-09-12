@@ -2,6 +2,9 @@ package com.pvzce.common.network;
 
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.CommandC2S;
+import com.pvzce.common.network.packet.CreateWorldC2S;
+import com.pvzce.common.network.packet.MovePlantC2S;
+import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.DebugInfoS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
@@ -13,9 +16,12 @@ import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
+import com.pvzce.common.network.packet.LevelRewardS2C;
+import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.OpenEditorS2C;
 import com.pvzce.common.network.packet.PauseGameC2S;
+import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.RequestLevelC2S;
@@ -54,7 +60,7 @@ public final class PvzcePackets {
      * value travels in {@link LevelInitS2C} so a mismatched peer is reported
      * instead of silently misbehaving.
      */
-    public static final int PROTOCOL_VERSION = 2;
+    public static final int PROTOCOL_VERSION = 7;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -73,6 +79,9 @@ public final class PvzcePackets {
     public static final int C2S_COMMAND = 11;
     public static final int C2S_SET_GAME_SPEED = 12;
     public static final int C2S_PAUSE_GAME = 13;
+    public static final int C2S_CREATE_WORLD = 14;
+    public static final int C2S_UNLOCK_LEVEL = 15;
+    public static final int C2S_MOVE_PLANT = 16;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -96,6 +105,9 @@ public final class PvzcePackets {
     public static final int S2C_DEBUG_INFO = S2C_BASE + 19;
     public static final int S2C_GAME_SPEED = S2C_BASE + 20;
     public static final int S2C_MUSIC_EVENT = S2C_BASE + 21;
+    public static final int S2C_LEVEL_TABS = S2C_BASE + 22;
+    public static final int S2C_PROFILE = S2C_BASE + 23;
+    public static final int S2C_LEVEL_REWARD = S2C_BASE + 24;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -118,6 +130,11 @@ public final class PvzcePackets {
             def(C2S_COMMAND, ConnectionDirection.SERVERBOUND, CommandC2S.class, CommandC2S::decode),
             def(C2S_SET_GAME_SPEED, ConnectionDirection.SERVERBOUND, SetGameSpeedC2S.class, SetGameSpeedC2S::decode),
             def(C2S_PAUSE_GAME, ConnectionDirection.SERVERBOUND, PauseGameC2S.class, PauseGameC2S::decode),
+            def(C2S_CREATE_WORLD, ConnectionDirection.SERVERBOUND, CreateWorldC2S.class, CreateWorldC2S::decode),
+            def(C2S_UNLOCK_LEVEL, ConnectionDirection.SERVERBOUND, UnlockLevelC2S.class,
+                    UnlockLevelC2S::decode),
+            def(C2S_MOVE_PLANT, ConnectionDirection.SERVERBOUND, MovePlantC2S.class,
+                    MovePlantC2S::decode),
 
             def(S2C_LEVEL_INIT, ConnectionDirection.CLIENTBOUND, LevelInitS2C.class, LevelInitS2C::decode),
             def(S2C_LEVEL_LIST, ConnectionDirection.CLIENTBOUND, LevelListS2C.class, LevelListS2C::decode),
@@ -144,7 +161,10 @@ public final class PvzcePackets {
             def(S2C_TIME_OF_DAY, ConnectionDirection.CLIENTBOUND, TimeOfDayS2C.class, TimeOfDayS2C::decode),
             def(S2C_DEBUG_INFO, ConnectionDirection.CLIENTBOUND, DebugInfoS2C.class, DebugInfoS2C::decode),
             def(S2C_GAME_SPEED, ConnectionDirection.CLIENTBOUND, GameSpeedS2C.class, GameSpeedS2C::decode),
-            def(S2C_MUSIC_EVENT, ConnectionDirection.CLIENTBOUND, MusicEventS2C.class, MusicEventS2C::decode));
+            def(S2C_MUSIC_EVENT, ConnectionDirection.CLIENTBOUND, MusicEventS2C.class, MusicEventS2C::decode),
+            def(S2C_LEVEL_TABS, ConnectionDirection.CLIENTBOUND, LevelTabsS2C.class, LevelTabsS2C::decode),
+            def(S2C_PROFILE, ConnectionDirection.CLIENTBOUND, ProfileS2C.class, ProfileS2C::decode),
+            def(S2C_LEVEL_REWARD, ConnectionDirection.CLIENTBOUND, LevelRewardS2C.class, LevelRewardS2C::decode));
 
     private static volatile boolean registered;
 

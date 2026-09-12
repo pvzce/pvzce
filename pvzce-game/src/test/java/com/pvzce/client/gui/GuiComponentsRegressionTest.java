@@ -185,13 +185,18 @@ class GuiComponentsRegressionTest {
         assertEquals("1.5", GuiText.formatFloat(1.5F));
     }
 
-    /** One wording per save status, shared by every screen. */
+    /**
+     * An absent or unrecognised status must not be dressed up as a finished level.
+     *
+     * <p>What a "进行中" card says is a wording choice and lives in the one place both
+     * screens read ({@code GuiStatusText}); what matters here is that "we do not know"
+     * never renders as "已通关".
+     */
     @Test
-    void saveStatusHasOneWording() {
-        assertEquals("进行中", GuiStatusText.label(GuiStatusText.IN_PROGRESS));
-        assertEquals("已有进行中的存档", GuiStatusText.detail(GuiStatusText.IN_PROGRESS));
-        assertEquals("已通关", GuiStatusText.label(GuiStatusText.COMPLETED));
-        assertEquals("已通关", GuiStatusText.detail(GuiStatusText.COMPLETED));
+    void anUnknownSaveStatusIsNotShownAsCompleted() {
+        assertEquals("", GuiStatusText.label(null));
+        assertEquals("", GuiStatusText.label("nonsense"));
+        assertEquals("", GuiStatusText.detail(null));
         assertNotEquals(GuiStatusText.label(null), GuiStatusText.label(GuiStatusText.COMPLETED));
     }
 }

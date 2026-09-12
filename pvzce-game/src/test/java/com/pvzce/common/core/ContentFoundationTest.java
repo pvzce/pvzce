@@ -4,16 +4,19 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import com.pvzce.api.content.AnimationBindings;
 import com.pvzce.api.content.GameRuleType;
+import com.pvzce.api.content.ArmorDef;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.SlotDef;
 import com.pvzce.api.content.SoundEventDef;
 import com.pvzce.api.content.ZombieDef;
+import com.pvzce.common.capability.zombie.ArmorCapability;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.common.resource.PvzceDataLoader;
-import com.pvzce.common.resource.PvzceResourceManager;
+import com.pvzce.common.tag.PvzceTags;
+import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -31,17 +34,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ContentFoundationTest {
     private static LevelDef demo;
     private static LevelDef level1;
+    private static LevelDef level2;
+    private static LevelDef level3;
 
     @BeforeAll
     static void loadData() throws Exception {
-        BuiltInRegistries.bootstrap();
-        PvzceResourceManager resources = new PvzceResourceManager(Thread.currentThread().getContextClassLoader());
-        resources.init(Path.of(System.getProperty("java.io.tmpdir"), "pvzce-foundation-test"));
-        PvzceDataLoader.LoadResult result = new PvzceDataLoader().load(resources, BuiltInRegistries.ACCESS);
-        assertTrue(result.errors().isEmpty(), result.errors().toString());
+        // Content and convention tags together: the placement rules read tags,
+        // so a data-only load would leave every cell unplantable.
+        TestContent.loadBuiltInContentAndTags();
 
-        demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("demo_level"));
-        level1 = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("level_1"));
+        demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/demo_level"));
+        level1 = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/1_1"));
+        level2 = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/1_2"));
+        level3 = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/1_3"));
     }
 
     @Test
@@ -85,27 +90,140 @@ class ContentFoundationTest {
 
         SceneElementDef slope = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.withDefaultNamespace("roof_slope"));
         assertEquals(0.4F, slope.maxHeight(), 0.0001F);
-        SceneElementDef water = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.withDefaultNamespace("water"));
-        assertTrue(water.accepts("lily"));
+        // Water no longer lists "lily" by name: terrain rules live in the tag files
+        // under data/c/tags/scene_element/, so what is asserted here is that the tag
+        // reached the registry. PlantPlacementTest covers the resulting matrix.
+        assertTrue(PvzceTags.SCENE_ELEMENTS.contains(
+                        PvzceTags.SCENE_WATER, Identifier.withDefaultNamespace("water")),
+                "#c:water must tag pvzce:water");
     }
 
     @Test
     void levelDefsCarryPhaseTwoFields() {
         assertEquals(150, demo.initialSun());
-        assertEquals(6, demo.maxSeedSlots());
-        assertEquals(6, level1.maxSeedSlots());
+        // The declared 6 is raised to the number of cards the level lists: a level cannot
+        // ask for 13 cards and only 6 slots, so the count follows the card list.
+        assertEquals(13, demo.maxSeedSlots());
         assertEquals("pvzce:boolean", demo.envVars().get(Identifier.withDefaultNamespace("demo_flag")).type().toString());
         assertEquals(13, demo.slots().size());
-        assertEquals(5, level1.waves().size());
-        assertEquals(0.8F, level1.waveIntervalEndMultiplier(), 0.0001F);
+        // 1-1 is the original's opening level: one lane, one plant card plus the sun
+        // card, and the level fixes both so the player has nothing to choose.
+        assertEquals(1, level1.height());
+        assertEquals(50, level1.initialSun());
+        assertEquals(2, level1.slots().size());
+        assertEquals(2, level1.maxSeedSlots());
+        assertEquals(3, level1.waves().size());
+        assertEquals(1.0F, level1.waveIntervalEndMultiplier(), 0.0001F);
         assertEquals("small", level1.waves().get(0).type().name().toLowerCase());
-        assertEquals(600, level1.waves().get(0).delay());
-        assertEquals(2, level1.waves().get(0).entries().get(0).count());
-        assertEquals("huge", level1.waves().get(2).type().name().toLowerCase());
-        assertEquals("final", level1.waves().get(4).type().name().toLowerCase());
+        assertEquals(1500, level1.waves().get(0).delay());
+        assertEquals(1, level1.waves().get(0).entries().get(0).count());
+        assertEquals("final", level1.waves().get(2).type().name().toLowerCase());
+        assertEquals(2, level1.waves().get(2).entries().get(0).count());
         assertEquals(4, demo.waves().size());
         assertTrue(level1.previewZombieIds().contains("pvzce:basic_zombie"));
         assertTrue(demo.previewZombieIds().contains("pvzce:basic_zombie"));
+    }
+
+    /**
+     * The three adventure levels are a chain: each one's first clear hands over the card
+     * the next one is designed around (sunflower for the longer fights, cherry bomb for
+     * the first huge wave, wall-nut for the coneheads).
+     */
+    @Test
+    void theFirstThreeLevelsFormAnUnlockChain() {
+        assertEquals("pvzce:sunflower", firstUnlock(level1), "1-1 hands over the sunflower");
+        assertEquals("pvzce:cherry_bomb", firstUnlock(level2), "1-2 hands over the cherry bomb");
+        assertEquals("pvzce:wall_nut", firstUnlock(level3), "1-3 hands over the wall-nut");
+    }
+
+    @Test
+    void theAdventureLevelsOpenUpTheLawnOneStepAtATime() {
+        // The original's ladder: one lane, then three from 1-2, and the last two only
+        // arrive at 1-4.
+        assertEquals(1, level1.height());
+        assertEquals(3, level2.height());
+        assertEquals(3, level3.height());
+        for (LevelDef level : List.of(level1, level2, level3)) {
+            assertEquals(9, level.width(), level.id() + " keeps the nine columns");
+            assertEquals(50, level.initialSun(), level.id() + " starts with the original's 50 sun");
+            assertEquals(List.of("pvzce:pea_shooter", "pvzce:sun"),
+                    level.slots().stream().map(Identifier::toString).toList(), level.id().toString());
+            assertTrue(level.rewards().hasCoinDrops(), level.id().toString());
+            assertEquals("pvzce:coin_silver", level.rewards().coinDrop().toString());
+        }
+        // The bar grows as the player's collection does: 1-1 is a fixed deck; 1-2 leaves
+        // room for sunflower and the shovel; 1-3, after 1-2 handed over the cherry bomb,
+        // is the original's "three plants plus the shovel" (plus the sun card).
+        assertEquals(2, level1.maxSeedSlots());
+        assertEquals(4, level2.maxSeedSlots());
+        assertEquals(5, level3.maxSeedSlots());
+    }
+
+    @Test
+    void theNewZombiesAreIntroducedWhenTheOriginalsAre() {
+        // 1-2 is where the Flag Zombie appears and 1-3 where the Conehead does, in wave
+        // order - which is also the order the seed chooser's preview walks them in.
+        assertTrue(level1.previewZombieIds().contains("pvzce:basic_zombie"));
+        assertEquals(List.of("pvzce:basic_zombie", "pvzce:flag_zombie"), level2.previewZombieIds());
+        assertEquals(List.of("pvzce:basic_zombie", "pvzce:conehead_zombie", "pvzce:flag_zombie"),
+                level3.previewZombieIds());
+        assertNotNull(BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("flag_zombie")));
+        assertNotNull(BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("conehead_zombie")));
+    }
+
+    @Test
+    void theConeheadWearsATrafficConeWorthTheOriginalsNumber() {
+        ZombieDef conehead = BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("conehead_zombie"));
+        assertEquals(200, conehead.health(), "a conehead is a normal zombie underneath");
+        ArmorDef cone = conehead.capability(ArmorCapability.class).orElseThrow().armor().get(0);
+        // The original's ladder: cone 370, bucket 1100.
+        assertEquals(370, cone.durability());
+        assertEquals(ArmorDef.TOP, cone.position());
+        ZombieDef buckethead = BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("buckethead_zombie"));
+        assertEquals(1100, buckethead.capability(ArmorCapability.class).orElseThrow()
+                .armor().get(0).durability());
+    }
+
+    @Test
+    void theFlagZombieLeadsTheHugeWaveWithoutArmor() {
+        ZombieDef flag = BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("flag_zombie"));
+        assertEquals(200, flag.health(), "a flag zombie is a normal zombie with a flag");
+        assertTrue(flag.capability(ArmorCapability.class).isEmpty(), "the flag is not a helmet");
+        // Same health, same speed as the crowd it leads: what a flag zombie announces is
+        // the huge wave, and its stats are deliberately not a second difficulty knob.
+        ZombieDef basic = BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("basic_zombie"));
+        assertEquals(basic.moveSpeed(), flag.moveSpeed(), 0.0001F);
+    }
+
+    private static String firstUnlock(LevelDef level) {
+        return level.rewards().firstClear().stream()
+                .filter(LevelRewards.Reward::isUnlock)
+                .map(reward -> reward.id().orElseThrow().toString())
+                .findFirst().orElseThrow(() -> new AssertionError(level.id() + " grants no card"));
+    }
+
+    @Test
+    void firstClearUnlocksSunflowerAndReplaysPayCoins() {
+        LevelRewards rewards = level1.rewards();
+        assertEquals(1, rewards.firstClear().size(), "1-1 grants exactly one card on a first clear");
+        LevelRewards.Reward unlock = rewards.firstClear().get(0);
+        assertTrue(unlock.isUnlock());
+        assertEquals("pvzce:sunflower", unlock.id().orElseThrow().toString());
+        assertEquals(1, rewards.repeat().size(), "a replay pays a coin stipend instead");
+        assertTrue(rewards.repeat().get(0).isCoins());
+        assertEquals(100, rewards.repeat().get(0).amount());
+        assertTrue(rewards.hasCoinDrops());
+        assertEquals(0.25F, rewards.coinDropChance(), 0.0001F);
+        assertEquals(1, rewards.coinDropAmount());
+    }
+
+    @Test
+    void aLevelWithoutARewardsBlockGetsTheDocumentedDefaults() {
+        // The codec default is the standard stipend, and first clears pay nothing
+        // extra until a level says so.
+        assertEquals(LevelRewards.DEFAULT_REPEAT, demo.rewards().repeat());
+        assertTrue(demo.rewards().firstClear().isEmpty());
+        assertEquals(LevelRewards.DEFAULT_COIN_DROP_CHANCE, demo.rewards().coinDropChance(), 0.0001F);
     }
 
     @Test
@@ -144,11 +262,31 @@ class ContentFoundationTest {
     void animationBindingsResolveStateOverrideFirst() {
         AnimationBindings bindings = new AnimationBindings(
                 Optional.of(Identifier.of("test", "whole")),
-                Map.of("walk", Identifier.of("test", "walk_override")));
+                Map.of("walk", Identifier.of("test", "walk_override")),
+                Optional.empty());
 
         assertEquals("walk_override", bindings.resolve("walk").orElseThrow().path());
         assertEquals("whole", bindings.resolve("idle").orElseThrow().path());
         assertTrue(AnimationBindings.EMPTY.resolve("idle").isEmpty());
+    }
+
+    @Test
+    void animationDirIsOptionalAndFallsBackToTheIdPath() {
+        // No declared directory: the animation file mirrors the content id, which is
+        // the convention every mod gets without writing a single extra field.
+        AnimationBindings defaulted = AnimationBindings.EMPTY;
+        assertEquals("pvzce:pea_shooter",
+                defaulted.fileId(Identifier.of("pvzce", "pea_shooter")).toString());
+        // A nested content id keeps its own path, so grouping never collides.
+        assertEquals("pvzce:upgrades/pea",
+                defaulted.fileId(Identifier.of("pvzce", "upgrades/pea")).toString());
+
+        // A declared directory replaces the path and keeps only the leaf name, which
+        // is what lets the shipped art group by kind while the ids stay stable.
+        AnimationBindings grouped = new AnimationBindings(Optional.empty(), Map.of(),
+                Optional.of("/plant/attacker/"));
+        assertEquals("pvzce:plant/attacker/pea_shooter",
+                grouped.fileId(Identifier.of("pvzce", "pea_shooter")).toString());
     }
 
     @Test
@@ -198,15 +336,34 @@ class ContentFoundationTest {
         assertEquals("pvzce:sfx/plant/kernelpult2", kernel.sounds().impact().orElseThrow().toString());
     }
 
+    /**
+     * An adventure level plays one track from start to finish.
+     *
+     * <p>The "battle" cue used to fire at 3300 ticks in all four of them. The original's
+     * adventure levels do not switch tracks mid-level - the battle theme is the level
+     * editor's tool for scripting a finale, and {@code combat_test} still uses it.
+     */
     @Test
     void levelMusicCuesAreLoaded() {
         assertEquals("pvzce:music/grasswalk", level1.music().cues().get(0).event().orElseThrow().toString());
-        assertEquals(4800, level1.music().cues().get(1).atTick());
-        assertEquals("background", level1.music().cues().get(1).track());
-        assertTrue(level1.music().cues().get(1).stop());
-        assertEquals(4800, level1.music().cues().get(2).atTick());
-        assertEquals("battle", level1.music().cues().get(2).track());
+        assertEquals("background", level1.music().cues().get(0).track());
+        assertTrue(level1.music().cues().get(0).loop());
+        // One cue, looping, for the whole level. It used to be followed by a stop at 3300
+        // and a battle track; dropping only the battle track left the level silent from
+        // the halfway mark, which is the bug this pins.
+        assertEquals(1, level1.music().cues().size(),
+                "an adventure level plays one track from start to finish: " + level1.music().cues());
+        assertFalse(level1.music().cues().get(0).stop(), "and never stops itself");
         assertEquals("pvzce:music/grasswalk",
                 demo.music().cues().get(0).event().orElseThrow().toString());
+    }
+
+    /** The cue is still available to a level that wants it. */
+    @Test
+    void aLevelCanStillScriptABattleTheme() {
+        var combat = BuiltInRegistries.LEVELS.get(
+                Identifier.withDefaultNamespace("yard/adventure/combat_test"));
+        assertTrue(combat.music().cues().stream().anyMatch(cue -> "battle".equals(cue.track())),
+                "combat_test exists to exercise the cue");
     }
 }

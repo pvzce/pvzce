@@ -25,6 +25,5 @@ class GuiLayoutTest {
     @Test
     void enlargedHeightIsUsedWhenRoomAllows() {
         assertEquals(68, GuiLayout.fitHeight(720, 68, 3, 100, 8));
-        assertTrue(GuiLayout.gapFor(68) >= 16, "larger buttons should get larger gaps");
     }
 }

@@ -7,9 +7,9 @@
 
 | 内容 | 路径 |
 |---|---|
-| 每实体动画文件 | `assets/<ns>/animations/<entity_path>.json` |
-| 控制器部件贴图 | `assets/<ns>/textures/entities/<entity_path>/*.png` |
-| 静态首帧回退 | `assets/<ns>/textures/entities/<entity_path>.png` |
+| 每实体动画文件 | `assets/<ns>/animations/<animation_dir>/<entity_path>.json`（`animation_dir` 缺省＝id 路径） |
+| 控制器部件贴图 | `assets/<ns>/textures/entities/<任意子目录>/<entity_path>/*.png`（路径写在动画 JSON 的 part 里） |
+| 静态首帧回退 | 定义里的 `texture` 字段；缺省为 `assets/<ns>/textures/entities/<entity_path>.png` |
 
 实体路径来自 `defId`，例如 `pvzce:pea_shooter` → `assets/pvzce/animations/pea_shooter.json`。
 `PlantDef` / `ZombieDef` / `ProjectileDef` 可选覆盖：
@@ -158,7 +158,7 @@ handle.setSpeed(1.5F);
 | 植物 | 豌豆射手、向日葵、樱桃炸弹、坚果墙、土豆雷、大嘴花、玉米投手、金盏花、睡莲、花盆、咖啡豆 |
 | 僵尸 | 普通僵尸、路障/铁桶/铁门（共用 `Zombie.reanim`）、读报僵尸、撑杆僵尸、气球僵尸、矿工僵尸、巨人僵尸、僵王博士、小鬼僵尸 |
 
-- 控制器资源位于 `assets/pvzce/animations/<entity_path>.json`，部件贴图位于 `assets/pvzce/textures/entities/<entity_path>/`。
+- 控制器资源默认位于 `assets/pvzce/animations/<entity_path>.json`，部件贴图位于 `assets/pvzce/textures/entities/<entity_path>/`。**内置包两者都按类目分层**（`animations/plant/attacker/pea_shooter.json`、`textures/entities/plant/attacker/pea_shooter/`），所以内置内容的定义里写了 `"animation_dir": "plant/attacker"` 与 `"texture": "…"`；**mod 两个字段都不写也照常工作**。
 - `model.size` 是实体的参考视觉尺寸（世界格），阴影和未来 UI 会读取它；巨人僵尸、僵王博士比普通僵尸大，小鬼僵尸比普通僵尸小。
 - 服务器状态字符串直接作为 clip 名；例如 `idle/walk/eat/hit/death`、`shoot`、`explode`、`grow/armed`、`chew`、`hammer`、`jump`、`dig/dig_exit`、`fly/fall` 等。
 - 子弹（pea/kernel/melon/butter）没有对应 reanim，仍使用静态/贴图回退。
@@ -193,7 +193,7 @@ python3 tools/reanim_to_pvzce.py
 JAVA_TOOL_OPTIONS='-Dpvzce.smokeFrames=30' ./gradlew :pvzce-game:run
 
 # 自动进入关卡跑 900 帧，验证实体动画渲染不崩
-JAVA_TOOL_OPTIONS='-Dpvzce.smokeFrames=900 -Dpvzce.smokeLevel=pvzce:level_1' ./gradlew :pvzce-game:run
+JAVA_TOOL_OPTIONS='-Dpvzce.smokeFrames=900 -Dpvzce.smokeLevel=pvzce:yard/adventure/1_1' ./gradlew :pvzce-game:run
 ```
 
 > 若使用本仓库沙箱环境，可用 `GRADLE_USER_HOME=$PWD/.gradle-user` 并直接调用 Gradle 发行版；普通环境用 `./gradlew` 即可。

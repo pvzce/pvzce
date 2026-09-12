@@ -26,8 +26,25 @@ public record ProjectileDef(
         List<TypedCapability<ProjectileCapability>> capabilities,
         Optional<Identifier> behavior,
         ProjectileSounds sounds,
-        AnimationBindings animations
+        AnimationBindings animations,
+        Optional<Identifier> texture,
+        /**
+         * Presentation-only size multiplier; see {@link ContentDefs#RENDER_SCALE_CODEC}.
+         *
+         * <p>The client draws this content that many times bigger than its art declares,
+         * in both axes so the shape is kept. Nothing the server simulates changes.
+         */
+        float renderScale
 ) {
+    /** A definition that does not care about presentation size: {@code render_scale} 1. */
+    public ProjectileDef(Identifier id, String layer,
+                         List<TypedCapability<ProjectileCapability>> capabilities,
+                         Optional<Identifier> behavior, ProjectileSounds sounds,
+                         AnimationBindings animations, Optional<Identifier> texture) {
+        this(id, layer, capabilities, behavior, sounds, animations, texture,
+                ContentDefs.DEFAULT_RENDER_SCALE);
+    }
+
     /** Ground-layer shots are blocked by flying/underground zombies. */
     public static final String LAYER_GROUND = "ground";
     public static final String LAYER_AIR = "air";
@@ -39,7 +56,9 @@ public record ProjectileDef(
                     .forGetter(ProjectileDef::capabilities),
             Identifier.CODEC.optionalFieldOf("behavior").forGetter(ProjectileDef::behavior),
             ProjectileSounds.CODEC.optionalFieldOf("sounds", ProjectileSounds.EMPTY).forGetter(ProjectileDef::sounds),
-            AnimationBindings.MAP_CODEC.forGetter(ProjectileDef::animations)
+            AnimationBindings.MAP_CODEC.forGetter(ProjectileDef::animations),
+            Identifier.CODEC.optionalFieldOf("texture").forGetter(ProjectileDef::texture),
+            ContentDefs.RENDER_SCALE_CODEC.forGetter(ProjectileDef::renderScale)
     ).apply(i, ProjectileDef::new));
 
     public ProjectileDef {

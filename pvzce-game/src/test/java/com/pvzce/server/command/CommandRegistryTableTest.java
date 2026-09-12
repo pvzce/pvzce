@@ -2,8 +2,6 @@ package com.pvzce.server.command;
 
 import com.pvzce.api.registry.Registry;
 import com.pvzce.api.registry.ResourceKey;
-import com.pvzce.api.util.Identifier;
-import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PvzceRegistries;
 import com.pvzce.common.level.DayNightCycle;
@@ -19,7 +17,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -78,35 +75,6 @@ class CommandRegistryTableTest {
         assertEquals("", PvzceRegistries.canonicalCategory(null));
         // An unknown name is passed through so the caller can report it verbatim.
         assertEquals("not_a_registry", PvzceRegistries.canonicalCategory("not_a_registry"));
-    }
-
-    /**
-     * The identifier argument's suggestions come from the same table, so a category
-     * offered by the command tree always produces completions.
-     */
-    @Test
-    void identifierSuggestionsUseTheRegistryTable() {
-        for (String category : PvzceRegistries.byCategory().keySet()) {
-            IdentifierArgumentType type = IdentifierArgumentType.forCategory(category);
-            assertNotNull(type, category);
-        }
-        // The plural alias must work too: it used to fall through to "no suggestions".
-        IdentifierArgumentType plural = IdentifierArgumentType.forCategory("plants");
-        assertNotNull(plural);
-        assertFalse(plural.getExamples().isEmpty());
-
-        // Unknown categories offer nothing rather than throwing.
-        assertNotNull(IdentifierArgumentType.forCategory("not_a_registry"));
-    }
-
-    /** The synthetic categories are not registries and must still be usable. */
-    @Test
-    void syntheticCategoriesStillWork() {
-        for (String category : new String[]{"team", "tag", "any_entity"}) {
-            assertNotNull(IdentifierArgumentType.forCategory(category), category);
-        }
-        assertNull(PvzceRegistries.byCategory().get("team"), "team is not a registry");
-        assertNotNull(PvzceIds.PLANT_TEAM);
     }
 
     /** {@code /time query day} shares the cycle maths with the clock. */

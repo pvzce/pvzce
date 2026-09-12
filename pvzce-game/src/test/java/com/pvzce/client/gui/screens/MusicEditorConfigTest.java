@@ -2,7 +2,7 @@ package com.pvzce.client.gui.screens;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.pvzce.client.gui.screens.MusicEditorDialog.Config;
+import com.pvzce.client.gui.screens.MusicEditorModel.Config;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

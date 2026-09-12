@@ -8,6 +8,7 @@ import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.server.entity.PlantEntity;
+import com.pvzce.common.PvzceParticles;
 
 import java.util.List;
 import java.util.Optional;
@@ -66,11 +67,11 @@ public final class BoostBelowCapability implements PlantCapability {
         if (target != null) {
             PlantEntity boosted = target;
             boosted.boost();
-            level.emitEffect("pvzce:sparkle", plant.cellX(), plant.cellY(),
+            level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
                     boostedSound.orElseGet(() -> boosted.def().sounds().produce()
                             .orElse(sound.orElse(PvzceSounds.PLANT_WAKEUP))));
         } else {
-            level.emitEffect("pvzce:sparkle", plant.cellX(), plant.cellY(),
+            level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
                     sound.orElse(PvzceSounds.UI_TAP));
         }
         plant.remove();

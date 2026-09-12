@@ -15,11 +15,19 @@ import java.util.List;
  * missed. One record, one field list.
  */
 public record LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
-                           List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells) {
+                           List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
+                           List<String> lockedSlots) {
     public LevelPayload {
         seedPool = List.copyOf(seedPool);
         previewZombies = List.copyOf(previewZombies);
         sceneCells = List.copyOf(sceneCells);
+        lockedSlots = List.copyOf(lockedSlots);
+    }
+
+    /** A payload with nothing fixed in the player's bar. */
+    public LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
+                        List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells) {
+        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, List.of());
     }
 
     public static final PacketStruct.Codec<LevelPayload> CODEC = PacketStruct.<LevelPayload>builder()
@@ -29,9 +37,11 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
             .field(LevelPayload::maxSeedSlots, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .stringList(LevelPayload::previewZombies)
             .list(LevelPayload::sceneCells, SceneSyncS2C.Cell::encode, SceneSyncS2C.Cell::decode)
+            .stringList(LevelPayload::lockedSlots)
             .build(values -> new LevelPayload((Integer) values.get(0), (Integer) values.get(1),
                     (List<SeedOption>) values.get(2), (Integer) values.get(3),
-                    (List<String>) values.get(4), (List<SceneSyncS2C.Cell>) values.get(5)));
+                    (List<String>) values.get(4), (List<SceneSyncS2C.Cell>) values.get(5),
+                    (List<String>) values.get(6)));
 
     public void encode(PacketByteBuf buf) {
         CODEC.encode(this, buf);

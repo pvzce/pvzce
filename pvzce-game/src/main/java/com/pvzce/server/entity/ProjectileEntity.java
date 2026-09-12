@@ -34,6 +34,12 @@ public class ProjectileEntity extends PvzceEntity {
     private final ProjectileDef def;
     private final List<Instance> capabilities = new ArrayList<>();
     private final int damage;
+    /**
+     * Which way this shot travels: {@code +1} down the lawn, {@code -1} back toward the
+     * house. A split pea fires both at once, so the direction belongs to the shot
+     * rather than to the projectile definition - the same pea is used for both.
+     */
+    private final float direction;
     /** Id of the zombie this shot was aimed at, or -1 for a straight shot. */
     private final int targetId;
     private final float targetX;
@@ -49,6 +55,7 @@ public class ProjectileEntity extends PvzceEntity {
         super(def.id(), ownerTeam, cellX, cellY, 1);
         this.def = def;
         this.damage = ref != null ? ref.damage() : 0;
+        this.direction = ref != null ? ref.direction() : 1F;
         this.targetId = target != null ? target.id() : -1;
         this.targetX = target != null ? target.cellX() : -1F;
         setHeight(startHeight);
@@ -69,6 +76,11 @@ public class ProjectileEntity extends PvzceEntity {
 
     public int damage() {
         return damage;
+    }
+
+    /** {@code +1} down the lawn, {@code -1} back toward the house. */
+    public float direction() {
+        return direction;
     }
 
     /** The zombie this shot is homing on, or {@code -1}. */

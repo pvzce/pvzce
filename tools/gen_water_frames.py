@@ -43,7 +43,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 RESOURCES = ROOT / "pvzce-game/src/main/resources"
-LIQUID_FILE = RESOURCES / "data/pvzce/pvzce/liquids/water.json"
+LIQUID_FILE = RESOURCES / "data/pvzce/liquids/water.json"
 BASE_TILE = RESOURCES / "assets/pvzce/textures/scene/water_base.png"
 OUTPUT_DIR = RESOURCES / "assets/pvzce/textures/scene/water_frames"
 
