@@ -82,6 +82,21 @@ public class PlantEntity extends PvzceEntity {
         return capabilities.stream().anyMatch(instance -> instance.capability.consumesOnPlace());
     }
 
+    /**
+     * True when the plant is still part of its cell, i.e. a zombie may eat it and a tool
+     * may remove it. A capability that moves the plant out of its cell (a bowling nut)
+     * answers false; every capability has to agree, so combining a stationary behaviour
+     * with a moving one cannot silently produce a plant that is half on the board.
+     */
+    public boolean occupiesCell() {
+        for (Instance instance : capabilities) {
+            if (!instance.capability.occupiesCell(this)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Instant activation (energy bean, coffee bean, glove); a no-op when nothing can charge. */
     public void boost() {
         for (Instance instance : capabilities) {

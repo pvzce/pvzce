@@ -9,5 +9,6 @@
   "animation_dir": "resource",
   "texture": "pvzce:textures/entities/resource/sun",
   "drop_motion": "fall",
-  "render_scale": 1.2
+  "render_scale": 1.2,
+  "pickup_effect": "pvzce:lantern_shine"
 }

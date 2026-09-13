@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:bowling_nut",
+  "kind": "plant",
+  "content": "pvzce:bowling_nut",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/wall_nut"
+}

@@ -71,6 +71,7 @@ public final class EditorScreen extends Screen {
         WAVE("wave", null),
         CARDS("cards", null),
         MUSIC("music", null),
+        DIALOGUE("dialogue", null),
         UNLOCK("unlock", null),
         INFO("info", null);
 
@@ -155,6 +156,18 @@ public final class EditorScreen extends Screen {
     private Button unlockHiddenButton;
     /** Requirements the page cannot edit, kept verbatim across a save. */
     private JsonArray unlockExtra = new JsonArray();
+    // 对话 page widgets.
+    private AbstractSelectionList<DialogueEditorModel.LineModel> dialogueLineList;
+    private AbstractSelectionList<Identifier> dialogueCharacterList;
+    private AbstractSelectionList<String> dialoguePortraitList;
+    private EditBox dialogueTextBox;
+    private EditBox dialogueVoiceBox;
+    private Button dialogueSideButton;
+    /** The line the detail form was last built for; the list has no change event. */
+    private DialogueEditorModel.LineModel lastDialogueLineShown;
+    /** The picker values that came from the model rather than from a click. */
+    private Identifier lastDialogueCharacterChoice;
+    private String lastDialoguePortraitChoice;
     private int width = 9;
     private int height = 5;
     private final Map<String, List<String>> scene = new LinkedHashMap<>();
@@ -162,6 +175,7 @@ public final class EditorScreen extends Screen {
     private final JsonObject rules = new JsonObject();
     private final WaveEditorModel.Config waveConfig = new WaveEditorModel.Config();
     private final MusicEditorModel.Config musicConfig = new MusicEditorModel.Config();
+    private final DialogueEditorModel.Config dialogueConfig = new DialogueEditorModel.Config();
     private final CardPoolEditorDialog.Config cardPoolConfig = new CardPoolEditorDialog.Config();
     private int maxSeedSlots = LevelDef.DEFAULT_MAX_SEED_SLOTS;
 
@@ -342,6 +356,7 @@ public final class EditorScreen extends Screen {
             waveConfig.replaceWith(WaveEditorModel.Config.fromJson(sourceJson));
             cardPoolConfig.replaceWith(CardPoolEditorDialog.Config.fromJson(sourceJson));
             musicConfig.replaceWith(MusicEditorModel.Config.fromJson(sourceJson));
+            dialogueConfig.replaceWith(DialogueEditorModel.Config.fromJson(sourceJson));
             refreshCardPool(!hasSlots);
         } else {
             // A brand-new level: one explicit grasswalk cue and the default card pool,
@@ -587,6 +602,13 @@ public final class EditorScreen extends Screen {
         unlockCardsBox = null;
         unlockCostBox = null;
         unlockHiddenButton = null;
+        dialogueLineList = null;
+        dialogueCharacterList = null;
+        dialoguePortraitList = null;
+        dialogueTextBox = null;
+        dialogueVoiceBox = null;
+        dialogueSideButton = null;
+        lastDialogueLineShown = null;
 
         if (page.paletteKind != null) {
             buildPalette(page.paletteKind);
@@ -597,6 +619,7 @@ public final class EditorScreen extends Screen {
             case WAVE -> buildWavePage();
             case CARDS -> buildCardPage();
             case MUSIC -> buildMusicPage();
+            case DIALOGUE -> buildDialoguePage();
             case UNLOCK -> buildUnlockPage();
             case INFO -> buildInfoPage();
         }
@@ -1463,6 +1486,296 @@ public final class EditorScreen extends Screen {
     }
 
     /**
+     * The 对话 page: the conversation a level opens with.
+     *
+     * <p>Two columns, like the wave and music pages: the lines on the left in the order
+     * they play, and the selected line's five fields on the right. The character and the
+     * portrait are picked from lists rather than typed - a character id is a namespaced
+     * path and a portrait is a file name inside that character's folder, and both are
+     * things the author would otherwise have to look up in the pack.
+     *
+     * <p>The text is a plain field. Typing Chinese into it depends on the platform's
+     * input method reaching GLFW (the editors have no IME of their own), so a level
+     * authored through a text editor keeps working exactly the same way - the page reads
+     * and writes the {@code dialogue} block either way.
+     */
+    private void buildDialoguePage() {
+        int[] area = fullContentArea();
+        int x = area[0];
+        int y = area[1];
+        int w = area[2];
+        int h = area[3];
+        int rowH = clamp(h / 16, 26, 34);
+        int pad = 8;
+        int gap = 10;
+
+        int listW = (int) (w * 0.52F);
+        int detailX = x + listW + gap;
+        int detailW = w - listW - gap;
+
+        int listTop = y + h - rowH - pad - 20;
+        int listH = Math.max(60, listTop - (y + rowH + pad + 20));
+        dialogueLineList = own(new AbstractSelectionList<DialogueEditorModel.LineModel>(
+                x, y + rowH + pad + 20, listW, listH, clamp(listH / 7, 28, 42),
+                (renderClient, line, rx, ry) -> renderClient.font().draw(
+                        line.summary(Math.max(0, dialogueConfig.lines.indexOf(line)),
+                                dialogueSpeakerName(line.character)),
+                        rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F)));
+        dialogueLineList.setEntries(new ArrayList<>(dialogueConfig.lines));
+
+        int bw = Math.max(70, listW / 5 - 6);
+        int by = y + pad;
+        own(new Button(x, by, bw, rowH, "新增台词", this::addDialogueLine));
+        own(new Button(x + bw + 5, by, bw, rowH, "删除", this::removeDialogueLine));
+        own(new Button(x + (bw + 5) * 2, by, bw, rowH, "上移", () -> moveDialogueLine(-1)));
+        own(new Button(x + (bw + 5) * 3, by, bw, rowH, "下移", () -> moveDialogueLine(1)));
+        own(new Button(x + (bw + 5) * 4, by, Math.max(70, listW - (bw + 5) * 4), rowH,
+                "清空对话", this::clearDialogue));
+
+        // Right column, bottom-up: the line's own fields, then the two pickers above them.
+        // Each row is a field plus the room for its label, which is drawn in the gap above
+        // it - packing the rows at rowH+6 put every label on top of the field before it.
+        int fieldRow = rowH + 16;
+        int fieldTop = y + pad + fieldRow * 2;
+        dialogueTextBox = own(new EditBox(detailX, fieldTop, detailW, rowH,
+                this::commitDialogueFieldsNow));
+        dialogueVoiceBox = own(new EditBox(detailX, fieldTop - fieldRow, detailW, rowH,
+                this::commitDialogueFieldsNow));
+        dialogueSideButton = own(new Button(detailX, fieldTop - fieldRow * 2, detailW, rowH,
+                "位置：左", this::toggleDialogueSide));
+
+        int listsBottom = y + pad + fieldRow * 3 + 18;
+        int listBlockH = Math.max(70, (y + h - pad - 18) - listsBottom);
+        int halfW = Math.max(70, (detailW - gap) / 2);
+        dialogueCharacterList = own(new AbstractSelectionList<Identifier>(detailX, listsBottom,
+                halfW, listBlockH, clamp(listBlockH / 6, 26, 36), (renderClient, id, rx, ry) -> {
+            var character = BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+            String label = character == null ? id.toString() : character.displayName();
+            renderClient.font().draw(label, rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F);
+            renderClient.font().draw(GuiText.shortId(id), rx, ry - 10, 0.62F, 0.75F, 0.8F, 0.8F, 1F);
+        }));
+        dialogueCharacterList.setEntries(new ArrayList<>(
+                BuiltInRegistries.DIALOGUE_CHARACTERS.keySet().stream().sorted().toList()));
+
+        dialoguePortraitList = own(new AbstractSelectionList<String>(
+                detailX + halfW + gap, listsBottom, detailW - halfW - gap, listBlockH,
+                clamp(listBlockH / 6, 26, 36), (renderClient, portrait, rx, ry) ->
+                renderClient.font().draw(portrait, rx, ry + 4, 0.72F, 0.9F, 1F, 0.9F, 1F)));
+        dialoguePortraitList.setEntries(List.of());
+
+        refreshDialogueDetail();
+    }
+
+    /** A character id's display name, or the id itself when it is not registered. */
+    private static String dialogueSpeakerName(String characterId) {
+        Identifier id = Identifier.tryParse(characterId);
+        var character = id == null ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+        return character == null ? characterId : character.displayName();
+    }
+
+    /** The line the detail form is showing, or {@code null} when the level has none. */
+    private DialogueEditorModel.LineModel currentDialogueLine() {
+        return dialogueLineList == null ? null : dialogueLineList.selected();
+    }
+
+    /** The portrait file names inside a character's portrait directory, sorted. */
+    private List<String> portraitsFor(String characterId) {
+        Identifier id = Identifier.tryParse(characterId);
+        com.pvzce.api.content.DialogueCharacterDef character =
+                id == null ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+        if (character == null) {
+            return List.of();
+        }
+        Identifier dir = character.resolvedPortraitDir();
+        String prefix = "assets/" + dir.toPath() + "/";
+        try {
+            return client.resources().listResources(prefix).keySet().stream()
+                    .filter(path -> path.startsWith(prefix) && path.endsWith(".png"))
+                    .map(path -> path.substring(prefix.length(), path.length() - ".png".length()))
+                    .sorted()
+                    .toList();
+        } catch (java.io.IOException e) {
+            return List.of();
+        }
+    }
+
+    /**
+     * Rebuilds the detail form from the selected line.
+     *
+     * <p>A focused field keeps what the author is typing: the model is copied into the
+     * boxes only for the fields that are not being edited.
+     */
+    private void refreshDialogueDetail() {
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        boolean has = line != null;
+        if (dialogueTextBox == null) {
+            return;
+        }
+        dialogueTextBox.setActive(has);
+        dialogueVoiceBox.setActive(has);
+        dialogueSideButton.setActive(has);
+        if (!has) {
+            dialogueTextBox.setValue("", false);
+            dialogueVoiceBox.setValue("", false);
+            dialogueSideButton.setLabel("位置：-");
+            if (dialoguePortraitList != null) {
+                dialoguePortraitList.setEntries(List.of());
+            }
+            return;
+        }
+        if (!dialogueTextBox.isFocused()) {
+            dialogueTextBox.setValue(line.text, false);
+        }
+        if (!dialogueVoiceBox.isFocused()) {
+            dialogueVoiceBox.setValue(line.voice, false);
+        }
+        dialogueSideButton.setLabel(line.left ? "位置：左" : "位置：右");
+
+        // The pickers follow the line rather than the other way around; the "last choice"
+        // marks are what stop that sync from being read back as a user choice, which
+        // would silently rewrite a hand-written id the lists do not contain.
+        if (dialogueCharacterList != null) {
+            Identifier wanted = Identifier.tryParse(line.character);
+            int index = wanted == null ? -1 : dialogueCharacterList.entries().indexOf(wanted);
+            if (index >= 0) {
+                dialogueCharacterList.select(index);
+            }
+            lastDialogueCharacterChoice = dialogueCharacterList.selected();
+        }
+        refreshDialoguePortraits();
+        if (dialoguePortraitList != null) {
+            int index = dialoguePortraitList.entries().indexOf(line.portrait);
+            dialoguePortraitList.select(index >= 0 ? index : 0);
+            lastDialoguePortraitChoice = dialoguePortraitList.selected();
+        }
+    }
+
+    /** Rebuilds the portrait list for the selected line's character. */
+    private void refreshDialoguePortraits() {
+        if (dialoguePortraitList == null) {
+            return;
+        }
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        List<String> portraits = line == null ? List.of() : portraitsFor(line.character);
+        dialoguePortraitList.setEntries(new ArrayList<>(portraits));
+        if (line != null && !portraits.isEmpty()) {
+            dialoguePortraitList.select(0);
+            lastDialoguePortraitChoice = portraits.get(0);
+        }
+    }
+
+    /**
+     * Copies the boxes into the line they are showing.
+     *
+     * <p>Committed every frame rather than on Enter: a text field whose value only
+     * reaches the model when the author remembers to press a key loses the sentence they
+     * just typed the moment they click another line or press 保存.
+     */
+    private void commitDialogueFields(DialogueEditorModel.LineModel line) {
+        if (line == null || dialogueTextBox == null) {
+            return;
+        }
+        line.text = dialogueTextBox.value();
+        line.voice = dialogueVoiceBox.value().trim();
+    }
+
+    private void commitDialogueFieldsNow() {
+        commitDialogueFields(currentDialogueLine());
+        refreshDialogueLineList();
+    }
+
+    private void toggleDialogueSide() {
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        if (line == null) {
+            return;
+        }
+        line.left = !line.left;
+        refreshDialogueDetail();
+        refreshDialogueLineList();
+    }
+
+    private void applyDialogueCharacterChoice() {
+        if (dialogueCharacterList == null) {
+            return;
+        }
+        Identifier chosen = dialogueCharacterList.selected();
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        if (line == null || chosen == null || chosen.equals(lastDialogueCharacterChoice)) {
+            return;
+        }
+        lastDialogueCharacterChoice = chosen;
+        line.character = chosen.toString();
+        // The old portrait belongs to the old character's folder; the first file of the
+        // new one is the only choice that is certainly available.
+        List<String> portraits = portraitsFor(line.character);
+        line.portrait = portraits.isEmpty() ? "" : portraits.get(0);
+        refreshDialoguePortraits();
+        refreshDialogueLineList();
+    }
+
+    private void applyDialoguePortraitChoice() {
+        if (dialoguePortraitList == null) {
+            return;
+        }
+        String chosen = dialoguePortraitList.selected();
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        if (line == null || chosen == null || chosen.equals(lastDialoguePortraitChoice)) {
+            return;
+        }
+        lastDialoguePortraitChoice = chosen;
+        line.portrait = chosen;
+        refreshDialogueLineList();
+    }
+
+    private void refreshDialogueLineList() {
+        if (dialogueLineList != null) {
+            ListEditorSupport.refresh(dialogueLineList, new ArrayList<>(dialogueConfig.lines),
+                    currentDialogueLine());
+        }
+    }
+
+    private void addDialogueLine() {
+        DialogueEditorModel.LineModel line = new DialogueEditorModel.LineModel();
+        // The first registered character is the sensible default: a line with no character
+        // has no portrait and no name, which is exactly what the author is about to fix.
+        line.character = BuiltInRegistries.DIALOGUE_CHARACTERS.keySet().stream()
+                .sorted().findFirst().map(Identifier::toString).orElse("");
+        List<String> portraits = portraitsFor(line.character);
+        line.portrait = portraits.isEmpty() ? "" : portraits.get(0);
+        dialogueConfig.lines.add(line);
+        refreshDialogueLineList();
+        dialogueLineList.select(dialogueConfig.lines.size() - 1);
+        lastDialogueLineShown = line;
+        refreshDialogueDetail();
+    }
+
+    private void removeDialogueLine() {
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        if (line == null) {
+            return;
+        }
+        DialogueEditorModel.LineModel next = ListEditorSupport.remove(dialogueConfig.lines, line);
+        ListEditorSupport.refresh(dialogueLineList, new ArrayList<>(dialogueConfig.lines), next);
+        lastDialogueLineShown = currentDialogueLine();
+        refreshDialogueDetail();
+    }
+
+    private void moveDialogueLine(int delta) {
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        if (ListEditorSupport.move(dialogueConfig.lines, line, delta)) {
+            refreshDialogueLineList();
+            refreshDialogueDetail();
+        }
+    }
+
+    private void clearDialogue() {
+        dialogueConfig.lines.clear();
+        refreshDialogueLineList();
+        lastDialogueLineShown = null;
+        refreshDialogueDetail();
+    }
+
+    /**
      * The unlock page: what a level asks for before it can be played.
      *
      * <p>Two-column, like the wave and music pages: the editable list on the left, and on
@@ -2142,6 +2455,34 @@ public final class EditorScreen extends Screen {
                             area[0] + 4, area[1] + area[3] / 2F, 0.85F, 1F, 0.85F, 0.5F, 1F);
                 }
             }
+            case DIALOGUE -> {
+                int[] area = fullContentArea();
+                client.font().draw("对话 " + dialogueConfig.lines.size()
+                                + " 条　关卡开始时播放：点击推进，ESC 跳过整段",
+                        area[0] + 4, area[1] + area[3] + 4F, 0.74F, 1F, 1F, 1F, 1F);
+                if (dialogueTextBox != null) {
+                    float labelScale = 0.68F;
+                    client.font().draw("台词", dialogueTextBox.x(),
+                            dialogueTextBox.y() + dialogueTextBox.height() + 4F, labelScale,
+                            1F, 0.9F, 0.6F, 1F);
+                    client.font().draw("语音（sound event id，可留空）", dialogueVoiceBox.x(),
+                            dialogueVoiceBox.y() + dialogueVoiceBox.height() + 4F, labelScale,
+                            0.9F, 0.9F, 0.9F, 1F);
+                    client.font().draw("台词行（顺序即播放顺序）", area[0] + 4,
+                            dialogueLineList.y() + dialogueLineList.height() + 4F, 0.7F,
+                            1F, 0.9F, 0.6F, 1F);
+                    client.font().draw("角色", dialogueCharacterList.x(),
+                            dialogueCharacterList.y() + dialogueCharacterList.height() + 4F,
+                            0.7F, 1F, 0.9F, 0.6F, 1F);
+                    client.font().draw("立绘（该角色目录下的 PNG）", dialoguePortraitList.x(),
+                            dialoguePortraitList.y() + dialoguePortraitList.height() + 4F,
+                            0.7F, 1F, 0.9F, 0.6F, 1F);
+                }
+                if (dialogueConfig.lines.isEmpty()) {
+                    client.font().draw("这一关没有开场对话：点「新增台词」开始写",
+                            area[0] + 4, area[1] + area[3] / 2F, 0.85F, 1F, 0.85F, 0.5F, 1F);
+                }
+            }
             case CARDS -> {
                 int[] area = fullContentArea();
                 float labelY = cardListTop - 17F;
@@ -2433,6 +2774,9 @@ public final class EditorScreen extends Screen {
             rewardCoinDrop = coinDropBox.value().trim();
         }
         maxSeedSlots = clamp(cardPoolConfig.maxSeedSlots, 0, CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
+        // The 保存 button is handled before this frame's tick(), so the line's fields are
+        // committed here too rather than trusting that the last keystroke already was.
+        commitDialogueFields(currentDialogueLine());
     }
 
     private void save() {
@@ -2455,7 +2799,8 @@ public final class EditorScreen extends Screen {
         collectEditableFields();
         JsonObject root = buildLevelJson(sourceJson, levelId, levelName, description, width, height,
                 scene, initialEntities, rules, waveConfig, cardPoolConfig.pool, maxSeedSlots,
-                initialSun, musicConfig.toJson(), currentRewards(), unlockJson());
+                initialSun, musicConfig.toJson(), currentRewards(), unlockJson(),
+                dialogueConfig.toJson());
         Path previousFile = sourceFile;
         Path levelFile = resolveSaveFile();
         try {
@@ -2538,6 +2883,27 @@ public final class EditorScreen extends Screen {
                                      JsonObject rules, WaveEditorModel.Config waveConfig,
                                      List<String> pool, int maxSeedSlots, int initialSun,
                                      JsonObject music, LevelRewards rewards, JsonObject unlock) {
+        return buildLevelJson(previous, levelId, levelName, description, width, height, scene,
+                initialEntities, rules, waveConfig, pool, maxSeedSlots, initialSun, music, rewards,
+                unlock, null);
+    }
+
+    /**
+     * The same merge, with the opening dialogue's lines.
+     *
+     * <p>Like {@code unlock}, a {@code null} array means "the editor did not touch this
+     * block", which leaves a hand-written one alone. Unlike it, the lines are written
+     * <em>into</em> the existing block rather than replacing it: {@code dialogue} is a
+     * wrapper, and a field a later version adds beside {@code lines} must survive an
+     * edit of the same level.
+     */
+    static JsonObject buildLevelJson(JsonObject previous, Identifier levelId, String levelName,
+                                     String description, int width, int height,
+                                     Map<String, List<String>> scene, List<JsonObject> initialEntities,
+                                     JsonObject rules, WaveEditorModel.Config waveConfig,
+                                     List<String> pool, int maxSeedSlots, int initialSun,
+                                     JsonObject music, LevelRewards rewards, JsonObject unlock,
+                                     JsonArray dialogueLines) {
         JsonObject root = previous == null ? new JsonObject() : previous.deepCopy();
         root.addProperty("id", levelId.toString());
         root.addProperty("name", levelName);
@@ -2600,6 +2966,18 @@ public final class EditorScreen extends Screen {
             }
         }
         root.add("music", music == null ? new JsonObject() : music);
+        if (dialogueLines != null) {
+            // An empty conversation is removed rather than written: "this level has no
+            // dialogue" and "a dialogue block with no lines" should not both exist.
+            if (dialogueLines.isEmpty()) {
+                root.remove("dialogue");
+            } else {
+                JsonObject dialogue = root.has("dialogue") && root.get("dialogue").isJsonObject()
+                        ? root.getAsJsonObject("dialogue").deepCopy() : new JsonObject();
+                dialogue.add("lines", dialogueLines);
+                root.add("dialogue", dialogue);
+            }
+        }
         return root;
     }
 
@@ -2911,6 +3289,24 @@ public final class EditorScreen extends Screen {
                 }
             }
             applyMusicEventChoice();
+        }
+        if (page == Page.DIALOGUE) {
+            if (dialogueLineList != null) {
+                DialogueEditorModel.LineModel selected = dialogueLineList.selected();
+                if (selected != lastDialogueLineShown) {
+                    // The boxes still hold the outgoing line's text, so it is committed to
+                    // that line before the form is rebuilt for the new one.
+                    commitDialogueFields(lastDialogueLineShown);
+                    lastDialogueLineShown = selected;
+                    refreshDialogueDetail();
+                }
+            }
+            // The boxes belong to the line they are showing, and the model is what a save
+            // reads: committing every frame is what keeps a typed sentence from being lost
+            // to the next click.
+            commitDialogueFields(currentDialogueLine());
+            applyDialogueCharacterChoice();
+            applyDialoguePortraitChoice();
         }
     }
 

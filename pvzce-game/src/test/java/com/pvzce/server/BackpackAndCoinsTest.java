@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -159,6 +160,45 @@ class BackpackAndCoinsTest {
         }
         assertTrue(PvzceIds.isCoin("pvzce:diamond"));
         assertFalse(PvzceIds.isCoin(PvzceIds.SUN));
+    }
+
+    /**
+     * The pickup sparkle is per resource, and currency is the one thing that does not get it.
+     *
+     * <p>A sun is the resource the whole game is played with and pops with a flash; a coin is
+     * small change, and the same flash drawn at coin size washed a large part of the lawn in
+     * yellow every time one was picked up.
+     */
+    @Test
+    void theSunSparklesOnPickupAndCoinsDoNot() {
+        assertEquals(java.util.Optional.of(com.pvzce.common.PvzceParticles.LANTERN_SHINE),
+                BuiltInRegistries.RESOURCES.get(PvzceIds.SUN).pickupEffect(),
+                "the sun keeps the flash it always had");
+        for (Identifier denomination : PvzceIds.COIN_DENOMINATIONS) {
+            assertTrue(BuiltInRegistries.RESOURCES.get(denomination).pickupEffect().isEmpty(),
+                    denomination + " is currency and must not flash");
+        }
+    }
+
+    /**
+     * Currency rings; the sun chimes.
+     *
+     * <p>Collecting a coin used to play the sun's collect sound, so a bowling combo - one coin
+     * per ricochet - sounded like a shower of sun. It is the same per-resource idea as the
+     * sparkle, one field over.
+     */
+    @Test
+    void currencyRingsAndTheSunChimes() {
+        assertEquals(com.pvzce.common.PvzceSounds.UI_COLLECT,
+                BuiltInRegistries.RESOURCES.get(PvzceIds.SUN).pickupSound(),
+                "the sun keeps the collect sound it always had");
+        assertEquals(com.pvzce.common.PvzceSounds.UI_COIN,
+                BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_SILVER).pickupSound());
+        assertEquals(com.pvzce.common.PvzceSounds.UI_COIN,
+                BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_GOLD).pickupSound());
+        assertNotEquals(com.pvzce.common.PvzceSounds.UI_COLLECT,
+                BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_SILVER).pickupSound(),
+                "a coin must not sound like a sun");
     }
 
     // ------------------------------------------------------------------

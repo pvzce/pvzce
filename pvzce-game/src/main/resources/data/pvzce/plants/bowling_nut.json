@@ -1,0 +1,27 @@
+{
+  "id": "pvzce:bowling_nut",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 0
+    },
+    "cooldown": 0
+  },
+  "health": 4000,
+  "capabilities": [
+    {
+      "type": "pvzce:bowl",
+      "speed": 5.0,
+      "damage": 650,
+      "hit_radius": 0.45,
+      "coin_from_hit": 2,
+      "ricochet": true
+    }
+  ],
+  "placement": {
+    "layer": 1,
+    "count": 1,
+    "group": "plantable"
+  },
+  "animation_dir": "plant/defense",
+  "texture": "pvzce:textures/entities/plant/defense/wall_nut"
+}

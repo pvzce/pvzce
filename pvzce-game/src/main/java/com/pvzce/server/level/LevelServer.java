@@ -24,6 +24,7 @@ import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.core.PlantPlacement.PlantLayer;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
+import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.DayNightCycle;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.nbt.CompoundTag;
@@ -33,6 +34,7 @@ import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.nbt.Tag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EffectEventS2C;
+import com.pvzce.common.network.packet.BeltSyncS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
@@ -107,6 +109,8 @@ public final class LevelServer implements LevelAccess {
     private final LevelEnvVars envVars;
     private final PvzceClock clock = new PvzceClock();
     private final PlantAIPlayer plantAi = new PlantAIPlayer();
+    /** Non-null on conveyor levels, where the card bar is the belt rather than a deck. */
+    private final ConveyorBelt belt;
     private ServerBridge bridge;
 
     private int tickCount;
@@ -198,7 +202,16 @@ public final class LevelServer implements LevelAccess {
         this.nextWaveDelayTicks = waves.isEmpty() ? -1 : effectiveWaveDelay(0);
 
         Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
-        this.plantPlayer = plantTeam != null ? PvzcePlayer.createPlantPlayer(plantTeam, def, selectedSlotsOrDef(selectedSlots)) : null;
+        // A conveyor level has no deck and no chooser: its bar *is* the belt, which is
+        // handed to the player one card at a time, so a seed selection would be a second
+        // source of cards for the same bar.
+        this.belt = def.hasConveyor() ? new ConveyorBelt(def.belt().orElseThrow(), random) : null;
+        this.plantPlayer = plantTeam != null
+                ? (belt != null
+                        ? new PvzcePlayer(plantTeam)
+                        : PvzcePlayer.createPlantPlayer(plantTeam, def, selectedSlotsOrDef(selectedSlots)))
+                : null;
+        rebuildBeltSlots();
         if (plantTeam != null) {
             plantTeam.putResource(PvzceIds.SUN, def.initialSun());
             for (Identifier slotId : def.slots()) {
@@ -236,11 +249,13 @@ public final class LevelServer implements LevelAccess {
         problems.addAll(LevelValidator.validateEnvVars(def.envVars()));
         problems.addAll(LevelValidator.validateSlots(def.slots()));
         problems.addAll(LevelValidator.validateSeedSelection(def));
+        problems.addAll(LevelValidator.validatePlacementZone(def));
         problems.addAll(LevelValidator.validateRewards(def));
         problems.addAll(LevelValidator.validateUnlock(def));
         problems.addAll(LevelValidator.validateUnlockCycles());
         problems.addAll(LevelValidator.validateScene(def));
         problems.addAll(LevelValidator.validateInitialEntities(def));
+        problems.addAll(LevelValidator.validateDialogue(def));
         if (!problems.isEmpty()) {
             System.err.println("[PVZCE] Level " + def.id() + " has " + problems.size() + " problem(s):");
             for (String problem : problems) {
@@ -464,11 +479,24 @@ public final class LevelServer implements LevelAccess {
                 .toList();
     }
 
-    /** The topmost plant in a cell (the one zombies bite and the shovel removes first). */
+    /**
+     * The topmost plant in a cell (the one zombies bite and the shovel removes first).
+     *
+     * <p>Plants that do not occupy their cell are skipped: a bowling Wall-nut is a plant
+     * that is leaving one, and a zombie that stopped to eat it - or a shovel that removed
+     * it - would be interacting with a cell it is only passing through. The plant is still
+     * a plant for rendering, health and its own ticking; it is simply not part of the
+     * board's furniture while it rolls.
+     */
     @Override
     public PlantEntity plantAt(int column, int row) {
         List<PlantEntity> plants = plantsBottomFirst(column, row);
-        return plants.isEmpty() ? null : plants.get(plants.size() - 1);
+        for (int i = plants.size() - 1; i >= 0; i--) {
+            if (plants.get(i).occupiesCell()) {
+                return plants.get(i);
+            }
+        }
+        return null;
     }
 
     /**
@@ -480,9 +508,19 @@ public final class LevelServer implements LevelAccess {
      * {@code feet} string plus a handful of hard-coded element ids
      * ({@code "flower_pot"}, {@code SURFACE_WATER}, ...), which is why a mod could
      * not add terrain or a carrier without a code change.
+     *
+     * <p>The level's own {@code placement_zone} is checked first, because it is not a
+     * property of the plant or of the tile: it is the level saying "this mini-game is
+     * played on the left half of the lawn". Everything the <em>player</em> plants goes
+     * through here - {@code placePlantInternal}, the glove and the plant AI - so a
+     * restricted level cannot be talked past. The two authoring paths that deliberately do
+     * not consult it are {@code /spawn plant} and a level's own {@code initial_entities}:
+     * both are the level (or its author) placing things, not someone playing it.
      */
     public boolean canPlacePlant(PlantDef def, int x, int y) {
-        return inBounds(x, y) && PlantPlacement.canPlace(def, placementContext, x, y);
+        return inBounds(x, y)
+                && this.def.placementZone().contains(x, y)
+                && PlantPlacement.canPlace(def, placementContext, x, y);
     }
 
     /** True when this plant occupies the carrier layer (flower pot, lily pad). */
@@ -597,8 +635,13 @@ public final class LevelServer implements LevelAccess {
         if (resource == null) {
             return;
         }
+        // The sideways throw of a popping drop is rolled here, from the level's own Random:
+        // entities do not own dice (see LevelAccess#random), and a drop that drew its own
+        // would ignore the level's seed and re-roll itself on every restore.
+        float scatter = Math.max(0F, resource.riseScatter());
+        float driftX = scatter <= 0F ? 0F : (random.nextFloat() * 2F - 1F) * scatter;
         addEntity(new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y),
-                amount, motion));
+                amount, motion, driftX));
     }
 
     @Override
@@ -855,18 +898,31 @@ public final class LevelServer implements LevelAccess {
         if (plantPlayer == null) {
             return;
         }
-        for (Slot slot : plantPlayer.slots()) {
-            int before = slot.cooldownLeft();
-            slot.tick();
-            // A card only changes while its cooldown is running. The old condition
-            // also fired for every *ready* card on every tick, so a 13-card bar sent
-            // ~780 packets per second for values that never changed. Cooldown cards
-            // still stream every tick (the HUD bar animates), ready cards get a
-            // keepalive and an immediate message the moment they finish.
-            boolean animating = before > 0;
-            boolean justBecameReady = before > 0 && slot.cooldownLeft() == 0;
-            if (animating || justBecameReady || tickCount % 20 == 0) {
-                bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+        if (belt != null) {
+            // Belt cards are free and never cool down, so there is nothing to stream per
+            // card: the belt tells the client what it holds whenever that changes, and the
+            // whole bar is replaced rather than patched - a card that left the belt must
+            // leave the client's bar too, and an upsert cannot say that.
+            belt.tick(random);
+            if (belt.isChanged()) {
+                belt.clearChanged();
+                rebuildBeltSlots();
+                bridge.send(new BeltSyncS2C(slotInfos()));
+            }
+        } else {
+            for (Slot slot : plantPlayer.slots()) {
+                int before = slot.cooldownLeft();
+                slot.tick();
+                // A card only changes while its cooldown is running. The old condition
+                // also fired for every *ready* card on every tick, so a 13-card bar sent
+                // ~780 packets per second for values that never changed. Cooldown cards
+                // still stream every tick (the HUD bar animates), ready cards get a
+                // keepalive and an immediate message the moment they finish.
+                boolean animating = before > 0;
+                boolean justBecameReady = before > 0 && slot.cooldownLeft() == 0;
+                if (animating || justBecameReady || tickCount % 20 == 0) {
+                    bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+                }
             }
         }
         if (tickCount % 3 == 0) {
@@ -874,6 +930,49 @@ public final class LevelServer implements LevelAccess {
                 bridge.send(entity.updatePacket());
             }
         }
+    }
+
+    /** The conveyor belt, or {@code null} on a level with a normal deck. */
+    public ConveyorBelt conveyorBelt() {
+        return belt;
+    }
+
+    /**
+     * The board description a client is given, for the level list and for the level init.
+     *
+     * <p>One builder because both callers describe the same level: the list hands it to the
+     * seed chooser's preview and the init builds the running board from it, and a level that
+     * says "I have a belt and the left four columns are plantable" in one of them and not
+     * the other would show a screen contradicting the one that follows it.
+     */
+    public static LevelPayload payloadFor(LevelDef def, SeedContext seeds) {
+        return new LevelPayload(def.width(), def.height(), seeds.pool(), def.maxSeedSlots(),
+                def.previewZombieIds(), SceneCells.forLevel(def), seeds.lockedSlotIds(),
+                def.hasConveyor(), def.belt().map(com.pvzce.api.content.LevelBelt::capacity).orElse(0),
+                def.placementZone().minX(), def.placementZone().maxX(),
+                def.placementZone().minY(), def.placementZone().maxY());
+    }
+
+    /**
+     * Rebuilds the player's card bar from the belt.
+     *
+     * <p>The belt owns which cards exist; the bar is a projection of it, so this runs
+     * whenever the belt changes rather than the two being kept in step by hand. Card
+     * costs are dropped: nothing on a belt is bought.
+     */
+    private void rebuildBeltSlots() {
+        if (belt == null || plantPlayer == null) {
+            return;
+        }
+        List<Slot> rebuilt = new ArrayList<>();
+        for (ConveyorBelt.Card card : belt.cards()) {
+            SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card.cardId()).orElse(null);
+            if (resolved == null) {
+                continue;
+            }
+            rebuilt.add(new Slot(card.id(), resolved.kind(), resolved.content(), 0, 0, Slot.UNLIMITED_USES));
+        }
+        plantPlayer.replaceSlots(rebuilt);
     }
 
     private void processMusicCues(ServerBridge bridge) {
@@ -1191,6 +1290,28 @@ public final class LevelServer implements LevelAccess {
                 zombie.cellX(), zombie.cellY(), plantTeam);
     }
 
+    @Override
+    public void dropCoin(float x, float y, int count) {
+        if (count <= 0 || !gameState.equals(GameStateS2C.RUNNING)) {
+            return;
+        }
+        Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
+        LevelRewards rewards = def.rewards();
+        ResourceDef drop = BuiltInRegistries.RESOURCES.get(rewards.coinDrop());
+        if (plantTeam == null || drop == null) {
+            return;
+        }
+        // One entity per coin, scattered inside the cell: the original pays combos in
+        // individual coins, and a stack of them reads as "that ricochet was worth more"
+        // in a way a single bigger number does not.
+        int worth = Math.max(1, drop.defaultValue() * Math.max(1, rewards.coinDropAmount()));
+        for (int i = 0; i < count; i++) {
+            float dx = x + (random.nextFloat() - 0.5F) * 0.5F;
+            float dy = y + (random.nextFloat() - 0.5F) * 0.35F;
+            spawnResource(drop.id(), worth, dx, dy, plantTeam);
+        }
+    }
+
     private void markEnd(Team winnerTeam) {
         if (!gameState.equals(GameStateS2C.RUNNING) || winnerTeam == null) {
             return;
@@ -1249,6 +1370,22 @@ public final class LevelServer implements LevelAccess {
             bridge.send(new ServerMessageS2C("该格不能种植。"));
             return false;
         }
+        // A belt card is spent, not paid for: the belt has no sun and its cards carry no
+        // price, so it is taken off the belt rather than charged to the team.
+        if (belt != null) {
+            if (belt.take(slot.index()) == null) {
+                bridge.send(new ServerMessageS2C("这张卡已经不在传送带上了。"));
+                return false;
+            }
+            PlantEntity planted = spawnPlant(plantDef, plantPlayer.team(), x, y);
+            System.out.println("[PVZCE] Planted belt card " + slot.defId() + " at (" + x + "," + y
+                    + ") count=" + plantCount());
+            belt.clearChanged();
+            rebuildBeltSlots();
+            bridge.send(new BeltSyncS2C(slotInfos()));
+            return !planted.isRemoved() || planted.consumesOnPlace();
+        }
+
         int cost = slot.costSun() > 0 ? slot.costSun() : plantDef.cost().amountOf(PvzceIds.SUN);
         if (!plantPlayer.team().consume(PvzceIds.SUN, cost)) {
             bridge.send(new ServerMessageS2C("阳光不足！"));
@@ -1291,7 +1428,13 @@ public final class LevelServer implements LevelAccess {
             }
             drop.markCollected();
             plantPlayer.team().addResource(drop.defId(), drop.amount());
-            emitEffect(PvzceParticles.LANTERN_SHINE.toString(), drop.cellX(), drop.cellY(), PvzceSounds.UI_COLLECT);
+            // The sparkle belongs to the resource, not to "collecting": a sun is the thing the
+            // whole game is played with and gets a flash to match, while a coin is small change
+            // and would wash the lawn in light. A resource that names no effect gets none -
+            // the sound and the fly-to-bank animation are the feedback. The sound is per
+            // resource for the same reason: currency rings, the sun chimes.
+            emitEffect(drop.def().pickupEffect().map(Identifier::toString).orElse(""),
+                    drop.cellX(), drop.cellY(), drop.def().pickupSound());
             // The visual fly-to-bank animation is client-side only, but it still
             // needs the server-confirmed drop position and icon.
             bridge.send(new ResourceCollectS2C(drop.id(), drop.defId().toString(), drop.amount(),
@@ -1468,10 +1611,14 @@ public final class LevelServer implements LevelAccess {
     }
 
     public SlotInfo toSlotInfo(Slot slot) {
+        // A belt card has no price at all, which is not the same as costing zero: the HUD
+        // draws the number it is given, and "0" would read as "this cost something and you
+        // paid it". SlotInfo.NO_PRICE is that distinction on the wire.
+        int price = belt != null ? SlotInfo.NO_PRICE : slot.costSun();
         boolean available = slot.kind() == Slot.Kind.RESOURCE
                 || (slot.ready() && plantPlayer != null
-                        && plantPlayer.team().resourcesOf(PvzceIds.SUN) >= slot.costSun());
-        return new SlotInfo(slot.index(), slot.defId().toString(), slot.kind().json(), slot.costSun(),
+                        && plantPlayer.team().resourcesOf(PvzceIds.SUN) >= Math.max(0, price));
+        return new SlotInfo(slot.index(), slot.defId().toString(), slot.kind().json(), price,
                 slot.cooldownLeft(), slot.usesLeft(), available);
     }
 
@@ -1490,11 +1637,14 @@ public final class LevelServer implements LevelAccess {
         List<String> waveTypes = waves.stream()
                 .map(wave -> wave.type().name().toLowerCase(Locale.ROOT))
                 .toList();
-        LevelPayload payload = new LevelPayload(width(), height(), seedContext.pool(),
-                def.maxSeedSlots(), def.previewZombieIds(), SceneCells.forLevel(def),
-                seedContext.lockedSlotIds());
+        LevelPayload payload = payloadFor(def, seedContext);
         bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waveTypes, payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
+        if (belt != null) {
+            // The init packet already carried the belt as the card bar; this only tells the
+            // belt it no longer owes the client a sync.
+            belt.clearChanged();
+        }
         withBridge(bridge, () -> {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
             return null;
@@ -1596,6 +1746,11 @@ public final class LevelServer implements LevelAccess {
         root.put("Teams", saveTeams());
         root.put("Slots", saveSlots());
         root.put("Scene", saveScene());
+        if (belt != null) {
+            // Belt contents are part of the run: a resumed conveyor level must come back
+            // holding the cards it was holding, not a freshly rolled batch.
+            root.put("Belt", belt.save());
+        }
 
         ListTag savedEntities = new ListTag();
         for (PvzceEntity entity : entities) {
@@ -1695,6 +1850,12 @@ public final class LevelServer implements LevelAccess {
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
         restoreScene(root.getList("Scene"));
         restoreTeams(root.getCompound("Teams"));
+        if (belt != null) {
+            // Before restoreSlots: the bar is a projection of the belt, so the belt has to
+            // exist first or its cards would have nothing to be restored into.
+            belt.restore(root.getCompound("Belt"));
+            rebuildBeltSlots();
+        }
         restoreSlots(root.getList("Slots"));
         restorePendingWaves(root.getList("PendingWaveSpawns"));
         restoreEntities(root.getList(KEY_ENTITIES));

@@ -146,6 +146,7 @@
 | rewards | LevelRewards | 可选；首通/重复通关奖励与僵尸掉币（见下） |
 | music | LevelMusicDef? | 默认 grasswalk 循环；`cues`: `[{at_tick, track, event, loop, stop, volume, fade_seconds}]` |
 | initial_entities | InitialEntityDef[] | 编辑器预摆：kind/id/x/y |
+| dialogue | LevelDialogue? | 可选；关卡开始前的一段对话（见下） |
 
 ### 奖励（rewards）
 
@@ -185,6 +186,36 @@
 - **金币是跨关卡的**：本局捡到的金币在**关卡结束（胜负都算）**时计入 `saves/<world>/profile.dat`；奖励里的金币只有**植物方获胜**才发。
 - `type` 拼错不会被 codec 拦住（它只是字符串），加载时由 `LevelValidator` 报出来。
 - 僵尸掉币用的资源是 `pvzce:coin`（`collectible_without_card: true`，捡钱不需要卡槽）。
+
+### 开场对话（dialogue）
+
+关卡可以在**开局时**先播一段对话：场景照常渲染，角色立绘从说话的边站上来，台词**逐字打出来**
+（打字机），点击推进到下一句（**ESC 跳过整段**）。台词打到一半时点一下会**先补全整句**，再点才进
+下一句；气泡大小在开打之前就按整句算好，所以不会一边打字一边变形。写了 `dialogue` 的关卡在**每一次新开一局**时都会播，
+继续一局存档不会重播；通关后再玩一遍同样会播。
+
+```jsonc
+"dialogue": {
+  "lines": [
+    { "character": "pvzce:pea_chan", "portrait": "welcome",
+      "text": "欢迎来到植物和僵尸的世界", "voice": "", "side": "left" }
+  ]
+}
+```
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| character | Identifier | 必填 | 说话的角色，引用 `dialogue_character` 注册表（见下） |
+| portrait | String | `""` | **文件名**（不带 `.png`），位于该角色的立绘目录下；留空则不画立绘 |
+| text | String | `""` | 台词；按气泡宽度逐字换行，写 `\n` 可强制换行 |
+| voice | Identifier | `""` | 播哪条音效（`assets/<ns>/sounds/...` + `sounds.json` 里的事件 id）；留空＝不播 |
+| side | `left` \| `right` | `left` | 角色站哪一边；气泡自动画在对侧，尾巴指向角色 |
+
+- 对话由**客户端**播放，数据也由客户端从同一份数据包读取（与 `usesConveyorBelt` / `lockedSlotsFor` 同一层）。
+- 播放位置取决于这一局怎么进的：走**选卡界面**的关卡在关卡入口（镜头横摇之前）播；**传送带关卡**这类
+  直接进关卡的，在关卡内播，播放期间整关暂停（客户端发 `PauseGameC2S(true)`），读完再开始。
+- `LevelValidator.validateDialogue` 在加载时报告未知角色、拼错的 `side`、空台词与非法立绘名；
+  立绘/气泡贴图是否存在由服务端在 `/reload` 时报告（`[PVZCE/对话]` 日志 + 控制台提示）。
 
 ### 背包与卡池
 
@@ -227,6 +258,39 @@
 - 进度填满触发下一波；同一波内 entries 展开后随机打乱，每 15 tick 生成一只，行随机且尽量均匀；
 - 进度条在大波/终波段画旗帜，进入预警窗口时显示"一大波僵尸正在接近！"；
 - 音效：small 静音，huge 播 `pvzce:sfx/ambient/hugewave`，final 播 `pvzce:sfx/effect/awooga` + `pvzce:sfx/ambient/hugewave`。
+
+---
+
+## dialogue_characters
+
+一个能说话的角色：显示名、立绘目录、立绘大小、说话用哪个气泡。加一个新角色＝加一个文件
+＋一个立绘文件夹，不需要写代码。
+
+```jsonc
+// data/<ns>/dialogue_characters/pea_chan.json
+{
+  "id": "pvzce:pea_chan",
+  "name": "豌豆酱",
+  "portrait_dir": "pvzce:textures/gui/dialogue/pea_chan",  // 缺省 = textures/gui/dialogue/<path>
+  "scale": 1.0,                                            // 立绘大小倍率（0.2~3）
+  "box_left": "pvzce:textures/gui/dialogue/box_left",      // 缺省 = 内置气泡
+  "box_right": "pvzce:textures/gui/dialogue/box_right"
+}
+```
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| id | Identifier | 必填 | 关卡里 `dialogue.lines[].character` 引用的就是这个 id |
+| name | String | id 的 path | 气泡上沿的小字；缺省时显示 id 的最后一段 |
+| portrait_dir | Identifier | `textures/gui/dialogue/<path>` | 立绘目录；`portrait: "smile"` 解析成 `<目录>/smile.png` |
+| scale | float | `1.0` | 立绘高度倍率（相对窗口高度的 62%），夹在 0.2~3 |
+| box_left / box_right | Identifier | 内置 `textures/gui/dialogue/box_{left,right}` | 说话人站在左/右时用的气泡贴图 |
+
+- 立绘是带透明通道的 PNG，按原图比例缩放、贴屏幕下沿；`side` 是左就把立绘画在左下、气泡画在右上（反之亦然）。
+- 气泡按九宫格拉伸：左右各 56px、上下各 24px 保持不变——**尾巴在左下/右下角那一块里**，
+  所以那两块必须够宽够高，改贴图时要保证尾巴仍然落在 56×24 的角内。
+- 编辑器有独立的**「对话」页**：左侧台词列表（顺序即播放顺序），右侧选角色（下拉列表）、
+  选立绘（列出该角色目录下的 PNG）、台词、语音、左右位置。
 
 ---
 

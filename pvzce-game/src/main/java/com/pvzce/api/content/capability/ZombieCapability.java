@@ -67,6 +67,18 @@ public interface ZombieCapability {
         return false;
     }
 
+    /**
+     * Intercepts a non-projectile impact (a rolling bowling nut, a giant's fist).
+     *
+     * <p>Separate from {@link #onProjectileHit} because there is no shot to describe the
+     * hit with - no layer to choose top or front armor from, no impact sound - while the
+     * rule that armor absorbs before the body still applies. {@code false} means the
+     * capability has nothing to say and the body takes the damage.
+     */
+    default boolean onImpact(ZombieEntity zombie, int damage, LevelAccess level) {
+        return false;
+    }
+
     /** Called once when the zombie's health reaches zero. */
     default void onDeath(ZombieEntity zombie, LevelAccess level) {
     }

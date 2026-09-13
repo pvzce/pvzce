@@ -83,6 +83,25 @@ public final class PvzceResourceManager implements AutoCloseable {
         return getResource("data/" + id.toPath());
     }
 
+    /**
+     * True when a texture id resolves to a PNG in the pack stack.
+     *
+     * <p>The one place the two accepted spellings live: textures are addressed either
+     * fully ({@code pvzce:textures/gui/dialogue/box_left}) or as a bare asset id, and
+     * both the renderer's "can I draw this" and the content validators' "does this
+     * definition's art exist" have to agree on the answer.
+     */
+    public boolean hasTexture(Identifier id) {
+        if (id == null) {
+            return false;
+        }
+        try {
+            return getResource("assets/" + id.toPath() + ".png").isPresent() || getAsset(id).isPresent();
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
     /** Lists every distinct path under a prefix, with the highest-priority occurrence winning. */
     public Map<String, PackResource> listResources(String prefix) throws IOException {
         Map<String, PackResource> result = new LinkedHashMap<>();

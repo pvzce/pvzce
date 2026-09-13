@@ -48,6 +48,10 @@ public final class SoundEngine implements AutoCloseable {
     private final Map<String, EventDefinition> events = new HashMap<>();
     private final Map<String, Integer> buffers = new HashMap<>();
     private final Map<String, Long> lastSfxPlay = new HashMap<>();
+    /** Which event each one-shot player is currently playing; the duplicate guard. */
+    private final Map<Integer, String> playingPaths = new HashMap<>();
+    private final Map<String, Integer> repeats = new HashMap<>();
+    private long traceWindowStart = System.nanoTime();
     private final int[] sfxSources = new int[MAX_SFX_SOURCES];
     private final int[] musicSources = new int[MUSIC_SOURCE_COUNT];
     private long device;
@@ -118,7 +122,27 @@ public final class SoundEngine implements AutoCloseable {
         return sfxVolume;
     }
 
-    /** Plays an event such as {@code pvzce:sfx/plant/shoot_pea}. */
+    /**
+     * Plays an event such as {@code pvzce:sfx/plant/shoot_pea}.
+     *
+     * <p>Two guards, and both are about the same failure: a one-shot sound becoming an
+     * endless one.
+     *
+     * <ol>
+     *   <li><b>Rate limit</b> ({@link #SFX_MIN_INTERVAL_NANOS}): repeats of one event
+     *       inside a frame or two are collapsed, which is what keeps a volley of peas
+     *       from stacking into a buzz.</li>
+     *   <li><b>One player per event</b> ({@link #nextSource}): an event that is asked to
+     *       start again while its own sound is still audible is <em>dropped</em>, not
+     *       layered. This is the guard that makes a loop audible as a single sound instead
+     *       of a machine-gun: for the six-second huge-wave call it is six seconds of silence
+     *       from that event, whatever asks for it.</li>
+     * </ol>
+     *
+     * <p>Neither guard is a list of "sounds that may only play once" - the events a level
+     * announces itself with have changed once already, and a list would have had to change
+     * with them.
+     */
     public void play(String soundId, float volume, float pitch) {
         if (!enabled || soundId == null || soundId.isEmpty()) {
             return;
@@ -129,8 +153,17 @@ public final class SoundEngine implements AutoCloseable {
         if (now - last < SFX_MIN_INTERVAL_NANOS) {
             return;
         }
-        lastSfxPlay.put(path, now);
-
+        if (Boolean.getBoolean("pvzce.traceSounds")) {
+            repeats.merge(path, 1, Integer::sum);
+            long window = now - traceWindowStart;
+            if (window > 1_000_000_000L) {
+                if (repeats.size() > 1 || repeats.values().stream().anyMatch(c -> c > 3)) {
+                    System.out.println("[SOUND] last second: " + repeats);
+                }
+                repeats.clear();
+                traceWindowStart = now;
+            }
+        }
         SoundVariant variant = pickVariant(definition(path));
         if (variant == null) {
             return;
@@ -139,12 +172,60 @@ public final class SoundEngine implements AutoCloseable {
         if (buffer == 0) {
             return;
         }
-        int source = sfxSources[cursor++ % MAX_SFX_SOURCES];
+        int source = nextSource(path);
+        if (source < 0) {
+            return;
+        }
+        lastSfxPlay.put(path, now);
+        // Stop before rebinding, and never hand a stale loop flag to a new buffer.
+        //
+        // A source is a ring buffer of MAX_SFX_SOURCES players, so the source a six-second
+        // siren landed on is reused by whatever plays next. Binding a buffer to a source
+        // that is still playing is implementation-defined - some drivers keep playing,
+        // some keep the old playback offset - and the loop flag in particular sticks to the
+        // source, not to the buffer: a source that was ever asked to loop loops whatever is
+        // bound to it next, forever. That is a one-shot sound (the huge-wave call is the
+        // long one people notice) turning into an endless one, which is why the stop is
+        // unconditional rather than only when the source looks busy.
+        AL10.alSourceStop(source);
+        AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_FALSE);
         AL10.alSourcei(source, AL10.AL_BUFFER, buffer);
         AL10.alSourcef(source, AL10.AL_GAIN, masterVolume * sfxVolume * volume * variant.volume());
         AL10.alSourcef(source, AL10.AL_PITCH, clampPitch(pitch * variant.pitch() * randomPitchFactor()));
-        AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_FALSE);
         AL10.alSourcePlay(source);
+        playingPaths.put(source, path);
+    }
+
+    /**
+     * A free source for {@code path}, or {@code -1} when this event is already audible.
+     *
+     * <p>Without the second half, a sound asked to start again while it is still playing
+     * simply layers on the next source in the ring - and a client that is asked for the
+     * same event hundreds of times a second (a stuck emitter, a replayed packet, a
+     * restored level that announces its last wave twice) turns one six-second call into a
+     * permanent one: the ring cycling forever, which is what "the sound loops" means to a
+     * player. Dropping the duplicate makes a loop sound like the single sound it is.
+     *
+     * <p>Deliberately not a rotation: the event is refused until its own player has
+     * finished, so a legitimate repeat is never cut short - the rate limit in {@link #play}
+     * already handles volleys.
+     */
+    private int nextSource(String path) {
+        int first = cursor % MAX_SFX_SOURCES;
+        for (int i = 0; i < MAX_SFX_SOURCES; i++) {
+            int candidate = (first + i) % MAX_SFX_SOURCES;
+            int source = sfxSources[candidate];
+            if (AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
+                cursor = candidate + 1;
+                return source;
+            }
+            if (path.equals(playingPaths.get(source))) {
+                return -1;
+            }
+        }
+        // Every player is busy: take the ring's next slot, as before.
+        cursor = first + 1;
+        return sfxSources[first];
     }
 
     /**
@@ -165,6 +246,11 @@ public final class SoundEngine implements AutoCloseable {
             return;
         }
         int source = musicSources[musicSourceIndex];
+        // Same rule as the one-shot path: rebind from a stopped source. The controller
+        // stops the source it is replacing, but a source whose last cue ended on its own
+        // (a one-shot stinger) is still holding that buffer, and a track's two sources are
+        // swapped on every crossfade.
+        AL10.alSourceStop(source);
         AL10.alSourcei(source, AL10.AL_BUFFER, buffer);
         AL10.alSourcef(source, AL10.AL_GAIN, masterVolume * musicVolume * volume * variant.volume());
         AL10.alSourcef(source, AL10.AL_PITCH, variant.pitch());

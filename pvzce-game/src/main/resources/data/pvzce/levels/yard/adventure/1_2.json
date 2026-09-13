@@ -145,5 +145,37 @@
         "id": "pvzce:yard/adventure/1_1"
       }
     ]
+  },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "再次见面了喵",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "僵尸开始变多了哦，小杂鱼还可以应付吗？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "没事，向日葵会给你帮助喵",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "tsundere",
+        "text": "才...才不是要帮你呢！",
+        "voice": "",
+        "side": "left"
+      }
+    ]
   }
 }

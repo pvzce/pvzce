@@ -67,6 +67,8 @@ public final class BuiltInRegistries {
     public static final Registry<ParticleDef> PARTICLES = ACCESS.newRegistry(PvzceRegistries.PARTICLES);
     public static final Registry<LevelDef> LEVELS = ACCESS.newRegistry(PvzceRegistries.LEVELS);
     public static final Registry<LevelThemeDef> LEVEL_THEMES = ACCESS.newRegistry(PvzceRegistries.LEVEL_THEMES);
+    public static final Registry<com.pvzce.api.content.DialogueCharacterDef> DIALOGUE_CHARACTERS =
+            ACCESS.newRegistry(PvzceRegistries.DIALOGUE_CHARACTERS);
     public static final Registry<LevelCategoryDef> LEVEL_CATEGORIES =
             ACCESS.newRegistry(PvzceRegistries.LEVEL_CATEGORIES);
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<PlantCapability>>

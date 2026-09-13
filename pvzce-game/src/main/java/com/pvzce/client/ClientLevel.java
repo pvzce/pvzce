@@ -76,6 +76,12 @@ public final class ClientLevel {
     private volatile long debugAnchorNanos;
     private volatile long debugAnchorTick;
     private volatile boolean initialized;
+    private volatile boolean conveyor;
+    private volatile int beltCapacity;
+    private volatile int zoneMinX;
+    private volatile int zoneMaxX;
+    private volatile int zoneMinY;
+    private volatile int zoneMaxY;
     private volatile String disconnectReason = "";
     private volatile AnimationManager animations;
 
@@ -105,13 +111,22 @@ public final class ClientLevel {
         init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies, sceneCells, "", "");
     }
 
+    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
+                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
+                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName) {
+        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies, sceneCells,
+                controlledTeamId, controlledTeamName, false, 0, 0, width - 1, 0, height - 1);
+    }
+
     /**
      * Replaces the whole mirror with the server's full state. Every field the
      * server owns is written here; nothing is left over from the previous level.
      */
     public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
                      List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
-                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName) {
+                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName,
+                     boolean conveyor, int beltCapacity,
+                     int zoneMinX, int zoneMaxX, int zoneMinY, int zoneMaxY) {
         clearTransientState();
         this.seedPool = List.copyOf(seedPool);
         this.maxSeedSlots = Math.max(0, maxSeedSlots);
@@ -119,6 +134,12 @@ public final class ClientLevel {
         this.levelId = levelId;
         this.width = width;
         this.height = height;
+        this.conveyor = conveyor;
+        this.beltCapacity = Math.max(0, beltCapacity);
+        this.zoneMinX = zoneMinX;
+        this.zoneMaxX = zoneMaxX;
+        this.zoneMinY = zoneMinY;
+        this.zoneMaxY = zoneMaxY;
         this.scene = SceneGrid.create(width, height, PvzceIds.GRASS.toString());
         applyScene(sceneCells);
         synchronized (this.slots) {
@@ -158,6 +179,12 @@ public final class ClientLevel {
         previewZombies = List.of();
         scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
         initialized = false;
+        conveyor = false;
+        beltCapacity = 0;
+        zoneMinX = 0;
+        zoneMaxX = -1;
+        zoneMinY = 0;
+        zoneMaxY = -1;
         gameState = "running";
         winTeam = "";
         disconnectReason = "";
@@ -320,6 +347,50 @@ public final class ClientLevel {
             }
             slots.add(info);
         }
+    }
+
+    /**
+     * Replaces the whole bar.
+     *
+     * <p>What a conveyor belt needs and an upsert cannot say: a card that has been spent
+     * is gone, and a bar built by upserts would keep showing it as usable forever.
+     */
+    public void replaceSlots(List<SlotInfo> newSlots) {
+        synchronized (slots) {
+            slots.clear();
+            slots.addAll(newSlots);
+        }
+    }
+
+    /** True when this level's bar is a conveyor belt rather than a deck. */
+    public boolean conveyor() {
+        return conveyor;
+    }
+
+    /** How many cards the belt can hold; the strip is drawn this wide. */
+    public int beltCapacity() {
+        return beltCapacity;
+    }
+
+    public int zoneMinX() {
+        return zoneMinX;
+    }
+
+    public int zoneMaxX() {
+        return zoneMaxX;
+    }
+
+    public int zoneMinY() {
+        return zoneMinY;
+    }
+
+    public int zoneMaxY() {
+        return zoneMaxY;
+    }
+
+    /** True when this cell is inside the level's plantable area. */
+    public boolean inPlacementZone(int x, int y) {
+        return x >= zoneMinX && x <= zoneMaxX && y >= zoneMinY && y <= zoneMaxY;
     }
 
     /** Balance of one resource for one team. */

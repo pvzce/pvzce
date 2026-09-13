@@ -93,7 +93,8 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
      */
     public record LevelInfo(String id, String name, String description, String winTeam,
                             List<TeamInfo> teams, String status, String icon, String theme,
-                            String category, LevelPayload payload, UnlockInfo unlock) {
+                            String category, boolean runningSave, LevelPayload payload,
+                            UnlockInfo unlock) {
         /** A resumable save exists for this level in the world the list was asked for. */
         public static final String IN_PROGRESS = "in_progress";
         /** Finished at least once and no resumable save is left. */
@@ -108,21 +109,22 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
                 .field(LevelInfo::icon, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .field(LevelInfo::theme, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .field(LevelInfo::category, PacketByteBuf::writeString, PacketByteBuf::readString)
+                .field(LevelInfo::runningSave, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
                 .list(LevelInfo::teams, TeamInfo::encode, TeamInfo::decode)
                 .nested(LevelInfo::payload, LevelPayload.CODEC)
                 .nested(LevelInfo::unlock, UnlockInfo.CODEC)
                 .build(values -> new LevelInfo((String) values.get(0), (String) values.get(1),
                         (String) values.get(2), (String) values.get(3),
-                        (List<TeamInfo>) values.get(8), (String) values.get(4), (String) values.get(5),
-                        (String) values.get(6), (String) values.get(7),
-                        (LevelPayload) values.get(9), (UnlockInfo) values.get(10)));
+                        (List<TeamInfo>) values.get(9), (String) values.get(4), (String) values.get(5),
+                        (String) values.get(6), (String) values.get(7), (Boolean) values.get(8),
+                        (LevelPayload) values.get(10), (UnlockInfo) values.get(11)));
 
         public static LevelInfo of(String id, String name, String description, String winTeam,
                                    List<TeamInfo> teams, String status, String icon,
-                                   String theme, String category, LevelPayload payload,
-                                   UnlockInfo unlock) {
+                                   String theme, String category, boolean runningSave,
+                                   LevelPayload payload, UnlockInfo unlock) {
             return new LevelInfo(id, name, description, winTeam, teams, status, icon, theme,
-                    category, payload, unlock);
+                    category, runningSave, payload, unlock);
         }
 
         /** True when the player may enter this level yet. */
@@ -143,9 +145,17 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
          * already has a card bar and a team, so it must not be sent through the pre-game
          * screens. One method because the level list, the level setup screen and the tests
          * all have to agree on what "already has progress" means.
+         *
+         * <p>This is its own field, and deliberately not derived from {@link #status}:
+         * "cleared at least once" and "a run is waiting to be resumed" are two independent
+         * facts, and a level is often both. Reading the save out of the status string made
+         * the two collide - a cleared level with an abandoned replay reported
+         * {@code completed}, so the entry decision saw no save, opened the seed chooser, and
+         * the player only learned about the abandoned run from the restart dialog that
+         * popped up after submitting their cards.
          */
         public boolean hasRunningSave() {
-            return IN_PROGRESS.equals(status);
+            return runningSave;
         }
 
         public int width() {

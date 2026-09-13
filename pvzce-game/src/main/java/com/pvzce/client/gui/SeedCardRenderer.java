@@ -88,13 +88,19 @@ public final class SeedCardRenderer {
                 y + height * ICON_AREA_BOTTOM + (iconArea - iconHeight) / 2F,
                 iconWidth, iconHeight, 0.3F, brightness, brightness, brightness, alpha);
 
+        // A conveyor card is handed to the player rather than bought, so it prints no
+        // price at all - "0" would read as a price that happened to be free.
         String label = model.kind() == CardKind.RESOURCE
                 ? COLLECT_LABEL
-                : String.valueOf(Math.max(0, model.costSun()));
-        float labelScale = Math.max(0.4F, Math.min(0.78F, width / 90F));
-        float ink = 0.03F + 0.20F * brightness;
-        client.font().draw(label, x + (width - client.font().width(label, labelScale)) / 2F,
-                y + height * LABEL_BOTTOM, labelScale, ink, ink * 0.62F, ink * 0.22F, alpha);
+                : model.costSun() == com.pvzce.common.network.packet.SlotInfo.NO_PRICE
+                        ? ""
+                        : String.valueOf(Math.max(0, model.costSun()));
+        if (!label.isEmpty()) {
+            float labelScale = Math.max(0.4F, Math.min(0.78F, width / 90F));
+            float ink = 0.03F + 0.20F * brightness;
+            client.font().draw(label, x + (width - client.font().width(label, labelScale)) / 2F,
+                    y + height * LABEL_BOTTOM, labelScale, ink, ink * 0.62F, ink * 0.22F, alpha);
+        }
 
         if (!model.ready()) {
             client.drawSolid(x, y, width, height, 0.3F, 0.1F, 0.1F, 0.1F, 0.45F);

@@ -9,6 +9,7 @@ import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
+import com.pvzce.common.network.packet.BeltSyncS2C;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
@@ -105,7 +106,7 @@ class PacketProtocolTest {
                         "pvzce:zombie_team", "僵尸方", PvzcePackets.PROTOCOL_VERSION),
                 new LevelListS2C(List.of(LevelListS2C.LevelInfo.of("pvzce:yard/adventure/level_1", "第一关", "描述",
                         "pvzce:plant_team", teams, "in_progress", "day",
-                        "pvzce:yard", "pvzce:adventure", payload,
+                        "pvzce:yard", "pvzce:adventure", true, payload,
                         // A locked row, so the sample set covers the unlock fields too.
                         new LevelListS2C.UnlockInfo(false, true, 500, "通关 1_1",
                                 List.of(com.pvzce.api.content.LevelUnlock.Requirement.level(
@@ -145,7 +146,12 @@ class PacketProtocolTest {
                 // Non-default values: an empty unlock list or zero coins would hide a
                 // writer/reader swap in either column.
                 new ProfileS2C(350, List.of("pvzce:pea_shooter", "pvzce:sunflower", "pvzce:shovel"), false),
-                new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower"));
+                new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower"),
+                // A belt card has no price (SlotInfo.NO_PRICE), which is the value a
+                // writer/reader swap on costSun would silently turn into a real one.
+                new BeltSyncS2C(List.of(
+                        new SlotInfo(4, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true),
+                        new SlotInfo(5, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true))));
     }
 
     /**

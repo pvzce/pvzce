@@ -16,7 +16,8 @@ import java.util.List;
  */
 public record LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
                            List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
-                           List<String> lockedSlots) {
+                           List<String> lockedSlots, boolean conveyor, int beltCapacity,
+                           int zoneMinX, int zoneMaxX, int zoneMinY, int zoneMaxY) {
     public LevelPayload {
         seedPool = List.copyOf(seedPool);
         previewZombies = List.copyOf(previewZombies);
@@ -27,7 +28,31 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
     /** A payload with nothing fixed in the player's bar. */
     public LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
                         List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells) {
-        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, List.of());
+        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, List.of(),
+                false, 0, 0, width - 1, 0, height - 1);
+    }
+
+    public LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
+                        List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
+                        List<String> lockedSlots) {
+        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, lockedSlots,
+                false, 0, 0, width - 1, 0, height - 1);
+    }
+
+    /**
+     * True when the card bar is a conveyor belt.
+     *
+     * <p>Sent rather than read from the local level definition: the client does load the
+     * same data packs, but which bar the server is actually running is server state, and
+     * the belt's contents already travel separately.
+     */
+    public boolean isConveyor() {
+        return conveyor;
+    }
+
+    /** True when the whole board is plantable, i.e. there is no boundary to draw. */
+    public boolean zoneIsWholeBoard() {
+        return zoneMinX <= 0 && zoneMinY <= 0 && zoneMaxX >= width - 1 && zoneMaxY >= height - 1;
     }
 
     public static final PacketStruct.Codec<LevelPayload> CODEC = PacketStruct.<LevelPayload>builder()
@@ -38,10 +63,18 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
             .stringList(LevelPayload::previewZombies)
             .list(LevelPayload::sceneCells, SceneSyncS2C.Cell::encode, SceneSyncS2C.Cell::decode)
             .stringList(LevelPayload::lockedSlots)
+            .field(LevelPayload::conveyor, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+            .field(LevelPayload::beltCapacity, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .field(LevelPayload::zoneMinX, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .field(LevelPayload::zoneMaxX, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .field(LevelPayload::zoneMinY, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .field(LevelPayload::zoneMaxY, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .build(values -> new LevelPayload((Integer) values.get(0), (Integer) values.get(1),
                     (List<SeedOption>) values.get(2), (Integer) values.get(3),
                     (List<String>) values.get(4), (List<SceneSyncS2C.Cell>) values.get(5),
-                    (List<String>) values.get(6)));
+                    (List<String>) values.get(6), (Boolean) values.get(7), (Integer) values.get(8),
+                    (Integer) values.get(9), (Integer) values.get(10), (Integer) values.get(11),
+                    (Integer) values.get(12)));
 
     public void encode(PacketByteBuf buf) {
         CODEC.encode(this, buf);

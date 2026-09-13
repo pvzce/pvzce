@@ -56,6 +56,24 @@ public final class LevelValidator {
      */
     public static List<String> validateSeedSelection(LevelDef def) {
         List<String> errors = new ArrayList<>();
+        if (def.hasConveyor()) {
+            // A belt level's cards are the belt's, so "no cards" is not a problem - but a
+            // belt *and* a fixed deck is, because two answers to "what is in the bar" is
+            // one answer too many.
+            if (!def.slots().isEmpty()) {
+                errors.add("This level has a conveyor belt and also lists " + def.slots().size()
+                        + " level cards: the belt replaces the card bar, so the listed cards are never granted");
+            }
+            errors.addAll(def.belt().map(com.pvzce.api.content.LevelBelt::validate).orElse(List.of()));
+            for (com.pvzce.api.content.LevelBelt.BeltCard card : def.belt().map(
+                    com.pvzce.api.content.LevelBelt::cards).orElse(List.of())) {
+                if (card.card() != null && SlotResolver.resolve(card.card()).isEmpty()) {
+                    errors.add("Unknown conveyor card '" + card.card()
+                            + "': no slot, plant, tool or resource with that id");
+                }
+            }
+            return errors;
+        }
         if (def.slots().isEmpty()) {
             errors.add("This level has no cards, so the player enters with an empty card bar");
             return errors;
@@ -66,6 +84,16 @@ public final class LevelValidator {
             }
         }
         return errors;
+    }
+
+    /**
+     * Reports a plantable area that no cell can satisfy.
+     *
+     * <p>The zone is enforced by refusing placement, so a zone outside the board would
+     * present as "the level will not let me plant anywhere" with nothing else to go on.
+     */
+    public static List<String> validatePlacementZone(LevelDef def) {
+        return def.placementZone().validate(def.width(), def.height());
     }
 
     /**
@@ -92,6 +120,100 @@ public final class LevelValidator {
         if (rewards.coinDropChance() > 0F && rewards.coinDropAmount() <= 0) {
             errors.add("rewards.coin_drop_chance is " + rewards.coinDropChance()
                     + " but coin_drop_amount is 0, so no zombie will ever drop a coin");
+        }
+        return errors;
+    }
+
+    /**
+     * Reports an opening dialogue the game could not present as written.
+     *
+     * <p>Three failures read as "the character said nothing" in game and point nowhere:
+     * an unknown character id (no portrait, no name), a misspelt {@code side} (it decodes
+     * into {@link com.pvzce.api.content.DialogueLine.Side#UNKNOWN} rather than failing the
+     * level, exactly like a misspelt reward {@code type}), and a line with no text at all.
+     * A portrait name that is not a valid identifier path is reported too: it would
+     * resolve to no file, and the path is what keeps {@code ../} out of the texture lookup.
+     */
+    public static List<String> validateDialogue(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        if (def.dialogue() == null) {
+            return errors;
+        }
+        List<com.pvzce.api.content.DialogueLine> lines = def.dialogue().lines();
+        for (int i = 0; i < lines.size(); i++) {
+            com.pvzce.api.content.DialogueLine line = lines.get(i);
+            String where = "dialogue.lines[" + i + "]";
+            com.pvzce.api.content.DialogueCharacterDef character = line.character() == null
+                    ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(line.character());
+            if (character == null) {
+                errors.add(where + " names unknown character '" + line.character()
+                        + "': no portrait or name will be shown");
+            } else if (character.portraitTexture(line.portrait()) == null) {
+                if (!line.portrait().isBlank()) {
+                    errors.add(where + " names portrait '" + line.portrait()
+                            + "', which is not a valid file name");
+                }
+            }
+            if (line.side() == com.pvzce.api.content.DialogueLine.Side.UNKNOWN) {
+                errors.add(where + ".side is not 'left' or 'right', so the speaker is drawn on the left");
+            }
+            if (line.text() == null || line.text().isBlank()) {
+                errors.add(where + " has no text, so the player clicks through an empty bubble");
+            }
+        }
+        return errors;
+    }
+
+    /**
+     * Reports dialogue art that no loaded pack provides.
+     *
+     * <p>Separate from {@link #validateDialogue} because it needs the resource manager, and
+     * the level's own constructor has no business reading packs. Called once per reload by
+     * the server, which is where an author looks for "why is my character invisible".
+     */
+    public static List<String> validateDialogueAssets(LevelDef def,
+                                                      com.pvzce.common.resource.PvzceResourceManager resources) {
+        List<String> errors = new ArrayList<>();
+        if (def.dialogue() == null || resources == null) {
+            return errors;
+        }
+        List<com.pvzce.api.content.DialogueLine> lines = def.dialogue().lines();
+        for (int i = 0; i < lines.size(); i++) {
+            com.pvzce.api.content.DialogueLine line = lines.get(i);
+            com.pvzce.api.content.DialogueCharacterDef character = line.character() == null
+                    ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(line.character());
+            if (character == null) {
+                continue;
+            }
+            String where = "dialogue.lines[" + i + "]";
+            Identifier portrait = character.portraitTexture(line.portrait());
+            if (portrait != null && !resources.hasTexture(portrait)) {
+                errors.add(where + " portrait '" + portrait + "' is not in any loaded resource pack");
+            }
+            Identifier box = character.box(!line.side().isRight());
+            if (!resources.hasTexture(box)) {
+                errors.add("Character '" + character.id() + "' speech bubble '" + box
+                        + "' is not in any loaded resource pack");
+            }
+        }
+        return errors;
+    }
+
+    /** Every loaded level's dialogue problems, for the reload report. */
+    public static List<String> validateAllDialogues(
+            com.pvzce.common.resource.PvzceResourceManager resources) {
+        List<String> errors = new ArrayList<>();
+        for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(id);
+            if (def == null) {
+                continue;
+            }
+            for (String problem : validateDialogue(def)) {
+                errors.add(id + ": " + problem);
+            }
+            for (String problem : validateDialogueAssets(def, resources)) {
+                errors.add(id + ": " + problem);
+            }
         }
         return errors;
     }

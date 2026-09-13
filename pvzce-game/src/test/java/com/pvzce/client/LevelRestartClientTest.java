@@ -239,7 +239,7 @@ class LevelRestartClientTest {
                 List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
         return LevelListS2C.LevelInfo.of(levelId, "第一关", "描述", "pvzce:plant_team",
                 List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves")),
-                "in_progress", "day", "pvzce:yard", "pvzce:adventure", payload,
+                "in_progress", "day", "pvzce:yard", "pvzce:adventure", true, payload,
                 LevelListS2C.UnlockInfo.OPEN);
     }
 

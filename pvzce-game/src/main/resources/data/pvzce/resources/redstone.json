@@ -7,5 +7,6 @@
   "max_stack": 9990,
   "collectible_without_card": false,
   "texture": "pvzce:textures/entities/resource/redstone",
-  "drop_motion": "landed"
+  "drop_motion": "landed",
+  "pickup_effect": "pvzce:lantern_shine"
 }

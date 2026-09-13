@@ -259,11 +259,17 @@ public final class AnimationManager {
      * 0.56 cells wide, which is what made it look like a speck no matter what the visual
      * table said.
      *
-     * <p>One factor for both axes, taken from the art's <em>larger</em> dimension, so the
-     * shape the art drew is the shape the lawn shows: the sun is a circle and the silver
-     * coin is a circle, while the gold coin's model is slightly taller than it is wide and
-     * has to stay that way. Fitting each axis to the same target instead squashed the
-     * gold coin and stretched the sun.
+     * <p>One factor, taken from the art's <em>larger</em> dimension, so the shape the art
+     * drew is the shape the lawn shows.
+     *
+     * <p><strong>It is applied to the horizontal axis only</strong> (see
+     * {@link #xScaleFor}), and an animated drop takes its <em>height</em> from the art as
+     * authored. That makes the contract for drop art: <em>a drop is drawn
+     * {@code 0.8 * render_scale} cells wide and as many cells tall as its model says</em>,
+     * so a drop that should be round has to be authored square at exactly that width. The
+     * coins are (see {@code animations/resource/coin_*.json}); before they were, setting
+     * {@code render_scale} made them narrower without making them smaller, and the height
+     * the player judged the size by never moved at all.
      *
      * <p>Capped at 3x so a badly scaled animation file cannot fill the lawn by accident.
      */

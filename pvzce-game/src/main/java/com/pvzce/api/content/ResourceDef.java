@@ -17,12 +17,26 @@ import java.util.Optional;
  *
  * <p>{@code drop_motion} says how a drop arrives in the world, because the resources
  * do not all arrive the same way: sun falls from the sky, a sunflower's sun pops out
- * of the flower and settles, and coins are simply lying there.
+ * of the flower and settles, and coins burst out of the zombie that dropped them and
+ * scatter. {@code rise_height} and {@code rise_scatter} tune that burst - how high it
+ * goes and how far sideways it may be thrown.
  *
  * <p>{@code render_scale} is presentation only: the client draws this resource's art
  * {@code render_scale} times bigger (or smaller) than the size the art itself
  * declares. It changes nothing about hit boxes, collection radius or anything the
  * server simulates. See {@link ContentDefs#renderScale}.
+ *
+ * <p>{@code pickup_effect} is the effect this resource leaves behind when the player
+ * picks it up, and it is per resource because a sun and a coin are not the same
+ * pickup: the sun is the resource the whole game is played with and gets a flash to
+ * match, while a coin is small change that should not wash the lawn in light. A
+ * resource that declares nothing gets no effect at all - the collect sound and the
+ * fly-to-bank animation are already the feedback.
+ *
+ * <p>{@code pickup_sound} is the same idea for the ear, and it exists for the same
+ * reason: collecting a coin used to play the sun's chime, so a bowling combo - which
+ * drops a coin per ricochet - sounded like a shower of sun. Coins ring; the sun keeps
+ * the collect sound it always had.
  */
 public record ResourceDef(
         Identifier id,
@@ -35,8 +49,15 @@ public record ResourceDef(
         AnimationBindings animations,
         Optional<Identifier> texture,
         DropMotion dropMotion,
-        float renderScale
+        float renderScale,
+        Optional<Identifier> pickupEffect,
+        Identifier pickupSound,
+        float riseHeight,
+        float riseScatter
 ) {
+    /** The chime a collected resource plays unless it names its own. */
+    public static final Identifier DEFAULT_PICKUP_SOUND =
+            com.pvzce.common.PvzceSounds.UI_COLLECT;
     /**
      * How a drop gets from "spawned" to "on the ground".
      *
@@ -55,13 +76,22 @@ public record ResourceDef(
 
     /** How far a {@link DropMotion#RISE} drop floats up before settling, in cells. */
     public static final float RISE_HEIGHT = 0.5F;
+    /**
+     * How far sideways a {@link DropMotion#RISE} drop may be thrown, in cells.
+     *
+     * <p>Zero by default: a sunflower's sun belongs to the flower it came out of and settles
+     * back onto it. A coin is the opposite case - several of them burst out of one zombie at
+     * once, and a stack of identical arcs reads as one object copying itself, so they scatter.
+     */
+    public static final float DEFAULT_RISE_SCATTER = 0F;
     /** How long a {@link DropMotion#RISE} drop takes to the top, in ticks. */
     public static final int RISE_TICKS = 24;
     /** A resource that is only ever an icon: no animation, no separate sprite. */
     public ResourceDef(Identifier id, int defaultValue, boolean collectible, Identifier icon,
                        Identifier dropAnim, int maxStack, boolean collectibleWithoutCard) {
         this(id, defaultValue, collectible, icon, dropAnim, maxStack, collectibleWithoutCard,
-                AnimationBindings.EMPTY, Optional.empty(), DropMotion.FALL, ContentDefs.DEFAULT_RENDER_SCALE);
+                AnimationBindings.EMPTY, Optional.empty(), DropMotion.FALL, ContentDefs.DEFAULT_RENDER_SCALE,
+                Optional.empty(), DEFAULT_PICKUP_SOUND, RISE_HEIGHT, DEFAULT_RISE_SCATTER);
     }
 
     public static final Codec<ResourceDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -77,7 +107,13 @@ public record ResourceDef(
             Codec.STRING.optionalFieldOf("drop_motion", "fall")
                     .xmap(ResourceDef::parseMotion, motion -> motion.name().toLowerCase(java.util.Locale.ROOT))
                     .forGetter(ResourceDef::dropMotion),
-            ContentDefs.RENDER_SCALE_CODEC.forGetter(ResourceDef::renderScale)
+            ContentDefs.RENDER_SCALE_CODEC.forGetter(ResourceDef::renderScale),
+            Identifier.CODEC.optionalFieldOf("pickup_effect").forGetter(ResourceDef::pickupEffect),
+            Identifier.CODEC.optionalFieldOf("pickup_sound", DEFAULT_PICKUP_SOUND)
+                    .forGetter(ResourceDef::pickupSound),
+            Codec.FLOAT.optionalFieldOf("rise_height", RISE_HEIGHT).forGetter(ResourceDef::riseHeight),
+            Codec.FLOAT.optionalFieldOf("rise_scatter", DEFAULT_RISE_SCATTER)
+                    .forGetter(ResourceDef::riseScatter)
     ).apply(i, ResourceDef::new));
 
     /**

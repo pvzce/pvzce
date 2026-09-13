@@ -108,15 +108,12 @@ public final class PvzceCommands {
         // Everything ``LevelServer.spawnEntity`` accepts. ``resource`` was missing, so
         // ``/spawn resource ...`` parsed as far as the literal and then failed with
         // "unknown command at position 5" - which reads like a typo in the command name
-        // rather than an unsupported kind.
+        // rather than an unsupported kind. The list is exactly the kind constants now that
+        // the resource one is spelled "resource" instead of "sun".
         return argument(name, EnumArgumentType.of(
                 com.pvzce.api.entity.EntityKind.PLANT,
                 com.pvzce.api.entity.EntityKind.ZOMBIE,
                 com.pvzce.api.entity.EntityKind.PROJECTILE,
-                // The kind constant is "sun" - it names the thing the player sees - but the
-                // argument is positional, so the systematic word has to come first for
-                // "/spawn resource <id>" to be what the completion offers.
-                "resource",
                 com.pvzce.api.entity.EntityKind.RESOURCE));
     }
 

@@ -204,7 +204,8 @@ class WaveAnnouncementTest {
         assertTrue(produced.landed());
         assertEquals(0F, produced.height(), 0.0001F);
 
-        // A coin, by contrast, is on the ground the moment it appears.
+        // A coin bursts out of whatever dropped it instead: a short pop that is thrown a
+        // little to one side, so a fistful of them does not stack up as one arc copied.
         serverLevel.spawnResource(com.pvzce.common.PvzceIds.COIN_SILVER, 10, 2F, 0F, team);
         serverLevel.flushPending(bridge);
         com.pvzce.server.entity.ResourceDropEntity coin = serverLevel.entities().stream()
@@ -212,7 +213,20 @@ class WaveAnnouncementTest {
                 .map(com.pvzce.server.entity.ResourceDropEntity.class::cast)
                 .filter(drop -> drop.def().id().equals(com.pvzce.common.PvzceIds.COIN_SILVER))
                 .findFirst().orElseThrow();
-        assertTrue(coin.landed(), "a coin does not fall out of the sky");
+        assertFalse(coin.landed(), "a coin pops before it settles");
+        float spawnX = coin.cellX();
+        assertTrue(coin.def().riseHeight() < ResourceDef.RISE_HEIGHT,
+                "a coin pops lower than the sun a sunflower makes");
+
+        float coinPeak = 0F;
+        for (int i = 0; i < ResourceDef.RISE_TICKS * 2 + 4; i++) {
+            serverLevel.tick(bridge);
+            coinPeak = Math.max(coinPeak, coin.height());
+        }
+        assertTrue(coin.landed(), "the pop ends on the ground");
         assertEquals(0F, coin.height(), 0.0001F);
+        assertTrue(coinPeak > 0.1F, "it has to leave the ground, peaked at " + coinPeak);
+        assertTrue(Math.abs(coin.cellX() - spawnX) <= coin.def().riseScatter() + 0.0001F,
+                "the sideways throw stays inside rise_scatter");
     }
 }

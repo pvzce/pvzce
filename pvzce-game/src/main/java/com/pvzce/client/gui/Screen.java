@@ -291,7 +291,15 @@ public abstract class Screen {
     protected void onMouseMoved(double guiX, double guiY) {
     }
 
-    public void mouseReleased(double mouseX, double mouseY, int button) {
+    /**
+     * A button coming back up, on logical GUI coordinates.
+     *
+     * <p>{@code final} for the same reason as {@link #mouseClicked}: the modal dispatch below
+     * is what keeps a dialog owning the mouse, and a subclass that overrode this would have
+     * to remember to repeat it. Screens handle their own release in
+     * {@link #onMouseReleased}.
+     */
+    public final void mouseReleased(double mouseX, double mouseY, int button) {
         double guiX = client.guiMouseX(mouseX);
         double guiY = client.guiMouseY(mouseY);
         Dialog modal = modalDialog();
@@ -302,9 +310,21 @@ public abstract class Screen {
         for (AbstractWidget widget : widgets) {
             widget.mouseReleased(guiX, guiY, button);
         }
+        onMouseReleased(guiX, guiY, button);
     }
 
-    public void mouseDragged(double mouseX, double mouseY, int button) {
+    /** Screen-specific button release, called only when no modal dialog is open. */
+    protected void onMouseReleased(double guiX, double guiY, int button) {
+    }
+
+    /**
+     * The cursor moving with a button held, on logical GUI coordinates.
+     *
+     * <p>Sent every frame while the button is down (see {@code PvzceClient.pollInput}), which
+     * is what makes drag interactions possible at all: sweeping over pickups, or carrying a
+     * card from the bar to a cell.
+     */
+    public final void mouseDragged(double mouseX, double mouseY, int button) {
         double guiX = client.guiMouseX(mouseX);
         double guiY = client.guiMouseY(mouseY);
         Dialog modal = modalDialog();
@@ -315,6 +335,11 @@ public abstract class Screen {
         for (AbstractWidget widget : widgets) {
             widget.mouseDragged(guiX, guiY, button);
         }
+        onMouseDragged(guiX, guiY, button);
+    }
+
+    /** Screen-specific drag handling, called only when no modal dialog is open. */
+    protected void onMouseDragged(double guiX, double guiY, int button) {
     }
 
     public final void mouseScrolled(double mouseX, double mouseY, double amount) {
@@ -382,7 +407,11 @@ public abstract class Screen {
         for (Dialog dialog : open) {
             dialog.onResize(client.guiWidth(), client.guiHeight());
             wireFocus(dialog);
-            widgets.add(dialog);
+            // A dialog that lives in a field and is (re-)added by init() is already back in
+            // the list; adding it again would draw it twice and keep one copy per resize.
+            if (!widgets.contains(dialog)) {
+                widgets.add(dialog);
+            }
         }
     }
 

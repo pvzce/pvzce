@@ -14,7 +14,7 @@
       "fuse_ticks": 900,
       "radius": 0.55,
       "damage": 1800,
-      "trigger_range": 0.6
+      "trigger_range": 0.5
     }
   ],
   "sounds": {

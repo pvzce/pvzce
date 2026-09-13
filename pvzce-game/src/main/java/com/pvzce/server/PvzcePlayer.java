@@ -25,12 +25,36 @@ public final class PvzcePlayer {
         slots.add(slot);
     }
 
+    /**
+     * Replaces the whole bar.
+     *
+     * <p>Conveyor levels rebuild their bar whenever the belt changes: a belt card exists
+     * only while it is on the belt, so there is no deck to tick cooldowns down on.
+     */
+    public void replaceSlots(List<Slot> newSlots) {
+        slots.clear();
+        slots.addAll(newSlots);
+    }
+
     public List<Slot> slots() {
         return Collections.unmodifiableList(slots);
     }
 
+    /**
+     * The card with this index, or {@code null}.
+     *
+     * <p>Matched against {@link Slot#index()} rather than used as a list position. For an
+     * ordinary bar the two are the same thing, but a belt hands out one id per card, so a
+     * click that raced the belt names a card rather than a place in the queue - and either
+     * finds that card or is refused, instead of spending whichever card slid into the slot.
+     */
     public Slot slot(int index) {
-        return index >= 0 && index < slots.size() ? slots.get(index) : null;
+        for (Slot slot : slots) {
+            if (slot.index() == index) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     /** Builds the plant player's card bar from the level's default slot list. */

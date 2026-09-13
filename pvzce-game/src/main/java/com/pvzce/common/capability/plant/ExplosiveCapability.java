@@ -139,7 +139,19 @@ public final class ExplosiveCapability implements PlantCapability {
 
     private void detonate(PlantEntity plant, LevelAccess level) {
         plant.setAnimation(EntityAnimations.EXPLODE);
-        level.damageArea(plant.cellX(), plant.cellY(), Math.max(MIN_RADIUS, radius), damage, plant.team());
+        // The blast has to cover whatever set it off. A proximity mine triggers on
+        // "a zombie is within trigger_range", so a mine whose radius is smaller than its
+        // trigger range detonates while the zombie is still outside the blast - which is
+        // exactly the potato mine's shipped data (radius 0.55, trigger_range 0.6) and made
+        // every detonation a guaranteed miss: a zombie walks 0.003 cells per tick, so the
+        // first tick inside the trigger zone leaves it at ~0.599, just past the 0.55 blast.
+        // The two values are still authored separately (a mine may want a wider blast), but
+        // the blast can never be narrower than the zone that armed it.
+        float blastRadius = Math.max(MIN_RADIUS, radius);
+        if (trigger == Trigger.PROXIMITY) {
+            blastRadius = Math.max(blastRadius, triggerRange);
+        }
+        level.damageArea(plant.cellX(), plant.cellY(), blastRadius, damage, plant.team());
         level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));
         plant.remove();

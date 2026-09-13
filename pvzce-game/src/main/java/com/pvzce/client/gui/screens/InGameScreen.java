@@ -10,8 +10,11 @@ import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.util.MathUtil;
+import com.pvzce.api.content.DialogueLine;
 import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.components.DialogueOverlay;
 import com.pvzce.client.gui.components.Dialog;
+import com.pvzce.client.gui.components.NinePatch;
 import com.pvzce.client.renderer.PvzceCamera;
 import com.pvzce.client.renderer.LevelStage;
 import com.pvzce.client.renderer.SceneTileRenderer;
@@ -43,6 +46,47 @@ public final class InGameScreen extends Screen {
     private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin_gold");
     /** The original's money-bag bank; drawn at 128x31 natively. */
     private static final Identifier COIN_BANK = Identifier.withDefaultNamespace("textures/gui/award/coin_bank");
+    /** Conveyor-belt levels: the tray that frames the belt, and the tread surface inside it. */
+    private static final Identifier BELT_BACKDROP =
+            Identifier.withDefaultNamespace("textures/gui/hud/conveyor_belt_backdrop");
+    private static final Identifier BELT_TREADS = Identifier.withDefaultNamespace("textures/gui/hud/conveyor_belt");
+    /** Native size of the tray frame, for slicing it without stretching the bevel. */
+    private static final float BELT_BACKDROP_WIDTH = 516F;
+    private static final float BELT_BACKDROP_HEIGHT = 86F;
+    /**
+     * How much of the tray the frame takes, in GUI pixels.
+     *
+     * <p>Drawn at the art's own proportions rather than scaled: the belt tray is much smaller
+     * than the 516-pixel original, so a proportional frame would be a hairline. These widths
+     * are what makes the bevel read at this size, and they are also the inset the tread
+     * surface is clipped to - the belt sits <em>inside</em> the frame instead of covering it.
+     */
+    private static final float BELT_FRAME_X = 6F;
+    private static final float BELT_FRAME_Y = 4F;
+    /**
+     * The slice of the belt art that repeats, and its aspect (498x96).
+     *
+     * <p>The treads are periodic every six pixels <em>inside</em> a one-pixel border, so
+     * tiling the whole 502-pixel image would scroll a two-pixel seam past the player every few
+     * seconds. Sampling only the repeating middle makes the scroll seamless.
+     */
+    private static final float BELT_U0 = 1F / 502F;
+    private static final float BELT_U1 = 499F / 502F;
+    private static final float BELT_TILE_ASPECT = 498F / 96F;
+    /**
+     * How fast the belt - and the cards on it - travel left, in GUI pixels per second.
+     *
+     * <p>One number for both, because they are one surface: the treads scroll under the
+     * cards, so a card that moved at a different speed from the belt it is standing on would
+     * look like it was sliding on ice.
+     */
+    private static final float BELT_SPEED = 70F;
+    /** Inner padding of the belt tray, so the cards sit on it rather than cover it. */
+    private static final float BELT_PADDING = 8F;
+    /** Gap between the top of the window and the belt tray. */
+    private static final int BELT_TOP_MARGIN = 6;
+    /** Smallest belt card, in GUI pixels; below this the icon stops being readable. */
+    private static final int BELT_MIN_CARD_HEIGHT = 34;
     /** The original's flag meter: the track (top half) and the green fill (bottom half). */
     private static final Identifier FLAG_METER = Identifier.withDefaultNamespace("textures/gui/hud/flag_meter");
     /** Zombie head, pole and flag, on one 75x25 sheet. */
@@ -153,8 +197,19 @@ public final class InGameScreen extends Screen {
      * {@link #playEffectSound}.
      */
     private final java.util.Map<String, Long> announcementsPlayed = new java.util.HashMap<>();
-    /** When this level screen appeared; drives the entry banner's fade. */
-    private final long entryNanos = System.nanoTime();
+    /**
+     * When the level was handed to the player; drives the entry banner's fade.
+     *
+     * <p>Zero while the opening dialogue is still up: "准备… 安放… 种植！" is the moment
+     * play starts, so it cannot have faded away behind a conversation. A level without a
+     * dialogue sets this the instant its screen appears, which is what it always did.
+     */
+    private long entryNanos;
+    /** The level's opening conversation, or {@code null} when it has none. */
+    private DialogueOverlay dialogue;
+    /** True while this screen is holding the server paused for a dialogue. */
+    private boolean dialogueHoldsPause;
+    private final List<DialogueLine> openingDialogue;
     /** Last coin count the HUD noticed, and when it last changed. */
     private int seenCoins = -1;
     private long coinBankNanos;
@@ -176,6 +231,33 @@ public final class InGameScreen extends Screen {
 
     private int cardScrollOffset;
     private int cardMaxScroll;
+    /**
+     * The card a press picked up, or {@code -1}.
+     *
+     * <p>Set on the press and read on the release, so a card can be dragged from the bar to
+     * a cell. It is deliberately separate from {@link #selectedCard}: a click that selects a
+     * card and lets go without leaving the bar is the old gesture and must keep working.
+     */
+    private int draggingCard = -1;
+    /** True while the button is held on the board, so passing over a pickup collects it. */
+    private boolean sweeping;
+    /** The last drop a sweep asked for, so the same one is not requested every frame. */
+    private int lastSweptDropId = -1;
+    /** Width of the belt tray's card track, capacity cards wide; belt levels only. */
+    private float cardTrackWidth;
+    /**
+     * Where each belt card is drawn right now, in GUI pixels, by card id.
+     *
+     * <p>Cards ride the belt instead of appearing in their place: a new one enters at the
+     * right end and travels left to the end of the queue, and when the card in front of it is
+     * spent the rest drift forward into the gap. The position therefore belongs to the card
+     * (hence the id key) and lives on the client - the server's belt is a queue, and drawing
+     * it as one is presentation.
+     */
+    private final java.util.Map<Integer, Float> beltCardX = new java.util.HashMap<>();
+    /** Phase of the tread pattern; advances with {@link #BELT_SPEED}. */
+    private float beltScrollOffset;
+    private long beltAnimNanos;
     private int cardViewportX;
     private int cardViewportY;
     private int cardViewportWidth;
@@ -185,7 +267,21 @@ public final class InGameScreen extends Screen {
     private int cardGap = 4;
 
     public InGameScreen(PvzceClient client) {
+        this(client, List.of());
+    }
+
+    /**
+     * @param openingDialogue the level's opening conversation. A level entered directly -
+     *                        a conveyor level, which never shows the seed chooser - has no
+     *                        other screen to show it on, so it plays here, over the lawn,
+     *                        with the level paused until it is over. A level entered
+     *                        through the chooser passes an empty list: it has already
+     *                        been shown there, and replaying it here would say everything
+     *                        twice.
+     */
+    public InGameScreen(PvzceClient client, List<DialogueLine> openingDialogue) {
         super(client);
+        this.openingDialogue = List.copyOf(openingDialogue == null ? List.of() : openingDialogue);
     }
 
     @Override
@@ -211,6 +307,37 @@ public final class InGameScreen extends Screen {
             client.connection().send(new PauseGameC2S(true));
         }
         addWidget(pauseDialog);
+        // Added last so the dialogue is drawn over the HUD, and as a modal so it - not the
+        // pause/speed buttons - receives the clicks that advance it. Built once and
+        // re-attached on a resize, so a resize mid-conversation does not start it over.
+        if (dialogue == null) {
+            dialogue = DialogueOverlay.create(client, openingDialogue, this::onDialogueFinished);
+        }
+        if (dialogue != null) {
+            showDialog(dialogue);
+            if (dialogue.isActive() && !dialogueHoldsPause) {
+                // The level is already running - the server is not waiting for anything -
+                // so a conversation over it would cost the player the ticks it takes to
+                // read. Freeze the level, not the client: the portrait and the bubble are
+                // drawn by the client and keep animating.
+                dialogueHoldsPause = true;
+                client.connection().send(new PauseGameC2S(true));
+            }
+        }
+        if ((dialogue == null || !dialogue.isActive()) && entryNanos == 0L) {
+            entryNanos = System.nanoTime();
+        }
+    }
+
+    /** The conversation is over: unpause and let the "准备… 安放… 种植！" banner play. */
+    private void onDialogueFinished() {
+        if (dialogueHoldsPause) {
+            dialogueHoldsPause = false;
+            client.connection().send(new PauseGameC2S(false));
+        }
+        if (entryNanos == 0L) {
+            entryNanos = System.nanoTime();
+        }
     }
 
     /**
@@ -415,6 +542,14 @@ public final class InGameScreen extends Screen {
             closePause();
         }
         tickReward();
+        if (client.level().conveyor()) {
+            // Advanced here rather than in render(): the click that picks a card is
+            // dispatched before this frame's render, and it has to hit the card where the
+            // player last saw it.
+            List<SlotInfo> beltSlots = visibleCardSlots();
+            updateCardLayout(beltSlots.size());
+            advanceBeltCards(beltSlots, System.nanoTime());
+        }
         if (speedButton != null) {
             speedButton.setLabel(speedLabel());
         }
@@ -469,10 +604,18 @@ public final class InGameScreen extends Screen {
         renderEntryBanner();
         renderSlots();
         renderCollectAnimations();
+        renderDraggedCard();
         renderEndOverlay();
         renderRewardDrop();
         if (client.level().gameState().equals("running")) {
+            boolean dialogueActive = dialogue != null && dialogue.isActive();
             for (var widget : widgets) {
+                if (dialogueActive && widget != dialogue) {
+                    // The card bar and the pause button are still there when the
+                    // conversation ends; drawing them under it would offer the player
+                    // controls the modal is already swallowing.
+                    continue;
+                }
                 widget.render(client);
             }
         }
@@ -512,13 +655,21 @@ public final class InGameScreen extends Screen {
             client.clipping().pop();
         }
 
+        renderPlacementBoundary(camera);
+
         if (selectedCard >= 0) {
             int hoverX = camera.cellX(client.window().cursorX(), client.window().cursorY());
             int hoverY = camera.cellY(client.window().cursorX(), client.window().cursorY());
             if (camera.inBoard(client.window().cursorX(), client.window().cursorY())
                     && hoverX >= 0 && hoverX < client.level().width()
                     && hoverY >= 0 && hoverY < client.level().height()) {
-                client.drawSolid(hoverX, hoverY, 1F, 1F, 0.2F, 1F, 1F, 0.2F, 0.25F);
+                // Green inside the plantable area, red outside it. The server is still the
+                // one that decides (terrain and stacking are not visible here), but a
+                // mini-game's red line is: a level that only accepts the left half must not
+                // look like it accepts a click it is going to refuse.
+                boolean allowed = client.level().inPlacementZone(hoverX, hoverY);
+                client.drawSolid(hoverX, hoverY, 1F, 1F, 0.2F,
+                        allowed ? 0.2F : 1F, allowed ? 1F : 0.2F, 0.2F, 0.25F);
             }
         }
 
@@ -538,6 +689,40 @@ public final class InGameScreen extends Screen {
 
     private static int renderOrder(ClientEntity entity) {
         return com.pvzce.client.renderer.EntityVisuals.sortBucket(entity.kind(), entity.layer());
+    }
+
+    /**
+     * Draws the level's red line: the edge of the plantable area, wherever the level
+     * restricted it.
+     *
+     * <p>Wall-nut Bowling paints it over ordinary grass, which is exactly why it is drawn
+     * rather than built out of tiles - the lawn under the line is still lawn. Drawn from the
+     * same bounds the server enforces, so the line cannot end up somewhere the rule is not.
+     */
+    private void renderPlacementBoundary(PvzceCamera camera) {
+        int width = client.level().width();
+        int height = client.level().height();
+        int minX = client.level().zoneMinX();
+        int maxX = client.level().zoneMaxX();
+        int minY = client.level().zoneMinY();
+        int maxY = client.level().zoneMaxY();
+        if (minX <= 0 && minY <= 0 && maxX >= width - 1 && maxY >= height - 1) {
+            return;
+        }
+        float lineWidth = 0.06F;
+        float z = 0.19F;
+        for (float x : new float[]{minX, maxX + 1F}) {
+            if (x <= 0F || x >= width) {
+                continue;
+            }
+            client.drawSolid(x - lineWidth / 2F, 0F, lineWidth, height, z, 0.85F, 0.05F, 0.05F, 0.75F);
+        }
+        for (float y : new float[]{minY, maxY + 1F}) {
+            if (y <= 0F || y >= height) {
+                continue;
+            }
+            client.drawSolid(0F, y - lineWidth / 2F, width, lineWidth, z, 0.85F, 0.05F, 0.05F, 0.75F);
+        }
     }
 
     /** Namespace-preserving sprite id; shared with the seed chooser and editor. */
@@ -644,6 +829,9 @@ public final class InGameScreen extends Screen {
      * on the wall clock and never blocks input.
      */
     private void renderEntryBanner() {
+        if (entryNanos == 0L) {
+            return;
+        }
         long elapsed = System.nanoTime() - entryNanos;
         if (elapsed >= ENTRY_BANNER_NANOS || !client.level().gameState().equals("running")) {
             return;
@@ -772,7 +960,20 @@ public final class InGameScreen extends Screen {
      * the server still uses the slot for resource-card validation.
      */
     private List<SlotInfo> visibleCardSlots() {
-        return orderCardSlots(client.level().slots());
+        List<SlotInfo> slots = client.level().slots();
+        if (client.level().conveyor()) {
+            // Belt order *is* the information: the card on the left has been waiting
+            // longest and is the one the next delivery will sit behind. The chooser's
+            // "resources, then plants, then tools" grouping would shuffle a queue.
+            List<SlotInfo> belt = new ArrayList<>();
+            for (SlotInfo slot : slots) {
+                if (!SUN_CARD_ID.equals(slot.defId())) {
+                    belt.add(slot);
+                }
+            }
+            return belt;
+        }
+        return orderCardSlots(slots);
     }
 
     /**
@@ -1003,6 +1204,10 @@ public final class InGameScreen extends Screen {
 
     private void renderSlots() {
         List<SlotInfo> slots = visibleCardSlots();
+        if (client.level().conveyor()) {
+            renderBelt(slots);
+            return;
+        }
         if (slots.isEmpty()) {
             return;
         }
@@ -1030,38 +1235,168 @@ public final class InGameScreen extends Screen {
         }
     }
 
+    /**
+     * A conveyor level's card bar: the original's tread surface at the top of the screen with
+     * the belt's cards riding on it.
+     *
+     * <p>Top rather than bottom because that is where the belt is in the original, and
+     * because the bottom of the screen in a belt level has nothing else to hold: there is no
+     * sun bank, no shovel bank and no seed chooser behind it.
+     */
+    private void renderBelt(List<SlotInfo> slots) {
+        updateCardLayout(slots.size());
+        long now = System.nanoTime();
+        advanceBeltCards(slots, now);
+
+        float trayX = cardViewportX - BELT_PADDING;
+        float trayY = cardViewportY - BELT_PADDING;
+        float trayWidth = cardTrackWidth;
+        float trayHeight = cardHeight + BELT_PADDING * 2F;
+
+        // Frame first, then the tread surface *inside* it: the tray is the original's moulding
+        // and the belt is what runs within it. Filling the whole tray with treads buried the
+        // frame, which is the one part that says "this is a belt and not a black box".
+        NinePatch.drawNineSlice(client, BELT_BACKDROP, trayX, trayY, trayWidth, trayHeight, 0.05F,
+                BELT_BACKDROP_WIDTH, BELT_BACKDROP_HEIGHT,
+                BELT_FRAME_X, BELT_FRAME_X, BELT_FRAME_Y, BELT_FRAME_Y, 1F, 1F, 1F, 1F);
+        float beltX = trayX + BELT_FRAME_X;
+        float beltY = trayY + BELT_FRAME_Y;
+        float beltWidth = Math.max(1F, trayWidth - BELT_FRAME_X * 2F);
+        float beltHeight = Math.max(1F, trayHeight - BELT_FRAME_Y * 2F);
+
+        // Clipped to the *inner* rectangle, not to the tray: the treads are tiled from a phase
+        // that does not land on the frame's edge, so the first and last tile stick out past the
+        // belt's ends and would paint over the tray's left and right moulding - the one part of
+        // the frame that the scrolling surface must not cover.
+        client.clipping().push((int) beltX, (int) beltY,
+                (int) Math.ceil(beltWidth), (int) Math.ceil(beltHeight));
+        try {
+            // The treads scroll left at the same speed the cards travel, so a card looks like
+            // it is being carried rather than sliding on ice. Tiled at the repeating slice's
+            // own aspect so the treads keep their shape at any card size.
+            float tile = Math.max(16F, beltHeight * BELT_TILE_ASPECT);
+            float offset = beltScrollOffset % tile;
+            for (float x = beltX - offset; x < beltX + beltWidth; x += tile) {
+                client.drawTextureRegion(BELT_TREADS, BELT_U0, 0F, BELT_U1, 1F,
+                        x, beltY, tile, beltHeight, 0.08F, 1F, 1F, 1F, 1F);
+            }
+            for (SlotInfo slot : slots) {
+                Float x = beltCardX.get(slot.index());
+                if (x == null) {
+                    continue;
+                }
+                drawCard(slot, x, cardViewportY, cardWidth, cardHeight);
+            }
+        } finally {
+            client.clipping().pop();
+        }
+    }
+
+    /**
+     * Moves the tread pattern and every card one frame's worth to the left.
+     *
+     * <p>Cards travel at the belt's speed and stop at the end of the queue, so a delivery is
+     * something the player watches arrive instead of a card that blinks into place - and a
+     * spent card leaves a gap that the ones behind it visibly close.
+     */
+    private void advanceBeltCards(List<SlotInfo> slots, long now) {
+        if (beltAnimNanos == 0L) {
+            beltAnimNanos = now;
+        }
+        float dt = Math.min(0.1F, (now - beltAnimNanos) / 1_000_000_000F);
+        beltAnimNanos = now;
+        beltScrollOffset += BELT_SPEED * dt;
+
+        // Where a card enters: just off the right end of the track, so it slides on rather
+        // than materialising at the last slot when the belt is nearly full.
+        float entryX = cardViewportX + cardTrackWidth - BELT_PADDING * 2F - cardWidth + cardGap;
+        float travel = BELT_SPEED * dt;
+        for (int i = 0; i < slots.size(); i++) {
+            SlotInfo slot = slots.get(i);
+            float target = cardViewportX + i * (cardWidth + cardGap);
+            Float current = beltCardX.get(slot.index());
+            float x = current == null ? Math.max(target, entryX) : current;
+            if (x > target) {
+                x = Math.max(target, x - travel);
+            } else if (x < target) {
+                x = Math.min(target, x + travel);
+            }
+            beltCardX.put(slot.index(), x);
+        }
+        if (beltCardX.size() > slots.size()) {
+            java.util.Set<Integer> live = new java.util.HashSet<>();
+            for (SlotInfo slot : slots) {
+                live.add(slot.index());
+            }
+            beltCardX.keySet().retainAll(live);
+        }
+    }
+
     private void drawCard(SlotInfo slot, float x, float y, float width, float height) {
+        drawCard(slot, x, y, width, height, 1F);
+    }
+
+    private void drawCard(SlotInfo slot, float x, float y, float width, float height, float alpha) {
         boolean ready = slot.available() && slot.cooldownLeft() <= 0;
         float dark = ready ? 1F : 0.45F;
         Identifier background = "pvzce:shovel".equals(slot.defId()) ? SHOVEL_BANK : SEED_PACKET;
-        client.drawTexture(background, x, y, width, height, 0.1F, dark, dark, dark, 1F);
-
-        String path = slot.defId().contains(":")
-                ? slot.defId().substring(slot.defId().indexOf(':') + 1) : slot.defId();
-        Identifier icon = Identifier.withDefaultNamespace("textures/entities/" + path);
-        Identifier slotId = Identifier.tryParse(slot.defId());
-        if (slotId != null) {
-            SlotDef slotDef = BuiltInRegistries.SLOT_TYPES.get(slotId);
-            if (slotDef != null && slotDef.icon().isPresent()) {
-                icon = slotDef.icon().get();
-            }
-        }
+        client.drawTexture(background, x, y, width, height, 0.1F, dark, dark, dark, alpha);
+        Identifier icon = cardIcon(slot);
         float iconAreaBottom = y + height * 0.24F;
         float iconAreaHeight = height * 0.76F;
         float iconSize = Math.min(width * 0.80F, iconAreaHeight * 0.78F);
         client.drawTexture(icon,
                 x + (width - iconSize) / 2F, iconAreaBottom + (iconAreaHeight - iconSize) / 2F,
-                iconSize, iconSize, 0.2F, dark, dark, dark, 1F);
+                iconSize, iconSize, 0.2F, dark, dark, dark, alpha);
 
         SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
                 icon, SeedCardRenderer.CardKind.fromJson(slot.kind()), slot.costSun(),
-                dark, 1F, ready, slot.cooldownLeft() / 300F, selectedCard == slot.index()),
+                dark, alpha, ready, slot.cooldownLeft() / 300F, selectedCard == slot.index()),
                 x, y, width, height);
+    }
+
+    /** The sprite a card draws in its window: the slot's own icon, else the content's art. */
+    private static Identifier cardIcon(SlotInfo slot) {
+        Identifier slotId = Identifier.tryParse(slot.defId());
+        if (slotId != null) {
+            SlotDef slotDef = BuiltInRegistries.SLOT_TYPES.get(slotId);
+            if (slotDef != null && slotDef.icon().isPresent()) {
+                return slotDef.icon().get();
+            }
+        }
+        String path = slot.defId().contains(":")
+                ? slot.defId().substring(slot.defId().indexOf(':') + 1) : slot.defId();
+        return Identifier.withDefaultNamespace("textures/entities/" + path);
+    }
+
+    /**
+     * The card the player is carrying, drawn under the cursor.
+     *
+     * <p>Only the icon: a full second copy of the packet would hide the cell it is about to
+     * be planted in, and the hover tint underneath already says which cell that is.
+     */
+    private void renderDraggedCard() {
+        if (draggingCard < 0) {
+            return;
+        }
+        SlotInfo dragged = slotInfo(draggingCard);
+        if (dragged == null) {
+            return;
+        }
+        float guiX = (float) client.guiMouseX(client.window().cursorX());
+        float guiY = (float) client.guiMouseY(client.window().cursorY());
+        float size = Math.max(28F, cardHeight * 0.7F);
+        client.drawTexture(cardIcon(dragged), guiX - size / 2F, guiY - size / 2F, size, size,
+                0.45F, 1F, 1F, 1F, 0.85F);
     }
 
     private void updateCardLayout(int slotCount) {
         int guiW = client.guiWidth();
         int guiH = client.guiHeight();
+        if (client.level().conveyor()) {
+            updateBeltLayout(guiW, guiH);
+            return;
+        }
         int left = BANK_MARGIN + (hasSunBank() ? BANK_WIDTH + BANK_GAP : 0);
         int right = (pauseButton != null ? pauseButton.x() : guiW - 12) - 8;
         cardViewportX = left;
@@ -1078,6 +1413,44 @@ public final class InGameScreen extends Screen {
     }
 
     /**
+     * Lays out the belt: a centred tray at the top of the window, as wide as the belt's
+     * capacity rather than as wide as what happens to be on it right now.
+     *
+     * <p>The tray shares the top row with the pause and speed buttons, so on a narrow window
+     * it is the <em>cards</em> that give way: they shrink (down to {@link #BELT_MIN_CARD_HEIGHT})
+     * until the tray fits to the left of them. The alternative - a tray that is always six
+     * full-size cards wide - is drawn under the pause button on the default window, which
+     * reads as a rendering bug rather than as a belt.
+     */
+    private void updateBeltLayout(int guiW, int guiH) {
+        float right = (pauseButton != null ? pauseButton.x() : guiW - 12) - 8F;
+        float available = Math.max(120F, right - BELT_PADDING * 2F - 4F);
+        int capacity = Math.max(1, client.level().beltCapacity());
+        cardHeight = Math.max(52, Math.min(70, guiH / 7));
+        cardWidth = Math.max(38, Math.round(cardHeight * 100F / 140F));
+        cardGap = Math.max(3, cardWidth / 8);
+        cardTrackWidth = beltTrackWidth(capacity);
+        while (cardTrackWidth > available && cardHeight > BELT_MIN_CARD_HEIGHT) {
+            cardHeight--;
+            cardWidth = Math.max(18, Math.round(cardHeight * 100F / 140F));
+            cardGap = Math.max(2, cardWidth / 8);
+            cardTrackWidth = beltTrackWidth(capacity);
+        }
+        // Centred in the room left of the buttons, never off the left edge.
+        cardViewportX = Math.round(Math.max(BELT_PADDING + 4F, (right - cardTrackWidth) / 2F + BELT_PADDING));
+        cardViewportY = Math.round(guiH - cardHeight - BELT_TOP_MARGIN - BELT_PADDING * 2F);
+        cardViewportWidth = Math.max(1, Math.round(cardTrackWidth - BELT_PADDING * 2F));
+        cardViewportHeight = cardHeight;
+        cardMaxScroll = 0;
+        cardScrollOffset = 0;
+    }
+
+    /** Width of a tray holding {@code capacity} cards, padding included. */
+    private float beltTrackWidth(int capacity) {
+        return capacity * (cardWidth + cardGap) - cardGap + BELT_PADDING * 2F;
+    }
+
+    /**
      * Client-only collect animation: the server has already credited the
      * resource, so this is a pure cosmetic flight from the former drop
      * position to that resource's bank.
@@ -1090,7 +1463,7 @@ public final class InGameScreen extends Screen {
     private void renderCollectAnimations() {
         long now = System.nanoTime();
         List<ResourceCollectAnimation> animations = client.level().collectAnimations();
-        if (animations.isEmpty() || !hasSunBank()) {
+        if (animations.isEmpty()) {
             return;
         }
         PvzceCamera camera = client.camera();
@@ -1098,6 +1471,18 @@ public final class InGameScreen extends Screen {
         int guiH = client.guiHeight();
 
         for (ResourceCollectAnimation animation : animations) {
+            if (animation.finished(now)) {
+                continue;
+            }
+            boolean coin = com.pvzce.common.PvzceIds.isCoin(animation.resourceId());
+            // Each drop flies to its own bank, so each needs its own bank to fly to: sun goes
+            // to the sun bank, which only exists on a level whose bar has the sun card. This
+            // used to be one `!hasSunBank() -> return` for the whole list, which silently
+            // killed the coin animation too - in a conveyor level (no sun card, so no sun
+            // bank) coins were collected and simply vanished instead of flying to the bag.
+            if (!coin && !hasSunBank()) {
+                continue;
+            }
             float progress = animation.progress(now);
             if (progress >= 1F) {
                 continue;
@@ -1194,10 +1579,23 @@ public final class InGameScreen extends Screen {
         int slot = slotAt(guiX, guiY);
         if (slot >= 0) {
             if (button == 0) {
-                SlotInfo info = client.level().slots().stream().filter(s -> s.index() == slot).findFirst().orElse(null);
+                SlotInfo info = slotInfo(slot);
                 if (info != null && (info.kind().equals("plant") || info.kind().equals("tool"))) {
-                    selectedCard = slot;
-                    client.connection().send(new PickCardC2S(slot));
+                    // Clicking the card that is already selected puts it back down. The
+                    // selected card is what the next board click spends, so picking one is
+                    // a mode the player has to be able to leave without spending it -
+                    // right-click and a click outside the board already cancel, and the
+                    // card itself is the most obvious place to try.
+                    if (selectedCard == slot) {
+                        selectedCard = -1;
+                    } else {
+                        selectedCard = slot;
+                        client.connection().send(new PickCardC2S(slot));
+                    }
+                    // The same press also picks the card up, so the player can drag it
+                    // straight onto a cell and let go. Both gestures end in the same place:
+                    // see onMouseReleased.
+                    draggingCard = selectedCard;
                 } else {
                     selectedCard = -1;
                 }
@@ -1220,9 +1618,13 @@ public final class InGameScreen extends Screen {
         // board and the player is looking straight at something the old order refused
         // to hit.
         if (button == 0) {
+            // Holding the button down and dragging over the lawn picks up everything the
+            // cursor touches (see onMouseDragged); the press itself is just the first
+            // sample of that sweep.
+            sweeping = true;
             ClientEntity drop = resourceDropAt(rawX, rawY);
             if (drop != null) {
-                client.connection().send(new CollectResourceC2S(drop.id()));
+                collectDrop(drop);
                 return;
             }
         }
@@ -1244,23 +1646,105 @@ public final class InGameScreen extends Screen {
             return;
         }
         if (selectedCard >= 0) {
-            SlotInfo selected = client.level().slots().stream()
-                    .filter(s -> s.index() == selectedCard).findFirst().orElse(null);
-            if (selected != null && selected.kind().equals("tool")) {
-                // The glove is a two-click move, so the card stays selected until the
-                // plant has been put down - the level says whether it is still carrying
-                // one, and the server answers the second click with the drop.
-                boolean glove = "pvzce:glove".equals(selected.defId());
-                client.connection().send(new UseToolC2S(selectedCard, cellX, cellY));
-                if (!glove) {
-                    selectedCard = -1;
-                }
-            } else {
-                client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY));
+            spendSelectedCard(cellX, cellY);
+        }
+    }
+
+    /** One card of the bar by its index, or {@code null}. */
+    private SlotInfo slotInfo(int index) {
+        return client.level().slots().stream().filter(s -> s.index() == index).findFirst().orElse(null);
+    }
+
+    /**
+     * Spends the selected card on a cell: the one implementation behind both ways of
+     * placing - clicking the cell, and dragging the card there and letting go.
+     */
+    private void spendSelectedCard(int cellX, int cellY) {
+        SlotInfo selected = slotInfo(selectedCard);
+        if (selected == null) {
+            selectedCard = -1;
+            return;
+        }
+        if (selected.kind().equals("tool")) {
+            // The glove is a two-click move, so the card stays selected until the plant has
+            // been put down - the level says whether it is still carrying one, and the
+            // server answers the second click with the drop.
+            boolean glove = "pvzce:glove".equals(selected.defId());
+            client.connection().send(new UseToolC2S(selectedCard, cellX, cellY));
+            if (!glove) {
                 selectedCard = -1;
             }
             return;
         }
+        client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY));
+        selectedCard = -1;
+    }
+
+    /** Sends one pickup request, once per drop, so a sweep does not spam the server. */
+    private void collectDrop(ClientEntity drop) {
+        if (drop.id() == lastSweptDropId) {
+            return;
+        }
+        lastSweptDropId = drop.id();
+        client.connection().send(new CollectResourceC2S(drop.id()));
+    }
+
+    /**
+     * The cursor moving with the button held: sweep up pickups, or carry a card.
+     *
+     * <p>Collecting used to be one click = one drop, which is the wrong shape for a board
+     * that can hold five suns at once - the player knows what they want, and making them
+     * click each one is busywork. Holding the button down and passing over them is the same
+     * request per drop, just without the aiming.
+     */
+    @Override
+    protected void onMouseDragged(double guiX, double guiY, int button) {
+        if (button != 0 || !client.level().gameState().equals("running")) {
+            return;
+        }
+        if (draggingCard >= 0) {
+            return; // Carrying a card: the release decides where it lands.
+        }
+        if (!sweeping) {
+            return;
+        }
+        ClientEntity drop = resourceDropAt(rawMouseX(guiX), rawMouseY(guiY));
+        if (drop != null) {
+            collectDrop(drop);
+        }
+    }
+
+    /**
+     * The button coming back up: drop a carried card onto the cell under the cursor.
+     *
+     * <p>A release that is not over a plantable cell keeps the card selected instead of
+     * cancelling it, so the drag gesture degrades into the click-then-click one rather than
+     * quietly losing the player's choice.
+     */
+    @Override
+    protected void onMouseReleased(double guiX, double guiY, int button) {
+        sweeping = false;
+        lastSweptDropId = -1;
+        int carried = draggingCard;
+        draggingCard = -1;
+        if (button != 0 || carried < 0 || !client.level().gameState().equals("running")) {
+            return;
+        }
+        if (selectedCard != carried || slotInfo(carried) == null) {
+            return;
+        }
+        PvzceCamera camera = client.camera();
+        double rawX = rawMouseX(guiX);
+        double rawY = rawMouseY(guiY);
+        if (!camera.inBoard(rawX, rawY)) {
+            return;
+        }
+        int cellX = camera.cellX(rawX, rawY);
+        int cellY = camera.cellY(rawX, rawY);
+        if (cellX < 0 || cellX >= client.level().width() || cellY < 0 || cellY >= client.level().height()) {
+            return;
+        }
+        spendSelectedCard(cellX, cellY);
     }
 
     /**
@@ -1301,6 +1785,21 @@ public final class InGameScreen extends Screen {
             return -1;
         }
         updateCardLayout(slots.size());
+        if (client.level().conveyor()) {
+            // Belt cards are hit where they are drawn, not where their slot is: they are
+            // still travelling when the player reaches for one.
+            for (SlotInfo slot : slots) {
+                Float x = beltCardX.get(slot.index());
+                if (x == null) {
+                    continue;
+                }
+                if (mouseX >= x && mouseX < x + cardWidth
+                        && guiY >= cardViewportY && guiY < cardViewportY + cardHeight) {
+                    return slot.index();
+                }
+            }
+            return -1;
+        }
         if (mouseX < cardViewportX || mouseX > cardViewportX + cardViewportWidth
                 || guiY < cardViewportY || guiY > cardViewportY + cardViewportHeight) {
             return -1;

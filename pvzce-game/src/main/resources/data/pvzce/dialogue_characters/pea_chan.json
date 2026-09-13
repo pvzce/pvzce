@@ -1,0 +1,8 @@
+{
+  "id": "pvzce:pea_chan",
+  "name": "豌豆酱",
+  "portrait_dir": "pvzce:textures/gui/dialogue/pea_chan",
+  "scale": 1.0,
+  "box_left": "pvzce:textures/gui/dialogue/box_left",
+  "box_right": "pvzce:textures/gui/dialogue/box_right"
+}

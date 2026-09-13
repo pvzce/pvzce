@@ -11,6 +11,7 @@ import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
+import com.pvzce.common.network.packet.BeltSyncS2C;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelRewardS2C;
@@ -51,7 +52,10 @@ public final class PvzceClientPacketListener implements PacketListener {
             }
             level.init(init.levelId(), init.width(), init.height(), init.slots(), init.waveTypes(),
                     init.seedPool(), init.maxSeedSlots(), init.previewZombies(), init.sceneCells(),
-                    init.controlledTeamId(), init.controlledTeamName());
+                    init.controlledTeamId(), init.controlledTeamName(),
+                    init.payload().isConveyor(), init.payload().beltCapacity(),
+                    init.payload().zoneMinX(), init.payload().zoneMaxX(),
+                    init.payload().zoneMinY(), init.payload().zoneMaxY());
             client.onLevelInit();
         } else if (packet instanceof LevelListS2C list) {
             client.setLevelList(list.levels());
@@ -98,6 +102,10 @@ public final class PvzceClientPacketListener implements PacketListener {
             level.setResource(teamId, resourceId, delta.totalAmount());
         } else if (packet instanceof SlotSyncS2C sync) {
             level.upsertSlot(sync.slot());
+        } else if (packet instanceof BeltSyncS2C belt) {
+            // Whole-bar replacement, unlike SlotSync: a spent belt card has to disappear
+            // from the client's bar and an upsert can only ever add or update one.
+            level.replaceSlots(belt.cards());
         } else if (packet instanceof GameStateS2C state) {
             level.setGameState(state.state(), state.winTeamId());
             client.onGameState(state.state(), state.winTeamId());

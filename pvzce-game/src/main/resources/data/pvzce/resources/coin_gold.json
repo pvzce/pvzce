@@ -8,5 +8,9 @@
   "collectible_without_card": true,
   "animation_dir": "resource",
   "texture": "pvzce:textures/entities/resource/coin_gold",
-  "drop_motion": "landed"
+  "drop_motion": "rise",
+  "render_scale": 0.25,
+  "pickup_sound": "pvzce:sfx/ui/coin",
+  "rise_height": 0.3,
+  "rise_scatter": 0.25
 }

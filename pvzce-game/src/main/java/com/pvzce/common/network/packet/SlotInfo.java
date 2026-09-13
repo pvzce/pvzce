@@ -15,6 +15,18 @@ public record SlotInfo(int index, String defId, String kind, int costSun, int co
     /** {@code -1} means the card has unlimited uses. */
     public static final int UNLIMITED_USES = -1;
 
+    /**
+     * {@code -1} as a price means "this card has no price", which is not the same as
+     * costing nothing: a conveyor-belt card is handed to the player rather than bought, and
+     * a printed "0" would read as a price that happened to be free.
+     */
+    public static final int NO_PRICE = -1;
+
+    /** True when the card's price must not be drawn at all. */
+    public boolean priceless() {
+        return costSun == NO_PRICE;
+    }
+
     /** Convenience for unlimited cards (the common case). */
     public SlotInfo(int index, String defId, String kind, int costSun, int cooldownLeft, boolean available) {
         this(index, defId, kind, costSun, cooldownLeft, UNLIMITED_USES, available);

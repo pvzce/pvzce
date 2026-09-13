@@ -82,6 +82,30 @@ public final class ArmorCapability implements ZombieCapability {
     @Override
     public boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage, LevelAccess level) {
         String wanted = "air".equals(projectile.layer()) ? ArmorDef.TOP : ArmorDef.FRONT;
+        Identifier armorSound = projectile.sounds().impact()
+                .orElse(zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
+        return absorb(zombie, wanted, damage, level, armorSound);
+    }
+
+    /**
+     * Armor takes bowling-nut hits like it takes shots.
+     *
+     * <p>An impact has no projectile layer to route it, so it hits whatever the zombie is
+     * wearing: the front piece first (a shield is in the way), then the top one (the cone
+     * and the bucket, which this project models as head armor and which only lobbed shots
+     * reach otherwise). Without the second lookup a bowling nut would find no front piece on
+     * a Conehead, fall through to the body, and kill a buckethead in one hit - the armor
+     * ladder the mini-game is built on would never happen.
+     */
+    @Override
+    public boolean onImpact(ZombieEntity zombie, int damage, LevelAccess level) {
+        Identifier sound = zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT);
+        return absorb(zombie, ArmorDef.FRONT, damage, level, sound)
+                || absorb(zombie, ArmorDef.TOP, damage, level, sound);
+    }
+
+    /** Resolves a hit against the first intact piece in {@code wanted}, or on the body. */
+    private boolean absorb(ZombieEntity zombie, String wanted, int damage, LevelAccess level, Identifier sound) {
         Piece piece = pieces.stream()
                 .filter(p -> p.hp > 0 && wanted.equals(p.def.position()))
                 .findFirst()
@@ -97,9 +121,7 @@ public final class ArmorCapability implements ZombieCapability {
             broke = true;
             zombie.setAnimation(EntityAnimations.ANGRY);
         }
-        Identifier armorSound = projectile.sounds().impact()
-                .orElse(zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
-        level.emitEffect(PvzceParticles.ZOMBIE_HELMET.toString(), zombie.cellX(), zombie.cellY(), armorSound);
+        level.emitEffect(PvzceParticles.ZOMBIE_HELMET.toString(), zombie.cellX(), zombie.cellY(), sound);
         if (broke && zombie.def().sounds().special().isPresent()) {
             level.emitEffect("", zombie.cellX(), zombie.cellY(), zombie.def().sounds().special().get());
         }

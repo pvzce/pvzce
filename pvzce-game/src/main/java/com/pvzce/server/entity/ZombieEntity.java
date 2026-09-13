@@ -237,6 +237,28 @@ public class ZombieEntity extends PvzceEntity {
         }
     }
 
+    /**
+     * Impact damage from something that is not a shot: a rolling bowling nut, a giant's
+     * fist, a hammer.
+     *
+     * <p>Armor still absorbs it (a Conehead has to be hit twice by a Wall-nut, a
+     * Buckethead three times, exactly as in the original), which is why this is not
+     * {@link #damageBody}: that path exists for explosions and deliberately ignores armor.
+     */
+    public void damageImpact(int amount, LevelAccess level) {
+        if (removed) {
+            return;
+        }
+        int dmg = Math.max(1, Math.round(amount
+                * level.rules().getFloat(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER)));
+        for (Instance instance : capabilities) {
+            if (instance.capability.onImpact(this, dmg, level)) {
+                return;
+            }
+        }
+        damageBody(dmg, level);
+    }
+
     /** Explosions / area damage bypass armor. */
     public void damageBody(int amount, LevelAccess level) {
         if (removed) {

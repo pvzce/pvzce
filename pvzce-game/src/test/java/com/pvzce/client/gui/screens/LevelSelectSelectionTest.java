@@ -30,7 +30,7 @@ class LevelSelectSelectionTest {
                 6, List.of("pvzce:basic_zombie"),
                 List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
         return LevelListS2C.LevelInfo.of(id, id, "", "pvzce:plant_team", List.of(), "", "day",
-                theme, category, payload, LevelListS2C.UnlockInfo.OPEN);
+                theme, category, false, payload, LevelListS2C.UnlockInfo.OPEN);
     }
 
     private static LevelListS2C.LevelInfo unclassified(String id) {

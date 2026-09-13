@@ -50,6 +50,19 @@ public interface PlantCapability {
         return false;
     }
 
+    /**
+     * Whether this plant is furniture of its cell.
+     *
+     * <p>Almost every plant is: a zombie eats the one it stands on and a shovel removes
+     * it. A plant that leaves its cell - a bowling Wall-nut, which rolls off the moment it
+     * is placed - is not, and answering {@code false} is how a capability says so without
+     * a new entity type or a special case in the zombie's eat loop. The plant is still
+     * simulated, drawn and damageable; it just stops being "the plant in this cell".
+     */
+    default boolean occupiesCell(PlantEntity plant) {
+        return true;
+    }
+
     /** Persists per-plant state; the caller stores it under this capability's type id. */
     default void save(CompoundTag tag) {
     }

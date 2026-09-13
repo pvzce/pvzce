@@ -7,7 +7,6 @@ import com.pvzce.api.util.LevelGrouping;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
@@ -26,7 +25,6 @@ import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.LevelListS2C;
-import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.LevelTabsS2C;
@@ -56,6 +54,7 @@ import com.pvzce.server.command.PvzceCommands;
 import com.pvzce.server.level.LevelKey;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.LevelTabs;
+import com.pvzce.server.level.LevelValidator;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.api.DedicatedServerModInitializer;
@@ -345,6 +344,7 @@ public final class PvzceServer implements Runnable {
             reportErrors("数据错误", content.errors());
             reportErrors("标签错误", tags.errors());
             reportErrors("关卡分类", validateLevelGroups());
+            reportErrors("对话", LevelValidator.validateAllDialogues(resourceManager));
             reportErrors("内置粒子", validateBuiltInParticles());
         } catch (Throwable t) {
             t.printStackTrace();
@@ -381,8 +381,8 @@ public final class PvzceServer implements Runnable {
         // The list is where a client learns the world's coins and unlocks, so the
         // profile travels with it rather than on a separate request.
         PlayerProfile profile = profileFor(safeWorld);
-        Map<Identifier, String> statuses = levelStatuses(safeWorld);
-        LevelUnlocks.Context unlockContext = new LevelUnlocks.Context(clearedLevels(statuses),
+        Set<Identifier> cleared = clearedLevels(safeWorld);
+        LevelUnlocks.Context unlockContext = new LevelUnlocks.Context(cleared,
                 profile.unlockedLevels(), profile::owns, profile.coins(), profile.unlocksEverything());
         List<LevelListS2C.LevelInfo> levels = new ArrayList<>();
         BuiltInRegistries.LEVELS.keySet().stream()
@@ -400,12 +400,17 @@ public final class PvzceServer implements Runnable {
                             .toList();
                     LevelGrouping.Group group = groupOf(id);
                     LevelServer.SeedContext seeds = LevelServer.SeedContext.forProfile(def, profile);
+                    // Two independent facts travel side by side: whether a run is waiting to
+                    // be resumed, and the label. A cleared level with an abandoned replay is
+                    // both "has a save" and "completed", and the entry decision needs the
+                    // first while the row needs the second.
+                    boolean runningSave = hasRunningSave(levelDir(worldPath(gameDir, safeWorld), id));
+                    String status = runningSave ? LevelListS2C.LevelInfo.IN_PROGRESS
+                            : (cleared.contains(id) ? LevelListS2C.LevelInfo.COMPLETED : "");
                     levels.add(LevelListS2C.LevelInfo.of(id.toString(), def.displayName(), def.description(),
-                            def.winTeam().toString(), teams, statuses.getOrDefault(id, ""), levelIcon(def),
-                            group.theme().toString(), group.category().toString(),
-                            new LevelPayload(def.width(), def.height(), seeds.pool(),
-                                    def.maxSeedSlots(), def.previewZombieIds(), SceneCells.forLevel(def),
-                                    seeds.lockedSlotIds()),
+                            def.winTeam().toString(), teams, status, levelIcon(def),
+                            group.theme().toString(), group.category().toString(), runningSave,
+                            LevelServer.payloadFor(def, seeds),
                             LevelListS2C.UnlockInfo.of(unlock)));
                 });
         // Pages travel with the list they describe: a screen that received the levels but
@@ -466,34 +471,32 @@ public final class PvzceServer implements Runnable {
      * level's status, so asking again for the cleared set costs the same file reads.
      */
     private LevelUnlocks.Context unlockContext(String worldName, PlayerProfile profile) {
-        return new LevelUnlocks.Context(clearedLevels(levelStatuses(worldName)),
+        return new LevelUnlocks.Context(clearedLevels(worldName),
                 profile.unlockedLevels(), profile::owns, profile.coins(), profile.unlocksEverything());
     }
 
     /**
-     * Every level's status label for one world, in a single pass.
+     * The levels of one world that have a completion marker, in a single pass.
      *
-     * <p>Deliberately not {@code levelStatus} called in a loop: that reads two files per
-     * level, and the level list needs the same answers twice (the label and the
-     * cleared-versus-not decision behind locks), so doing it per question cost four reads
-     * per level.
+     * <p>This is what the unlock rules ask, and it is deliberately independent of whether a
+     * run is currently saved: a level that was cleared stays cleared, so a replay waiting to
+     * be resumed must not take it out of the set that gates the levels behind it.
+     *
+     * <p>Deliberately not a loop over {@link #isLevelCompleted}: the level list also needs
+     * each level's row label, so this reads every marker once and hands the answers to both
+     * callers.
      */
-    private Map<Identifier, String> levelStatuses(String worldName) {
-        Map<Identifier, String> statuses = new java.util.LinkedHashMap<>();
-        for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
-            statuses.put(id, levelStatus(worldName, id));
+    private Set<Identifier> clearedLevels(String worldName) {
+        if (worldName == null || worldName.isBlank()) {
+            return Set.of();
         }
-        return statuses;
-    }
-
-    /** The ids that count as cleared, from a status map. */
-    private static Set<Identifier> clearedLevels(Map<Identifier, String> statuses) {
+        Path worldDir = worldPath(gameDir, worldName);
         Set<Identifier> cleared = new LinkedHashSet<>();
-        statuses.forEach((id, status) -> {
-            if (LevelListS2C.LevelInfo.COMPLETED.equals(status)) {
+        for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
+            if (isLevelCompleted(worldDir, id)) {
                 cleared.add(id);
             }
-        });
+        }
         return cleared;
     }
 
@@ -783,8 +786,13 @@ public final class PvzceServer implements Runnable {
             deleteRunningSave(saveDir);
         }
 
-        List<Identifier> seeds = requestedSeeds == null ? null : sanitizeSeedSelection(def, requestedSeeds, profile);
-        if (loadSave) {
+        // A conveyor level's bar comes from its belt: the level's own cards would be a
+        // second source for the same bar, and the saved selection of such a level is the
+        // belt it was holding, which the belt restores itself.
+        List<Identifier> seeds = def.hasConveyor()
+                ? List.of()
+                : requestedSeeds == null ? null : sanitizeSeedSelection(def, requestedSeeds, profile);
+        if (loadSave && !def.hasConveyor()) {
             // Continuing a save restores the exact card bar the player had.
             List<Identifier> savedSeeds = readSavedSeedSelection(saveDir);
             if (savedSeeds != null) {
@@ -1030,7 +1038,7 @@ public final class PvzceServer implements Runnable {
         Path worldDir = worldPath(gameDir, currentWorld);
         try {
             boolean plantWin = isPlantWin(current);
-            boolean firstClear = plantWin && levelStatus(currentWorld, id).isEmpty();
+            boolean firstClear = plantWin && !isLevelCompleted(currentWorld, id);
             if (plantWin) {
                 writeLevelStatus(worldDir, id, current);
             }
@@ -1202,25 +1210,40 @@ public final class PvzceServer implements Runnable {
         NbtIo.writeCompressed(status, statusFile);
     }
 
-    /** "", {@code in_progress} or {@code completed}; failed levels deliberately keep no status. */
-    private String levelStatus(String worldName, Identifier id) {
+    /**
+     * True when this level has a completion marker in the world - "cleared at least once".
+     *
+     * <p><b>Completion is permanent.</b> The marker is a record of something that already
+     * happened, so nothing that happens later may take it away: replaying a cleared level,
+     * losing that replay, or leaving it half-finished all leave it cleared.
+     *
+     * <p>It is deliberately not the same question as "has a resumable save", which is a
+     * property of the moment and lives beside it in {@code sendLevelList} and in
+     * {@link LevelListS2C.LevelInfo#hasRunningSave()}. Reading one off the other is what
+     * made an abandoned replay of a cleared level both lock the levels behind it again and
+     * hide the fact that a run was waiting to be resumed.
+     *
+     * <p>Failed levels leave no marker of their own: a level that was never cleared has
+     * nothing to report.
+     */
+    private boolean isLevelCompleted(String worldName, Identifier id) {
         if (worldName == null || worldName.isBlank()) {
-            return "";
+            return false;
         }
-        Path worldDir = worldPath(gameDir, worldName);
-        if (hasRunningSave(levelDir(worldDir, id))) {
-            return LevelListS2C.LevelInfo.IN_PROGRESS;
-        }
+        return isLevelCompleted(worldPath(gameDir, worldName), id);
+    }
+
+    /** True when this world's completion marker for the level is on disk and says so. */
+    private static boolean isLevelCompleted(Path worldDir, Identifier id) {
         Path statusFile = levelStatusFile(worldDir, id);
         if (!Files.isRegularFile(statusFile)) {
-            return "";
+            return false;
         }
         try {
             CompoundTag status = NbtIo.readCompressed(statusFile);
-            return LevelListS2C.LevelInfo.COMPLETED.equals(status.getString("GameState"))
-                    ? LevelListS2C.LevelInfo.COMPLETED : "";
+            return LevelListS2C.LevelInfo.COMPLETED.equals(status.getString("GameState"));
         } catch (Throwable t) {
-            return "";
+            return false;
         }
     }
 

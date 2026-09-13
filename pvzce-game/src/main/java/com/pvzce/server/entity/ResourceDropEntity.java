@@ -37,27 +37,34 @@ public class ResourceDropEntity extends PvzceEntity {
     private boolean collected;
     /** Ticks spent rising, for {@link ResourceDef.DropMotion#RISE}. */
     private int riseTicks;
+    /** Where a {@link ResourceDef.DropMotion#RISE} arc started, before its sideways throw. */
+    private float riseOriginX;
+    /** How far sideways this drop was thrown, in cells; decided once, at construction. */
+    private float driftX;
 
     /** The reason a drop's motion can be overridden: see {@link #motionOverride}. */
     private final ResourceDef.DropMotion motionOverride;
 
     public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount) {
-        this(def, team, gridX, gridY, amount, null);
+        this(def, team, gridX, gridY, amount, null, 0F);
     }
 
     /**
      * @param motion overrides the resource's own {@code drop_motion}, or {@code null} to
      *               use it. A sunflower's sun is the case: the resource is "a sun", but
      *               this particular one came out of a flower.
+     * @param driftX how far sideways a {@code RISE} arc throws this drop, in cells. Rolled by
+     *               the caller from the level's own {@code Random} - entities never allocate
+     *               one - so a drop keeps the throw it was given, including across a save.
      */
     public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount,
-                              ResourceDef.DropMotion motion) {
+                              ResourceDef.DropMotion motion, float driftX) {
         super(def.id(), team, gridX + 0.5F, gridY + 0.5F, 1);
         this.def = def;
         this.amount = amount;
         this.motionOverride = motion;
-        // Where the drop starts is the resource's own business: sun falls in from above,
-        // a sunflower's sun starts at the flower, a coin is already on the ground.
+        this.riseOriginX = cellX();
+        this.driftX = driftX;
         switch (motion()) {
             case FALL -> setHeight(START_HEIGHT);
             case RISE, LANDED -> {
@@ -122,14 +129,17 @@ public class ResourceDropEntity extends PvzceEntity {
 
     private void advance(ResourceDef.DropMotion motion) {
         if (motion == ResourceDef.DropMotion.RISE) {
-            // Up for half the arc, then back down to where it started: the sun a sunflower
-            // makes belongs to the flower, not to the sky.
+            // Up for half the arc, then back down. A sunflower's sun comes straight back down
+            // onto the flower it came from (its scatter is zero); a coin is thrown a little to
+            // one side on the way, because several of them burst out of one zombie at once.
             riseTicks++;
             float progress = Math.min(1F, riseTicks / (float) (ResourceDef.RISE_TICKS * 2F));
-            // A parabola peaking at RISE_HEIGHT halfway through.
-            setHeight(ResourceDef.RISE_HEIGHT * 4F * progress * (1F - progress));
+            // A parabola peaking at the resource's rise height halfway through.
+            setHeight(def.riseHeight() * 4F * progress * (1F - progress));
+            setCellX(riseOriginX + driftX * progress);
             if (riseTicks >= ResourceDef.RISE_TICKS * 2) {
                 setHeight(0F);
+                setCellX(riseOriginX + driftX);
                 landed = true;
                 setAnimation(EntityAnimations.LANDED);
             }
@@ -155,6 +165,11 @@ public class ResourceDropEntity extends PvzceEntity {
         tag.putInt("landed", landed ? 1 : 0);
         tag.putInt("expireTicks", expireTicks);
         tag.putInt("collected", collected ? 1 : 0);
+        // The arc's own state, so a save taken mid-flight resumes mid-flight instead of
+        // restarting the throw from the ground.
+        tag.putInt("riseTicks", riseTicks);
+        tag.putFloat("riseOriginX", riseOriginX);
+        tag.putFloat("driftX", driftX);
         return tag;
     }
 
@@ -164,5 +179,8 @@ public class ResourceDropEntity extends PvzceEntity {
         landed = tag.getInt("landed") != 0;
         expireTicks = tag.getInt("expireTicks");
         collected = tag.getInt("collected") != 0;
+        riseTicks = tag.getInt("riseTicks");
+        riseOriginX = tag.contains("riseOriginX") ? tag.getFloat("riseOriginX") : cellX();
+        driftX = tag.getFloat("driftX");
     }
 }

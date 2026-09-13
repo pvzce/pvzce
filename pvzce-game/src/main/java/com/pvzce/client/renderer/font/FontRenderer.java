@@ -228,4 +228,43 @@ public final class FontRenderer {
     public int lineHeight(float scale) {
         return Math.round(lineHeight * scale * atlasToGui);
     }
+
+    /**
+     * Breaks text into lines that each fit {@code maxWidth}, honouring explicit newlines.
+     *
+     * <p>Breaks between characters rather than at spaces: this is a CJK UI, where a
+     * sentence has no spaces to break at, and a Latin word that overflows is still
+     * better split than left running off the panel. A single character wider than the
+     * limit gets its own line rather than an empty one before it.
+     *
+     * <p>Shared because two callers need the same answer to "what are the lines":
+     * {@code ModsScreen} draws them into a band, and {@code DialogueOverlay} measures
+     * them to size a speech bubble. Measuring and drawing used to be one function, so
+     * anything that only wanted the lines had to write its own wrapper.
+     */
+    public java.util.List<String> wrapLines(String text, float maxWidth, float scale) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        if (text == null) {
+            return lines;
+        }
+        StringBuilder line = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch == '\n') {
+                lines.add(line.toString());
+                line.setLength(0);
+                continue;
+            }
+            int before = line.length();
+            line.append(ch);
+            if (before > 0 && width(line.toString(), scale) > maxWidth) {
+                line.setLength(before);
+                lines.add(line.toString());
+                line.setLength(0);
+                line.append(ch);
+            }
+        }
+        lines.add(line.toString());
+        return lines;
+    }
 }

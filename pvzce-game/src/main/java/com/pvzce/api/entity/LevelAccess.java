@@ -98,6 +98,17 @@ public interface LevelAccess {
     void zombieDied(ZombieEntity zombie);
 
     /**
+     * Drops {@code count} of the level's own coins at a world position.
+     *
+     * <p>Which coin that is comes from the level's reward block
+     * ({@code rewards.coin_drop}), so a capability can pay out for something the level
+     * considers worth paying for - a bowling ricochet, say - without knowing the
+     * currency. Mirrors {@link #zombieDied}: the level decides what an event is worth,
+     * the ability only reports that it happened.
+     */
+    void dropCoin(float x, float y, int count);
+
+    /**
      * Read-only view of a scene element used by placement and movement checks.
      *
      * <p>There is no {@code accepts(feet)} here any more: what a plant may be

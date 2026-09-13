@@ -25,6 +25,8 @@ public final class EntityAnimations {
     public static final String JUMP = "jump";
     public static final String HAMMER = "hammer";
     public static final String LANDED = "landed";
+    /** A plant that is moving under its own power (bowling Wall-nut). */
+    public static final String ROLL = "roll";
 
     private EntityAnimations() {
     }

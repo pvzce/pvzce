@@ -33,7 +33,10 @@ public record LevelDef(
         List<InitialEntityDef> initialEntities,
         int maxSeedSlots,
         LevelRewards rewards,
-        LevelUnlock unlock
+        LevelUnlock unlock,
+        Optional<LevelBelt> belt,
+        PlacementZone placementZone,
+        LevelDialogue dialogue
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     public static final int DEFAULT_MAX_SEED_SLOTS = 6;
@@ -50,6 +53,19 @@ public record LevelDef(
      */
     public LevelDef {
         maxSeedSlots = Math.max(maxSeedSlots, slots.size());
+        belt = belt == null ? Optional.empty() : belt;
+        placementZone = placementZone == null ? PlacementZone.FULL : placementZone;
+        dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
+    }
+
+    /** True when this level opens with a conversation the player has to click through. */
+    public boolean hasDialogue() {
+        return !dialogue.isEmpty();
+    }
+
+    /** True when this level's cards come from a conveyor belt instead of a deck. */
+    public boolean hasConveyor() {
+        return belt.isPresent();
     }
 
     /** Backwards-compatible constructor for callers/tests written before seed selection existed. */
@@ -61,7 +77,8 @@ public record LevelDef(
                     LevelMusicDef music, List<InitialEntityDef> initialEntities) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                DEFAULT_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE);
+                DEFAULT_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
+                Optional.empty(), PlacementZone.FULL, LevelDialogue.EMPTY);
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -73,7 +90,26 @@ public record LevelDef(
                     LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE);
+                maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, Optional.empty(), PlacementZone.FULL,
+                LevelDialogue.EMPTY);
+    }
+
+    /**
+     * The whole record minus the two mini-game blocks.
+     *
+     * <p>Kept for callers written before conveyor belts and plantable areas existed: both
+     * are opt-in, and neither changes what an ordinary level means.
+     */
+    public LevelDef(Identifier id, String name, String description, int width, int height,
+                    Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
+                    Map<Identifier, JsonElement> rules, Map<Identifier, EnvValue> envVars,
+                    List<WaveDef> waves, float waveIntervalEndMultiplier, List<Identifier> slots,
+                    Map<Identifier, Boolean> unlockResources, int initialSun,
+                    LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
+                    LevelRewards rewards, LevelUnlock unlock) {
+        this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
+                waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
+                maxSeedSlots, rewards, unlock, Optional.empty(), PlacementZone.FULL, LevelDialogue.EMPTY);
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -103,15 +139,17 @@ public record LevelDef(
             new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                     waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
-                    tail.unlock())));
+                    tail.unlock(), tail.belt(), tail.placementZone(), tail.dialogue())));
 
     public LevelTail tail() {
-        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock);
+        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, belt, placementZone,
+                dialogue);
     }
 
     /** Grouped tail fields keep the outer codec inside DFU's 16-field limit. */
     public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
-                            LevelRewards rewards, LevelUnlock unlock) {
+                            LevelRewards rewards, LevelUnlock unlock, Optional<LevelBelt> belt,
+                            PlacementZone placementZone, LevelDialogue dialogue) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -122,8 +160,19 @@ public record LevelDef(
                         LevelRewards.CODEC.optionalFieldOf("rewards", LevelRewards.DEFAULT)
                                 .forGetter(LevelTail::rewards),
                         LevelUnlock.CODEC.optionalFieldOf("unlock", LevelUnlock.NONE)
-                                .forGetter(LevelTail::unlock)
+                                .forGetter(LevelTail::unlock),
+                        LevelBelt.CODEC.optionalFieldOf("conveyor").forGetter(LevelTail::belt),
+                        PlacementZone.CODEC.optionalFieldOf("placement_zone", PlacementZone.FULL)
+                                .forGetter(LevelTail::placementZone),
+                        LevelDialogue.CODEC.optionalFieldOf("dialogue", LevelDialogue.EMPTY)
+                                .forGetter(LevelTail::dialogue)
                 ).apply(i, LevelTail::new));
+
+        public LevelTail {
+            belt = belt == null ? Optional.empty() : belt;
+            placementZone = placementZone == null ? PlacementZone.FULL : placementZone;
+            dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
+        }
     }
 
     /** Data-driven music timeline; missing music defaults to a grasswalk loop. */

@@ -56,6 +56,10 @@ class LevelEntryFlowTest {
     }
 
     private static LevelListS2C.LevelInfo levelInfo(String levelId, String status) {
+        return levelInfo(levelId, status, LevelListS2C.LevelInfo.IN_PROGRESS.equals(status));
+    }
+
+    private static LevelListS2C.LevelInfo levelInfo(String levelId, String status, boolean runningSave) {
         LevelPayload payload = new LevelPayload(9, 5,
                 List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
                         "pvzce:textures/entities/pea_shooter", 100)),
@@ -63,7 +67,7 @@ class LevelEntryFlowTest {
                 List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
         return LevelListS2C.LevelInfo.of(levelId, "第一关", "描述", "pvzce:plant_team",
                 List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves")),
-                status, "day", "pvzce:yard", "pvzce:adventure", payload,
+                status, "day", "pvzce:yard", "pvzce:adventure", runningSave, payload,
                 LevelListS2C.UnlockInfo.OPEN);
     }
 
@@ -116,6 +120,34 @@ class LevelEntryFlowTest {
 
         assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
                 "a completed level is replayed from a fresh card selection");
+    }
+
+    /**
+     * A cleared level whose replay was abandoned is both: cleared <em>and</em> resumable.
+     *
+     * <p>The two facts are separate fields for exactly this case. Reading the save out of
+     * the status string sent the player through the seed chooser, and the abandoned run only
+     * announced itself in the continue/restart dialog that appeared <em>after</em> they had
+     * submitted their cards - so the run they were resuming had already been replaced by the
+     * bar they just picked.
+     */
+    @Test
+    void aClearedLevelWithAnAbandonedReplayResumesInsteadOfChoosingCards() throws Exception {
+        Fixture fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1",
+                LevelListS2C.LevelInfo.COMPLETED, true);
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "a run is waiting, so the card bar must not be chosen again");
+        assertTrue(fixture.sentPackets().stream()
+                        .filter(RequestLevelC2S.class::isInstance)
+                        .map(RequestLevelC2S.class::cast)
+                        .anyMatch(request -> request.levelId().equals("pvzce:level_1") && !request.restart()),
+                "the abandoned run is loaded, and the question is asked over it");
     }
 
     /**

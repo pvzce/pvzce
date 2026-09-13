@@ -20,6 +20,7 @@ import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.SettingsScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.client.gui.screens.WorldSelectScreen;
 import com.pvzce.client.particle.ParticleEngine;
 import com.pvzce.client.renderer.Matrix4f;
@@ -37,6 +38,7 @@ import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SeedOptions;
+import com.pvzce.api.content.DialogueLine;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelRewardS2C;
@@ -129,6 +131,14 @@ public final class PvzceClient {
     private final String smokePlace = System.getProperty("pvzce.smokePlace", "");
     private boolean smokeLevelRequested;
     /**
+     * Smoke hook: treat the {@code smokeLevel} request as a direct fresh run, so a level's
+     * opening dialogue plays in game.
+     *
+     * <p>Off by default because the smoke level is normally opened to photograph the
+     * board; a developer who wants the in-game dialogue photographs it with this on.
+     */
+    private final boolean smokeDialogue = Boolean.getBoolean("pvzce.smokeDialogue");
+    /**
      * Synthesises a finished level's payout, for screenshots of the reward flow.
      *
      * <p>{@code unlock} lands a seed packet, {@code money} the money bag. The two
@@ -143,7 +153,27 @@ public final class PvzceClient {
     private boolean smokeEditorOpened;
     /** A GUI point to click, as {@code x,y} in logical GUI coordinates. */
     private final double[] smokeClickAt = parsePoint(System.getProperty("pvzce.smokeClick", ""));
+    /**
+     * Development smoke hook: drag from {@code pvzce.smokeClick} to this GUI point and let go.
+     *
+     * <p>A press and a release at the same pixel is a click, so {@code smokeClick} alone
+     * cannot exercise a drag gesture - and dragging is now how a card gets to a cell. The
+     * press happens at {@code smokeClickFrame}, the drag and release here.
+     */
+    private final double[] smokeDragTo = parsePoint(System.getProperty("pvzce.smokeDragTo", ""));
+    private final int smokeDragFrame = Integer.getInteger("pvzce.smokeDragFrame", 60);
+    private boolean smokeDragDone;
     private final int smokeClickFrame = Integer.getInteger("pvzce.smokeClickFrame", 45);
+    /**
+     * How many times {@code smokeClick} repeats, and how many frames apart.
+     *
+     * <p>A conversation is advanced one click at a time, and so is a card bar that has to
+     * be filled before a level can start: one click cannot photograph the far side of
+     * either. The default is one click, which is what the hook always did.
+     */
+    private final int smokeClickRepeat = Integer.getInteger("pvzce.smokeClickRepeat", 1);
+    private final int smokeClickPeriod = Integer.getInteger("pvzce.smokeClickPeriod", 12);
+    private int smokeClicksSent;
     /**
      * Commands to run once a level is up, separated by {@code |}.
      *
@@ -170,6 +200,16 @@ public final class PvzceClient {
     private boolean debugOverlayEnabled;
     private boolean savePromptOpen;
     private LevelSavePromptS2C deferredSavePrompt;
+    /**
+     * Level id whose fresh run was started without passing the seed chooser.
+     *
+     * <p>The chooser shows a level's opening dialogue itself, so a level that goes through
+     * it must not repeat the conversation in game. A level entered directly - a conveyor
+     * level, which has no cards to choose - has only the in-game screen left, and this is
+     * how that screen learns to show it. Consumed by {@link #onLevelInit}; a resume never
+     * sets it, so continuing a save does not replay the conversation.
+     */
+    private String directDialogueLevelId;
     private int fps;
     private int fpsFrames;
     private long fpsSampleNanos;
@@ -309,7 +349,11 @@ public final class PvzceClient {
             // render gameplay without driving the title/level screens.
             if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
                 smokeLevelRequested = true;
-                requestLevel(smokeLevel, smokeLevelRestart);
+                if (smokeDialogue) {
+                    requestFreshRunDirectly(smokeLevel, smokeLevelRestart);
+                } else {
+                    requestLevel(smokeLevel, smokeLevelRestart);
+                }
             }
             if (!smokeReward.isBlank() && !smokeRewardFired && clientTick > 90
                     && currentScreen() instanceof InGameScreen) {
@@ -434,7 +478,10 @@ public final class PvzceClient {
                     }
                 }
             }
-            if (smokeClickAt != null && !smokeClickDone && clientTick == smokeClickFrame) {
+            if (smokeClickAt != null && smokeClicksSent < Math.max(1, smokeClickRepeat)
+                    && clientTick >= smokeClickFrame
+                    && (clientTick - smokeClickFrame) % Math.max(1, smokeClickPeriod) == 0) {
+                smokeClicksSent++;
                 smokeClickDone = true;
                 double[] gui = smokeClickAt;
                 double rawX = gui[0] * window.width() / (double) Math.max(1, guiWidth());
@@ -444,6 +491,16 @@ public final class PvzceClient {
                         + " backToGui=" + guiMouseX(rawX) + "," + guiMouseY(rawY)
                         + " screen=" + currentScreen().getClass().getSimpleName());
                 currentScreen().mouseClicked(rawX, rawY, 0);
+            }
+            if (smokeDragTo != null && !smokeDragDone && clientTick == smokeDragFrame) {
+                smokeDragDone = true;
+                double[] gui = smokeDragTo;
+                double rawX = gui[0] * window.width() / (double) Math.max(1, guiWidth());
+                double rawY = window.height() - gui[1] * window.height() / (double) Math.max(1, guiHeight());
+                System.out.println("[SMOKE] dragging to gui=" + gui[0] + "," + gui[1]
+                        + " backToGui=" + guiMouseX(rawX) + "," + guiMouseY(rawY));
+                currentScreen().mouseDragged(rawX, rawY, 0);
+                currentScreen().mouseReleased(rawX, rawY, 0);
             }
             if (smokeFrames > 0 && clientTick == smokeFrames) {
                 System.out.println("[SMOKE] frame " + smokeFrames + " rendered, screen=" + screen.getClass().getSimpleName());
@@ -674,7 +731,7 @@ public final class PvzceClient {
         float centerX = level.width() / 2F;
         float centerY = level.height() / 2F;
         List<ClientEntity> suns = level.entities().values().stream()
-                .filter(e -> e.kind().equals("sun"))
+                .filter(PvzceClient::lightsTheBoard)
                 .sorted((a, b) -> Float.compare(
                         distanceSq(a.cellX(), a.cellY() + a.height(), centerX, centerY),
                         distanceSq(b.cellX(), b.cellY() + b.height(), centerX, centerY)))
@@ -697,6 +754,18 @@ public final class PvzceClient {
         float dx = x1 - x2;
         float dy = y1 - y2;
         return dx * dx + dy * dy;
+    }
+
+    /**
+     * True when this drop is the sun and therefore lights the board.
+     *
+     * <p>Asked by <em>content id</em>, not by entity kind. A kind is a category - every drop
+     * shares one - so the previous {@code kind().equals("sun")} test matched every coin and
+     * diamond too, and each one lit the lawn like a small sun. Package-private so a test can
+     * hold that distinction down without a GL context.
+     */
+    static boolean lightsTheBoard(ClientEntity entity) {
+        return entity != null && PvzceIds.SUN.toString().equals(entity.defIdString());
     }
 
     /**
@@ -950,12 +1019,7 @@ public final class PvzceClient {
 
     /** True when a texture can be resolved from the built-in pack or an active resource pack. */
     public boolean hasTexture(Identifier id) {
-        try {
-            return resources.getResource("assets/" + id.toPath() + ".png").isPresent()
-                    || resources.getAsset(id).isPresent();
-        } catch (Exception e) {
-            return false;
-        }
+        return resources.hasTexture(id);
     }
 
     /**
@@ -1171,7 +1235,13 @@ public final class PvzceClient {
         if (music != null) {
             music.startLevel("pvzce:music/grasswalk");
         }
-        setScreenReplacing(new InGameScreen(this));
+        // Only a run that skipped the seed chooser still owes the player its opening
+        // conversation; one that went through the chooser has already shown it.
+        String levelId = level.levelId();
+        List<DialogueLine> opening = levelId != null && levelId.equals(directDialogueLevelId)
+                ? levelDialogue(levelId) : List.of();
+        directDialogueLevelId = null;
+        setScreenReplacing(new InGameScreen(this, opening));
         if (deferredSavePrompt != null) {
             LevelSavePromptS2C prompt = deferredSavePrompt;
             deferredSavePrompt = null;
@@ -1182,6 +1252,32 @@ public final class PvzceClient {
     /** Legacy entry point used by editor tests, smoke hooks and command helpers: all level slots. */
     public void requestLevel(String levelId, boolean restart) {
         connection.send(new RequestLevelC2S(levelId, currentWorld, restart));
+    }
+
+    /**
+     * Starts a brand-new run straight into the level, with no pre-game screen.
+     *
+     * <p>Only for levels that have nothing to ask: a conveyor level deals its own cards,
+     * so the seed chooser would offer a deck the server is about to discard. Because
+     * there is no chooser, the level's opening dialogue has to play in game, and the
+     * pending id is what carries that decision across the round trip.
+     */
+    private void requestFreshRunDirectly(String levelId, boolean restart) {
+        directDialogueLevelId = levelId;
+        connection.send(new RequestLevelC2S(levelId, currentWorld, restart));
+    }
+
+    /**
+     * The level's opening dialogue, read from the local data packs.
+     *
+     * <p>Read locally for the same reason {@link #usesConveyorBelt} and
+     * {@link #lockedSlotsFor} are: the client loads the same packs as the server, and the
+     * answer only decides what is drawn. An unknown level has no dialogue.
+     */
+    public List<DialogueLine> levelDialogue(String levelId) {
+        Identifier id = Identifier.tryParse(levelId);
+        LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
+        return def == null ? List.of() : def.dialogue().lines();
     }
 
     /**
@@ -1226,9 +1322,27 @@ public final class PvzceClient {
     public void enterLevelFromMenu(LevelListS2C.LevelInfo info) {
         if (info.hasRunningSave()) {
             requestLevel(info.id(), false);
+        } else if (usesConveyorBelt(info.id())) {
+            // Nothing to choose: a conveyor level's cards are delivered by the level
+            // itself, one at a time and for free, so a "choose your seeds" page would
+            // offer a deck the server is going to discard.
+            requestFreshRunDirectly(info.id(), false);
         } else {
             openSeedSelection(info, false);
         }
+    }
+
+    /**
+     * True when this level plays from a conveyor belt instead of a chosen deck.
+     *
+     * <p>Read from the local level definition, like {@link #lockedSlotsFor}: the client
+     * loads the same data packs, and the answer only decides which screens to open. The
+     * belt's contents and the cards themselves still come from the server.
+     */
+    public boolean usesConveyorBelt(String levelId) {
+        Identifier id = Identifier.tryParse(levelId);
+        LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
+        return def != null && def.hasConveyor();
     }
 
     /**
@@ -1280,9 +1394,11 @@ public final class PvzceClient {
      */
     public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
         LevelListS2C.LevelInfo info = findLevelInfo(prompt.levelId());
-        if (info == null) {
-            // No registry snapshot (for example a direct smoke request): fall
-            // back to the legacy server-side restart using the saved card bar.
+        if (info == null || usesConveyorBelt(prompt.levelId())) {
+            // No registry snapshot (for example a direct smoke request), or nothing to
+            // choose because the level deals its own cards: fall back to the server-side
+            // restart, which is the same thing minus a page that would ask for a deck the
+            // server is going to replace with the belt anyway.
             connection.send(new ResumeLevelC2S(prompt.levelId(), prompt.worldName(), true));
             return;
         }
@@ -1429,6 +1545,7 @@ public final class PvzceClient {
     private void clearLevelClientState() {
         savePromptOpen = false;
         deferredSavePrompt = null;
+        directDialogueLevelId = null;
         if (music != null) {
             music.leaveLevel();
         }
@@ -1457,12 +1574,20 @@ public final class PvzceClient {
         LevelListS2C.LevelInfo info = findLevelInfo(levelId);
         if (info == null) {
             // No registry snapshot for this level (editor/smoke entry): fall back to a
-            // plain server-side restart, which still closes the old instance.
-            connection.send(new RequestLevelC2S(levelId, currentWorld, true));
+            // plain server-side restart, which still closes the old instance. There is no
+            // chooser on this path either, so the opening dialogue plays in game.
+            requestFreshRunDirectly(levelId, true);
             return;
         }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
+        if (usesConveyorBelt(levelId)) {
+            // A conveyor level restarts straight into a fresh belt: there are no cards to
+            // pick, so the chooser that normally sits between "closed" and "restarted" has
+            // nothing to ask. The init packet rebuilds the screen, as it does for any entry.
+            requestFreshRunDirectly(levelId, true);
+            return;
+        }
         List<String> initial = seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
         setScreenReplacing(createSeedSelection(info, true, initial, this::showLevelList));
     }
@@ -1761,7 +1886,13 @@ public final class PvzceClient {
             pendingTestLevelId = null;
             for (LevelListS2C.LevelInfo info : this.levelList) {
                 if (wanted.equals(info.id())) {
-                    openSeedSelection(info, true);
+                    if (usesConveyorBelt(info.id())) {
+                        // A conveyor level hands out its own cards, so testing it means
+                        // starting it, not picking a deck for it.
+                        requestFreshRunDirectly(info.id(), true);
+                    } else {
+                        openSeedSelection(info, true);
+                    }
                     break;
                 }
             }

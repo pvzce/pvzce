@@ -68,6 +68,8 @@ public final class PvzceDataLoader {
             new RegistryData<>(PvzceRegistries.LEVELS, LevelDef.CODEC, "levels"),
             new RegistryData<>(PvzceRegistries.LEVEL_THEMES, LevelThemeDef.CODEC, "level_themes"),
             new RegistryData<>(PvzceRegistries.LEVEL_CATEGORIES, LevelCategoryDef.CODEC, "level_categories"),
+            new RegistryData<>(PvzceRegistries.DIALOGUE_CHARACTERS,
+                    com.pvzce.api.content.DialogueCharacterDef.CODEC, "dialogue_characters"),
             new RegistryData<>(PvzceRegistries.PLANTS, PlantDef.CODEC, "plants"),
             new RegistryData<>(PvzceRegistries.ZOMBIES, ZombieDef.CODEC, "zombies"),
             new RegistryData<>(PvzceRegistries.PROJECTILES, ProjectileDef.CODEC, "projectiles"),

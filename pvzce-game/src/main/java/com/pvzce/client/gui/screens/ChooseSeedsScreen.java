@@ -7,6 +7,7 @@ import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.client.gui.components.AbstractWidget;
 import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.components.DialogueOverlay;
 import com.pvzce.client.gui.components.NinePatch;
 import com.pvzce.client.renderer.LevelStage;
 import com.pvzce.client.renderer.SceneTileRenderer;
@@ -116,6 +117,16 @@ public final class ChooseSeedsScreen extends Screen {
     private boolean previewAnimationsReady;
 
     private long startNanos;
+    /**
+     * When the camera pan and the panel's slide-in begin.
+     *
+     * <p>Zero while the level's opening dialogue is still on screen: the pan is the
+     * "normal flow" the dialogue hands over to, so it must not have run behind it. With
+     * no dialogue this is {@link #startNanos}, which is what it always was.
+     */
+    private long panStartNanos;
+    /** The level's opening conversation, or {@code null} when it has none. */
+    private DialogueOverlay dialogue;
     /** Non-zero once the start has been requested; the packet waits for the animation. */
     private long exitNanos;
     /** True once the start packet went out, so the auto-start cannot fire twice. */
@@ -279,6 +290,16 @@ public final class ChooseSeedsScreen extends Screen {
         }
         if (startNanos == 0L) {
             startNanos = System.nanoTime();
+        }
+        // The dialogue is built once and re-attached after a resize, so a window resize
+        // mid-conversation does not start it over.
+        if (dialogue == null) {
+            dialogue = DialogueOverlay.create(client, client.levelDialogue(levelId), this::onDialogueFinished);
+        }
+        if (dialogue != null) {
+            showDialog(dialogue);
+        } else {
+            panStartNanos = startNanos;
         }
         updateLayout();
         ensurePreviewAnimations();
@@ -527,6 +548,13 @@ public final class ChooseSeedsScreen extends Screen {
 
     @Override
     public void requestClose() {
+        // ESC and 返回 are the only exits while the dialogue is up (its clicks advance the
+        // conversation instead), so they skip the rest of it rather than leaving a level
+        // the player only just chose. The screen stays open; the normal flow resumes.
+        if (dialogueActive()) {
+            dialogue.skipAll();
+            return;
+        }
         // Release the previews on every exit path, including the custom back action.
         releasePreviewAnimations();
         if (onBack != null) {
@@ -632,7 +660,10 @@ public final class ChooseSeedsScreen extends Screen {
         if (exitNanos != 0L) {
             return 1F - easeOut(exitProgress());
         }
-        long elapsed = System.nanoTime() - startNanos;
+        if (dialogueActive()) {
+            return 0F;
+        }
+        long elapsed = System.nanoTime() - panStart();
         return easeOut(clamp01((elapsed - PANEL_DELAY_NANOS) / (float) PANEL_SLIDE_NANOS));
     }
 
@@ -640,8 +671,34 @@ public final class ChooseSeedsScreen extends Screen {
         if (exitNanos != 0L) {
             return 1F - easeInOut(exitProgress());
         }
-        long elapsed = System.nanoTime() - startNanos;
+        if (dialogueActive()) {
+            return 0F;
+        }
+        long elapsed = System.nanoTime() - panStart();
         return easeInOut(clamp01(elapsed / (float) PAN_NANOS));
+    }
+
+    /**
+     * When the pan/panel timeline starts: the dialogue's end when there is one, otherwise
+     * the moment the screen opened.
+     *
+     * <p>The zombie preview is deliberately <em>not</em> on this clock - it walks in while
+     * the character is still talking, which is what makes the scene behind a dialogue look
+     * like the level rather than a still image.
+     */
+    private long panStart() {
+        return panStartNanos != 0L ? panStartNanos : startNanos;
+    }
+
+    private boolean dialogueActive() {
+        return dialogue != null && dialogue.isActive();
+    }
+
+    /** The conversation is over: the normal entry choreography takes it from here. */
+    private void onDialogueFinished() {
+        if (panStartNanos == 0L) {
+            panStartNanos = System.nanoTime();
+        }
     }
 
     /** 0..1 through the exit beat; the start packet goes out when it reaches 1. */
@@ -691,8 +748,10 @@ public final class ChooseSeedsScreen extends Screen {
             finishStart();
             return;
         }
-        // A fixed deck still shows the preview and the panel, then starts itself.
-        if (hasNothingToChoose() && now - startNanos >= AUTO_START_NANOS) {
+        // A fixed deck still shows the preview and the panel, then starts itself. The
+        // countdown is from the pan, not from the screen opening, so a dialogue cannot
+        // eat into the player's look at the cards.
+        if (!dialogueActive() && hasNothingToChoose() && now - panStart() >= AUTO_START_NANOS) {
             start();
         }
     }
@@ -819,6 +878,12 @@ public final class ChooseSeedsScreen extends Screen {
         }
 
         for (AbstractWidget widget : widgets) {
+            if (dialogueActive() && widget != dialogue) {
+                // The panel is still sliding out - it is simply not this screen's turn
+                // any more. Drawing the buttons over the character would offer the
+                // player controls that cannot be clicked.
+                continue;
+            }
             widget.render(client);
         }
     }
