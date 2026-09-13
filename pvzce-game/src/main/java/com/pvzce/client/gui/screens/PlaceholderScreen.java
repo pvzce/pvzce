@@ -19,7 +19,7 @@ public final class PlaceholderScreen extends Screen {
     protected void init() {
         int buttonWidth = 220;
         int buttonHeight = 44;
-        addWidget(new Button(centerX(buttonWidth), 90, buttonWidth, buttonHeight, "返回", client::closeScreen));
+        addWidget(new Button(centerX(buttonWidth), 90, buttonWidth, buttonHeight, "返回", this::requestClose));
     }
 
     @Override

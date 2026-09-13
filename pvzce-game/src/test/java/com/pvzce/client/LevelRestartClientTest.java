@@ -193,7 +193,7 @@ class LevelRestartClientTest {
      * Testing a level from the editor must offer the seed chooser, exactly like opening it
      * from the level list.
      *
-     * <p>The test button used to send {@code RequestLevelC2S} directly, which asks the server
+     * <p>The test button used to ask the server to start the level directly, which
      * to start the level - so testing skipped the chooser that the same level shows when it is
      * opened from the list. It now saves, asks for a reload and waits for the refreshed level
      * list, because the chooser has to describe the definition that was just written rather

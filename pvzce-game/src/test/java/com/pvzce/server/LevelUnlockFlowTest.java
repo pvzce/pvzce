@@ -13,7 +13,7 @@ import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.ServerMessageS2C;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import org.junit.jupiter.api.Test;
 
@@ -80,7 +80,7 @@ class LevelUnlockFlowTest {
         try (Harness harness = new Harness(gameDir)) {
             harness.levelList();
             harness.clear();
-            harness.send(new StartLevelC2S(SECOND, WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S(SECOND, WORLD, true, List.of()));
 
             ServerMessageS2C message = harness.awaitPacket(ServerMessageS2C.class, 5_000);
             assertTrue(message.message().contains("尚未解锁"), message.message());

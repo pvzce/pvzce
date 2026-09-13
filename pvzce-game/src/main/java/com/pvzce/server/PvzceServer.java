@@ -32,14 +32,14 @@ import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.ProfileS2C;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
-import com.pvzce.common.network.packet.ResumeLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.UseToolC2S;
@@ -730,15 +730,54 @@ public final class PvzceServer implements Runnable {
         return Files.isRegularFile(levelDir.resolve("level.dat"));
     }
 
+    /**
+     * What the client asked for when it named a level.
+     *
+     * <p>Recovered from the packet <em>type</em> rather than from a boolean beside it: the
+     * three entry packets exist because these are three different requests, and the server
+     * used to reconstruct the difference from a {@code restart} flag plus a "confirmed"
+     * boolean it tracked across the save prompt. Every rule that depended on those two
+     * booleans now reads this instead.
+     */
+    private enum LevelIntent {
+        /** Load the saved run; never ask, the player already answered the prompt. */
+        CONTINUE,
+        /**
+         * Start with the cards the request carries. A save on disk is a run the player closed
+         * the game in the middle of, so it is loaded and asked about: the seed chooser is
+         * submitted before anything knows the save is there.
+         */
+        PLAY,
+        /**
+         * Start with the cards the request carries and <em>do not</em> ask about a save - the
+         * player has already turned it down (the save prompt's 重新开始, which goes through the
+         * chooser to pick a new bar). This is the distinction the old {@code StartLevelC2S}
+         * drew with its {@code restart} flag.
+         */
+        PLAY_OVER_SAVE,
+        /** Discard the save and start over with the level's own cards. */
+        RESTART
+    }
+
+    /** The editor's "test", the smoke hooks and {@code /level enter} all start a fresh run. */
     public void requestLevel(String levelId, String worldName, boolean restart) {
-        createLevel(levelId, worldName, restart, false, null);
+        createLevel(levelId, worldName, restart ? LevelIntent.RESTART : LevelIntent.CONTINUE, null);
     }
 
-    private void createLevel(String levelId, String worldName, boolean restart, boolean confirmed) {
-        createLevel(levelId, worldName, restart, confirmed, null);
+    private void createLevel(String levelId, String worldName, boolean restart) {
+        createLevel(levelId, worldName, restart ? LevelIntent.RESTART : LevelIntent.CONTINUE, null);
     }
 
-    private void createLevel(String levelId, String worldName, boolean restart, boolean confirmed,
+    /**
+     * The single entry point for "put this level on the server".
+     *
+     * <p>The intent says whether the save on disk is a run to resume or a leftover to discard,
+     * so no separate "the player already answered" flag is needed.
+     *
+     * @param requestedSeeds the client's card bar, or {@code null} to use the level's own
+     *                       cards (a {@code CONTINUE} then takes the bar out of the save)
+     */
+    private void createLevel(String levelId, String worldName, LevelIntent intent,
                              List<Identifier> requestedSeeds) {
         Identifier id = Identifier.parse(levelId);
         LevelDef def = BuiltInRegistries.LEVELS.get(id);
@@ -763,8 +802,15 @@ public final class PvzceServer implements Runnable {
             connection.send(new ServerMessageS2C("关卡 " + label + " 尚未解锁：" + unlock.reason()));
             return;
         }
+        // Only "continue" accepts the instance that is already running. Everything else -
+        // including a card bar submitted for the level that happens to be live - is the
+        // player asking for a run from the start, and answering that with a resync is what
+        // silently discarded their chosen cards.
+        boolean fresh = intent != LevelIntent.CONTINUE;
         if (level != null && currentLevelId != null && currentLevelId.equals(id)
-                && safeWorld.equals(currentWorld) && !restart) {
+                && safeWorld.equals(currentWorld) && !fresh) {
+            // Continuing the level that is already running: nothing to load, and re-sending
+            // the state is what the client's resync path expects.
             level.sendFullState(bridge);
             connection.send(new GameSpeedS2C(tickRate.tickRate()));
             return;
@@ -775,13 +821,16 @@ public final class PvzceServer implements Runnable {
         // Resolved before the level is built: the backpack decides the card bar.
         PlayerProfile profile = profileFor(safeWorld);
 
-        // Switching to a different level without an explicit restart keeps
+        // Switching to a different level without asking for a fresh run keeps
         // the current level's progress under its own save directory.
-        if (level != null && currentWorld != null && !restart) {
+        if (level != null && currentWorld != null && !fresh) {
             saveGame();
         }
 
-        boolean loadSave = !restart && hasSave;
+        // A save is a run to resume unless the player has already said no to it: "continue"
+        // and a seed selection from the level list load it (the second so the save can be
+        // asked about), while the save prompt's 重新开始 and the pause menu's restart discard it.
+        boolean loadSave = (intent == LevelIntent.CONTINUE || intent == LevelIntent.PLAY) && hasSave;
         if (!loadSave && hasSave) {
             deleteRunningSave(saveDir);
         }
@@ -847,9 +896,10 @@ public final class PvzceServer implements Runnable {
         newLevel.sendFullState(bridge);
         connection.send(new GameSpeedS2C(tickRate.tickRate()));
 
-        if (loadedSave && !confirmed && saveTag != null) {
+        if (loadedSave && saveTag != null) {
             // The saved world is already being rendered behind the dialog; keep
-            // the simulation frozen until the client chooses continue/restart.
+            // the simulation frozen until the client chooses continue/restart. A load only
+            // ever happens for "continue", so the question always still needs asking.
             savePromptPending = true;
             connection.send(new LevelSavePromptS2C(id.toString(), safeWorld, def.displayName(),
                     saveTag.getInt("Tick"), saveTag.getInt("PlantCount"), saveTag.getInt("Sun")));
@@ -1261,55 +1311,43 @@ public final class PvzceServer implements Runnable {
         }
     }
 
+    /** Parses a packet's card ids, skipping the ones the identifier rules reject. */
+    private static List<Identifier> seedIds(List<String> raw) {
+        List<Identifier> seeds = new ArrayList<>();
+        for (String id : raw) {
+            Identifier seed = Identifier.tryParse(id);
+            if (seed != null) {
+                seeds.add(seed);
+            }
+        }
+        return seeds;
+    }
+
     private final class ServerPacketListener implements PacketListener {
         @Override
         public void handle(PvzcePacket packet) {
             LevelServer current = level;
-            if (packet instanceof RequestLevelC2S request) {
-                if (current != null && current.def().id().toString().equals(request.levelId())
-                        && request.worldName() != null && request.worldName().equals(currentWorld)) {
-                    if (request.restart()) {
-                        createLevel(request.levelId(), request.worldName(), true, true);
-                    } else {
-                        current.sendFullState(bridge);
-                        connection.send(new GameSpeedS2C(tickRate.tickRate()));
-                    }
+            if (packet instanceof ContinueLevelC2S request) {
+                // "Load the run I have saved." When that run is already loaded and waiting on
+                // the prompt, resuming is just an unpause - which is the whole point of
+                // loading the save *before* asking about it.
+                if (savePromptPending && current != null && currentWorld != null
+                        && currentWorld.equals(sanitizeWorldName(request.worldName()))
+                        && current.def().id().toString().equals(request.levelId())) {
+                    savePromptPending = false;
                     return;
                 }
-                createLevel(request.levelId(), request.worldName(), request.restart(), false);
-            } else if (packet instanceof StartLevelC2S start) {
-                List<Identifier> seeds = new ArrayList<>();
-                for (String raw : start.selectedSeeds()) {
-                    Identifier seed = Identifier.tryParse(raw);
-                    if (seed != null) {
-                        seeds.add(seed);
-                    }
-                }
-                boolean sameRunningLevel = current != null
-                        && current.def().id().toString().equals(start.levelId())
-                        && start.worldName() != null && start.worldName().equals(currentWorld);
-                if (sameRunningLevel && !start.restart()) {
-                    // The client came through the seed chooser for the level that is
-                    // already live. A card bar can only be picked before a run starts,
-                    // so the request means "start this level with these cards" - it used
-                    // to answer with a bare resync instead, which sent a LevelInitS2C
-                    // for the still-running level, silently discarded the player's new
-                    // cards and left the old run in place. That is the "restart did
-                    // nothing / the old level was never closed" report.
-                    System.out.println("[PVZCE] Card bar chosen for the running level " + start.levelId()
-                            + "; starting a fresh run with it.");
-                    createLevel(start.levelId(), start.worldName(), true, true, seeds);
-                    return;
-                }
-                createLevel(start.levelId(), start.worldName(), start.restart(), false, seeds);
-            } else if (packet instanceof ResumeLevelC2S resume) {
-                if (savePromptPending && !resume.restart()) {
-                    // Saved world is already loaded and rendered; just resume it.
-                    savePromptPending = false;
-                } else {
-                    savePromptPending = false;
-                    createLevel(resume.levelId(), resume.worldName(), resume.restart(), true);
-                }
+                createLevel(request.levelId(), request.worldName(), LevelIntent.CONTINUE, null);
+            } else if (packet instanceof RestartLevelC2S restart) {
+                createLevel(restart.levelId(), restart.worldName(), LevelIntent.RESTART,
+                        seedIds(restart.selectedSeeds()));
+            } else if (packet instanceof PlayLevelC2S play) {
+                // The seed chooser's 开始游戏. From the level list (restart=false) a save on
+                // disk means the player closed the game mid-run: it is loaded and asked about
+                // like any other entry with a save. From the save prompt's 重新开始
+                // (restart=true) the player has already turned that save down.
+                LevelIntent intent = play.restart() ? LevelIntent.PLAY_OVER_SAVE : LevelIntent.PLAY;
+                createLevel(play.levelId(), play.worldName(), intent, seedIds(play.selectedSeeds()));
             } else if (packet instanceof RequestLevelListC2S request) {
                 lastRequestedWorld = request.worldName();
                 sendLevelList(request.worldName());

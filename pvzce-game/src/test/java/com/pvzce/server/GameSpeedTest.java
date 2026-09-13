@@ -5,7 +5,8 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.LevelInitS2C;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,7 @@ class GameSpeedTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "speedtest", true));
+        pair.client().send(new RestartLevelC2S("pvzce:yard/adventure/1_1", "speedtest", List.of()));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream().anyMatch(p -> p instanceof LevelInitS2C));
 
@@ -44,7 +45,7 @@ class GameSpeedTest {
         assertEquals(180F, server.tickRateManager().tickRate(), 0.001F);
 
         clientPackets.clear();
-        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "speedtest", true));
+        pair.client().send(new RestartLevelC2S("pvzce:yard/adventure/1_1", "speedtest", List.of()));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream()
                         .filter(GameSpeedS2C.class::isInstance)

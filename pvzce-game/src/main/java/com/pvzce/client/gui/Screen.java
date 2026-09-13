@@ -48,6 +48,39 @@ public abstract class Screen {
     protected void init() {
     }
 
+    /**
+     * Releases whatever {@link #init()} acquired, when this screen leaves the stack.
+     *
+     * <p>Called exactly once per screen, for every way a screen can go away: a
+     * {@link Navigation.Pop}, a root replacement, or the client shutting down. Before this
+     * hook existed, a screen that attached animation playbacks or built preview entities in
+     * {@code init()} had to remember to release them at each of its own exits -
+     * {@code EditorScreen} did it in two separate methods, and any third exit would have
+     * leaked silently.
+     *
+     * <p>Not called on resize: {@link #onResize()} rebuilds a screen in place, and the
+     * screen survives it.
+     */
+    protected void onRemoved() {
+    }
+
+    /**
+     * Where "back" goes from this screen.
+     *
+     * <p>Defaults to {@link Navigation#POP}: the screen was nested by
+     * {@link PvzceClient#openScreen} and the one underneath is what the player expects to
+     * see. A screen that the client installs as the root of a flow - after a level ends,
+     * after a save is loaded - overrides this to name its own destination, because there is
+     * nothing underneath it to reveal.
+     *
+     * <p>This replaces reading the stack depth. The depth cannot tell the difference between
+     * "the world list is underneath me" and "I am alone because a level just ended", yet
+     * {@code LevelSelectScreen} needs different destinations for those two cases.
+     */
+    public Navigation backTarget() {
+        return Navigation.POP;
+    }
+
     /** Called every client frame; the GUI projection is already active. */
     public abstract void render();
 
@@ -60,7 +93,7 @@ public abstract class Screen {
      * Screens may override this to route the request through a custom callback.
      */
     public void requestClose() {
-        client.closeScreen();
+        client.navigateBack();
     }
 
     /**

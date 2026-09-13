@@ -31,7 +31,7 @@ public final class SettingsScreen extends Screen {
         Runnable[] actions = {
                 () -> client.openScreen(client.buildSettingsConfig()),
                 () -> client.openScreen(new VideoSettingsScreen(client)),
-                () -> client.closeScreen()
+                this::requestClose
         };
         for (int i = 0; i < labels.length; i++) {
             int y = buttonTop - buttonHeight - i * (buttonHeight + gap);

@@ -2,6 +2,7 @@ package com.pvzce.client.gui.screens;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.gui.Navigation;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.components.Button;
@@ -54,6 +55,17 @@ public final class LevelSelectScreen extends Screen {
 
     /** True once {@code pvzce.smokeTab} has found its page; see {@link #openSmokeTab}. */
     private boolean smokeTabApplied;
+    /**
+     * True once the page was chosen on purpose, by the player or by {@code pvzce.smokeTab}.
+     *
+     * <p>The screen picks a page it can only see part of: the level list arrives with no
+     * {@code theme}/{@code category} on it, and the server's tab table arrives a round trip
+     * after that. Whatever page is open at that moment was not really chosen, so a table that
+     * then turns out to hold real pages is allowed to move off it - without this, the bucket
+     * picked from an empty list survived every later refresh (the bucket is always in the
+     * table, appended last), and the player opened 选择关卡 on "这个分类下还没有关卡".
+     */
+    private boolean pagePickedByUser;
 
     private int selectedRow = -1;
     /**
@@ -192,7 +204,7 @@ public final class LevelSelectScreen extends Screen {
                 GuiLang.raw("pvzce.inventory", "背包"),
                 () -> client.openScreen(new InventoryScreen(client))).style(Button.Style.SEED_CHOOSER));
         addWidget(new Button(startX + (quadWidth + rowGap) * 3, actionY, quadWidth, actionHeight,
-                GuiLang.raw("pvzce.back", "返回"), this::goBack).style(Button.Style.SEED_CHOOSER));
+                GuiLang.raw("pvzce.back", "返回"), this::requestClose).style(Button.Style.SEED_CHOOSER));
 
         addWidget(new Button(centerX(customWidth), createY, customWidth, createHeight,
                 GuiLang.raw("pvzce.editor.new_level", "新建关卡"), this::openCreateDialog)
@@ -273,13 +285,14 @@ public final class LevelSelectScreen extends Screen {
         tabs.addAll(LevelPage.tabs(current));
         if (openTab != null) {
             int index = LevelPage.indexOf(tabs, openTab.themeId(), openTab.categoryId());
-            openTab = index < 0 ? null : tabs.get(index);
+            boolean keep = index >= 0 && (pagePickedByUser || !openTab.uncategorized());
+            openTab = keep ? tabs.get(index) : null;
         }
         if (openTab == null && !tabs.isEmpty()) {
             // Prefer the page the selection is on, so reopening the screen lands where the
-            // player left off instead of at the first tab.
+            // player left off instead of at the first page.
             int selectedTab = LevelPage.tabIndexOf(tabs, findSelected());
-            openTab = tabs.get(selectedTab < 0 ? 0 : selectedTab);
+            openTab = selectedTab < 0 ? LevelPage.firstRealPage(tabs) : tabs.get(selectedTab);
         }
         openSmokeTab();
         recomputeRows();
@@ -300,7 +313,7 @@ public final class LevelSelectScreen extends Screen {
         }
         if (openTab == null && !tabs.isEmpty()) {
             int selectedTab = LevelPage.tabIndexOf(tabs, findSelected());
-            openTab = tabs.get(selectedTab < 0 ? 0 : selectedTab);
+            openTab = selectedTab < 0 ? LevelPage.firstRealPage(tabs) : tabs.get(selectedTab);
         }
         recomputeRows();
         // Re-resolve the selection by id: the list that just arrived is a different snapshot,
@@ -343,6 +356,7 @@ public final class LevelSelectScreen extends Screen {
         int index = LevelPage.indexOf(tabs, theme, category);
         if (index >= 0) {
             openTab = tabs.get(index);
+            pagePickedByUser = true;
             smokeTabApplied = true;
             return;
         }
@@ -352,10 +366,16 @@ public final class LevelSelectScreen extends Screen {
         openTab = null;
     }
 
-    /** Recomputes the open page's rows and its pager, keeping the page when it still exists. */
+    /**
+     * Recomputes the open page's rows and its pager, keeping the page when it still exists.
+     *
+     * <p>Filling in a page here is a guess, not a choice: this runs from {@code tick()} with
+     * whatever table and list have arrived so far, so it deliberately leaves
+     * {@link #pagePickedByUser} alone and a later, real table may still move off it.
+     */
     private void recomputeRows() {
         if (openTab == null && !tabs.isEmpty()) {
-            openTab = tabs.get(0);
+            openTab = LevelPage.firstRealPage(tabs);
         }
         rows = LevelPage.rowsFor(levels, openTab);
     }
@@ -514,6 +534,9 @@ public final class LevelSelectScreen extends Screen {
                 && tab.categoryId().equals(openTab.categoryId()))) {
             return;
         }
+        // Only a click lands here, so from now on the open page is the player's to keep -
+        // including the bucket, which a refresh must not move them off.
+        pagePickedByUser = true;
         openTab = tab;
         recomputeRows();
         selectedRow = indexOfLevel(rows, selectedLevelId);
@@ -773,31 +796,59 @@ public final class LevelSelectScreen extends Screen {
     }
 
     /**
-     * Back, to whoever opened this screen.
+     * Back, to whoever opened this screen - declared rather than inferred.
      *
-     * <p>Normally that is the world list underneath. After a level ends the client
-     * replaces the whole screen stack with this screen ({@code showLevelList}), so
-     * there is nothing to pop and plain {@code closeScreen()} did nothing at all - the
-     * 返回 button was simply dead. Falling through to the world list is the same
-     * destination the stack would have offered.
+     * <p>The level list is reachable two ways, and they want different destinations:
+     *
+     * <ul>
+     *   <li>Drilled into from the world list (settings, the editor, a level's 编辑关卡):
+     *       {@link Navigation#POP} reveals it, because it is still on the stack.</li>
+     *   <li>Installed by the client as the root after a level ended or a world was chosen
+     *       ({@code showLevelList()}): there is nothing underneath, and the world list is the
+     *       step back the stack would have offered.</li>
+     * </ul>
+     *
+     * <p>The depth test that used to live in {@code goBack()} survives as the <em>condition</em>
+     * here, which is the honest version of it: both facts are about how this screen was
+     * entered, and the screen is the only place that knows them. What is gone is the version
+     * that popped and hoped - a screen alone on the stack can no longer be popped into a
+     * client with nothing to render.
      */
-    private void goBack() {
-        if (client.screenDepth() > 1) {
-            client.closeScreen();
-        } else {
-            client.showWorldSelect();
-        }
+    @Override
+    public Navigation backTarget() {
+        return client.screenDepth() > 1
+                ? Navigation.POP
+                : Navigation.replaceRoot(WorldSelectScreen::new);
     }
 
     /** ESC goes to the same place the 返回 button does. */
     @Override
     public void requestClose() {
-        goBack();
+        client.navigateBack();
     }
 
     /** Shared with the level setup screen so the same state cannot read differently. */
     static String statusLabel(String status) {
         return com.pvzce.client.gui.GuiStatusText.label(status);
+    }
+
+    /**
+     * The page currently open, as {@code theme/category}; diagnostics and tests.
+     *
+     * <p>{@code tick()} is what keeps this current - it makes the same two calls
+     * {@code init()} does - and unlike {@code init()} it needs no window, so a test can drive
+     * the screen's page choice without a GL context or a music engine.
+     */
+    String openPageForTest() {
+        return openTab == null ? "<none>" : openTab.themeId() + "/" + openTab.categoryId();
+    }
+
+    /** Opens a page by id, exactly what a click in the theme column or the category row does. */
+    void switchToPageForTest(String themeId, String categoryId) {
+        int index = LevelPage.indexOf(tabs, themeId, categoryId);
+        if (index >= 0) {
+            switchTo(tabs.get(index));
+        }
     }
 
     /**

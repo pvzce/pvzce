@@ -75,7 +75,7 @@ public final class LevelSetupScreen extends Screen {
         int startX = centerX(actionWidth * 2 + 8);
         addWidget(new Button(startX, 4, actionWidth, actionHeight, "开始游戏", this::startGame)
                 .style(Button.Style.SEED_CHOOSER));
-        addWidget(new Button(startX + actionWidth + 8, 4, actionWidth, actionHeight, "返回", client::closeScreen)
+        addWidget(new Button(startX + actionWidth + 8, 4, actionWidth, actionHeight, "返回", this::requestClose)
                 .style(Button.Style.SEED_CHOOSER));
 
         int texWidth = 800;

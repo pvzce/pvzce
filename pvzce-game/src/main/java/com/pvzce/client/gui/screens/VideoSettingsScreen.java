@@ -99,7 +99,7 @@ public final class VideoSettingsScreen extends Screen {
         y -= rowHeight + gap;
 
         addWidget(new Button(x, Math.max(4, y), fullWidth,
-                rowHeight, "完成", client::closeScreen));
+                rowHeight, "完成", this::requestClose));
     }
 
     private Button[] toggleButton(int x, int y, int width, int height, String label, Runnable action) {

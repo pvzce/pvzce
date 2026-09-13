@@ -82,7 +82,7 @@ public final class ModsScreen extends Screen {
         int doneHeight = GuiLayout.fitHeight(height, 56, 1, 0, 0);
         int actionY = 8 + doneHeight + 8;
         int actionHeight = GuiLayout.fitHeight(height, 45, 1, titleReserve, actionY);
-        addWidget(new Button(rightX, 8, Math.max(120, smallW), doneHeight, "完成", client::closeScreen));
+        addWidget(new Button(rightX, 8, Math.max(120, smallW), doneHeight, "完成", this::requestClose));
         // Website/config/collapse buttons sit above Done with a clear gap.
         addWidget(new Button(rightX, actionY, smallW, actionHeight, "配置", this::openConfig));
         addWidget(new Button(rightX + smallW + 6, actionY, smallW, actionHeight, "主页", this::openHomepage));

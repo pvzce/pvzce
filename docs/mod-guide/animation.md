@@ -188,12 +188,26 @@ python3 tools/reanim_to_pvzce.py
 
 ## 开发冒烟
 
+冒烟参数走 **`-Ppvzce.smoke=\"…\"`**（Gradle 属性），不是 `JAVA_TOOL_OPTIONS`／`-D`：
+`run` 任务会把它们转成游戏 JVM 的系统属性，而 `-D` 只到 Gradle daemon、进不了 fork 出来的进程。
+
 ```bash
 # 标题页 30 帧
-JAVA_TOOL_OPTIONS='-Dpvzce.smokeFrames=30' ./gradlew :pvzce-game:run
+./gradlew :pvzce-game:run -Ppvzce.gameDir=/tmp/pvzce-smoke \
+    -Ppvzce.smoke="pvzce.smokeFrames=30"
 
-# 自动进入关卡跑 900 帧，验证实体动画渲染不崩
-JAVA_TOOL_OPTIONS='-Dpvzce.smokeFrames=900 -Dpvzce.smokeLevel=pvzce:yard/adventure/1_1' ./gradlew :pvzce-game:run
+# 自动进入关卡跑 900 帧，验证实体动画渲染不崩，并在第 890 帧存一张图
+./gradlew :pvzce-game:run -Ppvzce.gameDir=/tmp/pvzce-smoke \
+    -Ppvzce.smoke="pvzce.smokeLevel=pvzce:yard/adventure/1_1 pvzce.smokeFrames=900 \
+        pvzce.captureFrame=890 pvzce.capturePath=/tmp/animation.png"
 ```
+
+两件必须知道的事：
+
+- **`-Ppvzce.gameDir` 一定要带**，否则这次运行会写进真正的 `~/.pvzce`。
+- **`smokeLevel` 受解锁门槛约束**：用锁着的关卡（例如全新世界的 `1_2`）会静默失败并停在标题页。
+  上面用 `1_1` 就是因为它是默认解锁的那一关。
+
+完整参数表、坑与典型组合见 `../冒烟与截图指南.md`。
 
 > 若使用本仓库沙箱环境，可用 `GRADLE_USER_HOME=$PWD/.gradle-user` 并直接调用 Gradle 发行版；普通环境用 `./gradlew` 即可。

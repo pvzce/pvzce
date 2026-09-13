@@ -22,7 +22,7 @@ import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.SlotInfo;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.server.entity.ResourceDropEntity;
 import com.pvzce.server.level.LevelServer;
 import org.junit.jupiter.api.Test;
@@ -222,7 +222,7 @@ class BackpackAndCoinsTest {
             assertFalse(pool.contains("pvzce:wall_nut"));
 
             harness.clear();
-            harness.send(new StartLevelC2S(FIRST_LEVEL, WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true, List.of()));
             LevelInitS2C init = harness.awaitPacket(LevelInitS2C.class, 5_000);
             List<String> running = init.payload().seedPool().stream().map(SeedOption::slotId).toList();
             assertEquals(pool, running, "the level list and the running level must describe one pool");
@@ -234,7 +234,7 @@ class BackpackAndCoinsTest {
         Path gameDir = Files.createTempDirectory("pvzce-first-level-cards");
         try (Harness harness = new Harness(gameDir)) {
             // The client asks for cards it does not own; the level's own two win out.
-            harness.send(new StartLevelC2S(FIRST_LEVEL, WORLD, true,
+            harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true,
                     List.of("pvzce:wall_nut", "pvzce:sunflower")));
             LevelInitS2C init = harness.awaitPacket(LevelInitS2C.class, 5_000);
 
@@ -293,7 +293,7 @@ class BackpackAndCoinsTest {
             harness.reloadAndAwaitLevelList();
 
             // First clear: the level's first_clear reward is the sunflower.
-            harness.send(new StartLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             harness.winLevel();
 
@@ -319,7 +319,7 @@ class BackpackAndCoinsTest {
             // Replay: the card is already owned, so the level pays its coin stipend.
             harness.send(new LeaveLevelC2S());
             harness.clear();
-            harness.send(new StartLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             harness.clear();
             harness.winLevel();
@@ -336,7 +336,7 @@ class BackpackAndCoinsTest {
     void coinsCollectedInARunAreBankedEvenWhenTheRunIsLost() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-coin-bank");
         try (Harness harness = new Harness(gameDir)) {
-            harness.send(new StartLevelC2S(FIRST_LEVEL, WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             // Stands in for coins the run picked up: the wallet rule is what is under
             // test here, and the drop roll has its own test below.
@@ -382,7 +382,7 @@ class BackpackAndCoinsTest {
                     }
                     """);
             harness.reloadAndAwaitLevelList();
-            harness.send(new StartLevelC2S("pvzce:drop_test", WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S("pvzce:drop_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));
@@ -417,7 +417,7 @@ class BackpackAndCoinsTest {
                     }
                     """);
             harness.reloadAndAwaitLevelList();
-            harness.send(new StartLevelC2S("pvzce:nodrop_test", WORLD, true, List.of()));
+            harness.send(new PlayLevelC2S("pvzce:nodrop_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));

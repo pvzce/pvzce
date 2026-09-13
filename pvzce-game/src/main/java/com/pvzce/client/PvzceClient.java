@@ -12,7 +12,6 @@ import com.pvzce.client.gui.config.ConfigEntryBuilder;
 import com.pvzce.client.gui.config.ConfigScreen;
 import com.pvzce.client.gui.mods.ModMenu;
 import com.pvzce.client.gui.mods.ModsScreen;
-import com.pvzce.client.gui.screens.ConsoleScreen;
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
 import com.pvzce.client.gui.screens.EditorScreen;
 import com.pvzce.client.gui.screens.InGameScreen;
@@ -46,12 +45,12 @@ import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
-import com.pvzce.common.network.packet.ResumeLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.SeedOption;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.common.tag.PvzceTags;
 import com.google.gson.JsonArray;
@@ -68,10 +67,8 @@ import org.lwjgl.stb.STBImageWrite;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +95,23 @@ public final class PvzceClient {
             new com.pvzce.client.renderer.liquid.LiquidRipples();
     private final long startNanos = System.nanoTime();
     private final ClientLevel level = new ClientLevel();
-    private final Deque<Screen> screens = new ArrayDeque<>();
+    /**
+     * The full-window screens and which one is on top.
+     *
+     * <p>Navigation goes through this rather than through a local deque so that
+     * "replace / push / back" have one definition each, and so a screen that leaves the
+     * stack is always told (see {@link com.pvzce.client.gui.Screen#onRemoved()}).
+     */
+    private final com.pvzce.client.gui.ScreenStack screens =
+            new com.pvzce.client.gui.ScreenStack(this);
+    /**
+     * The layer drawn over the current screen without joining the navigation stack.
+     *
+     * <p>The console is the only one today. Being outside {@link #screens} is the point:
+     * the screen underneath keeps its own lifecycle, and the stack depth keeps meaning
+     * "how many screens are nested", which is what screens reason about.
+     */
+    private com.pvzce.client.gui.Overlay overlay;
 
     private String currentWorld = "world";
     private volatile List<LevelListS2C.LevelInfo> levelList = List.of();
@@ -302,7 +315,9 @@ public final class PvzceClient {
         } else if ("settings".equals(smokeScreen)) {
             setScreenReplacing(new SettingsScreen(this));
         } else if ("console".equals(smokeScreen)) {
-            setScreenReplacing(new ConsoleScreen(this));
+            // The console is an overlay, so the run needs a screen for it to float over.
+            setScreenReplacing(new TitleScreen(this));
+            openConsole("");
         } else if ("create".equals(smokeScreen)) {
             com.pvzce.client.gui.screens.LevelSelectScreen levels =
                     new com.pvzce.client.gui.screens.LevelSelectScreen(this);
@@ -451,14 +466,6 @@ public final class PvzceClient {
             pollInput();
             Screen screen = currentScreen();
             screen.initIfNeeded();
-            if (screen instanceof ConsoleScreen) {
-                for (Screen lower : screens) {
-                    if (lower != screen) {
-                        lower.initIfNeeded();
-                        lower.tick();
-                    }
-                }
-            }
             screen.tick();
             music.tick();
             animations.tick();
@@ -477,7 +484,7 @@ public final class PvzceClient {
                             int cx = child.x() + child.width() / 2;
                             int cy = child.y() + child.height() / 2;
                             System.out.println("[SMOKE] clicking '" + smokeClickLabel + "' at " + cx + "," + cy);
-                            currentScreen().dispatchMouseClicked(cx, cy, 0);
+                            deliverGuiClick(cx, cy, 0);
                         }
                     }
                 }
@@ -494,7 +501,7 @@ public final class PvzceClient {
                         + " raw=" + rawX + "," + rawY
                         + " backToGui=" + guiMouseX(rawX) + "," + guiMouseY(rawY)
                         + " screen=" + currentScreen().getClass().getSimpleName());
-                currentScreen().mouseClicked(rawX, rawY, 0);
+                deliverRawClick(rawX, rawY, 0);
             }
             if (smokeDragTo != null && !smokeDragDone && clientTick == smokeDragFrame) {
                 smokeDragDone = true;
@@ -503,8 +510,8 @@ public final class PvzceClient {
                 double rawY = window.height() - gui[1] * window.height() / (double) Math.max(1, guiHeight());
                 System.out.println("[SMOKE] dragging to gui=" + gui[0] + "," + gui[1]
                         + " backToGui=" + guiMouseX(rawX) + "," + guiMouseY(rawY));
-                currentScreen().mouseDragged(rawX, rawY, 0);
-                currentScreen().mouseReleased(rawX, rawY, 0);
+                deliverRawDrag(rawX, rawY, 0);
+                deliverRawRelease(rawX, rawY, 0);
             }
             if (smokeFrames > 0 && clientTick == smokeFrames) {
                 System.out.println("[SMOKE] frame " + smokeFrames + " rendered, screen=" + screen.getClass().getSimpleName());
@@ -545,6 +552,11 @@ public final class PvzceClient {
 
     private void pollInput() {
         Screen screen = currentScreen();
+        if (overlay != null) {
+            // An overlay builds its widgets lazily, exactly like a screen: it needs a window
+            // to size them against, and it is created the moment the player asks for it.
+            overlay.initIfNeeded();
+        }
         Integer key;
         while ((key = window.pollKey()) != null) {
             if (key == GLFW.GLFW_KEY_F11) {
@@ -555,29 +567,31 @@ public final class PvzceClient {
                 debugOverlayEnabled = !debugOverlayEnabled;
                 continue;
             }
+            // An open overlay owns the keyboard, console shortcuts included: the console
+            // itself must not be able to open a second console, and ESC belongs to it.
+            if (overlay != null) {
+                overlay.keyPressed(key);
+                continue;
+            }
             if (key == GLFW.GLFW_KEY_ESCAPE
                     && !(screen instanceof InGameScreen)
-                    && !(screen instanceof EditorScreen)
-                    && !(screen instanceof ConsoleScreen)) {
-                screen.requestClose();
+                    && !(screen instanceof EditorScreen)) {
+                navigateBack();
                 screen = currentScreen();
                 continue;
             }
-            if (!(screen instanceof ConsoleScreen) && !screen.hasTextInputFocused()) {
+            if (!screen.hasTextInputFocused()) {
                 if (key == GLFW.GLFW_KEY_SLASH) {
                     suppressNextChar = '/';
                     openConsole("/");
-                    screen = currentScreen();
                     continue;
                 }
                 if (key == GLFW.GLFW_KEY_T) {
                     suppressNextChar = 't';
                     openConsole("");
-                    screen = currentScreen();
                     continue;
                 }
             }
-            screen = currentScreen();
             screen.keyPressed(key);
         }
         Integer codepoint;
@@ -588,12 +602,17 @@ public final class PvzceClient {
                 continue;
             }
             suppressNextChar = 0;
-            screen = currentScreen();
-            screen.charTyped(ch);
+            if (overlay != null) {
+                overlay.charTyped(ch);
+            } else {
+                currentScreen().charTyped(ch);
+            }
         }
         screen = currentScreen();
         boolean backspaceDown = window.isKeyDown(GLFW.GLFW_KEY_BACKSPACE);
-        if (backspaceDown && screen.hasTextInputFocused()) {
+        boolean textFocused = overlay != null
+                ? overlay.hasTextInputFocused() : screen.hasTextInputFocused();
+        if (backspaceDown && textFocused) {
             long now = System.nanoTime();
             if (!backspaceHeld) {
                 // The press itself already deleted one character via keyPressed;
@@ -601,7 +620,11 @@ public final class PvzceClient {
                 backspaceNextNanos = now + 500_000_000L;
             }
             if (now >= backspaceNextNanos) {
-                screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE);
+                if (overlay != null) {
+                    overlay.keyPressed(GLFW.GLFW_KEY_BACKSPACE);
+                } else {
+                    screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE);
+                }
                 backspaceNextNanos = now + 80_000_000L;
             }
         }
@@ -609,31 +632,141 @@ public final class PvzceClient {
         Integer button;
         while ((button = window.pollMouseButton()) != null) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT || button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-                screen = currentScreen();
-                screen.mouseClicked(window.cursorX(), window.cursorY(), button);
+                dispatchMouseClicked(button);
             }
         }
-        screen = currentScreen();
         boolean leftDown = window.isMouseButtonDown(GLFW.GLFW_MOUSE_BUTTON_LEFT);
         if (leftDown) {
-            screen.mouseDragged(window.cursorX(), window.cursorY(), GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            dispatchMouseDragged();
         } else if (leftMouseWasDown) {
-            screen.mouseReleased(window.cursorX(), window.cursorY(), GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            dispatchMouseReleased();
         }
         leftMouseWasDown = leftDown;
         Double scroll;
         while ((scroll = window.pollScroll()) != null) {
-            screen = currentScreen();
-            screen.mouseScrolled(window.cursorX(), window.cursorY(), scroll);
+            dispatchMouseScrolled(scroll);
         }
-        screen = currentScreen();
-        screen.mouseMoved(window.cursorX(), window.cursorY());
+        if (overlay != null) {
+            overlay.mouseMoved(guiMouseX(window.cursorX()), guiMouseY(window.cursorY()));
+        } else {
+            currentScreen().mouseMoved(window.cursorX(), window.cursorY());
+        }
     }
 
-    /** Opens the console with an explicit initial value (slash/t char events are suppressed by the caller). */
+    // ------------------------------------------------------------------
+    // Pointer dispatch
+    //
+    // One place decides whether the mouse goes to the overlay or to the screen, so the
+    // frame loop cannot drift from itself: every branch below reads the same rule, and the
+    // raw-framebuffer-to-GUI conversion happens exactly once per event.
+    // ------------------------------------------------------------------
+
+    private void dispatchMouseClicked(int button) {
+        double guiX = guiMouseX(window.cursorX());
+        double guiY = guiMouseY(window.cursorY());
+        if (overlay != null) {
+            overlay.mouseClicked(guiX, guiY, button);
+        } else {
+            currentScreen().dispatchMouseClicked(guiX, guiY, button);
+        }
+    }
+
+    private void dispatchMouseDragged() {
+        double guiX = guiMouseX(window.cursorX());
+        double guiY = guiMouseY(window.cursorY());
+        if (overlay != null) {
+            overlay.mouseDragged(guiX, guiY, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        } else {
+            currentScreen().mouseDragged(window.cursorX(), window.cursorY(),
+                    GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        }
+    }
+
+    private void dispatchMouseReleased() {
+        double guiX = guiMouseX(window.cursorX());
+        double guiY = guiMouseY(window.cursorY());
+        if (overlay != null) {
+            overlay.mouseReleased(guiX, guiY, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        } else {
+            currentScreen().mouseReleased(window.cursorX(), window.cursorY(),
+                    GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        }
+    }
+
+    private void dispatchMouseScrolled(double amount) {
+        double guiX = guiMouseX(window.cursorX());
+        double guiY = guiMouseY(window.cursorY());
+        if (overlay != null) {
+            overlay.mouseScrolled(guiX, guiY, amount);
+        } else {
+            currentScreen().mouseScrolled(window.cursorX(), window.cursorY(), amount);
+        }
+    }
+
+    /** Opens the console over the current screen; {@code initialContents} pre-fills it. */
     private void openConsole(String initialContents) {
-        if (!(currentScreen() instanceof ConsoleScreen)) {
-            openScreen(new ConsoleScreen(this, initialContents));
+        if (overlay == null) {
+            overlay = new com.pvzce.client.gui.ConsoleOverlay(this, initialContents);
+        }
+    }
+
+    /**
+     * Closes {@code expected}, if it is still the open overlay.
+     *
+     * <p>The argument is what makes this safe to call from inside the overlay itself: it
+     * cannot close a different overlay that replaced it in the meantime, which is the kind
+     * of stale-callback bug a bare {@code closeOverlay()} would invite.
+     */
+    public void dismissOverlay(com.pvzce.client.gui.Overlay expected) {
+        if (overlay == expected) {
+            overlay = null;
+        }
+    }
+
+    /** The overlay currently drawn over the screen, or {@code null}. */
+    public com.pvzce.client.gui.Overlay overlay() {
+        return overlay;
+    }
+
+    // ------------------------------------------------------------------
+    // Development smoke hooks: synthetic input
+    //
+    // These exist so a screenshot run can drive a dialog without a human at the mouse, and
+    // they go through the same dispatch rule the real event loop uses - otherwise a smoke
+    // run would photograph a state the player could never reach.
+    // ------------------------------------------------------------------
+
+    /** A click in logical GUI coordinates, to whichever layer owns the mouse. */
+    private void deliverGuiClick(double guiX, double guiY, int button) {
+        if (overlay != null) {
+            overlay.mouseClicked(guiX, guiY, button);
+        } else {
+            currentScreen().dispatchMouseClicked(guiX, guiY, button);
+        }
+    }
+
+    /** A click in raw framebuffer coordinates, to whichever layer owns the mouse. */
+    private void deliverRawClick(double rawX, double rawY, int button) {
+        if (overlay != null) {
+            overlay.mouseClicked(guiMouseX(rawX), guiMouseY(rawY), button);
+        } else {
+            currentScreen().mouseClicked(rawX, rawY, button);
+        }
+    }
+
+    private void deliverRawDrag(double rawX, double rawY, int button) {
+        if (overlay != null) {
+            overlay.mouseDragged(guiMouseX(rawX), guiMouseY(rawY), button);
+        } else {
+            currentScreen().mouseDragged(rawX, rawY, button);
+        }
+    }
+
+    private void deliverRawRelease(double rawX, double rawY, int button) {
+        if (overlay != null) {
+            overlay.mouseReleased(guiMouseX(rawX), guiMouseY(rawY), button);
+        } else {
+            currentScreen().mouseReleased(rawX, rawY, button);
         }
     }
 
@@ -648,15 +781,11 @@ public final class PvzceClient {
         RenderSystem.clear(0.53F, 0.75F, 0.98F, 1F);
         RenderSystem.setShader();
         updateFps();
-        Screen top = currentScreen();
-        if (top instanceof ConsoleScreen) {
-            for (Screen lower : screens) {
-                if (lower != top) {
-                    lower.render();
-                }
-            }
+        currentScreen().render();
+        if (overlay != null) {
+            overlay.initIfNeeded();
+            overlay.render();
         }
-        top.render();
         if (debugOverlayEnabled) {
             beginGuiView();
             DebugOverlay.render(this);
@@ -1141,35 +1270,64 @@ public final class PvzceClient {
 
     // ---------- screen stack ----------
 
+    /**
+     * Installs a screen as the new root, discarding the ones below it.
+     *
+     * <p>For "the player is now somewhere else": a level ended, the world changed, a save
+     * was reloaded. Screens discarded this way are told they are leaving
+     * ({@code Screen.onRemoved}), so a preview or an animation playback they were holding
+     * cannot outlive them.
+     */
     public void setScreenReplacing(Screen screen) {
-        screens.clear();
-        screens.push(screen);
+        screens.replace(screen);
     }
 
+    /** Nests a screen on top of the current one; the screen below stays alive. */
     public void openScreen(Screen screen) {
         screens.push(screen);
     }
 
-    public void closeScreen() {
-        if (screens.size() > 1) {
-            screens.pop();
+    /**
+     * Leaves the current screen the way it asked to be left.
+     *
+     * <p>Replaces the old "pop and hope" contract: a screen states its destination
+     * ({@link com.pvzce.client.gui.Screen#backTarget()}), so the level list no longer has to
+     * infer from the stack depth whether the world list is underneath it, and a screen that
+     * is alone on the stack cannot be popped into a client with nothing to render.
+     */
+    public void navigateBack() {
+        screens.back();
+    }
+
+    /**
+     * Pops the current screen, when there is one underneath.
+     *
+     * <p>For the client's own "hand the view back" moves - the editor's 测试 says "I am done,
+     * show what is behind me" rather than naming a destination. Screens navigate with
+     * {@link #navigateBack()} and their own {@code backTarget()}; this is the one caller that
+     * genuinely means "just go back one" without caring what that is.
+     */
+    public void popScreen() {
+        if (screens.depth() > 1) {
+            screens.back();
         }
     }
 
     public Screen currentScreen() {
-        return screens.peek();
+        return screens.current();
     }
 
-    /** How many screens are on the stack; diagnostics and tests. */
+    /** How many screens are on the stack; diagnostics and tests. Overlays are not counted. */
     public int screenDepth() {
-        return screens.size();
+        return screens.depth();
     }
 
+    /** Opens or closes the command console; it floats over the current screen. */
     public void toggleConsole() {
-        if (currentScreen() instanceof ConsoleScreen) {
-            closeScreen();
+        if (overlay instanceof com.pvzce.client.gui.ConsoleOverlay) {
+            dismissOverlay(overlay);
         } else {
-            openScreen(new ConsoleScreen(this));
+            openConsole("");
         }
     }
 
@@ -1196,17 +1354,11 @@ public final class PvzceClient {
     }
 
     public void openEditor(Identifier levelId) {
-        if (currentScreen() instanceof ConsoleScreen) {
-            closeScreen();
-        }
         openScreen(new EditorScreen(this, levelId));
     }
 
     /** Opens the editor for a brand-new level described by the create dialog. */
     public void openNewLevelEditor(Identifier levelId, String name, int width, int height) {
-        if (currentScreen() instanceof ConsoleScreen) {
-            closeScreen();
-        }
         openScreen(new EditorScreen(this, levelId, name, width, height));
     }
 
@@ -1253,9 +1405,17 @@ public final class PvzceClient {
         }
     }
 
-    /** Legacy entry point used by editor tests, smoke hooks and command helpers: all level slots. */
+    /**
+     * Starts a level without going through the pre-game screens: used by editor tests, smoke
+     * hooks and command helpers, which have no player to ask.
+     *
+     * <p>Carries no card bar, so the server uses the level's own cards - the same thing the
+     * seed chooser would produce for a level that fixes its whole deck.
+     */
     public void requestLevel(String levelId, boolean restart) {
-        connection.send(new RequestLevelC2S(levelId, currentWorld, restart));
+        connection.send(restart
+                ? new RestartLevelC2S(levelId, currentWorld, List.of())
+                : new ContinueLevelC2S(levelId, currentWorld));
     }
 
     /**
@@ -1268,7 +1428,9 @@ public final class PvzceClient {
      */
     private void requestFreshRunDirectly(String levelId, boolean restart) {
         directDialogueLevelId = levelId;
-        connection.send(new RequestLevelC2S(levelId, currentWorld, restart));
+        connection.send(restart
+                ? new RestartLevelC2S(levelId, currentWorld, List.of())
+                : new ContinueLevelC2S(levelId, currentWorld));
     }
 
     /**
@@ -1299,17 +1461,18 @@ public final class PvzceClient {
     public void startLevelWithSeeds(String levelId, boolean restart, List<String> selectedSeeds) {
         List<String> seeds = List.copyOf(selectedSeeds);
         rememberSeedSelection(currentWorld, levelId, seeds);
-        connection.send(new StartLevelC2S(levelId, currentWorld, restart, seeds));
+        connection.send(new PlayLevelC2S(levelId, currentWorld, restart, seeds));
     }
 
     /**
      * Opens the "Choose Your Seeds" screen before entering a level from the world map.
      *
-     * <p>Only for levels that have no run to resume; see {@link #enterLevelFromMenu}.
+     * <p>Only for levels that have no run to resume; see {@link #enterLevelFromMenu}. The
+     * chooser is nested under whatever asked for it (the level setup screen), so its back
+     * target pops.
      */
     public void openSeedSelection(LevelListS2C.LevelInfo info, boolean restart) {
-        List<String> initial = seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
-        openSeedSelection(info, restart, initial, null);
+        openSeedSelection(info, seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots()), null);
     }
 
     /**
@@ -1355,9 +1518,9 @@ public final class PvzceClient {
      * back behaviour. The save-prompt restart path uses this to keep the loaded
      * save frozen until the player either picks new cards or backs out.
      */
-    public void openSeedSelection(LevelListS2C.LevelInfo info, boolean restart,
+    public void openSeedSelection(LevelListS2C.LevelInfo info,
                                   List<String> initialSelection, Runnable onBack) {
-        openScreen(createSeedSelection(info, restart, initialSelection, onBack));
+        openScreen(createSeedSelection(info, initialSelection, onBack));
     }
 
     /**
@@ -1373,12 +1536,19 @@ public final class PvzceClient {
         return def == null ? List.of() : SeedOptions.lockedSlotIds(def);
     }
 
-    /** Builds the seed chooser for a level; the only place its arguments are assembled. */
-    private ChooseSeedsScreen createSeedSelection(LevelListS2C.LevelInfo info, boolean restart,
+    /**
+     * Builds the seed chooser for a level; the only place its arguments are assembled.
+     *
+     * <p>Whether this is a restart is derived from the back behaviour rather than passed
+     * beside it: the two were always set together (the save prompt's 重新开始 is the only
+     * restart that goes through the chooser, and it is also the only one that keeps a state
+     * to return to), and stating one fact twice is how the two drift.
+     */
+    private ChooseSeedsScreen createSeedSelection(LevelListS2C.LevelInfo info,
                                                   List<String> initialSelection, Runnable onBack) {
         return new ChooseSeedsScreen(this, info.id(), info.name(), info.seedPool(),
                 info.maxSeedSlots(), info.previewZombies(), info.width(), info.height(),
-                info.sceneCells(), initialSelection, restart, onBack, lockedSlotsFor(info.id()));
+                info.sceneCells(), initialSelection, onBack != null, onBack, lockedSlotsFor(info.id()));
     }
 
     private LevelListS2C.LevelInfo findLevelInfo(String levelId) {
@@ -1393,7 +1563,7 @@ public final class PvzceClient {
     /**
      * The save prompt's "重新开始" option: keep the loaded save untouched and
      * paused while the client shows seed selection. Submitting the new cards
-     * sends {@code StartLevelC2S(restart=true)}, which deletes the old save and
+     * sends {@code PlayLevelC2S(restart=true)}, which deletes the old save and
      * creates the fresh level with the chosen bar. Backing out re-opens the
      * prompt so the player can still continue.
      */
@@ -1404,7 +1574,7 @@ public final class PvzceClient {
             // choose because the level deals its own cards: fall back to the server-side
             // restart, which is the same thing minus a page that would ask for a deck the
             // server is going to replace with the belt anyway.
-            connection.send(new ResumeLevelC2S(prompt.levelId(), prompt.worldName(), true));
+            connection.send(new RestartLevelC2S(prompt.levelId(), prompt.worldName(), List.of()));
             return;
         }
         List<String> initial = prompt.levelId().equals(level.levelId())
@@ -1416,8 +1586,10 @@ public final class PvzceClient {
         // server is deliberately not told to leave, because backing out returns to
         // the save prompt over the same instance.
         silenceLevelMusic();
-        openSeedSelection(info, true, initial, () -> {
-            closeScreen();
+        openSeedSelection(info, initial, () -> {
+            // Back to the frozen run the chooser is covering, so the prompt can be asked
+            // again over it.
+            popScreen();
             // Backing out returns to a level that is still loaded, so give it a theme
             // again. The exact track is not restored - music state is not part of a
             // level's saved snapshot (see docs/当前项目架构.md, known gaps).
@@ -1526,7 +1698,7 @@ public final class PvzceClient {
         savePromptOpen = true;
         LevelSaveDialog dialog = LevelSaveDialog.create(this, prompt,
                 () -> {
-                    connection.send(new ResumeLevelC2S(prompt.levelId(), prompt.worldName(), false));
+                    connection.send(new ContinueLevelC2S(prompt.levelId(), prompt.worldName()));
                 },
                 () -> {
                     openSeedSelectionForRestart(prompt);
@@ -1594,7 +1766,10 @@ public final class PvzceClient {
             return;
         }
         List<String> initial = seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
-        setScreenReplacing(createSeedSelection(info, true, initial, this::showLevelList));
+        // Installed as the root (the level was just closed, so nothing is underneath), which
+        // is also what makes the chooser a restart: onBack non-null is the one thing that
+        // says "there is a state to come back to".
+        setScreenReplacing(createSeedSelection(info, initial, this::showLevelList));
     }
 
     /**
@@ -1776,10 +1951,11 @@ public final class PvzceClient {
         config.save();
     }
 
-    /** Rebuilds all open screens after a resolution/scale change. */
+    /** Rebuilds all open screens and the overlay after a resolution/scale change. */
     public void refreshGui() {
-        for (Screen screen : screens) {
-            screen.onResize();
+        screens.resizeAll();
+        if (overlay != null) {
+            overlay.onResize();
         }
     }
 

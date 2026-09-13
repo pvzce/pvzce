@@ -257,7 +257,7 @@ public final class EditorScreen extends Screen {
         addWidget(new Button(paletteX, actionY, w, actionH, GuiLang.raw("pvzce.save", "保存"), this::save));
         addWidget(new Button(paletteX + w + 6, actionY, w, actionH, GuiLang.raw("pvzce.test", "测试"), this::test));
         addWidget(new Button(paletteX + (w + 6) * 2, actionY, w, actionH,
-                GuiLang.raw("pvzce.back", "返回"), client::closeScreen));
+                GuiLang.raw("pvzce.back", "返回"), this::requestClose));
     }
 
     /**
@@ -581,8 +581,7 @@ public final class EditorScreen extends Screen {
             return;
         }
         client.testEditedLevel(levelId.toString());
-        canvas.releaseCanvasAnimations(editorContext);
-        client.closeScreen();
+        client.popScreen();
     }
 
     // ------------------------------------------------------------------
@@ -622,10 +621,21 @@ public final class EditorScreen extends Screen {
         }
     }
 
-    /** Leaves the editor, releasing the canvas previews' animations on the way out. */
+    /**
+     * Leaves the editor, releasing the canvas previews' animations on the way out.
+     *
+     * <p>The release lives in {@link #onRemoved()} rather than here: the editor can also be
+     * replaced out from under itself (the test button hands the screen over to the seed
+     * chooser), and a screen that cleans up in its own exit paths is one forgotten exit away
+     * from leaking a playback per visit.
+     */
     public void requestClose() {
+        client.navigateBack();
+    }
+
+    @Override
+    protected void onRemoved() {
         canvas.releaseCanvasAnimations(editorContext);
-        client.closeScreen();
     }
 
     // ------------------------------------------------------------------

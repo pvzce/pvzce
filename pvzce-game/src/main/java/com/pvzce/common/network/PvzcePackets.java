@@ -4,7 +4,10 @@ import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.CreateWorldC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.MovePlantC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.DebugInfoS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
@@ -25,17 +28,14 @@ import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
-import com.pvzce.common.network.packet.RequestLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
-import com.pvzce.common.network.packet.ResumeLevelC2S;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import com.pvzce.common.network.packet.SlotSyncS2C;
-import com.pvzce.common.network.packet.StartLevelC2S;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
@@ -63,15 +63,17 @@ public final class PvzcePackets {
      */
     // 10: the resource entity kind is "resource" rather than "sun" - every drop used to
     // travel as a sun, which the client's board lights read as "light the lawn".
-    public static final int PROTOCOL_VERSION = 11;
+    // 12: entering a level is three packet types (continue / restart / play-with-these-cards)
+    // instead of one "enter level" packet with a restart flag the server had to reinterpret.
+    public static final int PROTOCOL_VERSION = 12;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
 
     // ---- client -> server ----
-    public static final int C2S_REQUEST_LEVEL = 1;
-    public static final int C2S_START_LEVEL = 2;
-    public static final int C2S_RESUME_LEVEL = 3;
+    public static final int C2S_CONTINUE_LEVEL = 1;
+    public static final int C2S_PLAY_LEVEL = 2;
+    public static final int C2S_RESTART_LEVEL = 3;
     public static final int C2S_REQUEST_LEVEL_LIST = 4;
     public static final int C2S_REQUEST_SUGGESTIONS = 5;
     public static final int C2S_LEAVE_LEVEL = 6;
@@ -118,9 +120,11 @@ public final class PvzcePackets {
     }
 
     private static final List<Definition> DEFINITIONS = List.of(
-            def(C2S_REQUEST_LEVEL, ConnectionDirection.SERVERBOUND, RequestLevelC2S.class, RequestLevelC2S::decode),
-            def(C2S_START_LEVEL, ConnectionDirection.SERVERBOUND, StartLevelC2S.class, StartLevelC2S::decode),
-            def(C2S_RESUME_LEVEL, ConnectionDirection.SERVERBOUND, ResumeLevelC2S.class, ResumeLevelC2S::decode),
+            def(C2S_CONTINUE_LEVEL, ConnectionDirection.SERVERBOUND, ContinueLevelC2S.class,
+                    ContinueLevelC2S::decode),
+            def(C2S_PLAY_LEVEL, ConnectionDirection.SERVERBOUND, PlayLevelC2S.class, PlayLevelC2S::decode),
+            def(C2S_RESTART_LEVEL, ConnectionDirection.SERVERBOUND, RestartLevelC2S.class,
+                    RestartLevelC2S::decode),
             def(C2S_REQUEST_LEVEL_LIST, ConnectionDirection.SERVERBOUND, RequestLevelListC2S.class,
                     RequestLevelListC2S::decode),
             def(C2S_REQUEST_SUGGESTIONS, ConnectionDirection.SERVERBOUND, RequestSuggestionsC2S.class,

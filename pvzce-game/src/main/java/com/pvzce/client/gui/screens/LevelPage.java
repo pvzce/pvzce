@@ -141,6 +141,28 @@ final class LevelPage {
     }
 
     /**
+     * Where the level list lands when nothing else decides: the first page that lists levels.
+     *
+     * <p>Not simply {@code tabs.get(0)}. The screen's first frame runs against its own fallback
+     * table - a single unclassified page - because the server's table arrives a round trip
+     * later. Picking index 0 there selected the unclassified page, and when the real table
+     * arrived that choice was still "valid" (unclassified is always in the list), so it was
+     * kept: the player opened the level list and read "这个分类下还没有关卡" while every real
+     * page sat one click away.
+     *
+     * <p>The bucket is the fallback only when there is nothing else, which is the same rule the
+     * server applies when it builds the table: real themes first, the bucket last.
+     */
+    static Tab firstRealPage(List<Tab> tabs) {
+        for (Tab tab : tabs) {
+            if (!tab.uncategorized()) {
+                return tab;
+            }
+        }
+        return tabs.isEmpty() ? null : tabs.get(0);
+    }
+
+    /**
      * The levels belonging to one tab.
      *
      * <p>A level is on the tab whose ids equal its own resolved group, so a level that is

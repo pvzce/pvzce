@@ -11,7 +11,7 @@ import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.SlotInfo;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.resource.PvzceDataLoader;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.server.level.LevelServer;
@@ -32,8 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * End-to-end restart flows driven exactly the way the client drives them.
  *
- * <p>The client sends two different shapes of "start this level": {@code RequestLevelC2S}
- * (the level list's 开始游戏) and {@code StartLevelC2S} (the seed chooser's 开始游戏,
+ * <p>The client sends two different shapes of "start this level": {@code ContinueLevelC2S}
+ * (the level list's 继续游戏) and {@code PlayLevelC2S} (the seed chooser's 开始游戏,
  * carrying the chosen card bar). This pins what each one does when the level is already
  * running, which is what the reported restart bug is about.
  */
@@ -159,14 +159,14 @@ class LevelRestartFlowTest {
     }
 
     /**
-     * The pause menu's 重新开始 sends {@code StartLevelC2S(restart=true)}. The running
+     * The pause menu's 重新开始 sends {@code PlayLevelC2S(restart=true)}. The running
      * level must be replaced by a genuinely fresh one, with the chosen cards applied.
      */
     @Test
     void pauseMenuRestartReplacesTheRunningLevel() throws Exception {
         Path dir = gameDir();
         try (Harness harness = new Harness(dir)) {
-            harness.send(new StartLevelC2S(LEVEL, WORLD, true,
+            harness.send(new PlayLevelC2S(LEVEL, WORLD, true,
                     List.of("pvzce:pea_shooter", "pvzce:sun")));
             LevelInitS2C first = harness.awaitLevelInit(5_000);
             LevelServer previous = harness.server.level();
@@ -184,7 +184,7 @@ class LevelRestartFlowTest {
 
             // Pause the way the pause dialog does, then restart from it.
             harness.send(new PauseGameC2S(true));
-            harness.send(new StartLevelC2S(LEVEL, WORLD, true, seedsFromCards(first.slots())));
+            harness.send(new PlayLevelC2S(LEVEL, WORLD, true, seedsFromCards(first.slots())));
 
             LevelInitS2C second = harness.awaitLevelInit(5_000);
             LevelServer restarted = harness.server.level();
@@ -208,7 +208,7 @@ class LevelRestartFlowTest {
     }
 
     /**
-     * The level list's 开始游戏 sends {@code RequestLevelC2S} without a card bar. When
+     * The level list's 继续游戏 sends {@code ContinueLevelC2S} without a card bar. When
      * the level is already running, this used to answer with a plain resync - the
      * player saw the level "start" while the old run kept going.
      */
@@ -216,7 +216,7 @@ class LevelRestartFlowTest {
     void requestLevelOnTheRunningLevelMustNotSilentlyResync() throws Exception {
         Path dir = gameDir();
         try (Harness harness = new Harness(dir)) {
-            harness.send(new StartLevelC2S(LEVEL, WORLD, true, List.of("pvzce:pea_shooter", "pvzce:sun")));
+            harness.send(new PlayLevelC2S(LEVEL, WORLD, true, List.of("pvzce:pea_shooter", "pvzce:sun")));
             harness.awaitLevelInit(5_000);
             LevelServer running = harness.server.level();
             harness.send(new PlacePlantC2S(0, 0, 0));
@@ -224,7 +224,7 @@ class LevelRestartFlowTest {
             harness.packets.clear();
 
             // The player asked for this level again *without* asking for a fresh run.
-            harness.send(new com.pvzce.common.network.packet.RequestLevelC2S(LEVEL, WORLD, false));
+            harness.send(new com.pvzce.common.network.packet.ContinueLevelC2S(LEVEL, WORLD));
             harness.awaitLevelInit(5_000);
 
             // Resyncing the running level is acceptable for a "continue" request, but it
@@ -244,7 +244,7 @@ class LevelRestartFlowTest {
     void startingWithNewCardsWhileTheLevelRunsMustApplyThem() throws Exception {
         Path dir = gameDir();
         try (Harness harness = new Harness(dir)) {
-            harness.send(new StartLevelC2S(LEVEL, WORLD, true, List.of("pvzce:pea_shooter", "pvzce:sun")));
+            harness.send(new PlayLevelC2S(LEVEL, WORLD, true, List.of("pvzce:pea_shooter", "pvzce:sun")));
             harness.awaitLevelInit(5_000);
             LevelServer running = harness.server.level();
             harness.send(new PlacePlantC2S(0, 0, 0));
@@ -252,7 +252,7 @@ class LevelRestartFlowTest {
             harness.packets.clear();
 
             // The seed chooser only ever sends the cards the player picked.
-            harness.send(new StartLevelC2S(LEVEL, WORLD, false, List.of("pvzce:sun", "pvzce:wall_nut")));
+            harness.send(new PlayLevelC2S(LEVEL, WORLD, false, List.of("pvzce:sun", "pvzce:wall_nut")));
             LevelInitS2C init = harness.awaitLevelInit(5_000);
 
             List<String> cards = init.slots().stream().map(SlotInfo::defId).toList();

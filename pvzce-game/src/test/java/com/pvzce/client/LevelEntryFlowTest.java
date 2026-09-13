@@ -6,7 +6,7 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelPayload;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
 import org.junit.jupiter.api.BeforeAll;
@@ -87,10 +87,10 @@ class LevelEntryFlowTest {
         assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
                 "resuming must not ask for a card bar that the save already has");
         assertTrue(fixture.sentPackets().stream()
-                        .filter(RequestLevelC2S.class::isInstance)
-                        .map(RequestLevelC2S.class::cast)
-                        .anyMatch(request -> request.levelId().equals("pvzce:level_1") && !request.restart()),
-                "entering an in-progress level asks the server to load it (and not to restart it)");
+                        .filter(ContinueLevelC2S.class::isInstance)
+                        .map(ContinueLevelC2S.class::cast)
+                        .anyMatch(request -> request.levelId().equals("pvzce:level_1")),
+                "entering an in-progress level asks the server to load it, never to restart it");
     }
 
     /** A level with nothing to resume still picks its cards first, exactly as before. */
@@ -105,7 +105,7 @@ class LevelEntryFlowTest {
 
         assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
                 "a level with no save is started by choosing its cards");
-        assertTrue(fixture.sentPackets().stream().noneMatch(RequestLevelC2S.class::isInstance),
+        assertTrue(fixture.sentPackets().stream().noneMatch(ContinueLevelC2S.class::isInstance),
                 "the seed chooser decides when the level actually starts");
     }
 
@@ -144,9 +144,9 @@ class LevelEntryFlowTest {
         assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
                 "a run is waiting, so the card bar must not be chosen again");
         assertTrue(fixture.sentPackets().stream()
-                        .filter(RequestLevelC2S.class::isInstance)
-                        .map(RequestLevelC2S.class::cast)
-                        .anyMatch(request -> request.levelId().equals("pvzce:level_1") && !request.restart()),
+                        .filter(ContinueLevelC2S.class::isInstance)
+                        .map(ContinueLevelC2S.class::cast)
+                        .anyMatch(request -> request.levelId().equals("pvzce:level_1")),
                 "the abandoned run is loaded, and the question is asked over it");
     }
 

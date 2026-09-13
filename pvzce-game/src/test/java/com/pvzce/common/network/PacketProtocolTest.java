@@ -26,12 +26,12 @@ import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.ProfileS2C;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
-import com.pvzce.common.network.packet.ResumeLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.ServerMessageS2C;
@@ -39,7 +39,7 @@ import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SlotSyncS2C;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
@@ -84,10 +84,10 @@ class PacketProtocolTest {
         List<SlotInfo> slots = List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 12, -1, true));
 
         return List.of(
-                new RequestLevelC2S("pvzce:level_1", "world", true),
-                new StartLevelC2S("pvzce:level_1", "world", false,
+                new ContinueLevelC2S("pvzce:level_1", "world"),
+                new PlayLevelC2S("pvzce:level_1", "world", false,
                         List.of("pvzce:pea_shooter", "pvzce:sun")),
-                new ResumeLevelC2S("pvzce:level_1", "world", false),
+                new RestartLevelC2S("pvzce:level_1", "world", List.of("pvzce:sun")),
                 new RequestLevelListC2S("world"),
                 new RequestSuggestionsC2S("/spawn ", 7),
                 new LeaveLevelC2S(),

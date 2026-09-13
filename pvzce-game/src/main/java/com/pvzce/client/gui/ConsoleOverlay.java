@@ -1,7 +1,6 @@
-package com.pvzce.client.gui.screens;
+package com.pvzce.client.gui;
 
 import com.pvzce.client.PvzceClient;
-import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.EditBox;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
@@ -11,15 +10,22 @@ import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.List;
 
-/** MC ChatScreen + CommandSuggestions shaped command input. */
-public final class ConsoleScreen extends Screen {
+/**
+ * MC ChatScreen + CommandSuggestions shaped command input.
+ *
+ * <p>An {@link Overlay} rather than a {@link Screen}: the console opens over whatever the
+ * player was looking at - a level, the level list, the editor - and floats there. It used to
+ * be pushed onto the screen stack, which forced the client to special-case it in two places
+ * to keep driving the screen underneath, and made {@link ScreenStack#depth()} disagree with
+ * the navigation depth while it was open.
+ */
+public final class ConsoleOverlay extends Overlay {
     private static final int SUGGESTION_LINE_LIMIT = 10;
     private static final int SUGGESTION_LINE_HEIGHT = 22;
     private static final int SUGGESTION_Y = 40;
 
     private final List<String> recentCommands = new ArrayList<>();
     private final List<SuggestionsS2C.Suggestion> suggestions = new ArrayList<>();
-    private final String initialContents;
     private EditBox input;
     private String originalContents = "";
     private int suggestionOffset;
@@ -35,14 +41,14 @@ public final class ConsoleScreen extends Screen {
     private String historyBuffer = "";
     private int messageScroll;
 
-    public ConsoleScreen(PvzceClient client) {
+    public ConsoleOverlay(PvzceClient client) {
         this(client, "");
     }
 
     /** {@code initialContents} is pre-filled without going through the char-event queue. */
-    public ConsoleScreen(PvzceClient client, String initialContents) {
+    public ConsoleOverlay(PvzceClient client, String initialContents) {
         super(client);
-        this.initialContents = initialContents == null ? "" : initialContents;
+        this.typed = initialContents == null ? "" : initialContents;
     }
 
     @Override
@@ -51,11 +57,31 @@ public final class ConsoleScreen extends Screen {
         input.setBordered(false);
         input.setFocused(true);
         addWidget(input);
-        input.setValue(initialContents, false);
+        // On a rebuild (the window was resized) what the player has typed so far is what
+        // must come back, not the contents the console was opened with.
+        setInputValue(typed);
         input.setValueChangedListener(this::onInputChanged);
     }
 
+    /**
+     * The current line, mirrored outside the widget.
+     *
+     * <p>{@link Overlay#onResize()} throws the widget away, so the text to restore has to
+     * live here - and every mutation goes through {@link #setInputValue} instead of being
+     * written to the box directly, because the programmatic fills (suggestion, history)
+     * deliberately skip the change callback that would otherwise keep this in step.
+     */
+    private String typed = "";
+
+    private void setInputValue(String value) {
+        typed = value == null ? "" : value;
+        if (input != null) {
+            input.setValue(typed, false);
+        }
+    }
+
     private void onInputChanged() {
+        typed = input.value();
         if (applyingSuggestion) {
             return;
         }
@@ -80,12 +106,12 @@ public final class ConsoleScreen extends Screen {
     private void submit() {
         String command = input.value().trim();
         if (command.isEmpty()) {
-            client.closeScreen();
+            client.dismissOverlay(this);
             return;
         }
         if (!command.startsWith("/")) {
             client.level().addMessage("请输入 / 开头的命令");
-            input.setValue("", false);
+            setInputValue("");
             return;
         }
         recentCommands.add(command);
@@ -98,7 +124,7 @@ public final class ConsoleScreen extends Screen {
         if (!payload.isEmpty()) {
             client.connection().send(new CommandC2S(payload));
         }
-        input.setValue("", false);
+        setInputValue("");
         clearSuggestions();
         pendingRequestId = 0;
         pendingRequestText = "";
@@ -130,7 +156,7 @@ public final class ConsoleScreen extends Screen {
     @Override
     public void keyPressed(int key) {
         if (key == GLFW.GLFW_KEY_ESCAPE) {
-            client.closeScreen();
+            client.dismissOverlay(this);
             return;
         }
         if (!suggestions.isEmpty()) {
@@ -174,7 +200,7 @@ public final class ConsoleScreen extends Screen {
             messageScroll = Math.max(0, messageScroll - 8);
             return;
         }
-        super.keyPressed(key);
+        keyPressedToWidgets(key);
     }
 
     private void cycle(int direction) {
@@ -201,7 +227,7 @@ public final class ConsoleScreen extends Screen {
         SuggestionsS2C.Suggestion suggestion = suggestions.get(index);
         applyingSuggestion = true;
         try {
-            input.setValue(suggestion.apply(originalContents), false);
+            setInputValue(suggestion.apply(originalContents));
         } finally {
             applyingSuggestion = false;
         }
@@ -224,13 +250,13 @@ public final class ConsoleScreen extends Screen {
         }
         if (nextPos == max) {
             historyPos = max;
-            input.setValue(historyBuffer, false);
+            setInputValue(historyBuffer);
         } else {
             if (historyPos == max) {
                 historyBuffer = input.value();
             }
             historyPos = nextPos;
-            input.setValue(recentCommands.get(nextPos), false);
+            setInputValue(recentCommands.get(nextPos));
         }
         clearSuggestions();
         if (input.value().startsWith("/")) {

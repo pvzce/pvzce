@@ -13,9 +13,9 @@ import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.PlacePlantC2S;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
-import com.pvzce.common.network.packet.ResumeLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
 import com.pvzce.server.entity.ZombieEntity;
 import org.junit.jupiter.api.Test;
@@ -87,7 +87,7 @@ class SaveSystemTest {
 
             server.packets.clear();
             long pausedTick = server.server().level().tickCount();
-            server.send(new ResumeLevelC2S("pvzce:yard/adventure/demo_level", "promptworld", false));
+            server.send(new ContinueLevelC2S("pvzce:yard/adventure/demo_level", "promptworld"));
             Thread.sleep(200);
             assertTrue(server.server().level().tickCount() > pausedTick, "continue should resume the loaded level");
             assertFalse(server.packets.stream().anyMatch(LevelInitS2C.class::isInstance),
@@ -101,7 +101,7 @@ class SaveSystemTest {
             server.waitForPacket(LevelSavePromptS2C.class, 5_000);
 
             server.packets.clear();
-            server.send(new ResumeLevelC2S("pvzce:yard/adventure/demo_level", "promptworld", true));
+            server.send(new RestartLevelC2S("pvzce:yard/adventure/demo_level", "promptworld", List.of()));
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
             Thread.sleep(250);
             assertFalse(server.packets.stream()
@@ -133,7 +133,7 @@ class SaveSystemTest {
 
             server.packets.clear();
             long pausedTick = server.server().level().tickCount();
-            server.send(new ResumeLevelC2S("pvzce:yard/adventure/combat_test", "waveworld", false));
+            server.send(new ContinueLevelC2S("pvzce:yard/adventure/combat_test", "waveworld"));
             Thread.sleep(200);
             assertTrue(server.server().level().tickCount() > pausedTick, "continue should resume the restored level");
             assertFalse(server.packets.stream().anyMatch(LevelInitS2C.class::isInstance),
@@ -281,8 +281,11 @@ class SaveSystemTest {
             packets.clear();
         }
 
+        /** A fresh run, unless {@code restart} says to discard a save that may be there. */
         private void requestLevel(String levelId, String worldName, boolean restart) {
-            pair.client().send(new RequestLevelC2S(levelId, worldName, restart));
+            pair.client().send(restart
+                    ? new RestartLevelC2S(levelId, worldName, List.of())
+                    : new ContinueLevelC2S(levelId, worldName));
         }
 
         private void send(PvzcePacket packet) {

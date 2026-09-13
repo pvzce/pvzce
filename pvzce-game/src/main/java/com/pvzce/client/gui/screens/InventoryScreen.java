@@ -95,7 +95,7 @@ public final class InventoryScreen extends Screen {
         int buttonWidth = Math.min(180, client.guiWidth() / 4);
         int buttonHeight = Math.max(28, Math.min(48, client.guiHeight() / 16));
         addWidget(new Button((int) panelX, (int) (panelY - bottomBand + (bottomBand - buttonHeight) / 2),
-                buttonWidth, buttonHeight, GuiLang.raw("pvzce.back", "返回"), client::closeScreen));
+                buttonWidth, buttonHeight, GuiLang.raw("pvzce.back", "返回"), this::requestClose));
     }
 
     /**

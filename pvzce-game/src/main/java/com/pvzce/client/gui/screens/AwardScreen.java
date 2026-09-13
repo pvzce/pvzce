@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
+import com.pvzce.client.gui.Navigation;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.client.gui.components.Button;
@@ -276,6 +277,20 @@ public final class AwardScreen extends Screen {
     /** How many coins the award page says were earned, for the debug overlay. */
     public int awardedCoins() {
         return reward.awardedCoins();
+    }
+
+    /**
+     * The award page is reached by {@code openScreen} over a finished level, but backing out
+     * of it must not reveal that level - it is over, and the player's next move is the next
+     * level. So the destination is the level list as a new root, not a pop.
+     *
+     * <p>It is also why the award page is the one screen that pushes over a screen whose own
+     * back target differs from its own: after a level, the in-game screen is no longer
+     * anything the player can return to.
+     */
+    @Override
+    public Navigation backTarget() {
+        return Navigation.replaceRoot(LevelSelectScreen::new);
     }
 
     @Override

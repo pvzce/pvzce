@@ -11,11 +11,11 @@ import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.PauseGameC2S;
-import com.pvzce.common.network.packet.RequestLevelC2S;
+import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
-import com.pvzce.common.network.packet.ResumeLevelC2S;
+import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SlotInfo;
-import com.pvzce.common.network.packet.StartLevelC2S;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.server.level.LevelServer;
 import org.junit.jupiter.api.Test;
 
@@ -115,7 +115,7 @@ class ServerMenuFlowTest {
         assertNotNull(list);
         assertTrue(list.levels().stream().anyMatch(l -> l.id().equals("pvzce:yard/adventure/1_1")));
 
-        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "testworld", false));
+        pair.client().send(new ContinueLevelC2S("pvzce:yard/adventure/1_1", "testworld"));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream().anyMatch(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/1_1")));
         waitForCondition(5_000, () -> pair.client().tick(),
@@ -282,7 +282,7 @@ class ServerMenuFlowTest {
         pair.client().setListener(clientPackets::add);
 
         unlockEverything(pair, "seedworld");
-        pair.client().send(new StartLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
                 List.of("pvzce:sun", "pvzce:not_a_card", "pvzce:wall_nut", "pvzce:sunflower",
                         "pvzce:chomper")));
         waitForCondition(5_000, () -> pair.client().tick(),
@@ -318,7 +318,7 @@ class ServerMenuFlowTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new StartLevelC2S(FREE_SLOT_LEVEL, "seedworld", false, List.of()));
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false, List.of()));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream().anyMatch(LevelInitS2C.class::isInstance));
         LevelInitS2C init = clientPackets.stream()
@@ -349,7 +349,7 @@ class ServerMenuFlowTest {
         // The bar the level actually starts with: its own two cards, then the two picks.
         List<String> bar = List.of("pvzce:pea_shooter", "pvzce:sun", "pvzce:wall_nut", "pvzce:sunflower");
         unlockEverything(pair, "seedworld");
-        pair.client().send(new StartLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
                 List.of("pvzce:wall_nut", "pvzce:sunflower")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
         pair.client().send(new LeaveLevelC2S());
@@ -357,7 +357,7 @@ class ServerMenuFlowTest {
                 () -> Files.isRegularFile(gameDir.resolve(
                         "saves/seedworld/levels/70767a6365__test_free_slots/level.dat")));
 
-        pair.client().send(new ResumeLevelC2S(FREE_SLOT_LEVEL, "seedworld", false));
+        pair.client().send(new ContinueLevelC2S(FREE_SLOT_LEVEL, "seedworld"));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 2);
         LevelInitS2C resumed = clientPackets.stream()
                 .filter(LevelInitS2C.class::isInstance)
@@ -384,7 +384,7 @@ class ServerMenuFlowTest {
         pair.client().setListener(clientPackets::add);
 
         unlockEverything(pair, "seedworld");
-        pair.client().send(new StartLevelC2S(FREE_SLOT_LEVEL, "seedworld", false, List.of(
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false, List.of(
                 "pvzce:wall_nut", "pvzce:kernel_pult", "pvzce:cherry_bomb", "pvzce:chomper",
                 "pvzce:lily_pad", "pvzce:flower_pot")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
@@ -413,7 +413,7 @@ class ServerMenuFlowTest {
         pair.client().setListener(clientPackets::add);
 
         List<String> chosen = List.of("pvzce:sun", "pvzce:pea_shooter");
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "seedworld", false, chosen));
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "seedworld", false, chosen));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
         pair.client().send(new LeaveLevelC2S());
         waitForCondition(5_000, () -> pair.client().tick(),
@@ -421,7 +421,7 @@ class ServerMenuFlowTest {
                         "saves/seedworld/levels/70767a6365__yard%2Fadventure%2F1_1/level.dat")));
 
         int baseline = clientPackets.size();
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "seedworld", false, chosen));
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "seedworld", false, chosen));
         waitForCondition(5_000, () -> pair.client().tick(), () -> {
             List<PvzcePacket> tail = clientPackets.subList(baseline, clientPackets.size());
             return tail.stream().anyMatch(LevelInitS2C.class::isInstance)
@@ -448,7 +448,7 @@ class ServerMenuFlowTest {
                 "level simulation must stay frozen while the save dialog is open");
 
         long initCountBeforeContinue = initCount(clientPackets);
-        pair.client().send(new ResumeLevelC2S("pvzce:yard/adventure/1_1", "seedworld", false));
+        pair.client().send(new ContinueLevelC2S("pvzce:yard/adventure/1_1", "seedworld"));
         waitForCondition(2_000, () -> pair.client().tick(),
                 () -> server.level() != null && server.level().tickCount() > pausedTick);
         assertTrue(initCount(clientPackets) == initCountBeforeContinue,
@@ -471,7 +471,7 @@ class ServerMenuFlowTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new StartLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
                 List.of("pvzce:wall_nut", "pvzce:sunflower")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
         pair.client().send(new LeaveLevelC2S());
@@ -480,9 +480,13 @@ class ServerMenuFlowTest {
                         "saves/seedworld/levels/70767a6365__test_free_slots/level.dat")));
         Path saveDir = gameDir.resolve("saves/seedworld/levels/70767a6365__test_free_slots");
 
-        // Entering the level loads the save first and then asks continue/restart.
+        // Entering the level loads the save first and then asks continue/restart. This is the
+        // level list's path, so it is the seed chooser's packet (restart=false) that carries
+        // it: the chooser is submitted before any save is known about, and the save it then
+        // discovers is asked about rather than silently resumed.
         int baseline = clientPackets.size();
-        pair.client().send(new RequestLevelC2S(FREE_SLOT_LEVEL, "seedworld", false));
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
+                List.of("pvzce:wall_nut", "pvzce:sunflower")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> {
             List<PvzcePacket> tail = clientPackets.subList(baseline, clientPackets.size());
             return tail.stream().anyMatch(LevelInitS2C.class::isInstance)
@@ -494,7 +498,7 @@ class ServerMenuFlowTest {
         // seed submission does the server discard the save and create fresh.
         int beforeRestart = clientPackets.size();
         unlockEverything(pair, "seedworld");
-        pair.client().send(new StartLevelC2S(FREE_SLOT_LEVEL, "seedworld", true,
+        pair.client().send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", true,
                 List.of("pvzce:kernel_pult", "pvzce:chomper")));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.size() > beforeRestart
@@ -539,7 +543,7 @@ class ServerMenuFlowTest {
         pair.client().setListener(clientPackets::add);
 
         // A save in "alphaworld" only: in "world" (the server's fallback) there is none.
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "alphaworld", false,
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "alphaworld", false,
                 List.of("pvzce:sun", "pvzce:pea_shooter")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
         pair.client().send(new LeaveLevelC2S());
@@ -604,13 +608,13 @@ class ServerMenuFlowTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "musicworld", false,
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "musicworld", false,
                 List.of("pvzce:sun", "pvzce:pea_shooter")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
 
         // Restart: a new instance must clear what the previous run was playing.
         int beforeRestart = clientPackets.size();
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "musicworld", true, List.of("pvzce:sun")));
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "musicworld", true, List.of("pvzce:sun")));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.subList(beforeRestart, clientPackets.size()).stream()
                         .anyMatch(LevelInitS2C.class::isInstance));
@@ -632,7 +636,7 @@ class ServerMenuFlowTest {
 
         // Resync of the running level: its music is current, so nothing may be stopped.
         int beforeResync = clientPackets.size();
-        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "musicworld", false));
+        pair.client().send(new ContinueLevelC2S("pvzce:yard/adventure/1_1", "musicworld"));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.subList(beforeResync, clientPackets.size()).stream()
                         .anyMatch(LevelInitS2C.class::isInstance));
@@ -654,7 +658,7 @@ class ServerMenuFlowTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new RequestLevelC2S("pvzce:yard/adventure/1_1", "pauseworld", true));
+        pair.client().send(new RestartLevelC2S("pvzce:yard/adventure/1_1", "pauseworld", List.of()));
         waitForCondition(5_000, () -> pair.client().tick(),
                 () -> clientPackets.stream().anyMatch(LevelInitS2C.class::isInstance));
         waitForCondition(5_000, () -> pair.client().tick(),
@@ -687,13 +691,13 @@ class ServerMenuFlowTest {
         List<PvzcePacket> clientPackets = new ArrayList<>();
         pair.client().setListener(clientPackets::add);
 
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "restartworld", false,
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "restartworld", false,
                 List.of("pvzce:sun", "pvzce:pea_shooter")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 1);
         LevelServer previous = server.level();
         assertNotNull(previous);
 
-        pair.client().send(new StartLevelC2S("pvzce:yard/adventure/1_1", "restartworld", true,
+        pair.client().send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "restartworld", true,
                 List.of("pvzce:pea_shooter", "pvzce:sun")));
         waitForCondition(5_000, () -> pair.client().tick(), () -> initCount(clientPackets) >= 2);
 

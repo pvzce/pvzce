@@ -56,7 +56,7 @@ public final class ConfigScreen extends Screen {
             addWidget(slider);
         }
         int doneHeight = Math.min(56, Math.max(40, client.guiHeight() / 5));
-        addWidget(new Button(centerX(160), 8, 160, doneHeight, "完成", client::closeScreen));
+        addWidget(new Button(centerX(160), 8, 160, doneHeight, "完成", this::requestClose));
     }
 
     /** Walks the categories exactly once; both callers read the result. */
