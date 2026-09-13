@@ -13,6 +13,7 @@ import com.pvzce.api.content.TeamDef;
 import com.pvzce.api.content.ToolDef;
 import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.ZombieDef;
+import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.entity.Entity;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
@@ -26,6 +27,7 @@ import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.DayNightCycle;
+import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
@@ -34,7 +36,6 @@ import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.nbt.Tag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EffectEventS2C;
-import com.pvzce.common.network.packet.BeltSyncS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
@@ -109,8 +110,23 @@ public final class LevelServer implements LevelAccess {
     private final LevelEnvVars envVars;
     private final PvzceClock clock = new PvzceClock();
     private final PlantAIPlayer plantAi = new PlantAIPlayer();
-    /** Non-null on conveyor levels, where the card bar is the belt rather than a deck. */
-    private final ConveyorBelt belt;
+    /**
+     * Where this level's cards come from: the ordinary deck, a conveyor belt, or whatever
+     * a registered mechanic deals. Never null while there is a plant player.
+     *
+     * <p>This replaced a nullable {@code belt} field plus five {@code belt != null} branches;
+     * the branches are now the implementation's own behaviour.
+     */
+    private final com.pvzce.server.level.cardsource.CardSource cardSource;
+    /**
+     * This level's mechanics, with the implicit deck already resolved.
+     *
+     * <p>Resolved once because {@code effective()} has to look each declared id up in the
+     * registry and materialise the implicit deck; the tick loop asks for it every tick, and
+     * the answer cannot change for a level instance (content is frozen before any level is
+     * built).
+     */
+    private final List<TypedMechanic> mechanics;
     private ServerBridge bridge;
 
     private int tickCount;
@@ -201,17 +217,16 @@ public final class LevelServer implements LevelAccess {
         this.envVars = new LevelEnvVars(def.envVars());
         this.nextWaveDelayTicks = waves.isEmpty() ? -1 : effectiveWaveDelay(0);
 
+        this.mechanics = LevelMechanics.effective(def);
         Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
-        // A conveyor level has no deck and no chooser: its bar *is* the belt, which is
-        // handed to the player one card at a time, so a seed selection would be a second
-        // source of cards for the same bar.
-        this.belt = def.hasConveyor() ? new ConveyorBelt(def.belt().orElseThrow(), random) : null;
-        this.plantPlayer = plantTeam != null
-                ? (belt != null
-                        ? new PvzcePlayer(plantTeam)
-                        : PvzcePlayer.createPlantPlayer(plantTeam, def, selectedSlotsOrDef(selectedSlots)))
+        // The level owns the bar; the card source fills it. A self-dealt level (a conveyor
+        // belt) ignores the seed selection, which is why the selection is still passed in:
+        // the source decides what to do with it, not this constructor.
+        this.plantPlayer = plantTeam != null ? new PvzcePlayer(plantTeam) : null;
+        this.cardSource = this.plantPlayer != null
+                ? LevelMechanics.createCardSource(def, new com.pvzce.server.level.cardsource.CardSource.Context(
+                        this.plantPlayer, def, selectedSlotsOrDef(selectedSlots), random))
                 : null;
-        rebuildBeltSlots();
         if (plantTeam != null) {
             plantTeam.putResource(PvzceIds.SUN, def.initialSun());
             for (Identifier slotId : def.slots()) {
@@ -230,6 +245,10 @@ public final class LevelServer implements LevelAccess {
         for (var init : def.initialEntities()) {
             spawnInitialEntity(init);
         }
+        // Last: a mechanic that needs to look at the finished board may do so here.
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanics.onLevelCreated(typed, this);
+        }
         reportLevelProblems();
     }
 
@@ -247,9 +266,7 @@ public final class LevelServer implements LevelAccess {
         problems.addAll(LevelValidator.validatePlacementTags());
         problems.addAll(GameRules.validate(def.rules()));
         problems.addAll(LevelValidator.validateEnvVars(def.envVars()));
-        problems.addAll(LevelValidator.validateSlots(def.slots()));
-        problems.addAll(LevelValidator.validateSeedSelection(def));
-        problems.addAll(LevelValidator.validatePlacementZone(def));
+        problems.addAll(LevelMechanics.validate(def));
         problems.addAll(LevelValidator.validateRewards(def));
         problems.addAll(LevelValidator.validateUnlock(def));
         problems.addAll(LevelValidator.validateUnlockCycles());
@@ -509,7 +526,7 @@ public final class LevelServer implements LevelAccess {
      * ({@code "flower_pot"}, {@code SURFACE_WATER}, ...), which is why a mod could
      * not add terrain or a carrier without a code change.
      *
-     * <p>The level's own {@code placement_zone} is checked first, because it is not a
+     * <p>The level's own mechanics get a veto first, because a plantable area is not a
      * property of the plant or of the tile: it is the level saying "this mini-game is
      * played on the left half of the lawn". Everything the <em>player</em> plants goes
      * through here - {@code placePlantInternal}, the glove and the plant AI - so a
@@ -519,7 +536,7 @@ public final class LevelServer implements LevelAccess {
      */
     public boolean canPlacePlant(PlantDef def, int x, int y) {
         return inBounds(x, y)
-                && this.def.placementZone().contains(x, y)
+                && LevelMechanics.canPlacePlant(mechanics, this, def, x, y)
                 && PlantPlacement.canPlace(def, placementContext, x, y);
     }
 
@@ -855,6 +872,12 @@ public final class LevelServer implements LevelAccess {
 
             processMusicCues(bridge);
             tickCarry();
+            // Before the entities move: a mechanic that changes the board (spawning,
+            // removing, restricting) acts on the state the previous tick left behind
+            // rather than on one that is halfway through moving.
+            for (TypedMechanic typed : mechanics) {
+                LevelMechanics.tick(typed, this);
+            }
             tickWaves(bridge);
             syncWaveAndTime(bridge);
             maybeSpawnSun();
@@ -895,36 +918,10 @@ public final class LevelServer implements LevelAccess {
     }
 
     private void syncSlots(ServerBridge bridge) {
-        if (plantPlayer == null) {
+        if (plantPlayer == null || cardSource == null) {
             return;
         }
-        if (belt != null) {
-            // Belt cards are free and never cool down, so there is nothing to stream per
-            // card: the belt tells the client what it holds whenever that changes, and the
-            // whole bar is replaced rather than patched - a card that left the belt must
-            // leave the client's bar too, and an upsert cannot say that.
-            belt.tick(random);
-            if (belt.isChanged()) {
-                belt.clearChanged();
-                rebuildBeltSlots();
-                bridge.send(new BeltSyncS2C(slotInfos()));
-            }
-        } else {
-            for (Slot slot : plantPlayer.slots()) {
-                int before = slot.cooldownLeft();
-                slot.tick();
-                // A card only changes while its cooldown is running. The old condition
-                // also fired for every *ready* card on every tick, so a 13-card bar sent
-                // ~780 packets per second for values that never changed. Cooldown cards
-                // still stream every tick (the HUD bar animates), ready cards get a
-                // keepalive and an immediate message the moment they finish.
-                boolean animating = before > 0;
-                boolean justBecameReady = before > 0 && slot.cooldownLeft() == 0;
-                if (animating || justBecameReady || tickCount % 20 == 0) {
-                    bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
-                }
-            }
-        }
+        cardSource.tick(this, bridge, tickCount);
         if (tickCount % 3 == 0) {
             for (PvzceEntity entity : entities) {
                 bridge.send(entity.updatePacket());
@@ -932,9 +929,9 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
-    /** The conveyor belt, or {@code null} on a level with a normal deck. */
-    public ConveyorBelt conveyorBelt() {
-        return belt;
+    /** Where this level's cards come from; never null while a plant player exists. */
+    public com.pvzce.server.level.cardsource.CardSource cardSource() {
+        return cardSource;
     }
 
     /**
@@ -948,31 +945,7 @@ public final class LevelServer implements LevelAccess {
     public static LevelPayload payloadFor(LevelDef def, SeedContext seeds) {
         return new LevelPayload(def.width(), def.height(), seeds.pool(), def.maxSeedSlots(),
                 def.previewZombieIds(), SceneCells.forLevel(def), seeds.lockedSlotIds(),
-                def.hasConveyor(), def.belt().map(com.pvzce.api.content.LevelBelt::capacity).orElse(0),
-                def.placementZone().minX(), def.placementZone().maxX(),
-                def.placementZone().minY(), def.placementZone().maxY());
-    }
-
-    /**
-     * Rebuilds the player's card bar from the belt.
-     *
-     * <p>The belt owns which cards exist; the bar is a projection of it, so this runs
-     * whenever the belt changes rather than the two being kept in step by hand. Card
-     * costs are dropped: nothing on a belt is bought.
-     */
-    private void rebuildBeltSlots() {
-        if (belt == null || plantPlayer == null) {
-            return;
-        }
-        List<Slot> rebuilt = new ArrayList<>();
-        for (ConveyorBelt.Card card : belt.cards()) {
-            SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card.cardId()).orElse(null);
-            if (resolved == null) {
-                continue;
-            }
-            rebuilt.add(new Slot(card.id(), resolved.kind(), resolved.content(), 0, 0, Slot.UNLIMITED_USES));
-        }
-        plantPlayer.replaceSlots(rebuilt);
+                LevelMechanics.payloads(def));
     }
 
     private void processMusicCues(ServerBridge bridge) {
@@ -1370,34 +1343,15 @@ public final class LevelServer implements LevelAccess {
             bridge.send(new ServerMessageS2C("该格不能种植。"));
             return false;
         }
-        // A belt card is spent, not paid for: the belt has no sun and its cards carry no
-        // price, so it is taken off the belt rather than charged to the team.
-        if (belt != null) {
-            if (belt.take(slot.index()) == null) {
-                bridge.send(new ServerMessageS2C("这张卡已经不在传送带上了。"));
-                return false;
-            }
-            PlantEntity planted = spawnPlant(plantDef, plantPlayer.team(), x, y);
-            System.out.println("[PVZCE] Planted belt card " + slot.defId() + " at (" + x + "," + y
-                    + ") count=" + plantCount());
-            belt.clearChanged();
-            rebuildBeltSlots();
-            bridge.send(new BeltSyncS2C(slotInfos()));
-            return !planted.isRemoved() || planted.consumesOnPlace();
-        }
-
-        int cost = slot.costSun() > 0 ? slot.costSun() : plantDef.cost().amountOf(PvzceIds.SUN);
-        if (!plantPlayer.team().consume(PvzceIds.SUN, cost)) {
-            bridge.send(new ServerMessageS2C("阳光不足！"));
+        // What a card costs - sun and a cooldown, or nothing at all because the level
+        // handed it over - is the card source's business. This method only knows that a
+        // card was asked for and that a plant has to appear if the payment went through.
+        if (cardSource == null || !cardSource.spend(this, bridge, slot, plantDef)) {
             return false;
         }
-
-        slot.startCooldown(plantDef.cost().cooldownTicks());
         PlantEntity plant = spawnPlant(plantDef, plantPlayer.team(), x, y);
         System.out.println("[PVZCE] Planted " + slot.defId() + " at (" + x + "," + y + ") count=" + plantCount());
-        bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(), PvzceIds.SUN.toString(),
-                plantPlayer.team().resourcesOf(PvzceIds.SUN)));
-        bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+        cardSource.afterSpend(this, bridge, slot);
         return !plant.isRemoved() || plant.consumesOnPlace();
     }
 
@@ -1614,7 +1568,8 @@ public final class LevelServer implements LevelAccess {
         // A belt card has no price at all, which is not the same as costing zero: the HUD
         // draws the number it is given, and "0" would read as "this cost something and you
         // paid it". SlotInfo.NO_PRICE is that distinction on the wire.
-        int price = belt != null ? SlotInfo.NO_PRICE : slot.costSun();
+        int price = cardSource != null && cardSource.dealsItsOwnCards()
+                ? SlotInfo.NO_PRICE : slot.costSun();
         boolean available = slot.kind() == Slot.Kind.RESOURCE
                 || (slot.ready() && plantPlayer != null
                         && plantPlayer.team().resourcesOf(PvzceIds.SUN) >= Math.max(0, price));
@@ -1640,11 +1595,6 @@ public final class LevelServer implements LevelAccess {
         LevelPayload payload = payloadFor(def, seedContext);
         bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waveTypes, payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
-        if (belt != null) {
-            // The init packet already carried the belt as the card bar; this only tells the
-            // belt it no longer owes the client a sync.
-            belt.clearChanged();
-        }
         withBridge(bridge, () -> {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
             return null;
@@ -1746,10 +1696,13 @@ public final class LevelServer implements LevelAccess {
         root.put("Teams", saveTeams());
         root.put("Slots", saveSlots());
         root.put("Scene", saveScene());
-        if (belt != null) {
-            // Belt contents are part of the run: a resumed conveyor level must come back
-            // holding the cards it was holding, not a freshly rolled batch.
-            root.put("Belt", belt.save());
+        if (cardSource != null) {
+            cardSource.save(root);
+        }
+        // A mechanic with state of its own - anything that is not the card bar - writes it
+        // through its own hook, so the save file grows with the mechanic rather than here.
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanics.collectSave(typed, this, root);
         }
 
         ListTag savedEntities = new ListTag();
@@ -1850,11 +1803,13 @@ public final class LevelServer implements LevelAccess {
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
         restoreScene(root.getList("Scene"));
         restoreTeams(root.getCompound("Teams"));
-        if (belt != null) {
-            // Before restoreSlots: the bar is a projection of the belt, so the belt has to
-            // exist first or its cards would have nothing to be restored into.
-            belt.restore(root.getCompound("Belt"));
-            rebuildBeltSlots();
+        // Before restoreSlots: a self-dealt bar is a projection of the source, so the source
+        // has to be restored first or its cards would have nothing to be put back into.
+        if (cardSource != null) {
+            cardSource.restore(this, root);
+        }
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanics.applySave(typed, this, root);
         }
         restoreSlots(root.getList("Slots"));
         restorePendingWaves(root.getList("PendingWaveSpawns"));

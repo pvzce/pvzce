@@ -9,7 +9,7 @@ import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
-import com.pvzce.common.network.packet.BeltSyncS2C;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
@@ -78,7 +78,7 @@ class PacketProtocolTest {
                 List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
                         "pvzce:textures/entities/pea_shooter", 100)),
                 6, List.of("pvzce:basic_zombie"),
-                List.of(new SceneSyncS2C.Cell(1, 2, "pvzce:water")));
+                List.of(new SceneSyncS2C.Cell(1, 2, "pvzce:water")), List.of(), List.of());
         List<LevelListS2C.TeamInfo> teams = List.of(
                 new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves"));
         List<SlotInfo> slots = List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 12, -1, true));
@@ -148,10 +148,14 @@ class PacketProtocolTest {
                 new ProfileS2C(350, List.of("pvzce:pea_shooter", "pvzce:sunflower", "pvzce:shovel"), false),
                 new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower"),
                 // A belt card has no price (SlotInfo.NO_PRICE), which is the value a
-                // writer/reader swap on costSun would silently turn into a real one.
-                new BeltSyncS2C(List.of(
-                        new SlotInfo(4, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true),
-                        new SlotInfo(5, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true))));
+                // writer/reader swap on costSun would silently turn into a real one. The
+                // payload is opaque to the protocol, so a payload that decodes cleanly is
+                // part of what is being pinned here.
+                MechanicSyncS2C.of(com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR,
+                        com.pvzce.common.level.mechanic.ConveyorMechanic.BarState.CODEC,
+                        new com.pvzce.common.level.mechanic.ConveyorMechanic.BarState(List.of(
+                                new SlotInfo(4, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true),
+                                new SlotInfo(5, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true)))));
     }
 
     /**
@@ -279,7 +283,7 @@ class PacketProtocolTest {
     @Test
     void protocolVersionIsCarriedByTheFirstLevelPacket() {
         LevelInitS2C init = new LevelInitS2C("pvzce:level_1", List.of(), List.of(),
-                new LevelPayload(9, 5, List.of(), 6, List.of(), List.of()), "", "", 99);
+                new LevelPayload(9, 5, List.of(), 6, List.of(), List.of(), List.of(), List.of()), "", "", 99);
         assertNotEquals(PvzcePackets.PROTOCOL_VERSION, init.protocolVersion(),
                 "the protocol version must actually be transmitted, not assumed");
     }

@@ -19,7 +19,7 @@ class InGameScreenCardOrderTest {
 
     @Test
     void cardBarOrdersResourcesThenPlantsThenTools() {
-        List<SlotInfo> ordered = InGameScreen.orderCardSlots(List.of(
+        List<SlotInfo> ordered = com.pvzce.client.gui.hud.cardbar.SeedCardBar.orderCardSlots(List.of(
                 slot(0, "pvzce:pea_shooter", "plant"),
                 slot(1, "pvzce:shovel", "tool"),
                 slot(2, "pvzce:star", "resource"),
@@ -33,7 +33,7 @@ class InGameScreenCardOrderTest {
 
     @Test
     void sunBankNeverBecomesACard() {
-        List<SlotInfo> ordered = InGameScreen.orderCardSlots(List.of(
+        List<SlotInfo> ordered = com.pvzce.client.gui.hud.cardbar.SeedCardBar.orderCardSlots(List.of(
                 slot(0, "pvzce:sun", "resource"),
                 slot(1, "pvzce:sunflower", "plant")));
 

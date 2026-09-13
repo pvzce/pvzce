@@ -786,13 +786,14 @@ public final class PvzceServer implements Runnable {
             deleteRunningSave(saveDir);
         }
 
-        // A conveyor level's bar comes from its belt: the level's own cards would be a
-        // second source for the same bar, and the saved selection of such a level is the
-        // belt it was holding, which the belt restores itself.
-        List<Identifier> seeds = def.hasConveyor()
+        // A level whose card source deals its own cards - a conveyor belt - never takes a
+        // seed selection: the level's own cards would be a second source for the same bar,
+        // and its save holds the cards it was carrying, which the source restores itself.
+        boolean selfDealt = com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
+        List<Identifier> seeds = selfDealt
                 ? List.of()
                 : requestedSeeds == null ? null : sanitizeSeedSelection(def, requestedSeeds, profile);
-        if (loadSave && !def.hasConveyor()) {
+        if (loadSave && !selfDealt) {
             // Continuing a save restores the exact card bar the player had.
             List<Identifier> savedSeeds = readSavedSeedSelection(saveDir);
             if (savedSeeds != null) {

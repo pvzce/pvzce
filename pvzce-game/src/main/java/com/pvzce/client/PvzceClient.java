@@ -240,6 +240,10 @@ public final class PvzceClient {
         this.connection = connection;
         this.gameDir = gameDir;
         this.classLoader = classLoader;
+        // Which mechanic draws which HUD, registered before any level can arrive. A mod
+        // adds its own from a ClientModInitializer; the built-ins are here so a mechanic
+        // that ships with the game always has its client half.
+        com.pvzce.client.mechanic.ClientMechanics.bootstrap();
     }
 
     public void run() throws Exception {
@@ -1195,7 +1199,7 @@ public final class PvzceClient {
         if (currentScreen() instanceof ConsoleScreen) {
             closeScreen();
         }
-        openScreen(EditorScreen.forExisting(this, levelId));
+        openScreen(new EditorScreen(this, levelId));
     }
 
     /** Opens the editor for a brand-new level described by the create dialog. */
@@ -1270,7 +1274,7 @@ public final class PvzceClient {
     /**
      * The level's opening dialogue, read from the local data packs.
      *
-     * <p>Read locally for the same reason {@link #usesConveyorBelt} and
+     * <p>Read locally for the same reason {@link #dealsItsOwnCards} and
      * {@link #lockedSlotsFor} are: the client loads the same packs as the server, and the
      * answer only decides what is drawn. An unknown level has no dialogue.
      */
@@ -1322,7 +1326,7 @@ public final class PvzceClient {
     public void enterLevelFromMenu(LevelListS2C.LevelInfo info) {
         if (info.hasRunningSave()) {
             requestLevel(info.id(), false);
-        } else if (usesConveyorBelt(info.id())) {
+        } else if (dealsItsOwnCards(info.id())) {
             // Nothing to choose: a conveyor level's cards are delivered by the level
             // itself, one at a time and for free, so a "choose your seeds" page would
             // offer a deck the server is going to discard.
@@ -1333,16 +1337,17 @@ public final class PvzceClient {
     }
 
     /**
-     * True when this level plays from a conveyor belt instead of a chosen deck.
+     * True when this level deals its own cards - a conveyor belt, today - instead of the
+     * player choosing a deck.
      *
      * <p>Read from the local level definition, like {@link #lockedSlotsFor}: the client
-     * loads the same data packs, and the answer only decides which screens to open. The
-     * belt's contents and the cards themselves still come from the server.
+     * loads the same data packs, and the answer only decides which screens to open. What
+     * the cards <em>are</em> still comes from the server. The question is asked of the
+     * level's card-source mechanic rather than of a belt flag, so a second self-dealt card
+     * source needs no change here.
      */
-    public boolean usesConveyorBelt(String levelId) {
-        Identifier id = Identifier.tryParse(levelId);
-        LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
-        return def != null && def.hasConveyor();
+    public boolean dealsItsOwnCards(String levelId) {
+        return com.pvzce.client.mechanic.ClientMechanics.dealsItsOwnCards(levelId);
     }
 
     /**
@@ -1394,7 +1399,7 @@ public final class PvzceClient {
      */
     public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
         LevelListS2C.LevelInfo info = findLevelInfo(prompt.levelId());
-        if (info == null || usesConveyorBelt(prompt.levelId())) {
+        if (info == null || dealsItsOwnCards(prompt.levelId())) {
             // No registry snapshot (for example a direct smoke request), or nothing to
             // choose because the level deals its own cards: fall back to the server-side
             // restart, which is the same thing minus a page that would ask for a deck the
@@ -1581,7 +1586,7 @@ public final class PvzceClient {
         }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
-        if (usesConveyorBelt(levelId)) {
+        if (dealsItsOwnCards(levelId)) {
             // A conveyor level restarts straight into a fresh belt: there are no cards to
             // pick, so the chooser that normally sits between "closed" and "restarted" has
             // nothing to ask. The init packet rebuilds the screen, as it does for any entry.
@@ -1886,7 +1891,7 @@ public final class PvzceClient {
             pendingTestLevelId = null;
             for (LevelListS2C.LevelInfo info : this.levelList) {
                 if (wanted.equals(info.id())) {
-                    if (usesConveyorBelt(info.id())) {
+                    if (dealsItsOwnCards(info.id())) {
                         // A conveyor level hands out its own cards, so testing it means
                         // starting it, not picking a deck for it.
                         requestFreshRunDirectly(info.id(), true);

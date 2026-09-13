@@ -13,7 +13,9 @@ class ClientLevelTimeTest {
     @Test
     void smoothDayTicksAdvancesBetweenServerSyncs() throws Exception {
         ClientLevel level = new ClientLevel();
-        level.init("test", 9, 5, List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 0, true)), List.of());
+        level.init("test", 9, 5,
+                List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 0, true)), List.of(),
+                List.of(), 6, List.of(), List.of(), "", "", List.of());
         level.setTimeOfDay(new TimeOfDayS2C(600, 600, 600));
 
         float before = level.smoothDayTicks();
@@ -27,7 +29,8 @@ class ClientLevelTimeTest {
     @Test
     void interpolatedNightSwitchIsExact() {
         ClientLevel level = new ClientLevel();
-        level.init("test", 9, 5, List.of(), List.of());
+        level.init("test", 9, 5, List.of(), List.of(), List.of(), 6, List.of(), List.of(), "", "",
+                List.of());
         level.setTimeOfDay(new TimeOfDayS2C(0, 600, 600));
 
         assertFalse(level.isNightAt(599.9F));

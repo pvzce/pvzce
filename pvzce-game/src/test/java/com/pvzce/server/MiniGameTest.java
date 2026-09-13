@@ -115,10 +115,18 @@ class MiniGameTest {
                 source.rules(), source.envVars(), List.of(), source.waveIntervalEndMultiplier(),
                 List.of(), source.unlockResources(), 0, LevelDef.LevelMusicDef.DEFAULT, List.of(),
                 6, com.pvzce.api.content.LevelRewards.NONE, source.unlock(),
-                Optional.of(new LevelBelt(300, 6, 2,
-                        List.of(new LevelBelt.BeltCard(BOWLING_NUT, 1)))),
-                new PlacementZone(0, 3, 0, Integer.MAX_VALUE),
+                List.of(com.pvzce.api.content.mechanic.TypedMechanic.of(
+                                com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR,
+                                new LevelBelt(300, 6, 2, List.of(new LevelBelt.BeltCard(BOWLING_NUT, 1)))),
+                        com.pvzce.api.content.mechanic.TypedMechanic.of(
+                                com.pvzce.common.PvzceIds.MECHANIC_PLACEMENT_ZONE,
+                                new PlacementZone(0, 3, 0, Integer.MAX_VALUE))),
                 com.pvzce.api.content.LevelDialogue.EMPTY);
+    }
+
+    /** The conveyor behind a belt level's card source; the level itself only sees a source. */
+    private static ConveyorBelt belt(LevelServer level) {
+        return ((com.pvzce.server.level.cardsource.BeltCardSource) level.cardSource()).belt();
     }
 
     private static void tick(LevelServer level, CapturingBridge bridge, int ticks) {
@@ -129,10 +137,14 @@ class MiniGameTest {
 
     @Test
     void theShippedLevelIsABeltLevelOnTheLeftFourColumns() {
-        assertTrue(oneFive.hasConveyor(), "1-5 is a conveyor level");
+        assertTrue(com.pvzce.common.level.mechanic.LevelMechanics
+                .has(oneFive, com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR), "1-5 is a conveyor level");
         assertTrue(oneFive.slots().isEmpty(), "its card bar is the belt, not a deck");
-        assertTrue(oneFive.placementZone().contains(3, 0));
-        assertFalse(oneFive.placementZone().contains(4, 0), "the red line is at column 4");
+        PlacementZone zone = com.pvzce.common.level.mechanic.LevelMechanics
+                .dataOf(oneFive, com.pvzce.common.PvzceIds.MECHANIC_PLACEMENT_ZONE, PlacementZone.class)
+                .orElseThrow();
+        assertTrue(zone.contains(3, 0));
+        assertFalse(zone.contains(4, 0), "the red line is at column 4");
         assertTrue(oneFive.rewards().firstClear().stream()
                         .anyMatch(reward -> reward.id()
                                 .filter(POTATO_MINE::equals).isPresent()),
@@ -175,7 +187,7 @@ class MiniGameTest {
     void beltDeliversCardsUntilItIsFullAndSpendsThem() {
         LevelServer level = beltLevel();
         CapturingBridge bridge = new CapturingBridge();
-        ConveyorBelt belt = level.conveyorBelt();
+        ConveyorBelt belt = belt(level);
         assertNotNull(belt);
         assertEquals(2, belt.cards().size(), "the level starts with two cards waiting");
 
@@ -214,12 +226,12 @@ class MiniGameTest {
         CapturingBridge bridge = new CapturingBridge();
         tick(level, bridge, 300);
         assertTrue(level.placePlant(bridge, level.slotInfos().get(0).index(), 0, 2));
-        int cards = level.conveyorBelt().cards().size();
+        int cards = belt(level).cards().size();
 
         LevelServer restored = beltLevel();
         restored.restore(level.save());
 
-        assertEquals(cards, restored.conveyorBelt().cards().size());
+        assertEquals(cards, belt(restored).cards().size());
         assertEquals(level.slotInfos().size(), restored.slotInfos().size(),
                 "the card bar is rebuilt from the restored belt");
     }

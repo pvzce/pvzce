@@ -76,46 +76,23 @@ public final class ClientLevel {
     private volatile long debugAnchorNanos;
     private volatile long debugAnchorTick;
     private volatile boolean initialized;
-    private volatile boolean conveyor;
-    private volatile int beltCapacity;
-    private volatile int zoneMinX;
-    private volatile int zoneMaxX;
-    private volatile int zoneMinY;
-    private volatile int zoneMaxY;
+    /**
+     * The level's mechanics, as the server sent them: id to decoded block.
+     *
+     * <p>Held rather than reduced to a handful of fields. The client used to keep
+     * {@code conveyor}/{@code beltCapacity}/{@code zone*} here, which meant every new
+     * mechanic added four fields and a getter; now a mechanic's data is whatever its codec
+     * decoded, and the client's HUD asks for it by id.
+     */
+    private final java.util.Map<Identifier, com.pvzce.api.content.mechanic.MechanicData> mechanics =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile java.util.List<Identifier> mechanicOrder = List.of();
     private volatile String disconnectReason = "";
     private volatile AnimationManager animations;
 
     /** Ticks-per-second conversion kept in one place for this class. */
     private static final class PvzceConstantsTicks {
         private static final double PER_NANO = 60D / 1_000_000_000D;
-    }
-
-    /** Backwards-compatible init for tests/screens that do not need seed metadata. */
-    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes) {
-        init(levelId, width, height, slots, waveTypes, List.of(), 6, List.of(), List.of(), "", "");
-    }
-
-    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
-                     List<SeedOption> seedPool, int maxSeedSlots) {
-        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, List.of(), List.of(), "", "");
-    }
-
-    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
-                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies) {
-        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies, List.of(), "", "");
-    }
-
-    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
-                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
-                     List<SceneSyncS2C.Cell> sceneCells) {
-        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies, sceneCells, "", "");
-    }
-
-    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
-                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
-                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName) {
-        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies, sceneCells,
-                controlledTeamId, controlledTeamName, false, 0, 0, width - 1, 0, height - 1);
     }
 
     /**
@@ -125,8 +102,7 @@ public final class ClientLevel {
     public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
                      List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
                      List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName,
-                     boolean conveyor, int beltCapacity,
-                     int zoneMinX, int zoneMaxX, int zoneMinY, int zoneMaxY) {
+                     List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics) {
         clearTransientState();
         this.seedPool = List.copyOf(seedPool);
         this.maxSeedSlots = Math.max(0, maxSeedSlots);
@@ -134,12 +110,7 @@ public final class ClientLevel {
         this.levelId = levelId;
         this.width = width;
         this.height = height;
-        this.conveyor = conveyor;
-        this.beltCapacity = Math.max(0, beltCapacity);
-        this.zoneMinX = zoneMinX;
-        this.zoneMaxX = zoneMaxX;
-        this.zoneMinY = zoneMinY;
-        this.zoneMaxY = zoneMaxY;
+        applyMechanics(levelMechanics);
         this.scene = SceneGrid.create(width, height, PvzceIds.GRASS.toString());
         applyScene(sceneCells);
         synchronized (this.slots) {
@@ -179,12 +150,8 @@ public final class ClientLevel {
         previewZombies = List.of();
         scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
         initialized = false;
-        conveyor = false;
-        beltCapacity = 0;
-        zoneMinX = 0;
-        zoneMaxX = -1;
-        zoneMinY = 0;
-        zoneMaxY = -1;
+        mechanics.clear();
+        mechanicOrder = List.of();
         gameState = "running";
         winTeam = "";
         disconnectReason = "";
@@ -362,35 +329,58 @@ public final class ClientLevel {
         }
     }
 
-    /** True when this level's bar is a conveyor belt rather than a deck. */
-    public boolean conveyor() {
-        return conveyor;
+    /**
+     * Decodes the mechanics the server sent and stores them by id.
+     *
+     * <p>A block this client cannot decode - an unknown mechanic from a mod it does not
+     * have, or a malformed one - is skipped with a log rather than refusing the level: the
+     * board is fully described by the rest of the payload, so the worst case is a missing
+     * piece of HUD.
+     */
+    private void applyMechanics(List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics) {
+        mechanics.clear();
+        List<Identifier> order = new java.util.ArrayList<>();
+        for (var payload : levelMechanics) {
+            var data = com.pvzce.common.level.mechanic.LevelMechanics
+                    .decodeBlock(payload.type(), payload.block());
+            if (data.isEmpty()) {
+                org.slf4j.LoggerFactory.getLogger("pvzce-client-level")
+                        .warn("[mechanics] cannot decode the block for {}; skipping it", payload.type());
+                continue;
+            }
+            mechanics.put(payload.type(), data.get());
+            order.add(payload.type());
+        }
+        mechanicOrder = List.copyOf(order);
     }
 
-    /** How many cards the belt can hold; the strip is drawn this wide. */
-    public int beltCapacity() {
-        return beltCapacity;
+    /** The ids of this level's mechanics, in the order the level declares them. */
+    public List<Identifier> mechanicIds() {
+        return mechanicOrder;
     }
 
-    public int zoneMinX() {
-        return zoneMinX;
+    /** True when this level declares that mechanic. */
+    public boolean hasMechanic(Identifier mechanicId) {
+        return mechanics.containsKey(mechanicId);
     }
 
-    public int zoneMaxX() {
-        return zoneMaxX;
+    /** One mechanic's decoded block, or {@code null} when the level does not declare it. */
+    public <D extends com.pvzce.api.content.mechanic.MechanicData> D mechanicData(
+            Identifier mechanicId, Class<D> type) {
+        var data = mechanics.get(mechanicId);
+        return type.isInstance(data) ? type.cast(data) : null;
     }
 
-    public int zoneMinY() {
-        return zoneMinY;
-    }
-
-    public int zoneMaxY() {
-        return zoneMaxY;
+    /** The level's plantable area, or the whole board when it restricts nothing. */
+    public com.pvzce.api.content.PlacementZone placementZone() {
+        com.pvzce.api.content.PlacementZone zone = mechanicData(
+                com.pvzce.common.PvzceIds.MECHANIC_PLACEMENT_ZONE, com.pvzce.api.content.PlacementZone.class);
+        return zone == null ? com.pvzce.api.content.PlacementZone.FULL : zone;
     }
 
     /** True when this cell is inside the level's plantable area. */
     public boolean inPlacementZone(int x, int y) {
-        return x >= zoneMinX && x <= zoneMaxX && y >= zoneMinY && y <= zoneMaxY;
+        return placementZone().contains(x, y);
     }
 
     /** Balance of one resource for one team. */

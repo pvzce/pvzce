@@ -3,8 +3,10 @@ package com.pvzce.api.content;
 import com.google.gson.JsonElement;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
+import com.pvzce.common.level.mechanic.LevelMechanics;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -34,8 +36,7 @@ public record LevelDef(
         int maxSeedSlots,
         LevelRewards rewards,
         LevelUnlock unlock,
-        Optional<LevelBelt> belt,
-        PlacementZone placementZone,
+        List<TypedMechanic> mechanics,
         LevelDialogue dialogue
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
@@ -53,19 +54,13 @@ public record LevelDef(
      */
     public LevelDef {
         maxSeedSlots = Math.max(maxSeedSlots, slots.size());
-        belt = belt == null ? Optional.empty() : belt;
-        placementZone = placementZone == null ? PlacementZone.FULL : placementZone;
+        mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
         dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
     }
 
     /** True when this level opens with a conversation the player has to click through. */
     public boolean hasDialogue() {
         return !dialogue.isEmpty();
-    }
-
-    /** True when this level's cards come from a conveyor belt instead of a deck. */
-    public boolean hasConveyor() {
-        return belt.isPresent();
     }
 
     /** Backwards-compatible constructor for callers/tests written before seed selection existed. */
@@ -78,7 +73,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 DEFAULT_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
-                Optional.empty(), PlacementZone.FULL, LevelDialogue.EMPTY);
+                List.of(), LevelDialogue.EMPTY);
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -90,15 +85,15 @@ public record LevelDef(
                     LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, Optional.empty(), PlacementZone.FULL,
+                maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, List.of(),
                 LevelDialogue.EMPTY);
     }
 
     /**
-     * The whole record minus the two mini-game blocks.
+     * The whole record minus its mechanics.
      *
-     * <p>Kept for callers written before conveyor belts and plantable areas existed: both
-     * are opt-in, and neither changes what an ordinary level means.
+     * <p>Kept for callers written before level mechanics existed: every mechanic is
+     * opt-in, and none of them changes what an ordinary level means.
      */
     public LevelDef(Identifier id, String name, String description, int width, int height,
                     Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
@@ -109,7 +104,7 @@ public record LevelDef(
                     LevelRewards rewards, LevelUnlock unlock) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, Optional.empty(), PlacementZone.FULL, LevelDialogue.EMPTY);
+                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY);
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -139,17 +134,16 @@ public record LevelDef(
             new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                     waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
-                    tail.unlock(), tail.belt(), tail.placementZone(), tail.dialogue())));
+                    tail.unlock(), tail.mechanics(), tail.dialogue())));
 
     public LevelTail tail() {
-        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, belt, placementZone,
-                dialogue);
+        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics, dialogue);
     }
 
     /** Grouped tail fields keep the outer codec inside DFU's 16-field limit. */
     public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
-                            LevelRewards rewards, LevelUnlock unlock, Optional<LevelBelt> belt,
-                            PlacementZone placementZone, LevelDialogue dialogue) {
+                            LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
+                            LevelDialogue dialogue) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -161,16 +155,14 @@ public record LevelDef(
                                 .forGetter(LevelTail::rewards),
                         LevelUnlock.CODEC.optionalFieldOf("unlock", LevelUnlock.NONE)
                                 .forGetter(LevelTail::unlock),
-                        LevelBelt.CODEC.optionalFieldOf("conveyor").forGetter(LevelTail::belt),
-                        PlacementZone.CODEC.optionalFieldOf("placement_zone", PlacementZone.FULL)
-                                .forGetter(LevelTail::placementZone),
+                        LevelMechanics.LIST_CODEC.optionalFieldOf("mechanics", List.of())
+                                .forGetter(LevelTail::mechanics),
                         LevelDialogue.CODEC.optionalFieldOf("dialogue", LevelDialogue.EMPTY)
                                 .forGetter(LevelTail::dialogue)
                 ).apply(i, LevelTail::new));
 
         public LevelTail {
-            belt = belt == null ? Optional.empty() : belt;
-            placementZone = placementZone == null ? PlacementZone.FULL : placementZone;
+            mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
             dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
         }
     }

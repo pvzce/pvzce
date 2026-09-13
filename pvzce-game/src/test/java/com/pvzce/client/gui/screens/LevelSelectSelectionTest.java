@@ -28,7 +28,7 @@ class LevelSelectSelectionTest {
                 List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
                         "pvzce:textures/entities/pea_shooter", 100)),
                 6, List.of("pvzce:basic_zombie"),
-                List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
+                List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")), List.of(), List.of());
         return LevelListS2C.LevelInfo.of(id, id, "", "pvzce:plant_team", List.of(), "", "day",
                 theme, category, false, payload, LevelListS2C.UnlockInfo.OPEN);
     }

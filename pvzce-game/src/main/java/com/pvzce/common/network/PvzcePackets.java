@@ -1,6 +1,6 @@
 package com.pvzce.common.network;
 
-import com.pvzce.common.network.packet.BeltSyncS2C;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.CreateWorldC2S;
@@ -63,7 +63,7 @@ public final class PvzcePackets {
      */
     // 10: the resource entity kind is "resource" rather than "sun" - every drop used to
     // travel as a sun, which the client's board lights read as "light the lawn".
-    public static final int PROTOCOL_VERSION = 10;
+    public static final int PROTOCOL_VERSION = 11;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -111,7 +111,7 @@ public final class PvzcePackets {
     public static final int S2C_LEVEL_TABS = S2C_BASE + 22;
     public static final int S2C_PROFILE = S2C_BASE + 23;
     public static final int S2C_LEVEL_REWARD = S2C_BASE + 24;
-    public static final int S2C_BELT_SYNC = S2C_BASE + 25;
+    public static final int S2C_MECHANIC_SYNC = S2C_BASE + 25;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -169,7 +169,8 @@ public final class PvzcePackets {
             def(S2C_LEVEL_TABS, ConnectionDirection.CLIENTBOUND, LevelTabsS2C.class, LevelTabsS2C::decode),
             def(S2C_PROFILE, ConnectionDirection.CLIENTBOUND, ProfileS2C.class, ProfileS2C::decode),
             def(S2C_LEVEL_REWARD, ConnectionDirection.CLIENTBOUND, LevelRewardS2C.class, LevelRewardS2C::decode),
-            def(S2C_BELT_SYNC, ConnectionDirection.CLIENTBOUND, BeltSyncS2C.class, BeltSyncS2C::decode));
+            def(S2C_MECHANIC_SYNC, ConnectionDirection.CLIENTBOUND, MechanicSyncS2C.class,
+                    MechanicSyncS2C::decode));
 
     private static volatile boolean registered;
 

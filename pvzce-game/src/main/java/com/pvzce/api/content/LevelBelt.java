@@ -1,7 +1,9 @@
 package com.pvzce.api.content;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.pvzce.api.content.mechanic.MechanicData;
 import com.pvzce.api.util.Identifier;
 
 import java.util.List;
@@ -17,15 +19,17 @@ import java.util.Random;
  * many may sit on the belt at once, {@code initial_cards} how many are already there
  * when the level starts, and {@code cards} the weighted pool it draws from.
  *
- * <p>Authored as:
+ * <p>This record is the block of the {@code pvzce:conveyor} level mechanic, so it is
+ * authored inside the level's {@code mechanics} list rather than as a top-level key:
  * <pre>{@code
- * "conveyor": {
- *   "interval_ticks": 300, "capacity": 6, "initial_cards": 2,
- *   "cards": [ { "id": "pvzce:bowling_nut", "weight": 1 } ]
- * }
+ * "mechanics": [
+ *   { "type": "pvzce:conveyor", "interval_ticks": 300, "capacity": 6, "initial_cards": 2,
+ *     "cards": [ { "id": "pvzce:bowling_nut", "weight": 1 } ] }
+ * ]
  * }</pre>
  */
-public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<BeltCard> cards) {
+public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<BeltCard> cards)
+        implements MechanicData {
     public static final int DEFAULT_INTERVAL_TICKS = 300;
     public static final int DEFAULT_CAPACITY = 6;
     public static final int DEFAULT_INITIAL_CARDS = 2;
@@ -44,12 +48,15 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
         }
     }
 
-    public static final Codec<LevelBelt> CODEC = RecordCodecBuilder.create(i -> i.group(
+    public static final MapCodec<LevelBelt> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.INT.optionalFieldOf("interval_ticks", DEFAULT_INTERVAL_TICKS).forGetter(LevelBelt::intervalTicks),
             Codec.INT.optionalFieldOf("capacity", DEFAULT_CAPACITY).forGetter(LevelBelt::capacity),
             Codec.INT.optionalFieldOf("initial_cards", DEFAULT_INITIAL_CARDS).forGetter(LevelBelt::initialCards),
             BeltCard.CODEC.listOf().optionalFieldOf("cards", List.of()).forGetter(LevelBelt::cards)
     ).apply(i, LevelBelt::new));
+
+    /** The block as a standalone object; used where a belt is not inside a mechanics list. */
+    public static final Codec<LevelBelt> CODEC = MAP_CODEC.codec();
 
     public LevelBelt {
         // A zero interval would spawn a card every tick, and a belt wider than the screen

@@ -79,6 +79,16 @@ public final class BuiltInRegistries {
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<
             com.pvzce.api.content.capability.ProjectileCapability>>
             PROJECTILE_CAPABILITIES = ACCESS.newRegistry(PvzceRegistries.PROJECTILE_CAPABILITIES);
+    /**
+     * Level mechanics: the opt-in behaviour a level's {@code "mechanics"} list enables.
+     *
+     * <p>Registered before the level data is loaded (see {@link #bootstrap()}), because a
+     * mechanic's codec is what decodes its block: an unregistered mechanic is an unknown
+     * {@code type}, and the level that names it fails to load rather than silently losing
+     * a rule.
+     */
+    public static final Registry<com.pvzce.common.level.mechanic.LevelMechanic<?>> LEVEL_MECHANICS =
+            ACCESS.newRegistry(PvzceRegistries.LEVEL_MECHANICS);
 
     private static volatile boolean bootstrapped;
 
@@ -95,6 +105,7 @@ public final class BuiltInRegistries {
         PlantBehaviorPresets.bootstrap();
         com.pvzce.api.content.ZombieBehaviorPresets.bootstrap();
         com.pvzce.api.content.ProjectileBehaviorPresets.bootstrap();
+        com.pvzce.common.level.mechanic.LevelMechanics.bootstrap();
 
         registerPlants();
         registerZombies();

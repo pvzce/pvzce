@@ -58,6 +58,14 @@ public final class PvzceRegistries {
             key("zombie_capability");
     public static final ResourceKey<Registry<CapabilityType<ProjectileCapability>>> PROJECTILE_CAPABILITIES =
             key("projectile_capability");
+    /**
+     * Registered level mechanics, keyed by the id a level's {@code "mechanics"} list names.
+     *
+     * <p>Code-registered rather than data-driven (like the capability registries above):
+     * a mechanic is behaviour, and its JSON block is decoded by the mechanic itself.
+     */
+    public static final ResourceKey<Registry<com.pvzce.common.level.mechanic.LevelMechanic<?>>>
+            LEVEL_MECHANICS = key("level_mechanic");
 
     /**
      * Every data-driven registry, keyed by the name the command layer uses.
@@ -93,6 +101,7 @@ public final class PvzceRegistries {
         map.put("plant_capability", PLANT_CAPABILITIES);
         map.put("zombie_capability", ZOMBIE_CAPABILITIES);
         map.put("projectile_capability", PROJECTILE_CAPABILITIES);
+        map.put("level_mechanic", LEVEL_MECHANICS);
         return java.util.Map.copyOf(map);
     }
 
@@ -117,7 +126,8 @@ public final class PvzceRegistries {
                 java.util.Map.entry("dialogue_characters", "dialogue_character"),
                 java.util.Map.entry("plant_capabilities", "plant_capability"),
                 java.util.Map.entry("zombie_capabilities", "zombie_capability"),
-                java.util.Map.entry("projectile_capabilities", "projectile_capability"));
+                java.util.Map.entry("projectile_capabilities", "projectile_capability"),
+                java.util.Map.entry("level_mechanics", "level_mechanic"));
     }
 
     /** Resolves a user-supplied category name (with aliases) to its canonical id. */

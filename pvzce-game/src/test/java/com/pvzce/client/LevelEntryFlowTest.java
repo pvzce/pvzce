@@ -64,7 +64,7 @@ class LevelEntryFlowTest {
                 List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
                         "pvzce:textures/entities/pea_shooter", 100)),
                 6, List.of("pvzce:basic_zombie"),
-                List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")));
+                List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")), List.of(), List.of());
         return LevelListS2C.LevelInfo.of(levelId, "第一关", "描述", "pvzce:plant_team",
                 List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves")),
                 status, "day", "pvzce:yard", "pvzce:adventure", runningSave, payload,

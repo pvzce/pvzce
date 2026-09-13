@@ -48,52 +48,28 @@ public final class LevelValidator {
     }
 
     /**
-     * Checks the level's card setup.
+     * Reports keys that used to be level fields and are now mechanics.
      *
-     * <p>A level that fills every slot with its own cards gives the player no choice at all.
-     * That is legal - it is what a fixed-deck level is - but it is worth saying out loud,
-     * because the symptom of doing it by accident is "there is no card selection screen".
+     * <p>The old spelling is not silently accepted: a level still written with a top-level
+     * {@code "conveyor"} block would load as an ordinary level with no belt, and the
+     * symptom - "the cards never come" - points at nothing. The message names the block to
+     * write instead. Called by {@code PvzceDataLoader} on every level it reads, because
+     * this is a property of the file rather than of the decoded definition.
      */
-    public static List<String> validateSeedSelection(LevelDef def) {
+    public static List<String> validateLegacyKeys(com.google.gson.JsonObject raw) {
         List<String> errors = new ArrayList<>();
-        if (def.hasConveyor()) {
-            // A belt level's cards are the belt's, so "no cards" is not a problem - but a
-            // belt *and* a fixed deck is, because two answers to "what is in the bar" is
-            // one answer too many.
-            if (!def.slots().isEmpty()) {
-                errors.add("This level has a conveyor belt and also lists " + def.slots().size()
-                        + " level cards: the belt replaces the card bar, so the listed cards are never granted");
-            }
-            errors.addAll(def.belt().map(com.pvzce.api.content.LevelBelt::validate).orElse(List.of()));
-            for (com.pvzce.api.content.LevelBelt.BeltCard card : def.belt().map(
-                    com.pvzce.api.content.LevelBelt::cards).orElse(List.of())) {
-                if (card.card() != null && SlotResolver.resolve(card.card()).isEmpty()) {
-                    errors.add("Unknown conveyor card '" + card.card()
-                            + "': no slot, plant, tool or resource with that id");
-                }
-            }
+        if (raw == null) {
             return errors;
         }
-        if (def.slots().isEmpty()) {
-            errors.add("This level has no cards, so the player enters with an empty card bar");
-            return errors;
+        if (raw.has("conveyor")) {
+            errors.add("This level's top-level \"conveyor\" block is now a mechanic: move it into "
+                    + "\"mechanics\": [ { \"type\": \"pvzce:conveyor\", ... } ]");
         }
-        for (Identifier slot : def.slots()) {
-            if (slot != null && SlotResolver.resolve(slot).isEmpty()) {
-                errors.add("Unknown card '" + slot + "': no slot, plant, tool or resource with that id");
-            }
+        if (raw.has("placement_zone")) {
+            errors.add("This level's top-level \"placement_zone\" block is now a mechanic: move it into "
+                    + "\"mechanics\": [ { \"type\": \"pvzce:placement_zone\", ... } ]");
         }
         return errors;
-    }
-
-    /**
-     * Reports a plantable area that no cell can satisfy.
-     *
-     * <p>The zone is enforced by refusing placement, so a zone outside the board would
-     * present as "the level will not let me plant anywhere" with nothing else to go on.
-     */
-    public static List<String> validatePlacementZone(LevelDef def) {
-        return def.placementZone().validate(def.width(), def.height());
     }
 
     /**
@@ -315,22 +291,6 @@ public final class LevelValidator {
         return "fixed deck: the level's " + def.slots().size() + " cards fill all "
                 + def.maxSeedSlots() + " slots, so the player only picks when they unlock more"
                 + " (raise max_seed_slots above " + def.slots().size() + " to leave room)";
-    }
-
-    public static List<String> validateSlots(List<Identifier> slots) {
-        List<String> errors = new ArrayList<>();
-        if (slots == null) {
-            return errors;
-        }
-        for (Identifier slotId : slots) {
-            if (slotId == null) {
-                continue;
-            }
-            if (SlotResolver.resolve(slotId).isEmpty()) {
-                errors.add("Unknown card '" + slotId + "': no slot, plant, tool or resource with that id");
-            }
-        }
-        return errors;
     }
 
     public static List<String> validateScene(LevelDef def) {

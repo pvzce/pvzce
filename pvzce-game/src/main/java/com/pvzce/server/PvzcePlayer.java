@@ -1,6 +1,5 @@
 package com.pvzce.server;
 
-import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.SlotResolver;
 
@@ -19,10 +18,6 @@ public final class PvzcePlayer {
 
     public Team team() {
         return team;
-    }
-
-    public void addSlot(Slot slot) {
-        slots.add(slot);
     }
 
     /**
@@ -57,26 +52,23 @@ public final class PvzcePlayer {
         return null;
     }
 
-    /** Builds the plant player's card bar from the level's default slot list. */
-    public static PvzcePlayer createPlantPlayer(Team team, LevelDef level) {
-        return createPlantPlayer(team, level, level.slots());
-    }
-
     /**
-     * Builds the plant player's card bar from an explicit seed selection, in order.
+     * The slots of an ordinary deck, in the order the cards were given.
      *
-     * <p>Uses the same {@link SlotResolver} as the client's seed pool, so an id the
-     * chooser offers is always a card the server grants.
+     * <p>Separate from {@link #createPlantPlayer} because the deck's card source fills a
+     * player the level already made, rather than making one of its own: the level owns
+     * {@code plantPlayer} and every other part of the server reads that one bar.
      */
-    public static PvzcePlayer createPlantPlayer(Team team, LevelDef level, List<Identifier> selectedSlots) {
-        PvzcePlayer player = new PvzcePlayer(team);
+    public static List<Slot> deckSlots(List<Identifier> selectedSlots) {
+        List<Slot> slots = new ArrayList<>();
         int index = 0;
-        for (SlotResolver.ResolvedCard card : SlotResolver.resolveAll(selectedSlots)) {
-            // A freshly built card bar is ready to use; the card's cooldown is
-            // applied by LevelServer when the card is actually spent.
-            player.addSlot(new Slot(index++, card.kind(), card.content(), card.costSun(), 0, card.uses()));
+        for (SlotResolver.ResolvedCard card : SlotResolver.resolveAll(
+                selectedSlots == null ? List.of() : selectedSlots)) {
+            // A freshly built card bar is ready to use; the card's cooldown is applied when
+            // the card is actually spent.
+            slots.add(new Slot(index++, card.kind(), card.content(), card.costSun(), 0, card.uses()));
         }
-        return player;
+        return slots;
     }
 
     /** True when the player's current card bar contains the matching resource card. */

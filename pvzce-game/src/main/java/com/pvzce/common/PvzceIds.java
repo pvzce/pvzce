@@ -77,6 +77,20 @@ public final class PvzceIds {
 
     public static final Identifier ENV_PLANT_AI = id("plant_ai");
 
+    /**
+     * Built-in level mechanics, the ids a level's {@code mechanics} list may name.
+     *
+     * <p>{@code deck} is the implicit default: a level that declares no card source gets
+     * it, which is what keeps every ordinary level's JSON free of a block that only says
+     * "the normal rules apply". {@code conveyor} and {@code placement_zone} are the two
+     * mechanics Wall-nut Bowling is built from, and they are independent - a normal level
+     * may restrict its plantable area without having a belt, and a belt level may use the
+     * whole lawn.
+     */
+    public static final Identifier MECHANIC_DECK = id("deck");
+    public static final Identifier MECHANIC_CONVEYOR = id("conveyor");
+    public static final Identifier MECHANIC_PLACEMENT_ZONE = id("placement_zone");
+
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";
     public static final String SURFACE_GROUND = "GROUND";

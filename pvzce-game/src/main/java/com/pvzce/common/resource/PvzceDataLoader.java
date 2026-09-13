@@ -26,6 +26,7 @@ import com.pvzce.api.registry.RegistryAccess;
 import com.pvzce.api.registry.ResourceKey;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.PvzceRegistries;
+import com.pvzce.server.level.LevelValidator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -236,6 +237,14 @@ public final class PvzceDataLoader {
             Object value = ((Codec<Object>) data.codec()).parse(JsonOps.INSTANCE, json).getOrThrow();
             registry.registerDynamic(registeredId, value);
             loaded.add(registeredId);
+            // A level file is the one registry whose *shape* changed after release-shaped
+            // data existed: keys that used to be level fields are now mechanics, and the
+            // codec ignores unknown keys by design. Reporting them here - on load, where
+            // the raw JSON still exists - is what keeps a stale file from loading as an
+            // ordinary level whose belt silently never arrives.
+            if (data.key().equals(PvzceRegistries.LEVELS) && json.isJsonObject()) {
+                errors.addAll(LevelValidator.validateLegacyKeys(json.getAsJsonObject()));
+            }
         } catch (RuntimeException e) {
             errors.add("Failed to load " + file.path() + ": " + e.getMessage());
         }

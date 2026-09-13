@@ -75,21 +75,25 @@
   "wave_interval_end_multiplier": 1.0,
   "slots": [],
   "initial_sun": 0,
-  "conveyor": {
-    "interval_ticks": 150,
-    "capacity": 6,
-    "initial_cards": 2,
-    "cards": [
-      {
-        "id": "pvzce:bowling_nut",
-        "weight": 1
-      }
-    ]
-  },
-  "placement_zone": {
-    "min_x": 0,
-    "max_x": 3
-  },
+  "mechanics": [
+    {
+      "type": "pvzce:conveyor",
+      "interval_ticks": 150,
+      "capacity": 6,
+      "initial_cards": 2,
+      "cards": [
+        {
+          "id": "pvzce:bowling_nut",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "type": "pvzce:placement_zone",
+      "min_x": 0,
+      "max_x": 3
+    }
+  ],
   "waves": [
     {
       "type": "small",

@@ -1,7 +1,9 @@
 package com.pvzce.api.content;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.pvzce.api.content.mechanic.MechanicData;
 
 /**
  * The part of the board a level lets the player plant on.
@@ -15,21 +17,24 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  *
  * <p>Bounds are inclusive cell indices, and an omitted bound means "the board's
  * edge", so {@code {"min_x": 0, "max_x": 3}} is "the four leftmost columns" without
- * the level having to know how wide it is. The zone is enforced by
- * {@code LevelServer.canPlacePlant} - the one path players, the AI and the entity
- * spawner all go through - and reported by {@code LevelValidator} when it cannot be
- * satisfied.
+ * the level having to know how wide it is. This record is the block of the
+ * {@code pvzce:placement_zone} level mechanic, declared in the level's
+ * {@code mechanics} list; the zone is enforced by {@code LevelServer.canPlacePlant}
+ * through that mechanic - the one path players, the AI and the entity spawner all go
+ * through - and {@code LevelValidator} reports a zone that cannot be satisfied.
  */
-public record PlacementZone(int minX, int maxX, int minY, int maxY) {
+public record PlacementZone(int minX, int maxX, int minY, int maxY) implements MechanicData {
     /** No restriction: every cell of the board. */
     public static final PlacementZone FULL = new PlacementZone(0, Integer.MAX_VALUE, 0, Integer.MAX_VALUE);
 
-    public static final Codec<PlacementZone> CODEC = RecordCodecBuilder.create(i -> i.group(
+    public static final MapCodec<PlacementZone> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.INT.optionalFieldOf("min_x", 0).forGetter(PlacementZone::minX),
             Codec.INT.optionalFieldOf("max_x", Integer.MAX_VALUE).forGetter(PlacementZone::maxX),
             Codec.INT.optionalFieldOf("min_y", 0).forGetter(PlacementZone::minY),
             Codec.INT.optionalFieldOf("max_y", Integer.MAX_VALUE).forGetter(PlacementZone::maxY)
     ).apply(i, PlacementZone::new));
+
+    public static final Codec<PlacementZone> CODEC = MAP_CODEC.codec();
 
     public boolean contains(int x, int y) {
         return x >= minX && x <= maxX && y >= minY && y <= maxY;

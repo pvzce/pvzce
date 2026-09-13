@@ -1,4 +1,4 @@
-package com.pvzce.client.gui.screens;
+package com.pvzce.client.gui.editor;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -6,6 +6,9 @@ import com.google.gson.JsonParser;
 import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.LevelUnlock;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.client.gui.screens.MusicEditorModel;
+import com.pvzce.client.gui.screens.WaveEditorModel;
+import com.pvzce.common.core.JsonDraft;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -20,15 +23,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * What the editor writes back to disk.
  *
- * <p>Two failures are worth pinning down here, because both were real: the editor
- * used to derive the level id from the name field, and it used to rebuild the JSON
- * from only the fields it modelled - so editing a level authored by someone else
- * silently dropped everything the editor had no widget for.
+ * <p>Three failures are worth pinning down here, because all three were real: the editor used
+ * to derive the level id from the name field, it used to rebuild the JSON from only the fields
+ * it modelled - so editing a level authored by someone else silently dropped everything the
+ * editor had no widget for - and it used to write an empty block where "no block" was meant.
+ *
+ * <p>The cases drive {@link LevelFileWriter} the way the editor does: one call per block, in
+ * page order, over a draft made from the file as loaded. A block whose writer is not called -
+ * because the page that owns it was not in the level's page list - must come through untouched.
  */
-class EditorLevelJsonTest {
+class LevelFileWriterTest {
     private static Identifier id(String raw) {
-        // Test helper, not production code: several cases here use a second namespace
-        // to prove the editor does not force everything into "pvzce".
+        // Test helper, not production code: several cases here use a second namespace to
+        // prove the editor does not force everything into "pvzce".
         return Identifier.parse(raw);
     }
 
@@ -44,6 +51,35 @@ class EditorLevelJsonTest {
         return config;
     }
 
+    /** Every block the editor owns, written the way a save writes them. */
+    private static JsonObject write(JsonObject previous, Identifier levelId, String name, String description,
+                                    int width, int height, Map<String, List<String>> scene,
+                                    List<JsonObject> entities, JsonObject rules,
+                                    WaveEditorModel.Config waveConfig, List<String> pool, int maxSeedSlots,
+                                    int initialSun) {
+        return write(previous, levelId, name, description, width, height, scene, entities, rules,
+                waveConfig, pool, maxSeedSlots, initialSun, LevelRewards.DEFAULT, null);
+    }
+
+    private static JsonObject write(JsonObject previous, Identifier levelId, String name, String description,
+                                    int width, int height, Map<String, List<String>> scene,
+                                    List<JsonObject> entities, JsonObject rules,
+                                    WaveEditorModel.Config waveConfig, List<String> pool, int maxSeedSlots,
+                                    int initialSun, LevelRewards rewards, JsonObject unlock) {
+        JsonDraft draft = JsonDraft.of(previous);
+        LevelFileWriter.canvas(draft, width, height, scene, entities);
+        // The rules page is a declarative form; its block is the rules object it edits.
+        draft.set("rules", rules == null ? new JsonObject() : rules);
+        LevelFileWriter.waves(draft, waveConfig);
+        LevelFileWriter.cards(draft, pool, maxSeedSlots);
+        LevelFileWriter.music(draft, new MusicEditorModel.Config());
+        LevelFileWriter.info(draft, levelId, name, description, initialSun, rewards);
+        if (unlock != null) {
+            LevelFileWriter.unlock(draft, unlock);
+        }
+        return draft.json();
+    }
+
     // ------------------------------------------------------------------
     // Unlock conditions
     // ------------------------------------------------------------------
@@ -55,10 +91,9 @@ class EditorLevelJsonTest {
     }
 
     private static JsonObject withUnlock(String requiresJson, Integer cost, boolean hidden) {
-        return EditorScreen.buildLevelJson(new JsonObject(), id("gated"), "关卡", "", 9, 5,
-                Map.of(), List.of(), new JsonObject(), waves(1),
-                List.of("pvzce:pea_shooter"), 6, 150, new JsonObject(), LevelRewards.DEFAULT,
-                unlockJson(requiresJson, cost, hidden));
+        return write(new JsonObject(), id("gated"), "关卡", "", 9, 5, Map.of(), List.of(),
+                new JsonObject(), waves(1), List.of("pvzce:pea_shooter"), 6, 150,
+                LevelRewards.DEFAULT, unlockJson(requiresJson, cost, hidden));
     }
 
     /** The block the 解锁 page writes has to be exactly what the codec reads. */
@@ -88,12 +123,13 @@ class EditorLevelJsonTest {
     /**
      * A hand-written condition the page cannot edit has to survive.
      *
-     * <p>{@code coins} is the case: the page edits prerequisite levels, required cards,
-     * the price and the hidden flag, and would otherwise quietly delete a coin threshold
-     * the moment someone opened the level and pressed save.
+     * <p>{@code coins} is the case: the page edits prerequisite levels, required cards, the
+     * price and the hidden flag, and would otherwise quietly delete a coin threshold the moment
+     * someone opened the level and pressed save. The page reads the block into its fields, keeps
+     * what it cannot express, and merges it back - which is what this call models.
      */
     @Test
-    void aConditionThePageCannotEditIsKeptVerbatim() throws Exception {
+    void aConditionThePageCannotEditIsKeptVerbatim() {
         JsonObject authored = JsonParser.parseString("""
                 {
                   "id": "pvzce:authored",
@@ -106,13 +142,10 @@ class EditorLevelJsonTest {
                 }
                 """).getAsJsonObject();
 
-        // The page reads the level into its fields, then writes them back unchanged.
-        JsonObject written = EditorScreen.buildLevelJson(authored, id("authored"), "关卡", "", 9, 5,
-                Map.of(), List.of(), new JsonObject(), waves(1),
-                List.of("pvzce:pea_shooter"), 6, 150, new JsonObject(), LevelRewards.DEFAULT,
+        JsonObject written = write(authored, id("authored"), "关卡", "", 9, 5, Map.of(), List.of(),
+                new JsonObject(), waves(1), List.of("pvzce:pea_shooter"), 6, 150, LevelRewards.DEFAULT,
                 unlockJson("{ \"type\": \"coins\", \"amount\": 750 },"
-                        + "{ \"type\": \"level\", \"id\": \"pvzce:yard/adventure/1_1\" }",
-                        null, false));
+                        + "{ \"type\": \"level\", \"id\": \"pvzce:yard/adventure/1_1\" }", null, false));
 
         LevelUnlock parsed = LevelUnlock.CODEC.parse(
                 com.mojang.serialization.JsonOps.INSTANCE, written.get("unlock")).getOrThrow();
@@ -121,22 +154,20 @@ class EditorLevelJsonTest {
         assertEquals(750, parsed.requires().get(0).amount());
     }
 
-    /** A null block means the editor never touched it; a hand-written one stays. */
+    /** A page that does not write its block leaves a hand-written one alone. */
     @Test
-    void notTouchingThePageLeavesTheBlockAlone() throws Exception {
+    void aBlockWhoseWriterIsNotCalledSurvives() {
         JsonObject authored = JsonParser.parseString(
                 "{\"id\":\"pvzce:x\",\"unlock\":{\"cost\":50}}").getAsJsonObject();
-        JsonObject written = EditorScreen.buildLevelJson(authored, id("x"), "关卡", "", 9, 5,
-                Map.of(), List.of(), new JsonObject(), waves(1),
-                List.of("pvzce:pea_shooter"), 6, 150, new JsonObject());
+        JsonObject written = write(authored, id("x"), "关卡", "", 9, 5, Map.of(), List.of(),
+                new JsonObject(), waves(1), List.of("pvzce:pea_shooter"), 6, 150);
         assertEquals(50, written.getAsJsonObject("unlock").get("cost").getAsInt());
     }
 
     @Test
     void theIdComesFromTheIdFieldNotTheName() {
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("my_arena"),
-                "我的竞技场", "", 9, 5, Map.of(), List.of(), new JsonObject(), waves(1),
-                List.of("pvzce:pea_shooter"), 6, 150, new JsonObject());
+        JsonObject written = write(new JsonObject(), id("my_arena"), "我的竞技场", "", 9, 5, Map.of(),
+                List.of(), new JsonObject(), waves(1), List.of("pvzce:pea_shooter"), 6, 150);
 
         // The old editor wrote "pvzce:" + sanitizedName, so a Chinese level name became
         // "pvzce:______" and the file it wrote no longer matched the id it opened.
@@ -158,9 +189,9 @@ class EditorLevelJsonTest {
                 }
                 """).getAsJsonObject();
 
-        JsonObject written = EditorScreen.buildLevelJson(authored, id("otherns:arena"), "竞技场", "说明",
-                9, 5, Map.of("pvzce:grass", List.of("0,0")), List.of(), new JsonObject(), waves(0),
-                List.of(), 6, 200, new JsonObject());
+        JsonObject written = write(authored, id("otherns:arena"), "竞技场", "说明", 9, 5,
+                Map.of("pvzce:grass", List.of("0,0")), List.of(), new JsonObject(), waves(0),
+                List.of(), 6, 200);
 
         assertEquals("红队", written.getAsJsonArray("teams").get(0).getAsJsonObject()
                 .get("name").getAsString(), "teams must not be replaced");
@@ -174,9 +205,9 @@ class EditorLevelJsonTest {
 
     @Test
     void aNewLevelGetsTheDefaultsItNeedsToBePlayable() {
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("fresh"), "新关卡", "",
-                9, 5, Map.of("pvzce:grass", List.of("0,0", "1,0")), List.of(), new JsonObject(), waves(2),
-                List.of("pvzce:pea_shooter", "pvzce:sun"), 6, 150, new JsonObject());
+        JsonObject written = write(new JsonObject(), id("fresh"), "新关卡", "", 9, 5,
+                Map.of("pvzce:grass", List.of("0,0", "1,0")), List.of(), new JsonObject(), waves(2),
+                List.of("pvzce:pea_shooter", "pvzce:sun"), 6, 150);
 
         assertEquals(2, written.getAsJsonArray("teams").size());
         assertEquals("pvzce:plant_team", written.get("win_team").getAsString());
@@ -192,20 +223,20 @@ class EditorLevelJsonTest {
     void scenePositionsAreDeduplicated() {
         Map<String, List<String>> scene = new LinkedHashMap<>();
         scene.put("pvzce:grass", List.of("0,0", "0,0", "1,0"));
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("dedup"), "去重", "",
-                9, 5, scene, List.of(), new JsonObject(), waves(0), List.of(), 6, 150, new JsonObject());
+        JsonObject written = write(new JsonObject(), id("dedup"), "去重", "", 9, 5, scene, List.of(),
+                new JsonObject(), waves(0), List.of(), 6, 150);
         assertEquals(2, written.getAsJsonObject("scene").getAsJsonArray("pvzce:grass").size());
     }
 
     @Test
     void anEmptySceneElementIsNotWrittenAsAnEmptyArray() {
-        // An element with no cells contributes nothing; writing it as [] would make the
-        // file claim the element exists somewhere.
+        // An element with no cells contributes nothing; writing it as [] would make the file
+        // claim the element exists somewhere.
         Map<String, List<String>> scene = new LinkedHashMap<>();
         scene.put("pvzce:grass", List.of("0,0"));
         scene.put("pvzce:water", new ArrayList<>());
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("empty"), "空", "",
-                9, 5, scene, List.of(), new JsonObject(), waves(0), List.of(), 6, 150, new JsonObject());
+        JsonObject written = write(new JsonObject(), id("empty"), "空", "", 9, 5, scene, List.of(),
+                new JsonObject(), waves(0), List.of(), 6, 150);
         assertFalse(written.getAsJsonObject("scene").has("pvzce:water"));
     }
 
@@ -216,9 +247,8 @@ class EditorLevelJsonTest {
         plant.addProperty("id", "pvzce:wall_nut");
         plant.addProperty("x", 3);
         plant.addProperty("y", 2);
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("entities"), "实体", "",
-                9, 5, Map.of(), List.of(plant), new JsonObject(), waves(0), List.of(), 6, 150,
-                new JsonObject());
+        JsonObject written = write(new JsonObject(), id("entities"), "实体", "", 9, 5, Map.of(),
+                List.of(plant), new JsonObject(), waves(0), List.of(), 6, 150);
         JsonArray entities = written.getAsJsonArray("initial_entities");
         assertEquals(1, entities.size());
         assertEquals(3, entities.get(0).getAsJsonObject().get("x").getAsInt());
@@ -232,14 +262,24 @@ class EditorLevelJsonTest {
         WaveEditorModel.Config waveConfig = waves(3);
         waveConfig.intervalEndMultiplier = 0.75F;
 
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("tuned"), "调参", "",
-                9, 5, Map.of(), List.of(), rules, waveConfig, List.of(), 6, 150, new JsonObject());
+        JsonObject written = write(new JsonObject(), id("tuned"), "调参", "", 9, 5, Map.of(), List.of(),
+                rules, waveConfig, List.of(), 6, 150);
 
         assertEquals(0.5D, written.getAsJsonObject("rules").get("pvzce:sun_spawn_chance").getAsDouble());
         assertEquals(0.75F, written.get("wave_interval_end_multiplier").getAsFloat());
         assertEquals(3, written.getAsJsonArray("waves").size());
         assertEquals("final", written.getAsJsonArray("waves").get(2).getAsJsonObject()
                 .get("type").getAsString());
+    }
+
+    /** A card bar saved by an older editor wrote a second, unread card list; it is dropped. */
+    @Test
+    void theOldSeedSelectionFieldDoesNotSurviveASave() {
+        JsonObject authored = JsonParser.parseString(
+                "{\"id\":\"pvzce:old\",\"seed_selection\":[\"pvzce:peashooter\"]}").getAsJsonObject();
+        JsonObject written = write(authored, id("old"), "旧", "", 9, 5, Map.of(), List.of(),
+                new JsonObject(), waves(0), List.of("pvzce:pea_shooter"), 6, 150);
+        assertFalse(written.has("seed_selection"), "one answer to what is in the bar, not two");
     }
 
     @Test
@@ -249,9 +289,8 @@ class EditorLevelJsonTest {
                 List.of(LevelRewards.Reward.unlock(id("pvzce:sunflower"))),
                 List.of(LevelRewards.Reward.coins(100)), 0.25F, id("pvzce:coin_silver"), 1);
 
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("first"), "第一关", "",
-                9, 1, Map.of(), List.of(), new JsonObject(), waves(0), List.of(), 2, 50,
-                new JsonObject(), rewards);
+        JsonObject written = write(new JsonObject(), id("first"), "第一关", "", 9, 1, Map.of(),
+                List.of(), new JsonObject(), waves(0), List.of(), 2, 50, rewards, null);
 
         JsonObject writtenRewards = written.getAsJsonObject("rewards");
         JsonObject unlock = writtenRewards.getAsJsonArray("first_clear").get(0).getAsJsonObject();
@@ -267,13 +306,12 @@ class EditorLevelJsonTest {
 
     @Test
     void aLevelWithNoRewardsIsWrittenWithTheDefaultsRatherThanNothing() {
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("plain"), "普通", "",
-                9, 5, Map.of(), List.of(), new JsonObject(), waves(0), List.of(), 6, 150,
-                new JsonObject());
+        JsonObject written = write(new JsonObject(), id("plain"), "普通", "", 9, 5, Map.of(), List.of(),
+                new JsonObject(), waves(0), List.of(), 6, 150);
 
         JsonObject rewards = written.getAsJsonObject("rewards");
-        // Explicit, not absent: the file then says what the level pays instead of
-        // leaving the reader to know the codec's defaults.
+        // Explicit, not absent: the file then says what the level pays instead of leaving the
+        // reader to know the codec's defaults.
         assertTrue(rewards.getAsJsonArray("first_clear").isEmpty());
         assertEquals(LevelRewards.DEFAULT_REPEAT_COINS,
                 rewards.getAsJsonArray("repeat").get(0).getAsJsonObject().get("amount").getAsInt());
@@ -283,15 +321,14 @@ class EditorLevelJsonTest {
 
     @Test
     void aRewardsBlockWrittenByTheEditorParsesBackThroughTheCodec() {
-        // The editor and the loader must agree, or a saved level silently loses the
-        // reward the moment it is reloaded.
+        // The editor and the loader must agree, or a saved level silently loses the reward the
+        // moment it is reloaded.
         LevelRewards original = new LevelRewards(
                 List.of(LevelRewards.Reward.unlock(id("pvzce:wall_nut"))),
                 List.of(LevelRewards.Reward.coins(70)), 0.5F, id("pvzce:coin_gold"), 4);
 
-        JsonObject written = EditorScreen.buildLevelJson(new JsonObject(), id("roundtrip"), "往返", "",
-                9, 5, Map.of(), List.of(), new JsonObject(), waves(0), List.of(), 6, 150,
-                new JsonObject(), original);
+        JsonObject written = write(new JsonObject(), id("roundtrip"), "往返", "", 9, 5, Map.of(),
+                List.of(), new JsonObject(), waves(0), List.of(), 6, 150, original, null);
         LevelRewards parsed = LevelRewards.CODEC
                 .parse(com.mojang.serialization.JsonOps.INSTANCE, written.get("rewards"))
                 .getOrThrow();
@@ -301,5 +338,14 @@ class EditorLevelJsonTest {
         assertEquals(original.coinDropChance(), parsed.coinDropChance(), 0.0001F);
         assertEquals(original.coinDrop(), parsed.coinDrop());
         assertEquals(original.coinDropAmount(), parsed.coinDropAmount());
+    }
+
+    /** An empty conversation removes the block rather than writing one with no lines. */
+    @Test
+    void anEmptyConversationWritesNoBlock() {
+        JsonDraft draft = JsonDraft.of(JsonParser.parseString(
+                "{\"id\":\"pvzce:quiet\",\"dialogue\":{\"lines\":[]}}").getAsJsonObject());
+        LevelFileWriter.dialogue(draft, new com.pvzce.client.gui.screens.DialogueEditorModel.Config());
+        assertFalse(draft.json().has("dialogue"));
     }
 }
