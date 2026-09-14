@@ -23,7 +23,14 @@ public final class DialogueEditorModel {
         public String portrait = "";
         public String text = "";
         public String voice = "";
-        public boolean left = true;
+        /**
+         * Where the speaker stands: {@code left}, {@code center} or {@code right}.
+         *
+         * <p>A string rather than a boolean since the centre was added, and spelled the way
+         * the level file spells it - so a value the reader does not recognise survives a
+         * save instead of being silently normalised onto a side.
+         */
+        public String side = "left";
 
         /**
          * The one-line row the list shows.
@@ -35,7 +42,34 @@ public final class DialogueEditorModel {
         public String summary(int index, String speaker) {
             String who = speaker == null || speaker.isBlank() ? "（未选角色）" : speaker;
             String body = text == null || text.isBlank() ? "（无台词）" : text;
-            return (index + 1) + ". " + (left ? "左" : "右") + "　" + who + "　" + body;
+            return (index + 1) + ". " + sideLabel() + "　" + who + "　" + body;
+        }
+
+        /** The side as the page's own button spells it. */
+        public String sideLabel() {
+            return switch (normalizedSide()) {
+                case "center" -> "中";
+                case "right" -> "右";
+                default -> "左";
+            };
+        }
+
+        /** Cycles left → center → right, the order they read in across the screen. */
+        public void cycleSide() {
+            side = switch (normalizedSide()) {
+                case "left" -> "center";
+                case "center" -> "right";
+                default -> "left";
+            };
+        }
+
+        /** The stored value folded onto the three the overlay draws. */
+        private String normalizedSide() {
+            return switch (side == null ? "" : side.toLowerCase(java.util.Locale.ROOT)) {
+                case "center", "centre", "middle" -> "center";
+                case "right" -> "right";
+                default -> "left";
+            };
         }
     }
 
@@ -69,9 +103,11 @@ public final class DialogueEditorModel {
                 model.portrait = string(line, "portrait");
                 model.text = string(line, "text");
                 model.voice = string(line, "voice");
-                // Anything that is not 'right' is the left side, which is also what the
-                // reader falls back to; the page shows the value so a typo is visible.
-                model.left = !"right".equalsIgnoreCase(string(line, "side"));
+                // Kept as written: the page spells the three the overlay draws, and the
+                // reader in DialogueLine is what falls back for anything else, so a typo
+                // stays visible here instead of being rewritten behind the author's back.
+                String side = string(line, "side");
+                model.side = side.isBlank() ? "left" : side;
                 config.lines.add(model);
             }
             return config;
@@ -90,7 +126,7 @@ public final class DialogueEditorModel {
                 json.addProperty("portrait", line.portrait);
                 json.addProperty("text", line.text);
                 json.addProperty("voice", line.voice);
-                json.addProperty("side", line.left ? "left" : "right");
+                json.addProperty("side", line.side == null || line.side.isBlank() ? "left" : line.side);
                 array.add(json);
             }
             return array;

@@ -90,6 +90,15 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_DECK = id("deck");
     public static final Identifier MECHANIC_CONVEYOR = id("conveyor");
     public static final Identifier MECHANIC_PLACEMENT_ZONE = id("placement_zone");
+    /**
+     * Lawn mowers, one per row by default.
+     *
+     * <p>Unlike the other mechanics this one is <em>implicit</em>: every ordinary level has
+     * mowers whether or not its file mentions them, because that is what the original does
+     * and a level that lost them would be a different, unfairer level. A level that wants
+     * to change them (Wall-nut Bowling has none) declares the mechanic and lists its rows.
+     */
+    public static final Identifier MECHANIC_MOWER = id("mower");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

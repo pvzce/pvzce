@@ -72,8 +72,14 @@ public final class TextureManager implements AutoCloseable {
             // it (every upload site draws its own texture next, which re-syncs), but the
             // invariant the liquid pass relies on has to hold for the next caller.
             com.pvzce.client.renderer.RenderSystem.noteTextureBound(glId);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+            // The missing-texture tile is 2x2 on purpose: magnification is what turns it
+            // into the checkerboard, and linear filtering would smear the four squares
+            // into a purple gradient. Everything else in the game is painted art that
+            // wants smoothing.
+            int filter = com.pvzce.common.core.EntityArt.MISSING_TEXTURE.equals(id)
+                    ? GL11.GL_NEAREST : GL11.GL_LINEAR;
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, filter);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, filter);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, width.get(0), height.get(0), 0,

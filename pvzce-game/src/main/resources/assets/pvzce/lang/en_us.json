@@ -113,6 +113,7 @@
   "pvzce.inventory.locked": "Locked",
   "pvzce.inventory.plants": "Plants",
   "pvzce.inventory.resources": "Resource Cards",
+  "pvzce.inventory.slots": "Card slots: {0}",
   "pvzce.inventory.title": "Backpack",
   "pvzce.inventory.tools": "Tools",
   "pvzce.jalapeno": "Jalapeno",

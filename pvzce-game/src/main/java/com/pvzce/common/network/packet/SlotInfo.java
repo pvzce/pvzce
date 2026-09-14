@@ -56,4 +56,9 @@ public record SlotInfo(int index, String defId, String kind, int costSun, int co
     public boolean limited() {
         return usesLeft != UNLIMITED_USES;
     }
+
+    /** True while this card has uses left; an unlimited card always does. */
+    public boolean hasUsesLeft() {
+        return usesLeft == UNLIMITED_USES || usesLeft > 0;
+    }
 }

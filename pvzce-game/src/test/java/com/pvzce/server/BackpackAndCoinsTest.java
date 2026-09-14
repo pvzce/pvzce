@@ -7,6 +7,7 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.NbtIo;
 import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PacketListener;
@@ -119,12 +120,49 @@ class BackpackAndCoinsTest {
     }
 
     @Test
-    void coinsStopAtTheCap() {
+    void cardSlotsStartAtTheDefaultAndUpgradeToACeiling() {
+        PlayerProfile profile = PlayerProfile.starter();
+        assertEquals(PvzceConstants.DEFAULT_SEED_SLOTS, profile.seedSlots(),
+                "a fresh backpack holds eight cards");
+
+        assertEquals(2, profile.addSeedSlots(2), "the shop hook reports what it granted");
+        assertEquals(PvzceConstants.DEFAULT_SEED_SLOTS + 2, profile.seedSlots());
+        // The ceiling is what stops a price list from selling a bar the editor could not
+        // express; the grant reports the shortfall rather than silently exceeding it.
+        assertEquals(PvzceConstants.MAX_SEED_SLOTS - PvzceConstants.DEFAULT_SEED_SLOTS - 2,
+                profile.addSeedSlots(99));
+        assertEquals(PvzceConstants.MAX_SEED_SLOTS, profile.seedSlots());
+        assertEquals(0, profile.addSeedSlots(1), "and there is nothing left to grant");
+
+        profile.setSeedSlots(0);
+        assertEquals(1, profile.seedSlots(), "a bar always holds at least one card");
+    }
+
+    @Test
+    void cardSlotsSurviveTheNbtRoundTrip() {
+        PlayerProfile profile = PlayerProfile.starter();
+        profile.addSeedSlots(3);
+        assertEquals(PvzceConstants.DEFAULT_SEED_SLOTS + 3, PlayerProfile.load(profile.save()).seedSlots());
+
+        // A record written before card slots existed has no key, and that has to mean the
+        // default - the same thing an unwritten max_seed_slots in a level means.
+        CompoundTag legacy = new CompoundTag();
+        legacy.putInt("Coins", 10);
+        legacy.put("Unlocked", new ListTag());
+        assertEquals(PvzceConstants.DEFAULT_SEED_SLOTS, PlayerProfile.load(legacy).seedSlots());
+    }
+
+    @Test
+    void coinsHaveNoCeiling() {
         PlayerProfile profile = PlayerProfile.starter();
         assertEquals(40, profile.grantCoins(40));
-        assertEquals(PvzceConstants.COIN_CAP - 40, profile.grantCoins(PvzceConstants.COIN_CAP));
-        assertEquals(PvzceConstants.COIN_CAP, profile.coins());
-        assertEquals(0, profile.grantCoins(500), "nothing may be added past the cap");
+        // The wallet used to stop at 9990, which meant a long-running world silently ate
+        // everything past it. What the player collected is what the player keeps.
+        assertEquals(50_000, profile.grantCoins(50_000));
+        assertEquals(50_040, profile.coins());
+        assertEquals(1_000_000, profile.grantCoins(1_000_000));
+        assertEquals(1_050_040, profile.coins());
+        assertEquals(1_050_040, PlayerProfile.load(profile.save()).coins(), "and it round-trips");
     }
 
     @Test
@@ -308,7 +346,13 @@ class BackpackAndCoinsTest {
                             && first.dropY() >= 0F && first.dropY() <= 3F,
                     "the spot must be on the board, got " + first.dropX() + "," + first.dropY());
             assertEquals(0, first.collectedCoins(), "nothing dropped a coin in this run");
-            assertEquals(0, first.bonusCoins(), "a first clear pays the unlock, not the stipend");
+            // The level is one row, so it has one mower, and the run never needed it:
+            // an unused mower pays a gold coin (see PvzceServer.mowerCoinValue), which is
+            // part of the bonus. What a *first* clear must not pay is the repeat stipend.
+            assertEquals(1, first.mowers(), "one row, one mower");
+            assertEquals(50, first.mowerCoins(), "an untouched mower is worth a gold coin");
+            assertEquals(first.mowerCoins(), first.bonusCoins(),
+                    "a first clear pays the unlock and the leftover mowers, not the stipend");
             assertTrue(harness.awaitPacket(ProfileS2C.class, 5_000).unlocked().contains("pvzce:sunflower"));
 
             Path profileFile = gameDir.resolve("saves/" + WORLD + "/profile.dat");
@@ -326,9 +370,11 @@ class BackpackAndCoinsTest {
 
             LevelRewardS2C repeat = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("", repeat.unlockedCard(), "there is nothing left to unlock");
-            assertEquals(100, repeat.bonusCoins(), "a replay pays the level's repeat stipend");
-            assertEquals(100, repeat.totalCoins());
-            assertEquals(100, PlayerProfile.load(NbtIo.readCompressed(profileFile)).coins());
+            assertEquals(150, repeat.bonusCoins(),
+                    "a replay pays the level's repeat stipend plus the leftover mower");
+            assertEquals(200, repeat.totalCoins(), "the wallet after both runs");
+            // 50 from the first clear's mower plus 150 from the replay.
+            assertEquals(200, PlayerProfile.load(NbtIo.readCompressed(profileFile)).coins());
         }
     }
 
@@ -501,7 +547,9 @@ class BackpackAndCoinsTest {
          * countdown, which is the same path a real defeat takes.
          */
         void endLevel() {
-            send(new CommandC2S("/spawn zombie pvzce:basic_zombie 0 0"));
+            // A flier: 1-1 comes with a lawn mower, which would eat a walking zombie before
+            // it could end the run. The mower is not supposed to touch what is in the air.
+            send(new CommandC2S("/spawn zombie pvzce:balloon_zombie 0 0"));
             // The zombie has to walk in and finish its countdown (~295 ticks). Sprinting
             // runs them back to back instead of billing the suite ~5s of wall clock; the
             // simulated outcome is identical.

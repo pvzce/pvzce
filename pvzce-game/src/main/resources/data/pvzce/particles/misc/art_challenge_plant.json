@@ -17,7 +17,7 @@
   },
   "motion": {
     "speed": 0.0104167,
-    "gravity": -6.94444e-06
+    "gravity": 6.94444e-06
   },
   "count": 20
 }

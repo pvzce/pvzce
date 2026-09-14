@@ -17,11 +17,21 @@ import java.util.Set;
 /** Editor dialog for a level's seed pool order and {@code max_seed_slots}. */
 public final class CardPoolEditorDialog extends Dialog {
     /** Hard cap matching the level editor and the wire format. */
-    public static final int MAX_SEED_SLOTS_LIMIT = 12;
+    public static final int MAX_SEED_SLOTS_LIMIT = com.pvzce.common.PvzceConstants.MAX_SEED_SLOTS;
+    /** The text that means "write no max_seed_slots and follow the backpack". */
+    public static final String FOLLOW_BACKPACK_LABEL = "背包";
 
 
     public static final class Config {
-        public int maxSeedSlots = 6;
+        /**
+         * The level's own slot count, or {@link com.pvzce.api.content.LevelDef#UNSET_MAX_SEED_SLOTS}
+         * for "whatever the player's backpack holds".
+         *
+         * <p>The default is "unset" rather than a number: a level that never mentions slots
+         * is the ordinary case, and picking 6 for it here would silently overrule a
+         * backpack the player had upgraded.
+         */
+        public int maxSeedSlots = com.pvzce.api.content.LevelDef.UNSET_MAX_SEED_SLOTS;
         /** The player's pickable cards, in bar order. */
         public final List<String> pool = new ArrayList<>();
         public final List<String> available = new ArrayList<>();
@@ -29,7 +39,7 @@ public final class CardPoolEditorDialog extends Dialog {
         public static Config fromJson(JsonObject root) {
             Config config = new Config();
             if (root.has("max_seed_slots")) {
-                config.maxSeedSlots = Math.max(0, root.get("max_seed_slots").getAsInt());
+                config.maxSeedSlots = Math.max(1, root.get("max_seed_slots").getAsInt());
             }
             if (root.has("slots") && root.get("slots").isJsonArray()) {
                 for (JsonElement element : root.getAsJsonArray("slots")) {
@@ -122,7 +132,8 @@ public final class CardPoolEditorDialog extends Dialog {
 
         int maxWidth = 74;
         maxBox = new EditBox(rightX + 112, top - 2, maxWidth, 28, this::commitFields);
-        maxBox.setValue(String.valueOf(config.maxSeedSlots), false);
+        maxBox.setValue(config.maxSeedSlots < 0
+                ? FOLLOW_BACKPACK_LABEL : String.valueOf(config.maxSeedSlots), false);
         addChild(maxBox);
     }
 
@@ -134,7 +145,7 @@ public final class CardPoolEditorDialog extends Dialog {
         }
         drawLabel(renderClient, "当前卡池（从上到下=卡槽顺序）", poolList.x(), poolList.y() + poolList.height() + 8);
         drawLabel(renderClient, "全部可选卡", availableList.x(), availableList.y() + availableList.height() + 8);
-        drawLabel(renderClient, "最大选卡数", maxBox.x() - 76, maxBox.y() + 8);
+        drawLabel(renderClient, "最大选卡数（填“背包”跟随背包）", maxBox.x() - 200, maxBox.y() + 8);
         if (config.pool.isEmpty()) {
             drawLabel(renderClient, "卡池为空：玩家进入关卡时将没有卡槽", poolList.x() + 6,
                     poolList.y() + poolList.height() / 2F);
@@ -149,8 +160,15 @@ public final class CardPoolEditorDialog extends Dialog {
         if (maxBox == null) {
             return;
         }
+        String typed = maxBox.value() == null ? "" : maxBox.value().trim();
+        // Blank or the word itself means "follow the backpack", which is the same state as
+        // never having written the key: the field is removed on save.
+        if (typed.isEmpty() || FOLLOW_BACKPACK_LABEL.equals(typed) || "-1".equals(typed)) {
+            config.maxSeedSlots = com.pvzce.api.content.LevelDef.UNSET_MAX_SEED_SLOTS;
+            return;
+        }
         config.maxSeedSlots = com.pvzce.client.gui.GuiText.parseInt(
-                maxBox.value(), config.maxSeedSlots, 0, MAX_SEED_SLOTS_LIMIT);
+                typed, Math.max(1, config.maxSeedSlots), 1, MAX_SEED_SLOTS_LIMIT);
     }
 
     private void addSelected() {

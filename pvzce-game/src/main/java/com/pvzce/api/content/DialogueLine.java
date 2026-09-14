@@ -19,19 +19,26 @@ import java.util.Locale;
  * { "character": "pvzce:pea_chan", "portrait": "welcome",
  *   "text": "欢迎来到植物和僵尸的世界", "voice": "", "side": "left" }
  * }</pre>
+ *
+ * <p>{@code text} may be empty, which is a line with no words: the portrait is shown on its
+ * own and a click moves on. The original stages its silent beats that way, and a blank line
+ * that still drew an empty bubble read as a missing translation.
  */
 public record DialogueLine(Identifier character, String portrait, String text, String voice, Side side) {
     /**
      * Which side of the screen the speaker stands on.
      *
-     * <p>{@link #UNKNOWN} exists so a misspelt value is a level-validation report rather
-     * than a codec failure that takes the whole level down: a typo decodes into UNKNOWN
-     * (drawn like {@link #LEFT}) and {@code LevelValidator} names the line. This follows
-     * {@code LevelRewards.type}, which is also a string discriminant precisely because the
-     * DFU codec cannot see a misspelt one.
+     * <p>{@link #CENTER} puts the portrait in the middle of the window with the bubble
+     * across its lower half, which is how a line that is about the character rather than
+     * about the conversation is staged. {@link #UNKNOWN} exists so a misspelt value is a
+     * level-validation report rather than a codec failure that takes the whole level down:
+     * a typo decodes into UNKNOWN (drawn like {@link #LEFT}) and {@code LevelValidator}
+     * names the line. This follows {@code LevelRewards.type}, which is also a string
+     * discriminant precisely because the DFU codec cannot see a misspelt one.
      */
     public enum Side {
         LEFT,
+        CENTER,
         RIGHT,
         UNKNOWN;
 
@@ -44,6 +51,7 @@ public record DialogueLine(Identifier character, String portrait, String text, S
             }
             return switch (raw.toLowerCase(Locale.ROOT)) {
                 case "left" -> LEFT;
+                case "center", "centre", "middle" -> CENTER;
                 case "right" -> RIGHT;
                 default -> UNKNOWN;
             };
@@ -56,6 +64,11 @@ public record DialogueLine(Identifier character, String portrait, String text, S
         /** True only for an explicit {@code right}; UNKNOWN falls back to the left side. */
         public boolean isRight() {
             return this == RIGHT;
+        }
+
+        /** True for the middle of the window; the bubble follows the portrait there. */
+        public boolean isCenter() {
+            return this == CENTER;
         }
     }
 

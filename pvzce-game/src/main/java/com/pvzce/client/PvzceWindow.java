@@ -143,6 +143,27 @@ public final class PvzceWindow implements AutoCloseable {
         return height;
     }
 
+    /**
+     * Moves the pointer to a point in window pixels, measured from the top-left.
+     *
+     * <p>That is the pair the platform reports back through the cursor callback, which is
+     * where {@link #cursorX()}/{@link #cursorY()} come from - so warping to a point and then
+     * reading the cursor gives the same point, and every hover path behaves as it would for a
+     * player. Used by the smoke harness to photograph hover states. On a display whose window
+     * and framebuffer pixels differ (a scaled desktop), the pointer lands at the framebuffer
+     * coordinate, which is what the game reads.
+     */
+    public void warpCursor(double x, double y) {
+        // Recorded here as well as asked for: a window that is not focused does not get its
+        // pointer moved (Wayland ignores the request entirely), and the one caller is a
+        // screenshot harness that needs the pointer to be *there*, not merely requested. The
+        // platform call still happens, so a focused window behaves exactly as it would if a
+        // player moved the mouse.
+        cursorX = x;
+        cursorY = y;
+        GLFW.glfwSetCursorPos(handle, x, y);
+    }
+
     public double cursorX() {
         return cursorX;
     }

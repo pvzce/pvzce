@@ -64,8 +64,24 @@ public final class PvzceParticles {
     public static final Identifier ZOMBIE_HEAD = id("zombie_head");
     /** A zombie's arm coming off. */
     public static final Identifier ZOMBIE_ARM = id("zombie_arm");
-    /** Armour breaking off. */
+    /**
+     * The football helmet, kept for content that wears one.
+     *
+     * <p>It used to be what <em>every</em> armour hit emitted, so a conehead showered
+     * football helmets with each pea. Armour now names its own sprite through
+     * {@code EquipmentDef.drop_particle}.
+     */
     public static final Identifier ZOMBIE_HELMET = id("zombie_helmet");
+    /** A worn cone breaking off. */
+    public static final Identifier ZOMBIE_TRAFFIC_CONE = id("zombie_traffic_cone");
+    /** A worn bucket breaking off. */
+    public static final Identifier ZOMBIE_PAIL = id("zombie_pail");
+    /** A screen door breaking off. */
+    public static final Identifier ZOMBIE_DOOR = id("zombie_door");
+    /** A newspaper breaking off. */
+    public static final Identifier ZOMBIE_NEWSPAPER = id("zombie_newspaper");
+    /** The flag zombie's flag, dropped. */
+    public static final Identifier ZOMBIE_FLAG = id("zombie_flag");
     /** A zombie rising out of the ground. */
     public static final Identifier ZOMBIE_RISE = id("zombie_rise");
     /** A spadeful of dirt. */
@@ -79,14 +95,27 @@ public final class PvzceParticles {
     /** A soft glow on a pickup. */
     public static final Identifier LANTERN_SHINE = id("lantern_shine");
 
+    // The lawn mower's three, from the original's own emitters. They were converted with
+    // the rest of the set and then had no emitter for as long as the mower did not exist.
+    /** The head that comes off a mowed zombie. */
+    public static final Identifier MOWERED_ZOMBIE_HEAD = id("mowered_zombie_head");
+    /** And its arm. */
+    public static final Identifier MOWERED_ZOMBIE_ARM = id("mowered_zombie_arm");
+    /** The dust cloud the mower drags behind it. */
+    public static final Identifier MOWER_CLOUD = id("mower_cloud");
+    /** The puffy cloud it kicks up on a hit. */
+    public static final Identifier MOWER_CLOUD_POWIE = id("mower_cloud_powie_big_clouds");
+
     /** Every constant above, so a validator can check they all resolve. */
     public static java.util.List<Identifier> all() {
         return java.util.List.of(
                 HIT_SPARK, PEA_SPLAT_BITS, KERNEL_SPLAT, MELON_IMPACT, POOL_SPLASH, POOL_SPARKLY,
                 PUFF_SHROOM_MUZZLE, EXPLOSION_POW, EXPLOSION_POWIE, BLAST_MARK, DOOM,
                 POTATO_MINE_FLASH, POTATO_MINE_RISE, CHOMP, ZOMBIE_HEAD, ZOMBIE_ARM,
-                ZOMBIE_HELMET, ZOMBIE_RISE, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
-                LANTERN_SHINE);
+                ZOMBIE_HELMET, ZOMBIE_TRAFFIC_CONE, ZOMBIE_PAIL, ZOMBIE_DOOR, ZOMBIE_NEWSPAPER,
+                ZOMBIE_FLAG, ZOMBIE_RISE, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
+                LANTERN_SHINE, MOWERED_ZOMBIE_HEAD, MOWERED_ZOMBIE_ARM, MOWER_CLOUD,
+                MOWER_CLOUD_POWIE);
     }
 
     public static Identifier id(String path) {

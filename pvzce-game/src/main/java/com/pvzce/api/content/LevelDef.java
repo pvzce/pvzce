@@ -40,7 +40,25 @@ public record LevelDef(
         LevelDialogue dialogue
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
-    public static final int DEFAULT_MAX_SEED_SLOTS = 6;
+    /**
+     * The bar size levels were written against before "unwritten means the backpack".
+     *
+     * <p>Nothing reads it any more - the codec's default is
+     * {@link #UNSET_MAX_SEED_SLOTS} and the constructors leave the field unset - so it
+     * survives only as the number the legacy-level tests describe old data with. A new
+     * caller that wants six slots should write six.
+     */
+    public static final int LEGACY_DEFAULT_MAX_SEED_SLOTS = 6;
+    /**
+     * {@code max_seed_slots} left unwritten: the level follows the player's backpack.
+     *
+     * <p>A number in the file is a statement about <em>this level</em> (1-1 fixes two
+     * slots, 1-4 fixes eight); writing nothing is a statement about the player, and the
+     * answer to that one is {@code PlayerProfile.seedSlots}. Before this, "unwritten" was
+     * the literal 6, which silently overrode a backpack that had been upgraded - and made
+     * the constant look like a default when it was really a cap.
+     */
+    public static final int UNSET_MAX_SEED_SLOTS = -1;
 
     /**
      * A level's own cards must fit in its bar, so the declared slot count is raised to the
@@ -51,11 +69,33 @@ public record LevelDef(
      * Every level authored before this rule lists its whole card pool and leaves
      * {@code max_seed_slots} at the default, so they all become fixed decks - which is what
      * "a card the level chose is fixed" means when applied to data that already exists.
+     *
+     * <p>The raise happens against the <em>raw</em> value here and again in
+     * {@link #effectiveMaxSeedSlots}, because the raw one may be
+     * {@link #UNSET_MAX_SEED_SLOTS} and only the caller knows the backpack's number.
      */
     public LevelDef {
-        maxSeedSlots = Math.max(maxSeedSlots, slots.size());
+        maxSeedSlots = maxSeedSlots < 0 ? UNSET_MAX_SEED_SLOTS : Math.max(maxSeedSlots, slots.size());
         mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
         dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
+    }
+
+    /** True when this level declares its own slot count rather than following the backpack. */
+    public boolean declaresMaxSeedSlots() {
+        return maxSeedSlots >= 0;
+    }
+
+    /**
+     * The bar size this level actually gets for a player whose backpack holds
+     * {@code profileSlots} cards.
+     *
+     * <p>One implementation, called by everything that needs the number: the seed chooser's
+     * pool, the server's sanitising pass and both seed plans. A level that declared a count
+     * keeps it; a level that declared none borrows the backpack's.
+     */
+    public int effectiveMaxSeedSlots(int profileSlots) {
+        int slots = declaresMaxSeedSlots() ? maxSeedSlots : Math.max(1, profileSlots);
+        return Math.max(slots, this.slots.size());
     }
 
     /** True when this level opens with a conversation the player has to click through. */
@@ -72,7 +112,9 @@ public record LevelDef(
                     LevelMusicDef music, List<InitialEntityDef> initialEntities) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                DEFAULT_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
+                // No slot count in code means the same thing it means in JSON: follow the
+                // backpack. A caller that wants a specific bar passes one.
+                UNSET_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
                 List.of(), LevelDialogue.EMPTY);
     }
 
@@ -149,7 +191,7 @@ public record LevelDef(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
                         InitialEntityDef.CODEC.listOf().optionalFieldOf("initial_entities", List.of())
                                 .forGetter(LevelTail::initialEntities),
-                        Codec.INT.optionalFieldOf("max_seed_slots", DEFAULT_MAX_SEED_SLOTS)
+                        Codec.INT.optionalFieldOf("max_seed_slots", UNSET_MAX_SEED_SLOTS)
                                 .forGetter(LevelTail::maxSeedSlots),
                         LevelRewards.CODEC.optionalFieldOf("rewards", LevelRewards.DEFAULT)
                                 .forGetter(LevelTail::rewards),
@@ -239,17 +281,27 @@ public record LevelDef(
     }
 
     /**
-     * Builds the plan from the full card list.
+     * Builds the plan from the full card list, for the default backpack.
      *
      * <p>Takes that list as an argument rather than reading a registry, because what the
      * player may pick is "every card the game has, minus the level's own" and this record
      * deliberately knows nothing about registries (see {@code LevelValidator} for the
      * checks that do).
+     *
+     * <p>Callers that know the player's backpack - the server's sanitising pass, the level's
+     * full state - use {@link #seedPlan(List, int)} with
+     * {@link #effectiveMaxSeedSlots(int)}; this overload exists for the ones that do not
+     * (the client's locked-slot list, the editor, tests) and answers with the default.
      */
     public SeedPlan seedPlan(List<Identifier> allCards) {
+        return seedPlan(allCards, effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS));
+    }
+
+    /** The plan for a bar of {@code maxSlots} cards. */
+    public SeedPlan seedPlan(List<Identifier> allCards, int maxSlots) {
         List<Identifier> locked = new ArrayList<>();
         for (Identifier slot : slots) {
-            if (slot != null && !locked.contains(slot) && locked.size() < maxSeedSlots) {
+            if (slot != null && !locked.contains(slot) && locked.size() < maxSlots) {
                 locked.add(slot);
             }
         }
@@ -259,7 +311,7 @@ public record LevelDef(
                 pickable.add(card);
             }
         }
-        return new SeedPlan(locked, pickable, maxSeedSlots);
+        return new SeedPlan(locked, pickable, maxSlots);
     }
 
     /**
@@ -267,7 +319,12 @@ public record LevelDef(
      * cards in registration order until the slots run out.
      */
     public List<Identifier> defaultSeedSelection(List<Identifier> allCards) {
-        SeedPlan plan = seedPlan(allCards);
+        return defaultSeedSelection(allCards, effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS));
+    }
+
+    /** As above, for a bar of {@code maxSlots} cards. */
+    public List<Identifier> defaultSeedSelection(List<Identifier> allCards, int maxSlots) {
+        SeedPlan plan = seedPlan(allCards, maxSlots);
         List<Identifier> bar = new ArrayList<>(plan.lockedSlots());
         for (Identifier card : plan.pickableSlots()) {
             if (bar.size() >= plan.maxSlots()) {

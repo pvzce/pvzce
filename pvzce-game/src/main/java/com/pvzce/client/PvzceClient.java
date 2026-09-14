@@ -176,6 +176,17 @@ public final class PvzceClient {
     private final double[] smokeDragTo = parsePoint(System.getProperty("pvzce.smokeDragTo", ""));
     private final int smokeDragFrame = Integer.getInteger("pvzce.smokeDragFrame", 60);
     private boolean smokeDragDone;
+    /**
+     * Smoke hook: keep the pointer at this GUI point, so hover states can be photographed.
+     *
+     * <p>{@code smokeClick} delivers a click at a point without moving the pointer, and half
+     * the HUD is about where the pointer <em>is</em> - a cell highlight, the ghost of the
+     * plant about to be placed. This warps the real cursor (the platform's own call, so the
+     * window receives a normal move event) from {@code smokeHoverFrame} onwards, every
+     * frame, because a screen that rebuilds itself can lose a one-shot move.
+     */
+    private final double[] smokeHoverAt = parsePoint(System.getProperty("pvzce.smokeHover", ""));
+    private final int smokeHoverFrame = Integer.getInteger("pvzce.smokeHoverFrame", 3);
     private final int smokeClickFrame = Integer.getInteger("pvzce.smokeClickFrame", 45);
     /**
      * How many times {@code smokeClick} repeats, and how many frames apart.
@@ -503,6 +514,17 @@ public final class PvzceClient {
                         + " screen=" + currentScreen().getClass().getSimpleName());
                 deliverRawClick(rawX, rawY, 0);
             }
+            if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
+                // The same conversion smokeClick uses, and for the same reason: the cursor is
+                // reported top-down while GUI Y grows upwards, so a point that is 40% up the
+                // GUI is 60% down the window. Getting this backwards points the "hover" at the
+                // vertical mirror of the cell under test, which is exactly the kind of
+                // off-by-a-reflection a screenshot is supposed to catch.
+                double rawX = smokeHoverAt[0] * window.width() / (double) Math.max(1, guiWidth());
+                double rawY = window.height()
+                        - smokeHoverAt[1] * window.height() / (double) Math.max(1, guiHeight());
+                window.warpCursor(rawX, rawY);
+            }
             if (smokeDragTo != null && !smokeDragDone && clientTick == smokeDragFrame) {
                 smokeDragDone = true;
                 double[] gui = smokeDragTo;
@@ -810,7 +832,17 @@ public final class PvzceClient {
 
     /** World-space viewport/projection for gameplay rendering. */
     public PvzceCamera beginWorldView() {
-        PvzceCamera camera = camera();
+        return beginWorldView(camera());
+    }
+
+    /**
+     * The same, for a camera the caller has already adjusted.
+     *
+     * <p>Only the end of a level uses it: a defeat looks toward the house (see
+     * {@code PvzceCamera.panned}), and the projection, the sprite scale and the shader
+     * lights all have to come from that camera rather than from a second one built here.
+     */
+    public PvzceCamera beginWorldView(PvzceCamera camera) {
         spriteXScale = camera.unitY() / Math.max(0.0001F, camera.unitX());
         RenderSystem.viewport(camera.viewportX(), camera.viewportY(), camera.viewportWidth(), camera.viewportHeight());
         RenderSystem.setProjectionMatrix(camera.projection());
@@ -1092,31 +1124,74 @@ public final class PvzceClient {
      * call back into a tinted draw, and a single field would leak the tint outwards.
      * Sprites are 1x1; this is for art that is too bright to read at its own values.
      */
-    private final java.util.ArrayDeque<Float> entityTints = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<float[]> entityInk = new java.util.ArrayDeque<>();
 
     /** Dims everything drawn until the matching {@link #popEntityTint}. */
     public void pushEntityTint(float multiplier) {
-        entityTints.push(Math.max(0F, Math.min(1F, multiplier)));
+        float[] current = entityInk();
+        entityInk.push(new float[]{clamp(current[0] * multiplier), current[1]});
     }
 
     public void popEntityTint() {
-        entityTints.poll();
+        entityInk.poll();
     }
 
-    private float entityTint() {
-        Float tint = entityTints.peek();
-        return tint == null ? 1F : tint;
+    /**
+     * Fades everything drawn until the matching {@link #popEntityAlpha}.
+     *
+     * <p>The sibling of {@link #pushEntityTint}, and a stack for the same reason. It exists
+     * because the translucent preview of a plant being dragged onto the lawn has to fade the
+     * plant's <em>animation</em> - and the animation path hard-codes alpha 1, so there was no
+     * way to draw one faded without a second renderer.
+     *
+     * <p>Both pushes multiply into the current value rather than replacing it, so a faded
+     * draw inside a dimmed one is dim <em>and</em> faded.
+     */
+    public void pushEntityAlpha(float multiplier) {
+        float[] current = entityInk();
+        entityInk.push(new float[]{current[0], clamp(current[1] * multiplier)});
+    }
+
+    public void popEntityAlpha() {
+        entityInk.poll();
+    }
+
+    private float[] entityInk() {
+        float[] ink = entityInk.peek();
+        return ink == null ? new float[]{1F, 1F} : ink;
+    }
+
+    private static float clamp(float value) {
+        return Math.max(0F, Math.min(1F, value));
     }
 
     public void drawTextureRegion(Identifier id, float u0, float v0, float u1, float v1,
                                   float x, float y, float w, float h, float z, float r, float g, float b, float a) {
-        float tint = entityTint();
+        float[] ink = entityInk();
         try {
             SpriteRenderer.textured(new Sprite(textures.getOrLoad(id), u0, v0, u1, v1), x, y, w, h, z,
-                    r * tint, g * tint, b * tint, a);
+                    r * ink[0], g * ink[0], b * ink[0], a * ink[1]);
         } catch (Exception e) {
             warnMissingTexture(id);
-            SpriteRenderer.solid(x, y, w, h, z, r * tint, g * tint, b * tint, a);
+            drawMissingTexture(x, y, w, h, z, r * ink[0], g * ink[0], b * ink[0], a * ink[1]);
+        }
+    }
+
+    /**
+     * Draws every texture the renderer falls back to: this one is what a missing reference
+     * looks like.
+     *
+     * <p>Never recurses into {@link #drawTextureRegion}, so a build without the placeholder
+     * still draws something instead of throwing from inside the fallback.
+     */
+    private void drawMissingTexture(float x, float y, float w, float h, float z,
+                                    float r, float g, float b, float a) {
+        try {
+            SpriteRenderer.textured(new Sprite(textures.getOrLoad(com.pvzce.common.core.EntityArt.MISSING_TEXTURE),
+                            0F, 0F, 1F, 1F),
+                    x, y, w, h, z, r, g, b, a);
+        } catch (Exception e) {
+            SpriteRenderer.solid(x, y, w, h, z, r, g, b, a);
         }
     }
 
@@ -1131,6 +1206,11 @@ public final class PvzceClient {
                                 float u0, float v0, float u1, float v1,
                                 float u2, float v2, float u3, float v3,
                                 float z, float r, float g, float b, float a) {
+        float[] ink = entityInk();
+        float cr = r * ink[0];
+        float cg = g * ink[0];
+        float cb = b * ink[0];
+        float ca = a * ink[1];
         try {
             var texture = textures.getOrLoad(id);
             SpriteRenderer.texturedQuad(texture,
@@ -1139,14 +1219,18 @@ public final class PvzceClient {
                     TextureUv.normalizeU(u1, texture.width()), TextureUv.normalizeV(v1, texture.height()),
                     TextureUv.normalizeU(u2, texture.width()), TextureUv.normalizeV(v2, texture.height()),
                     TextureUv.normalizeU(u3, texture.width()), TextureUv.normalizeV(v3, texture.height()),
-                    z, r, g, b, a);
+                    z, cr, cg, cb, ca);
         } catch (Exception e) {
             warnMissingTexture(id);
-            SpriteRenderer.solid(Math.min(Math.min(x0, x1), Math.min(x2, x3)),
+            // The part's own quad, kept where it was: a part is drawn in the middle of a
+            // posed skeleton, and a placeholder that snapped to an axis-aligned box would
+            // move it. Squashed to the quad's bounding box, which is what a missing part
+            // should look like when the art around it is still there.
+            drawMissingTexture(Math.min(Math.min(x0, x1), Math.min(x2, x3)),
                     Math.min(Math.min(y0, y1), Math.min(y2, y3)),
                     Math.max(Math.max(x0, x1), Math.max(x2, x3)) - Math.min(Math.min(x0, x1), Math.min(x2, x3)),
                     Math.max(Math.max(y0, y1), Math.max(y2, y3)) - Math.min(Math.min(y0, y1), Math.min(y2, y3)),
-                    z, r, g, b, a);
+                    z, cr, cg, cb, ca);
         }
     }
 
@@ -1561,6 +1645,18 @@ public final class PvzceClient {
     }
 
     /**
+     * True when this level's chooser would have nothing to offer.
+     *
+     * <p>Read from the level list's own snapshot - the pool the server sent and the level's
+     * own cards - so the answer matches the screen that would have been built from it. Used
+     * by the save prompt's restart, which skips a page whose only button would be "start".
+     */
+    public boolean hasNothingToChoose(LevelListS2C.LevelInfo info) {
+        return info != null && com.pvzce.common.core.SeedOptions.hasNothingToChoose(
+                info.seedPool(), info.maxSeedSlots(), lockedSlotsFor(info.id()));
+    }
+
+    /**
      * The save prompt's "重新开始" option: keep the loaded save untouched and
      * paused while the client shows seed selection. Submitting the new cards
      * sends {@code PlayLevelC2S(restart=true)}, which deletes the old save and
@@ -1569,11 +1665,11 @@ public final class PvzceClient {
      */
     public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
         LevelListS2C.LevelInfo info = findLevelInfo(prompt.levelId());
-        if (info == null || dealsItsOwnCards(prompt.levelId())) {
-            // No registry snapshot (for example a direct smoke request), or nothing to
-            // choose because the level deals its own cards: fall back to the server-side
-            // restart, which is the same thing minus a page that would ask for a deck the
-            // server is going to replace with the belt anyway.
+        if (info == null || dealsItsOwnCards(prompt.levelId()) || hasNothingToChoose(info)) {
+            // No registry snapshot (for example a direct smoke request), nothing to choose
+            // because the level deals its own cards, or nothing to choose because the level
+            // pins every slot: fall back to the server-side restart, which is the same thing
+            // minus a page asking for a deck that is not the player's to pick.
             connection.send(new RestartLevelC2S(prompt.levelId(), prompt.worldName(), List.of()));
             return;
         }
@@ -2031,6 +2127,11 @@ public final class PvzceClient {
 
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll) {
         profile.apply(coins, unlocked, unlockAll);
+    }
+
+    /** As above, with the backpack's card-slot count the server reports. */
+    public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots) {
+        profile.apply(coins, unlocked, unlockAll, seedSlots);
     }
 
     /**

@@ -128,9 +128,21 @@ public final class DialogueOverlay extends Dialog {
 
     /** One resolved line: the definitions behind a {@link DialogueLine}, looked up once. */
     private record Frame(DialogueCharacterDef character, Identifier portrait, String text,
-                         String voice, boolean left) {
+                         String voice, boolean left, boolean center) {
         String name() {
             return character == null ? "" : character.displayName();
+        }
+
+        /**
+         * True when this line says nothing.
+         *
+         * <p>A portrait-only beat: the character is on screen and nobody is talking, which
+         * is what an empty {@code text} means. Drawing a bubble for it produced a small
+         * empty box with a "click to continue" in it, which reads as a bug rather than as
+         * a performance.
+         */
+        boolean silent() {
+            return text == null || text.isBlank();
         }
     }
 
@@ -175,7 +187,8 @@ public final class DialogueOverlay extends Dialog {
                         line.character());
             }
             Identifier portrait = character == null ? null : character.portraitTexture(line.portrait());
-            frames.add(new Frame(character, portrait, line.text(), line.voice(), !line.side().isRight()));
+            frames.add(new Frame(character, portrait, line.text(), line.voice(),
+                    !line.side().isRight() && !line.side().isCenter(), line.side().isCenter()));
         }
         DialogueOverlay overlay = new DialogueOverlay(client, frames);
         overlay.onFinish = onFinish;
@@ -385,6 +398,11 @@ public final class DialogueOverlay extends Dialog {
             client.drawTexture(portrait.texture(), portrait.x(), portrait.y(),
                     portrait.width(), portrait.height(), 0F, 1F, 1F, 1F, 1F);
         }
+        if (bubble == null) {
+            // A silent line: the portrait is the whole beat. Nothing to click through
+            // visually, but the click still advances - the modal owns the input either way.
+            return;
+        }
         Identifier box = frame.character() == null
                 ? Identifier.withDefaultNamespace(frame.left()
                         ? "textures/gui/dialogue/box_left" : "textures/gui/dialogue/box_right")
@@ -444,6 +462,9 @@ public final class DialogueOverlay extends Dialog {
      * The speaker's box: on their side of the window, feet on the bottom edge, sized from
      * the art's own aspect ratio so the character is never stretched.
      *
+     * <p>{@code center} stands them in the middle of the window instead, at the same size -
+     * the staging for a line that is about the character rather than about the exchange.
+     *
      * <p>Null (and nothing drawn) when the line names no portrait or the pack does not
      * provide it - the bubble still carries the line, and {@code LevelValidator} is what
      * says the art is missing.
@@ -463,9 +484,14 @@ public final class DialogueOverlay extends Dialog {
         float scale = frame.character() == null ? 1F : frame.character().scale();
         float height = guiH * PORTRAIT_HEIGHT_RATIO * scale;
         float width = height * loaded.width() / (float) Math.max(1, loaded.height());
-        float x = frame.left()
-                ? guiW * PORTRAIT_MARGIN_RATIO
-                : guiW - width - guiW * PORTRAIT_MARGIN_RATIO;
+        float x;
+        if (frame.center()) {
+            x = (guiW - width) / 2F;
+        } else {
+            x = frame.left()
+                    ? guiW * PORTRAIT_MARGIN_RATIO
+                    : guiW - width - guiW * PORTRAIT_MARGIN_RATIO;
+        }
         return new Portrait(texture, x, 0F, width, height);
     }
 
@@ -492,19 +518,27 @@ public final class DialogueOverlay extends Dialog {
     }
 
     /**
-     * The speech bubble: beside the portrait, hugging its own text.
+     * The speech bubble: beside the portrait, hugging its own text - or nothing at all.
      *
      * <p>Width comes from the text, not from the window: a one-line reply gets a small
      * bubble next to the character instead of a wide empty box across half the screen.
      * The wrapping limit is the widest bubble that fits beside the portrait, so a long
      * line grows the bubble up to that limit and then wraps.
+     *
+     * <p>A line with no text gets no bubble (see {@link Frame#silent()}), and a centred
+     * speaker gets one across the middle of the window rather than beside a portrait that
+     * is not beside anything: "beside" has no meaning in the middle, and both answers -
+     * left or right - would point the tail at empty lawn.
      */
     private Bubble bubbleBox(PvzceClient client, Frame frame, Portrait portrait, float guiW, float guiH,
                              float textScale, float lineHeight) {
+        if (frame.silent()) {
+            return null;
+        }
         float margin = guiH * SCREEN_MARGIN_RATIO;
         float gap = guiW * BUBBLE_GAP_RATIO;
         float sideMargin = guiW * BUBBLE_SIDE_MARGIN_RATIO;
-        float free = portrait == null
+        float free = portrait == null || frame.center()
                 ? guiW - sideMargin * 2F - gap
                 : (frame.left()
                         ? guiW - nearPortraitEdge(portrait, true)
@@ -535,10 +569,18 @@ public final class DialogueOverlay extends Dialog {
         float width = Math.max(guiW * BUBBLE_MIN_WIDTH_RATIO,
                 Math.min(maxWidth, widest + textLeft + textRight));
         float height = nameHeight + lines.size() * lineHeight + textTop + hintHeight + textBottom;
-        float x = frame.left()
-                ? (portrait == null ? sideMargin : nearPortraitEdge(portrait, true) + gap)
-                : (portrait == null ? guiW - width - sideMargin
-                        : nearPortraitEdge(portrait, false) - gap - width);
+        float x;
+        if (frame.center()) {
+            // Across the lower half of a centred portrait, like a caption: the bubble's
+            // bottom edge is already the speaker's chin height, so this is the same band
+            // the side layout uses, just centred under the face.
+            x = (guiW - width) / 2F;
+        } else if (frame.left()) {
+            x = portrait == null ? sideMargin : nearPortraitEdge(portrait, true) + gap;
+        } else {
+            x = portrait == null ? guiW - width - sideMargin
+                    : nearPortraitEdge(portrait, false) - gap - width;
+        }
         float y = Math.min(guiH * BUBBLE_BOTTOM_RATIO, guiH - height - margin);
         y = Math.max(margin, y);
         return new Bubble(x, y, width, height, scale, lines, textLeft, textTop, textBottom,

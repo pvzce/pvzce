@@ -83,6 +83,39 @@ public final class SeedOptions {
         return def.seedPlan(allCards()).lockedSlots().stream().map(Identifier::toString).toList();
     }
 
+    /**
+     * True when the chooser would have nothing to offer: every slot is pinned by the level,
+     * or the backpack has nothing left that is not already pinned.
+     *
+     * <p>Both mean the same thing to the player - no cards to pick - and the answer belongs
+     * here rather than in the screen because two callers need it before a screen exists: the
+     * chooser decides whether to draw a panel at all, and the save prompt's "restart"
+     * decides whether to open one. The server answers the same question a third time,
+     * structurally, when it sanitises the submitted selection.
+     *
+     * @param pool       the chooser's option list, as the server sent it
+     * @param maxSlots   the level's resolved card-slot count for this player
+     * @param lockedSlot the level's own card ids; null counts as none
+     */
+    public static boolean hasNothingToChoose(List<SeedOption> pool, int maxSlots,
+                                             java.util.Collection<String> lockedSlot) {
+        java.util.Set<String> locked = lockedSlot == null
+                ? java.util.Set.of() : new LinkedHashSet<>(lockedSlot);
+        int slots = Math.max(0, maxSlots);
+        if (slots - Math.min(slots, locked.size()) <= 0) {
+            return true;
+        }
+        if (pool == null) {
+            return true;
+        }
+        for (SeedOption option : pool) {
+            if (!locked.contains(option.slotId())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static void addResolved(List<SeedOption> out, Identifier card) {
         SlotResolver.resolve(card).ifPresent(resolved -> out.add(new SeedOption(
                 resolved.slotId().toString(), resolved.kind().json(), resolved.content().toString(),

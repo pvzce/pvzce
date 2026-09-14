@@ -34,6 +34,7 @@ public final class ClientMechanics {
         bootstrapped = true;
         register(new ConveyorClientMechanic());
         register(new PlacementZoneClientMechanic());
+        register(new MowerClientMechanic());
     }
 
     public static void register(ClientMechanic mechanic) {
@@ -94,6 +95,17 @@ public final class ClientMechanics {
         com.pvzce.api.content.LevelDef def = id == null
                 ? null : com.pvzce.common.core.BuiltInRegistries.LEVELS.get(id);
         return def != null && com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
+    }
+
+    /**
+     * The lawn mowers this level still has parked, as the client last heard.
+     *
+     * <p>Read by the victory payout: the rows that were never needed are worth coins, and
+     * the coins leave from where those mowers stand. Empty for a level with no mowers and
+     * for one whose rig the client never heard about.
+     */
+    public static List<com.pvzce.common.level.mechanic.MowerMechanic.Row> parkedMowers(ClientLevel level) {
+        return MowerClientMechanic.parkedMowers(level);
     }
 
     /** Reports an unknown mechanic once per id rather than once per packet. */

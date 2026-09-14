@@ -179,7 +179,9 @@ class MiniGameTest {
                 spawned++;
             }
         }
-        assertTrue(spawned >= 200, "a wall-nut bowling level is a horde, not a handful; got " + spawned);
+        // The level throws half the zombies it used to - the pacing was retuned to "waves
+        // 1.5x as often, half as many, moving 1.5x as fast" - so the floor moved with it.
+        assertTrue(spawned >= 110, "a wall-nut bowling level is a horde, not a handful; got " + spawned);
         assertEquals(GameStateS2C.WON, level.gameState(), "the last wave has to end the level");
     }
 
@@ -262,7 +264,7 @@ class MiniGameTest {
             assertTrue(nut.cellX() >= lastX, "a bowling nut never rolls backwards");
             lastX = nut.cellX();
         }
-        assertTrue(zombie.isRemoved(), "650 damage kills a 200-health zombie");
+        assertTrue(zombie.isDying(), "650 damage kills a 200-health zombie");
         assertEquals(1, bowl.hits());
 
         float xAtHit = nut.cellX();
@@ -297,7 +299,7 @@ class MiniGameTest {
                 .reduce((a, b) -> b)
                 .orElseThrow();
         int hits = 0;
-        while (!zombie.isRemoved() && hits < 12) {
+        while (zombie.isAlive() && hits < 12) {
             zombie.damageImpact(BowlCapability.DEFAULT_DAMAGE, level);
             hits++;
         }

@@ -30,7 +30,7 @@
     "texture": "pvzce:textures/particles/misc/puffshroom_puff2"
   },
   "motion": {
-    "gravity": -1.73611e-05
+    "gravity": 1.73611e-05
   },
   "count": 7,
   "count_spread": 1

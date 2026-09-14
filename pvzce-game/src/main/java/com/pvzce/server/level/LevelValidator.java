@@ -131,11 +131,13 @@ public final class LevelValidator {
                 }
             }
             if (line.side() == com.pvzce.api.content.DialogueLine.Side.UNKNOWN) {
-                errors.add(where + ".side is not 'left' or 'right', so the speaker is drawn on the left");
+                errors.add(where + ".side is not 'left', 'center' or 'right',"
+                        + " so the speaker is drawn on the left");
             }
-            if (line.text() == null || line.text().isBlank()) {
-                errors.add(where + " has no text, so the player clicks through an empty bubble");
-            }
+            // An empty text is a portrait-only beat, not a mistake: the character is on
+            // screen and nobody is talking, and the overlay draws no bubble for it. It used
+            // to be reported as "the player clicks through an empty bubble", which was true
+            // of the overlay that drew one.
         }
         return errors;
     }
@@ -227,8 +229,10 @@ public final class LevelValidator {
             }
         }
         if (unlock.cost().isPresent() && unlock.cost().get() > 100_000) {
-            errors.add("unlock.cost is " + unlock.cost().get() + ", far beyond the wallet cap of "
-                    + com.pvzce.common.PvzceConstants.COIN_CAP);
+            // Not a cap - the wallet has none - just a price no level should ever ask for,
+            // and one that is almost always a stray digit.
+            errors.add("unlock.cost is " + unlock.cost().get() + ", which no player can earn; "
+                    + "check for a stray digit");
         }
         if (unlock.isOpen() && unlock.hidden()) {
             // Legal but pointless: an open level is always listed, so "hidden" does nothing.
@@ -285,11 +289,15 @@ public final class LevelValidator {
      * @return the note, or {@code null} when the level leaves the player a choice
      */
     public static String describeFixedDeck(LevelDef def) {
-        if (def.slots().isEmpty() || def.slots().size() < def.maxSeedSlots()) {
+        // The effective count, not the raw one: a level that declares nothing follows the
+        // backpack, and with the default backpack a 13-card level is just as fixed as one
+        // that wrote "13".
+        int slots = def.effectiveMaxSeedSlots(com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS);
+        if (def.slots().isEmpty() || def.slots().size() < slots) {
             return null;
         }
         return "fixed deck: the level's " + def.slots().size() + " cards fill all "
-                + def.maxSeedSlots() + " slots, so the player only picks when they unlock more"
+                + slots + " slots, so the player only picks when they unlock more"
                 + " (raise max_seed_slots above " + def.slots().size() + " to leave room)";
     }
 

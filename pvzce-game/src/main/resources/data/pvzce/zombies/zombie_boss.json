@@ -39,5 +39,6 @@
     "death": "pvzce:sfx/effect/bossexplosion"
   },
   "animation_dir": "zombie/boss",
-  "texture": "pvzce:textures/entities/zombie/boss/zombie_boss"
+  "texture": "pvzce:textures/entities/zombie/boss/zombie_boss",
+  "drops_arm": false
 }

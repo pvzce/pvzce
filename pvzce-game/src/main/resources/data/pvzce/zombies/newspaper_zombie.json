@@ -24,5 +24,13 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/armored",
-  "texture": "pvzce:textures/entities/zombie/armored/newspaper_zombie"
+  "texture": "pvzce:textures/entities/zombie/armored/newspaper_zombie",
+  "equipment": [
+    {
+      "art": "paper",
+      "piece": "pvzce:newspaper",
+      "drop_particle": "pvzce:zombie_newspaper"
+    }
+  ],
+  "drops_arm": false
 }

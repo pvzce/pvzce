@@ -90,14 +90,21 @@ public final class ChooseSeedsScreen extends Screen {
     /** Panel-slides-out + camera-pans-home beat before the level is actually started. */
     private static final long EXIT_NANOS = 520_000_000L;
     /**
-     * How long a level with nothing to choose shows its fixed deck before starting.
+     * The same beat when there is no panel to slide out.
      *
-     * <p>The preview and the panel must both have finished first (they need 1.7s), so
-     * this is the total: the player sees the zombies walk in, sees which cards the
-     * level fixed, and is then taken into the level without touching anything - which
-     * is what the original's first level does.
+     * <p>With nothing but the camera moving, half a second is a snap. The way back takes
+     * as long as the way out did, which is what makes it read as one movement.
      */
-    private static final long AUTO_START_NANOS = 3_000_000_000L;
+    private static final long PREVIEW_EXIT_NANOS = PAN_NANOS;
+    /**
+     * How long a level with nothing to choose shows its zombies before starting.
+     *
+     * <p>Measured from the pan, not from the screen opening, so a dialogue cannot eat into
+     * the look at the lane. It is the pan out plus the preview's own fade plus a beat to
+     * see it: there is no panel to read in this mode, so waiting for one would be three
+     * seconds of an empty road.
+     */
+    private static final long AUTO_START_NANOS = 2_100_000_000L;
 
     private final String levelId;
     private final String levelName;
@@ -131,6 +138,16 @@ public final class ChooseSeedsScreen extends Screen {
     private long exitNanos;
     /** True once the start packet went out, so the auto-start cannot fire twice. */
     private boolean startSent;
+    /**
+     * True when the level leaves the player nothing to choose.
+     *
+     * <p>Then this screen is only the level's opening choreography: the camera pans down
+     * the lane, the level's zombies walk in, and it pans home again. No wooden frame, no
+     * card pool, no buttons - a chooser with one possible answer is a page the player has
+     * to wait for rather than read. Worked out once, from the same data the panel would
+     * have been built from.
+     */
+    private final boolean previewOnly;
     private float panelX;
     private float panelY;
     private float panelW;
@@ -272,6 +289,7 @@ public final class ChooseSeedsScreen extends Screen {
                 }
             }
         }
+        this.previewOnly = hasNothingToChoose();
     }
 
     private boolean containsOption(String slotId) {
@@ -530,7 +548,9 @@ public final class ChooseSeedsScreen extends Screen {
     private void updateButtonState() {
         float progress = panelProgress();
         float shift = panelCurrentX() - panelX;
-        boolean visible = progress > 0.92F;
+        // A preview-only screen has no panel for them to belong to, so they never appear
+        // even though they still exist: the exit animation reads their position.
+        boolean visible = !previewOnly && progress > 0.92F;
         if (startButton != null) {
             startButton.setVisible(visible);
             startButton.setPosition(Math.round(startButtonX + shift), Math.round(startButtonY));
@@ -542,7 +562,7 @@ public final class ChooseSeedsScreen extends Screen {
             clearButton.setSize(Math.max(1, Math.round(clearButtonW)), Math.max(1, Math.round(clearButtonH)));
         }
         if (backButton != null) {
-            backButton.setVisible(progress > 0.5F);
+            backButton.setVisible(!previewOnly && progress > 0.5F);
         }
     }
 
@@ -606,21 +626,12 @@ public final class ChooseSeedsScreen extends Screen {
     /**
      * True when the level leaves the player nothing to choose.
      *
-     * <p>Either every slot is pinned by the level, or the backpack has nothing left
-     * to offer. Both mean the same thing to the player: no cards to pick, so the
-     * chooser would be a page with one button on it.
+     * <p>Either every slot is pinned by the level, or the backpack has nothing left to
+     * offer. Both mean the same thing to the player: no cards to pick, so there is no page
+     * to show - see {@link #previewOnly}.
      */
     private boolean hasNothingToChoose() {
-        int freeSlots = maxSeedSlots - selectedOrder.size();
-        if (freeSlots <= 0) {
-            return true;
-        }
-        for (SeedOption option : options) {
-            if (!lockedSlots.contains(option.slotId())) {
-                return false;
-            }
-        }
-        return true;
+        return com.pvzce.common.core.SeedOptions.hasNothingToChoose(options, maxSeedSlots, lockedSlots);
     }
 
     private void toggleOption(SeedOption option) {
@@ -703,7 +714,12 @@ public final class ChooseSeedsScreen extends Screen {
 
     /** 0..1 through the exit beat; the start packet goes out when it reaches 1. */
     private float exitProgress() {
-        return clamp01((System.nanoTime() - exitNanos) / (float) EXIT_NANOS);
+        return clamp01((System.nanoTime() - exitNanos) / (float) exitDurationNanos());
+    }
+
+    /** How long the exit beat lasts: panel and camera together, or just the camera. */
+    private long exitDurationNanos() {
+        return previewOnly ? PREVIEW_EXIT_NANOS : EXIT_NANOS;
     }
 
     private float previewProgress() {
@@ -748,10 +764,10 @@ public final class ChooseSeedsScreen extends Screen {
             finishStart();
             return;
         }
-        // A fixed deck still shows the preview and the panel, then starts itself. The
-        // countdown is from the pan, not from the screen opening, so a dialogue cannot
-        // eat into the player's look at the cards.
-        if (!dialogueActive() && hasNothingToChoose() && now - panStart() >= AUTO_START_NANOS) {
+        // A fixed deck shows the preview and then starts itself. The countdown is from the
+        // pan, not from the screen opening, so a dialogue cannot eat into the player's look
+        // at the lane.
+        if (!dialogueActive() && previewOnly && now - panStart() >= AUTO_START_NANOS) {
             start();
         }
     }
@@ -763,7 +779,9 @@ public final class ChooseSeedsScreen extends Screen {
                 return;
             }
         }
-        if (button != 0 || panelProgress() < 0.92F) {
+        // Preview-only: there is no panel, no pool and no chosen row, so every click is a
+        // click on the lawn. Nothing to do.
+        if (previewOnly || button != 0 || panelProgress() < 0.92F) {
             return;
         }
 
@@ -857,8 +875,13 @@ public final class ChooseSeedsScreen extends Screen {
         updateButtonState();
 
         LevelStage.Stage stage = LevelStage.cover(guiW, guiH);
+        // Home is where the level itself will be looking: the game camera shows the
+        // covered backdrop centred, so its left edge sits at stage.x() and the visible part
+        // is the middle of the image. Panning to stage.x() - panMax, which is what this
+        // used to do, framed the far end of the house instead - the view jumped a quarter
+        // of a screen sideways the moment the chooser handed over to the level.
         float panMax = Math.max(0F, (stage.width() - guiW) / 2F);
-        float panOffset = (panProgress() * 2F - 1F) * panMax;
+        float panOffset = panProgress() * panMax;
         float stageX = stage.x() - panOffset;
         client.drawTexture(LevelStage.BACKGROUND_TEXTURE, stageX, stage.y(),
                 stage.width(), stage.height(), -1F, 1F, 1F, 1F, 1F);
@@ -868,7 +891,7 @@ public final class ChooseSeedsScreen extends Screen {
 
         float panelProgress = panelProgress();
         float currentPanelX = panelCurrentX();
-        if (panelProgress > 0F) {
+        if (!previewOnly && panelProgress > 0F) {
             drawSeedPanel(currentPanelX, panelProgress);
             if (panelProgress > 0.92F) {
                 float shift = currentPanelX - panelX;
@@ -1183,7 +1206,7 @@ public final class ChooseSeedsScreen extends Screen {
         SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
                         Identifier.tryParse(option.icon()),
                         SeedCardRenderer.CardKind.fromJson(option.kind()),
-                        option.costSun(), brightness, alpha, true, 0F, false),
+                        option.costSun(), brightness, alpha, true, 0F, false, null, false),
                 x, y, width, height);
         if (isLocked(option.slotId())) {
             drawLockBadge(x, y, width, height, alpha);

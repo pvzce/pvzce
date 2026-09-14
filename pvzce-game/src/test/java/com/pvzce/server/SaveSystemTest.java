@@ -228,7 +228,10 @@ class SaveSystemTest {
             Path saveDir = gameDir.resolve("saves/lossworld/levels/70767a6365__yard%2Fadventure%2F1_1");
             server.waitForFile(saveDir.resolve("level.dat"), 5_000);
 
-            server.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 0 0"));
+            // A balloon zombie, not a walker: 1-1 has a lawn mower, and a mower eats the
+            // first ground zombie to reach the house - the loss would never happen. A flier
+            // is the case the mower deliberately does not touch.
+            server.send(new CommandC2S("/spawn zombie pvzce:balloon_zombie 0 0"));
             // See the win above: ~295 ticks of walking and countdown, run back to back.
             server.send(new CommandC2S("/tick sprint 400"));
             server.waitFor(p -> p instanceof GameStateS2C state && !GameStateS2C.RUNNING.equals(state.state()), 12_000);
@@ -258,6 +261,7 @@ class SaveSystemTest {
                   "rules": { "pvzce:day_length": 0, "pvzce:night_length": -1 },
                   "waves": [],
                   "slots": [ "pvzce:pea_shooter", "pvzce:sun" ],
+                  "mechanics": [ { "type": "pvzce:mower", "rows": [] } ],
                   "initial_entities": [
                     { "kind": "zombie", "id": "pvzce:basic_zombie", "x": 0, "y": 0 }
                   ]

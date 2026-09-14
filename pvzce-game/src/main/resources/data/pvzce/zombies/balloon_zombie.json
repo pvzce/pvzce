@@ -16,5 +16,6 @@
     "death": "pvzce:sfx/zombie/balloon_pop"
   },
   "animation_dir": "zombie/special",
-  "texture": "pvzce:textures/entities/zombie/special/balloon_zombie"
+  "texture": "pvzce:textures/entities/zombie/special/balloon_zombie",
+  "drops_arm": false
 }

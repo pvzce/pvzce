@@ -20,12 +20,19 @@ import java.util.Set;
 public final class ClientProfile {
     private final Set<Identifier> unlocked = new LinkedHashSet<>();
     private int coins;
+    private int seedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
     private boolean unlockAll;
 
     /** Applies a server snapshot; unparsable ids are dropped rather than kept as junk. */
     public void apply(int coins, List<String> unlockedIds, boolean unlockAll) {
+        apply(coins, unlockedIds, unlockAll, com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS);
+    }
+
+    /** Applies a server snapshot including the backpack's card-slot count. */
+    public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots) {
         this.coins = Math.max(0, coins);
         this.unlockAll = unlockAll;
+        this.seedSlots = Math.max(1, seedSlots);
         unlocked.clear();
         if (unlockedIds != null) {
             for (String raw : unlockedIds) {
@@ -44,6 +51,16 @@ public final class ClientProfile {
 
     public int coins() {
         return coins;
+    }
+
+    /**
+     * How many card slots this backpack holds.
+     *
+     * <p>Read-only here: the server owns the number, and a level that declares its own
+     * {@code max_seed_slots} overrides it in the payload the chooser is built from.
+     */
+    public int seedSlots() {
+        return seedSlots;
     }
 
     public boolean unlockAll() {

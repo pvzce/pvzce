@@ -23,5 +23,12 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/armored",
-  "texture": "pvzce:textures/entities/zombie/armored/door_zombie"
+  "texture": "pvzce:textures/entities/zombie/armored/door_zombie",
+  "equipment": [
+    {
+      "art": "screendoor",
+      "piece": "pvzce:door",
+      "drop_particle": "pvzce:zombie_door"
+    }
+  ]
 }

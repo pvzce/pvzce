@@ -53,5 +53,18 @@ public interface CardBar {
 
         /** The card the player has selected, so the bar can highlight it. */
         int selectedCardIndex();
+
+        /**
+         * How far this card is drawn off its place, in GUI pixels.
+         *
+         * <p>Zero for every card except one that was just refused: the screen owns the
+         * shake (it is the thing that heard the click and played the buzzer), the bar owns
+         * where cards are, so the offset crosses here rather than the bar keeping a copy of
+         * "which card is unhappy". Default is no shake, which is what a bar with no
+         * refusable cards - the conveyor - needs.
+         */
+        default float cardShake(int slotIndex) {
+            return 0F;
+        }
     }
 }

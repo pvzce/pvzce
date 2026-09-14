@@ -17,7 +17,7 @@
   },
   "motion": {
     "speed": 0.0625,
-    "gravity": -1.73611e-05
+    "gravity": 1.73611e-05
   },
   "additive": true,
   "count": 5

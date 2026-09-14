@@ -27,10 +27,10 @@
     "texture": "pvzce:textures/particles/zombie/reanim/zombie_balloon_propeller"
   },
   "motion": {
-    "speed": 0.104167,
+    "speed": 6.25,
     "angle": 160.0,
     "angle_spread": 20.0,
-    "gravity": -5.90278e-05,
+    "gravity": 12.75,
     "bounce": true
   },
   "count": 1

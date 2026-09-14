@@ -77,7 +77,7 @@ public final class PlantAIPlayer {
 
     private PlantDef choose(LevelServer level, Team team) {
         boolean danger = level.entities().stream()
-                .anyMatch(e -> e instanceof ZombieEntity z && !z.isRemoved() && z.cellX() < DANGER_CELL_X);
+                .anyMatch(e -> e instanceof ZombieEntity z && z.isAlive() && z.cellX() < DANGER_CELL_X);
         int sun = team.resourcesOf(SUN);
         Identifier preferred;
         if (danger && sun >= 100) {

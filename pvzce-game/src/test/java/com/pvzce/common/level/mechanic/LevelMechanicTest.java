@@ -49,9 +49,17 @@ class LevelMechanicTest {
 
     @Test
     void theBowlingLevelDeclaresBothOfItsMechanics() {
-        assertEquals(2, bowling.mechanics().size(), "a belt and a red line, as data");
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE),
-                List.of(bowling.mechanics().get(0).type(), bowling.mechanics().get(1).type()));
+        // Three blocks: the belt, the red line, and the mower rows - which is how a level
+        // says "this one has no mowers" (the original's Wall-nut Bowling has none).
+        assertEquals(3, bowling.mechanics().size(), "a belt, a red line and no mowers, as data");
+        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
+                        PvzceIds.MECHANIC_MOWER),
+                List.of(bowling.mechanics().get(0).type(), bowling.mechanics().get(1).type(),
+                        bowling.mechanics().get(2).type()));
+        assertEquals(List.of(), LevelMechanics
+                        .dataOf(bowling, PvzceIds.MECHANIC_MOWER, com.pvzce.api.content.MowerData.class)
+                        .orElseThrow().rowsFor(bowling.height()),
+                "and an explicitly empty row list means none at all");
 
         LevelBelt belt = LevelMechanics.dataOf(bowling, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class)
                 .orElseThrow();
@@ -78,12 +86,20 @@ class LevelMechanicTest {
         assertEquals(List.of(), LevelMechanics.declaredCardSources(ordinary));
         assertFalse(LevelMechanics.has(ordinary, PvzceIds.MECHANIC_CONVEYOR));
         assertEquals(PvzceIds.MECHANIC_DECK, LevelMechanics.cardSource(ordinary).type());
-        assertEquals(1, LevelMechanics.effective(ordinary).size());
+        // Two implicit mechanics, not one: a level that says nothing gets the ordinary card
+        // bar *and* the ordinary lawn mowers.
+        assertEquals(List.of(PvzceIds.MECHANIC_DECK, PvzceIds.MECHANIC_MOWER),
+                LevelMechanics.effective(ordinary).stream()
+                        .map(com.pvzce.api.content.mechanic.TypedMechanic::type).toList());
+        assertEquals(com.pvzce.api.content.MowerData.EVERY_ROW, LevelMechanics
+                        .dataOf(ordinary, PvzceIds.MECHANIC_MOWER, com.pvzce.api.content.MowerData.class)
+                        .orElseThrow(),
+                "and \"every row\" is what its silence about mowers means");
         assertEquals(java.util.Optional.empty(), LevelMechanics.dataOf(
                         ordinary, PvzceIds.MECHANIC_PLACEMENT_ZONE, PlacementZone.class),
                 "no zone means no mechanic, and the server reads that as the whole board");
-        assertEquals(LevelMechanics.effective(bowling), bowling.mechanics(),
-                "a level that declares a card source keeps exactly its own list");
+        assertEquals(bowling.mechanics(), LevelMechanics.effective(bowling),
+                "a level that declares the mower itself gets no implicit copy of it");
     }
 
     @Test
@@ -263,7 +279,10 @@ class LevelMechanicTest {
     @Test
     void theWirePayloadsCarryEveryEffectiveMechanicAndDecodeBack() {
         var bowlingPayloads = LevelMechanics.payloads(bowling);
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE),
+        // The declared card source and the plantable area, plus the implicit mower: what the
+        // client is told is what the server runs, whether or not the file mentions it.
+        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
+                        PvzceIds.MECHANIC_MOWER),
                 bowlingPayloads.stream()
                         .map(com.pvzce.common.network.packet.LevelPayload.MechanicPayload::type).toList());
         assertEquals(LevelMechanics.dataOf(bowling, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class).orElseThrow(),
@@ -275,11 +294,15 @@ class LevelMechanicTest {
                         .orElseThrow());
 
         var ordinaryPayloads = LevelMechanics.payloads(ordinary);
-        assertEquals(List.of(PvzceIds.MECHANIC_DECK),
+        assertEquals(List.of(PvzceIds.MECHANIC_DECK, PvzceIds.MECHANIC_MOWER),
                 ordinaryPayloads.stream()
                         .map(com.pvzce.common.network.packet.LevelPayload.MechanicPayload::type).toList());
         assertInstanceOf(MechanicData.Empty.class, LevelMechanics
                 .decodeBlock(PvzceIds.MECHANIC_DECK, ordinaryPayloads.get(0).block()).orElseThrow());
+        // An unwritten "rows" has to survive the wire and still mean "every row", or an
+        // ordinary level's client would draw no mowers at all.
+        assertEquals(com.pvzce.api.content.MowerData.EVERY_ROW, LevelMechanics
+                .decodeBlock(PvzceIds.MECHANIC_MOWER, ordinaryPayloads.get(1).block()).orElseThrow());
 
         assertEquals(java.util.Optional.empty(),
                 LevelMechanics.decodeBlock(PvzceIds.MECHANIC_CONVEYOR, "not json at all"));

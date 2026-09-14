@@ -40,7 +40,25 @@ public record ZombieDef(
          * <p>The client draws this content that many times bigger than its art declares,
          * in both axes so the shape is kept. Nothing the server simulates changes.
          */
-        float renderScale
+        float renderScale,
+        /**
+         * What this zombie carries that visibly wears out; see {@link EquipmentDef}.
+         *
+         * <p>Empty for a zombie with no equipment art. The entries are presentation except
+         * for {@code drop_particle}, which the server emits when a piece is destroyed - so
+         * both sides read this one list instead of each keeping its own idea of which
+         * sprite belongs to which hat.
+         */
+        List<EquipmentDef> equipment,
+        /**
+         * Whether half health costs this zombie its outer arm, as it does for the
+         * original's ordinary zombies.
+         *
+         * <p>False for the giant and the boss, whose arms are part of what they are. The
+         * arm is hidden client-side from the synced health, and the server plays the pop
+         * right before it happens.
+         */
+        boolean dropsArm
 ) {
     public static final int DEFAULT_HEALTH = 200;
 
@@ -50,7 +68,16 @@ public record ZombieDef(
                      Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
                      Optional<Identifier> texture) {
         this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
-                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE);
+                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE, List.of(), true);
+    }
+
+    /** A definition with no equipment and the default arm rule. */
+    public ZombieDef(Identifier id, int health, float moveSpeed, int biteDamage, int biteIntervalTicks,
+                     boolean canSwim, List<TypedCapability<ZombieCapability>> capabilities,
+                     Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
+                     Optional<Identifier> texture, float renderScale) {
+        this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
+                sounds, animations, texture, renderScale, List.of(), true);
     }
     /** Cells per second at the 60tps baseline. */
     public static final float DEFAULT_MOVE_SPEED = 0.47F;
@@ -70,11 +97,27 @@ public record ZombieDef(
             ZombieSounds.CODEC.optionalFieldOf("sounds", ZombieSounds.EMPTY).forGetter(ZombieDef::sounds),
             AnimationBindings.MAP_CODEC.forGetter(ZombieDef::animations),
             Identifier.CODEC.optionalFieldOf("texture").forGetter(ZombieDef::texture),
-            ContentDefs.RENDER_SCALE_CODEC.forGetter(ZombieDef::renderScale)
+            ContentDefs.RENDER_SCALE_CODEC.forGetter(ZombieDef::renderScale),
+            EquipmentDef.CODEC.listOf().optionalFieldOf("equipment", List.of()).forGetter(ZombieDef::equipment),
+            Codec.BOOL.optionalFieldOf("drops_arm", true).forGetter(ZombieDef::dropsArm)
     ).apply(i, ZombieDef::new));
 
     public ZombieDef {
         capabilities = List.copyOf(capabilities);
+        equipment = List.copyOf(equipment);
+    }
+
+    /** The equipment entry driven by this armor piece id, if any. */
+    public java.util.Optional<EquipmentDef> equipmentForPiece(Identifier pieceId) {
+        if (pieceId == null) {
+            return java.util.Optional.empty();
+        }
+        for (EquipmentDef entry : equipment) {
+            if (entry.piece().isPresent() && pieceId.equals(entry.piece().get())) {
+                return java.util.Optional.of(entry);
+            }
+        }
+        return java.util.Optional.empty();
     }
 
     public boolean canSwim() {

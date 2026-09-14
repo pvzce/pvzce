@@ -56,11 +56,22 @@ public abstract class PvzceEntity extends Entity {
     public EntitySpawnS2C spawnPacket() {
         return new EntitySpawnS2C(id(), entityKind(), defId().toString(),
                 team == null ? "" : team.id().toString(),
-                cellX(), cellY(), layer(), health(), animation(), height());
+                cellX(), cellY(), layer(), health(), animation(), height(), armor());
     }
 
     public EntityUpdateS2C updatePacket() {
-        return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height());
+        return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(), armor());
+    }
+
+    /**
+     * Remaining armour, or {@link EntitySpawnS2C#NO_ARMOR} for anything that wears none.
+     *
+     * <p>Only the zombie overrides this. It travels because the client draws a worn cone or
+     * bucket from it and cannot work it out from the body's health - armour absorbs damage
+     * the body never sees.
+     */
+    public int armor() {
+        return EntitySpawnS2C.NO_ARMOR;
     }
 
     /**

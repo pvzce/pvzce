@@ -65,7 +65,11 @@ public final class PvzcePackets {
     // travel as a sun, which the client's board lights read as "light the lawn".
     // 12: entering a level is three packet types (continue / restart / play-with-these-cards)
     // instead of one "enter level" packet with a restart flag the server had to reinterpret.
-    public static final int PROTOCOL_VERSION = 12;
+    // 13: ProfileS2C carries the backpack's card-slot count.
+    // 14: entity updates carry remaining armour (a Conehead's cone has three drawings and
+    // the client picks one), and LevelRewardS2C carries the lawn mowers that survived the
+    // level and what they were worth.
+    public static final int PROTOCOL_VERSION = 14;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

@@ -181,6 +181,11 @@ class Bone:
     visibility: List[bool]
     order: int
     track_names: List[str] = field(default_factory=list)
+    # True for a bone that must never be visible in any clip, whatever the source reanim
+    # says. Used by the all-entity converter's damage-state sprites (a worn cone's other
+    # drawings): they carry their host's full animation so the client can swap one in,
+    # and being hidden everywhere is what keeps every existing clip untouched.
+    hidden: bool = False
 
 
 @dataclass

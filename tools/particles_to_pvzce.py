@@ -35,6 +35,16 @@ and seconds: 60 frames per second, and 80 pixels per lawn cell (the low-resoluti
 lawn art is 800x600 for a 10x6 board), so a 330 px/frame launch speed becomes
 247 cells/s.
 
+**Except for the objects a zombie throws off** (its head, an arm, a cone, a bucket,
+a flag - the emitters the original marks with a ``GroundConstraint``). Those are rigid
+things that fly out, tumble and land, and the per-frame reading turns them into an arm
+that vibrates in place at 50 turns per second and is gone before the eye finds it. They
+are converted in the units the original actually authors them in - pixels per second,
+degrees per second - which is what ``PROP_SPEED_DIVISOR`` and its neighbours undo. The
+rest of the set keeps the per-frame reading on purpose: their launch speeds (2000+ for
+the smoke of an explosion) are meant to be damped away by a ``Friction`` field this
+converter drops, so converting them honestly would launch every cloud off the screen.
+
 Anything the project has no runtime for is deliberately dropped rather than
 approximated into something misleading: emitter volumes (``EmitterRadius``,
 ``EmitterBox*``), spawn scheduling (``SpawnRate``, ``SystemLoops``), collision
@@ -76,6 +86,38 @@ FPS = 60.0
 CELL_PIXELS = 80.0
 # A particle's base footprint in world cells, before its own scale multiplier.
 BASE_SCALE_CELLS = 0.16
+
+# ---- thrown objects ------------------------------------------------------
+# The table at the top of this file reads the original's ``LaunchSpeed`` as pixels per
+# frame, which is what the puffs and splats were converted with. That reading is wrong
+# for the one family the original marks with a ``GroundConstraint`` - the objects a
+# zombie throws off (its head, an arm, a cone, a bucket, a flag). Those are not puffs:
+# they are rigid things that fly out, tumble once and land, and under the per-frame
+# reading they get a speed of 0.04 cells/s and a spin of 50 turns *per second*, i.e. an
+# arm that vibrates in place and is gone before the eye finds it (which is exactly how
+# it looked in game). The original authors those fields in the units the rest of its
+# engine uses - pixels per second, degrees per second - and its ``Acceleration`` field
+# as a per-frame velocity step, which is what these three constants undo:
+#
+#   speed   = LaunchSpeed / CELL_PIXELS              (px/s -> cells/s)
+#   gravity = Acceleration * FPS / CELL_PIXELS       (px per frame, per frame -> cells/s^2)
+#   spin    = ParticleSpinSpeed                      (already degrees per second)
+#
+# A zombie's head comes out at 4.1 cells/s and 12.75 cells/s^2, which arcs it up about
+# two thirds of a cell, brings it down inside a third of a second and leaves it lying
+# there for the rest of its three-second life - the pop the original draws.
+#
+# Emitters with a ``Friction`` field deliberately keep the old reading: their launch
+# speed (2000+ for the smoke of an explosion) is meant to be damped away almost
+# immediately, and this converter drops friction, so converting those speeds honestly
+# would launch every cloud off the screen.
+PROP_SPEED_DIVISOR = CELL_PIXELS
+PROP_GRAVITY_FACTOR = FPS / CELL_PIXELS
+# The one thrown prop the original does not constrain to the ground: the newspaper is
+# torn out of a zombie's hands and flutters off instead of landing. Listed by definition
+# name because the structure cannot say it - everything else without a GroundConstraint
+# is debris, a trail or a damped puff.
+PROP_DEFINITIONS_WITHOUT_GROUND = ("zombie_newspaper",)
 
 # Which group a definition belongs in, by name pattern. Order matters: the first
 # match wins, so the more specific patterns come first.
@@ -364,9 +406,15 @@ class Emitter:
         motion: Dict[str, object] = {}
 
         # --- motion -------------------------------------------------------
+        # An object the emitter throws onto the lawn, as opposed to a puff of smoke: it
+        # is the family whose units the per-frame reading gets wrong in a way the player
+        # can see. See PROP_SPEED_DIVISOR.
+        thrown = (self.field_y("GroundConstraint") is not None
+                  or self.name in PROP_DEFINITIONS_WITHOUT_GROUND)
         speed = first_number(self.text("LaunchSpeed"), 0.0)
         if speed > 0:
-            motion["speed"] = number_out(speed / FPS / CELL_PIXELS)
+            speed_divisor = PROP_SPEED_DIVISOR if thrown else FPS * CELL_PIXELS
+            motion["speed"] = number_out(speed / speed_divisor)
         angle = range_of(self.text("LaunchAngle"))
         if angle is not None:
             motion["angle"] = round((angle[0] + angle[1]) / 2.0, 2)
@@ -375,12 +423,20 @@ class Emitter:
                 motion["angle_spread"] = round(spread, 2)
         acceleration_y = self.field_y("Acceleration")
         if acceleration_y:
-            motion["gravity"] = number_out(-first_number(acceleration_y, 0.0) / FPS / FPS / CELL_PIXELS)
+            # The original's Y acceleration is positive downwards (screen coordinates) and
+            # so is the project's `gravity` field, so the sign carries over untouched. It
+            # used to be negated here, which made gravity push particles *up*: un noticeable
+            # while the converted values were around 1e-5, and the reason a thrown cone
+            # sailed over the lawn instead of landing on it once they were not.
+            gravity = first_number(acceleration_y, 0.0)
+            motion["gravity"] = number_out(
+                gravity * PROP_GRAVITY_FACTOR if thrown
+                else gravity / FPS / FPS / CELL_PIXELS)
         if self.field_y("GroundConstraint") is not None:
             motion["bounce"] = True
         spin = range_of(self.text("ParticleSpinSpeed"))
         if spin is not None and (abs(spin[0]) > 0.01 or abs(spin[1]) > 0.01):
-            look["spin"] = round((spin[0] + spin[1]) / 2.0 * FPS, 2)
+            look["spin"] = round((spin[0] + spin[1]) / 2.0 * (1.0 if thrown else FPS), 2)
         if (self.text("RandomLaunchSpin") or "0").strip() not in ("", "0"):
             look["random_spin"] = True
 

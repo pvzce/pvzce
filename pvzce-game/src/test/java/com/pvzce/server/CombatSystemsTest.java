@@ -132,8 +132,8 @@ class CombatSystemsTest {
         ZombieEntity b = spawn(level, bridge, "basic_zombie", 3.5F, 1);
         ZombieEntity c = spawn(level, bridge, "basic_zombie", 4.5F, 1);
         tick(level, bridge, 90);
-        assertTrue(a.isRemoved() && b.isRemoved() && c.isRemoved(),
-                "cherry bomb 3x3 area should kill all; removed=" + a.isRemoved() + "," + b.isRemoved() + "," + c.isRemoved()
+        assertTrue(a.isDying() && b.isDying() && c.isDying(),
+                "cherry bomb 3x3 area should kill all; dying=" + a.isDying() + "," + b.isDying() + "," + c.isDying()
                         + " plantAlive=" + level.entities().stream().anyMatch(e -> e.entityKind().equals("plant") && !e.isRemoved())
                         + " state=" + level.gameState());
     }
@@ -262,7 +262,10 @@ class CombatSystemsTest {
         ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 2.5F, 0);
         tick(level, bridge, 1);
         assertTrue(mine.isRemoved(), "armed potato mine should detonate");
-        assertTrue(zombie.isRemoved(), "potato mine should kill the zombie in its cell");
+        // `isDying` rather than `isRemoved`: a dead zombie stays in the world for its
+        // death animation (see ZombieEntity.CORPSE_TICKS), so "is it gone" is no longer
+        // the same question as "is it dead".
+        assertTrue(zombie.isDying(), "potato mine should kill the zombie in its cell");
     }
 
     @Test

@@ -20,5 +20,6 @@
     "death": "pvzce:sfx/zombie/gargantudeath"
   },
   "animation_dir": "zombie/giant",
-  "texture": "pvzce:textures/entities/zombie/giant/gargantuar"
+  "texture": "pvzce:textures/entities/zombie/giant/gargantuar",
+  "drops_arm": false
 }

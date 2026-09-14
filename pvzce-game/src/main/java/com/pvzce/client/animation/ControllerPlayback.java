@@ -64,9 +64,15 @@ public final class ControllerPlayback extends AnimationPlayback {
         float scaleX = Math.max(0.0001F, xScale);
         Map<String, BonePose> poses = blendedPose(manager.now());
         Map<String, Affine2> world = worldTransforms(poses);
+        // A per-entity art override can hide bones and choose between a family's drawings
+        // (a Conehead's three cones, a zombie whose arm was shot off). Null for everything
+        // that has no such state, which is every entity but a few zombies - then the clip's
+        // own visibility is the answer, exactly as before.
+        BoneArt art = manager.activeBoneArt();
+        java.util.Set<String> visibleBones = art == null ? null : art.visibleBones(model, poses);
         for (ControllerModel.Bone bone : model.renderOrder()) {
             BonePose pose = poses.getOrDefault(bone.name(), bone.restPose());
-            if (!pose.visible()) {
+            if (visibleBones == null ? !pose.visible() : !visibleBones.contains(bone.name())) {
                 continue;
             }
             Affine2 transform = world.getOrDefault(bone.name(), Affine2.IDENTITY);

@@ -35,6 +35,23 @@ public final class EntityArt {
     public static final String RESOURCE_PREFIX = "textures/resource/";
 
     /**
+     * The one texture drawn when a texture reference cannot be resolved.
+     *
+     * <p>A 2x2 magenta/black checkerboard (uploaded with nearest-neighbour filtering so the
+     * squares survive magnification), the same idea as Minecraft's missing-texture tile. It
+     * replaced a white quad: several shipped ids pointed at art that was never generated
+     * ({@code textures/resource/generic}, {@code textures/resource/coin}, the per-entity
+     * fallbacks), and a white rectangle is indistinguishable from a deliberately blank
+     * sprite - the checkerboard is not.
+     *
+     * <p>Declared here rather than at the draw site because three layers need the same
+     * answer: the renderer that falls back, {@link #sprite} when a definition names no art,
+     * and the texture manager that decides how to filter it.
+     */
+    public static final Identifier MISSING_TEXTURE =
+            Identifier.withDefaultNamespace("textures/mission");
+
+    /**
      * The animation file id for a definition id.
      *
      * <p>Returns {@code defId} itself when the definition is unknown or declares no
@@ -58,14 +75,15 @@ public final class EntityArt {
     /**
      * The sprite to draw when this content has no animation resource.
      *
-     * <p>Never returns {@code null} for a non-null id: the last resort is the
-     * {@code unknown} texture, which the renderer already falls back to a solid
-     * rectangle for. The caller must not have to invent a path of its own - that is
-     * exactly how the board and the seed chooser drifted apart before.
+     * <p>Never returns {@code null}: a null id is {@link #MISSING_TEXTURE} outright, and an
+     * id whose derived path also turns out to be absent ends there too, because the
+     * renderer draws {@link #MISSING_TEXTURE} for any texture it cannot resolve. The caller
+     * must not have to invent a path of its own - that is exactly how the board and the
+     * seed chooser drifted apart before.
      */
     public static Identifier sprite(Identifier defId) {
         if (defId == null) {
-            return Identifier.withDefaultNamespace(ENTITY_PREFIX + "unknown");
+            return MISSING_TEXTURE;
         }
         Identifier declared = declaredTexture(defId);
         if (declared != null) {

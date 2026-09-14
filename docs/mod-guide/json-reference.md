@@ -62,8 +62,35 @@
 | behavior | Identifier? | 无 | 可选预设 |
 | sounds | ZombieSounds? | 无 | `{spawn, hit, armor_hit, bite, death, special}` |
 | animation / animations | 同上 | 无 | |
+| equipment | Equipment[]? | `[]` | 会磨损的装备（路障/铁桶/旗帜…），见下 |
+| drops_arm | bool | true | 半血是否掉外侧手臂；巨人/小鬼/Boss 与手臂骨骼命名不同的僵尸设 false |
 
 > 行走与啃咬是所有僵尸共享的基础循环，写在 `ZombieEntity` 里；能力只覆盖"不同的部分"。
+
+### 僵尸装备（`equipment`）
+
+一件**会磨损的装备**。外观由动画模型里的**骨骼族**决定：`art: "cone"` 指 `cone_1`（完好）、
+`cone_2`、`cone_3`（越破越靠后）。模型里每个档位是一根骨骼，由
+`tools/reanim_to_pvzce_all.py` 的 `damage_states` 按宿主骨骼的动画键复制出来并设为不可见；
+**没有这些骨骼的内容不会报错**，只是没有破损外观。
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| art | string | 必填 | 骨骼族前缀（模型里的 `<art>_1`、`<art>_2`…） |
+| piece | Identifier? | 无 | 由**这件护甲**的剩余耐久驱动；省略则由**本体血量**驱动 |
+| health_below | float | 0.5 | 只有血量驱动时用：血量比例低于它换成最破的那张 |
+| drop_particle | Identifier? | 无 | 打碎（或死时还戴着）时飞出去的粒子 |
+
+```jsonc
+"equipment": [
+  { "art": "cone", "piece": "pvzce:cone", "drop_particle": "pvzce:zombie_traffic_cone" },
+  { "art": "zombie_flag", "health_below": 0.5, "drop_particle": "pvzce:zombie_flag" }
+]
+```
+
+护甲驱动的三档按剩余/耐久取：> 2/3 完好、> 1/3 第二张、其余第三张、0 = 消失；
+族的图比档位少时（旗帜只有 `_1` 和 `_3`）退回最接近的那一张。装备只在**当前这一帧本来就画这个族**
+时替换，所以死亡、喘气之类故意不画装备的 clip 不受影响。
 
 ### 僵尸能力
 
@@ -140,7 +167,8 @@
 | waves | WaveDef[] | 见下方波次说明 |
 | wave_interval_end_multiplier | float | 可选，默认 1.0；线性递减波次间隔 |
 | slots | Identifier[] | **本关固定卡**（引用 slots 注册表）：进入关卡必定带上，且**无视背包**（关卡可以借卡给玩家）。留空即"不钉任何卡" |
-| max_seed_slots | int | 可选，默认 6；本关最多能带入关卡多少张卡。会自动抬到不小于 `slots.size()` |
+| max_seed_slots | int | 可选；**不写 = 跟随玩家背包**（新世界默认 8，见下），写了就是本关的总卡槽数。两种情况都会自动抬到不小于 `slots.size()` |
+| mechanics | TypedMechanic[] | 可选；关卡机制，见「关卡机制（mechanics）」 |
 | unlock_resources | map<Identifier, bool> | 资源收集门槛；仍需卡槽中有对应资源卡才能收集 |
 | initial_sun | int | 初始阳光 |
 | rewards | LevelRewards | 可选；首通/重复通关奖励与僵尸掉币（见下） |
@@ -222,12 +250,42 @@
 玩家的**背包**（`saves/<world>/profile.dat`）决定他能自选哪些卡：新世界默认只有豌豆射手 + 铲子，资源卡（阳光）永远可用。于是：
 
 ```
-实际卡组 = 关卡的 slots（固定，无视背包） + 玩家从「背包已解锁卡 − 固定卡」里选，填到 max_seed_slots
+实际卡组 = 关卡的 slots（固定，无视背包） + 玩家从「背包已解锁卡 − 固定卡」里选，填到总卡槽数
+总卡槽数 = 关卡写了 max_seed_slots ? 关卡值 : 背包卡槽数（默认 8，上限 12）
 ```
 
-- 固定卡数 ≥ `max_seed_slots` 时玩家没有可选空间（原版 1-1 就是这样），选卡页放完僵尸预览后会自动开始。
-- 想让玩家有选择空间：`max_seed_slots` 大于 `slots.size()` 即可；留空 `slots` 则完全由背包决定。
+- 固定卡数 ≥ 总卡槽数时玩家没有可选空间（原版 1-1 就是这样），选卡页放完僵尸预览后会自动开始。
+- 想让玩家有选择空间：让总卡槽数大于 `slots.size()` 即可；留空 `slots` 则完全由背包决定。
+- **`max_seed_slots` 写与不写是两种意思**：写下的数字是"这一关就是这么多格"（1-1 的 2、1-4 的 8 都是关卡设计），不写是"按玩家的背包来"。所以关卡可以放心省略它，扩容过的背包不会被某个默认值压回去。
+- 背包的卡槽数只有服务端改得了：`/profile slots <n>`（1~12）。商店以后走同一个入口（`PlayerProfile.addSeedSlots`），界面上的数字来自 `ProfileS2C`。
 - 解锁卡走 `rewards.first_clear`；创造沙盒世界可用「创建世界」对话框的**全解锁**开关。
+
+### 关卡机制（mechanics）
+
+关卡可以声明若干**机制**（`mechanics` 数组，`{"type": "...", ...}`）。内置三个，都是可选的：
+
+```jsonc
+"mechanics": [
+  // 传送带：卡组由关卡自己发，没有选卡界面、没有价格（1-5 坚果保龄球）
+  { "type": "pvzce:conveyor", "interval_ticks": 150, "capacity": 6, "initial_cards": 2,
+    "cards": [ { "id": "pvzce:bowling_nut", "weight": 1 } ] },
+  // 可种植区：只有这块草坪能种（红线画在它的边缘）
+  { "type": "pvzce:placement_zone", "min_x": 0, "max_x": 3 },
+  // 小推车：这一关哪些行有（见下）
+  { "type": "pvzce:mower", "rows": [] }
+]
+```
+
+**小推车（`pvzce:mower`）——不写就是每行一辆。** 普通关卡的 JSON 里**不需要**任何声明：草坪本来就是每行一辆推车，僵尸走到房子前会触发它，它向右开过去碾掉该行地面上的僵尸，然后消失；那一行之后就是敞开的。想改的关卡才声明：
+
+| 写法 | 含义 |
+|---|---|
+| 不写 `mechanics` 里的 mower | 每行一辆（默认） |
+| `{ "type": "pvzce:mower" }` | 同上，显式写出来（编辑器/文档用） |
+| `{ "type": "pvzce:mower", "rows": [0, 4] }` | 只有第 0 行和第 4 行有 |
+| `{ "type": "pvzce:mower", "rows": [] }` | 一辆都没有（原版坚果保龄球就是这样） |
+
+细节：只有**地面层**的僵尸会触发与被他碾（气球僵尸飞过、矿工在地下时都不受影响，但它们走到房子里照样算输）；碾压**无视护甲**（铁桶也是碾一下就死）；每行的车用掉就不再回来，并且会随关卡存档一起保存。
 
 ### 冒险模式前三关（内置示例）
 
@@ -380,7 +438,8 @@
 
   - `content` 指向真正的植物/工具/资源 id。**关卡卡池引用的是 slot id**；若没有对应的 `slots/*.json`，也可以直接写植物 id（兼容路径）。
 - `tools`：`id` / `use_cost` / `cooldown` / `targets`(`cell`|`plant`|`zombie`) / `effect` / `uses`（`-1` 为无限次）
-- **`levels` 的卡池字段**：`slots` 是**关卡自己的卡** —— 进入关卡必定发放，玩家不能取消。`max_seed_slots` 是**总卡槽数**；它减去 `slots` 的数量就是玩家能自选的格数（`max_seed_slots` 小于 `slots` 数量时会自动抬到 `slots` 的长度）。想让玩家有得选，就让 `slots` 比 `max_seed_slots` 短。
+- **`levels` 的卡池字段**：`slots` 是**关卡自己的卡** —— 进入关卡必定发放，玩家不能取消。`max_seed_slots` 是**总卡槽数**；它减去 `slots` 的数量就是玩家能自选的格数（写得比 `slots` 少时会自动抬到 `slots` 的长度）。**不写 `max_seed_slots` 就是"跟随玩家背包"**（新世界 8 格），所以关卡既可以钉死自己的格数，也可以把这件事交给玩家的背包。
+- **`levels` 的小推车**：不用写任何东西——每行默认就有一辆。要改成部分行或干脆没有，才在 `mechanics` 里写 `{"type":"pvzce:mower","rows":[...]}`。
 - `scene_elements`：`id` / `surface`(`GRASS`|`GROUND`|`WATER`|`ROOF`|`ROOF_SLOPE`|`GRAVE`|`CRATER`) / `max_height` / `liquid`(可选，指向一个液体 id)。**没有 `accepts` 字段**：一个瓦片能种什么，完全由它在 `scene_element` 注册表里的标签决定（见下节）
 - `liquids`：`id` / `base_texture` / `shallow_color` / `deep_color` / `opacity` / `depth_scale` / `foam{color,width}` / `wave{speed,amplitude,density}` / `caustics` / `reflect_color` / `fresnel` / `specular` / `specular_power` / `static_frames`（全部可选，颜色用 `#RGB`|`#RRGGBB`|`#RRGGBBAA`）。详见 [rendering.md](rendering.md#水面液体)
 

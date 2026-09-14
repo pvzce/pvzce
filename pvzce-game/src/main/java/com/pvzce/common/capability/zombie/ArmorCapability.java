@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.ArmorDef;
+import com.pvzce.api.content.EquipmentDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.capability.ZombieCapability;
 import com.pvzce.api.entity.EntityAnimations;
@@ -63,6 +64,21 @@ public final class ArmorCapability implements ZombieCapability {
         return total;
     }
 
+    /** Remaining HP of one piece by its definition id, or 0 when it is gone. */
+    public int healthOf(Identifier pieceId) {
+        for (Piece piece : pieces) {
+            if (piece.def.id().equals(pieceId)) {
+                return Math.max(0, piece.hp);
+            }
+        }
+        return 0;
+    }
+
+    /** True while the named piece is still on the zombie. */
+    public boolean wearing(Identifier pieceId) {
+        return healthOf(pieceId) > 0;
+    }
+
     public boolean hasArmor() {
         return pieces.stream().anyMatch(piece -> piece.hp > 0);
     }
@@ -79,12 +95,29 @@ public final class ArmorCapability implements ZombieCapability {
                 : 1F;
     }
 
+    /**
+     * A shot hits the piece that is in its way.
+     *
+     * <p>A lobbed shot comes down on the head, so it meets whatever is worn up there
+     * ({@code top}) and arcs over a shield held in front - which is the whole reason the
+     * two positions exist, and why a buttered cabbage bypasses a screen door.
+     *
+     * <p>A flat shot meets the shield first, and <b>if there is no shield, the hat</b>: a
+     * cone or a bucket sits on the head and stops a pea exactly as it stops a lob. Only
+     * routing flat shots to {@code front} meant a Conehead's armour was never touched by
+     * the peas that killed it - the cone stayed pristine until the zombie died and then
+     * vanished with it, instead of wearing through its two damaged drawings first.
+     */
     @Override
     public boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage, LevelAccess level) {
-        String wanted = "air".equals(projectile.layer()) ? ArmorDef.TOP : ArmorDef.FRONT;
+        boolean lobbed = "air".equals(projectile.layer());
+        String wanted = lobbed ? ArmorDef.TOP : ArmorDef.FRONT;
         Identifier armorSound = projectile.sounds().impact()
                 .orElse(zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
-        return absorb(zombie, wanted, damage, level, armorSound);
+        if (absorb(zombie, wanted, damage, level, armorSound)) {
+            return true;
+        }
+        return !lobbed && absorb(zombie, ArmorDef.TOP, damage, level, armorSound);
     }
 
     /**
@@ -121,7 +154,22 @@ public final class ArmorCapability implements ZombieCapability {
             broke = true;
             zombie.setAnimation(EntityAnimations.ANGRY);
         }
-        level.emitEffect(PvzceParticles.ZOMBIE_HELMET.toString(), zombie.cellX(), zombie.cellY(), sound);
+        // What the hit throws off depends on whether it took the armour with it: a piece
+        // that is still on the zombie gives a spark, the piece that just shattered is
+        // *itself* the debris. This used to be one particle for every armour hit - the
+        // football helmet - so a Conehead showered helmets with each pea and its own cone
+        // never came off. The equipment entry names the sprite, because the piece id
+        // ("cone") and the art ("traffic_cone") are not the same word.
+        String particle = "";
+        if (broke) {
+            particle = zombie.def().equipmentForPiece(piece.def.id())
+                    .flatMap(EquipmentDef::dropParticle)
+                    .map(Identifier::toString)
+                    .orElse("");
+        } else {
+            particle = PvzceParticles.HIT_SPARK.toString();
+        }
+        level.emitEffect(particle, zombie.cellX(), zombie.cellY(), sound);
         if (broke && zombie.def().sounds().special().isPresent()) {
             level.emitEffect("", zombie.cellX(), zombie.cellY(), zombie.def().sounds().special().get());
         }

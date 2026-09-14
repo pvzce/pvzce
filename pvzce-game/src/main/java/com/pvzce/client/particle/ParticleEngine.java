@@ -34,7 +34,16 @@ public final class ParticleEngine {
     public static final float MAX_STEP_SECONDS = 0.1F;
     /** Hard cap on live particles; the oldest are dropped first. */
     public static final int MAX_PARTICLES = 1024;
-    /** Where the ground line sits for {@code bounce} definitions, in cells below the anchor. */
+    /**
+     * Where the ground line sits for {@code bounce} definitions, in cells below the point
+     * the particle was spawned at.
+     *
+     * <p>Relative, not absolute: a thrown cone or a zombie's arm is spawned at the centre
+     * of its own cell and has to land on the lawn <em>under that cell</em>. The check used
+     * to compare against the world coordinate {@code -GROUND_OFFSET}, which is the ground
+     * only for a particle spawned in row 0 - anything thrown in row 1 or above fell past
+     * the bottom edge of the lawn instead of landing on it.
+     */
     private static final float GROUND_OFFSET = 0.42F;
     /** Particles draw above entities but below GUI text. */
     private static final float PARTICLE_Z = 0.5F;
@@ -47,6 +56,8 @@ public final class ParticleEngine {
         float y;
         float vx;
         float vy;
+        /** World y of the ground line this particle stops at, or NaN when it ignores it. */
+        float groundY;
         /** Elapsed lifetime in seconds. */
         float age;
         float lifetime;
@@ -108,6 +119,9 @@ public final class ParticleEngine {
         float angle = (float) Math.toRadians(motion.angle() + spread(motion.angleSpread()));
         particle.vx = (float) Math.cos(angle) * speed;
         particle.vy = (float) Math.sin(angle) * speed;
+        // Fixed at birth: the ground belongs to where the particle came from, not to
+        // where it has drifted to.
+        particle.groundY = motion.bounce() ? y - GROUND_OFFSET : Float.NaN;
         particle.scale = Math.max(0.01F, look.scale() + spread(look.scaleSpread()));
         particle.angle = look.randomSpin() ? random.nextFloat() * 360F : 0F;
         particle.spin = look.spin();
@@ -179,8 +193,8 @@ public final class ParticleEngine {
                 particle.vy *= damping;
             }
             particle.angle += particle.spin * dt;
-            if (motion.bounce() && particle.y < -GROUND_OFFSET && particle.vy < 0F) {
-                particle.y = -GROUND_OFFSET;
+            if (motion.bounce() && particle.y < particle.groundY && particle.vy < 0F) {
+                particle.y = particle.groundY;
                 particle.vy = 0F;
             }
         }

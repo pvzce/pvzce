@@ -121,8 +121,8 @@ class PacketProtocolTest {
                 new OpenEditorS2C("pvzce:demo_level"),
                 new SceneSyncS2C(List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass"))),
                 new EntitySpawnS2C(9, "zombie", "pvzce:basic_zombie", "pvzce:zombie_team",
-                        4.5F, 2.5F, 0, 200, "walk", 0.0F),
-                new EntityUpdateS2C(9, 4.25F, 2.5F, 180, "eat", 0.1F),
+                        4.5F, 2.5F, 0, 200, "walk", 0.0F, 370),
+                new EntityUpdateS2C(9, 4.25F, 2.5F, 180, "eat", 0.1F, 190),
                 new EntityDespawnS2C(9),
                 // The ripple fields are set (not left at their defaults) so the two
                 // added columns are actually round-tripped. The class has exactly one

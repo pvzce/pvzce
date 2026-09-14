@@ -1,7 +1,7 @@
 {
   "id": "pvzce:zombie_head_light",
   "look": {
-    "spin": 18000.0,
+    "spin": 300.0,
     "alpha_curve": [
       [
         0.0,
@@ -27,10 +27,10 @@
     "texture": "pvzce:textures/particles/zombie/reanim/zombie_digger_hardhat_3"
   },
   "motion": {
-    "speed": 0.0416667,
+    "speed": 2.5,
     "angle": 210.0,
     "angle_spread": 60.0,
-    "gravity": -5.90278e-05,
+    "gravity": 12.75,
     "bounce": true
   },
   "count": 1

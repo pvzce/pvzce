@@ -30,7 +30,7 @@
     "speed": 0.104167,
     "angle": 165.0,
     "angle_spread": 70.0,
-    "gravity": -3.81944e-05
+    "gravity": 3.81944e-05
   },
   "count": 15,
   "count_spread": 15

@@ -43,18 +43,38 @@ public final class SeedCardRenderer {
      * @param ready         false draws the "cannot use yet" wash
      * @param cooldownRatio 0..1 of the card still on cooldown, or 0 for none
      * @param highlighted   true draws the selection flash
+     * @param background    the card's chrome, or {@code null} for the seed packet
+     * @param fitBackground true to draw that chrome at its own aspect ratio, centred, rather
+     *                      than stretched to the card - the shovel's slot is nearly square
+     *                      and squashing it into a packet-shaped rectangle is visible
      */
     public record CardModel(Identifier icon, CardKind kind, int costSun, float brightness, float alpha,
-                            boolean ready, float cooldownRatio, boolean highlighted) {
+                            boolean ready, float cooldownRatio, boolean highlighted,
+                            Identifier background, boolean fitBackground) {
         public static CardModel of(Identifier icon, CardKind kind, int costSun) {
-            return new CardModel(icon, kind, costSun, 1F, 1F, true, 0F, false);
+            return new CardModel(icon, kind, costSun, 1F, 1F, true, 0F, false, null, false);
+        }
+
+        /** The same card drawn on different chrome; the icon and the numbers are kept. */
+        public CardModel chrome(Identifier chromeBackground, boolean fit) {
+            return new CardModel(icon, kind, costSun, brightness, alpha, ready, cooldownRatio,
+                    highlighted, chromeBackground, fit);
         }
     }
 
     public static final Identifier CARD_BACKGROUND =
             Identifier.withDefaultNamespace("textures/gui/hud/seed_packet");
+    /** The original's shovel slot, the chrome of the shovel card. */
+    public static final Identifier SHOVEL_SLOT_BACKGROUND =
+            Identifier.withDefaultNamespace("textures/gui/hud/shovel_bank");
+    /**
+     * What a card with no art of its own shows.
+     *
+     * <p>The shared missing-texture tile, not a private path: a card whose icon does not
+     * resolve has to look like every other unresolved reference.
+     */
     private static final Identifier FALLBACK_ICON =
-            Identifier.withDefaultNamespace("textures/resource/generic");
+            com.pvzce.common.core.EntityArt.MISSING_TEXTURE;
 
     /** The footer verb shown instead of a price for a resource card. */
     public static final String COLLECT_LABEL = "收集";
@@ -62,14 +82,29 @@ public final class SeedCardRenderer {
     public static void draw(PvzceClient client, CardModel model, float x, float y, float width, float height) {
         float brightness = model.brightness();
         float alpha = model.alpha();
-        client.drawTexture(CARD_BACKGROUND, x, y, width, height, 0.2F,
+        Identifier background = model.background() == null ? CARD_BACKGROUND : model.background();
+        // Where the chrome ended up. For a seed packet it is the whole card; for art that
+        // has to keep its proportions it is a smaller, centred rectangle, and the icon
+        // follows the chrome rather than the card.
+        float chromeX = x;
+        float chromeY = y;
+        float chromeW = width;
+        float chromeH = height;
+        if (model.fitBackground()) {
+            float[] fitted = fit(client, background, width, height);
+            chromeW = fitted[0];
+            chromeH = fitted[1];
+            chromeX = x + (width - chromeW) / 2F;
+            chromeY = y + (height - chromeH) / 2F;
+        }
+        client.drawTexture(background, chromeX, chromeY, chromeW, chromeH, 0.2F,
                 brightness, brightness, brightness, alpha);
 
         Identifier icon = model.icon() == null ? FALLBACK_ICON : model.icon();
         // The icon window is a fixed fraction of the packet, and the sprite is fitted
         // to it preserving aspect ratio.
-        float iconArea = height * ICON_AREA_FRACTION;
-        float iconBoxWidth = width * ICON_BOX_WIDTH_FRACTION;
+        float iconArea = chromeH * ICON_AREA_FRACTION;
+        float iconBoxWidth = chromeW * ICON_BOX_WIDTH_FRACTION;
         float iconBoxHeight = iconArea * ICON_BOX_HEIGHT_FRACTION;
         float iconWidth = iconBoxWidth;
         float iconHeight = iconBoxHeight;
@@ -82,10 +117,15 @@ public final class SeedCardRenderer {
                 iconHeight = iconBoxWidth / Math.max(0.01F, aspect);
             }
         } catch (RuntimeException ignored) {
-            // drawTexture falls back to a solid quad and reports the miss.
+            // drawTexture falls back to the missing-texture tile and reports the miss.
         }
-        client.drawTexture(icon, x + (width - iconWidth) / 2F,
-                y + height * ICON_AREA_BOTTOM + (iconArea - iconHeight) / 2F,
+        float iconCentreY = model.fitBackground()
+                // Chrome with no price bar has no room reserved at the bottom, so the icon
+                // is centred in it: the shovel's slot is a square window, not a packet.
+                ? chromeY + (chromeH - iconHeight) / 2F
+                : chromeY + chromeH * ICON_AREA_BOTTOM + (iconArea - iconHeight) / 2F;
+        client.drawTexture(icon, chromeX + (chromeW - iconWidth) / 2F,
+                iconCentreY,
                 iconWidth, iconHeight, 0.3F, brightness, brightness, brightness, alpha);
 
         // A conveyor card is handed to the player rather than bought, so it prints no
@@ -122,6 +162,26 @@ public final class SeedCardRenderer {
     private static final float ICON_AREA_BOTTOM = 0.22F;
     /** Baseline of the footer text, measured from the bottom of the card. */
     private static final float LABEL_BOTTOM = 0.04F;
+
+    /**
+     * The largest rectangle of {@code id}'s aspect ratio that fits in {@code width x height}.
+     *
+     * <p>An unresolvable texture is treated as square: the missing-texture tile is, and a
+     * card that cannot measure its own art should still be laid out around something.
+     */
+    private static float[] fit(PvzceClient client, Identifier id, float width, float height) {
+        float aspect = 1F;
+        try {
+            var texture = client.textures().getOrLoad(id);
+            aspect = texture.width() / (float) Math.max(1, texture.height());
+        } catch (RuntimeException ignored) {
+            // Falls through to the square assumption; the draw reports the miss.
+        }
+        if (width / height > aspect) {
+            return new float[]{height * aspect, height};
+        }
+        return new float[]{width, width / Math.max(0.01F, aspect)};
+    }
 
     private SeedCardRenderer() {
     }

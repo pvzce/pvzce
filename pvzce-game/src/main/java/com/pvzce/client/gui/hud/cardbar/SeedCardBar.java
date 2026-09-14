@@ -91,6 +91,9 @@ public final class SeedCardBar implements CardBar {
                 if (x + cardWidth < viewportX || x > viewportX + viewportWidth) {
                     continue;
                 }
+                // A card that was just refused wobbles on the spot; everything else is
+                // drawn exactly where the hit test below expects it.
+                x += host.cardShake(slot.index());
                 CardPainter.draw(client, slot, x, viewportY, cardWidth, cardHeight, 1F,
                         host.selectedCardIndex() == slot.index());
             }

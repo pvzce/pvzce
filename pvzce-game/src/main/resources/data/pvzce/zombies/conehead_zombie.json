@@ -23,5 +23,12 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/armored",
-  "texture": "pvzce:textures/entities/zombie/armored/conehead_zombie"
+  "texture": "pvzce:textures/entities/zombie/armored/conehead_zombie",
+  "equipment": [
+    {
+      "art": "cone",
+      "piece": "pvzce:cone",
+      "drop_particle": "pvzce:zombie_traffic_cone"
+    }
+  ]
 }

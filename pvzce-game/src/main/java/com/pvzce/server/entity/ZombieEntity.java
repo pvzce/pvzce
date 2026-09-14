@@ -13,6 +13,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
+import com.pvzce.common.capability.zombie.ArmorCapability;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
@@ -33,12 +34,26 @@ import java.util.List;
  * zombies (position, health, bite cooldown, speed boost, statuses) remains.
  */
 public class ZombieEntity extends PvzceEntity {
+    /**
+     * How long a dead zombie's body stays on the lawn, in ticks (6s at 60tps).
+     *
+     * <p>Long enough for the longest death clip to play out and for the body to lie there
+     * for a moment afterwards: the clips are 3.25s for an ordinary zombie and 4.9s for a
+     * gargantuar, and both end holding the fallen pose. It used to be removed on the tick
+     * it died, so the death animation never played at all - the client was told to despawn
+     * the entity in the same update that would have started the clip, and a zombie that was
+     * shot simply vanished.
+     */
+    public static final int CORPSE_TICKS = 360;
+
     private final ZombieDef def;
     private final List<Instance> capabilities = new ArrayList<>();
     private final List<StatusInstance> statuses = new ArrayList<>();
     private int biteCooldown;
     private int leftCountdown;
     private int speedBoostTicks;
+    /** Ticks left of this zombie's own death animation; 0 while it is alive. */
+    private int corpseTicks;
     /** Balloon zombies fly until something pops the balloon. */
     private boolean grounded = true;
 
@@ -53,6 +68,22 @@ public class ZombieEntity extends PvzceEntity {
 
     public ZombieDef def() {
         return def;
+    }
+
+    /**
+     * True while this zombie is still a zombie: it walks, bites, is aimed at and counted.
+     *
+     * <p>A body playing its death animation is none of those things, but it is still in the
+     * world and still drawn. Every scan that asks "which zombies are here" wants this rather
+     * than {@link #isRemoved()}, which is only ever true once the body is gone.
+     */
+    public boolean isAlive() {
+        return !removed && corpseTicks <= 0;
+    }
+
+    /** True for a body that has died and is playing out its death animation. */
+    public boolean isDying() {
+        return !removed && corpseTicks > 0;
     }
 
     /** True while a flier is still airborne (its balloon has not been popped). */
@@ -106,6 +137,15 @@ public class ZombieEntity extends PvzceEntity {
     @Override
     public void tick(LevelServer level) {
         if (removed) {
+            return;
+        }
+        if (corpseTicks > 0) {
+            // A dead body only ages. It does not walk, bite, drown, or run its
+            // capabilities: `damage*` refuses it and every scan that looks for zombies
+            // asks `isAlive()`, so nothing in the world can interact with it.
+            if (--corpseTicks <= 0) {
+                remove();
+            }
             return;
         }
         tickStatuses();
@@ -213,7 +253,7 @@ public class ZombieEntity extends PvzceEntity {
      * flier is grounded, then the body takes the hit.
      */
     public void damage(ProjectileDef projectile, int amount, LevelAccess level) {
-        if (removed) {
+        if (!isAlive()) {
             return;
         }
         int dmg = Math.max(1, Math.round(amount
@@ -246,7 +286,7 @@ public class ZombieEntity extends PvzceEntity {
      * {@link #damageBody}: that path exists for explosions and deliberately ignores armor.
      */
     public void damageImpact(int amount, LevelAccess level) {
-        if (removed) {
+        if (!isAlive()) {
             return;
         }
         int dmg = Math.max(1, Math.round(amount
@@ -261,23 +301,61 @@ public class ZombieEntity extends PvzceEntity {
 
     /** Explosions / area damage bypass armor. */
     public void damageBody(int amount, LevelAccess level) {
-        if (removed) {
+        if (!isAlive()) {
             return;
         }
+        int before = health();
         setHealth(Math.max(0, health() - amount));
         setAnimation(EntityAnimations.HIT);
+        // Half health costs an ordinary zombie its outer arm, as it does in the original -
+        // but only once nothing is left on its head: a Conehead loses the arm at half of
+        // the health it has *under* the cone, and only after the cone is gone. Losing an
+        // arm while still wearing a pristine cone read as the armour being ignored.
+        // The loss is a *transition*, so it is read off the two health values rather than
+        // kept in a flag: a restored save at 40% health is already armless and must not
+        // pop a second arm.
+        if (def.dropsArm() && armorHealth() <= 0
+                && before * 2 > def.health() && health() * 2 <= def.health()) {
+            level.emitEffect(PvzceParticles.ZOMBIE_ARM.toString(), cellX(), cellY(),
+                    def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
+        }
         if (health() <= 0) {
-            remove();
+            // The body stays for the death clip (see CORPSE_TICKS) instead of leaving the
+            // world on this tick: the animation is the only thing that says what just
+            // happened, and a despawn in the same breath never showed any of it.
+            corpseTicks = CORPSE_TICKS;
+            setAnimation(EntityAnimations.DEATH);
             // No detached-head particle: the sprite is a whole head with its own motion,
             // and drawn as one burst per death it read as a second zombie rather than as
             // the first one coming apart. The sound is the death cue.
             level.emitEffect("", cellX(), cellY(),
                     def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
+            dropEquipment(level);
             for (Instance instance : capabilities) {
                 instance.capability.onDeath(this, level);
             }
             // Last, so a capability cannot resurrect a zombie that already paid out.
             level.zombieDied(this);
+        }
+    }
+
+    /**
+     * Throws off whatever the zombie is still carrying when it dies.
+     *
+     * <p>The cone of a Conehead that was shot to pieces earlier is already gone and must
+     * not appear a second time; one that died with its cone on drops it. That distinction
+     * is why the armour-driven entries ask the capability rather than the definition.
+     */
+    private void dropEquipment(LevelAccess level) {
+        ArmorCapability armor = capability(ArmorCapability.class);
+        for (com.pvzce.api.content.EquipmentDef entry : def.equipment()) {
+            if (entry.dropParticle().isEmpty()) {
+                continue;
+            }
+            if (entry.armorDriven() && (armor == null || !armor.wearing(entry.piece().get()))) {
+                continue;
+            }
+            level.emitEffect(entry.dropParticle().get().toString(), cellX(), cellY(), null);
         }
     }
 
@@ -303,6 +381,20 @@ public class ZombieEntity extends PvzceEntity {
         com.pvzce.common.capability.zombie.ArmorCapability armor =
                 capability(com.pvzce.common.capability.zombie.ArmorCapability.class);
         return armor == null ? 0 : armor.totalHealth();
+    }
+
+    /**
+     * The number the client draws worn equipment from: remaining armour, or
+     * {@link com.pvzce.common.network.packet.EntitySpawnS2C#NO_ARMOR} when this zombie
+     * never wore any.
+     */
+    @Override
+    public int armor() {
+        com.pvzce.common.capability.zombie.ArmorCapability armor =
+                capability(com.pvzce.common.capability.zombie.ArmorCapability.class);
+        return armor == null
+                ? com.pvzce.common.network.packet.EntitySpawnS2C.NO_ARMOR
+                : armor.totalHealth();
     }
 
     /** True when the zombie currently carries the given status (tests / HUD). */
@@ -331,6 +423,8 @@ public class ZombieEntity extends PvzceEntity {
         tag.putInt("leftCountdown", leftCountdown);
         tag.putInt("speedBoostTicks", speedBoostTicks);
         tag.putInt("grounded", grounded ? 1 : 0);
+        // A body saved mid-animation comes back as a body, not as a living zombie.
+        tag.putInt("corpseTicks", corpseTicks);
 
         CompoundTag saved = new CompoundTag();
         for (Instance instance : capabilities) {
@@ -359,6 +453,7 @@ public class ZombieEntity extends PvzceEntity {
         leftCountdown = tag.getInt("leftCountdown");
         speedBoostTicks = tag.getInt("speedBoostTicks");
         grounded = !tag.contains("grounded") || tag.getInt("grounded") != 0;
+        corpseTicks = Math.max(0, Math.min(CORPSE_TICKS, tag.getInt("corpseTicks")));
 
         CompoundTag saved = tag.getCompound("capabilities");
         for (Instance instance : capabilities) {

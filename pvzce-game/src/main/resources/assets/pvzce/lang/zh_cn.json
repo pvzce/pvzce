@@ -113,6 +113,7 @@
   "pvzce.inventory.locked": "未解锁",
   "pvzce.inventory.plants": "植物",
   "pvzce.inventory.resources": "资源卡",
+  "pvzce.inventory.slots": "卡槽 {0}",
   "pvzce.inventory.title": "背包",
   "pvzce.inventory.tools": "工具",
   "pvzce.jalapeno": "火爆辣椒",

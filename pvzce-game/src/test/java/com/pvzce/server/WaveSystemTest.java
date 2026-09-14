@@ -159,7 +159,16 @@ class WaveSystemTest {
                 Map.of(),
                 150,
                 LevelDef.LevelMusicDef.DEFAULT,
-                List.of()
+                List.of(),
+                6,
+                com.pvzce.api.content.LevelRewards.NONE,
+                com.pvzce.api.content.LevelUnlock.NONE,
+                // No mowers, so "the level ends" in these tests means what it says: a mower
+                // would eat the zombie that walks in to end it (see MowerTest).
+                List.of(com.pvzce.api.content.mechanic.TypedMechanic.of(
+                        com.pvzce.common.PvzceIds.MECHANIC_MOWER,
+                        new com.pvzce.api.content.MowerData(java.util.Optional.of(List.of())))),
+                com.pvzce.api.content.LevelDialogue.EMPTY
         );
     }
 

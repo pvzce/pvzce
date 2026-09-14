@@ -25,7 +25,8 @@ import com.pvzce.common.network.PvzcePacket;
  * dropping seed packet and a money bag.
  */
 public record LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins, int totalCoins,
-                             String unlockedCard, float dropX, float dropY) implements PvzcePacket {
+                             String unlockedCard, float dropX, float dropY,
+                             int mowers, int mowerCoins) implements PvzcePacket {
     public static final PacketStruct.Codec<LevelRewardS2C> CODEC = PacketStruct.<LevelRewardS2C>builder()
             .field(LevelRewardS2C::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
             .field(LevelRewardS2C::collectedCoins, PacketByteBuf::writeInt, PacketByteBuf::readInt)
@@ -36,9 +37,22 @@ public record LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins,
             // way the original drops it on the spot the fight ended.
             .field(LevelRewardS2C::dropX, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
             .field(LevelRewardS2C::dropY, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+            // Lawn mowers that survived the level, and what they were worth. The count is
+            // sent as well as the coins so the client's "each mower turns into a coin"
+            // gesture shows exactly the number the wallet was paid for, rather than a
+            // second count derived from its own mirror.
+            .field(LevelRewardS2C::mowers, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .field(LevelRewardS2C::mowerCoins, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .build(values -> new LevelRewardS2C((String) values.get(0), (Integer) values.get(1),
                     (Integer) values.get(2), (Integer) values.get(3), (String) values.get(4),
-                    (Float) values.get(5), (Float) values.get(6)));
+                    (Float) values.get(5), (Float) values.get(6), (Integer) values.get(7),
+                    (Integer) values.get(8)));
+
+    /** The same payout landing on an explicit spot, with no mowers left over. */
+    public LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins, int totalCoins,
+                          String unlockedCard, float dropX, float dropY) {
+        this(levelId, collectedCoins, bonusCoins, totalCoins, unlockedCard, dropX, dropY, 0, 0);
+    }
 
     /** The same payout landing on an explicit spot; used by tests and by the smoke keys. */
     public LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins, int totalCoins,

@@ -15,6 +15,8 @@ package com.pvzce.client.renderer;
 public final class PvzceCamera {
     private final int screenWidth;
     private final int screenHeight;
+    private final int columns;
+    private final int rows;
     private final LevelStage.Stage stage;
     private final LevelStage.Board board;
     private final float unitX;
@@ -28,24 +30,63 @@ public final class PvzceCamera {
     private final float worldBottom;
     private final float worldTop;
     private final Matrix4f projection;
+    /**
+     * Extra horizontal look, in world cells, toward the house.
+     *
+     * <p>The camera is otherwise locked: the board always sits in the lawn region of the
+     * backdrop. The end of a level is the one moment the game wants to look at the house
+     * instead - a zombie reaching it eats, and the original turns to show that - so this is
+     * a look-at offset rather than a free camera. Positive values move the view left, which
+     * is also the direction the backdrop slides on screen.
+     */
+    private final float panX;
 
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows) {
+        this(screenWidth, screenHeight, columns, rows, 0F);
+    }
+
+    public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows, float panX) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
+        this.columns = Math.max(1, columns);
+        this.rows = Math.max(1, rows);
         this.stage = LevelStage.cover(screenWidth, screenHeight);
-        this.board = LevelStage.board(screenWidth, screenHeight, Math.max(1, columns), Math.max(1, rows));
+        this.board = LevelStage.board(screenWidth, screenHeight, this.columns, this.rows);
         this.unitX = board.cellWidth();
         this.unitY = board.cellHeight();
         this.viewportX = Math.round(stage.x());
         this.viewportY = Math.round(stage.y());
         this.viewportWidth = Math.max(1, Math.round(stage.width()));
         this.viewportHeight = Math.max(1, Math.round(stage.height()));
+        this.panX = panX;
 
-        this.worldLeft = (viewportX - board.x()) / unitX;
+        this.worldLeft = (viewportX - board.x()) / unitX - panX;
         this.worldRight = worldLeft + viewportWidth / unitX;
         this.worldBottom = (viewportY - board.y()) / unitY;
         this.worldTop = worldBottom + viewportHeight / unitY;
         this.projection = Matrix4f.ortho(worldLeft, worldRight, worldBottom, worldTop, -10F, 10F);
+    }
+
+    /** The same camera looking {@code panX} cells further toward the house. */
+    public PvzceCamera panned(float panX) {
+        return new PvzceCamera(screenWidth, screenHeight, columns, rows, panX);
+    }
+
+    /** How far this camera is looking toward the house, in cells. */
+    public float panX() {
+        return panX;
+    }
+
+    /**
+     * The furthest this camera can look toward the house before the backdrop's own left
+     * edge would come onto the screen.
+     *
+     * <p>There is no art beyond the backdrop's edges, so panning past this shows the clear
+     * colour where the house should be. Anything that pans (the defeat move) asks this
+     * instead of picking a number that happens to look right at one window size.
+     */
+    public float maxPanX() {
+        return Math.max(0F, -stage.x() / unitX);
     }
 
     public Matrix4f projection() {
@@ -110,7 +151,7 @@ public final class PvzceCamera {
 
     /** Screen-space (framebuffer pixels, bottom-left origin) x for a world cell x. */
     public float screenX(float worldX) {
-        return board.x() + worldX * unitX;
+        return board.x() + (worldX + panX) * unitX;
     }
 
     /** Screen-space (framebuffer pixels, bottom-left origin) y for a world cell y. */
@@ -119,7 +160,7 @@ public final class PvzceCamera {
     }
 
     public float worldX(double mouseX, double mouseY) {
-        return (float) ((mouseX - board.x()) / unitX);
+        return (float) ((mouseX - board.x()) / unitX) - panX;
     }
 
     public float worldY(double mouseX, double mouseY) {
@@ -147,7 +188,8 @@ public final class PvzceCamera {
      */
     public boolean inBoard(double mouseX, double mouseY) {
         double flippedY = screenHeight - mouseY;
-        return mouseX >= board.x() && mouseX < board.x() + board.width()
+        float left = board.x() + panX * unitX;
+        return mouseX >= left && mouseX < left + board.width()
                 && flippedY >= board.y() && flippedY < board.y() + board.height();
     }
 

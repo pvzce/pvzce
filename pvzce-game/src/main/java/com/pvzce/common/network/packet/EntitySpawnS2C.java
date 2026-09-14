@@ -17,7 +17,17 @@ import com.pvzce.common.network.PvzcePacket;
  */
 public record EntitySpawnS2C(int entityId, String entityKind, String defId, String teamId,
                              float cellX, float cellY, int layer, int health,
-                             String animation, float height) implements PvzcePacket {
+                             String animation, float height, int armor) implements PvzcePacket {
+    /**
+     * The armour value of an entity that has none.
+     *
+     * <p>{@code 0} means "was wearing armour, and it is gone" - a Conehead whose cone was
+     * shot off - which is not the same thing as a zombie that never had a cone. The client
+     * draws those two differently (see {@code EquipmentArt}), so the wire says which one
+     * it is.
+     */
+    public static final int NO_ARMOR = -1;
+
     public static final PacketStruct.Codec<EntitySpawnS2C> CODEC = PacketStruct.<EntitySpawnS2C>builder()
             .field(EntitySpawnS2C::entityId, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(EntitySpawnS2C::entityKind, PacketByteBuf::writeString, PacketByteBuf::readString)
@@ -29,10 +39,11 @@ public record EntitySpawnS2C(int entityId, String entityKind, String defId, Stri
             .field(EntitySpawnS2C::health, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(EntitySpawnS2C::animation, PacketByteBuf::writeString, PacketByteBuf::readString)
             .field(EntitySpawnS2C::height, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+            .field(EntitySpawnS2C::armor, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .build(values -> new EntitySpawnS2C((Integer) values.get(0), (String) values.get(1),
                     (String) values.get(2), (String) values.get(3), (Float) values.get(4),
                     (Float) values.get(5), (Integer) values.get(6), (Integer) values.get(7),
-                    (String) values.get(8), (Float) values.get(9)));
+                    (String) values.get(8), (Float) values.get(9), (Integer) values.get(10)));
 
     @Override
     public ConnectionDirection direction() {

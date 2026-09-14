@@ -127,6 +127,8 @@ public final class LevelServer implements LevelAccess {
      * built).
      */
     private final List<TypedMechanic> mechanics;
+    /** Per-mechanic run state; see {@link #mechanicState}. */
+    private final Map<Identifier, Object> mechanicState = new HashMap<>();
     private ServerBridge bridge;
 
     private int tickCount;
@@ -152,6 +154,16 @@ public final class LevelServer implements LevelAccess {
     private boolean gameEndPacketSent;
     private boolean waveDirty = true;
     /**
+     * Set when something about an entity changed that the client must hear about now.
+     *
+     * <p>Entity state is streamed every third tick, which is invisible for a walk cycle but
+     * not for a *transition the level may never tick again after*: a zombie that dies on a
+     * non-sync tick is followed by {@code checkEnd} ending the level in the same tick, so
+     * the update carrying its death animation would never be sent and the client would be
+     * left with a live-looking zombie standing on a finished board.
+     */
+    private boolean entitySyncPending;
+    /**
      * Wave indices whose arrival has already been announced.
      *
      * <p>{@code triggerWave} is the only emitter, and it advances the index, so in a clean
@@ -161,6 +173,16 @@ public final class LevelServer implements LevelAccess {
      * "the last wave's sound" could loop, since the sound itself does not.
      */
     private final java.util.Set<Integer> announcedWaves = new java.util.HashSet<>();
+    /**
+     * Wave indices whose <em>warning</em> has already called out.
+     *
+     * <p>The huge-wave sound belongs to the warning, not to the arrival: in the original
+     * Dave's line plays while the red text is fading in, and the two are one beat. The
+     * warning is a window of ticks rather than an event, so the transition into it is what
+     * fires the sound, and this set keeps a restored save - which re-enters the same window
+     * - from calling out twice.
+     */
+    private final java.util.Set<Integer> announcedWarnings = new java.util.HashSet<>();
     /**
      * The plant the glove is holding, or {@code -1}.
      *
@@ -552,7 +574,7 @@ public final class LevelServer implements LevelAccess {
     @Override
     public List<ZombieEntity> zombiesInRow(int row) {
         return entities.stream()
-                .filter(e -> e instanceof ZombieEntity z && !z.isRemoved() && z.gridY() == row)
+                .filter(e -> e instanceof ZombieEntity z && z.isAlive() && z.gridY() == row)
                 .map(e -> (ZombieEntity) e)
                 .toList();
     }
@@ -562,7 +584,7 @@ public final class LevelServer implements LevelAccess {
     }
 
     public long aliveZombieCount() {
-        return entities.stream().filter(e -> e instanceof ZombieEntity z && !z.isRemoved()).count();
+        return entities.stream().filter(e -> e instanceof ZombieEntity z && z.isAlive()).count();
     }
 
     public boolean inBounds(int x, int y) {
@@ -716,7 +738,7 @@ public final class LevelServer implements LevelAccess {
     public void damageArea(float centerX, float centerY, float radius, int damage, Team sourceTeam) {
         float multiplier = rules.getFloat(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER);
         for (PvzceEntity entity : new ArrayList<>(entities)) {
-            if (!(entity instanceof ZombieEntity zombie) || zombie.isRemoved()) {
+            if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                 continue;
             }
             if (Math.abs(zombie.cellX() - centerX) <= radius && Math.abs(zombie.cellY() - centerY) <= radius) {
@@ -783,6 +805,49 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
+    /**
+     * Sends one packet to this level's client, or does nothing outside a tick.
+     *
+     * <p>The door a mechanic needs: its tick hook runs inside {@link #tick}, where the bridge
+     * is set, and it has no other way to reach the client. Anything sent here is dropped
+     * before the first tick rather than queued, which is the same thing {@code emitEffect}
+     * already does.
+     */
+    public void send(PvzcePacket packet) {
+        if (bridge != null) {
+            bridge.send(packet);
+        }
+    }
+
+    /**
+     * A mechanic's own per-level state.
+     *
+     * <p>Registered mechanics are shared registry entries - one instance serves every level -
+     * so a mechanic that keeps a run's state (which mowers are spent, where a belt is up to)
+     * cannot keep it in a field. It asks the level for a slot addressed by its own id
+     * instead, and this class never learns what is in it.
+     *
+     * <p>{@code create} runs at most once per level instance; every later caller gets the
+     * object the first one made.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T mechanicState(Identifier mechanicId, java.util.function.Supplier<T> create) {
+        return (T) mechanicState.computeIfAbsent(mechanicId, id -> create.get());
+    }
+
+    /**
+     * Lawn mowers still parked in their row, which a win pays out as coins.
+     *
+     * <p>Reads the mower mechanic's own rig, so "how many are left" has one answer; a level
+     * with no mowers (Wall-nut Bowling) and a level that never created the rig both report
+     * zero. A rolling mower counts as used: it is on the lawn, not in its row.
+     */
+    public int readyMowerCount() {
+        Object state = mechanicState.get(PvzceIds.MECHANIC_MOWER);
+        return state instanceof com.pvzce.common.level.mechanic.MowerMechanic.Rig rig
+                ? rig.readyCount() : 0;
+    }
+
     // ------------------------------------------------------------------
     // Tick
     // ------------------------------------------------------------------
@@ -800,8 +865,14 @@ public final class LevelServer implements LevelAccess {
      * Both travel into {@code LevelPayload} so the chooser and the in-game bar
      * describe the same deck. The locked ids are the wire spelling, not
      * {@code Identifier}s, because that is the only form they are ever used in.
+     *
+     * <p>{@code maxSeedSlots} is the <em>resolved</em> bar size
+     * ({@link LevelDef#effectiveMaxSeedSlots}): a level that declares its own count keeps
+     * it, a level that declares none borrows the backpack's. Resolved here because this
+     * record is built where the profile is known, and both the packet and the seed plan
+     * read it back from the one place.
      */
-    public record SeedContext(List<SeedOption> pool, List<String> lockedSlotIds) {
+    public record SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots) {
         public SeedContext {
             pool = List.copyOf(pool);
             lockedSlotIds = List.copyOf(lockedSlotIds);
@@ -812,17 +883,20 @@ public final class LevelServer implements LevelAccess {
          *
          * <p>Used by tests, by the plant AI and by any caller that has no profile
          * to filter with, so "no backpack" behaves exactly like it did before the
-         * backpack existed.
+         * backpack existed - with the default backpack's bar size.
          */
         public static SeedContext all(LevelDef def) {
-            return new SeedContext(SeedOptions.forLevel(def), SeedOptions.lockedSlotIds(def));
+            return new SeedContext(SeedOptions.forLevel(def), SeedOptions.lockedSlotIds(def),
+                    def.effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS));
         }
 
         /** The pool a player with this backpack may actually pick from. */
         public static SeedContext forProfile(LevelDef def, com.pvzce.server.PlayerProfile profile) {
             java.util.function.Predicate<Identifier> owns =
                     profile == null ? null : profile::owns;
-            return new SeedContext(SeedOptions.forLevel(def, owns), SeedOptions.lockedSlotIds(def));
+            int slots = def.effectiveMaxSeedSlots(profile == null
+                    ? PvzceConstants.DEFAULT_SEED_SLOTS : profile.seedSlots());
+            return new SeedContext(SeedOptions.forLevel(def, owns), SeedOptions.lockedSlotIds(def), slots);
         }
     }
 
@@ -922,7 +996,8 @@ public final class LevelServer implements LevelAccess {
             return;
         }
         cardSource.tick(this, bridge, tickCount);
-        if (tickCount % 3 == 0) {
+        if (entitySyncPending || tickCount % 3 == 0) {
+            entitySyncPending = false;
             for (PvzceEntity entity : entities) {
                 bridge.send(entity.updatePacket());
             }
@@ -943,7 +1018,9 @@ public final class LevelServer implements LevelAccess {
      * the other would show a screen contradicting the one that follows it.
      */
     public static LevelPayload payloadFor(LevelDef def, SeedContext seeds) {
-        return new LevelPayload(def.width(), def.height(), seeds.pool(), def.maxSeedSlots(),
+        // The resolved bar size, not the raw field: a level with no max_seed_slots of its
+        // own is sized by the backpack, and the payload is where the client learns which.
+        return new LevelPayload(def.width(), def.height(), seeds.pool(), seeds.maxSeedSlots(),
                 def.previewZombieIds(), SceneCells.forLevel(def), seeds.lockedSlotIds(),
                 LevelMechanics.payloads(def));
     }
@@ -1010,7 +1087,10 @@ public final class LevelServer implements LevelAccess {
 
         int announcedIndex = nextWaveIndex - 1;
         boolean firstAnnouncement = announcedWaves.add(announcedIndex);
-        if (firstAnnouncement && wave.isHuge()) {
+        // The huge-wave call belongs to the warning (see announceWaveWarning); a wave whose
+        // data asks for no warning window would otherwise arrive in silence, so it is played
+        // here instead. Never both: the warning marks the index as called out.
+        if (firstAnnouncement && wave.isHuge() && !announcedWarnings.contains(announcedIndex)) {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE, 1F, 1F);
         }
         if (firstAnnouncement && wave.type() == WaveDef.WaveType.FINAL) {
@@ -1045,6 +1125,9 @@ public final class LevelServer implements LevelAccess {
                 && remaining > 0 && remaining <= nextWaveDelayTicks;
         boolean active = next.isHuge() && warningTicks > 0 && countingDown && remaining <= warningTicks;
         boolean finalWarning = active && next.type() == WaveDef.WaveType.FINAL;
+        if (active && !waveWarningActive) {
+            announceWaveWarning(nextWaveIndex);
+        }
         if (active != waveWarningActive || finalWarning != waveWarningFinal) {
             waveDirty = true;
         }
@@ -1053,6 +1136,24 @@ public final class LevelServer implements LevelAccess {
         waveProgress = nextWaveDelayTicks <= 0
                 ? 1F
                 : Math.max(0F, Math.min(1F, waveIntervalTicks / (float) nextWaveDelayTicks));
+    }
+
+    /**
+     * Calls out a huge wave as its warning opens, which is when the original does it.
+     *
+     * <p>The red "a huge wave is approaching" text and Dave's line of the same words are
+     * one beat on screen. Playing the sound at the wave's <em>arrival</em> instead - which
+     * is what this used to do - put it six seconds after the text had faded, so the
+     * announcement was read and then heard about a wave the player had already met.
+     *
+     * <p>Once per wave index, like {@link #triggerWave}'s own announcements: a save
+     * restored inside the warning window re-enters it, and a window is a range of ticks
+     * rather than an event, so "first tick of the window" is the transition that fires it.
+     */
+    private void announceWaveWarning(int waveIndex) {
+        if (announcedWarnings.add(waveIndex)) {
+            emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE, 1F, 1F);
+        }
     }
 
     private void spawnPendingWaveZombies() {
@@ -1241,6 +1342,9 @@ public final class LevelServer implements LevelAccess {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }
+        // The death animation has to reach the client even if the level ends this tick;
+        // see entitySyncPending.
+        entitySyncPending = true;
         // Recorded before the drop roll: a zombie that drops nothing still died here, and
         // this is where the level's reward will land.
         lastKillX = zombie.cellX();
@@ -1478,7 +1582,7 @@ public final class LevelServer implements LevelAccess {
             case "pvzce:glove" -> movePlant(x, y);
             case "pvzce:hammer" -> {
                 for (ZombieEntity zombie : zombiesInRow(y)) {
-                    if (!zombie.isRemoved() && Math.abs(zombie.cellX() - (x + 0.5F)) < 0.8F) {
+                    if (zombie.isAlive() && Math.abs(zombie.cellX() - (x + 0.5F)) < 0.8F) {
                         zombie.damageBody(200, this);
                         emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
                     }
@@ -1798,6 +1902,13 @@ public final class LevelServer implements LevelAccess {
         for (int i = 0; i < nextWaveIndex; i++) {
             announcedWaves.add(i);
         }
+        // The warning call-out is per wave too, but a wave below the index may still be
+        // *inside* its warning window when the save was taken (the window ends when the
+        // wave arrives, and arriving is what advances the index). Seeding it is therefore
+        // wrong in the one case that matters - a save taken during the final warning would
+        // resume in silence - and the client already refuses to repeat either announcement
+        // within a level instance, so a resumed window calls out at most once more.
+        announcedWarnings.clear();
         waveIntervalTicks = Math.max(0, root.getInt("WaveIntervalTicks"));
         nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));

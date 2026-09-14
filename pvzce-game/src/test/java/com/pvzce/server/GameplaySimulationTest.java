@@ -105,7 +105,18 @@ class GameplaySimulationTest {
                 Map.of(),
                 150,
                 LevelDef.LevelMusicDef.DEFAULT,
-                List.of()
+                List.of(),
+                6,
+                com.pvzce.api.content.LevelRewards.NONE,
+                com.pvzce.api.content.LevelUnlock.NONE,
+                // No mowers: these tests are about the loss rule ("a zombie that reaches the
+                // house ends the level"), which a mower would intercept. Wall-nut Bowling is
+                // the shipped level with the same shape; the mower's own tests live in
+                // MowerTest.
+                List.of(com.pvzce.api.content.mechanic.TypedMechanic.of(
+                        com.pvzce.common.PvzceIds.MECHANIC_MOWER,
+                        new com.pvzce.api.content.MowerData(java.util.Optional.of(List.of())))),
+                com.pvzce.api.content.LevelDialogue.EMPTY
         );
     }
 

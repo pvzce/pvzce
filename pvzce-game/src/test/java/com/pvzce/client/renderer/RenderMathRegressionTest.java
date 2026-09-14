@@ -148,12 +148,20 @@ class RenderMathRegressionTest {
         assertEquals(slow[1], fast[1], 0.02F);
     }
 
-    /** Some shipped effect that actually moves; the motion maths needs one. */
+    /**
+     * Some shipped effect that actually moves, and does so the same way every time.
+     *
+     * <p>The spread has to be zero: each engine rolls its own random spread at spawn, so a
+     * definition that jitters would have the two engines flying in different directions and
+     * the comparison below would be measuring the dice rather than the integrator.
+     */
     private static ParticleDef movingDefinition() throws Exception {
         TestContent.loadBuiltInContentAndTags();
         for (Identifier id : BuiltInRegistries.PARTICLES.keySet()) {
             ParticleDef def = BuiltInRegistries.PARTICLES.get(id);
-            if (def != null && def.motion().speed() > 0F && def.look().lifetime() > 0.3F) {
+            if (def != null && def.motion().speed() > 0F && def.look().lifetime() > 0.3F
+                    && def.motion().speedSpread() == 0F && def.motion().angleSpread() == 0F
+                    && def.look().scaleSpread() == 0F && def.count() == 1) {
                 return def;
             }
         }

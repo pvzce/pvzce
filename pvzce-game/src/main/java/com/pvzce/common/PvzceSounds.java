@@ -34,6 +34,8 @@ public final class PvzceSounds {
     public static final Identifier EFFECT_EXPLOSION = id("sfx/effect/explosion");
     public static final Identifier EFFECT_BITE = id("sfx/effect/bite");
     public static final Identifier EFFECT_SHOVEL = id("sfx/effect/shovel");
+    /** The mower starting up; the only sound it makes, played once per row. */
+    public static final Identifier EFFECT_LAWNMOWER = id("sfx/effect/lawnmower");
     public static final Identifier EFFECT_DIRT_RISE = id("sfx/effect/dirt_rise");
     public static final Identifier EFFECT_BONK = id("sfx/effect/bonk");
 
@@ -44,7 +46,21 @@ public final class PvzceSounds {
     public static final Identifier UI_COLLECT = id("sfx/ui/collect");
     public static final Identifier UI_CLICK = id("sfx/ui/click");
     public static final Identifier UI_TAP = id("sfx/ui/tap");
+    /**
+     * Picking a seed packet up.
+     *
+     * <p>The original's cue, played by the in-game card bar and the seed chooser alike:
+     * they are the same gesture on the same object, and the chooser already used it.
+     */
+    public static final Identifier UI_SEEDLIFT = id("sfx/ui/seedlift");
     public static final Identifier UI_POINTS = id("sfx/ui/points");
+    /**
+     * The original's refusal: a card that is cooling down, too expensive or spent.
+     *
+     * <p>Played by the card bar when the player clicks one, so "no" is heard at the click
+     * instead of arriving as a rejected placement two actions later.
+     */
+    public static final Identifier UI_BUZZER = id("sfx/ui/buzzer");
     public static final Identifier UI_COIN = id("sfx/ui/coin");
     /** The original's coin-shower cue, used by the award page's money bag. */
     public static final Identifier UI_MONEY_FALLS = id("sfx/ui/moneyfalls");

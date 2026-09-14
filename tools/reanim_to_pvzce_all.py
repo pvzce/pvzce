@@ -27,7 +27,7 @@ import difflib
 import importlib.util
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -58,14 +58,18 @@ ZOMBIE_BOX = [0.70, 0.95]
 # Accessory image references inside the combined Zombie.reanim master file.
 # Basic/bucket/door zombies share the base body tracks; the accessory tracks
 # are filtered per entity so the wrong hat/door never appears.
+#
+# MUSTACHE is excluded for every zombie: the original only draws it in its
+# moustache easter egg, while the reanim's own track keeps it visible for the
+# whole idle loop. Dropping the image here is what removes the bone.
 ZOMBIE_BASE_EXCLUDE = (
-    r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET)"
+    r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET|MUSTACHE)"
 )
-ZOMBIE_BUCKET_EXCLUDE = r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE)"
-ZOMBIE_DOOR_EXCLUDE = r"(FLAGHAND|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET)"
+ZOMBIE_BUCKET_EXCLUDE = r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|MUSTACHE)"
+ZOMBIE_DOOR_EXCLUDE = r"(FLAGHAND|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET|MUSTACHE)"
 # One accessory kept, the rest dropped: the same master file holds every zombie hat.
-ZOMBIE_CONE_EXCLUDE = r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|BUCKET)"
-ZOMBIE_FLAG_EXCLUDE = r"(SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET)"
+ZOMBIE_CONE_EXCLUDE = r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|BUCKET|MUSTACHE)"
+ZOMBIE_FLAG_EXCLUDE = r"(SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET|MUSTACHE)"
 
 
 @dataclass(frozen=True)
@@ -90,6 +94,15 @@ class EntityConfig:
     force_visible_bones: Optional[str] = None
     force_hidden_bones: Optional[str] = None
     fit_height_only: bool = True
+    # Bones left out of the box the model is *sized* by, as a regex on the bone name.
+    #
+    # The box is what ``target_box`` is fitted to, and it is also the origin every bone
+    # translation is measured from, so leaving a hat out of it makes the model as tall as
+    # the *body*: without this, a Conehead is fitted to 0.95 cells including its cone and
+    # therefore stands 15% shorter than a bare-headed zombie - the hat costs the body its
+    # size. Feet do not move (a hat never extends below them), so the only other effect is
+    # the horizontal origin, which shifts by however much the hat was off-centre.
+    measure_exclude_regex: Optional[str] = None
     # Accessories the original keeps in their own reanim file: the flag zombie's pole
     # and flag live in Zombie_flagpole.reanim, authored in the *zombie's* model space
     # and at the same fps, so their bones can simply be appended to this controller.
@@ -103,6 +116,15 @@ class EntityConfig:
     # translation into the extra's keys, which is rigid attachment in everything but
     # rotation.
     extra_bone_host: Optional[str] = None
+    # Extra sprites for one bone, as its damage states: ``{host bone: ((new bone, png), ...)}``.
+    #
+    # The original swaps a worn cone/bucket/flag for a more damaged drawing in code, so
+    # those PNGs are referenced by no track and the converter would never see them. Each
+    # entry here becomes one more bone in the model - the host's animation keys, its own
+    # texture, and ``visible: false`` in every clip - and the client shows exactly one
+    # member of the family from the zombie's synced state (see ``EquipmentDef``).
+    # Authoring them invisible is what keeps every existing clip untouched.
+    damage_states: Dict[str, Tuple[Tuple[str, str], ...]] = field(default_factory=dict)
 
 
 ENTITY_CONFIGS: List[EntityConfig] = [
@@ -597,6 +619,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_BUCKET_EXCLUDE,
+        # The bucket sits above the head: measure the zombie, not its hat, or the body is
+        # fitted to the bucket's height and ends up a size smaller than a bare zombie's.
+        measure_exclude_regex=r"^bucket_",
+        damage_states={
+            "bucket_1": (("bucket_2", "Zombie_bucket2.png"),
+                         ("bucket_3", "Zombie_bucket3.png")),
+        },
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
@@ -618,6 +647,11 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_CONE_EXCLUDE,
+        measure_exclude_regex=r"^cone_",
+        damage_states={
+            "cone_1": (("cone_2", "Zombie_cone2.png"),
+                       ("cone_3", "Zombie_cone3.png")),
+        },
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
@@ -643,6 +677,11 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         exclude_image_regex=ZOMBIE_FLAG_EXCLUDE,
         extra_reanims=("Zombie_flagpole.reanim",),
         extra_bone_host="flaghand",
+        # The flag has two drawings in the rip (whole and tattered); the original swaps
+        # them in code, so the tattered one is referenced by no track.
+        damage_states={
+            "zombie_flag_1": (("zombie_flag_3", "Zombie_flag3.png"),),
+        },
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
@@ -664,6 +703,11 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_DOOR_EXCLUDE,
+        measure_exclude_regex=r"^screendoor_",
+        damage_states={
+            "screendoor_1": (("screendoor_2", "Zombie_screendoor2.png"),
+                             ("screendoor_3", "Zombie_screendoor3.png")),
+        },
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
@@ -687,6 +731,11 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_paper.reanim",
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
+        measure_exclude_regex=r"^paper_",
+        damage_states={
+            "paper_1": (("paper_2", "Zombie_paper_paper2.png"),
+                        ("paper_3", "Zombie_paper_paper3.png")),
+        },
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
@@ -790,6 +839,29 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Hammer.reanim",
         target_box=(0.5, 0.5),
         animations={"idle": {"mask": "anim_whack_zombie", "loop": True}},
+    ),
+    # ------------------------------------------------------------------
+    # Level props
+    #
+    # The lawn mower is not content (it has no registry entry), but its art is still the
+    # original's reanim: two clips over the `anim_normal` mask, which is the mower as the
+    # lawn shows it (the other mask is the Zen Garden's tricked-out version). One cell
+    # wide, a little over half a cell tall, which is its size in the original.
+    #
+    # `idle` is a single frame on purpose. The source reanim's wheel tracks rotate in
+    # every frame of `anim_normal`, so exporting the whole range gave a parked mower
+    # whose wheels never stopped turning; freezing it at frame 0 is the pose the
+    # original holds until the mower is tripped, and `drive` is the rolling one.
+    # ------------------------------------------------------------------
+    EntityConfig(
+        output="lawn_mower",
+        group="mechanic",
+        reanim="LawnMower.reanim",
+        target_box=(1.0, 0.62),
+        animations={
+            "idle": {"mask": "anim_normal", "range": [0, 0], "loop": True, "transition": 0.05},
+            "drive": {"mask": "anim_normal", "loop": True, "transition": 0.05},
+        },
     ),
     EntityConfig(
         output="imp",
@@ -920,6 +992,70 @@ def pieces_to_bones(pieces: Sequence[core.RenderPiece], input_path: Path) -> Lis
     return bones
 
 
+def measure_bones(bones: Sequence[core.Bone], config: EntityConfig) -> List[core.Bone]:
+    """The bones the model's size is measured from; see ``measure_exclude_regex``."""
+
+    if not config.measure_exclude_regex:
+        return list(bones)
+    excluded = re.compile(config.measure_exclude_regex, re.IGNORECASE)
+    kept = [bone for bone in bones if not excluded.search(bone.name)]
+    if not kept:
+        raise SystemExit(
+            f"{config.output}: measure_exclude_regex {config.measure_exclude_regex!r} "
+            "excluded every bone")
+    return kept
+
+
+def load_damage_state_asset(input_dir: Path, file_name: str) -> core.ImageAsset:
+    """One damaged-equipment PNG, by file name next to the reanim that uses it."""
+
+    source = input_dir / file_name
+    if not source.is_file():
+        raise SystemExit(f"Missing damage-state image: {source}")
+    width, height = core.read_png_size(source)
+    return core.ImageAsset(ref=file_name, source=source, width=width, height=height)
+
+
+def apply_damage_states(
+    config: EntityConfig,
+    bones: List[core.Bone],
+    attached_bones: set,
+    input_dir: Path,
+) -> None:
+    """Appends a bone per declared damage state, hidden in every clip.
+
+    The new bone shares its host's frame states - so it moves exactly like the intact
+    sprite - and keeps its own texture. Hidden everywhere is the point: the client turns
+    exactly one member of the family on from the zombie's synced state, so no clip has to
+    know which cone a zombie is wearing.
+    """
+
+    for host_name, entries in config.damage_states.items():
+        host = next((bone for bone in bones if bone.name == host_name), None)
+        if host is None:
+            raise SystemExit(
+                f"{config.output}: damage-state host bone {host_name!r} is not in the model")
+        for new_name, file_name in entries:
+            if any(bone.name == new_name for bone in bones):
+                raise SystemExit(f"{config.output}: duplicate damage-state bone {new_name!r}")
+            bones.append(
+                core.Bone(
+                    name=new_name,
+                    asset=load_damage_state_asset(input_dir, file_name),
+                    states=list(host.states),
+                    visibility=[False] * len(host.states),
+                    order=host.order,
+                    track_names=[f"damage_state:{host_name}"],
+                    hidden=True,
+                )
+            )
+            # A damage state of an *attached* bone (the flag zombie's flag) has to be
+            # welded to the same host hand, or the damaged flag stands still while the
+            # intact one swings with the arm.
+            if host_name in attached_bones:
+                attached_bones.add(new_name)
+
+
 def reference_range(config: EntityConfig, tracks: Sequence[core.Track]) -> Tuple[int, int]:
     """Pick a stable animation range for model scale/bbox calculation.
 
@@ -1045,6 +1181,11 @@ def build_animation(
             if clip_visible_re is not None and clip_visible_re.search(bone.name):
                 is_visible = True
             if force_hidden_re is not None and force_hidden_re.search(bone.name):
+                is_visible = False
+            if bone.hidden:
+                # A damage-state sprite is never drawn by a clip: the client picks one
+                # member of the family from the zombie's synced state. This is last so no
+                # force_visible rule can resurrect it.
                 is_visible = False
             visibility.append(is_visible)
 
@@ -1205,7 +1346,7 @@ def process_entity(
     # The bounding box is the main reanim's, deliberately: the extras are authored in
     # that same space, so measuring them too would scale the host sprite down to fit a
     # flag that is supposed to stick out of it.
-    bbox = compute_bbox(bones, [reference_range(config, tracks)])
+    bbox = compute_bbox(measure_bones(bones, config), [reference_range(config, tracks)])
     attached_bones: set = set()
 
     for extra_name in config.extra_reanims:
@@ -1226,6 +1367,9 @@ def process_entity(
         extra_bones = pieces_to_bones(extra_pieces, extra_path)
         attached_bones.update(bone.name for bone in extra_bones)
         bones.extend(extra_bones)
+    # After the extras, so a damage state of an attached bone (the flag) is welded like
+    # its host; before the scale, because the extras are invisible and must not move it.
+    apply_damage_states(config, bones, attached_bones, input_dir)
     if config.fit_height_only:
         scale = config.target_box[1] / max(1.0, bbox.height)
     else:

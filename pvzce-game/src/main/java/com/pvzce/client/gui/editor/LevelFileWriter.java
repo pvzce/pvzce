@@ -69,7 +69,14 @@ public final class LevelFileWriter {
     public static void cards(JsonDraft draft, List<String> pool, int maxSeedSlots) {
         draft.set("slots", JsonDraft.idArray(pool));
         draft.remove("seed_selection");
-        draft.setInt("max_seed_slots", maxSeedSlots);
+        // A negative count is not a number: it is the absence of one, which is how a level
+        // says "size my bar from the player's backpack". Writing -1 would be a level that
+        // asks for a bar of minus one card.
+        if (maxSeedSlots < 0) {
+            draft.remove("max_seed_slots");
+        } else {
+            draft.setInt("max_seed_slots", maxSeedSlots);
+        }
     }
 
     public static void music(JsonDraft draft, MusicEditorModel.Config musicConfig) {

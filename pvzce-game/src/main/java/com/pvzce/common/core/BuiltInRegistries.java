@@ -190,7 +190,9 @@ public final class BuiltInRegistries {
                 true,
                 Identifier.withDefaultNamespace("textures/resource/" + path),
                 id,
-                PvzceConstants.COIN_CAP,
+                // The wallet has no ceiling, so neither does a denomination's stack: what a
+                // run collected is exactly what gets banked when it ends.
+                PvzceConstants.COIN_LIMIT,
                 true));
     }
 

@@ -12,7 +12,7 @@
   },
   "motion": {
     "speed": 0.0104167,
-    "gravity": -1.04167e-05
+    "gravity": 1.04167e-05
   },
   "count": 8,
   "count_spread": 2

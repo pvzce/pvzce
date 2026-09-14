@@ -123,13 +123,13 @@ class SeedPlanTest {
                 id("pvzce:lily_pad"), id("pvzce:flower_pot"), id("pvzce:coffee_bean"),
                 id("pvzce:marigold"), id("pvzce:potato_mine"), id("pvzce:sun"), id("pvzce:shovel"));
 
-        LevelDef legacy = level(thirteen, LevelDef.DEFAULT_MAX_SEED_SLOTS);
+        LevelDef legacy = level(thirteen, LevelDef.LEGACY_DEFAULT_MAX_SEED_SLOTS);
         assertEquals(13, legacy.maxSeedSlots(), "the count is raised to fit the pool");
         assertTrue(legacy.seedPlan(SeedOptions.allCards()).isFullyFixed(),
                 "so a legacy level hands out a fixed deck");
 
-        LevelDef small = level(thirteen.subList(0, 4), LevelDef.DEFAULT_MAX_SEED_SLOTS);
-        assertEquals(LevelDef.DEFAULT_MAX_SEED_SLOTS, small.maxSeedSlots(),
+        LevelDef small = level(thirteen.subList(0, 4), LevelDef.LEGACY_DEFAULT_MAX_SEED_SLOTS);
+        assertEquals(LevelDef.LEGACY_DEFAULT_MAX_SEED_SLOTS, small.maxSeedSlots(),
                 "four cards already fit in six slots, so the count is left alone");
         assertFalse(small.seedPlan(SeedOptions.allCards()).isFullyFixed(),
                 "and the two free slots stay the player's");
@@ -144,6 +144,40 @@ class SeedPlanTest {
                 "the chooser needs the pinned card too: it is what it renders as already chosen");
         assertTrue(offered.contains("pvzce:sun"));
         assertEquals(names(SeedOptions.allCards()), offered);
+    }
+
+    @Test
+    void aLevelWithNoSlotCountIsSizedByTheBackpack() {
+        // The rule the profile's card-slot count exists for: saying nothing in the file is
+        // a statement about the player, not a hidden 6.
+        LevelDef def = level(List.of(id("pvzce:pea_shooter"), id("pvzce:sun")),
+                LevelDef.UNSET_MAX_SEED_SLOTS);
+        assertFalse(def.declaresMaxSeedSlots());
+        assertEquals(PvzceConstants.DEFAULT_SEED_SLOTS, def.effectiveMaxSeedSlots(
+                PvzceConstants.DEFAULT_SEED_SLOTS), "an ordinary backpack gives eight slots");
+        assertEquals(10, def.effectiveMaxSeedSlots(10), "an upgraded one gives ten");
+        assertEquals(2, def.effectiveMaxSeedSlots(1),
+                "but its own cards still fit: a level never hands out a bar shorter than its cards");
+    }
+
+    @Test
+    void aDeclaredSlotCountIgnoresTheBackpack() {
+        // 1-1 fixes two slots on purpose; an upgraded backpack must not turn it into a
+        // different level.
+        LevelDef def = level(List.of(id("pvzce:pea_shooter"), id("pvzce:sun")), 2);
+        assertTrue(def.declaresMaxSeedSlots());
+        assertEquals(2, def.effectiveMaxSeedSlots(10));
+        assertEquals(2, def.effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS));
+    }
+
+    @Test
+    void thePlanAndTheDefaultBarAgreeWithTheResolvedCount() {
+        LevelDef def = level(List.of(id("pvzce:pea_shooter")), LevelDef.UNSET_MAX_SEED_SLOTS);
+        int slots = def.effectiveMaxSeedSlots(9);
+
+        assertEquals(9, def.seedPlan(SeedOptions.allCards(), slots).maxSlots());
+        assertEquals(9, def.defaultSeedSelection(SeedOptions.allCards(), slots).size(),
+                "the bar a level starts with is exactly as long as the resolved count");
     }
 
 }

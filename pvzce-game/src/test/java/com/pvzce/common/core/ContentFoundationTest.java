@@ -101,9 +101,12 @@ class ContentFoundationTest {
     @Test
     void levelDefsCarryPhaseTwoFields() {
         assertEquals(150, demo.initialSun());
-        // The declared 6 is raised to the number of cards the level lists: a level cannot
-        // ask for 13 cards and only 6 slots, so the count follows the card list.
-        assertEquals(13, demo.maxSeedSlots());
+        // This level declares no max_seed_slots, so it follows the backpack; the effective
+        // count is still raised to the number of cards the level lists, because a level
+        // cannot ask for 13 cards and hand the player a shorter bar.
+        assertFalse(demo.declaresMaxSeedSlots(), "demo_level declares no slot count");
+        assertEquals(13, demo.effectiveMaxSeedSlots(
+                com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS));
         assertEquals("pvzce:boolean", demo.envVars().get(Identifier.withDefaultNamespace("demo_flag")).type().toString());
         assertEquals(13, demo.slots().size());
         // 1-1 is the original's opening level: one lane, one plant card plus the sun

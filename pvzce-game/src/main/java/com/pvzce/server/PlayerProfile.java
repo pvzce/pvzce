@@ -43,6 +43,14 @@ public final class PlayerProfile {
      */
     private final Set<Identifier> unlockedLevels = new LinkedHashSet<>();
     private int coins;
+    /**
+     * How many cards the player's bar holds when a level does not say.
+     *
+     * <p>Shop upgrades raise this later; {@link #addSeedSlots} is that door, and it is
+     * deliberately the only way to change the number so a future purchase, command or
+     * reward goes through one clamp.
+     */
+    private int seedSlots = PvzceConstants.DEFAULT_SEED_SLOTS;
     private boolean unlockAll;
 
     private PlayerProfile() {
@@ -73,18 +81,50 @@ public final class PlayerProfile {
         return coins;
     }
 
-    /** Adds coins, clamped to {@link PvzceConstants#COIN_CAP}; returns the amount actually added. */
+    /**
+     * Adds coins; returns the amount actually added.
+     *
+     * <p>There is no wallet cap. The field is the ceiling, and only so that a long-lived
+     * world cannot silently wrap around into a negative balance: what the player collected
+     * is always what the player keeps.
+     */
     public int grantCoins(int amount) {
         if (amount <= 0) {
             return 0;
         }
         int before = coins;
-        coins = (int) Math.min(PvzceConstants.COIN_CAP, (long) coins + amount);
+        coins = (int) Math.min(PvzceConstants.COIN_LIMIT, (long) coins + amount);
         return coins - before;
     }
 
     public void setCoins(int amount) {
-        coins = Math.max(0, Math.min(PvzceConstants.COIN_CAP, amount));
+        coins = Math.max(0, Math.min(PvzceConstants.COIN_LIMIT, amount));
+    }
+
+    /** How many cards this backpack gives a level that declares no slot count. */
+    public int seedSlots() {
+        return seedSlots;
+    }
+
+    public void setSeedSlots(int slots) {
+        seedSlots = Math.max(1, Math.min(PvzceConstants.MAX_SEED_SLOTS, slots));
+    }
+
+    /**
+     * The upgrade hook: buys (or grants) {@code extra} more card slots.
+     *
+     * <p>Returns the number actually granted, so a caller can charge for what it got rather
+     * than for what it asked for. Nothing calls this yet - the shop that would is not
+     * built - but the clamp, the field and the wire field all exist, which is the whole of
+     * "leave the interface ready".
+     */
+    public int addSeedSlots(int extra) {
+        if (extra <= 0) {
+            return 0;
+        }
+        int before = seedSlots;
+        setSeedSlots(seedSlots + extra);
+        return seedSlots - before;
     }
 
     /** True when every card is unlocked by the sandbox flag rather than by name. */
@@ -160,6 +200,7 @@ public final class PlayerProfile {
         CompoundTag root = new CompoundTag();
         root.putInt("DataVersion", PvzceConstants.SAVE_DATA_VERSION);
         root.putInt("Coins", coins);
+        root.putInt("SeedSlots", seedSlots);
         // Stored numerically: CompoundTag has no boolean getter, and its numeric
         // getters are deliberately cross-type lenient.
         root.putByte(KEY_UNLOCK_ALL, (byte) (unlockAll ? 1 : 0));
@@ -190,6 +231,10 @@ public final class PlayerProfile {
         }
         profile.unlockAll = root.getInt(KEY_UNLOCK_ALL) != 0;
         profile.setCoins(root.contains("Coins") ? root.getInt("Coins") : 0);
+        // A record written before card slots existed has no key, and "no key" has to mean
+        // the default: the field is what an ordinary level reads to size the player's bar.
+        profile.setSeedSlots(root.contains("SeedSlots")
+                ? root.getInt("SeedSlots") : PvzceConstants.DEFAULT_SEED_SLOTS);
         for (Tag entry : root.getList("Unlocked").values()) {
             if (entry instanceof StringTag text) {
                 Identifier id = Identifier.tryParse(text.value());

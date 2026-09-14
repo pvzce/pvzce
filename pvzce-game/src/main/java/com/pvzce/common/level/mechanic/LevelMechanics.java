@@ -42,6 +42,7 @@ public final class LevelMechanics {
     public static final DeckMechanic DECK = new DeckMechanic();
     public static final ConveyorMechanic CONVEYOR = new ConveyorMechanic();
     public static final PlacementZoneMechanic PLACEMENT_ZONE = new PlacementZoneMechanic();
+    public static final MowerMechanic MOWER = new MowerMechanic();
 
     public static final Codec<TypedMechanic> CODEC = codec();
     public static final Codec<List<TypedMechanic>> LIST_CODEC = CODEC.listOf();
@@ -51,6 +52,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_DECK, DECK);
         register(PvzceIds.MECHANIC_CONVEYOR, CONVEYOR);
         register(PvzceIds.MECHANIC_PLACEMENT_ZONE, PLACEMENT_ZONE);
+        register(PvzceIds.MECHANIC_MOWER, MOWER);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -80,14 +82,19 @@ public final class LevelMechanics {
     }
 
     /**
-     * The data of a declared mechanic, when it is of the expected type.
+     * The data of a mechanic this level runs with, when it is of the expected type.
      *
      * <p>The typed half of {@code def.mechanics()}: callers name the mechanic they care about
      * and get its block, instead of scanning an erased list and casting.
+     *
+     * <p>Answers for the <em>effective</em> list rather than the declared one, because "which
+     * rows have mowers" is a question about the level and not about its file: a level that
+     * never mentions mowers still has one per row, and a caller that could not see that would
+     * conclude it has none. For a declared mechanic the two lists agree.
      */
     public static <D extends MechanicData> Optional<D> dataOf(LevelDef def, Identifier mechanicId,
                                                               Class<D> type) {
-        for (TypedMechanic typed : def.mechanics()) {
+        for (TypedMechanic typed : effective(def)) {
             if (typed.is(mechanicId) && type.isInstance(typed.value())) {
                 return Optional.of(type.cast(typed.value()));
             }
@@ -126,19 +133,31 @@ public final class LevelMechanics {
     }
 
     /**
-     * The mechanics a level actually runs with: what it declared, plus the implicit
-     * deck when it declared no card source at all.
+     * The mechanics a level actually runs with: what it declared, plus the implicit ones.
      *
-     * <p>This is the one place "no card source means the ordinary deck" is decided, so
-     * the server, the validator and the editor cannot disagree about whether an ordinary
-     * level has a card bar.
+     * <p>Two mechanics are implicit, and for the same reason - their absence in the file is a
+     * statement rather than a gap:
+     *
+     * <ul>
+     *   <li>the <b>deck</b>, when the level declared no card source at all: "the ordinary card
+     *       bar" must not need a block that only says "the normal rules apply";</li>
+     *   <li>the <b>mowers</b>, when the level did not declare them: every ordinary level has
+     *       one mower per row, because that is what the lawn is, and levels written before
+     *       mowers existed gained them without being touched.</li>
+     * </ul>
+     *
+     * <p>This is the one place both defaults are decided, so the server, the validator, the
+     * client payload and the editor cannot disagree about what an ordinary level runs with.
      */
     public static List<TypedMechanic> effective(LevelDef def) {
-        if (!declaredCardSources(def).isEmpty()) {
-            return def.mechanics();
-        }
         List<TypedMechanic> mechanics = new ArrayList<>(def.mechanics());
-        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_DECK, MechanicData.Empty.INSTANCE));
+        if (declaredCardSources(def).isEmpty()) {
+            mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_DECK, MechanicData.Empty.INSTANCE));
+        }
+        if (!has(def, PvzceIds.MECHANIC_MOWER)) {
+            mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER,
+                    com.pvzce.api.content.MowerData.EVERY_ROW));
+        }
         return List.copyOf(mechanics);
     }
 

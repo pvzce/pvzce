@@ -84,6 +84,15 @@ public final class ClientLevel {
      * mechanic added four fields and a getter; now a mechanic's data is whatever its codec
      * decoded, and the client's HUD asks for it by id.
      */
+    /**
+     * Per-mechanic run state, the client's mirror of {@code LevelServer.mechanicState}.
+     *
+     * <p>A client mechanic is a shared registry entry too, so a mechanic that draws something
+     * that changes (where the mowers are) keeps its state here: the object is created once per
+     * level instance by whichever hook asks first, and both the sync handler and the world
+     * overlay get the same one.
+     */
+    private final java.util.Map<Identifier, Object> mechanicState = new java.util.HashMap<>();
     private final java.util.Map<Identifier, com.pvzce.api.content.mechanic.MechanicData> mechanics =
             new java.util.concurrent.ConcurrentHashMap<>();
     private volatile java.util.List<Identifier> mechanicOrder = List.of();
@@ -146,11 +155,12 @@ public final class ClientLevel {
         }
         suggestions.clear();
         seedPool = List.of();
-        maxSeedSlots = 6;
+        maxSeedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
         previewZombies = List.of();
         scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
         initialized = false;
         mechanics.clear();
+        mechanicState.clear();
         mechanicOrder = List.of();
         gameState = "running";
         winTeam = "";
@@ -369,6 +379,12 @@ public final class ClientLevel {
             Identifier mechanicId, Class<D> type) {
         var data = mechanics.get(mechanicId);
         return type.isInstance(data) ? type.cast(data) : null;
+    }
+
+    /** One mechanic's own run state; see {@link #mechanicState}. */
+    @SuppressWarnings("unchecked")
+    public <T> T mechanicState(Identifier mechanicId, java.util.function.Supplier<T> create) {
+        return (T) mechanicState.computeIfAbsent(mechanicId, id -> create.get());
     }
 
     /** The level's plantable area, or the whole board when it restricts nothing. */

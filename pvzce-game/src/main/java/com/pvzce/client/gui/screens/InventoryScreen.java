@@ -32,8 +32,10 @@ public final class InventoryScreen extends Screen {
     private static final float PANEL_BORDER = 20F;
     private static final Identifier LOCK_BADGE = Identifier.withDefaultNamespace("textures/gui/icon/lock");
     private static final Identifier MONEY_BAG = Identifier.withDefaultNamespace("textures/gui/award/money_bag");
-    private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin");
-    private static final Identifier DEFAULT_ICON = Identifier.withDefaultNamespace("textures/resource/generic");
+    /** The wallet's icon; the coin counter used to point at a texture that never existed. */
+    private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin_gold");
+    /** A card with no art of its own shows the shared missing-texture tile. */
+    private static final Identifier DEFAULT_ICON = com.pvzce.common.core.EntityArt.MISSING_TEXTURE;
 
     /** One row of the sheet: the card, what it resolves to, and whether it is owned. */
     private record Entry(Identifier cardId, SlotResolver.ResolvedCard card, boolean owned) {
@@ -255,7 +257,7 @@ public final class InventoryScreen extends Screen {
         SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
                         icon, SeedCardRenderer.CardKind.fromJson(entry.card().kind().json()),
                         entry.card().costSun(), brightness, 1F, owned, 0F,
-                        flat.indexOf(entry) == selectedIndex),
+                        flat.indexOf(entry) == selectedIndex, null, false),
                 spot.x(), y, cardW, cardH);
         if (!owned) {
             float size = Math.min(cardW * 0.46F, cardH * 0.38F);
@@ -303,6 +305,15 @@ public final class InventoryScreen extends Screen {
         String coins = String.valueOf(client.profile().coins());
         client.font().draw(coins, x - client.font().width(coins, 1F) - 6F,
                 y + (iconSize - client.font().lineHeight(1F)) / 2F, 1F, 1F, 0.95F, 0.5F, 1F);
+
+        // The backpack's card-slot count, on the same corner: it is the number a level
+        // that declares no max_seed_slots sizes the player's bar from, so this page is
+        // where a player looks to find out how many cards they will get to bring.
+        String slots = GuiLang.raw("pvzce.inventory.slots", "卡槽 {0}")
+                .replace("{0}", String.valueOf(client.profile().seedSlots()));
+        client.font().draw(slots,
+                x + iconSize - client.font().width(slots, 1F),
+                y - client.font().lineHeight(1F) - 6F, 1F, 0.85F, 0.95F, 0.85F, 1F);
     }
 
     @Override

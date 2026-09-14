@@ -138,7 +138,7 @@ public final class DialoguePage implements EditorPage {
         dialogueVoiceBox = context.own(new EditBox(detailX, fieldTop - fieldRow, detailW, rowH,
                 this::commitDialogueFieldsNow));
         dialogueSideButton = context.own(new Button(detailX, fieldTop - fieldRow * 2, detailW, rowH,
-                "位置：左", () -> toggleDialogueSide(context)));
+                "位置：左", () -> cycleDialogueSide(context)));
 
         int listsBottom = y + pad + fieldRow * 3 + 18;
         int listBlockH = Math.max(70, (y + h - pad - 18) - listsBottom);
@@ -276,7 +276,7 @@ public final class DialoguePage implements EditorPage {
         if (!dialogueVoiceBox.isFocused()) {
             dialogueVoiceBox.setValue(line.voice, false);
         }
-        dialogueSideButton.setLabel(line.left ? "位置：左" : "位置：右");
+        dialogueSideButton.setLabel("位置：" + line.sideLabel());
 
         // The pickers follow the line rather than the other way around; the "last choice"
         // marks are what stop that sync from being read back as a user choice, which
@@ -331,12 +331,13 @@ public final class DialoguePage implements EditorPage {
         refreshDialogueLineList();
     }
 
-    private void toggleDialogueSide(EditorContext context) {
+    /** Cycles the speaker left → center → right; the overlay draws all three. */
+    private void cycleDialogueSide(EditorContext context) {
         DialogueEditorModel.LineModel line = currentDialogueLine();
         if (line == null) {
             return;
         }
-        line.left = !line.left;
+        line.cycleSide();
         refreshDialogueDetail(context);
         refreshDialogueLineList();
     }

@@ -45,6 +45,15 @@ public final class AnimationManager {
     /** Files that exist but failed to parse; retried after {@link #invalidate()}. */
     private final Set<Identifier> broken = ConcurrentHashMap.newKeySet();
     private final Map<Animatable, AnimationPlayback> playbacks = new IdentityHashMap<>();
+    /**
+     * The bone override for the render call in progress, if any.
+     *
+     * <p>Set by {@link #render(ClientEntity)} for the duration of one entity and read by
+     * {@link ControllerPlayback}. It is frame state rather than an argument because the
+     * playback interface is shared with flipbooks and with callers that have no entity at
+     * all; one entity is drawn at a time, so there is nothing to interleave.
+     */
+    private BoneArt activeBoneArt;
 
     public AnimationManager(PvzceClient client, ClientLevel level, PvzceResourceManager resources) {
         this.client = client;
@@ -125,12 +134,22 @@ public final class AnimationManager {
         if (!state.equals(current.requestedState())) {
             return false;
         }
-        if (state.equals(current.activeName()) && current.clip().loop()) {
+        if (!state.equals(current.activeName())) {
+            // It handed over to another clip (to idle, or to its `next`), so this state is
+            // no longer on screen and asking for it again has to start it.
+            return false;
+        }
+        if (current.clip().loop()) {
             return true;
         }
-        // A one-shot that already handed over (to idle or to its `next` clip) has to
-        // be allowed to start again.
-        return state.equals(current.activeName()) && !current.isFinished();
+        // A one-shot that ran out and is *holding* its last frame is still this state's
+        // playback. The server republishes an entity's state every few ticks, so treating
+        // "finished" as "start it again" restarted a held clip on the next update: a
+        // zombie's death animation played two or three times over the corpse's six
+        // seconds. Only a clip that never holds - or one that has not ended yet - counts
+        // as something a re-request may restart.
+        return !current.isFinished()
+                || current.clip().onEnd() == AnimationClip.OnEnd.HOLD;
     }
 
     private AnimationPlayback create(Animatable target, AnimationFile file, AnimationClip clip,
@@ -209,14 +228,23 @@ public final class AnimationManager {
         if (EntityKind.RESOURCE.equals(entity.kind())) {
             client.pushEntityTint(EntityVisuals.DROP_TINT);
         }
+        activeBoneArt = playback.file() instanceof ControllerFile controller
+                ? com.pvzce.client.renderer.EquipmentArt.forEntity(entity, controller.model())
+                : null;
         try {
             playback.render(client, anchor[0], anchor[1], baseZ(entity), xScaleFor(entity, vs));
         } finally {
+            activeBoneArt = null;
             if (EntityKind.RESOURCE.equals(entity.kind())) {
                 client.popEntityTint();
             }
         }
         return true;
+    }
+
+    /** The bone override of the render call in progress, or {@code null}. */
+    BoneArt activeBoneArt() {
+        return activeBoneArt;
     }
 
     /**
@@ -397,6 +425,11 @@ public final class AnimationManager {
     }
 
     private Optional<AnimationFile> fileFor(Animatable target, String state) {
+        if (target instanceof ArtTarget art) {
+            // Not content, so there is no definition to ask: the target names its own file.
+            // See ArtTarget - a level mechanic's prop has no registry entry to resolve.
+            return load(art.fileId());
+        }
         if (!(target instanceof ClientEntity entity)) {
             return Optional.empty();
         }
@@ -469,6 +502,9 @@ public final class AnimationManager {
         files.clear();
         missing.clear();
         broken.clear();
+        // Damage-state bone families are resolved against a parsed model, so a reloaded
+        // pack must not keep being drawn from the plan built for the old one.
+        com.pvzce.client.renderer.EquipmentArt.clearCache();
     }
 
     /** Ids whose file exists but failed to parse; used by diagnostics. */

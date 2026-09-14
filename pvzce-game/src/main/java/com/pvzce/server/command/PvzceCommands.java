@@ -96,7 +96,7 @@ public final class PvzceCommands {
                     + " · /team list|join <team> · /resource give <team> <id> <amount>"
                     + " · /resource spawn <id> [x] [y] · /spawn <plant|zombie|projectile> <id> [x] [y]"
                     + " · /time query|set|add · /tick query|rate|reset|freeze|step|sprint|unfreeze"
-                    + " · /profile info|unlock <level>|unlockall"
+                    + " · /profile info|slots <n>|unlock <level>|unlockall"
                     + " · /reload /save /stop /editor open <level>");
             return 1;
         }));
@@ -152,6 +152,11 @@ public final class PvzceCommands {
 
     private static RequiredArgumentBuilder<PvzceCommandSource, Integer> argInt(String name, int min) {
         return argument(name, integer(min));
+    }
+
+    /** An integer with both bounds; Brigadier rejects out-of-range input before the executor runs. */
+    private static RequiredArgumentBuilder<PvzceCommandSource, Integer> argInteger(String name, int min, int max) {
+        return argument(name, integer(min, max));
     }
 
     private static RequiredArgumentBuilder<PvzceCommandSource, Integer> argTime(String name, int min) {
@@ -240,13 +245,17 @@ public final class PvzceCommands {
     }
 
     /**
-     * The wallet, the backpack, and which levels are open.
+     * The wallet, the backpack's card slots, and which levels are open.
      *
      * <p>{@code /profile unlock <level>} exists because progression is otherwise only
      * reachable by playing: a smoke run, a test level behind a chain, or a player who
      * wants to show someone level 1-4 without clearing 1-3 first all need a way in.
      * It records the level as <em>bought</em>, so the effect is exactly the one a coin
      * purchase has and it survives a reload.
+     *
+     * <p>{@code /profile slots <n>} is the operator half of the card-slot count the
+     * backpack owns: the shop that will raise it is not built, so this is how a level that
+     * declares no {@code max_seed_slots} gets a bigger bar today.
      */
     private static LiteralArgumentBuilder<PvzceCommandSource> profile(PvzceServer server) {
         return lit("profile")
@@ -256,9 +265,15 @@ public final class PvzceCommands {
                             + "：金币 " + snapshot.coins()
                             + "，已解锁卡 " + snapshot.cards() + " 张"
                             + "，已购买关卡 " + snapshot.levels() + " 个"
+                            + "，卡槽 " + snapshot.seedSlots()
                             + (snapshot.sandbox() ? "（沙盒：全部解锁）" : ""));
                     return 1;
                 }))
+                .then(lit("slots").then(argInteger("slots", 1,
+                        com.pvzce.common.PvzceConstants.MAX_SEED_SLOTS).executes(ctx -> {
+                    ctx.getSource().sendFeedback(server.grantSeedSlots(ctx.getArgument("slots", Integer.class)));
+                    return 1;
+                })))
                 .then(lit("unlock").then(argIdentifier("level", "level").executes(ctx -> {
                     Identifier id = ctx.getArgument("level", Identifier.class);
                     String result = server.grantLevelUnlock(id);

@@ -20,11 +20,17 @@ public final class PvzceConstants {
     public static final int SUN_VALUE = 25;
     public static final float SUN_SPAWN_CHANCE = 0.001F;
     /**
-     * Bank cap for {@code pvzce:coin}; matches {@code max_stack} in
-     * {@code data/pvzce/resources/coin.json}, so the in-level resource and
-     * the persistent wallet cannot disagree about the ceiling.
+     * How many cards a fresh backpack holds, and the ceiling an upgrade may reach.
+     *
+     * <p>A level that does not declare {@code max_seed_slots} uses the backpack's number
+     * (see {@code LevelDef.effectiveMaxSeedSlots}), so this is what an ordinary level hands
+     * the player. The ceiling is shared with the level editor's own field limit
+     * ({@code CardPoolEditorDialog}) because both end up on the same card bar.
      */
-    public static final int COIN_CAP = 9990;
+    public static final int DEFAULT_SEED_SLOTS = 8;
+    public static final int MAX_SEED_SLOTS = 12;
+    /** The wallet has no ceiling; the only bound that matters is the 32-bit field it lives in. */
+    public static final int COIN_LIMIT = Integer.MAX_VALUE;
     public static final int SAVE_DATA_VERSION = 2;
 
     private PvzceConstants() {

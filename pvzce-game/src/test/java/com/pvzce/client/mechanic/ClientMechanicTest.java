@@ -54,9 +54,13 @@ class ClientMechanicTest {
     void theServersMechanicsArriveAsDecodedData() {
         ClientLevel level = levelWith(bowlingMechanics());
 
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE),
+        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
+                        PvzceIds.MECHANIC_MOWER),
                 level.mechanicIds());
         assertTrue(level.hasMechanic(PvzceIds.MECHANIC_CONVEYOR));
+        assertEquals(List.of(), level.mechanicData(PvzceIds.MECHANIC_MOWER,
+                        com.pvzce.api.content.MowerData.class).rowsFor(level.height()),
+                "Wall-nut Bowling declares its rows explicitly, and the list is empty");
         assertEquals(6, level.mechanicData(PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class).capacity());
         assertTrue(level.placementZone().contains(3, 0));
         assertFalse(level.inPlacementZone(4, 0), "the red line is where the server says it is");
@@ -69,8 +73,12 @@ class ClientMechanicTest {
         var def = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/1_1"));
         ClientLevel level = levelWith(LevelMechanics.payloads(def));
 
-        assertEquals(List.of(PvzceIds.MECHANIC_DECK), level.mechanicIds());
+        // What the server sent is the whole truth: the implicit deck and the implicit
+        // mowers, neither of which the level's file mentions.
+        assertEquals(List.of(PvzceIds.MECHANIC_DECK, PvzceIds.MECHANIC_MOWER), level.mechanicIds());
         assertFalse(level.hasMechanic(PvzceIds.MECHANIC_CONVEYOR));
+        assertEquals(com.pvzce.api.content.MowerData.EVERY_ROW,
+                level.mechanicData(PvzceIds.MECHANIC_MOWER, com.pvzce.api.content.MowerData.class));
         assertEquals(PlacementZone.FULL, level.placementZone());
         assertTrue(level.inPlacementZone(8, 0));
         assertNull(ClientMechanics.cardBar(level, null), "the deck gets the ordinary seed row");

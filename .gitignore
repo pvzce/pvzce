@@ -50,3 +50,6 @@ refer/
 
 ### Local Gradle user home used for sandboxed builds ###
 .gradle-user/
+
+### Throwaway game dir + screenshots from `pvzce.smoke*` runs ###
+.smoke/

@@ -503,10 +503,11 @@ public final class PvzceServer implements Runnable {
     /**
      * The bits of a world's record the {@code /profile} command reports.
      *
-     * <p>A record rather than three getters so the command cannot read a profile that
-     * changed between two of the calls.
+     * <p>A record rather than a handful of getters so the command cannot read a profile
+     * that changed between two of the calls.
      */
-    public record ProfileSnapshot(String world, int coins, int cards, int levels, boolean sandbox) {
+    public record ProfileSnapshot(String world, int coins, int cards, int levels, boolean sandbox,
+                                  int seedSlots) {
     }
 
     /**
@@ -521,7 +522,25 @@ public final class PvzceServer implements Runnable {
         PlayerProfile snapshot = profileFor(world);
         return new ProfileSnapshot(sanitizeWorldName(world), snapshot.coins(),
                 snapshot.unlockedIds().size(), snapshot.unlockedLevelIds().size(),
-                snapshot.unlocksEverything());
+                snapshot.unlocksEverything(), snapshot.seedSlots());
+    }
+
+    /**
+     * Sets the backpack's card-slot count.
+     *
+     * <p>Reached by {@code /profile slots <n>}. This is the same door a future shop
+     * upgrade would use - {@link PlayerProfile#addSeedSlots} is the other half - so the
+     * clamp lives in the profile and both callers get the same ceiling.
+     */
+    public String grantSeedSlots(int slots) {
+        String safeWorld = sanitizeWorldName(menuWorld());
+        PlayerProfile profile = profileFor(safeWorld);
+        profile.setSeedSlots(slots);
+        saveProfile(safeWorld, profile);
+        refreshLevelList();
+        connection.send(profilePacket(profile));
+        return "世界 " + safeWorld + " 的卡槽数现在是 " + profile.seedSlots()
+                + "（关卡自己声明了 max_seed_slots 时以关卡为准）";
     }
 
     /**
@@ -569,10 +588,10 @@ public final class PvzceServer implements Runnable {
         return currentWorld != null ? currentWorld : "world";
     }
 
-    /** The wallet and unlocks, in the one shape the client understands. */
+    /** The wallet, card slots and unlocks, in the one shape the client understands. */
     private static ProfileS2C profilePacket(PlayerProfile profile) {
         return new ProfileS2C(profile.coins(), profile.unlockedIds(), profile.unlocksEverything(),
-                profile.unlockedLevelIds());
+                profile.unlockedLevelIds(), profile.seedSlots());
     }
 
     /**
@@ -938,7 +957,9 @@ public final class PvzceServer implements Runnable {
     private static List<Identifier> sanitizeSeedSelection(LevelDef def, List<Identifier> requested,
                                                          PlayerProfile profile) {
         List<Identifier> pool = SeedOptions.cardPool(def, profile == null ? null : profile::owns);
-        LevelDef.SeedPlan plan = def.seedPlan(pool);
+        // The same resolved bar size the client was shown, so "the cards this method
+        // accepts" cannot be a longer or shorter row than "the cards the chooser offered".
+        LevelDef.SeedPlan plan = def.seedPlan(pool, effectiveSlots(def, profile));
         List<Identifier> result = new ArrayList<>();
         Set<Identifier> seen = new HashSet<>();
         for (Identifier locked : plan.lockedSlots()) {
@@ -968,7 +989,21 @@ public final class PvzceServer implements Runnable {
      * already fill the bar is unaffected.
      */
     private static List<Identifier> defaultSeedSelection(LevelDef def, PlayerProfile profile) {
-        return def.defaultSeedSelection(SeedOptions.cardPool(def, profile == null ? null : profile::owns));
+        return def.defaultSeedSelection(SeedOptions.cardPool(def, profile == null ? null : profile::owns),
+                effectiveSlots(def, profile));
+    }
+
+    /**
+     * The bar size a level gets for this player: its own {@code max_seed_slots} when it
+     * declares one, otherwise the backpack's.
+     *
+     * <p>One helper because the two entry points above and the level's own
+     * {@code SeedContext} have to agree - a selection sanitised against a different
+     * length than the chooser drew is exactly the bug this rule was written to avoid.
+     */
+    private static int effectiveSlots(LevelDef def, PlayerProfile profile) {
+        return def.effectiveMaxSeedSlots(profile == null
+                ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS : profile.seedSlots());
     }
 
     /** The card bar a running save was created with, or {@code null} when there is none. */
@@ -1123,7 +1158,13 @@ public final class PvzceServer implements Runnable {
         RewardOutcome outcome = plantWin
                 ? applyRewards(id, rewards, firstClear, profile)
                 : new RewardOutcome(0, null);
-        int bonus = outcome.bonus();
+        // Mowers that were never needed are worth a gold coin each. It is a *win* bonus:
+        // a row that still has its mower is a row the zombies never got through, and a
+        // defeat has no such rows to speak of. The count is what the client turns into
+        // coins on screen, so it is sent beside the amount the wallet was given.
+        int mowers = plantWin ? current.readyMowerCount() : 0;
+        int mowerCoins = mowers * mowerCoinValue();
+        int bonus = outcome.bonus() + mowerCoins;
         Identifier unlocked = outcome.unlocked();
         profile.grantCoins(collected + bonus);
         saveProfile(currentWorld, profile);
@@ -1131,7 +1172,7 @@ public final class PvzceServer implements Runnable {
         // a client that never renders the screen still got its coins.
         connection.send(new LevelRewardS2C(id.toString(), collected, bonus, profile.coins(),
                 unlocked == null ? "" : unlocked.toString(),
-                current.lastKillX(), current.lastKillY()));
+                current.lastKillX(), current.lastKillY(), mowers, mowerCoins));
         connection.send(profilePacket(profile));
         // The finished level's row must stop saying "进行中" without a round trip. The
         // refresh names the world the level was in, not the last world a *list* was
@@ -1142,6 +1183,19 @@ public final class PvzceServer implements Runnable {
 
     /** What one payout granted: the coin bonus, and the first card it unlocked (if any). */
     private record RewardOutcome(int bonus, Identifier unlocked) {
+    }
+
+    /**
+     * What one surviving lawn mower is worth, read from the gold coin it is paid in.
+     *
+     * <p>Not a literal: the denominations and their values live in the resource
+     * definitions, and a pack that revalues the gold coin revalues the mowers with it. A
+     * pack that deletes the coin entirely gets zero rather than a number invented here.
+     */
+    private static int mowerCoinValue() {
+        com.pvzce.api.content.ResourceDef coin =
+                BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_GOLD);
+        return coin == null ? 0 : Math.max(0, coin.defaultValue());
     }
 
     /**

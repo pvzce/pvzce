@@ -16,5 +16,6 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/special",
-  "texture": "pvzce:textures/entities/zombie/special/pole_vaulter_zombie"
+  "texture": "pvzce:textures/entities/zombie/special/pole_vaulter_zombie",
+  "drops_arm": false
 }

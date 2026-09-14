@@ -39,7 +39,7 @@ import java.util.Set;
 public final class CardsPage implements EditorPage {
 
     private final CardPoolEditorDialog.Config cardPoolConfig = new CardPoolEditorDialog.Config();
-    private int maxSeedSlots = LevelDef.DEFAULT_MAX_SEED_SLOTS;
+    private int maxSeedSlots = LevelDef.UNSET_MAX_SEED_SLOTS;
 
     private AbstractSelectionList<String> poolList;
     private AbstractSelectionList<AvailableRow> availableList;
@@ -105,7 +105,7 @@ public final class CardsPage implements EditorPage {
         boolean hasSlots = context.draft().has("slots");
         cardPoolConfig.replaceWith(CardPoolEditorDialog.Config.fromJson(context.draft().json()));
         refreshCardPool(!hasSlots);
-        maxSeedSlots = Math.max(0, cardPoolConfig.maxSeedSlots);
+        maxSeedSlots = cardPoolConfig.maxSeedSlots;
     }
 
     /**
@@ -118,7 +118,9 @@ public final class CardsPage implements EditorPage {
      */
     @Override
     public void writeTo(EditorContext context) {
-        maxSeedSlots = clamp(cardPoolConfig.maxSeedSlots, 0, CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
+        maxSeedSlots = cardPoolConfig.maxSeedSlots < 0
+                ? LevelDef.UNSET_MAX_SEED_SLOTS
+                : clamp(cardPoolConfig.maxSeedSlots, 1, CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
         LevelFileWriter.cards(context.draft(), cardPoolConfig.pool, maxSeedSlots);
     }
 
@@ -187,10 +189,15 @@ public final class CardsPage implements EditorPage {
         float labelY = cardListTop - 17F;
         float colW = (area.width() - 10) / 2F;
         int levelCards = cardPoolConfig.pool.size();
-        int slots = Math.max(levelCards, Math.max(0, cardPoolConfig.maxSeedSlots));
+        boolean followsBackpack = cardPoolConfig.maxSeedSlots < 0;
+        int declared = followsBackpack
+                ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS : cardPoolConfig.maxSeedSlots;
+        int slots = Math.max(levelCards, declared);
         int free = Math.max(0, slots - levelCards);
         float summaryY = area.y() + area.height() + 4F;
-        renderClient.font().draw("总卡槽 " + slots + "　关卡固定 " + levelCards
+        renderClient.font().draw("总卡槽 " + slots
+                        + (followsBackpack ? "（跟随背包）" : "")
+                        + "　关卡固定 " + levelCards
                         + "　玩家可选 " + free, area.x() + 2, summaryY, 0.74F, 1F, 1F, 1F, 1F);
         if (free == 0) {
             // On the summary line, not above the column labels: the note and the
@@ -334,7 +341,11 @@ public final class CardsPage implements EditorPage {
                 cardPoolConfig.pool.add(slot);
             }
         }
-        cardPoolConfig.maxSeedSlots = Math.max(cardPoolConfig.pool.size(), cardPoolConfig.maxSeedSlots);
+        // Only a declared count is raised to fit the level's own cards; "follow the
+        // backpack" is not a number and must stay one.
+        if (cardPoolConfig.maxSeedSlots >= 0) {
+            cardPoolConfig.maxSeedSlots = Math.max(cardPoolConfig.pool.size(), cardPoolConfig.maxSeedSlots);
+        }
         maxSeedSlots = cardPoolConfig.maxSeedSlots;
         refreshCardLists();
     }
@@ -368,8 +379,12 @@ public final class CardsPage implements EditorPage {
      * them when the level loads.
      */
     private void adjustMaxSeedSlots(int delta) {
-        int floor = Math.min(cardPoolConfig.pool.size(), CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
-        cardPoolConfig.maxSeedSlots = clamp(cardPoolConfig.maxSeedSlots + delta, floor,
+        int floor = Math.min(Math.max(1, cardPoolConfig.pool.size()), CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
+        // Stepping away from "follow the backpack" starts at the number it resolves to,
+        // so the first press shows the player what they are changing rather than a 0.
+        int current = cardPoolConfig.maxSeedSlots < 0
+                ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS : cardPoolConfig.maxSeedSlots;
+        cardPoolConfig.maxSeedSlots = clamp(current + delta, floor,
                 CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
         maxSeedSlots = cardPoolConfig.maxSeedSlots;
     }

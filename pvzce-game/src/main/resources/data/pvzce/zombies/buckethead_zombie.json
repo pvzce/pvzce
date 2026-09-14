@@ -23,5 +23,12 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/armored",
-  "texture": "pvzce:textures/entities/zombie/armored/buckethead_zombie"
+  "texture": "pvzce:textures/entities/zombie/armored/buckethead_zombie",
+  "equipment": [
+    {
+      "art": "bucket",
+      "piece": "pvzce:bucket",
+      "drop_particle": "pvzce:zombie_pail"
+    }
+  ]
 }
