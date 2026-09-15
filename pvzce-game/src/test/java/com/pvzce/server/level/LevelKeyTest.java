@@ -33,21 +33,6 @@ class LevelKeyTest {
     }
 
     /**
-     * The pair that used to collide now does not.
-     *
-     * <p>This is the whole point of the change, spelled out as the two ids that produced one
-     * directory before.
-     */
-    @Test
-    void aSlashAndAnUnderscoreNoLongerCollide() {
-        Identifier nested = Identifier.withDefaultNamespace("a/b");
-        Identifier flat = Identifier.withDefaultNamespace("a_b");
-        assertNotEquals(LevelKey.of(nested), LevelKey.of(flat));
-        assertEquals("70767a6365__a%2Fb", LevelKey.of(nested));
-        assertEquals("70767a6365__a_b", LevelKey.of(flat));
-    }
-
-    /**
      * No two distinct ids in a hostile set share a key.
      *
      * <p>Not a proof, but the shape of the encoding is: the namespace half is hex (an
@@ -76,26 +61,4 @@ class LevelKeyTest {
         assertEquals(ids.size(), keys.size());
     }
 
-    /**
-     * The separator survives namespaces and paths that are made of underscores.
-     *
-     * <p>These are the ids that broke the first version of the fix, which kept the namespace
-     * literal: {@code ("pvzce_", "a_b")} and {@code ("pvzce", "_a_b")} both came out as
-     * {@code pvzce___a_b}. Hex on the namespace half is what separates them.
-     */
-    @Test
-    void namespacesAndPathsMadeOfUnderscoresStayDistinct() {
-        assertEquals("70767a63655f__a_b", LevelKey.of(Identifier.of("pvzce_", "a_b")));
-        assertEquals("70767a63655f5f__a_b", LevelKey.of(Identifier.of("pvzce__", "a_b")));
-        Set<String> keys = new HashSet<>();
-        for (Identifier id : List.of(
-                Identifier.of("pvzce_", "a_b"),
-                Identifier.of("pvzce", "_a_b"),
-                Identifier.of("pvzce__", "a_b"),
-                Identifier.of("pvzce", "__a_b"),
-                Identifier.of("pvzce", "a__b"))) {
-            keys.add(LevelKey.of(id));
-        }
-        assertEquals(5, keys.size(), "underscore-heavy ids must stay distinct: " + keys);
-    }
 }

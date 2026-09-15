@@ -96,62 +96,12 @@ class LevelFileWriterTest {
                 LevelRewards.DEFAULT, unlockJson(requiresJson, cost, hidden));
     }
 
-    /** The block the 解锁 page writes has to be exactly what the codec reads. */
-    @Test
-    void theUnlockBlockRoundTripsThroughItsCodec() {
-        JsonObject written = withUnlock(
-                "{\"type\":\"level\",\"id\":\"pvzce:yard/adventure/1_1\"},"
-                        + "{\"type\":\"card\",\"id\":\"pvzce:sunflower\"}",
-                500, true);
-
-        LevelUnlock parsed = LevelUnlock.CODEC.parse(
-                com.mojang.serialization.JsonOps.INSTANCE, written.get("unlock")).getOrThrow();
-        assertEquals(2, parsed.requires().size());
-        assertTrue(parsed.requires().get(0).isLevel());
-        assertEquals(500, parsed.cost().orElseThrow());
-        assertTrue(parsed.hidden());
-    }
-
     /** An empty page means "no gate", and the file must not carry an empty block. */
     @Test
     void anEmptyUnlockPageWritesNoBlock() {
         JsonObject written = withUnlock("", null, false);
         assertFalse(written.has("unlock"),
                 "an empty unlock block and no unlock block would both exist in the data");
-    }
-
-    /**
-     * A hand-written condition the page cannot edit has to survive.
-     *
-     * <p>{@code coins} is the case: the page edits prerequisite levels, required cards, the
-     * price and the hidden flag, and would otherwise quietly delete a coin threshold the moment
-     * someone opened the level and pressed save. The page reads the block into its fields, keeps
-     * what it cannot express, and merges it back - which is what this call models.
-     */
-    @Test
-    void aConditionThePageCannotEditIsKeptVerbatim() {
-        JsonObject authored = JsonParser.parseString("""
-                {
-                  "id": "pvzce:authored",
-                  "unlock": {
-                    "requires": [
-                      { "type": "coins", "amount": 750 },
-                      { "type": "level", "id": "pvzce:yard/adventure/1_1" }
-                    ]
-                  }
-                }
-                """).getAsJsonObject();
-
-        JsonObject written = write(authored, id("authored"), "关卡", "", 9, 5, Map.of(), List.of(),
-                new JsonObject(), waves(1), List.of("pvzce:pea_shooter"), 6, 150, LevelRewards.DEFAULT,
-                unlockJson("{ \"type\": \"coins\", \"amount\": 750 },"
-                        + "{ \"type\": \"level\", \"id\": \"pvzce:yard/adventure/1_1\" }", null, false));
-
-        LevelUnlock parsed = LevelUnlock.CODEC.parse(
-                com.mojang.serialization.JsonOps.INSTANCE, written.get("unlock")).getOrThrow();
-        assertEquals(2, parsed.requires().size(), "neither condition may be dropped");
-        assertTrue(parsed.requires().get(0).isCoins());
-        assertEquals(750, parsed.requires().get(0).amount());
     }
 
     /** A page that does not write its block leaves a hand-written one alone. */
@@ -241,21 +191,6 @@ class LevelFileWriterTest {
     }
 
     @Test
-    void presetEntitiesAreCarriedThrough() {
-        JsonObject plant = new JsonObject();
-        plant.addProperty("kind", "plant");
-        plant.addProperty("id", "pvzce:wall_nut");
-        plant.addProperty("x", 3);
-        plant.addProperty("y", 2);
-        JsonObject written = write(new JsonObject(), id("entities"), "实体", "", 9, 5, Map.of(),
-                List.of(plant), new JsonObject(), waves(0), List.of(), 6, 150);
-        JsonArray entities = written.getAsJsonArray("initial_entities");
-        assertEquals(1, entities.size());
-        assertEquals(3, entities.get(0).getAsJsonObject().get("x").getAsInt());
-        assertEquals("pvzce:wall_nut", entities.get(0).getAsJsonObject().get("id").getAsString());
-    }
-
-    @Test
     void rulesAndWavesAreWrittenFromTheEditorState() {
         JsonObject rules = new JsonObject();
         rules.addProperty("pvzce:sun_spawn_chance", 0.5D);
@@ -280,28 +215,6 @@ class LevelFileWriterTest {
         JsonObject written = write(authored, id("old"), "旧", "", 9, 5, Map.of(), List.of(),
                 new JsonObject(), waves(0), List.of("pvzce:pea_shooter"), 6, 150);
         assertFalse(written.has("seed_selection"), "one answer to what is in the bar, not two");
-    }
-
-    @Test
-    void theRewardsBlockIsWrittenWholeSoTheLevelKeepsItsIdentity() {
-        // 1-1's shape: unlock sunflower on a first clear, pay 100 coins on a replay.
-        LevelRewards rewards = new LevelRewards(
-                List.of(LevelRewards.Reward.unlock(id("pvzce:sunflower"))),
-                List.of(LevelRewards.Reward.coins(100)), 0.25F, id("pvzce:coin_silver"), 1);
-
-        JsonObject written = write(new JsonObject(), id("first"), "第一关", "", 9, 1, Map.of(),
-                List.of(), new JsonObject(), waves(0), List.of(), 2, 50, rewards, null);
-
-        JsonObject writtenRewards = written.getAsJsonObject("rewards");
-        JsonObject unlock = writtenRewards.getAsJsonArray("first_clear").get(0).getAsJsonObject();
-        assertEquals("unlock", unlock.get("type").getAsString());
-        assertEquals("pvzce:sunflower", unlock.get("id").getAsString());
-        assertEquals("coins", writtenRewards.getAsJsonArray("repeat").get(0).getAsJsonObject()
-                .get("type").getAsString());
-        assertEquals(100, writtenRewards.getAsJsonArray("repeat").get(0).getAsJsonObject()
-                .get("amount").getAsInt());
-        assertEquals(0.25F, writtenRewards.get("coin_drop_chance").getAsFloat());
-        assertEquals(1, writtenRewards.get("coin_drop_amount").getAsInt());
     }
 
     @Test

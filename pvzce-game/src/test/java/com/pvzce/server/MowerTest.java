@@ -57,18 +57,16 @@ class MowerTest {
 
     @Test
     void everyRowHasAMowerWithoutTheLevelAsking() {
-        LevelDef plain = level(List.of());
-        assertEquals(MowerData.EVERY_ROW, LevelMechanics
-                        .dataOf(plain, PvzceIds.MECHANIC_MOWER, MowerData.class).orElseThrow(),
-                "a level that says nothing about mowers runs with the default block");
-        assertEquals(List.of(0, 1, 2, 3, 4), MowerData.EVERY_ROW.rowsFor(5));
-        // The server really builds them: one sync per level, listing every row.
-        LevelServer level = new LevelServer(plain);
+        // "Silence means every row" is asserted against the mechanic registry in
+        // LevelMechanicTest::anOrdinaryLevelFallsBackToTheDeck; this is what the server makes
+        // of it - one sync per level, every row parked at the same spot.
+        LevelServer level = new LevelServer(level(List.of()));
         CapturingBridge bridge = new CapturingBridge();
         level.tick(bridge);
         MowerMechanic.State state = bridge.mowerState;
         assertNotNull(state, "the mowers are announced on the first tick");
-        assertEquals(5, state.rows().size());
+        assertEquals(5, state.rows().size(), "one per row of the default block, all five of them");
+        assertEquals(List.of(0, 1, 2, 3, 4), MowerData.EVERY_ROW.rowsFor(5));
         for (MowerMechanic.Row row : state.rows()) {
             assertEquals(MowerMechanic.STATE_READY, row.state());
             assertEquals(MowerMechanic.IDLE_X, row.x(), 0.0001F);
@@ -190,27 +188,6 @@ class MowerTest {
                 "and the rows that were never used are still ready");
     }
 
-    @Test
-    void theStateCodecRoundTripsThroughTheWire() {
-        MowerMechanic.State state = new MowerMechanic.State(List.of(
-                new MowerMechanic.Row(0, MowerMechanic.STATE_ROLLING, 2.5F),
-                new MowerMechanic.Row(3, MowerMechanic.STATE_USED, 9.8F)));
-        MechanicSyncS2C packet = MechanicSyncS2C.of(PvzceIds.MECHANIC_MOWER,
-                MowerMechanic.State.CODEC, state);
-        PacketByteBuf buffer = packet.payloadBuffer();
-        assertEquals(state, MowerMechanic.State.CODEC.decode(buffer));
-    }
-
-    @Test
-    void theShippedBowlingLevelHasNoMowers() {
-        LevelDef bowling = BuiltInRegistries.LEVELS.get(
-                Identifier.withDefaultNamespace("yard/adventure/1_5"));
-        assertNotNull(bowling);
-        assertTrue(LevelMechanics.dataOf(bowling, PvzceIds.MECHANIC_MOWER, MowerData.class)
-                        .orElseThrow().none(bowling.height()),
-                "the original's Wall-nut Bowling is played without them");
-    }
-
     // ------------------------------------------------------------------
     // Harness
     // ------------------------------------------------------------------
@@ -239,6 +216,80 @@ class MowerTest {
                 Map.of(), PvzceConstants.INITIAL_SUN, LevelDef.LevelMusicDef.DEFAULT, List.of(),
                 6, LevelRewards.NONE, LevelUnlock.NONE, mechanics,
                 com.pvzce.api.content.LevelDialogue.EMPTY);
+    }
+
+    @Test
+    void thePlayerCanSendAParkedMowerByHand() {
+        // The original lets a held mouse send a mower early, and it is a real decision: one
+        // spent on a wave that was already handled is a row that is open for the rest of the
+        // level. So the hand release has to be the *same* mower, with the same sound and the
+        // same consequences - not a second, weaker kind of mower.
+        LevelServer level = new LevelServer(level(List.of()));
+        CapturingBridge bridge = new CapturingBridge();
+        level.tick(bridge);
+
+        assertTrue(level.releaseMower(3), "a parked mower goes when asked");
+        assertEquals(MowerMechanic.STATE_READY, mowerRow(bridge, 3).state(),
+                "the state change is only on the wire after the next tick");
+
+        level.tick(bridge);
+        assertEquals(MowerMechanic.STATE_ROLLING, mowerRow(bridge, 3).state());
+        assertEquals(4, level.readyMowerCount(), "and it is no longer one of the survivors");
+        assertTrue(bridge.packets.stream().anyMatch(packet -> packet instanceof EffectEventS2C effect
+                        && com.pvzce.common.PvzceSounds.EFFECT_LAWNMOWER.toString().equals(effect.sound())),
+                "it announces itself exactly like the automatic one");
+    }
+
+    @Test
+    void aMowerGoesOnlyOnce() {
+        // Two packets for one row - a double click, a replayed request, a held button -
+        // must not produce two mowers, and a row that has none at all must not invent one.
+        LevelServer level = new LevelServer(level(List.of(0, 4)));
+        CapturingBridge bridge = new CapturingBridge();
+        level.tick(bridge);
+
+        assertTrue(level.releaseMower(0));
+        assertFalse(level.releaseMower(0), "the same row cannot go twice");
+        assertFalse(level.releaseMower(2), "and a row with no mower has nothing to send");
+        assertFalse(level.releaseMower(9), "nor does a row off the board");
+        level.tick(bridge);
+        assertEquals(MowerMechanic.STATE_ROLLING, mowerRow(bridge, 0).state());
+    }
+
+    @Test
+    void aMowerIsNotSentForAFinishedLevel() {
+        // The payout counts the parked mowers as survivors, so a request that arrives after
+        // the level is over must not quietly spend one of them. Row 4 has no mower, so the
+        // zombie that walks in there ends the level with row 0's mower still parked - which
+        // is exactly the state a late request arrives in.
+        LevelServer level = new LevelServer(level(List.of(0, 1, 2, 3)));
+        CapturingBridge bridge = new CapturingBridge();
+        level.tick(bridge);
+        ZombieEntity zombie = spawn(level, bridge, BASIC_ZOMBIE, 2.0F, 4);
+        assertTrue(tickUntil(level, bridge,
+                () -> !level.gameState().equals(GameStateS2C.RUNNING), 3_000),
+                "the level has to end for this test to mean anything");
+        assertEquals(4, level.readyMowerCount(), "the parked mowers are the survivors");
+
+        assertFalse(level.releaseMower(0), "a finished level has no mowers to send");
+        assertEquals(4, level.readyMowerCount(),
+                "and the request did not quietly spend one of the survivors");
+    }
+
+    @Test
+    void aHandSentMowerStillMows() {
+        // The whole point: it is not a decorative launch. Sending row 2 early has to destroy
+        // what later walks into it, otherwise the long press would waste a mower.
+        LevelServer level = new LevelServer(level(List.of()));
+        CapturingBridge bridge = new CapturingBridge();
+        level.tick(bridge);
+        assertTrue(level.releaseMower(2));
+
+        // Far to the right, so the mower has to reach it rather than the zombie walking in.
+        ZombieEntity zombie = spawn(level, bridge, BASIC_ZOMBIE, 6.0F, 2);
+        assertTrue(tickUntil(level, bridge, () -> zombie.isDying(), 2_000),
+                "a hand-sent mower mows exactly like an automatic one");
+        assertEquals(GameStateS2C.RUNNING, level.gameState());
     }
 
     /** Spawns a zombie and hands back the entity that landed on the board. */

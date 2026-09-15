@@ -67,6 +67,40 @@ public class PlantEntity extends PvzceEntity {
         }
     }
 
+    /**
+     * Takes a hit from a zombie's bite or a Gargantuar's fist.
+     *
+     * <p>A plant whose capabilities declare it invulnerable loses nothing. This is the
+     * one door every "something hits the plant" path goes through, so the ash line's
+     * "chew on it all you like, it still goes off" holds for the giant as much as for an
+     * ordinary zombie - the alternative was a list of plant ids at each call site.
+     *
+     * <p>Not called {@code damage}: {@link PvzceEntity} already has
+     * {@code damage(int)}, and a second overload would change what a one-argument call
+     * resolves to depending on imports.
+     *
+     * @return {@code true} when the hit landed, {@code false} when the plant shrugged it
+     *         off - a caller that swings on a timer (the Gargantuar's hammer) has to be
+     *         able to tell, or it spends its blow on a bomb and counts it as a smash
+     */
+    public boolean damageFrom(int amount) {
+        if (isInvulnerable()) {
+            return false;
+        }
+        damage(amount);
+        return true;
+    }
+
+    /** True while a capability says nothing may hurt this plant (an armed bomb). */
+    public boolean isInvulnerable() {
+        for (Instance instance : capabilities) {
+            if (instance.capability.invulnerable(this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Called by the level right after the plant is committed to the field. */
     public void onPlaced(LevelServer level) {
         for (Instance instance : capabilities) {

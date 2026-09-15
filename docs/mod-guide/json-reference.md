@@ -29,7 +29,7 @@
 | `pvzce:shooter` | `interval`(90) `shots`[] `sound`? `first_delay`(0) | 直线射击；`shots` 元素为 `{projectile, damage, count}` |
 | `pvzce:thrower` | `interval`(90) `shots`[] `butter_chance`(0) `butter_projectile`(`pvzce:butter`) `sound`? `first_delay`(0) | 抛物线投掷，按概率换成黄油弹 |
 | `pvzce:producer` | `resource`(必填) `amount`(25) `every`(必填) `first_delay`(-1=300) `sound`? | 周期产出资源掉落物 |
-| `pvzce:explosive` | `trigger`(`timed`\|`proximity`) `fuse_ticks`(60) `radius`(1.0) `damage`(1800) `trigger_range`(0.6) `sound`? | 樱桃炸弹 / 土豆雷共用 |
+| `pvzce:explosive` | `trigger`(`timed`\|`proximity`) `fuse_ticks`(60) `radius`(1.0) `damage`(1800) `trigger_range`(0.6) `sound`? `damage_type`(`pvzce:ash`) | 樱桃炸弹 / 土豆雷共用。**引信期间不可被伤害**（僵尸照咬，但咬不掉）；爆炸后植物会多留 30 tick 播完 `explode` |
 | `pvzce:melee` | `range`(0.7) `swallow_max_health`(0) `chew_ticks`(240) `sound`? | 吞噬弱僵尸后咀嚼消失 |
 | `pvzce:boost_below` | `sound`? `boosted_sound`? | 立即强化下方植物并消耗自身（咖啡豆） |
 
@@ -64,6 +64,8 @@
 | animation / animations | 同上 | 无 | |
 | equipment | Equipment[]? | `[]` | 会磨损的装备（路障/铁桶/旗帜…），见下 |
 | drops_arm | bool | true | 半血是否掉外侧手臂；巨人/小鬼/Boss 与手臂骨骼命名不同的僵尸设 false |
+| drops_head | bool | true | 死亡时是否抛出头颅（`pvzce:zombie_head` 粒子）。**僵尸模型在死亡 clip 里把 head 藏起来了**，所以头是由这个粒子抛出来的；巨人/Boss 整个倒下、气球僵尸的头随气球走，都设 false |
+| hidden_bones | string[] | `[]` | 永远不画的模型骨骼名。原版美术是**分层**而不是父子：同一只手可能有两份精灵、都挂在 root 下，于是两份都会画出来。见下面的旗帜说明 |
 
 > 行走与啃咬是所有僵尸共享的基础循环，写在 `ZombieEntity` 里；能力只覆盖"不同的部分"。
 
@@ -80,13 +82,26 @@
 | piece | Identifier? | 无 | 由**这件护甲**的剩余耐久驱动；省略则由**本体血量**驱动 |
 | health_below | float | 0.5 | 只有血量驱动时用：血量比例低于它换成最破的那张 |
 | drop_particle | Identifier? | 无 | 打碎（或死时还戴着）时飞出去的粒子 |
+| host | string? | 无 | 这件装备**自己带来的那只手**的骨骼名（旗帜是 `flaghand`）。它不是装备的某一档图，所以不在 `art` 的档位族里；作用是回答"这只手还在不在" |
+| arm_bones | string[] | `[]` | 僵尸**自己的**手臂骨骼（`innerarm_*` / `outerarm_*`）。与 `host` 互斥：`host` 在画时它们被隐藏，`host` 不画时（例如死亡 clip 把旗子收走）它们被还回来 |
 
 ```jsonc
 "equipment": [
   { "art": "cone", "piece": "pvzce:cone", "drop_particle": "pvzce:zombie_traffic_cone" },
-  { "art": "zombie_flag", "health_below": 0.5, "drop_particle": "pvzce:zombie_flag" }
+  { "art": "zombie_flag", "health_below": 0.5, "drop_particle": "pvzce:zombie_flag",
+    "host": "flaghand",
+    "arm_bones": ["innerarm_hand", "innerarm_lower", "innerarm_upper",
+                  "outerarm_hand", "outerarm_hand_2", "outerarm_upper",
+                  "outerarm_upper_2", "outerarm_lower"] }
 ]
 ```
+
+> **`host` + `arm_bones` 是为什么存在**：原版把一条手臂拆成两份精灵——普通僵尸的 `Zombie.reanim`
+  里有一套（内外两条都一直画），旗帜僵尸的拿旗那只手在 `Zombie_flagpole.reanim` 里。于是
+  一只旗帜僵尸会同时画出拿旗的手和一条普通的手臂，看起来像"一只悬空的手抓着旗子"。
+  `host` 说明哪根骨骼代表"这只手在场上"，`arm_bones` 列出该被换掉的普通手臂骨骼：两者
+  只画一个。范围是"`host` 在画的那几帧"，所以死亡 clip 把旗子收走之后普通手臂会回来——
+  否则僵尸会无臂倒下。
 
 护甲驱动的三档按剩余/耐久取：> 2/3 完好、> 1/3 第二张、其余第三张、0 = 消失；
 族的图比档位少时（旗帜只有 `_1` 和 `_3`）退回最接近的那一张。装备只在**当前这一帧本来就画这个族**
@@ -132,7 +147,7 @@
 |---|---|---|
 | `pvzce:linear` | `speed`(2.0) | 直线飞行，速度为格/秒 |
 | `pvzce:arc` | `speed`(2.2) `gravity`(9.0) | 抛物线；发射时按目标位置解算初速 |
-| `pvzce:splash` | `radius`(1.5) `sound`? | 命中点范围伤害**取代**直接命中 |
+| `pvzce:splash` | `radius`(1.5) `sound`? `damage_type`(`pvzce:splash`) | 命中点范围伤害**取代**直接命中 |
 | `pvzce:status` | `effects`[] | 命中附加状态；元素为 `{status(slow\|immobilized), ticks(240), magnitude(0.7)}` |
 | `pvzce:pierce` | 无 | 命中后继续飞行 |
 
@@ -175,6 +190,33 @@
 | music | LevelMusicDef? | 默认 grasswalk 循环；`cues`: `[{at_tick, track, event, loop, stop, volume, fade_seconds}]` |
 | initial_entities | InitialEntityDef[] | 编辑器预摆：kind/id/x/y |
 | dialogue | LevelDialogue? | 可选；关卡开始前的一段对话（见下） |
+| hints | LevelHint[] | 可选；底部灰色提示框的台词（见下） |
+
+### 提示文本（hints）
+
+屏幕底部那个灰色半透明框（原版同款位置）的台词。一条提示写成：
+
+```jsonc
+"hints": [
+  // 关卡开始时显示，一直挂到玩家捡到第一颗阳光
+  { "trigger": "on_start", "text": "点击阳光可以收集", "duration_ticks": 0 },
+  // 第一次捡到阳光时显示，默认 160 tick（约 2.7 秒）
+  { "trigger": "on_resource", "resource": "pvzce:sun", "text": "你需要收集阳光种植植物" },
+  // 让本关在卡被拒绝时也能说话（"冷却中"/"阳光不足"两句是内置的）
+  { "trigger": "on_card_refused" }
+]
+```
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| trigger | string | `on_start` | `on_start`（关卡开始）/ `on_resource`（第一次捡到指定资源）/ `on_card_refused`（点了一张用不了的卡）。拼错的 trigger 退回 `on_start`，并由 `LevelValidator` 报出来 |
+| resource | Identifier? | 无 | 只有 `on_resource` 用；不写或写了没注册的资源，这条永远不会触发（同样会被校验报出来） |
+| text | string | `""` | 显示的文本；`on_card_refused` 不需要（它有自己的两句话） |
+| duration_ticks | int | 160 | 停留时长；**写 0（或负数）表示常驻**，直到关卡结束或被下一条顶掉 |
+
+**同时只显示一条**，且**卡牌拒绝的提示优先于教学提示**：拒绝是对玩家刚做的一个动作的回答，
+被教学文本盖住就正好在玩家问的那一刻把答案吞了。每条 `on_start` / `on_resource` 提示
+**一个关卡实例只触发一次**（那是课，不是通知）。
 
 ### 奖励（rewards）
 
@@ -287,6 +329,8 @@
 
 细节：只有**地面层**的僵尸会触发与被他碾（气球僵尸飞过、矿工在地下时都不受影响，但它们走到房子里照样算输）；碾压**无视护甲**（铁桶也是碾一下就死）；每行的车用掉就不再回来，并且会随关卡存档一起保存。
 
+**也可以手动放车**：鼠标停在还停着的车身上按住约半秒就会把它放出去（松开取消）。和自动触发的车完全一样——同样的音效、速度与消耗，所以提前放掉一辆就是**这一行后面都敞开着**，请当成一次性资源来用。
+
 ### 冒险模式前三关（内置示例）
 
 `data/pvzce/levels/yard/adventure/1_{1,2,3}.json` 是照原版节奏写的第一批关卡，也是最省事的模板：
@@ -389,7 +433,44 @@
 
 写在**每一波**上：简单关卡的前期可以慢、最终波必须快，这是两个独立的旋钮。缺省 300 tick（5 秒），下限 15 tick。
 
-一波放完要早于下一波到来（`(僵尸数-1) × spawn_interval ≤ 下一波的 delay`），否则下一波的进度条会在上一波还在出怪时就开始读秒。
+`delay` 是**两波之间的间隔**：它从**上一波把僵尸放完**的那一 tick 开始算，而不是从上一波触发时算
+（`tickWaves` 在还有僵尸没放完时冻结这个计时）。所以 `(僵尸数-1) × spawn_interval ≤ delay` 是
+「下一波不要插进上一波的出怪窗口」的写法，而不是硬性要求：写小了会让两波的出怪队列同时跑，
+玩家看到的是两波的僵尸混在一起，`LevelServer` 不会拦。
+
+### 粒子大小（`scale`）
+
+`scale` 就是**画出来的边长，单位是世界格**（引擎里 `size = particle.scale`），不是"相对贴图的倍率"。
+它来自原版的 `ParticleScale`，而原版那个值约等于 `精灵像素 / 80`——僵尸手臂 26px → 0.325、星爆 8px → 0.1，
+两个都对得上，所以照抄原版的数值一般就是对的**尺寸**。
+
+例外是原版那几件**独立的一整块抛掷物精灵**：它们在自己的画布上带完整轮廓，比僵尸身上对应的部件大得多
+（`ZombieHead.png` 64×61，而僵尸模型里的头贴图只有 53×48）。照抄会让一颗头盖住半块草坪，
+所以本项目的 `pvzce:zombie_head` 用 0.4、`pvzce:zombie_arm` 用 0.33。
+
+### 粒子的大小变化（`scale_curve`）
+
+`scale_curve` 是**一条随时间变化的尺寸表**（`[[进度, 世界格], …]`，进度 0~1），画出来的边长是
+`scale × scale_curve(进度)`：
+
+```jsonc
+// 原版 Pow.xml 的 ParticleScale 是 `.2 .5,7`：从 0.2 格长到 0.5 格
+"scale": 0.2,
+"scale_curve": [[0.0, 0.2], [1.0, 0.5]]
+```
+
+原版把「范围」和「曲线」写在同一串数字里（`[.7 .9]`、`.5,60 0`、`.2 .5,7`），
+所以**转换器只认得清无歧义的那些**：`[a b]` 与开头的 `a b` 会变成一条从 a 到 b 的直线，
+带时间或曲线类型的（`,7`、`,60 0`、`EaseIn`）一律保持常数尺寸。
+要让某个效果真的膨胀/收缩，就在定义里写一张显式的表——灰烬类那个爆炸闪光（`pvzce:pow`）
+就是手写的，因为原版那条写着 `,7`，转换器读不出它的时间轴。
+
+### 粒子的地面摩擦（`ground_friction`）
+
+`bounce: true` 的粒子落地后水平速度会乘上它（0~1，默认 **1** = 完全不减速）。
+默认值刻意保留旧行为：引擎过去落地只把 `vy` 归零、`vx` 一个字节都不动，所以带 bounce 的
+投掷物落地后会一直横着滑到自己寿命结束——僵尸头颅因此会一路滑出屏幕左边。
+要做"原地掉落、原地消失"就把它调小（`pvzce:zombie_head` 用 0.25）。
 
 ### 资源掉落方式（`drop_motion`）
 
@@ -516,9 +597,33 @@
 
 `/pvzce registry list <category>` 与命令补全共用同一张分类表：
 
-`plant`、`zombie`、`projectile`、`resource`、`slot`、`tool`、`scene_element`、`liquid`、`game_rule`、`env_var_type`、`sound_event`、`level`、`plant_capability`、`zombie_capability`、`projectile_capability`
+`plant`、`zombie`、`projectile`、`resource`、`slot`、`tool`、`scene_element`、`liquid`、`game_rule`、`env_var_type`、`sound_event`、`level`、`damage_type`、`plant_capability`、`zombie_capability`、`projectile_capability`
 
 复数别名（`plants`、`zombies`、`scene`、`levels`…）同样被接受。
+
+---
+
+## damage_types
+
+伤害类型：一次命中**吃不吃护甲**，由内容声明的类型决定，而不是由代码里调了哪个方法决定。
+目录是 `data/<ns>/damage_types/<名字>.json`，文件只有两个字段。
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| id | Identifier | 文件路径 | |
+| ignores_armor | bool | false | `true` = 直接打身体（灰烬类、小推车）；`false` = 僵尸的护甲能力先接（豌豆、保龄球） |
+
+内置五种：`pvzce:ash`（灰烬类爆炸，`ignores_armor`）、`pvzce:splash`（投手溅射，`ignores_armor`）、`pvzce:mower`（小推车与锤子，`ignores_armor`）、`pvzce:projectile`（普通子弹）、`pvzce:impact`（保龄球、巨人拳）。
+
+```jsonc
+// data/mymod/damage_types/poison.json
+{ "id": "mymod:poison", "ignores_armor": true }
+```
+
+之后在能力里写 `"damage_type": "mymod:poison"` 即可。**未注册的 id 会回退到 `pvzce:projectile`**（即护甲照常生效），
+所以拼错的类型不会变成"无视护甲的外挂"；`LevelValidator` / 加载日志会把未知取值报出来。
+
+引用的地方：`pvzce:explosive.damage_type`、`pvzce:splash.damage_type`。
 
 ---
 

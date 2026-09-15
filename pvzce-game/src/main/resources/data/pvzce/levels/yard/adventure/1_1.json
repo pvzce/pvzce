@@ -170,5 +170,20 @@
         "side": "left"
       }
     ]
-  }
+  },
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "点击阳光可以收集",
+      "duration_ticks": 0
+    },
+    {
+      "trigger": "on_resource",
+      "resource": "pvzce:sun",
+      "text": "你需要收集阳光种植植物"
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ]
 }

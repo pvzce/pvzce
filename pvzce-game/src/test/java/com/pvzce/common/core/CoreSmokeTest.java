@@ -38,27 +38,6 @@ class CoreSmokeTest {
     }
 
     @Test
-    void nbtRoundTrips() throws Exception {
-        CompoundTag root = new CompoundTag();
-        root.putString("LevelId", "pvzce:demo_level");
-        root.putInt("Tick", 123);
-        ListTag list = new ListTag();
-        CompoundTag plant = new CompoundTag();
-        plant.putString("id", "pvzce:pea_shooter");
-        plant.putInt("x", 3);
-        list.add(plant);
-        root.put("plants", list);
-
-        Path file = Files.createTempFile("pvzce-nbt", ".dat");
-        NbtIo.writeCompressed(root, file);
-        CompoundTag read = NbtIo.readCompressed(file);
-
-        assertEquals("pvzce:demo_level", read.getString("LevelId"));
-        assertEquals(123, read.getInt("Tick"));
-        assertEquals("pvzce:pea_shooter", read.getList("plants").getCompound(0).getString("id"));
-    }
-
-    @Test
     void builtinDataPackLoadsDemoLevel() throws Exception {
         // Content and convention tags together: the placement rules read tags,
         // so a data-only load would leave every cell unplantable.

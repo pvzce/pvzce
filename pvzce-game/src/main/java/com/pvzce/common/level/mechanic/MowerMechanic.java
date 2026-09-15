@@ -69,6 +69,15 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
     private static final int CLOUD_INTERVAL_TICKS = 4;
     /** How often a rolling mower's position is streamed, in ticks. */
     private static final int SYNC_INTERVAL_TICKS = 3;
+    /**
+     * What one mower blow is worth.
+     *
+     * <p>A constant rather than {@code zombie.health()}: the registered {@code pvzce:mower}
+     * damage type ignores armour, so this is "more than anything on the lawn has", and
+     * reading the target's health would have made the damage depend on what it hit - a
+     * Gargantuar is not supposed to survive one mower because a formula said so.
+     */
+    private static final int MOWER_DAMAGE = 100_000;
 
     /** The NBT key this mechanic's run state is written under. */
     private static final String KEY_MOWERS = "Mowers";
@@ -165,6 +174,8 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
             private float x;
             /** Ticks until the next dust puff, so the trail is even. */
             private int cloudTimer;
+            /** Set by a hand release, whose request has no tick to emit the sound on. */
+            private boolean launchSoundPending;
 
             private Mower(float x) {
                 this.x = x;
@@ -180,6 +191,9 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
                         start(level, entry.getKey(), mower);
                     }
                 } else if (mower.state == STATE_ROLLING) {
+                    // A mower the player released between ticks still has its launch sound
+                    // to play, and this is the first tick it can be played on.
+                    playLaunchSound(level, entry.getKey(), mower);
                     roll(level, entry.getKey(), mower);
                 }
             }
@@ -195,11 +209,30 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
             return false;
         }
 
+        /**
+         * Sends a mower rolling.
+         *
+         * <p>{@code level} is the one the sound is played at, and it is absent when the
+         * player released the mower from the HUD: that request arrives between ticks, and
+         * {@code LevelServer.emitEffect} is a no-op without an active tick bridge - so the
+         * sound is deferred by a flag and played on the rig's next tick instead. The state
+         * change itself is immediate either way, which is what matters: the next entity sync
+         * has to carry the mower as rolling.
+         */
         private void start(LevelServer level, int row, Mower mower) {
             mower.state = STATE_ROLLING;
             mower.x = IDLE_X;
             mower.cloudTimer = 0;
+            mower.launchSoundPending = true;
             dirty = true;
+            playLaunchSound(level, row, mower);
+        }
+
+        private void playLaunchSound(LevelServer level, int row, Mower mower) {
+            if (level == null || !mower.launchSoundPending) {
+                return;
+            }
+            mower.launchSoundPending = false;
             level.emitEffect("", mower.x, row + 0.5F, PvzceSounds.EFFECT_LAWNMOWER);
         }
 
@@ -234,10 +267,10 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
                     zombie.cellX(), zombie.cellY(), null);
             level.emitEffect(PvzceParticles.MOWER_CLOUD_POWIE.toString(),
                     zombie.cellX(), zombie.cellY(), null);
-            // Damage equal to the zombie's own health: the mower destroys armour and body
-            // together, which `damageImpact` deliberately does not - there, armour absorbs one
-            // hit and shatters without passing anything through to the body.
-            zombie.damageBody(Math.max(1, zombie.health()), level);
+            // The `pvzce:mower` damage type destroys armour and body together, which
+            // `pvzce:impact` deliberately does not - there, armour absorbs one hit and
+            // shatters without passing anything through to the body.
+            zombie.damage(MOWER_DAMAGE, ZombieEntity.damageType(PvzceIds.DAMAGE_MOWER), level);
         }
 
         /** Ground-layer zombies of one row, as a copy: mowing removes them. */
@@ -273,6 +306,36 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
                 }
             }
             return ready;
+        }
+
+        /**
+         * Sends one row's parked mower early, and says whether it went.
+         *
+         * <p>The same start the zombie trigger uses, so a hand-released mower is not a
+         * different thing: it makes the same noise, rolls at the same speed, mows the same
+         * zombies and is spent the same way. The row is checked here rather than by the
+         * caller, so "there is no mower in row 3" and "row 3's mower is already gone" are
+         * the same answer, and a second packet for the same row is a no-op instead of a
+         * second launch.
+         *
+         * <p>Deliberately allowed with nothing in the row: the player may be sending it
+         * ahead of a wave, which is the whole point of being able to do it by hand.
+         */
+        public boolean release(int row) {
+            Mower mower = mowers.get(row);
+            if (mower == null || mower.state != STATE_READY) {
+                return false;
+            }
+            start(null, row, mower);
+            return true;
+        }
+
+        /**
+         * The rows this level actually has mowers in, so a caller can tell "that row has no
+         * mower" from "that mower is gone" without knowing the level data.
+         */
+        public boolean hasRow(int row) {
+            return mowers.containsKey(row);
         }
 
         /** The wire (and test) view of this rig. */

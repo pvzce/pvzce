@@ -65,7 +65,7 @@
           "count": 2
         }
       ],
-      "spawn_interval": 360
+      "spawn_interval": 600
     },
     {
       "type": "huge",
@@ -81,7 +81,7 @@
           "count": 3
         }
       ],
-      "spawn_interval": 240
+      "spawn_interval": 600
     },
     {
       "type": "final",
@@ -97,7 +97,7 @@
           "count": 4
         }
       ],
-      "spawn_interval": 240
+      "spawn_interval": 600
     }
   ],
   "slots": [
@@ -177,5 +177,14 @@
         "side": "left"
       }
     ]
-  }
+  },
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "选择植物卡片，然后种在草坪上"
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ]
 }

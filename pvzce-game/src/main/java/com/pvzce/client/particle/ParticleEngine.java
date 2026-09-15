@@ -196,6 +196,12 @@ public final class ParticleEngine {
             if (motion.bounce() && particle.y < particle.groundY && particle.vy < 0F) {
                 particle.y = particle.groundY;
                 particle.vy = 0F;
+                // The ground is the only thing here that touches horizontal speed. Without
+                // this the particle keeps its launch vx forever once it lands and slides
+                // off the board in a straight line - which is exactly what a thrown head
+                // did, ending up at the screen's left edge instead of dropping where it
+                // fell. Definitions that want the old skitter keep the default of 1.
+                particle.vx *= motion.groundFriction();
             }
         }
         particles.removeIf(particle -> particle.age >= particle.lifetime);

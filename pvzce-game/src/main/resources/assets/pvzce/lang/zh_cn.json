@@ -147,7 +147,7 @@
   "pvzce.newspaper_zombie": "读报僵尸",
   "pvzce.night_length": "夜晚时长",
   "pvzce.no_card_hint": "没有对应资源卡，无法收集",
-  "pvzce.not_enough": "资源不足",
+  "pvzce.not_enough": "阳光不足",
   "pvzce.paused": "游戏暂停",
   "pvzce.pea_shooter": "豌豆射手",
   "pvzce.plant": "植物方",
@@ -194,5 +194,6 @@
   "pvzce.zombie": "僵尸方",
   "pvzce.zombie_boss": "僵尸首领",
   "pvzce.zombie_damage_multiplier": "僵尸伤害倍率",
-  "pvzce.zombie_speed_multiplier": "僵尸速度倍率"
+  "pvzce.zombie_speed_multiplier": "僵尸速度倍率",
+  "pvzce.award.coins_collected": "本局收集的金币"
 }

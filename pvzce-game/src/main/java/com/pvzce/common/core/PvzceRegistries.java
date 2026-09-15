@@ -52,6 +52,8 @@ public final class PvzceRegistries {
     public static final ResourceKey<Registry<LevelCategoryDef>> LEVEL_CATEGORIES = key("level_category");
     public static final ResourceKey<Registry<DialogueCharacterDef>> DIALOGUE_CHARACTERS =
             key("dialogue_character");
+    public static final ResourceKey<Registry<com.pvzce.api.content.DamageTypeDef>> DAMAGE_TYPES =
+            key("damage_type");
     public static final ResourceKey<Registry<CapabilityType<PlantCapability>>> PLANT_CAPABILITIES =
             key("plant_capability");
     public static final ResourceKey<Registry<CapabilityType<ZombieCapability>>> ZOMBIE_CAPABILITIES =
@@ -95,6 +97,7 @@ public final class PvzceRegistries {
         map.put("level_theme", LEVEL_THEMES);
         map.put("level_category", LEVEL_CATEGORIES);
         map.put("dialogue_character", DIALOGUE_CHARACTERS);
+        map.put("damage_type", DAMAGE_TYPES);
         // Capability types are code-registered rather than data-driven, but they are
         // still registries: listing them is how a mod author checks what a data file
         // may reference, and including them keeps this table a complete index.
@@ -124,6 +127,7 @@ public final class PvzceRegistries {
                 java.util.Map.entry("level_themes", "level_theme"),
                 java.util.Map.entry("level_categories", "level_category"),
                 java.util.Map.entry("dialogue_characters", "dialogue_character"),
+                java.util.Map.entry("damage_types", "damage_type"),
                 java.util.Map.entry("plant_capabilities", "plant_capability"),
                 java.util.Map.entry("zombie_capabilities", "zombie_capability"),
                 java.util.Map.entry("projectile_capabilities", "projectile_capability"),

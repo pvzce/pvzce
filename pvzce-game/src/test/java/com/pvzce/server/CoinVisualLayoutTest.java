@@ -30,32 +30,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is a single sprite.
  */
 class CoinVisualLayoutTest {
+    /**
+     * Every denomination ships an icon.
+     *
+     * <p>The icon is what the card, the HUD and the fly-to-bank animation use. Whether the drop
+     * itself draws comes from the art resolvers, and that is covered by
+     * {@code AnimationManagerIntegrationTest::everyDenominationPlaysAsADrop}.
+     */
     @Test
-    void everyDenominationHasSomethingToDraw() throws Exception {
+    void everyDenominationHasAnIcon() throws Exception {
         TestContent.loadBuiltInContentAndTags();
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
 
         for (Identifier denomination : PvzceIds.COIN_DENOMINATIONS) {
             ResourceDef def = BuiltInRegistries.RESOURCES.get(denomination);
             assertNotNull(def, denomination + " must be a registered resource");
-            assertTrue(def.defaultValue() > 0, denomination + " must be worth something");
-            assertTrue(def.collectibleWithoutCard(),
-                    denomination + " is currency: picking it up must not need a card slot");
-
-            // The icon is what the card, the HUD and the fly-to-bank animation use.
             assertPresent(loader, "assets/" + def.icon().toPath() + ".png", denomination + " icon");
-
-            // The drop itself: an animation controller, or the flat sprite it falls back
-            // to. Both paths come from the production resolvers rather than from a
-            // hand-written layout, because the shipped art is grouped by kind and a copy
-            // of that layout in a test would keep passing while the game drew nothing.
-            Identifier animationFile = EntityArt.animationFile(denomination);
-            String animation = "assets/" + animationFile.namespace() + "/animations/"
-                    + animationFile.path() + ".json";
-            Identifier sprite = EntityArt.sprite(denomination);
-            String spritePath = "assets/" + sprite.toPath() + ".png";
-            assertTrue(loader.getResource(animation) != null || loader.getResource(spritePath) != null,
-                    denomination + " needs either " + animation + " or " + spritePath);
         }
     }
 

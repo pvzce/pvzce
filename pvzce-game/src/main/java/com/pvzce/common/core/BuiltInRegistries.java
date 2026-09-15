@@ -69,6 +69,13 @@ public final class BuiltInRegistries {
     public static final Registry<LevelThemeDef> LEVEL_THEMES = ACCESS.newRegistry(PvzceRegistries.LEVEL_THEMES);
     public static final Registry<com.pvzce.api.content.DialogueCharacterDef> DIALOGUE_CHARACTERS =
             ACCESS.newRegistry(PvzceRegistries.DIALOGUE_CHARACTERS);
+    /**
+     * Damage types: what a hit does to armour. Data-backed, so a pack can add its own
+     * ({@code data/<ns>/damage_types/<name>.json}); the static entries below keep the
+     * game playable with no pack at all, exactly like every other registry here.
+     */
+    public static final Registry<com.pvzce.api.content.DamageTypeDef> DAMAGE_TYPES =
+            ACCESS.newRegistry(PvzceRegistries.DAMAGE_TYPES);
     public static final Registry<LevelCategoryDef> LEVEL_CATEGORIES =
             ACCESS.newRegistry(PvzceRegistries.LEVEL_CATEGORIES);
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<PlantCapability>>
@@ -118,6 +125,7 @@ public final class BuiltInRegistries {
         registerEnvVarTypes();
         registerSounds();
         registerLevelGroups();
+        registerDamageTypes();
     }
 
     private static void registerPlants() {
@@ -354,6 +362,28 @@ public final class BuiltInRegistries {
     private static void registerLevelGroups() {
         registerStatic(LEVEL_THEMES, "pvzce:yard", new LevelThemeDef(PvzceIds.id("yard"), 0));
         registerStatic(LEVEL_CATEGORIES, "pvzce:adventure", new LevelCategoryDef(PvzceIds.id("adventure"), 0));
+    }
+
+    /**
+     * The built-in damage types, mirroring {@code data/pvzce/damage_types/*.json}.
+     *
+     * <p>Armour is the only thing the flag decides: {@code ignores_armor} is what
+     * separates the ash line (and a lawn mower) from a pea. Which of a zombie's
+     * pieces a hit meets first stays with the caller - a shot's layer picks a slot,
+     * an impact tries front before top - because that is a question about the hit,
+     * not about what kind of damage it is.
+     */
+    private static void registerDamageTypes() {
+        registerStatic(DAMAGE_TYPES, "pvzce:ash",
+                new com.pvzce.api.content.DamageTypeDef(PvzceIds.DAMAGE_ASH, true));
+        registerStatic(DAMAGE_TYPES, "pvzce:splash",
+                new com.pvzce.api.content.DamageTypeDef(PvzceIds.DAMAGE_SPLASH, true));
+        registerStatic(DAMAGE_TYPES, "pvzce:mower",
+                new com.pvzce.api.content.DamageTypeDef(PvzceIds.DAMAGE_MOWER, true));
+        registerStatic(DAMAGE_TYPES, "pvzce:projectile",
+                new com.pvzce.api.content.DamageTypeDef(PvzceIds.DAMAGE_PROJECTILE, false));
+        registerStatic(DAMAGE_TYPES, "pvzce:impact",
+                new com.pvzce.api.content.DamageTypeDef(PvzceIds.DAMAGE_IMPACT, false));
     }
 
     /**

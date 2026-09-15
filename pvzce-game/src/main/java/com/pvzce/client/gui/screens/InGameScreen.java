@@ -140,6 +140,69 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     /** How much bigger it gets while it grows. */
     private static final float REWARD_GROW_SCALE = 0.35F;
     /**
+     * The white light the reward gives off once it has been presented.
+     *
+     * <p>Not a fade-through-white of the whole screen: the original's light starts
+     * <em>at the reward</em> and spreads outward until it has swallowed the board, which is
+     * what makes it read as the reward being collected rather than as the game changing
+     * scene. Its source is captured at the click - where the reward was when the player
+     * touched it - so the light looks like it came out of the packet even though the packet
+     * has travelled to the middle of the window by the time the spread begins.
+     */
+    private static final long REWARD_LIGHT_SPREAD_NANOS = 700_000_000L;
+    /** Held fully white for this long after the light has covered the screen. */
+    private static final long REWARD_LIGHT_HOLD_NANOS = 350_000_000L;
+    /**
+     * How long the player holds the mouse on a parked mower to send it by hand.
+     *
+     * <p>Not a click: a parked mower is a one-shot, level-long resource - spending one on a
+     * wave that was already handled costs the player that row for the rest of the level -
+     * so the gesture has to be deliberate. Half a second is long enough that no ordinary
+     * click on the board can trigger it by accident, and short enough that it does not feel
+     * like the game is ignoring the button.
+     */
+    private static final long MOWER_HOLD_NANOS = 500_000_000L;
+    /** The bar that fills while a mower is being held, in GUI pixels. */
+    private static final float MOWER_HOLD_BAR_WIDTH = 46F;
+    private static final float MOWER_HOLD_BAR_HEIGHT = 7F;
+    /** How far above the mower's own cell centre the bar sits, in cells. */
+    private static final float MOWER_HOLD_BAR_LIFT_CELLS = 0.68F;
+
+    /**
+     * The original's own pointer: {@code DownArrow.png} from the rip, which is what
+     * {@code AwardPickupArrow.xml} hangs over a reward the player has to click.
+     */
+    private static final Identifier REWARD_ARROW =
+            Identifier.withDefaultNamespace("textures/gui/hud/down_arrow");
+    private static final float REWARD_ARROW_ART_WIDTH = 32F;
+    private static final float REWARD_ARROW_ART_HEIGHT = 26F;
+    /** 32px of art at the original's 80 pixels per cell. */
+    private static final float REWARD_ARROW_WIDTH_CELLS = 0.4F;
+    /**
+     * How far the arrow bobs, and how long one half-cycle takes.
+     *
+     * <p>The original moves it over ten frames at 12 fps - about 0.83s down and back - so the
+     * period is that doubled. In GUI pixels rather than cells: the arrow is the game pointing
+     * at something, so it must not shrink with the board.
+     */
+    private static final float REWARD_ARROW_BOB_PIXELS = 10F;
+    private static final long REWARD_ARROW_PERIOD_NANOS = 1_660_000_000L;
+    /** Clearance between the reward's top edge and the arrow's tip. */
+    private static final float REWARD_ARROW_GAP_PIXELS = 6F;
+    /** The reward's own on/off flash while it waits to be claimed. */
+    private static final long REWARD_FLASH_PERIOD_NANOS = 620_000_000L;
+    private static final float REWARD_FLASH_MIN_BRIGHTNESS = 0.62F;
+    /**
+     * How the reward's own coin bonus is broken into visible coins.
+     *
+     * <p>One coin per hundred, so the number the player watches matches the number they
+     * were paid; the cap keeps a large clear from turning the celebration into a swarm.
+     * The ids are negative because collect animations are keyed by entity id and no entity
+     * has one - the mowers use the same trick with their own offset.
+     */
+    private static final int REWARD_BAG_MAX_COINS = 12;
+    private static final int REWARD_BAG_FIRST_ID = -10_000;
+    /**
      * How long an unclaimed reward waits before claiming itself.
      *
      * <p>The coins are already banked either way, so this is purely a way out: a player
@@ -253,6 +316,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private float rewardDropX;
     private float rewardDropY;
     /**
+     * Where the reward's white light starts, in GUI pixels, and when it started.
+     *
+     * <p>Both are captured on the click, at the rectangle the reward was drawn in at that
+     * instant: the light has to look like it came out of the packet, and by the time it has
+     * finished the packet has travelled to the middle of the window, so "where the reward
+     * is now" would put the source somewhere the player never saw it.
+     */
+    private float rewardLightX;
+    private float rewardLightY;
+    private long rewardLightNanos;
+    /**
      * Coins the victory paid for the lawn mowers that were never needed.
      *
      * <p>Client-side only: the wallet was credited by the server before the reward packet,
@@ -261,6 +335,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * not move.
      */
     private int claimedMowerCoins;
+    /**
+     * The reward's own coin bonus, added to the tally for the same reason.
+     *
+     * <p>Without it the bag's coins fly into a counter that never changes: the wallet was
+     * credited by the server before the packet arrived, so the on-screen number only moves
+     * if the client says it did. The tally is a receipt, not a ledger.
+     */
+    private int claimedRewardCoins;
     /** The card currently shaking off a refused click, or {@code -1}. */
     private int refusedCard = -1;
     private long refusedCardNanos;
@@ -290,6 +372,27 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private boolean sweeping;
     /** The last drop a sweep asked for, so the same one is not requested every frame. */
     private int lastSweptDropId = -1;
+    /**
+     * The original's grey box at the bottom of the board, and the level's script for it.
+     *
+     * <p>Every trigger is decided here rather than by a packet: the three moments a hint can
+     * key off - the board coming up, a drop being clicked, a card being refused - are all
+     * things this screen already sees. See {@link com.pvzce.client.gui.hud.HintBox}.
+     */
+    private final com.pvzce.client.gui.hud.HintBox hints =
+            new com.pvzce.client.gui.hud.HintBox(client);
+    private com.pvzce.client.gui.hud.LevelHints levelHints;
+    private boolean hintsStarted;
+    /** True once the player has clicked any drop, so the "click a sun" lesson stops. */
+    private boolean clickedAnyDrop;
+    /**
+     * The row of the parked mower the mouse is being held on, or {@code -1}.
+     *
+     * <p>By row rather than by position: the mower is a thing the player pointed at, and if
+     * the pointer drifts a few pixels while the ring fills the gesture must not be lost.
+     */
+    private int mowerHoldRow = -1;
+    private long mowerHoldNanos;
     /**
      * The level's card bar: the ordinary seed row, or whatever a mechanic deals.
      *
@@ -362,6 +465,31 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if ((dialogue == null || !dialogue.isActive()) && entryNanos == 0L) {
             entryNanos = System.nanoTime();
         }
+        startHints();
+    }
+
+    /**
+     * Starts the level's hint script, once per screen.
+     *
+     * <p>Called from {@code init()} rather than from the constructor because this screen is
+     * constructed before the level it describes exists on the client - the payload arrives
+     * with {@code LevelInitS2C}, which {@code PvzceClient} applies and only then builds the
+     * screen. Read from the local level definition, like the dialogue and the belt flag:
+     * hints are level content, and the client already loads the same data packs.
+     */
+    private void startHints() {
+        if (hintsStarted) {
+            return;
+        }
+        hintsStarted = true;
+        String levelId = client.level().levelId();
+        com.pvzce.api.util.Identifier id =
+                levelId == null ? null : com.pvzce.api.util.Identifier.tryParse(levelId);
+        com.pvzce.api.content.LevelDef def = id == null
+                ? null
+                : com.pvzce.common.core.BuiltInRegistries.LEVELS.get(id);
+        levelHints = new com.pvzce.client.gui.hud.LevelHints(hints, def);
+        levelHints.onLevelStart();
     }
 
     /** The conversation is over: unpause and let the "准备… 安放… 种植！" banner play. */
@@ -506,23 +634,101 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             }
             return;
         }
-        if (now - rewardRiseNanos
-                >= REWARD_RISE_NANOS + REWARD_GROW_NANOS + REWARD_HANDOFF_NANOS) {
-            rewardHandedOff = true;
-            client.openAwardScreen(reward);
+        long elapsed = now - rewardRiseNanos;
+        if (elapsed >= REWARD_RISE_NANOS + REWARD_GROW_NANOS) {
+            // Three beats, in order: the packet arrives and is presented (the rise and the
+            // grow), the light climbs out of it, and only then is the award page opened -
+            // at the moment the white has finished fading, so there is no frame where the
+            // board is visible again between the two screens.
+            if (rewardLightNanos == 0L) {
+                startRewardLight();
+            } else if (now - rewardLightNanos >= REWARD_LIGHT_SPREAD_NANOS
+                    + REWARD_LIGHT_HOLD_NANOS + REWARD_HANDOFF_NANOS) {
+                rewardHandedOff = true;
+                client.openAwardScreen(reward);
+            }
         }
     }
 
-    /** Claims the reward: the victory music, the mower payout and the rise, at once. */
+    /**
+     * Claims the reward: the victory music, the mower payout and the rise, at once.
+     *
+     * <p>The light starts here too, from the rectangle the reward is drawn in right now, so
+     * the spread is anchored to something the player was looking at.
+     */
     private void claimReward() {
         if (rewardRiseNanos != 0L) {
             return;
         }
         rewardRiseNanos = System.nanoTime();
+        float[] rect = rewardRect();
+        rewardLightX = rect[0] + rect[2] / 2F;
+        rewardLightY = rect[1] + rect[3] / 2F;
+        rewardLightNanos = 0L;
         payForParkedMowers();
         if (client.music() != null) {
             client.music().playWinLose(true);
         }
+    }
+
+    /** Starts the spread once the reward has finished travelling. */
+    private void startRewardLight() {
+        if (rewardLightNanos != 0L) {
+            return;
+        }
+        rewardLightNanos = System.nanoTime();
+        rewardLightX = client.guiWidth() / 2F;
+        rewardLightY = client.guiHeight() / 2F;
+    }
+
+    /**
+     * 0..1 opacity of the reward's white light, from the wall clock.
+     *
+     * <p>Zero until the packet has been presented, ramps while the light spreads, holds
+     * while the board is gone, then fades over the handoff beat - and the award page is
+     * opened the instant that fade reaches zero, so the two screens meet without a frame of
+     * lawn between them. Derived from the wall clock rather than accumulated, so a dropped
+     * frame cannot stretch the sequence.
+     */
+    public float rewardLightAlpha() {
+        if (rewardLightNanos == 0L) {
+            return 0F;
+        }
+        long elapsed = System.nanoTime() - rewardLightNanos;
+        if (elapsed <= REWARD_LIGHT_SPREAD_NANOS) {
+            return MathUtil.easeInOut(MathUtil.clamp01(elapsed / (float) REWARD_LIGHT_SPREAD_NANOS));
+        }
+        long afterSpread = elapsed - REWARD_LIGHT_SPREAD_NANOS;
+        if (afterSpread <= REWARD_LIGHT_HOLD_NANOS) {
+            return 1F;
+        }
+        // Fades over the handoff beat, so the page is revealed through the light rather
+        // than after it. The page is opened when this reaches zero.
+        return MathUtil.clamp01(1F - (afterSpread - REWARD_LIGHT_HOLD_NANOS)
+                / (float) REWARD_HANDOFF_NANOS);
+    }
+
+    /**
+     * The light's radius in GUI pixels: the on-screen distance the white has reached.
+     *
+     * <p>The spread is sized to the window's <em>diagonal from the reward's own corner</em>,
+     * so by the end it has covered every edge whatever the aspect ratio - a radius picked
+     * from the height alone would leave the far corners of a wide window uncovered.
+     */
+    public float rewardLightRadius() {
+        if (rewardLightNanos == 0L) {
+            return 0F;
+        }
+        float farthest = 0F;
+        float[] corners = {0F, 0F, client.guiWidth(), 0F, 0F, client.guiHeight(),
+                client.guiWidth(), client.guiHeight()};
+        for (int i = 0; i < corners.length; i += 2) {
+            farthest = Math.max(farthest, (float) Math.hypot(
+                    corners[i] - rewardLightX, corners[i + 1] - rewardLightY));
+        }
+        long elapsed = System.nanoTime() - rewardLightNanos;
+        float progress = MathUtil.easeInOut(MathUtil.clamp01(elapsed / (float) REWARD_LIGHT_SPREAD_NANOS));
+        return farthest * progress;
     }
 
     /**
@@ -539,21 +745,76 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * the left edge of the lawn, where a mower would have been standing anyway.
      */
     private void payForParkedMowers() {
-        if (reward == null || reward.mowers() <= 0 || reward.mowerCoins() <= 0) {
+        // Read-and-consume in one call: the coins need the rows' positions, and the mowers
+        // themselves have to stop being drawn at the same instant, because "the mower became
+        // this coin" only reads if there is no longer a mower standing under it.
+        java.util.List<com.pvzce.common.level.mechanic.MowerMechanic.Row> parked =
+                com.pvzce.client.mechanic.ClientMechanics.consumeParkedMowers(client.level());
+        if (reward != null && reward.mowers() > 0 && reward.mowerCoins() > 0) {
+            claimedMowerCoins = reward.mowerCoins();
+            float fallbackY = Math.max(0F, (client.level().height() - 1) / 2F);
+            for (int i = 0; i < reward.mowers(); i++) {
+                var row = i < parked.size() ? parked.get(i) : null;
+                float x = row == null ? -0.4F : row.x();
+                float y = row == null ? fallbackY : row.row() + 0.5F;
+                client.level().addCollectAnimation(new ResourceCollectAnimation(
+                        -(i + 1), com.pvzce.common.PvzceIds.COIN_GOLD.toString(), 0, COIN_ICON,
+                        x, y, 0.3F));
+            }
+        }
+        payForRewardBag();
+    }
+
+    /**
+     * Turns the reward's own money bag into coins, from where the bag is lying.
+     *
+     * <p>The bag is what a win pays when it has no card to unlock: first clears, repeat
+     * clears and the flat bonus all land in the wallet as coins, and the packet's
+     * {@code bonusCoins} is that number. In the original the bag bursts where it lies and
+     * the coins arc into the bank; the award page that follows is a summary, not a second
+     * place to collect the same money from.
+     *
+     * <p>The count is derived from the value rather than fixed, so the player watches the
+     * amount they were actually credited - one coin per hundred, at least one, capped so a
+     * five-thousand-coin clear does not become a swarm that outlasts the celebration. The
+     * per-coin worth is that division, not a constant, so the coins add up to the bonus.
+     */
+    private void payForRewardBag() {
+        if (reward == null || reward.hasUnlock() || reward.bonusCoins() <= 0) {
             return;
         }
-        claimedMowerCoins = reward.mowerCoins();
-        java.util.List<com.pvzce.common.level.mechanic.MowerMechanic.Row> parked =
-                com.pvzce.client.mechanic.ClientMechanics.parkedMowers(client.level());
-        float fallbackY = Math.max(0F, (client.level().height() - 1) / 2F);
-        for (int i = 0; i < reward.mowers(); i++) {
-            var row = i < parked.size() ? parked.get(i) : null;
-            float x = row == null ? -0.4F : row.x();
-            float y = row == null ? fallbackY : row.row() + 0.5F;
+        int coins = Math.max(1, Math.min(REWARD_BAG_MAX_COINS, reward.bonusCoins() / 100));
+        int worth = Math.max(1, reward.bonusCoins() / coins);
+        claimedRewardCoins = reward.bonusCoins();
+        // From the bag's own rectangle, which is also where it is drawn and where the player
+        // just clicked - the same rule the mowers follow, for the same reason.
+        float[] rect = rewardRect();
+        PvzceCamera camera = client.camera();
+        float guiScale = Math.max(1, client.guiScale());
+        float worldX = camera.worldX(rect[0] + rect[2] / 2F, rect[1] + rect[3] / 2F);
+        float worldY = camera.worldY(rect[0] + rect[2] / 2F, rect[1] + rect[3] / 2F);
+        for (int i = 0; i < coins; i++) {
             client.level().addCollectAnimation(new ResourceCollectAnimation(
-                    -(i + 1), com.pvzce.common.PvzceIds.COIN_GOLD.toString(), 0, COIN_ICON,
-                    x, y, 0.3F));
+                    REWARD_BAG_FIRST_ID - i, claimResourceId(), worth, COIN_ICON,
+                    worldX + (i % 3 - 1) * 0.08F, worldY, 0.3F));
         }
+    }
+
+    /**
+     * Which resource the reward's coins are counted as.
+     *
+     * <p>The level's own denomination, so a level that pays in silver counts silver - the
+     * bank and the tally are the same number the wallet moved.
+     */
+    private String claimResourceId() {
+        com.pvzce.api.util.Identifier levelId = com.pvzce.api.util.Identifier.tryParse(
+                client.level().levelId() == null ? "" : client.level().levelId());
+        com.pvzce.api.content.LevelDef def = levelId == null
+                ? null : com.pvzce.common.core.BuiltInRegistries.LEVELS.get(levelId);
+        if (def == null || def.rewards() == null || def.rewards().coinDrop() == null) {
+            return com.pvzce.common.PvzceIds.COIN_GOLD.toString();
+        }
+        return def.rewards().coinDrop().toString();
     }
 
     /**
@@ -606,29 +867,120 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 placement.bottomY() - height * 0.25F, width, height};
     }
 
-    /** Draws the unclaimed reward: a seed packet, or the money bag. */
+    /**
+     * Draws the reward, the light it gives off, and - while it waits - the arrow over it.
+     *
+     * <p>Three things are on this layer and they are one sequence:
+     *
+     * <ol>
+     *   <li>unclaimed: the reward flashes and a downward arrow bobs above it. The original
+     *       does not write "click to collect" over the lawn; it points at the thing and lets
+     *       the flashing say the rest, which reads at a glance and in any language;</li>
+     *   <li>claimed: the arrow goes, the reward travels to the middle as before;</li>
+     *   <li>arrived: the white light spreads out of it until the board is gone.</li>
+     * </ol>
+     */
     private void renderRewardDrop() {
         if (!hasRewardDrop()) {
             return;
         }
         float[] rect = rewardRect();
+        // Flashing is a brightness modulation rather than an alpha one: fading the packet
+        // out would show the lawn through it, and the original's packet stays solid.
+        float brightness = rewardRiseNanos == 0L ? rewardFlash() : 1F;
         if (reward().hasUnlock()) {
             SlotResolver.ResolvedCard card = SlotResolver
                     .resolve(Identifier.tryParse(reward().unlockedCard())).orElse(null);
             SeedCardRenderer.draw(client, SeedCardRenderer.CardModel.of(
                             card == null ? null : card.icon().orElse(null),
                             SeedCardRenderer.CardKind.PLANT,
-                            card == null ? 0 : card.costSun()),
+                            card == null ? 0 : card.costSun())
+                            .withBrightness(brightness),
                     rect[0], rect[1], rect[2], rect[3]);
         } else {
-            client.drawTexture(REWARD_BAG, rect[0], rect[1], rect[2], rect[3], 0.55F, 1F, 1F, 1F, 1F);
+            client.drawTexture(REWARD_BAG, rect[0], rect[1], rect[2], rect[3], 0.55F,
+                    brightness, brightness, brightness, 1F);
         }
         if (rewardRiseNanos == 0L) {
-            String hint = "点击领取奖励";
-            float scale = 1.2F;
-            client.font().draw(hint, rect[0] + rect[2] / 2F - client.font().width(hint, scale) / 2F,
-                    rect[1] + rect[3] + 8F, scale, 1F, 0.95F, 0.6F, 1F);
+            renderRewardArrow(rect);
         }
+        renderRewardLight();
+    }
+
+    /**
+     * The reward's wait-for-me flash: a brightness that dips and returns.
+     *
+     * <p>Started from the drop's own timestamp rather than from the click, so the phase is
+     * the same every run - the flash is a signal, and a signal that starts mid-cycle reads
+     * as a flicker.
+     */
+    private float rewardFlash() {
+        double phase = (System.nanoTime() - rewardDropNanos)
+                % (double) REWARD_FLASH_PERIOD_NANOS / (double) REWARD_FLASH_PERIOD_NANOS;
+        // A raised cosine: dwells at both ends, so the packet spends most of the cycle
+        // readable rather than mid-fade.
+        float wave = (float) (0.5D - 0.5D * Math.cos(phase * Math.PI * 2D));
+        return REWARD_FLASH_MIN_BRIGHTNESS
+                + (1F - REWARD_FLASH_MIN_BRIGHTNESS) * wave;
+    }
+
+    /**
+     * A downward arrow bobbing above the reward, drawn with the original's own sprite.
+     *
+     * <p>The rip has the exact emitter for this - {@code AwardPickupArrow.xml}, whose second
+     * emitter is {@code IMAGE_DOWNARROW} moved by a {@code Position} field of
+     * {@code 0 EaseInOutWeak 10 EaseInOutWeak 0}: down ten frames and back, on a weak ease.
+     * That is why this is a sprite and not a shape: the arrow is the original's, the bob is
+     * the original's curve, and the only thing left is to place it.
+     *
+     * <p>In GUI pixels rather than cells, because it is the game pointing at something -
+     * the same reason the wave warning does not scale with the board. Its size comes from
+     * the art at the original's own 80-pixels-per-cell scale.
+     */
+    private void renderRewardArrow(float[] rect) {
+        if (!client.hasTexture(REWARD_ARROW)) {
+            return;
+        }
+        double phase = (System.nanoTime() - rewardDropNanos)
+                % (double) REWARD_ARROW_PERIOD_NANOS / (double) REWARD_ARROW_PERIOD_NANOS;
+        // The original's curve is symmetric, so one sine half-period reads the same.
+        float bob = (float) Math.sin(phase * Math.PI) * REWARD_ARROW_BOB_PIXELS;
+        float width = REWARD_ARROW_WIDTH_CELLS * arrowUnit();
+        float height = width * REWARD_ARROW_ART_HEIGHT / REWARD_ARROW_ART_WIDTH;
+        float centerX = rect[0] + rect[2] / 2F;
+        // Above the reward, and never over it: the point of the arrow is where the eye
+        // should land, so the tip sits just clear of the sprite's top edge.
+        float bottom = rect[1] + rect[3] + REWARD_ARROW_GAP_PIXELS + bob;
+        client.drawTexture(REWARD_ARROW, centerX - width / 2F, bottom, width, height,
+                0.6F, 1F, 1F, 1F, 1F);
+    }
+
+    /**
+     * One world cell in GUI pixels, for sizing a HUD sprite that has to match the board.
+     *
+     * <p>The same conversion {@code rewardRect} uses; kept in one place so the arrow cannot
+     * end up a different size from the thing it points at.
+     */
+    private float arrowUnit() {
+        return Math.max(18F, client.camera().unitY() / Math.max(1, client.guiScale()));
+    }
+
+    /**
+     * The white light the claimed reward gives off, until it has covered the window.
+     *
+     * <p>Drawn as a square rather than a disc: the GUI has no circle primitive and no
+     * additive shader, and at the speed this spreads the corners of a growing square read
+     * as light arriving from that direction. The square's half-width is the radius, so by
+     * the end its corners reach past the window's diagonal and nothing is left uncovered.
+     */
+    private void renderRewardLight() {
+        float alpha = rewardLightAlpha();
+        if (alpha <= 0F) {
+            return;
+        }
+        float radius = Math.max(1F, rewardLightRadius());
+        client.drawSolid(rewardLightX - radius, rewardLightY - radius,
+                radius * 2F, radius * 2F, 0.85F, 1F, 1F, 1F, alpha);
     }
 
     private LevelRewardS2C reward() {
@@ -691,6 +1043,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     public void tick() {
         if (!client.level().gameState().equals("running")) {
             closePause();
+            // A hint belongs to the fight. Once it is over the bottom of the screen belongs
+            // to the reward (and, on a loss, to the defeat sequence), so the box goes down
+            // with the level rather than lingering under the payout.
+            hints.clear();
+            // Same for a mower hold in progress: the level is over, and the packet it would
+            // have sent must not arrive after the payout counted the mower as surviving.
+            cancelMowerHold();
         }
         tickReward();
         tickDefeat();
@@ -736,6 +1095,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // server is paused or stepped.
         client.liquidRipples().tick(dt);
         client.level().pruneCollectAnimations(System.nanoTime());
+        tickMowerHold();
         tickWaveWarning();
         int coins = inLevelCoins();
         if (seenCoins < 0) {
@@ -759,10 +1119,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         renderEntryBanner();
         renderFinalWaveBanner();
         renderCardBar();
+        renderMowerHold();
         renderCollectAnimations();
         renderDraggedCard();
         renderEndOverlay();
         renderRewardDrop();
+        if (!defeatSequenceRunning()) {
+            // Not over the defeat sequence: that is the game explaining what just happened,
+            // and a lesson from thirty seconds ago on top of it would be noise. The box is
+            // cleared outright on a loss for the same reason.
+            hints.render();
+        }
         if (client.level().gameState().equals("running")) {
             boolean dialogueActive = dialogue != null && dialogue.isActive();
             for (var widget : widgets) {
@@ -1002,14 +1369,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float xScale = (drop ? 1F : client.spriteXScale()) * renderScale;
         float yScale = renderScale;
         EntityVisuals.Visuals visuals = EntityVisuals.of(entity.kind());
+        // Drawn at the interpolated position, not the packet's: see ClientEntity.visualCellX.
+        // One sample per 20 Hz packet is a staircase at any frame rate above 20.
+        float drawX = entity.visualCellX();
+        float drawY = entity.visualCellY();
+        float drawHeight = entity.visualHeight();
         if (entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND) {
             // Burrowing zombies are shown as a mound instead of a sprite.
-            client.drawSolid(entity.cellX() - 0.3F, entity.cellY() - 0.2F, 0.6F, 0.4F, 0.05F,
+            client.drawSolid(drawX - 0.3F, drawY - 0.2F, 0.6F, 0.4F, 0.05F,
                     0.4F, 0.28F, 0.16F, 0.9F);
             return;
         }
-        client.drawTexture(texture, entity.cellX() - visuals.spriteOffsetX() * xScale,
-                entity.cellY() - visuals.spriteOffsetY() * yScale + entity.height(),
+        client.drawTexture(texture, drawX - visuals.spriteOffsetX() * xScale,
+                drawY - visuals.spriteOffsetY() * yScale + drawHeight,
                 visuals.spriteWidth() * xScale, visuals.spriteHeight() * yScale, visuals.baseZ(),
                 1, 1, 1, 1);
     }
@@ -1025,19 +1397,24 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // to follow it, or a scaled entity slides around on a shadow that belongs to the
         // size it no longer is.
         float renderScale = com.pvzce.common.core.EntityArt.renderScale(entity.defId());
+        // Same interpolated position as the art: a shadow that arrives a packet early or
+        // late slides out from under the thing casting it.
+        float drawX = entity.visualCellX();
+        float drawY = entity.visualCellY();
+        float drawHeight = entity.visualHeight();
         if (entity.kind().equals("plant")) {
             float width = (visual == null ? 0.68F : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.76F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, entity.cellX(), entity.cellY() - 0.46F,
+            client.drawEntityShadow(texture, drawX, drawY - 0.46F,
                     width * renderScale, height * renderScale, 0.34F);
         } else if (entity.kind().equals("zombie") && entity.layer() != -1) {
-            float lift = Math.max(0F, entity.height());
+            float lift = Math.max(0F, drawHeight);
             float alpha = Math.max(0.14F, 0.34F - lift * 0.14F);
             float width = (visual == null
                     ? Math.max(0.46F, 0.62F - lift * 0.06F)
                     : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.95F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, entity.cellX(), entity.cellY() - 0.46F,
+            client.drawEntityShadow(texture, drawX, drawY - 0.46F,
                     width * renderScale, height * renderScale, alpha);
         }
     }
@@ -1255,7 +1632,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         for (Identifier denomination : com.pvzce.common.PvzceIds.COIN_DENOMINATIONS) {
             total += client.level().resource(teamId, denomination);
         }
-        return total + claimedMowerCoins;
+        return total + claimedMowerCoins + claimedRewardCoins;
     }
 
     /**
@@ -1645,6 +2022,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     protected void onMouseClicked(double guiX, double guiY, int button) {
+        // The mowers stand half a cell off the left edge of the board, where no cell
+        // exists - so this is the one press that has to be tested before the board bounds
+        // reject it, and before the drop sweep claims it.
+        if (button == 0 && client.level().gameState().equals("running")
+                && beginMowerHold(rawMouseX(guiX), rawMouseY(guiY))) {
+            return;
+        }
         if (!client.level().gameState().equals("running")) {
             // The reward drop is the only clickable thing on a finished board; a click
             // that misses it is not "leave the level", it is a miss.
@@ -1765,6 +2149,89 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
     }
 
+    /**
+     * Starts timing a long press on a parked mower; true when there is one under the cursor.
+     *
+     * <p>Consumes the press: a hold that turned into a plant placement because the button
+     * came up on the board would be a mower and a plant for one gesture.
+     */
+    private boolean beginMowerHold(double rawX, double rawY) {
+        PvzceCamera camera = client.camera();
+        float worldX = camera.worldX(rawX, rawY);
+        float worldY = camera.worldY(rawX, rawY);
+        com.pvzce.common.level.mechanic.MowerMechanic.Row mower =
+                com.pvzce.client.mechanic.ClientMechanics.parkedMowerAt(client.level(), worldX, worldY);
+        if (mower == null) {
+            return false;
+        }
+        mowerHoldRow = mower.row();
+        mowerHoldNanos = System.nanoTime();
+        // The mower is the thing being acted on, so a card in hand is put back: otherwise the
+        // same press would leave a plant armed and the next click would spend it.
+        cancelSelection();
+        return true;
+    }
+
+    /** Forget a hold in progress. Called on release, and whenever the level stops running. */
+    private void cancelMowerHold() {
+        mowerHoldRow = -1;
+    }
+
+    /**
+     * Fires the mower once the hold has been long enough.
+     *
+     * <p>From {@code tick} rather than from the release: the point of releasing a mower is
+     * that it goes <em>now</em>, and making the player hold and then let go would add a beat
+     * between the decision and the launch for no reason. The release only cancels.
+     */
+    private void tickMowerHold() {
+        if (mowerHoldRow < 0) {
+            return;
+        }
+        if (!client.level().gameState().equals("running")) {
+            cancelMowerHold();
+            return;
+        }
+        if (System.nanoTime() - mowerHoldNanos < MOWER_HOLD_NANOS) {
+            return;
+        }
+        client.connection().send(new com.pvzce.common.network.packet.ReleaseMowerC2S(mowerHoldRow));
+        cancelMowerHold();
+    }
+
+    /**
+     * The bar that fills while a mower is held.
+     *
+     * <p>Drawn in GUI space and lifted clear of the mower: the mower is a prop on the lawn
+     * with a tall handle, so a ring around it would cross the handle and the grass both. A
+     * short bar above it is the same gesture with nothing in the way, and it is the only
+     * thing on screen that says the hold is being counted.
+     */
+    private void renderMowerHold() {
+        if (mowerHoldRow < 0) {
+            return;
+        }
+        float progress = MathUtil.clamp01(
+                (System.nanoTime() - mowerHoldNanos) / (float) MOWER_HOLD_NANOS);
+        PvzceCamera camera = client.camera();
+        float guiScale = Math.max(1, client.guiScale());
+        com.pvzce.common.level.mechanic.MowerMechanic.Row mower =
+                com.pvzce.client.mechanic.ClientMechanics.parkedMowerAt(
+                        client.level(),
+                        com.pvzce.common.level.mechanic.MowerMechanic.IDLE_X, mowerHoldRow + 0.5F);
+        float mowerX = mower == null
+                ? com.pvzce.common.level.mechanic.MowerMechanic.IDLE_X : mower.x();
+        float centerX = camera.screenX(mowerX) / guiScale;
+        float centerY = camera.screenY(mowerHoldRow + MOWER_HOLD_BAR_LIFT_CELLS) / guiScale;
+        float left = centerX - MOWER_HOLD_BAR_WIDTH / 2F;
+        // An empty trough and a filled bar: the player has to be able to see how much of the
+        // hold is left, which a bar that simply grows from nothing does not say.
+        client.drawSolid(left - 1F, centerY - 1F, MOWER_HOLD_BAR_WIDTH + 2F, MOWER_HOLD_BAR_HEIGHT + 2F,
+                0.7F, 0.05F, 0.05F, 0.06F, 0.72F);
+        client.drawSolid(left, centerY, MOWER_HOLD_BAR_WIDTH * progress, MOWER_HOLD_BAR_HEIGHT,
+                0.71F, 1F, 0.84F, 0.25F, 0.95F);
+    }
+
     /** One card of the bar by its index, or {@code null}. */
     private SlotInfo slotInfo(int index) {
         return client.level().slots().stream().filter(s -> s.index() == index).findFirst().orElse(null);
@@ -1800,10 +2267,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
-     * Refuses a card that cannot be played: the original's buzzer, and a shake.
+     * Refuses a card that cannot be played: the original's buzzer, a shake, and the grey
+     * box saying which of the three reasons it was.
      *
      * <p>The shake is drawn by the card bar through {@link #cardShake}, which is why the
-     * refused card is remembered by index rather than by identity.
+     * refused card is remembered by index rather than by identity. The line is what the
+     * buzzer cannot say: the original's own two answers are "still recharging" and "not
+     * enough sun", and a card that is merely spent says nothing extra.
      */
     private void refuseCard(int slot) {
         if (client.sound() != null) {
@@ -1811,6 +2281,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         refusedCard = slot;
         refusedCardNanos = System.nanoTime();
+        if (levelHints != null) {
+            SlotInfo card = slotInfo(slot);
+            // Cooldown first: a card that is both recharging and unaffordable is one the
+            // player has to wait for, and waiting is not something more sun can fix.
+            boolean cooling = card != null && card.cooldownLeft() > 0;
+            levelHints.onCardRefused(cooling
+                    ? com.pvzce.client.gui.hud.HintBox.Refusal.cooldown()
+                    : com.pvzce.client.gui.hud.HintBox.Refusal.notEnough());
+        }
     }
 
     /** Drops the current selection, with the sound of putting the card back. */
@@ -1876,6 +2355,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         lastSweptDropId = drop.id();
+        if (levelHints != null) {
+            if (!clickedAnyDrop) {
+                // The first click anywhere on a pickup is the gesture the opening lesson
+                // asked for, so that lesson has done its job whether or not the drop was
+                // the one it named.
+                clickedAnyDrop = true;
+                hints.hide();
+            }
+            levelHints.onResourceCollected(drop.defIdString());
+        }
         client.connection().send(new CollectResourceC2S(drop.id()));
     }
 
@@ -1913,6 +2402,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      */
     @Override
     protected void onMouseReleased(double guiX, double guiY, int button) {
+        cancelMowerHold();
         sweeping = false;
         lastSweptDropId = -1;
         int carried = draggingCard;

@@ -161,6 +161,11 @@ public final class LevelServer implements LevelAccess {
      * non-sync tick is followed by {@code checkEnd} ending the level in the same tick, so
      * the update carrying its death animation would never be sent and the client would be
      * left with a live-looking zombie standing on a finished board.
+     *
+     * <p>Same story for a plant that detonates: its {@code explode} state has to go out on
+     * the tick it happens rather than on whichever third tick comes next, or the client
+     * hears about the blast only as a despawn. {@link #requestEntitySync} is how a
+     * capability asks for that, since it has no access to this field.
      */
     private boolean entitySyncPending;
     /**
@@ -200,6 +205,16 @@ public final class LevelServer implements LevelAccess {
      * the plant is where it always was.
      */
     public static final int CARRY_TIMEOUT_TICKS = 900;
+
+    /**
+     * What one swing of the hammer tool is worth, and under which damage type.
+     *
+     * <p>The tool is a mower in the player's hand - it removes what it hits rather than
+     * wearing it down - so it lands as {@code pvzce:mower}, the type that ignores armour.
+     * The amount is more than any zombie has, so the value is documentation rather than a
+     * number anyone should tune.
+     */
+    private static final int HAMMER_TOOL_DAMAGE = 100_000;
 
     public LevelServer(LevelDef def) {
         this(def, def.slots());
@@ -295,6 +310,7 @@ public final class LevelServer implements LevelAccess {
         problems.addAll(LevelValidator.validateScene(def));
         problems.addAll(LevelValidator.validateInitialEntities(def));
         problems.addAll(LevelValidator.validateDialogue(def));
+        problems.addAll(LevelValidator.validateHints(def));
         if (!problems.isEmpty()) {
             System.err.println("[PVZCE] Level " + def.id() + " has " + problems.size() + " problem(s):");
             for (String problem : problems) {
@@ -735,14 +751,17 @@ public final class LevelServer implements LevelAccess {
     }
 
     @Override
-    public void damageArea(float centerX, float centerY, float radius, int damage, Team sourceTeam) {
-        float multiplier = rules.getFloat(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER);
+    public void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius, int damage,
+                           Team sourceTeam) {
+        // No multiplier here: ZombieEntity.damage applies it once, at the one entry
+        // point every hit goes through. A second copy made a rule that already means
+        // "how hard plants hit" depend on which damage path happened to run.
         for (PvzceEntity entity : new ArrayList<>(entities)) {
             if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                 continue;
             }
             if (Math.abs(zombie.cellX() - centerX) <= radius && Math.abs(zombie.cellY() - centerY) <= radius) {
-                zombie.damageBody(Math.round(damage * multiplier), this);
+                zombie.damage(damage, type, this);
             }
         }
     }
@@ -806,6 +825,18 @@ public final class LevelServer implements LevelAccess {
     }
 
     /**
+     * Asks for the next entity sync to happen now instead of on the third tick.
+     *
+     * <p>For a state a capability just put an entity into, where the tick it happened on
+     * is the tick the client has to hear about it - a plant detonating is the case this
+     * exists for (see {@link #entitySyncPending}). Idempotent, and harmless outside a
+     * tick: the flag is read by {@code syncSlots}, which only runs inside one.
+     */
+    public void requestEntitySync() {
+        entitySyncPending = true;
+    }
+
+    /**
      * Sends one packet to this level's client, or does nothing outside a tick.
      *
      * <p>The door a mechanic needs: its tick hook runs inside {@link #tick}, where the bridge
@@ -846,6 +877,28 @@ public final class LevelServer implements LevelAccess {
         Object state = mechanicState.get(PvzceIds.MECHANIC_MOWER);
         return state instanceof com.pvzce.common.level.mechanic.MowerMechanic.Rig rig
                 ? rig.readyCount() : 0;
+    }
+
+    /**
+     * Sends one row's parked lawn mower early, at the player's request.
+     *
+     * <p>Answers whether it went, which is also the whole of the permission check: the row
+     * must have a mower and that mower must still be parked. Nothing else is consulted, and
+     * in particular the board does not have to be under attack - sending a mower ahead of a
+     * wave is a legitimate (and irreversible) decision, which is what makes the long press
+     * worth having.
+     *
+     * <p>Refused while the level is not running, so a packet that arrives between the last
+     * zombie dying and the payout cannot quietly spend a mower the reward has already
+     * counted as surviving.
+     */
+    public boolean releaseMower(int row) {
+        if (!gameState.equals(GameStateS2C.RUNNING)) {
+            return false;
+        }
+        Object state = mechanicState.get(PvzceIds.MECHANIC_MOWER);
+        return state instanceof com.pvzce.common.level.mechanic.MowerMechanic.Rig rig
+                && rig.release(row);
     }
 
     // ------------------------------------------------------------------
@@ -1057,9 +1110,39 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
+    /**
+     * Whether a wave is still releasing the zombies it queued.
+     *
+     * <p>True while any queue still holds zombies: the wave is on the field but not yet
+     * fully announced, and the next wave's countdown has to wait for it. See
+     * {@link #tickWaves}.
+     */
+    private boolean waveStillReleasing() {
+        for (PendingWaveSpawn queue : pendingWaveSpawns) {
+            if (!queue.zombies.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void tickWaves(ServerBridge bridge) {
         if (nextWaveIndex < waves.size()) {
-            waveIntervalTicks++;
+            // A wave's delay is the gap *between waves*, so it starts once the previous
+            // wave has finished releasing, not the moment it was triggered. Counting
+            // from the trigger let two waves' release queues run at once, and zombies
+            // from different waves then arrived a few seconds apart instead of on the
+            // pacing their own wave asked for - the "they all come out together" of a
+            // level whose first waves are authored ten seconds apart.
+            //
+            // The counter is frozen rather than held at its target so the warning window
+            // stays a property of the gap the author wrote: the warning shows for
+            // `warning_ticks` before the wave arrives, and the arrival is this countdown
+            // reaching `nextWaveDelayTicks`.
+            boolean firstWave = nextWaveIndex == 0;
+            if (firstWave || !waveStillReleasing()) {
+                waveIntervalTicks = Math.min(waveIntervalTicks + 1, nextWaveDelayTicks);
+            }
             if (waveIntervalTicks >= nextWaveDelayTicks) {
                 triggerWave(waves.get(nextWaveIndex));
             } else {
@@ -1110,11 +1193,11 @@ public final class LevelServer implements LevelAccess {
         WaveDef next = waves.get(nextWaveIndex);
         int remaining = nextWaveDelayTicks - waveIntervalTicks;
         int warningTicks = Math.max(0, next.warningTicks());
-        // The wave has to be counting down, not still spawning: ``waveIntervalTicks`` also
-        // runs past ``nextWaveDelayTicks`` while the previous wave's zombies are being
-        // released, and ``remaining`` goes negative there - which used to leave the
-        // warning on for the whole release window and made the banner blink on and off
-        // long after the wave it announced had arrived.
+        // The wave has to be counting down, not still releasing: ``tickWaves`` freezes the
+        // counter while the previous wave's zombies are coming out, so ``remaining`` no
+        // longer runs negative there - but the release window still sits *before* the
+        // countdown starts, and a banner that went up during it would be announcing a wave
+        // the player has already been told about.
         // ``nextWaveDelayTicks`` is -1 once the last wave has been released - that is the
         // "no more waves" sentinel, not a countdown of minus one. Testing it for
         // positivity is the whole fix: without it ``remaining`` was negative, the
@@ -1583,7 +1666,7 @@ public final class LevelServer implements LevelAccess {
             case "pvzce:hammer" -> {
                 for (ZombieEntity zombie : zombiesInRow(y)) {
                     if (zombie.isAlive() && Math.abs(zombie.cellX() - (x + 0.5F)) < 0.8F) {
-                        zombie.damageBody(200, this);
+                        zombie.damage(HAMMER_TOOL_DAMAGE, ZombieEntity.damageType(PvzceIds.DAMAGE_MOWER), this);
                         emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
                     }
                 }

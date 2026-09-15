@@ -7,7 +7,6 @@ import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.common.PvzceParticles;
@@ -21,6 +20,15 @@ import java.util.Optional;
  * JSON but never emitted, so a sunflower's {@code sfx/ui/points} override was
  * silently ignored. The production sound is now played at the moment of
  * production, where the JSON always claimed it would be.
+ *
+ * <p><b>A producer that declares no sound is silent</b>, and that is a real answer rather
+ * than a missing value: the sunflower used to fall back to {@code sfx/ui/points}, which is
+ * the sound of <em>collecting</em> a sun - so a flower that had just made one played the
+ * chime of somebody picking it up, every eighteen seconds, whether or not anybody clicked
+ * it. The original's sunflower is silent when it produces; the chime belongs to the pickup,
+ * which is where {@code ResourceDef.pickup_sound} already plays it. The marigold
+ * deliberately keeps its own coin ring, because its drop is small change rather than the
+ * resource the level is played with.
  */
 public final class ProducerCapability implements PlantCapability {
     public static final int DEFAULT_AMOUNT = 25;
@@ -92,8 +100,11 @@ public final class ProducerCapability implements PlantCapability {
         cooldown = everyTicks;
         plant.setAnimation(EntityAnimations.PRODUCE);
         level.spawnProducedResource(resource, amount, plant.cellX(), plant.cellY(), plant.team());
+        // No fallback sound: "the definition did not name one" means the plant makes no
+        // noise, and the chime that used to stand in for it belongs to the pickup. An
+        // empty id is what LevelServer already reads as "play nothing".
         level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
-                sound.orElseGet(() -> plant.def().sounds().produce().orElse(PvzceSounds.UI_POINTS)));
+                sound.or(() -> plant.def().sounds().produce()).orElse(null));
     }
 
     @Override

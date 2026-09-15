@@ -60,6 +60,29 @@ public final class SeedCardRenderer {
             return new CardModel(icon, kind, costSun, brightness, alpha, ready, cooldownRatio,
                     highlighted, chromeBackground, fit);
         }
+
+        /**
+         * The same card at a different brightness, with everything else kept.
+         *
+         * <p>Used by the end-of-level reward packet, which flashes to say "click me": the
+         * packet is not dimmed or made transparent, it is the same packet with the light on
+         * it going up and down.
+         */
+        public CardModel withBrightness(float newBrightness) {
+            return new CardModel(icon, kind, costSun, newBrightness, alpha, ready, cooldownRatio,
+                    highlighted, background, fitBackground);
+        }
+
+        /**
+         * The same card at a different opacity, with everything else kept.
+         *
+         * <p>Used by the award page, whose whole frame fades in together: the packet has to
+         * arrive with the board behind it rather than before it.
+         */
+        public CardModel withAlpha(float newAlpha) {
+            return new CardModel(icon, kind, costSun, brightness, newAlpha, ready, cooldownRatio,
+                    highlighted, background, fitBackground);
+        }
     }
 
     public static final Identifier CARD_BACKGROUND =

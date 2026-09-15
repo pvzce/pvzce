@@ -58,7 +58,37 @@ public record ZombieDef(
          * arm is hidden client-side from the synced health, and the server plays the pop
          * right before it happens.
          */
-        boolean dropsArm
+        boolean dropsArm,
+        /**
+         * Whether dying throws this zombie's head off, as it does for the original's
+         * ordinary zombies.
+         *
+         * <p>The head is a {@code pvzce:zombie_head} particle - the rip's own detached-head
+         * sprite - so the model itself keeps its head hidden in the death clip (that is how
+         * the original is authored) and this is what puts one on the lawn.
+         *
+         * <p>False for the zombies whose silhouette is the point: the giant and the boss
+         * (which fall over whole), and the ones whose head is a piece of equipment rather
+         * than a head - the balloon zombie's head comes off with its balloon and the imp is
+         * a head already.
+         */
+        boolean dropsHead,
+        /**
+         * Model bones this zombie never draws, whatever the clip says.
+         *
+         * <p>The one thing the source reanim cannot express. Its artwork is layered, not
+         * parented: a bone is a sprite drawn from a track with its own position every frame,
+         * so two sprites that are meant to be alternatives are simply both drawn. The flag
+         * zombie is the case that matters - the rip's hand is in the master file and the pole
+         * hangs off it, but the ordinary zombie's outer arm is still in there too, so the
+         * zombie holds the flag with one arm while a second arm dangles beside it.
+         *
+         * <p>Names are matched exactly against the model's bones, so a name no clip uses is
+         * harmless and one this pack renames simply stops hiding anything. Kept as data
+         * rather than a rule in {@code EquipmentArt} because "which sprites are the same
+         * limb drawn twice" is a property of the artwork, not of the engine.
+         */
+        List<String> hiddenBones
 ) {
     public static final int DEFAULT_HEALTH = 200;
 
@@ -68,7 +98,8 @@ public record ZombieDef(
                      Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
                      Optional<Identifier> texture) {
         this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
-                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE, List.of(), true);
+                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE, List.of(), true, true,
+                List.of());
     }
 
     /** A definition with no equipment and the default arm rule. */
@@ -77,7 +108,7 @@ public record ZombieDef(
                      Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
                      Optional<Identifier> texture, float renderScale) {
         this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
-                sounds, animations, texture, renderScale, List.of(), true);
+                sounds, animations, texture, renderScale, List.of(), true, true, List.of());
     }
     /** Cells per second at the 60tps baseline. */
     public static final float DEFAULT_MOVE_SPEED = 0.47F;
@@ -99,12 +130,16 @@ public record ZombieDef(
             Identifier.CODEC.optionalFieldOf("texture").forGetter(ZombieDef::texture),
             ContentDefs.RENDER_SCALE_CODEC.forGetter(ZombieDef::renderScale),
             EquipmentDef.CODEC.listOf().optionalFieldOf("equipment", List.of()).forGetter(ZombieDef::equipment),
-            Codec.BOOL.optionalFieldOf("drops_arm", true).forGetter(ZombieDef::dropsArm)
+            Codec.BOOL.optionalFieldOf("drops_arm", true).forGetter(ZombieDef::dropsArm),
+            Codec.BOOL.optionalFieldOf("drops_head", true).forGetter(ZombieDef::dropsHead),
+            Codec.STRING.listOf().optionalFieldOf("hidden_bones", List.of())
+                    .forGetter(ZombieDef::hiddenBones)
     ).apply(i, ZombieDef::new));
 
     public ZombieDef {
         capabilities = List.copyOf(capabilities);
         equipment = List.copyOf(equipment);
+        hiddenBones = hiddenBones == null ? List.of() : List.copyOf(hiddenBones);
     }
 
     /** The equipment entry driven by this armor piece id, if any. */

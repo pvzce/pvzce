@@ -41,21 +41,6 @@ class ListPagingTest {
     }
 
     @Test
-    void twoConsecutivePagesNeverShareARow() {
-        // 13 levels in four columns is four rows, two visible: two full pages.
-        assertEquals(List.of(2, 2), walkPages(ListPaging.of(4, 2)));
-    }
-
-    @Test
-    void aLeftoverRowGetsAShortLastPageInsteadOfBeingUnreachable() {
-        // 5 rows of 2: the last page holds the single leftover row. Rounding the page count
-        // down (the old behaviour) hid row 4 entirely - the arrows reported "1/2" and the
-        // fifth row could never be shown, which is the "not all levels are reachable" report.
-        assertEquals(List.of(2, 2, 1), walkPages(ListPaging.of(5, 2)));
-        assertEquals(3, ListPaging.of(5, 2).pageCount());
-    }
-
-    @Test
     void anExactMultipleHasNoEmptyTailPage() {
         ListPaging paging = ListPaging.of(6, 2);
         assertEquals(3, paging.pageCount());

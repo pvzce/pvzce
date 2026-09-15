@@ -61,7 +61,17 @@ public interface LevelAccess {
 
     void spawnZombie(Identifier zombieId, Team team, float x, int row);
 
-    void damageArea(float centerX, float centerY, float radius, int damage, Team sourceTeam);
+    /**
+     * Hits every zombie within {@code radius} cells of a point with one damage type.
+     *
+     * <p>The type is the caller's declaration of what kind of hit this is, and it is
+     * required rather than defaulted: a blast that ignores armour and one that does not
+     * look identical at the call site otherwise, which is exactly how "explosions go
+     * through a bucket" used to be a fact about the method name instead of about the
+     * content.
+     */
+    void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius,
+                    int damage, Team sourceTeam);
 
     void emitEffect(String particle, float x, float y, Identifier sound);
 

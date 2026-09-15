@@ -23,6 +23,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Wave scheduling, warning, sound and interval-curve tests. */
@@ -32,51 +33,39 @@ class WaveSystemTest {
         BuiltInRegistries.bootstrap();
     }
 
+    /**
+     * The wave timeline, and the sounds that go with it.
+     *
+     * <p>Driven by "tick until X happens" rather than by fixed counts: every step here is
+     * a one-tick boundary (a queue publishes on the tick *after* its interval elapses, the
+     * next wave's delay starts on the tick the previous queue empties), and a test that
+     * hard-codes those boundaries is testing its own arithmetic.
+     */
     @Test
     void smallHugeAndFinalWavesUseCorrectTimingAndSounds() {
         LevelServer level = new LevelServer(testLevel(1F, 10, 20, 20));
         CapturingBridge bridge = new CapturingBridge();
 
-        // Timeline of this level (delays 10/20/20, one-second release interval):
-        //   tick 10  wave 1 triggers, its first zombie steps out
-        //   tick 25  wave 2 (huge) starts warning; it triggers at 30
-        //   tick 45  wave 3 (final) starts warning; it triggers at 50
-        //   tick 70  wave 1's *second* zombie, a full interval after its first
-        tick(level, bridge, 10);
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1),
+                "wave 1 triggers on its 10-tick delay and releases at once");
         assertEquals(1, level.currentWave());
-        assertEquals(1, bridge.zombieSpawns(), "wave 1's first zombie should spawn immediately");
         assertFalse(bridge.hasSound("pvzce:sfx/ambient/hugewave"), "small waves must not play the huge-wave sound");
 
-        // One second apart, as the original does. At the old 15 ticks a small wave's
-        // zombies were all out inside half a second, which is the "they all came at
-        // once" complaint - and this test used to assert exactly that.
-        tick(level, bridge, 15);
-        assertEquals(1, bridge.zombieSpawns(), "wave 1's second zombie is not due yet");
-        assertTrue(level.waveWarningActive(), "wave 2's warning opens 5 ticks before it");
-        assertFalse(level.waveWarningFinal(), "and it is the huge wave, not the final one");
+        // Wave 1's second zombie is on wave 1's own clock, and wave 2 does not start until
+        // it is out: a wave's delay is armed once the previous wave stops releasing.
+        assertEquals(311, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2),
+                "wave 1's second zombie, one 300-tick interval after its first");
+        assertEquals(1, level.currentWave(), "wave 2 waits for wave 1 to finish releasing");
 
-        tick(level, bridge, 5);
-        assertEquals(2, level.currentWave());
-        assertFalse(level.waveWarningActive(), "the warning ends when the wave it announced arrives");
-        assertEquals(2, bridge.zombieSpawns(), "wave 2's first zombie");
+        tickUntil(level, bridge, () -> level.currentWave() >= 2);
+        assertEquals(3, bridge.zombieSpawns(), "wave 2's first zombie");
         assertEquals(1, bridge.soundCount("pvzce:sfx/ambient/hugewave"), "huge wave should play hugewave once");
         assertEquals(0, bridge.soundCount("pvzce:sfx/effect/awooga"), "and it is not the final wave");
 
-        tick(level, bridge, 15);
-        assertTrue(level.waveWarningActive(), "final wave warning should start 5 ticks before it spawns");
-        assertTrue(level.waveWarningFinal());
-
-        tick(level, bridge, 5);
-        assertEquals(3, level.currentWave());
-        assertEquals(3, bridge.zombieSpawns(), "wave 3's first zombie");
+        tickUntil(level, bridge, () -> level.currentWave() >= 3);
+        assertEquals(4, bridge.zombieSpawns(), "wave 3's first zombie");
         assertEquals(2, bridge.soundCount("pvzce:sfx/ambient/hugewave"), "final wave is also a huge wave");
         assertEquals(1, bridge.soundCount("pvzce:sfx/effect/awooga"), "final wave should play the awooga siren");
-
-        // Wave 1 has a second zombie and it is on wave 1's clock, 300 ticks after its
-        // first. Waves 2 and 3 released their only zombie on their own trigger tick.
-        tick(level, bridge, WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS);
-        assertEquals(4, bridge.zombieSpawns(),
-                "wave 1's second zombie, one default interval after its first");
 
         tick(level, bridge, 400);
         assertEquals(4, bridge.zombieSpawns(), "and nothing else is due");
@@ -90,19 +79,45 @@ class WaveSystemTest {
         assertEquals("won", level.gameState());
     }
 
+    /** The huge-wave warning shows for `warning_ticks` before the wave it announces. */
     @Test
-    void intervalCurveShortensLaterWaveDelays() {
-        LevelServer level = new LevelServer(testLevel(0.5F, 10, 10, 10));
+    void theWarningOpensRightBeforeItsWave() {
+        LevelServer level = new LevelServer(testLevel(1F, 10, 20, 20));
         CapturingBridge bridge = new CapturingBridge();
 
         tick(level, bridge, 10);
         assertEquals(1, level.currentWave());
+        assertFalse(level.waveWarningActive(), "the warning is not up yet");
 
-        tick(level, bridge, 8);
-        assertEquals(2, level.currentWave(), "second wave delay should be 8 ticks (10 * 0.75)");
+        // Wave 1 is spent as soon as it triggers (one zombie), so wave 2's 20-tick delay
+        // runs from tick 11 and its 5-tick warning covers ticks 26..30.
+        assertEquals(326, tickUntil(level, bridge, () -> level.waveWarningActive()),
+                "the warning opens 5 ticks before the wave it announces");
+        assertFalse(level.waveWarningFinal(), "and it is the huge wave, not the final one");
+        assertEquals(1, level.currentWave(), "the wave itself has not arrived yet");
 
-        tick(level, bridge, 5);
-        assertEquals(3, level.currentWave(), "final wave delay should be 5 ticks (10 * 0.5)");
+        tickUntil(level, bridge, () -> level.currentWave() >= 2);
+        assertFalse(level.waveWarningActive(), "the warning ends when the wave it announced arrives");
+    }
+
+    @Test
+    void intervalCurveShortensLaterWaveDelays() {
+        // One zombie per wave, so every wave is spent the tick it arrives and each delay
+        // is exactly the configured one times the curve's value for that wave.
+        List<WaveDef> waves = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            waves.add(new WaveDef(i == 2 ? WaveDef.WaveType.FINAL : WaveDef.WaveType.SMALL,
+                    10, 5, List.of(new WaveDef.Entry(
+                            Identifier.withDefaultNamespace("basic_zombie"), 1))));
+        }
+        LevelServer level = new LevelServer(testLevel(0.5F, waves));
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> level.currentWave() >= 1));
+        assertEquals(18, tickUntil(level, bridge, () -> level.currentWave() >= 2),
+                "second wave delay should be 8 ticks (10 * 0.75)");
+        assertEquals(23, tickUntil(level, bridge, () -> level.currentWave() >= 3),
+                "final wave delay should be 5 ticks (10 * 0.5)");
     }
 
     @Test
@@ -184,29 +199,21 @@ class WaveSystemTest {
     void eachWaveReleasesAtItsOwnInterval() {
         LevelDef def = testLevel(1F, List.of(
                 new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)), 600),
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)), 5),
                 new WaveDef(WaveDef.WaveType.FINAL, 30, 5, List.of(
                         new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)), 300)));
         LevelServer level = new LevelServer(def);
         CapturingBridge bridge = new CapturingBridge();
 
-        // Wave 1 triggers on tick 10 and resets the counter, so wave 2's 30-tick delay
-        // elapses at tick 40. Both waves are then open with one zombie out each.
-        tick(level, bridge, 40);
-        assertEquals(2, bridge.zombieSpawns(), "each wave released its first zombie");
+        // Wave 1's interval is floored at 15 ticks, so it releases at ticks 10 and 26;
+        // wave 2's 30-tick delay then runs from 26, opening it at 56, and its own
+        // 300-tick interval puts its second zombie at 357.
+        assertEquals(357, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 4),
+                "wave 2's second zombie, on wave 2's own clock");
+        assertEquals(2, level.currentWave());
 
-        // 300 ticks later wave 2's interval is up and wave 1's (600) is not: the two waves
-        // are running on different clocks.
-        // Wave 2's interval is 300 and its first zombie came out at tick 41; wave 1's is
-        // 600 and its first came out at tick 10.
-        tick(level, bridge, 290);
-        assertEquals(2, bridge.zombieSpawns(), "wave 2 is not due yet");
-        tick(level, bridge, 11);
-        assertEquals(3, bridge.zombieSpawns(), "wave 2's second zombie, on wave 2's clock");
-        tick(level, bridge, 300);
-        assertEquals(4, bridge.zombieSpawns(), "and wave 1's, on wave 1's slower one");
         tick(level, bridge, 400);
-        assertEquals(4, bridge.zombieSpawns(), "both waves are spent");
+        assertEquals(4, bridge.zombieSpawns(), "and both waves are spent");
     }
 
     /**
@@ -242,10 +249,86 @@ class WaveSystemTest {
         assertFalse(level.waveWarningFinal());
     }
 
+    /**
+     * A wave's delay is armed when the previous wave stops releasing, not when it starts.
+     *
+     * <p>Counting from the trigger let two waves' release queues run at the same time, and
+     * zombies from different waves then arrived a few seconds apart instead of on the
+     * pacing their own wave asked for - which is what "they all come out together" was in
+     * levels whose first waves are authored ten seconds apart.
+     */
+    @Test
+    void theNextWaveWaitsForThePreviousOneToFinishReleasing() {
+        // Wave 1: three zombies a default interval apart. Wave 2: 20 ticks after that.
+        LevelDef def = testLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3))),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        assertEquals(311, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2),
+                "wave 1's own zombies are on wave 1's clock");
+        assertEquals(1, level.currentWave(), "wave 2 must not open while wave 1 is releasing");
+
+        assertEquals(612, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 3),
+                "wave 1's third and last zombie");
+        assertEquals(1, level.currentWave(), "still wave 1");
+
+        int waveTwo = tickUntil(level, bridge, () -> level.currentWave() >= 2);
+        assertEquals(632, waveTwo, "wave 2's 20-tick delay runs from the tick wave 1 was spent");
+        assertEquals(4, bridge.zombieSpawns(), "and it starts with its own first zombie");
+    }
+
+    /**
+     * 1-2 and 1-3 open with their zombies ten seconds apart.
+     *
+     * <p>Both shipped with 4-6 second gaps in their first three waves, which reads as a
+     * crowd rather than an opening: three zombies arriving within twelve seconds of each
+     * other is not something a two-card deck can answer. The pacing is level data, so this
+     * is where the shipped files are checked; that it survives the wave boundaries is
+     * {@link #theNextWaveWaitsForThePreviousOneToFinishReleasing}'s job.
+     */
+    @Test
+    void theOpeningWavesOfTheFirstLevelsAreTenSecondsApart() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        for (String path : List.of("1_2", "1_3")) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(
+                    Identifier.withDefaultNamespace("yard/adventure/" + path));
+            assertNotNull(def, path + " must be a shipped level");
+            List<WaveDef> waves = def.waves();
+            assertTrue(waves.size() >= 3, path + " should have at least three waves");
+            for (int i = 0; i < 3; i++) {
+                assertEquals(600, waves.get(i).spawnInterval(),
+                        path + " wave " + i + " should release one zombie every ten seconds");
+            }
+        }
+    }
+
     private static void tick(LevelServer level, LevelServer.ServerBridge bridge, int ticks) {
         for (int i = 0; i < ticks; i++) {
             level.tick(bridge);
         }
+    }
+
+    /**
+     * Ticks until {@code condition} holds, returning the tick it first did.
+     *
+     * <p>Fails rather than looping forever, and prints the tick it stopped on - a timing
+     * test is much easier to read when the failure says *when* rather than "expected 2,
+     * got 1".
+     */
+    private static int tickUntil(LevelServer level, LevelServer.ServerBridge bridge,
+                                 java.util.function.BooleanSupplier condition) {
+        for (int i = 0; i < 6_000; i++) {
+            level.tick(bridge);
+            if (condition.getAsBoolean()) {
+                return level.tickCount();
+            }
+        }
+        throw new AssertionError("the condition never held within 6000 ticks");
     }
 
     private static final class CapturingBridge implements LevelServer.ServerBridge {

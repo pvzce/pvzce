@@ -78,6 +78,28 @@ public final class PvzceIds {
     public static final Identifier ENV_PLANT_AI = id("plant_ai");
 
     /**
+     * Built-in damage types - the answer to "does armour absorb this".
+     *
+     * <p>{@code pvzce:ash} is the ash line's blast (cherry bomb, Jalapeno, Doom
+     * Shroom, potato mine, Squash): it lands on the body, so the cone a pea has to
+     * chew through does not save a Conehead from a cherry. {@code projectile} is an
+     * ordinary shot and {@code impact} a hit with no projectile to describe (a
+     * rolling bowling Wall-nut, a Gargantuar's fist); both let armour absorb first.
+     * {@code splash} is the thrown-plant blast - a melon's area damage is authored
+     * as a blast in the original too, which is why it shares the ash line's armour
+     * rule rather than the shooter's. {@code mower} is the lawn mower and the hammer
+     * tool: it does not wear what it hits down, it removes it.
+     *
+     * <p>The declarations live in {@code data/pvzce/damage_types/}; these ids exist
+     * so code and data cannot drift, exactly as {@link PvzceSounds} does for sounds.
+     */
+    public static final Identifier DAMAGE_ASH = id("ash");
+    public static final Identifier DAMAGE_IMPACT = id("impact");
+    public static final Identifier DAMAGE_PROJECTILE = id("projectile");
+    public static final Identifier DAMAGE_SPLASH = id("splash");
+    public static final Identifier DAMAGE_MOWER = id("mower");
+
+    /**
      * Built-in level mechanics, the ids a level's {@code mechanics} list may name.
      *
      * <p>{@code deck} is the implicit default: a level that declares no card source gets

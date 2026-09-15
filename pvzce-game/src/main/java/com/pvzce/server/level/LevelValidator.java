@@ -143,6 +143,51 @@ public final class LevelValidator {
     }
 
     /**
+     * Reports hints that can never do what they say.
+     *
+     * <p>The hint system is deliberately forgiving at runtime - an unknown trigger falls
+     * back to {@code on_start} and a misspelt resource simply never matches - so a broken
+     * hint shows up as "nothing happened", which points at nothing. These are the three
+     * ways that happens, and all three are properties of the file:
+     *
+     * <ul>
+     *   <li>{@code on_resource} with no {@code resource}: there is nothing to wait for;</li>
+     *   <li>a {@code resource} that is not in the registry: the drop it names never
+     *       appears, so the line never fires;</li>
+     *   <li>no {@code text} on a tutorial trigger: the box would come up empty.</li>
+     * </ul>
+     *
+     * <p>{@code on_card_refused} is exempt from the text check: its sentences are built in.
+     */
+    public static List<String> validateHints(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        if (def.hints() == null) {
+            return errors;
+        }
+        List<com.pvzce.api.content.LevelHint> hints = def.hints();
+        for (int i = 0; i < hints.size(); i++) {
+            com.pvzce.api.content.LevelHint hint = hints.get(i);
+            String where = "hints[" + i + "]";
+            if (hint.trigger() == com.pvzce.api.content.LevelHint.Trigger.ON_CARD_REFUSED) {
+                continue;
+            }
+            if (hint.text().isBlank()) {
+                errors.add(where + " has no 'text', so the box would come up empty");
+            }
+            if (hint.needsResource()) {
+                if (hint.resource().isEmpty()) {
+                    errors.add(where + " is 'on_resource' but names no 'resource',"
+                            + " so nothing can ever trigger it");
+                } else if (BuiltInRegistries.RESOURCES.get(hint.resource().get()) == null) {
+                    errors.add(where + " waits for unknown resource '" + hint.resource().get()
+                            + "', so it will never fire");
+                }
+            }
+        }
+        return errors;
+    }
+
+    /**
      * Reports dialogue art that no loaded pack provides.
      *
      * <p>Separate from {@link #validateDialogue} because it needs the resource manager, and
@@ -423,6 +468,45 @@ public final class LevelValidator {
             if (result.error().isPresent()) {
                 errors.add("Invalid value for environment variable '" + entry.getKey() + "': "
                         + result.error().get().message());
+            }
+        }
+        return errors;
+    }
+
+    /**
+     * Reports damage types named by content that no loaded pack declares.
+     *
+     * <p>Checked across the whole content set rather than per level, so it runs on
+     * reload next to the other content passes. A typo is not fatal -
+     * {@code ZombieEntity.damageType} reads an unknown id as {@code pvzce:projectile},
+     * which is "armour applies" - but it is silent: an author who wrote
+     * {@code "pvzce:ashh"} would get a cherry bomb whose blast stops at a cone, and
+     * nothing in the game would say why.
+     *
+     * <p>Both the plant and projectile registries are walked because both declare one
+     * ({@code explosive} and {@code splash} respectively).
+     */
+    public static List<String> validateDamageTypes() {
+        List<String> errors = new ArrayList<>();
+        for (PlantDef plant : BuiltInRegistries.PLANTS) {
+            for (com.pvzce.api.content.capability.TypedCapability<
+                    com.pvzce.api.content.capability.PlantCapability> entry : plant.resolvedCapabilities()) {
+                if (entry.value() instanceof com.pvzce.common.capability.plant.ExplosiveCapability explosive
+                        && BuiltInRegistries.DAMAGE_TYPES.get(explosive.damageType()) == null) {
+                    errors.add("Plant '" + plant.id() + "' declares unknown damage type '"
+                            + explosive.damageType() + "', so its blast falls back to pvzce:projectile");
+                }
+            }
+        }
+        for (com.pvzce.api.content.ProjectileDef projectile : BuiltInRegistries.PROJECTILES) {
+            for (com.pvzce.api.content.capability.TypedCapability<
+                    com.pvzce.api.content.capability.ProjectileCapability> entry
+                    : projectile.resolvedCapabilities()) {
+                if (entry.value() instanceof com.pvzce.common.capability.projectile.SplashImpactCapability splash
+                        && BuiltInRegistries.DAMAGE_TYPES.get(splash.damageType()) == null) {
+                    errors.add("Projectile '" + projectile.id() + "' declares unknown damage type '"
+                            + splash.damageType() + "', so its blast falls back to pvzce:projectile");
+                }
             }
         }
         return errors;

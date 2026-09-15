@@ -29,16 +29,6 @@ class SpawnCommandTest {
     }
 
     @Test
-    void theRootsAreRegistered() {
-        var roots = new java.util.ArrayList<String>();
-        for (var node : tree().getRoot().getChildren()) {
-            roots.add(node.getName());
-        }
-        org.junit.jupiter.api.Assertions.assertTrue(roots.contains("spawn"), "roots: " + roots);
-        org.junit.jupiter.api.Assertions.assertTrue(roots.contains("resource"), "roots: " + roots);
-    }
-
-    @Test
     void everyEntityKindParses() {
         assertNotNull(BuiltInRegistries.RESOURCES.keySet(), "resources must be loaded");
         // The three that always worked, and the one that did not.

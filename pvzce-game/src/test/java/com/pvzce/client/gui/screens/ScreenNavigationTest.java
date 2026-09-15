@@ -3,13 +3,12 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.ConsoleOverlay;
 import com.pvzce.client.gui.Screen;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePackets;
-import org.junit.jupiter.api.BeforeAll;
+import com.pvzce.testutil.ClientHarness;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,16 +35,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  */
 class ScreenNavigationTest {
-    @BeforeAll
-    static void register() {
-        PvzcePackets.register();
+    private final List<ClientHarness> harnesses = new ArrayList<>();
+
+    @AfterEach
+    void closeHarnesses() {
+        harnesses.forEach(ClientHarness::close);
     }
 
-    private static PvzceClient newClient() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-navigation");
-        Connection.Pair pair = Connection.createMemoryPair();
-        return new PvzceClient(pair.client(), gameDir,
-                Thread.currentThread().getContextClassLoader());
+    private PvzceClient newClient() throws Exception {
+        ClientHarness harness = ClientHarness.create("pvzce-navigation");
+        harnesses.add(harness);
+        return harness.client();
     }
 
     /** Records whether it was told it is leaving. */
@@ -270,17 +270,6 @@ class ScreenNavigationTest {
 
         assertEquals(0, root.removals, "the screen underneath is still alive");
         assertEquals(2, client.screenDepth(), "and still on the stack");
-    }
-
-    /** The contract a screen inherits when it says nothing is "pop". */
-    @Test
-    void aScreenThatSaysNothingPops() throws Exception {
-        PvzceClient client = newClient();
-        Screen screen = new TrackingScreen(client);
-        client.setScreenReplacing(screen);
-
-        assertTrue(screen.backTarget() instanceof com.pvzce.client.gui.Navigation.Pop,
-                "the default back target is a pop");
     }
 
     /** A screen that names a replacement is not popped: the whole stack is rebuilt. */

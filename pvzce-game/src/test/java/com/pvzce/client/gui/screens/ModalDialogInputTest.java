@@ -4,13 +4,10 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.Dialog;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePackets;
-import org.junit.jupiter.api.BeforeAll;
+import com.pvzce.testutil.ClientHarness;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,16 +25,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * only runs when no dialog is open; these tests pin that behaviour.
  */
 class ModalDialogInputTest {
-    @BeforeAll
-    static void register() {
-        PvzcePackets.register();
+    private final List<ClientHarness> harnesses = new ArrayList<>();
+
+    @AfterEach
+    void closeHarnesses() {
+        harnesses.forEach(ClientHarness::close);
     }
 
-    private static PvzceClient newClient() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-modal-input");
-        Connection.Pair pair = Connection.createMemoryPair();
-        return new PvzceClient(pair.client(), gameDir,
-                Thread.currentThread().getContextClassLoader());
+    private PvzceClient newClient() throws Exception {
+        ClientHarness harness = ClientHarness.create("pvzce-modal-input");
+        harnesses.add(harness);
+        return harness.client();
     }
 
     /** A screen with a full-window hit region of its own, like the level list's card grid. */

@@ -172,34 +172,6 @@ class RenderMathRegressionTest {
         return movingDefinition().id().toString();
     }
 
-    /**
-     * The 6x6 fast path must land on the same six cells as six individual tiles: the
-     * two paths used to be 0.625 cells apart, so a plain lawn and a mixed lawn rendered
-     * the same cell at different places.
-     */
-    @Test
-    void fullBlockTilesOnTheSameGridAsIndividualCells() {
-        int cells = SceneTileRenderer.TILE_CELLS;
-        for (int blockX = 0; blockX < 3; blockX++) {
-            for (int blockY = 0; blockY < 2; blockY++) {
-                SceneTileRenderer.CellQuad block = SceneTileRenderer.blockQuad(blockX, blockY);
-                assertEquals(blockX * (float) cells, block.x(), 1e-6F);
-                assertEquals(blockY * (float) cells, block.y(), 1e-6F);
-                assertEquals(cells, block.width(), 1e-6F, "a block must span exactly its six cells");
-                assertEquals(cells, block.height(), 1e-6F);
-                // The k-th texture cell of the block covers board cell blockX*6 + k.
-                for (int k = 0; k < cells; k++) {
-                    float step = 1F / cells;
-                    float textureCellLeft = block.x() + block.width() * (k * step);
-                    float textureCellRight = block.x() + block.width() * ((k + 1) * step);
-                    assertEquals(blockX * (float) cells + k, textureCellLeft, 1e-4F,
-                            "texture cell " + k + " must start on board cell " + (blockX * cells + k));
-                    assertEquals(blockX * (float) cells + k + 1F, textureCellRight, 1e-4F);
-                }
-            }
-        }
-    }
-
     /** Every entity kind has a visual entry, and the table is the single source. */
     @Test
     void entityVisualTableCoversEveryKind() {

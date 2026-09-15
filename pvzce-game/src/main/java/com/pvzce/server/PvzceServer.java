@@ -346,6 +346,7 @@ public final class PvzceServer implements Runnable {
             reportErrors("关卡分类", validateLevelGroups());
             reportErrors("对话", LevelValidator.validateAllDialogues(resourceManager));
             reportErrors("内置粒子", validateBuiltInParticles());
+            reportErrors("伤害类型", LevelValidator.validateDamageTypes());
         } catch (Throwable t) {
             t.printStackTrace();
             if (announce) {
@@ -1432,6 +1433,10 @@ public final class PvzceServer implements Runnable {
             } else if (packet instanceof CollectResourceC2S collect) {
                 if (current != null) {
                     current.collectResource(bridge, collect.entityId());
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.ReleaseMowerC2S mower) {
+                if (current != null) {
+                    current.releaseMower(mower.row());
                 }
             } else if (packet instanceof CommandC2S command) {
                 submitCommand(command.command());

@@ -40,5 +40,6 @@
   },
   "animation_dir": "zombie/boss",
   "texture": "pvzce:textures/entities/zombie/boss/zombie_boss",
-  "drops_arm": false
+  "drops_arm": false,
+  "drops_head": false
 }

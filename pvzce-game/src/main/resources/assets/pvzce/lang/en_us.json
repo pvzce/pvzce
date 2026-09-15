@@ -194,5 +194,6 @@
   "pvzce.zombie": "Zombies",
   "pvzce.zombie_boss": "Zombie Boss",
   "pvzce.zombie_damage_multiplier": "Zombie Damage Multiplier",
-  "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier"
+  "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier",
+  "pvzce.award.coins_collected": "Coins collected this run"
 }

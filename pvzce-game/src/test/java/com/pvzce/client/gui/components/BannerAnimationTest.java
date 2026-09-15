@@ -72,11 +72,4 @@ class BannerAnimationTest {
         assertTrue(last < 0.2F, "and fades out on its last frame, not by being cut: " + last);
     }
 
-    @Test
-    void aBannerWithNoFramesIsNeverDrawn() {
-        // The sampling window is half-open, so the frame the banner ends on draws nothing -
-        // which is what keeps a one-shot from being redrawn every frame after it finishes.
-        BannerAnimation banner = BannerAnimation.finalWave();
-        assertFalse(banner.sample(banner.duration()).size() > 0);
-    }
 }

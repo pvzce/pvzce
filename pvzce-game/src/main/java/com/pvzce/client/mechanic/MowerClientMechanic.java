@@ -82,6 +82,15 @@ final class MowerClientMechanic implements ClientMechanic {
                         level.height()));
     }
 
+    /**
+     * How close the cursor has to be to a parked mower, in cells.
+     *
+     * <p>Generous on purpose, and the same radius the resource drops use: the mower is a
+     * small sprite standing half a cell off the board, and a long press is a deliberate
+     * gesture rather than a click that has to land exactly.
+     */
+    private static final float MOWER_CLICK_RADIUS = 0.45F;
+
     /** One row's mower as this client last heard about it. */
     private record Placement(int state, float x) {
     }
@@ -101,10 +110,50 @@ final class MowerClientMechanic implements ClientMechanic {
         return overlay.parkedRows();
     }
 
+    /**
+     * Marks the parked mowers as turned into coins, and answers where they were.
+     *
+     * <p>Called once, by {@code InGameScreen.claimReward}. The payout already credited the
+     * wallet, so this is the visible half: each mower's coin leaves from where that mower
+     * is standing, and the mower itself must not still be standing there afterwards. The
+     * rows have to be read <em>before</em> they are marked consumed, which is why this
+     * returns them rather than just hiding them.
+     *
+     * <p>A consumed row is not "spent" ({@code STATE_USED}): that is a mower the zombies
+     * got past, and the server said so. This one only ever existed on the client, because
+     * the server stopped simulating the level when it was won.
+     */
+    static List<MowerMechanic.Row> consumeParkedMowers(ClientLevel level) {
+        Object state = level.mechanicState(PvzceIds.MECHANIC_MOWER, () -> null);
+        if (!(state instanceof MowerOverlay overlay)) {
+            return List.of();
+        }
+        List<MowerMechanic.Row> parked = overlay.parkedRows();
+        for (MowerMechanic.Row row : parked) {
+            overlay.consumed.add(row.row());
+        }
+        return parked;
+    }
+
+    /**
+     * The nearest parked mower to a world point, or {@code null}.
+     *
+     * <p>What the long press points at; see {@code InGameScreen.mowerHoldTick}.
+     */
+    static MowerMechanic.Row parkedMowerAt(ClientLevel level, float worldX, float worldY) {
+        Object state = level.mechanicState(PvzceIds.MECHANIC_MOWER, () -> null);
+        if (!(state instanceof MowerOverlay overlay)) {
+            return null;
+        }
+        return overlay.parkedAt(worldX, worldY);
+    }
+
     /** The mowers of one level: where each one is, and the animation playback per row. */
     private static final class MowerOverlay implements WorldOverlay {
         private final Map<Integer, Placement> rows = new LinkedHashMap<>();
         private final Map<Integer, ArtTarget> targets = new HashMap<>();
+        /** Rows whose mower has been paid out and must no longer be drawn. */
+        private final java.util.Set<Integer> consumed = new java.util.HashSet<>();
 
         private MowerOverlay(MowerData data, int height) {
             List<Integer> mowerRows = data == null ? List.of() : data.rowsFor(height);
@@ -119,6 +168,28 @@ final class MowerClientMechanic implements ClientMechanic {
                     rows.put(row.row(), new Placement(row.state(), row.x()));
                 }
             }
+        }
+
+        /**
+         * The parked mower nearest a world point, in row order, or {@code null}.
+         *
+         * <p>Used by the long press on the HUD: the player points at a mower, not at a row,
+         * and the mowers stand off the left edge of the board where no cell exists - so this
+         * cannot be a cell lookup, and it is deliberately not one.
+         */
+        private MowerMechanic.Row parkedAt(float worldX, float worldY) {
+            MowerMechanic.Row best = null;
+            float bestDistance = MOWER_CLICK_RADIUS * MOWER_CLICK_RADIUS;
+            for (MowerMechanic.Row row : parkedRows()) {
+                float dx = row.x() - worldX;
+                float dy = (row.row() + 0.5F) - worldY;
+                float distance = dx * dx + dy * dy;
+                if (distance <= bestDistance) {
+                    best = row;
+                    bestDistance = distance;
+                }
+            }
+            return best;
         }
 
         /** Every row whose mower has not been used, in row order. */
@@ -141,8 +212,9 @@ final class MowerClientMechanic implements ClientMechanic {
             }
             for (Map.Entry<Integer, Placement> entry : rows.entrySet()) {
                 Placement placement = entry.getValue();
-                if (placement.state() == MowerMechanic.STATE_USED) {
+                if (placement.state() == MowerMechanic.STATE_USED || consumed.contains(entry.getKey())) {
                     // Spent mowers are gone for good; that is the whole point of using one.
+                    // A consumed one is gone because it has just been paid out as a coin.
                     continue;
                 }
                 int row = entry.getKey();

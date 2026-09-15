@@ -170,6 +170,14 @@ class WaveAnnouncementTest {
                 "1-2 has two huge waves: " + bridge.sounds());
     }
 
+    /** The resource drops currently on the field, in the order they were added. */
+    private static List<com.pvzce.server.entity.ResourceDropEntity> drops(LevelServer level) {
+        return level.entities().stream()
+                .filter(com.pvzce.server.entity.ResourceDropEntity.class::isInstance)
+                .map(com.pvzce.server.entity.ResourceDropEntity.class::cast)
+                .toList();
+    }
+
     /** A sky sun falls; a harvested one rises. The two motions are the resource's own. */
     @Test
     void sunDropsFallAndHarvestedSunRises() {
@@ -182,13 +190,16 @@ class WaveAnnouncementTest {
         serverLevel.tick(bridge);
 
         com.pvzce.server.Team team = serverLevel.team(Identifier.withDefaultNamespace("plant_team"));
+        // The level above has already ticked, and its random is unseeded: a sky sun may have
+        // dropped in on that tick (0.1%). The drop under test is therefore the one that was
+        // not on the field a moment ago, not "the first drop entity".
+        List<com.pvzce.server.entity.ResourceDropEntity> before = drops(serverLevel);
         serverLevel.spawnProducedResource(com.pvzce.common.PvzceIds.SUN, 25, 1F, 0F, team);
         // Entities are queued and only enter the world on a flush, which the level's own
         // tick does; the test drives one so the drop is real before it is inspected.
         serverLevel.flushPending(bridge);
-        com.pvzce.server.entity.ResourceDropEntity produced = serverLevel.entities().stream()
-                .filter(com.pvzce.server.entity.ResourceDropEntity.class::isInstance)
-                .map(com.pvzce.server.entity.ResourceDropEntity.class::cast)
+        com.pvzce.server.entity.ResourceDropEntity produced = drops(serverLevel).stream()
+                .filter(drop -> !before.contains(drop))
                 .findFirst().orElseThrow();
 
         assertEquals(ResourceDef.DropMotion.RISE, produced.motion());

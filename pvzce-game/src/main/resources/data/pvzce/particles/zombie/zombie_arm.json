@@ -20,7 +20,7 @@
         0.0
       ]
     ],
-    "scale": 0.8,
+    "scale": 0.33,
     "life": 0.5,
     "frames_per_second": 60.0,
     "loop": true,

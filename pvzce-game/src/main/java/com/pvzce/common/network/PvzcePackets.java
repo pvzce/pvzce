@@ -39,6 +39,7 @@ import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
+import com.pvzce.common.network.packet.ReleaseMowerC2S;
 import com.pvzce.common.network.packet.UseToolC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
 
@@ -69,7 +70,9 @@ public final class PvzcePackets {
     // 14: entity updates carry remaining armour (a Conehead's cone has three drawings and
     // the client picks one), and LevelRewardS2C carries the lawn mowers that survived the
     // level and what they were worth.
-    public static final int PROTOCOL_VERSION = 14;
+    // 15: ReleaseMowerC2S lets the player send a parked mower by hand instead of waiting for
+    // a zombie to reach the house.
+    public static final int PROTOCOL_VERSION = 15;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -91,6 +94,7 @@ public final class PvzcePackets {
     public static final int C2S_CREATE_WORLD = 14;
     public static final int C2S_UNLOCK_LEVEL = 15;
     public static final int C2S_MOVE_PLANT = 16;
+    public static final int C2S_RELEASE_MOWER = 17;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -147,6 +151,8 @@ public final class PvzcePackets {
                     UnlockLevelC2S::decode),
             def(C2S_MOVE_PLANT, ConnectionDirection.SERVERBOUND, MovePlantC2S.class,
                     MovePlantC2S::decode),
+            def(C2S_RELEASE_MOWER, ConnectionDirection.SERVERBOUND, ReleaseMowerC2S.class,
+                    ReleaseMowerC2S::decode),
 
             def(S2C_LEVEL_INIT, ConnectionDirection.CLIENTBOUND, LevelInitS2C.class, LevelInitS2C::decode),
             def(S2C_LEVEL_LIST, ConnectionDirection.CLIENTBOUND, LevelListS2C.class, LevelListS2C::decode),

@@ -91,8 +91,12 @@ public final class HammerCapability implements ZombieCapability {
             hammerCooldown--;
         } else {
             PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY());
-            if (plant != null) {
-                plant.remove();
+            // Through the plant's own damage entry point, not remove(): an unexploded
+            // bomb is not something a Gargantuar can smash (see
+            // ExplosiveCapability.invulnerable), so the swing has to be a hit that the
+            // plant may shrug off. The hammer still removes anything that can be hurt -
+            // it is authored to take the whole plant in one blow.
+            if (plant != null && plant.damageFrom(plant.health())) {
                 hammerCooldown = hammerIntervalTicks;
                 zombie.setAnimation(EntityAnimations.HAMMER);
                 level.emitEffect(PvzceParticles.EXPLOSION_POWIE.toString(), zombie.cellX(), zombie.cellY(),

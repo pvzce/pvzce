@@ -37,7 +37,8 @@ public record LevelDef(
         LevelRewards rewards,
         LevelUnlock unlock,
         List<TypedMechanic> mechanics,
-        LevelDialogue dialogue
+        LevelDialogue dialogue,
+        List<LevelHint> hints
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
@@ -78,6 +79,7 @@ public record LevelDef(
         maxSeedSlots = maxSeedSlots < 0 ? UNSET_MAX_SEED_SLOTS : Math.max(maxSeedSlots, slots.size());
         mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
         dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
+        hints = hints == null ? List.of() : List.copyOf(hints);
     }
 
     /** True when this level declares its own slot count rather than following the backpack. */
@@ -115,7 +117,7 @@ public record LevelDef(
                 // No slot count in code means the same thing it means in JSON: follow the
                 // backpack. A caller that wants a specific bar passes one.
                 UNSET_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
-                List.of(), LevelDialogue.EMPTY);
+                List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of());
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -128,7 +130,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, List.of(),
-                LevelDialogue.EMPTY);
+                LevelDialogue.EMPTY, List.of());
     }
 
     /**
@@ -146,7 +148,27 @@ public record LevelDef(
                     LevelRewards rewards, LevelUnlock unlock) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY);
+                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of());
+    }
+
+    /**
+     * The whole record minus its hints.
+     *
+     * <p>Kept for callers written before the hint box existed. A level with no {@code hints}
+     * shows none, which is what every level did before there was a way to write one - so the
+     * old shape still means exactly what it used to.
+     */
+    public LevelDef(Identifier id, String name, String description, int width, int height,
+                    Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
+                    Map<Identifier, JsonElement> rules, Map<Identifier, EnvValue> envVars,
+                    List<WaveDef> waves, float waveIntervalEndMultiplier, List<Identifier> slots,
+                    Map<Identifier, Boolean> unlockResources, int initialSun,
+                    LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
+                    LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
+                    LevelDialogue dialogue) {
+        this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
+                waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
+                maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of());
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -176,16 +198,17 @@ public record LevelDef(
             new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                     waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
-                    tail.unlock(), tail.mechanics(), tail.dialogue())));
+                    tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints())));
 
     public LevelTail tail() {
-        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics, dialogue);
+        return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics,
+                dialogue, hints);
     }
 
     /** Grouped tail fields keep the outer codec inside DFU's 16-field limit. */
     public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
                             LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
-                            LevelDialogue dialogue) {
+                            LevelDialogue dialogue, List<LevelHint> hints) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -200,12 +223,15 @@ public record LevelDef(
                         LevelMechanics.LIST_CODEC.optionalFieldOf("mechanics", List.of())
                                 .forGetter(LevelTail::mechanics),
                         LevelDialogue.CODEC.optionalFieldOf("dialogue", LevelDialogue.EMPTY)
-                                .forGetter(LevelTail::dialogue)
+                                .forGetter(LevelTail::dialogue),
+                        LevelHint.CODEC.listOf().optionalFieldOf("hints", List.of())
+                                .forGetter(LevelTail::hints)
                 ).apply(i, LevelTail::new));
 
         public LevelTail {
             mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
             dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
+            hints = hints == null ? List.of() : List.copyOf(hints);
         }
     }
 

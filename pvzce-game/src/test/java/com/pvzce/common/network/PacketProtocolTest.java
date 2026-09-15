@@ -101,6 +101,7 @@ class PacketProtocolTest {
                 new CreateWorldC2S("sandbox", true),
                 new UnlockLevelC2S("pvzce:yard/adventure/1_2", "world"),
                 new MovePlantC2S(2, 3, 4),
+                new com.pvzce.common.network.packet.ReleaseMowerC2S(3),
 
                 new LevelInitS2C("pvzce:level_1", slots, List.of("normal", "final"), payload,
                         "pvzce:zombie_team", "僵尸方", PvzcePackets.PROTOCOL_VERSION),
@@ -279,12 +280,38 @@ class PacketProtocolTest {
         }
     }
 
-    /** Sanity: a different value must not round-trip to the same object. */
+    /**
+     * The protocol version travels on the wire in the level-init packet.
+     *
+     * <p>It is not a constant both sides are assumed to share: a client has to be able to read
+     * the server's version and notice that it is older. So the assertion is about what comes
+     * back out of the decoder, not about the field holding what was put into it.
+     */
     @Test
     void protocolVersionIsCarriedByTheFirstLevelPacket() {
         LevelInitS2C init = new LevelInitS2C("pvzce:level_1", List.of(), List.of(),
-                new LevelPayload(9, 5, List.of(), 6, List.of(), List.of(), List.of(), List.of()), "", "", 99);
-        assertNotEquals(PvzcePackets.PROTOCOL_VERSION, init.protocolVersion(),
-                "the protocol version must actually be transmitted, not assumed");
+                new LevelPayload(9, 5, List.of(), 6, List.of(), List.of(), List.of(), List.of()), "", "",
+                PvzcePackets.PROTOCOL_VERSION - 1);
+        LevelInitS2C decoded = (LevelInitS2C) roundTrip(init);
+        assertEquals(PvzcePackets.PROTOCOL_VERSION - 1, decoded.protocolVersion(),
+                "the version that was encoded is the version that comes back");
+    }
+
+    /** Encodes a packet with its registry id and decodes it again, the way the transport does. */
+    private static PvzcePacket roundTrip(PvzcePacket packet) {
+        var buffer = Unpooled.buffer();
+        try {
+            PacketByteBuf out = new PacketByteBuf(buffer);
+            out.writeVarInt(PacketRegistry.id(packet));
+            packet.encode(out);
+
+            PacketByteBuf in = new PacketByteBuf(buffer);
+            int readId = in.readVarInt();
+            PvzcePacket decoded = PacketRegistry.decode(packet.direction(), readId, in);
+            assertEquals(0, in.readableBytes(), "the decoder must consume the whole frame");
+            return decoded;
+        } finally {
+            buffer.release();
+        }
     }
 }

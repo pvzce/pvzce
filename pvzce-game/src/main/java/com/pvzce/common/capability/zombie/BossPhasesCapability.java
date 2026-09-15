@@ -7,6 +7,7 @@ import com.pvzce.api.content.BossPhaseDef;
 import com.pvzce.api.content.capability.ZombieCapability;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ZombieEntity;
@@ -22,6 +23,11 @@ public final class BossPhasesCapability implements ZombieCapability {
     public static final float SLAM_RADIUS = 1.5F;
     public static final int SLAM_DAMAGE = 300;
     public static final int CHARGE_TICKS = 120;
+    /**
+     * The slam lands as the ash line's blast: it is an area hit, and armour does not
+     * save a zombie from being flattened by the thing that just landed on it.
+     */
+    public static final Identifier SLAM_DAMAGE_TYPE = PvzceIds.DAMAGE_ASH;
 
     private final List<BossPhaseDef> phases;
     /** Cells behind itself an imp is dropped at (kept for symmetry with HammerCapability). */
@@ -69,7 +75,8 @@ public final class BossPhasesCapability implements ZombieCapability {
             }
             switch (phase.ability()) {
                 case "slam" -> {
-                    level.damageArea(zombie.cellX(), zombie.cellY(), SLAM_RADIUS, SLAM_DAMAGE, zombie.team());
+                    level.damageArea(ZombieEntity.damageType(SLAM_DAMAGE_TYPE), zombie.cellX(), zombie.cellY(),
+                            SLAM_RADIUS, SLAM_DAMAGE, zombie.team());
                     level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), zombie.cellX(), zombie.cellY(),
                             zombie.def().sounds().special().orElse(PvzceSounds.ZOMBIE_BOSS_BOULDER));
                 }

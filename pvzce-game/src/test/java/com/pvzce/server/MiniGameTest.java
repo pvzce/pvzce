@@ -137,14 +137,10 @@ class MiniGameTest {
 
     @Test
     void theShippedLevelIsABeltLevelOnTheLeftFourColumns() {
-        assertTrue(com.pvzce.common.level.mechanic.LevelMechanics
-                .has(oneFive, com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR), "1-5 is a conveyor level");
+        // The belt and the red line are asserted field by field in
+        // LevelMechanicTest::theBowlingLevelDeclaresBothOfItsMechanics. What is checked here is
+        // what those two facts mean: the belt is the card bar, and the level pays out the mine.
         assertTrue(oneFive.slots().isEmpty(), "its card bar is the belt, not a deck");
-        PlacementZone zone = com.pvzce.common.level.mechanic.LevelMechanics
-                .dataOf(oneFive, com.pvzce.common.PvzceIds.MECHANIC_PLACEMENT_ZONE, PlacementZone.class)
-                .orElseThrow();
-        assertTrue(zone.contains(3, 0));
-        assertFalse(zone.contains(4, 0), "the red line is at column 4");
         assertTrue(oneFive.rewards().firstClear().stream()
                         .anyMatch(reward -> reward.id()
                                 .filter(POTATO_MINE::equals).isPresent()),
@@ -357,6 +353,12 @@ class MiniGameTest {
         int coin = lastDropId(level, PvzceIds.COIN_SILVER);
         assertTrue(level.collectResource(bridge, coin), "currency needs no card");
         assertEquals("", lastEffect(level, bridge), "a coin must not flash");
+        // The same has to hold for the other three denominations, by definition rather than
+        // by luck: no coin carries a pickup effect.
+        for (Identifier denomination : PvzceIds.COIN_DENOMINATIONS) {
+            assertTrue(BuiltInRegistries.RESOURCES.get(denomination).pickupEffect().isEmpty(),
+                    denomination + " is currency and must not flash");
+        }
     }
 
     private static int lastDropId(LevelServer level, Identifier resourceId) {

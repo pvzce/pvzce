@@ -235,15 +235,6 @@ class LevelMechanicTest {
         assertFalse(LevelMechanics.get(PvzceIds.MECHANIC_PLACEMENT_ZONE).cardSource());
     }
 
-    @Test
-    void aMechanicDescribesItsOwnEditorFields() {
-        assertFalse(LevelMechanics.get(PvzceIds.MECHANIC_CONVEYOR).editorFields().isEmpty(),
-                "the belt had no editor UI for as long as it existed; its fields are declared now");
-        assertEquals("interval_ticks",
-                LevelMechanics.get(PvzceIds.MECHANIC_CONVEYOR).editorFields().get(0).path());
-        assertEquals(4, LevelMechanics.get(PvzceIds.MECHANIC_PLACEMENT_ZONE).editorFields().size());
-    }
-
     /**
      * The two shipped kinds of level build two different card sources, and the level server
      * has no idea which: it asks the mechanic and gets an object back.

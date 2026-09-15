@@ -17,5 +17,6 @@
   },
   "animation_dir": "zombie/special",
   "texture": "pvzce:textures/entities/zombie/special/balloon_zombie",
-  "drops_arm": false
+  "drops_arm": false,
+  "drops_head": false
 }

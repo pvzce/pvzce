@@ -508,10 +508,6 @@ public final class PvzceClient {
                 double[] gui = smokeClickAt;
                 double rawX = gui[0] * window.width() / (double) Math.max(1, guiWidth());
                 double rawY = window.height() - gui[1] * window.height() / (double) Math.max(1, guiHeight());
-                System.out.println("[CLICKDEBUG] gui=" + gui[0] + "," + gui[1]
-                        + " raw=" + rawX + "," + rawY
-                        + " backToGui=" + guiMouseX(rawX) + "," + guiMouseY(rawY)
-                        + " screen=" + currentScreen().getClass().getSimpleName());
                 deliverRawClick(rawX, rawY, 0);
             }
             if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {

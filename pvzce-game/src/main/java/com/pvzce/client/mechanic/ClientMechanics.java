@@ -108,6 +108,29 @@ public final class ClientMechanics {
         return MowerClientMechanic.parkedMowers(level);
     }
 
+    /**
+     * Pays the parked mowers out: answers where they were and stops drawing them.
+     *
+     * <p>Separate from {@link #parkedMowers} because a mower that has been turned into a
+     * coin must not still be standing on the lawn, and reading the rows alone cannot say
+     * that. See {@code MowerClientMechanic.consumeParkedMowers}.
+     */
+    public static List<com.pvzce.common.level.mechanic.MowerMechanic.Row> consumeParkedMowers(
+            ClientLevel level) {
+        return MowerClientMechanic.consumeParkedMowers(level);
+    }
+
+    /**
+     * The parked mower nearest a world point, or {@code null}.
+     *
+     * <p>The HUD's long-press target. An unknown-id or mower-less level answers null, so the
+     * caller needs no second "does this level have mowers" question.
+     */
+    public static com.pvzce.common.level.mechanic.MowerMechanic.Row parkedMowerAt(
+            ClientLevel level, float worldX, float worldY) {
+        return MowerClientMechanic.parkedMowerAt(level, worldX, worldY);
+    }
+
     /** Reports an unknown mechanic once per id rather than once per packet. */
     private static void reportMissing(Identifier id, String what) {
         synchronized (REPORTED_MISSING) {

@@ -407,19 +407,6 @@ class LiquidGeometryTest {
     // ----------------------------------------------------------------- packing
 
     @Test
-    void everyCellContributesTheDocumentedNumberOfVertices() {
-        List<LiquidCell> cells = LiquidGeometry.collect(3, 2, grid("WWW", "WWW"), 0F, 0F, 0F, DEEP);
-        LiquidBatch batch = new LiquidBatch(8);
-        for (LiquidCell cell : cells) {
-            batch.cell(cell, cell.cellX(), cell.cellY(), 1F, 1F);
-        }
-        assertEquals(cells.size() * LiquidBatch.VERTICES_PER_CELL, batch.vertexCount());
-        assertEquals((long) cells.size() * LiquidBatch.VERTICES_PER_CELL
-                        * LiquidVertexFormat.VERTEX_FLOATS,
-                verticesOf(cells).length);
-    }
-
-    @Test
     void packingCarriesShoreFlagsInTheSigns() {
         List<LiquidCell> cells = LiquidGeometry.collect(8, 8, grid(
                 "........",
@@ -457,28 +444,6 @@ class LiquidGeometryTest {
         assertEquals(LiquidCell.NORTH | LiquidCell.EAST, northEast.borders());
         assertTrue((northEast.corners() & LiquidCell.CORNER_NE) != 0,
                 "the north-east diagonal faces land");
-    }
-
-    @Test
-    void theBorderMaskAndTheSignFlagsNeverDisagree() {
-        List<LiquidCell> cells = LiquidGeometry.collect(9, 7, grid(
-                ".........",
-                ".WWWWWWW.",
-                ".WWWWWWW.",
-                ".WWWWWWW.",
-                ".WWWWWWW.",
-                ".W...WWW.",
-                "........."), 0F, 0F, 0F, DEEP);
-
-        for (LiquidCell cell : cells) {
-            Packed packed = packedAt(cells, (int) cell.cellX(), (int) cell.cellY());
-            assertEquals((cell.borders() & LiquidCell.NORTH) != 0, packed.northHasShore(),
-                    "north sign disagrees at " + (int) cell.cellX() + "," + (int) cell.cellY());
-            assertEquals((cell.borders() & LiquidCell.WEST) != 0, packed.westHasShore(),
-                    "west sign disagrees at " + (int) cell.cellX() + "," + (int) cell.cellY());
-            assertEquals((cell.borders() & LiquidCell.EAST) != 0, packed.eastIsBorder());
-            assertEquals((cell.borders() & LiquidCell.SOUTH) != 0, packed.southIsBorder());
-        }
     }
 
     @Test

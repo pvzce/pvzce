@@ -13,6 +13,7 @@ import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.SlotDef;
 import com.pvzce.api.content.SoundEventDef;
 import com.pvzce.api.content.ZombieDef;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.capability.zombie.ArmorCapability;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.tag.PvzceTags;
@@ -172,6 +173,29 @@ class ContentFoundationTest {
                 level3.previewZombieIds());
         assertNotNull(BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("flag_zombie")));
         assertNotNull(BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("conehead_zombie")));
+    }
+
+    /**
+     * Two content contracts the rest of the game assumes.
+     *
+     * <p>Sun is collected through its card, so a level that does not list it would start with
+     * no way to collect sun at all; and 1-4's first clear is what hands over the glove, which
+     * is why that level is the one the unlock tests reach for.
+     */
+    @Test
+    void sunNeedsItsCardAndTheGloveComesFromOneFour() {
+        assertFalse(BuiltInRegistries.RESOURCES.get(PvzceIds.SUN).collectibleWithoutCard(),
+                "sun is collected through its card");
+        for (LevelDef level : List.of(level1, level2, level3)) {
+            assertTrue(level.slots().contains(PvzceIds.SUN), level.id() + " must list the sun card");
+        }
+
+        LevelDef gated = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/1_4"));
+        assertNotNull(gated);
+        Identifier glove = Identifier.parse("pvzce:glove");
+        assertTrue(gated.rewards().firstClear().stream()
+                        .anyMatch(reward -> reward.id().filter(glove::equals).isPresent()),
+                "clearing 1-4 hands over the glove");
     }
 
     @Test

@@ -7,10 +7,12 @@ import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.server.level.LevelServer;
 import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
@@ -29,6 +31,23 @@ import java.util.Optional;
  * {@code pvzce:mine}) with the fuse smuggled through {@code attack_interval} and
  * the mine's proximity rule hard-coded; the two also disagreed on which position
  * they used as the blast centre.
+ *
+ * <p>Three things about this capability are worth knowing before changing it:
+ *
+ * <ul>
+ *   <li><b>The blast is a registered damage type.</b> {@code damage_type} defaults to
+ *       {@code pvzce:ash}, whose whole meaning is "armour does not absorb it" - that
+ *       is why a cherry bomb kills a Buckethead.</li>
+ *   <li><b>The plant cannot be destroyed while it is arming.</b> {@link #invulnerable}
+ *       answers true from the moment it is placed until the blast, so zombies bite it
+ *       (and a Gargantuar swings at it) for nothing, as in the original. Once the blast
+ *       has happened the plant is gone and answers false again.</li>
+ *   <li><b>It stays on the field for {@link #LINGER_TICKS} after detonating.</b> The
+ *       blast is instantaneous on the server, but the client draws an {@code explode}
+ *       clip that is longer than one tick, and entity state is only published every
+ *       third tick - removing the plant in the same tick it went off meant the state
+ *       was usually never sent at all and the client just saw it disappear.</li>
+ * </ul>
  */
 public final class ExplosiveCapability implements PlantCapability {
     public enum Trigger {
@@ -39,6 +58,26 @@ public final class ExplosiveCapability implements PlantCapability {
     public static final int DEFAULT_FUSE = 60;
     /** Minimum blast radius so a proximity mine still covers its own cell. */
     public static final float MIN_RADIUS = 0.55F;
+    /**
+     * The damage type a blast lands as when the content does not name one.
+     *
+     * <p>The ash line is the original meaning of "explosion" in this game, and the one
+     * property the type carries is exactly the one an explosion needs.
+     */
+    public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_ASH;
+    /**
+     * How long the plant lingers on the field after its blast, in ticks.
+     *
+     * <p>Half a second: longer than every built-in {@code explode} clip and long enough
+     * that the state is published (the entity sync runs every third tick, and the state
+     * is published on the blast tick either way). Without it the plant was removed in
+     * the tick it detonated, so the client's only news of the explosion was a despawn.
+     *
+     * <p>The plant is <em>not</em> a plant while it lingers: {@link #occupiesCell} is
+     * false, so zombies walk past it and the shovel cannot reach it. This is the server
+     * holding a drawing on screen, not a second life.
+     */
+    public static final int LINGER_TICKS = 30;
 
     private final Trigger trigger;
     private final int fuseTicks;
@@ -46,17 +85,24 @@ public final class ExplosiveCapability implements PlantCapability {
     private final int damage;
     private final float triggerRange;
     private final Optional<Identifier> sound;
+    private final Identifier damageType;
 
     private int fuse;
+    /** Ticks left of the explosion drawing; {@link #LINGER_NONE} before the blast. */
+    private int linger = LINGER_NONE;
+
+    /** Sentinel for "this mine has not gone off yet". */
+    private static final int LINGER_NONE = -1;
 
     public ExplosiveCapability(Trigger trigger, int fuseTicks, float radius, int damage, float triggerRange,
-                               Optional<Identifier> sound) {
+                               Optional<Identifier> sound, Identifier damageType) {
         this.trigger = trigger;
         this.fuseTicks = Math.max(0, fuseTicks);
         this.radius = Math.max(0F, radius);
         this.damage = Math.max(0, damage);
         this.triggerRange = Math.max(0F, triggerRange);
         this.sound = sound;
+        this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         this.fuse = this.fuseTicks;
     }
 
@@ -68,7 +114,9 @@ public final class ExplosiveCapability implements PlantCapability {
             Codec.FLOAT.optionalFieldOf("radius", 1F).forGetter(ExplosiveCapability::radius),
             Codec.INT.optionalFieldOf("damage", 1800).forGetter(ExplosiveCapability::damage),
             Codec.FLOAT.optionalFieldOf("trigger_range", 0.6F).forGetter(ExplosiveCapability::triggerRange),
-            Identifier.CODEC.optionalFieldOf("sound").forGetter(ExplosiveCapability::sound)
+            Identifier.CODEC.optionalFieldOf("sound").forGetter(ExplosiveCapability::sound),
+            Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
+                    .forGetter(ExplosiveCapability::damageType)
     ).apply(i, ExplosiveCapability::new));
 
     private static Trigger parseTrigger(String name) {
@@ -99,6 +147,11 @@ public final class ExplosiveCapability implements PlantCapability {
         return sound;
     }
 
+    /** The registered damage type this blast lands as; {@code pvzce:ash} by default. */
+    public Identifier damageType() {
+        return damageType;
+    }
+
     /** Remaining fuse ticks; zero means "armed and ready to detonate". */
     public int fuseLeft() {
         return fuse;
@@ -106,16 +159,58 @@ public final class ExplosiveCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, sound);
+        return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, sound, damageType);
+    }
+
+    /**
+     * Nothing a zombie can do to an unexploded bomb.
+     *
+     * <p>True for the whole fuse, and false again once the blast has happened - at which
+     * point the plant is a drawing on its way out and has no business absorbing hits
+     * either. {@code PlantEntity.damageFrom} asks every capability and drops the hit if
+     * any of them says yes, which is the ash line's "a zombie can chew on a cherry bomb
+     * for the whole fuse and it still goes off".
+     */
+    @Override
+    public boolean invulnerable(PlantEntity plant) {
+        return fuse > 0;
+    }
+
+    /**
+     * A detonated bomb is no longer the plant in its cell.
+     *
+     * <p>{@code plantAt} skips a plant that answers false, so the zombie that was
+     * biting it stops (its {@code EAT} state goes back to {@code walk}) and walks on
+     * top of the explosion instead of being held by a plant that is already gone - the
+     * same door the rolling bowling Wall-nut uses.
+     */
+    @Override
+    public boolean occupiesCell(PlantEntity plant) {
+        return linger == LINGER_NONE;
     }
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
+        if (linger != LINGER_NONE) {
+            // The blast has already happened: everything left is the drawing. The plant
+            // removes itself when the count runs out, which is what makes this a state on
+            // the plant rather than a special case in the level's removal pass.
+            plant.setAnimation(EntityAnimations.EXPLODE);
+            linger--;
+            if (linger <= 0) {
+                plant.remove();
+            }
+            return;
+        }
         if (fuse > 0) {
             fuse--;
             plant.setAnimation(trigger == Trigger.PROXIMITY
                     ? (fuse == 0 ? EntityAnimations.ARMED : EntityAnimations.GROW)
-                    : EntityAnimations.GROW);
+                    // A timed explosive has nothing to grow into. The ash line's own art
+                    // says so: only the two mines have a `grow` clip, and asking a cherry
+                    // bomb for one made the animation manager fall back to `idle` on every
+                    // request for the whole fuse (see AnimationManager.play).
+                    : EntityAnimations.IDLE);
             if (trigger == Trigger.TIMED && fuse == 0) {
                 detonate(plant, level);
             }
@@ -151,19 +246,32 @@ public final class ExplosiveCapability implements PlantCapability {
         if (trigger == Trigger.PROXIMITY) {
             blastRadius = Math.max(blastRadius, triggerRange);
         }
-        level.damageArea(plant.cellX(), plant.cellY(), blastRadius, damage, plant.team());
+        level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
+                blastRadius, damage, plant.team());
         level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));
-        plant.remove();
+        // The blast is over as far as the simulation is concerned, but the plant stays
+        // for LINGER_TICKS so the client can actually draw what just happened. The state
+        // goes out on this tick rather than on whichever third tick comes next, so the
+        // clip starts when the blast does.
+        if (level instanceof LevelServer server) {
+            server.requestEntitySync();
+        }
+        linger = LINGER_TICKS;
     }
 
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("fuse", fuse);
+        tag.putInt("linger", linger);
     }
 
     @Override
     public void load(CompoundTag tag) {
         fuse = tag.getInt("fuse");
+        // A save written before the linger existed has no such key; NBT's getInt would
+        // hand back 0, which reads as "the drawing is finished" and would remove a mine
+        // that has not gone off. LINGER_NONE is what "not detonated" is spelled as.
+        linger = tag.contains("linger") ? tag.getInt("linger") : LINGER_NONE;
     }
 }

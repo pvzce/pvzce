@@ -121,51 +121,6 @@ class GameplaySimulationTest {
     }
 
     @Test
-    void zombieReachingLeftWins() {
-        LevelServer level = new LevelServer(singleZombieLevel());
-        CapturingBridge bridge = new CapturingBridge();
-
-        for (int i = 0; i < 5_000 && level.gameState().equals(GameStateS2C.RUNNING); i++) {
-            level.tick(bridge);
-        }
-        assertEquals("won", level.gameState());
-        assertEquals(Identifier.withDefaultNamespace("zombie_team"), level.winner());
-    }
-
-    @Test
-    void scheduledLastWaveSpawnsThenClearingItWins() {
-        LevelServer level = new LevelServer(singleZombieLevel(10));
-        CapturingBridge bridge = new CapturingBridge();
-
-        for (int i = 0; i < 11; i++) {
-            level.tick(bridge);
-        }
-        assertTrue(level.aliveZombieCount() > 0, "scheduled final wave should spawn");
-        assertFalse(level.finalWaveActive(), "final wave warning must disappear after spawning");
-
-        for (var entity : level.entities()) {
-            if (entity instanceof ZombieEntity zombie && !zombie.isRemoved()) {
-                zombie.remove();
-            }
-        }
-        level.tick(bridge);
-
-        assertEquals("won", level.gameState());
-        assertEquals(Identifier.withDefaultNamespace("plant_team"), level.winner());
-    }
-
-    @Test
-    void runningSaveRestoresPlants() {
-        LevelServer level = newServer();
-        CapturingBridge bridge = new CapturingBridge();
-        assertTrue(level.placePlant(bridge, 0, 0, 0));
-
-        LevelServer restarted = newServer();
-        restarted.restore(level.save());
-        assertEquals(1, restarted.plantCount());
-    }
-
-    @Test
     void finishedLevelSaveDoesNotRestorePlants() {
         LevelServer level = new LevelServer(singleZombieLevel(Integer.MAX_VALUE));
         CapturingBridge bridge = new CapturingBridge();

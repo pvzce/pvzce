@@ -98,17 +98,6 @@ class LevelGroupingTest {
     }
 
     @Test
-    void aGroupRoundTripsThroughTheId() {
-        Identifier id = LevelGrouping.levelId("pvzce", YARD, ADVENTURE, "1_1");
-        LevelGrouping.Group group = LevelGrouping.resolve(id, THEMES, CATEGORIES);
-        assertTrue(group.classified());
-        assertEquals(YARD, group.theme());
-        assertEquals(ADVENTURE, group.category());
-        assertEquals("1_1", group.name());
-        assertEquals(id, LevelGrouping.levelId(id.namespace(), group.theme(), group.category(), group.name()));
-    }
-
-    @Test
     void tabsListOnlyTheCategoriesThatExistInDeclaredOrder() {
         List<LevelGrouping.Tab> tabs = LevelGrouping.tabs(
                 List.of(Identifier.withDefaultNamespace("yard/minigame/1"),

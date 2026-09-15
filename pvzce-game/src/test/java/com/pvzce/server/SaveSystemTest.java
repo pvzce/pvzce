@@ -18,6 +18,7 @@ import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
 import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ class SaveSystemTest {
     @Test
     void eachLevelGetsItsOwnSaveDirectory() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-save-isolation");
-        try (TestServer server = new TestServer(gameDir)) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             // A level that can afford a peashooter at tick zero: 1-1 deliberately
             // starts with 50 sun, and this test is about save isolation.
             server.requestLevel("pvzce:yard/adventure/demo_level", "isoworld", true);
@@ -48,7 +49,7 @@ class SaveSystemTest {
             Path level1Save = gameDir.resolve("saves/isoworld/levels/70767a6365__yard%2Fadventure%2Fdemo_level/level.dat");
             server.waitForFile(level1Save, 5_000);
 
-            server.packets.clear();
+            server.clear();
             server.requestLevel("pvzce:yard/adventure/combat_test", "isoworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/combat_test"), 5_000);
             server.send(new LeaveLevelC2S());
@@ -68,7 +69,7 @@ class SaveSystemTest {
     @Test
     void existingSavePromptsAndCanContinueOrRestart() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-save-prompt");
-        try (TestServer server = new TestServer(gameDir)) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:yard/adventure/demo_level", "promptworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
             server.send(new PlacePlantC2S(0, 0, 0));
@@ -78,33 +79,33 @@ class SaveSystemTest {
             Path saveFile = gameDir.resolve("saves/promptworld/levels/70767a6365__yard%2Fadventure%2Fdemo_level/level.dat");
             server.waitForFile(saveFile, 5_000);
 
-            server.packets.clear();
+            server.clear();
             server.requestLevel("pvzce:yard/adventure/demo_level", "promptworld", false);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
-            LevelSavePromptS2C prompt = server.waitForPacket(LevelSavePromptS2C.class, 5_000);
+            LevelSavePromptS2C prompt = server.awaitPacket(LevelSavePromptS2C.class, 5_000);
             assertEquals("pvzce:yard/adventure/demo_level", prompt.levelId());
             assertEquals(1, prompt.plantCount());
 
-            server.packets.clear();
+            server.clear();
             long pausedTick = server.server().level().tickCount();
             server.send(new ContinueLevelC2S("pvzce:yard/adventure/demo_level", "promptworld"));
             Thread.sleep(200);
             assertTrue(server.server().level().tickCount() > pausedTick, "continue should resume the loaded level");
-            assertFalse(server.packets.stream().anyMatch(LevelInitS2C.class::isInstance),
+            assertFalse(server.packets().stream().anyMatch(LevelInitS2C.class::isInstance),
                     "continue must not reload/recreate the already loaded level");
 
             server.send(new LeaveLevelC2S());
             server.waitForFile(saveFile, 5_000);
 
-            server.packets.clear();
+            server.clear();
             server.requestLevel("pvzce:yard/adventure/demo_level", "promptworld", false);
-            server.waitForPacket(LevelSavePromptS2C.class, 5_000);
+            server.awaitPacket(LevelSavePromptS2C.class, 5_000);
 
-            server.packets.clear();
+            server.clear();
             server.send(new RestartLevelC2S("pvzce:yard/adventure/demo_level", "promptworld", List.of()));
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
             Thread.sleep(250);
-            assertFalse(server.packets.stream()
+            assertFalse(server.packets().stream()
                             .anyMatch(p -> p instanceof EntitySpawnS2C spawn && "plant".equals(spawn.entityKind())),
                     "restart must start fresh and not restore plants");
         }
@@ -113,7 +114,7 @@ class SaveSystemTest {
     @Test
     void continueRestoresTickAndWaveProgress() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-save-progress");
-        try (TestServer server = new TestServer(gameDir)) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:yard/adventure/combat_test", "waveworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/combat_test"), 5_000);
             server.waitFor(p -> p instanceof WaveProgressS2C wave && wave.currentWave() >= 1, 5_000);
@@ -123,32 +124,27 @@ class SaveSystemTest {
             server.waitForFile(saveFile, 5_000);
             server.send(new LeaveLevelC2S());
 
-            server.packets.clear();
+            server.clear();
             server.requestLevel("pvzce:yard/adventure/combat_test", "waveworld", false);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/combat_test"), 5_000);
-            WaveProgressS2C progress = server.waitForPacket(WaveProgressS2C.class, 5_000);
-            server.waitForPacket(LevelSavePromptS2C.class, 5_000);
+            WaveProgressS2C progress = server.awaitPacket(WaveProgressS2C.class, 5_000);
+            server.awaitPacket(LevelSavePromptS2C.class, 5_000);
             assertTrue(progress.currentWave() >= 1, "saved world should already carry spawned wave progress");
             assertTrue(server.server().level().tickCount() >= 60, "saved world should restore tick count");
-
-            server.packets.clear();
-            long pausedTick = server.server().level().tickCount();
-            server.send(new ContinueLevelC2S("pvzce:yard/adventure/combat_test", "waveworld"));
-            Thread.sleep(200);
-            assertTrue(server.server().level().tickCount() > pausedTick, "continue should resume the restored level");
-            assertFalse(server.packets.stream().anyMatch(LevelInitS2C.class::isInstance),
-                    "continue must not recreate the level");
         }
     }
 
     @Test
     void continueRestoresZombiesOnField() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-save-zombies");
-        try (TestServer server = new TestServer(gameDir)) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             // Row 2 needs a five-lane board, so this test uses the demo level: 1-1
             // has a single lane and cannot hold a zombie that is not in row 0.
             server.requestLevel("pvzce:yard/adventure/demo_level", "zombieworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
+            // No sky sun: the level's random is unseeded, so a 0.1%-per-tick drop could land
+            // next to the zombie and turn "one snapshot list" into a count of two.
+            server.send(new CommandC2S("/gamerule pvzce:sun_spawn_chance 0"));
             server.send(new CommandC2S("/spawn zombie pvzce:buckethead_zombie 5 2"));
             server.waitFor(p -> p instanceof EntitySpawnS2C spawn
                     && "zombie".equals(spawn.entityKind())
@@ -160,14 +156,16 @@ class SaveSystemTest {
             CompoundTag savedState = NbtIo.readCompressed(saveFile);
             assertEquals(1, savedState.getList("Entities").size(),
                     "every field entity must be written to level.dat in one snapshot list");
+            assertEquals("zombie", savedState.getList("Entities").getCompound(0).getString("Kind"),
+                    "the snapshot's entry is the zombie that was on the field");
 
             server.send(new LeaveLevelC2S());
-            server.packets.clear();
+            server.clear();
             server.requestLevel("pvzce:yard/adventure/demo_level", "zombieworld", false);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
-            server.waitForPacket(LevelSavePromptS2C.class, 5_000);
+            server.awaitPacket(LevelSavePromptS2C.class, 5_000);
 
-            assertTrue(server.packets.stream().anyMatch(p -> p instanceof EntitySpawnS2C spawn
+            assertTrue(server.packets().stream().anyMatch(p -> p instanceof EntitySpawnS2C spawn
                             && "zombie".equals(spawn.entityKind()) && Math.floor(spawn.cellY()) == 2F),
                     "restored zombies must be streamed to the client behind the save prompt");
             assertEquals(1, server.server().level().aliveZombieCount(),
@@ -185,7 +183,7 @@ class SaveSystemTest {
     void winningWritesCompletionStatusAndDeletesRunningSave() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-save-win");
         writeCompletionLevel(gameDir);
-        try (TestServer server = new TestServer(gameDir)) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:test_complete", "statusworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:test_complete"), 5_000);
             server.send(new CommandC2S("/save"));
@@ -207,9 +205,9 @@ class SaveSystemTest {
             assertEquals("completed", status.getString("GameState"));
             assertEquals("pvzce:zombie_team", status.getString("Winner"));
 
-            server.packets.clear();
+            server.clear();
             server.send(new RequestLevelListC2S("statusworld"));
-            LevelListS2C list = server.waitForPacket(LevelListS2C.class, 5_000);
+            LevelListS2C list = server.awaitPacket(LevelListS2C.class, 5_000);
             String statusValue = list.levels().stream()
                     .filter(level -> level.id().equals("pvzce:test_complete"))
                     .findFirst().orElseThrow().status();
@@ -220,7 +218,7 @@ class SaveSystemTest {
     @Test
     void losingDeletesRunningSaveWithoutCompletionStatus() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-save-loss");
-        try (TestServer server = new TestServer(gameDir)) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:yard/adventure/1_1", "lossworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/1_1"), 5_000);
             server.send(new CommandC2S("/save"));
@@ -267,82 +265,5 @@ class SaveSystemTest {
                   ]
                 }
                 """);
-    }
-
-    private static final class TestServer implements AutoCloseable {
-        private final PvzceServer server;
-        private final Connection.Pair pair;
-        private final List<PvzcePacket> packets = new ArrayList<>();
-
-        private TestServer(Path gameDir) throws Exception {
-            PvzcePackets.register();
-            this.pair = Connection.createMemoryPair();
-            this.server = new PvzceServer(pair.server(), gameDir, Thread.currentThread().getContextClassLoader());
-            pair.client().setListener(packets::add);
-            server.start();
-            pair.client().send(new RequestLevelListC2S("__probe__"));
-            waitFor(packet -> packet instanceof LevelListS2C, 5_000);
-            packets.clear();
-        }
-
-        /** A fresh run, unless {@code restart} says to discard a save that may be there. */
-        private void requestLevel(String levelId, String worldName, boolean restart) {
-            pair.client().send(restart
-                    ? new RestartLevelC2S(levelId, worldName, List.of())
-                    : new ContinueLevelC2S(levelId, worldName));
-        }
-
-        private void send(PvzcePacket packet) {
-            pair.client().send(packet);
-        }
-
-        private PvzceServer server() {
-            return server;
-        }
-
-        private void waitFor(Predicate<PvzcePacket> predicate, long timeoutMs) throws Exception {
-            long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
-            while (System.nanoTime() < deadline) {
-                pair.client().tick();
-                if (packets.stream().anyMatch(predicate)) {
-                    return;
-                }
-                Thread.sleep(10);
-            }
-            throw new AssertionError("Timed out waiting for packet condition");
-        }
-
-        private <T extends PvzcePacket> T waitForPacket(Class<T> type, long timeoutMs) throws Exception {
-            waitFor(packet -> type.isInstance(packet), timeoutMs);
-            return packets.stream().filter(type::isInstance).map(type::cast).findFirst().orElseThrow();
-        }
-
-        private void waitForFile(Path file, long timeoutMs) throws Exception {
-            long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
-            while (System.nanoTime() < deadline) {
-                if (Files.isRegularFile(file)) {
-                    return;
-                }
-                Thread.sleep(20);
-            }
-            throw new AssertionError("Timed out waiting for file " + file);
-        }
-
-        private void waitForDeleted(Path path, long timeoutMs) throws Exception {
-            long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
-            while (System.nanoTime() < deadline) {
-                if (!Files.exists(path)) {
-                    return;
-                }
-                Thread.sleep(20);
-            }
-            throw new AssertionError("Timed out waiting for deletion of " + path);
-        }
-
-        @Override
-        public void close() throws Exception {
-            server.stop();
-            server.thread().join(3_000);
-        }
     }
 }

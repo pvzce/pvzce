@@ -71,6 +71,10 @@ public final class PvzceDataLoader {
             new RegistryData<>(PvzceRegistries.LEVEL_CATEGORIES, LevelCategoryDef.CODEC, "level_categories"),
             new RegistryData<>(PvzceRegistries.DIALOGUE_CHARACTERS,
                     com.pvzce.api.content.DialogueCharacterDef.CODEC, "dialogue_characters"),
+            // Damage types load before the content that names them, so a plant or
+            // projectile capability referencing one always resolves.
+            new RegistryData<>(PvzceRegistries.DAMAGE_TYPES,
+                    com.pvzce.api.content.DamageTypeDef.CODEC, "damage_types"),
             new RegistryData<>(PvzceRegistries.PLANTS, PlantDef.CODEC, "plants"),
             new RegistryData<>(PvzceRegistries.ZOMBIES, ZombieDef.CODEC, "zombies"),
             new RegistryData<>(PvzceRegistries.PROJECTILES, ProjectileDef.CODEC, "projectiles"),

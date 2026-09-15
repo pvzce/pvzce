@@ -155,6 +155,35 @@ class AnimationResourceLoaderTest {
         }
     }
 
+    /**
+     * Every animation state the ash line asks for has to exist.
+     *
+     * <p>{@code ExplosiveCapability} drives the fuse from the server and the client looks
+     * the state up by name; a name the file does not define does not fail, it silently
+     * falls back to {@code idle} - which is how a cherry bomb spent its whole fuse asking
+     * for a {@code grow} clip that only the two mines have, and how nobody noticed. The
+     * two states are pinned here: a mine grows out of the ground, and everything that
+     * explodes has an {@code explode} clip.
+     */
+    @Test
+    void everyAshPlantDefinesTheClipsItsCapabilityAsksFor() throws Exception {
+        record Ash(String id, String fuseState) {
+        }
+        for (Ash ash : new Ash[]{
+                new Ash("cherry_bomb", "idle"),
+                new Ash("jalapeno", "idle"),
+                new Ash("doom_shroom", "idle"),
+                new Ash("potato_mine", "grow"),
+                new Ash("squash", "grow")}) {
+            String path = animationPath(ash.id());
+            ControllerFile controller = (ControllerFile) parseClasspath(ash.id());
+            assertTrue(controller.clip(ash.fuseState()).isPresent(),
+                    path + " has no '" + ash.fuseState() + "' clip, so its fuse silently plays idle");
+            assertTrue(controller.clip("explode").isPresent(),
+                    path + " has no 'explode' clip, so the blast is never drawn");
+        }
+    }
+
     private static AnimationFile parseClasspath(String path) throws Exception {
         String resolved = animationPath(path);
         try (var stream = AnimationResourceLoaderTest.class.getResourceAsStream(resolved)) {

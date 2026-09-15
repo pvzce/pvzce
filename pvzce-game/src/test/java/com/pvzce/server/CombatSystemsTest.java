@@ -4,6 +4,8 @@ import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.PvzcePacket;
+import com.pvzce.common.network.packet.EntityDespawnS2C;
+import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.server.entity.PlantEntity;
@@ -11,6 +13,7 @@ import com.pvzce.server.entity.ResourceDropEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.gamerule.GameRules;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.server.level.LevelValidator;
 import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -261,11 +264,123 @@ class CombatSystemsTest {
 
         ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 2.5F, 0);
         tick(level, bridge, 1);
-        assertTrue(mine.isRemoved(), "armed potato mine should detonate");
         // `isDying` rather than `isRemoved`: a dead zombie stays in the world for its
         // death animation (see ZombieEntity.CORPSE_TICKS), so "is it gone" is no longer
         // the same question as "is it dead".
         assertTrue(zombie.isDying(), "potato mine should kill the zombie in its cell");
+        // The mine answers the same way now: the blast is instant, but the plant stays on
+        // the field for its explode clip (see ExplosiveCapability.LINGER_TICKS), so "has
+        // it gone off" is `occupiesCell` rather than `isRemoved`.
+        assertFalse(mine.occupiesCell(), "an armed potato mine must stop being the plant in its cell");
+        tick(level, bridge, com.pvzce.common.capability.plant.ExplosiveCapability.LINGER_TICKS);
+        assertTrue(mine.isRemoved(), "the explosion drawing has to leave the field by itself");
+    }
+
+    /**
+     * The reported bug: a cherry bomb used to be removed in the very tick it detonated, so
+     * the client heard about the blast only as a despawn and never played the clip.
+     */
+    @Test
+    void anExplosionPublishesItsClipBeforeThePlantLeaves() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        // demo_level's fifth card is the cherry bomb; a timed explosive has a 60-tick fuse.
+        assertTrue(level.placePlant(bridge, 4, 2, 0));
+        level.flushPending(bridge);
+        PlantEntity bomb = level.plantsAt(2, 0).get(0);
+        bridge.packets.clear();
+
+        EntityUpdateS2C exploded = null;
+        int despawnTick = -1;
+        for (int i = 1; i <= 200; i++) {
+            level.tick(bridge);
+            for (PvzcePacket packet : bridge.packets) {
+                if (packet instanceof EntityUpdateS2C update && update.entityId() == bomb.id()
+                        && "explode".equals(update.animation()) && exploded == null) {
+                    exploded = update;
+                }
+                if (packet instanceof EntityDespawnS2C despawn && despawn.entityId() == bomb.id()) {
+                    despawnTick = i;
+                }
+            }
+            bridge.packets.clear();
+        }
+
+        assertNotNull(exploded, "the client has to be told the plant is exploding");
+        assertTrue(despawnTick > 0, "and then that it is gone");
+        assertTrue(despawnTick > 60,
+                "the despawn must not ride in the same breath as the blast: tick " + despawnTick);
+    }
+
+    /**
+     * The reported bug: a zombie ate the cherry bomb before it went off, because the ash
+     * line's 100 health is exactly one bite.
+     */
+    @Test
+    void aZombieChewsOnAnUnexplodedBombForNothing() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        assertTrue(level.placePlant(bridge, 4, 2, 0));
+        level.flushPending(bridge);
+        PlantEntity bomb = level.plantsAt(2, 0).get(0);
+        ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 2.5F, 0);
+
+        tick(level, bridge, 5);
+        assertEquals("eat", zombie.animation(), "the zombie still stops and bites it");
+        assertEquals(100, bomb.health(), "and the bites cost the bomb nothing");
+        assertFalse(bomb.isRemoved(), "an unexploded bomb cannot be eaten");
+        assertTrue(bomb.occupiesCell(), "it is still what the zombie is standing on");
+    }
+
+    /** The other half: a giant swings at a bomb too, and also for nothing. */
+    @Test
+    void theHammerCannotSmashAnUnexplodedBomb() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        assertTrue(level.placePlant(bridge, 4, 2, 0));
+        level.flushPending(bridge);
+        PlantEntity bomb = level.plantsAt(2, 0).get(0);
+        assertFalse(bomb.damageFrom(10_000), "an unexploded bomb shrugs the hit off");
+        assertEquals(100, bomb.health());
+    }
+
+    /**
+     * The ash line's blast is a registered damage type, and what the type buys is exactly
+     * "armour does not absorb this".
+     */
+    @Test
+    void ashIgnoresArmorWhileImpactDoesNot() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        ZombieEntity buckethead = spawn(level, bridge, "buckethead_zombie", 6.5F, 0);
+
+        int armor = buckethead.armorHealth();
+        buckethead.damage(50, ZombieEntity.damageType(com.pvzce.common.PvzceIds.DAMAGE_ASH), level);
+        assertEquals(armor, buckethead.armorHealth(), "an ash hit must not touch the bucket");
+        assertEquals(150, buckethead.health(), "it lands on the body instead");
+
+        // The same 50 points as an impact go to the bucket first, which is what makes a
+        // Conehead cost two bowling hits instead of one.
+        buckethead.damage(50, ZombieEntity.damageType(com.pvzce.common.PvzceIds.DAMAGE_IMPACT), level);
+        assertEquals(armor - 50, buckethead.armorHealth(), "an impact is absorbed by armour");
+        assertEquals(150, buckethead.health(), "and the body is untouched while it holds");
+    }
+
+    /** The registry is data-backed: the shipped pack declares the entries the code falls back to. */
+    @Test
+    void damageTypesLoadFromTheDataPack() {
+        for (String path : List.of("ash", "splash", "mower", "projectile", "impact")) {
+            Identifier id = Identifier.withDefaultNamespace(path);
+            assertNotNull(BuiltInRegistries.DAMAGE_TYPES.get(id), "missing damage type " + id);
+        }
+        assertTrue(BuiltInRegistries.DAMAGE_TYPES.get(com.pvzce.common.PvzceIds.DAMAGE_ASH).ignoresArmor());
+        assertTrue(BuiltInRegistries.DAMAGE_TYPES.get(com.pvzce.common.PvzceIds.DAMAGE_SPLASH).ignoresArmor());
+        assertFalse(BuiltInRegistries.DAMAGE_TYPES.get(com.pvzce.common.PvzceIds.DAMAGE_PROJECTILE).ignoresArmor());
+        assertFalse(BuiltInRegistries.DAMAGE_TYPES.get(com.pvzce.common.PvzceIds.DAMAGE_IMPACT).ignoresArmor());
+        // And nobody points at a type that is not registered: this is the pass the server
+        // runs on every /reload, so a typo in a content file is named instead of being
+        // silently read as "armour applies".
+        assertEquals(List.of(), LevelValidator.validateDamageTypes());
     }
 
     @Test
@@ -347,6 +462,64 @@ class CombatSystemsTest {
         CapturingBridge bridge = bridge();
         tick(level, bridge, 11);
         assertEquals("GRASS", level.sceneAt(0, 0).surfaceClass());
+    }
+
+    @Test
+    void aHitIsHeldLongEnoughToBeSeen() {
+        // The flinch used to be published for the single tick the damage landed on, and the
+        // entity sync runs every third tick - so the client usually never heard about it, and
+        // a zombie under fire just kept its walk cycle. When it did hear, it played a
+        // second-long clip for one tick and blended straight back out. Both read as choppy.
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 6.5F, 0);
+
+        zombie.damageBody(10, level);
+        assertEquals("hit", zombie.animation(), "a hit has to say so");
+        zombie.tick(level);
+        assertEquals("hit", zombie.animation(), "and still be saying it on the next tick");
+
+        // Held for the whole beat, then handed back to the walk cycle - a zombie that never
+        // stopped flinching would be just as wrong as one that never flinched.
+        tick(level, bridge, ZombieEntity.HIT_HOLD_TICKS);
+        assertEquals("walk", zombie.animation(), "the flinch has to end");
+    }
+
+    @Test
+    void aFlinchDoesNotStopTheZombie() {
+        // The hold is a change of *pose*, not of behaviour: the original's zombie walks
+        // into the peas. Pausing it would turn one zombie's flinch into a stutter for the
+        // whole lane.
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 6.5F, 0);
+        float before = zombie.cellX();
+
+        zombie.damageBody(10, level);
+        zombie.tick(level);
+
+        assertTrue(zombie.cellX() < before,
+                "a flinching zombie must keep walking: " + before + " -> " + zombie.cellX());
+    }
+
+    @Test
+    void aFlinchSurvivesASaveAndLoad() {
+        // hitTicks is state, so it goes in the snapshot like every other counter. Without it
+        // a save taken mid-flinch comes back as a zombie that stopped flinching early.
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 6.5F, 0);
+        zombie.damageBody(10, level);
+        zombie.tick(level);
+
+        ZombieEntity restored = new ZombieEntity(
+                BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("basic_zombie")),
+                level.team(Identifier.withDefaultNamespace("zombie_team")), 6.5F, 0);
+        restored.restoreState(zombie.saveState());
+        assertEquals(zombie.animation(), restored.animation());
+        restored.tick(level);
+        assertEquals("hit", restored.animation(),
+                "a restored mid-flinch zombie must still be flinching");
     }
 
     private static final class CapturingBridge implements LevelServer.ServerBridge {

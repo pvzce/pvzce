@@ -20,6 +20,16 @@
       ]
     ],
     "scale": 0.2,
+    "scale_curve": [
+      [
+        0.0,
+        0.2
+      ],
+      [
+        1.0,
+        0.5
+      ]
+    ],
     "life": 0.8333,
     "frames_per_second": 60.0,
     "loop": true,

@@ -1,18 +1,16 @@
 package com.pvzce.client.gui.screens;
 
 import com.pvzce.client.PvzceClient;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
-import org.junit.jupiter.api.BeforeAll;
+import com.pvzce.testutil.ClientHarness;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,9 +29,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * fallback only when there is nothing else, which mirrors how the server builds the table.
  */
 class LevelSelectLandingPageTest {
-    @BeforeAll
-    static void register() {
-        PvzcePackets.register();
+    private final List<ClientHarness> harnesses = new ArrayList<>();
+
+    @AfterEach
+    void closeHarnesses() {
+        harnesses.forEach(ClientHarness::close);
     }
 
     /**
@@ -59,9 +59,10 @@ class LevelSelectLandingPageTest {
                 "", "day", theme, category, false, payload, LevelListS2C.UnlockInfo.OPEN);
     }
 
-    private static PvzceClient client(Path gameDir) {
-        Connection.Pair pair = Connection.createMemoryPair();
-        return new PvzceClient(pair.client(), gameDir, Thread.currentThread().getContextClassLoader());
+    private PvzceClient client(String tempPrefix) throws Exception {
+        ClientHarness harness = ClientHarness.create(tempPrefix);
+        harnesses.add(harness);
+        return harness.client();
     }
 
     /**
@@ -75,7 +76,7 @@ class LevelSelectLandingPageTest {
      */
     @Test
     void landsOnTheFirstRealPageEvenThoughTheBucketIsAlwaysAdded() throws Exception {
-        PvzceClient client = client(Files.createTempDirectory("pvzce-landing"));
+        PvzceClient client = client("pvzce-landing");
         LevelSelectScreen screen = new LevelSelectScreen(client);
         client.setScreenReplacing(screen);
 
@@ -93,7 +94,7 @@ class LevelSelectLandingPageTest {
     /** Picking a page is the player's call, and later refreshes must respect it. */
     @Test
     void aPageThePlayerPickedIsKeptAcrossRefreshes() throws Exception {
-        PvzceClient client = client(Files.createTempDirectory("pvzce-landing-picked"));
+        PvzceClient client = client("pvzce-landing-picked");
         client.setLevelTabs(List.of(new LevelTabsS2C.Tab("pvzce:yard", "pvzce:adventure")));
         client.setLevelList(List.of(level("pvzce:yard/adventure/1_1", "pvzce:yard", "pvzce:adventure"),
                 level("pvzce:one_off", "pvzce:uncategorized", "pvzce:uncategorized")));
@@ -117,7 +118,7 @@ class LevelSelectLandingPageTest {
     /** The table did not arrive yet: the fallback is the bucket, because it is all there is. */
     @Test
     void fallsBackToTheBucketWhenThatIsAllThereIs() throws Exception {
-        PvzceClient client = client(Files.createTempDirectory("pvzce-landing-empty"));
+        PvzceClient client = client("pvzce-landing-empty");
 
         LevelSelectScreen screen = new LevelSelectScreen(client);
         client.setScreenReplacing(screen);
@@ -129,7 +130,7 @@ class LevelSelectLandingPageTest {
     /** A table that really is only the bucket stays on the bucket. */
     @Test
     void keepsTheBucketWhenTheContentHasNoThemes() throws Exception {
-        PvzceClient client = client(Files.createTempDirectory("pvzce-landing-bucket"));
+        PvzceClient client = client("pvzce-landing-bucket");
         client.setLevelList(List.of(level("pvzce:one_off", "pvzce:uncategorized", "pvzce:uncategorized")));
         client.setLevelTabs(List.of());
 

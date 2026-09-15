@@ -15,9 +15,7 @@
       "every": 1080
     }
   ],
-  "sounds": {
-    "produce": "pvzce:sfx/ui/points"
-  },
+  "sounds": {},
   "animation_dir": "plant/producer",
   "texture": "pvzce:textures/entities/plant/producer/sunflower"
 }

@@ -5,8 +5,6 @@ import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
 import com.pvzce.client.gui.screens.InGameScreen;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
@@ -14,11 +12,10 @@ import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.SlotInfo;
-import org.junit.jupiter.api.BeforeAll;
+import com.pvzce.testutil.ClientHarness;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,9 +33,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * these cases pin the client half - the level mirror and the screen stack.
  */
 class LevelRestartClientTest {
-    @BeforeAll
-    static void register() {
-        PvzcePackets.register();
+    private final List<ClientHarness> harnesses = new ArrayList<>();
+
+    @AfterEach
+    void closeHarnesses() {
+        harnesses.forEach(ClientHarness::close);
     }
 
     private static LevelInitS2C initPacket(String levelId, String teamId, String teamName) {
@@ -52,23 +51,10 @@ class LevelRestartClientTest {
                 List.of("small", "final"), payload, teamId, teamName, PvzcePackets.PROTOCOL_VERSION);
     }
 
-    /** A headless client plus a recorder for the packets it sends. */
-    private record Fixture(PvzceClient client, Connection.Pair pair, List<PvzcePacket> sent) {
-        /** Drains the server end so packets the client sent are recorded. */
-        List<PvzcePacket> sentPackets() {
-            pair.server().tick();
-            return List.copyOf(sent);
-        }
-    }
-
-    private static Fixture newClient() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-restart-client");
-        Connection.Pair pair = Connection.createMemoryPair();
-        List<PvzcePacket> sent = new ArrayList<>();
-        pair.server().setListener(sent::add);
-        PvzceClient client = new PvzceClient(pair.client(), gameDir,
-                Thread.currentThread().getContextClassLoader());
-        return new Fixture(client, pair, sent);
+    private ClientHarness newClient() throws Exception {
+        ClientHarness harness = ClientHarness.create("pvzce-restart-client");
+        harnesses.add(harness);
+        return harness;
     }
 
     /** A stand-in for any screen the player may have opened (pause menu, seed chooser). */
@@ -88,7 +74,7 @@ class LevelRestartClientTest {
      */
     @Test
     void aSecondLevelInitLeavesNoStateFromTheFirst() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
         ClientLevel level = client.level();
         PvzceClientPacketListener listener = new PvzceClientPacketListener(client, level);
@@ -156,7 +142,7 @@ class LevelRestartClientTest {
      */
     @Test
     void pauseMenuRestartClosesTheLevelBeforeChoosingSeeds() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
         ClientLevel level = client.level();
         PvzceClientPacketListener listener = new PvzceClientPacketListener(client, level);
@@ -201,7 +187,7 @@ class LevelRestartClientTest {
      */
     @Test
     void testingAnEditedLevelOpensTheSeedChooserAfterTheReloadedListArrives() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
 
         client.testEditedLevel("pvzce:level_1");
@@ -221,7 +207,7 @@ class LevelRestartClientTest {
     /** A level list that does not contain the edited level must not open a chooser for it. */
     @Test
     void testingALevelThatIsNotInTheListOpensNothing() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
 
         client.testEditedLevel("pvzce:level_1");
@@ -246,7 +232,7 @@ class LevelRestartClientTest {
     /** Exiting a level clears the mirror so the next entry starts from nothing. */
     @Test
     void leavingALevelClearsTheMirror() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
         ClientLevel level = client.level();
         PvzceClientPacketListener listener = new PvzceClientPacketListener(client, level);

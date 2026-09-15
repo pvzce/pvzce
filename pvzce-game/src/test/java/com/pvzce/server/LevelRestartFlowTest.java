@@ -2,8 +2,6 @@ package com.pvzce.server;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
@@ -15,14 +13,12 @@ import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.resource.PvzceDataLoader;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,64 +50,6 @@ class LevelRestartFlowTest {
     /** Builds the card bar payload the way {@code PvzceClient} does. */
     private static List<String> seedsFromCards(List<SlotInfo> slots) {
         return slots.stream().map(SlotInfo::defId).toList();
-    }
-
-    private static final class Harness implements AutoCloseable {
-        final PvzceServer server;
-        final Connection.Pair pair;
-        final List<PvzcePacket> packets = new ArrayList<>();
-
-        Harness(Path gameDir) throws Exception {
-            BuiltInRegistries.bootstrap();
-            PvzcePackets.register();
-            this.pair = Connection.createMemoryPair();
-            this.server = new PvzceServer(pair.server(), gameDir, Thread.currentThread().getContextClassLoader());
-            pair.client().setListener(packets::add);
-            server.start();
-            // Wait for the first data load.
-            // A sandbox world: these tests are about the restart protocol, so every
-            // card must be a legal pick. Sent before the level starts because the
-            // server handles client packets in order.
-            send(new com.pvzce.common.network.packet.CreateWorldC2S(WORLD, true));
-            send(new com.pvzce.common.network.packet.RequestLevelListC2S("__probe__"));
-            waitFor(() -> packets.stream().anyMatch(com.pvzce.common.network.packet.LevelListS2C.class::isInstance),
-                    5_000);
-            packets.clear();
-        }
-
-        void send(PvzcePacket packet) {
-            pair.client().send(packet);
-        }
-
-        void waitFor(BooleanSupplier condition, long timeoutMs) throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-            while (System.nanoTime() < deadline) {
-                pair.client().tick();
-                if (condition.getAsBoolean()) {
-                    return;
-                }
-                Thread.sleep(5);
-            }
-            throw new AssertionError("Timed out waiting for condition"
-                    + " | clientConnected=" + pair.client().isConnected()
-                    + " | serverConnected=" + pair.server().isConnected()
-                    + " | clientDisconnect=" + pair.client().disconnectReason()
-                    + " | serverDisconnect=" + pair.server().disconnectReason()
-                    + " | level=" + (server.level() == null ? "null" : server.level().gameState())
-                    + " | packets=" + packets.stream().map(p -> p.getClass().getSimpleName()).toList());
-        }
-
-        LevelInitS2C awaitLevelInit(long timeoutMs) throws Exception {
-            waitFor(() -> packets.stream().anyMatch(LevelInitS2C.class::isInstance), timeoutMs);
-            return packets.stream().filter(LevelInitS2C.class::isInstance)
-                    .map(LevelInitS2C.class::cast).reduce((a, b) -> b).orElseThrow();
-        }
-
-        @Override
-        public void close() throws Exception {
-            server.stop();
-            server.thread().join(3_000);
-        }
     }
 
     /** Writes the fixture level into a data pack the server will scan at startup. */
@@ -157,37 +95,38 @@ class LevelRestartFlowTest {
         resources.close();
         return dir;
     }
+    /** The latest {@code LevelInitS2C}: a restart answers with a second one for the same level. */
+    private static LevelInitS2C awaitLevelInit(ServerHarness harness) throws Exception {
+        harness.waitFor(packet -> packet instanceof LevelInitS2C, 5_000);
+        return harness.packet(LevelInitS2C.class);
+    }
 
-    /**
-     * The pause menu's 重新开始 sends {@code PlayLevelC2S(restart=true)}. The running
-     * level must be replaced by a genuinely fresh one, with the chosen cards applied.
-     */
     @Test
     void pauseMenuRestartReplacesTheRunningLevel() throws Exception {
         Path dir = gameDir();
-        try (Harness harness = new Harness(dir)) {
+        try (ServerHarness harness = ServerHarness.createWithWorld(dir, WORLD, true)) {
             harness.send(new PlayLevelC2S(LEVEL, WORLD, true,
                     List.of("pvzce:pea_shooter", "pvzce:sun")));
-            LevelInitS2C first = harness.awaitLevelInit(5_000);
-            LevelServer previous = harness.server.level();
+            LevelInitS2C first = awaitLevelInit(harness);
+            LevelServer previous = harness.server().level();
             assertNotNull(previous);
 
             // Plant something so a "restart" that is really a resync is visible.
             harness.send(new PlacePlantC2S(0, 0, 0));
-            harness.waitFor(() -> previous.plantCount() == 1, 5_000);
+            harness.waitForCondition(() -> previous.plantCount() == 1, 5_000);
             // And put a run on disk, so "the old progress is gone" below is an assertion
             // about a file that really existed rather than about nothing at all.
             Path saveFile = dir.resolve("saves/" + WORLD + "/levels/" + SAVE_KEY + "/level.dat");
             harness.send(new CommandC2S("/save"));
-            harness.waitFor(() -> Files.isRegularFile(saveFile), 5_000);
-            harness.packets.clear();
+            harness.waitForCondition(() -> Files.isRegularFile(saveFile), 5_000);
+            harness.clear();
 
             // Pause the way the pause dialog does, then restart from it.
             harness.send(new PauseGameC2S(true));
             harness.send(new PlayLevelC2S(LEVEL, WORLD, true, seedsFromCards(first.slots())));
 
-            LevelInitS2C second = harness.awaitLevelInit(5_000);
-            LevelServer restarted = harness.server.level();
+            LevelInitS2C second = awaitLevelInit(harness);
+            LevelServer restarted = harness.server().level();
 
             assertTrue(restarted != previous, "restart must install a new level instance");
             assertEquals("closed", previous.gameState(), "the previous level must be shut down");
@@ -202,7 +141,7 @@ class LevelRestartFlowTest {
 
             // "Really restarted" also means the old progress is gone: the save written
             // above must not survive for a later entry to resume from.
-            harness.waitFor(() -> !Files.exists(saveFile), 5_000);
+            harness.waitForCondition(() -> !Files.exists(saveFile), 5_000);
             assertFalse(Files.exists(saveFile), "a restart must not leave the old run resumable");
         }
     }
@@ -215,21 +154,21 @@ class LevelRestartFlowTest {
     @Test
     void requestLevelOnTheRunningLevelMustNotSilentlyResync() throws Exception {
         Path dir = gameDir();
-        try (Harness harness = new Harness(dir)) {
+        try (ServerHarness harness = ServerHarness.createWithWorld(dir, WORLD, true)) {
             harness.send(new PlayLevelC2S(LEVEL, WORLD, true, List.of("pvzce:pea_shooter", "pvzce:sun")));
-            harness.awaitLevelInit(5_000);
-            LevelServer running = harness.server.level();
+            awaitLevelInit(harness);
+            LevelServer running = harness.server().level();
             harness.send(new PlacePlantC2S(0, 0, 0));
-            harness.waitFor(() -> running.plantCount() == 1, 5_000);
-            harness.packets.clear();
+            harness.waitForCondition(() -> running.plantCount() == 1, 5_000);
+            harness.clear();
 
             // The player asked for this level again *without* asking for a fresh run.
             harness.send(new com.pvzce.common.network.packet.ContinueLevelC2S(LEVEL, WORLD));
-            harness.awaitLevelInit(5_000);
+            awaitLevelInit(harness);
 
             // Resyncing the running level is acceptable for a "continue" request, but it
             // must not look like a fresh start: the field has to still be there.
-            assertTrue(harness.server.level() == running,
+            assertTrue(harness.server().level() == running,
                     "a continue request must keep the running level, not build a second one");
             assertEquals(1, running.plantCount(),
                     "a continue request must not wipe the field it is resuming");
@@ -243,17 +182,17 @@ class LevelRestartFlowTest {
     @Test
     void startingWithNewCardsWhileTheLevelRunsMustApplyThem() throws Exception {
         Path dir = gameDir();
-        try (Harness harness = new Harness(dir)) {
+        try (ServerHarness harness = ServerHarness.createWithWorld(dir, WORLD, true)) {
             harness.send(new PlayLevelC2S(LEVEL, WORLD, true, List.of("pvzce:pea_shooter", "pvzce:sun")));
-            harness.awaitLevelInit(5_000);
-            LevelServer running = harness.server.level();
+            awaitLevelInit(harness);
+            LevelServer running = harness.server().level();
             harness.send(new PlacePlantC2S(0, 0, 0));
-            harness.waitFor(() -> running.plantCount() == 1, 5_000);
-            harness.packets.clear();
+            harness.waitForCondition(() -> running.plantCount() == 1, 5_000);
+            harness.clear();
 
             // The seed chooser only ever sends the cards the player picked.
             harness.send(new PlayLevelC2S(LEVEL, WORLD, false, List.of("pvzce:sun", "pvzce:wall_nut")));
-            LevelInitS2C init = harness.awaitLevelInit(5_000);
+            LevelInitS2C init = awaitLevelInit(harness);
 
             List<String> cards = init.slots().stream().map(SlotInfo::defId).toList();
             assertTrue(cards.contains("pvzce:wall_nut"),

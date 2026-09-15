@@ -1,19 +1,15 @@
 package com.pvzce.client;
 
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePacket;
-import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
-import org.junit.jupiter.api.BeforeAll;
+import com.pvzce.testutil.ClientHarness;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,27 +28,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * resumed must not ask the player to pick cards for it.
  */
 class LevelEntryFlowTest {
-    @BeforeAll
-    static void register() {
-        PvzcePackets.register();
+    private final List<ClientHarness> harnesses = new ArrayList<>();
+
+    @AfterEach
+    void closeHarnesses() {
+        harnesses.forEach(ClientHarness::close);
     }
 
-    private record Fixture(PvzceClient client, Connection.Pair pair, List<PvzcePacket> sent) {
-        /** Drains the server end so packets the client sent are recorded. */
-        List<PvzcePacket> sentPackets() {
-            pair.server().tick();
-            return List.copyOf(sent);
-        }
-    }
-
-    private static Fixture newClient() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-entry-flow");
-        Connection.Pair pair = Connection.createMemoryPair();
-        List<PvzcePacket> sent = new ArrayList<>();
-        pair.server().setListener(sent::add);
-        PvzceClient client = new PvzceClient(pair.client(), gameDir,
-                Thread.currentThread().getContextClassLoader());
-        return new Fixture(client, pair, sent);
+    private ClientHarness newClient() throws Exception {
+        ClientHarness harness = ClientHarness.create("pvzce-entry-flow");
+        harnesses.add(harness);
+        return harness;
     }
 
     private static LevelListS2C.LevelInfo levelInfo(String levelId, String status) {
@@ -77,7 +63,7 @@ class LevelEntryFlowTest {
      */
     @Test
     void anInProgressLevelIsEnteredDirectlyWithoutTheSeedChooser() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
         LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1", LevelListS2C.LevelInfo.IN_PROGRESS);
         client.setLevelList(List.of(info));
@@ -96,7 +82,7 @@ class LevelEntryFlowTest {
     /** A level with nothing to resume still picks its cards first, exactly as before. */
     @Test
     void aFreshLevelStillGoesThroughTheSeedChooser() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
         LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1", "");
         client.setLevelList(List.of(info));
@@ -133,7 +119,7 @@ class LevelEntryFlowTest {
      */
     @Test
     void aClearedLevelWithAnAbandonedReplayResumesInsteadOfChoosingCards() throws Exception {
-        Fixture fixture = newClient();
+        ClientHarness fixture = newClient();
         PvzceClient client = fixture.client();
         LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1",
                 LevelListS2C.LevelInfo.COMPLETED, true);

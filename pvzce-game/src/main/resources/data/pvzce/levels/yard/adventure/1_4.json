@@ -205,5 +205,10 @@
       }
     ],
     "cost": 500
-  }
+  },
+  "hints": [
+    {
+      "trigger": "on_card_refused"
+    }
+  ]
 }

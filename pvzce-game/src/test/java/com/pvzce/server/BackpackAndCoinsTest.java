@@ -9,11 +9,8 @@ import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.NbtIo;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PacketListener;
-import com.pvzce.common.network.PvzcePacket;
-import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.CommandC2S;
+import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.CreateWorldC2S;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.LevelInitS2C;
@@ -25,16 +22,15 @@ import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.server.entity.ResourceDropEntity;
+import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -173,17 +169,6 @@ class BackpackAndCoinsTest {
     }
 
     @Test
-    void theRewardsCodecDefaultsMatchTheDocumentedNumbers() {
-        // A level without a rewards block still pays the standard replay stipend; a
-        // first clear pays nothing extra until the level declares an unlock.
-        assertEquals(List.of(LevelRewards.Reward.coins(100)), LevelRewards.DEFAULT.repeat());
-        assertTrue(LevelRewards.DEFAULT.firstClear().isEmpty());
-        assertEquals(0.25F, LevelRewards.DEFAULT.coinDropChance(), 0.0001F);
-        assertEquals(id("coin_silver"), LevelRewards.DEFAULT.coinDrop());
-        assertEquals(1, LevelRewards.DEFAULT.coinDropAmount());
-    }
-
-    @Test
     void theFourDenominationsAreWorthTheOriginalsNumbers() {
         // The worth lives in the resource definition, once; the HUD and the wallet only
         // sum, so a drift here would silently change what a coin is worth.
@@ -198,24 +183,6 @@ class BackpackAndCoinsTest {
         }
         assertTrue(PvzceIds.isCoin("pvzce:diamond"));
         assertFalse(PvzceIds.isCoin(PvzceIds.SUN));
-    }
-
-    /**
-     * The pickup sparkle is per resource, and currency is the one thing that does not get it.
-     *
-     * <p>A sun is the resource the whole game is played with and pops with a flash; a coin is
-     * small change, and the same flash drawn at coin size washed a large part of the lawn in
-     * yellow every time one was picked up.
-     */
-    @Test
-    void theSunSparklesOnPickupAndCoinsDoNot() {
-        assertEquals(java.util.Optional.of(com.pvzce.common.PvzceParticles.LANTERN_SHINE),
-                BuiltInRegistries.RESOURCES.get(PvzceIds.SUN).pickupEffect(),
-                "the sun keeps the flash it always had");
-        for (Identifier denomination : PvzceIds.COIN_DENOMINATIONS) {
-            assertTrue(BuiltInRegistries.RESOURCES.get(denomination).pickupEffect().isEmpty(),
-                    denomination + " is currency and must not flash");
-        }
     }
 
     /**
@@ -246,7 +213,7 @@ class BackpackAndCoinsTest {
     @Test
     void theSeedPoolHidesUnownedCardsButKeepsTheLevelsOwn() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-backpack-pool");
-        try (Harness harness = new Harness(gameDir)) {
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
             harness.send(new RequestLevelListC2S(WORLD));
             LevelListS2C list = harness.awaitPacket(LevelListS2C.class, 5_000);
             var info = list.levels().stream().filter(l -> l.id().equals(FIRST_LEVEL))
@@ -270,7 +237,7 @@ class BackpackAndCoinsTest {
     @Test
     void theFirstLevelFixesPeashooterAndSunAndNothingElse() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-first-level-cards");
-        try (Harness harness = new Harness(gameDir)) {
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
             // The client asks for cards it does not own; the level's own two win out.
             harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true,
                     List.of("pvzce:wall_nut", "pvzce:sunflower")));
@@ -287,7 +254,7 @@ class BackpackAndCoinsTest {
     @Test
     void aSandboxWorldOffersEveryCard() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-backpack-all");
-        try (Harness harness = new Harness(gameDir)) {
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
             harness.send(new CreateWorldC2S(WORLD, true));
             harness.send(new RequestLevelListC2S(WORLD));
             LevelListS2C list = harness.awaitPacket(LevelListS2C.class, 5_000);
@@ -305,10 +272,10 @@ class BackpackAndCoinsTest {
     @Test
     void aFirstClearUnlocksTheRewardAndAReplayPaysTheStipend() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-rewards");
-        try (Harness harness = new Harness(gameDir)) {
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
             // One zombie, no delay: the level can be won inside a test. Its rewards
             // block is 1-1's, which ContentFoundationTest pins separately.
-            harness.writeLevel(gameDir, "reward_test", """
+            writeLevel(harness.gameDir(), "reward_test", """
                     {
                       "id": "pvzce:reward_test",
                       "name": "Reward Test",
@@ -328,12 +295,12 @@ class BackpackAndCoinsTest {
                       }
                     }
                     """);
-            harness.reloadAndAwaitLevelList();
+            reloadAndAwaitLevelList(harness);
 
             // First clear: the level's first_clear reward is the sunflower.
             harness.send(new PlayLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
-            harness.winLevel();
+            winLevel(harness);
 
             LevelRewardS2C first = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("pvzce:sunflower", first.unlockedCard(),
@@ -366,7 +333,7 @@ class BackpackAndCoinsTest {
             harness.send(new PlayLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             harness.clear();
-            harness.winLevel();
+            winLevel(harness);
 
             LevelRewardS2C repeat = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("", repeat.unlockedCard(), "there is nothing left to unlock");
@@ -381,7 +348,7 @@ class BackpackAndCoinsTest {
     @Test
     void coinsCollectedInARunAreBankedEvenWhenTheRunIsLost() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-coin-bank");
-        try (Harness harness = new Harness(gameDir)) {
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
             harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             // Stands in for coins the run picked up: the wallet rule is what is under
@@ -389,12 +356,12 @@ class BackpackAndCoinsTest {
             // A gold coin and a silver one: the wallet has to add what each is worth,
             // and the bank's total is a sum over the denominations.
             harness.send(new CommandC2S("/resource give pvzce:plant_team pvzce:coin_gold 50"));
-            harness.waitFor(() -> harness.team().resourcesOf(PvzceIds.COIN_GOLD) == 50, 5_000);
+            harness.waitForCondition(() -> team(harness).resourcesOf(PvzceIds.COIN_GOLD) == 50, 5_000);
             harness.send(new CommandC2S("/resource give pvzce:plant_team pvzce:coin_silver 10"));
-            harness.waitFor(() -> harness.team().resourcesOf(PvzceIds.COIN_SILVER) == 10, 5_000);
+            harness.waitForCondition(() -> team(harness).resourcesOf(PvzceIds.COIN_SILVER) == 10, 5_000);
             harness.clear();
 
-            harness.endLevel();
+            endLevel(harness);
             LevelRewardS2C reward = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals(60, reward.collectedCoins(),
                     "a finished run keeps what it picked up, summed over the denominations");
@@ -411,9 +378,9 @@ class BackpackAndCoinsTest {
     @Test
     void aDyingZombieLeavesTheLevelsConfiguredCoinDrop() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-coin-drop");
-        try (Harness harness = new Harness(gameDir)) {
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
             // Certain drops, so the test does not gamble on the default 25% roll.
-            harness.writeLevel(gameDir, "drop_test", """
+            writeLevel(harness.gameDir(), "drop_test", """
                     {
                       "id": "pvzce:drop_test",
                       "name": "Drop Test",
@@ -427,18 +394,19 @@ class BackpackAndCoinsTest {
                       "rewards": { "coin_drop_chance": 1.0, "coin_drop": "pvzce:coin_gold", "coin_drop_amount": 3 }
                     }
                     """);
-            harness.reloadAndAwaitLevelList();
+            reloadAndAwaitLevelList(harness);
             harness.send(new PlayLevelC2S("pvzce:drop_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));
-            harness.waitFor(() -> harness.server().level() != null
+            harness.waitForCondition(() -> harness.server().level() != null
                     && harness.server().level().aliveZombieCount() == 1, 5_000);
 
             // Kills it directly: this is about what a death spawns, not about
             // shooting one to death, which CombatSystemsTest already covers.
-            harness.server().level().damageArea(5.5F, 2.5F, 2F, 5_000, null);
-            harness.waitFor(() -> coinDrops(harness) == 150, 5_000);
+            harness.server().level().damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH),
+                    5.5F, 2.5F, 2F, 5_000, null);
+            harness.waitForCondition(() -> coinDrops(harness) == 150, 5_000);
             assertEquals(150, coinDrops(harness),
                     "three gold coins, and a drop's amount is the denomination's worth");
         }
@@ -447,8 +415,8 @@ class BackpackAndCoinsTest {
     @Test
     void aLevelWhoseDropChanceIsZeroNeverSpawnsCoins() throws Exception {
         Path gameDir = Files.createTempDirectory("pvzce-coin-off");
-        try (Harness harness = new Harness(gameDir)) {
-            harness.writeLevel(gameDir, "nodrop_test", """
+        try (ServerHarness harness = ServerHarness.create(gameDir)) {
+            writeLevel(harness.gameDir(), "nodrop_test", """
                     {
                       "id": "pvzce:nodrop_test",
                       "name": "No Drop Test",
@@ -462,20 +430,21 @@ class BackpackAndCoinsTest {
                       "rewards": { "coin_drop_chance": 0.0, "coin_drop": "pvzce:coin_silver" }
                     }
                     """);
-            harness.reloadAndAwaitLevelList();
+            reloadAndAwaitLevelList(harness);
             harness.send(new PlayLevelC2S("pvzce:nodrop_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));
-            harness.waitFor(() -> harness.server().level() != null
+            harness.waitForCondition(() -> harness.server().level() != null
                     && harness.server().level().aliveZombieCount() == 1, 5_000);
-            harness.server().level().damageArea(5.5F, 2.5F, 2F, 5_000, null);
-            harness.waitFor(() -> harness.server().level().aliveZombieCount() == 0, 5_000);
+            harness.server().level().damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH),
+                    5.5F, 2.5F, 2F, 5_000, null);
+            harness.waitForCondition(() -> harness.server().level().aliveZombieCount() == 0, 5_000);
             assertEquals(0, coinDrops(harness), "a level that disables drops must stay coin-free");
         }
     }
 
-    private static int coinDrops(Harness harness) {
+    private static int coinDrops(ServerHarness harness) {
         if (harness.server().level() == null) {
             return 0;
         }
@@ -494,133 +463,67 @@ class BackpackAndCoinsTest {
     }
 
     // ------------------------------------------------------------------
-    // Harness
+    // Helpers the harness does not carry: level-specific ways to end a run
     // ------------------------------------------------------------------
 
+    /** The plant team of the running level; {@code null} when no level is open. */
+    private static Team team(ServerHarness harness) {
+        return harness.server().level() == null ? null : harness.server().level().team(PvzceIds.PLANT_TEAM);
+    }
+
     /**
-     * A server on a memory connection plus the packet-level waits these tests need.
+     * Loses the running level.
      *
-     * <p>Deliberately not shared with {@code SaveSystemTest}'s harness: that one is
-     * private to its class and built around waiting for packet predicates, while this
-     * one waits for typed packets and drives the level end directly.
+     * <p>A zombie at the left edge wins it for the zombie team after its countdown, which is
+     * the same path a real defeat takes.
      */
-    private static final class Harness implements AutoCloseable {
-        private final Connection.Pair pair;
-        private final PvzceServer server;
-        private final List<PvzcePacket> packets = new ArrayList<>();
+    private static void endLevel(ServerHarness harness) {
+        // A flier: 1-1 comes with a lawn mower, which would eat a walking zombie before it
+        // could end the run. The mower is not supposed to touch what is in the air.
+        harness.send(new CommandC2S("/spawn zombie pvzce:balloon_zombie 0 0"));
+        // The zombie has to walk in and finish its countdown (~295 ticks). Sprinting runs
+        // them back to back instead of billing the suite ~5s of wall clock; the simulated
+        // outcome is identical.
+        harness.send(new CommandC2S("/tick sprint 400"));
+    }
 
-        Harness(Path gameDir) throws Exception {
-            BuiltInRegistries.bootstrap();
-            PvzcePackets.register();
-            this.pair = Connection.createMemoryPair();
-            this.server = new PvzceServer(pair.server(), gameDir, Thread.currentThread().getContextClassLoader());
-            PacketListener collector = packets::add;
-            pair.client().setListener(collector);
-            server.start();
-            // Wait for the first data load before anything else is sent.
-            send(new RequestLevelListC2S("__probe__"));
-            waitFor(() -> packets.stream().anyMatch(LevelListS2C.class::isInstance), 5_000);
-            packets.clear();
-        }
-
-        PvzceServer server() {
-            return server;
-        }
-
-        /** The plant team of the running level; {@code null} when no level is open. */
-        Team team() {
-            return server.level() == null ? null : server.level().team(PvzceIds.PLANT_TEAM);
-        }
-
-        void send(PvzcePacket packet) {
-            pair.client().send(packet);
-        }
-
-        void clear() {
-            packets.clear();
-        }
-
-        /**
-         * Loses the running level.
-         *
-         * <p>A zombie at the left edge wins it for the zombie team after its
-         * countdown, which is the same path a real defeat takes.
-         */
-        void endLevel() {
-            // A flier: 1-1 comes with a lawn mower, which would eat a walking zombie before
-            // it could end the run. The mower is not supposed to touch what is in the air.
-            send(new CommandC2S("/spawn zombie pvzce:balloon_zombie 0 0"));
-            // The zombie has to walk in and finish its countdown (~295 ticks). Sprinting
-            // runs them back to back instead of billing the suite ~5s of wall clock; the
-            // simulated outcome is identical.
-            send(new CommandC2S("/tick sprint 400"));
-        }
-
-        /**
-         * Wins the running level by clearing every zombie and every wave.
-         *
-         * <p>Damage is applied directly rather than through a peashooter: what is
-         * under test is the payout, and {@code CombatSystemsTest} already covers
-         * shooting. Returns once the plant team has won.
-         */
-        void winLevel() throws Exception {
-            waitFor(() -> {
-                LevelServer level = server.level();
-                if (level == null) {
-                    return false;
-                }
-                if (level.aliveZombieCount() > 0) {
-                    level.damageArea(0F, 0F, 500F, 100_000, level.team(PvzceIds.PLANT_TEAM));
-                }
-                return level.gameState().equals(com.pvzce.common.network.packet.GameStateS2C.WON)
-                        && level.winner() != null && level.winner().equals(PvzceIds.PLANT_TEAM);
-            }, 15_000);
-        }
-
-        <T extends PvzcePacket> T awaitPacket(Class<T> type, long timeoutMs) throws Exception {
-            waitFor(() -> packets.stream().anyMatch(type::isInstance), timeoutMs);
-            return packets.stream().filter(type::isInstance).map(type::cast).reduce((a, b) -> b).orElseThrow();
-        }
-
-        void waitFor(BooleanSupplier condition, long timeoutMs) throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
-            while (System.nanoTime() < deadline) {
-                pair.client().tick();
-                if (condition.getAsBoolean()) {
-                    return;
-                }
-                Thread.sleep(5);
+    /**
+     * Wins the running level by clearing every zombie and every wave.
+     *
+     * <p>Damage is applied directly rather than through a peashooter: what is under test is
+     * the payout, and {@code CombatSystemsTest} already covers shooting. Returns once the
+     * plant team has won.
+     */
+    private static void winLevel(ServerHarness harness) throws Exception {
+        harness.waitForCondition(() -> {
+            LevelServer level = harness.server().level();
+            if (level == null) {
+                return false;
             }
-            throw new AssertionError("Timed out waiting for condition; level="
-                    + (server.level() == null ? "null" : server.level().gameState()));
-        }
+            if (level.aliveZombieCount() > 0) {
+                level.damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), 0F, 0F, 500F, 100_000,
+                        level.team(PvzceIds.PLANT_TEAM));
+            }
+            return level.gameState().equals(GameStateS2C.WON)
+                    && level.winner() != null && level.winner().equals(PvzceIds.PLANT_TEAM);
+        }, 15_000);
+    }
 
-        void waitForFile(Path file, long timeoutMs) throws Exception {
-            waitFor(() -> Files.isRegularFile(file), timeoutMs);
-        }
+    /** Writes a data pack level; the server only sees it after a reload. */
+    private static void writeLevel(Path gameDir, String name, String json) throws Exception {
+        Path pack = gameDir.resolve("datapacks/" + name);
+        Path levelFile = pack.resolve("data/pvzce/levels/" + name + ".json");
+        Files.createDirectories(levelFile.getParent());
+        Files.writeString(pack.resolve("pack.mcmeta"),
+                "{\"pack\":{\"pack_format\":1,\"description\":\"" + name + "\"}}");
+        Files.writeString(levelFile, json);
+    }
 
-        /** Writes a data pack level; the server only sees it after a reload. */
-        void writeLevel(Path gameDir, String name, String json) throws Exception {
-            Path pack = gameDir.resolve("datapacks/" + name);
-            Path levelFile = pack.resolve("data/pvzce/levels/" + name + ".json");
-            Files.createDirectories(levelFile.getParent());
-            Files.writeString(pack.resolve("pack.mcmeta"),
-                    "{\"pack\":{\"pack_format\":1,\"description\":\"" + name + "\"}}");
-            Files.writeString(levelFile, json);
-        }
-
-        /** Reloads content and waits for the pushed level list, so the new level exists. */
-        void reloadAndAwaitLevelList() throws Exception {
-            clear();
-            send(new CommandC2S("/reload"));
-            awaitPacket(LevelListS2C.class, 8_000);
-            clear();
-        }
-
-        @Override
-        public void close() throws Exception {
-            server.stop();
-            server.thread().join(3_000);
-        }
+    /** Reloads content and waits for the pushed level list, so the new level exists. */
+    private static void reloadAndAwaitLevelList(ServerHarness harness) throws Exception {
+        harness.clear();
+        harness.send(new CommandC2S("/reload"));
+        harness.awaitPacket(LevelListS2C.class, 8_000);
+        harness.clear();
     }
 }

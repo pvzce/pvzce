@@ -65,7 +65,7 @@
           "count": 2
         }
       ],
-      "spawn_interval": 360
+      "spawn_interval": 600
     },
     {
       "type": "small",
@@ -80,7 +80,7 @@
           "count": 1
         }
       ],
-      "spawn_interval": 240
+      "spawn_interval": 600
     },
     {
       "type": "huge",
@@ -100,7 +100,7 @@
           "count": 2
         }
       ],
-      "spawn_interval": 180
+      "spawn_interval": 600
     },
     {
       "type": "final",
@@ -168,5 +168,14 @@
         "id": "pvzce:yard/adventure/1_2"
       }
     ]
-  }
+  },
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "路障僵尸的护甲很硬，多打几下"
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ]
 }

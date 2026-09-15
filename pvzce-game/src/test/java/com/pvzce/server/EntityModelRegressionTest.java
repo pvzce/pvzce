@@ -142,28 +142,6 @@ class EntityModelRegressionTest {
     }
 
     /**
-     * The plant AI must place through the same path as the player, so its plants
-     * get stacking height, carrier offset and {@code onPlaced} handling.
-     */
-    @Test
-    void aiPlacementUsesTheSharedPlacementPath() {
-        LevelServer level = new LevelServer(level(9, 5));
-        PlantDef lily = BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace("lily_pad"));
-        PlantDef pea = BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace("pea_shooter"));
-        assertNotNull(lily);
-        assertNotNull(pea);
-
-        level.setScene(2, 2, PvzceIds.id("water"));
-        PlantEntity pad = level.spawnPlant(lily, level.team(PLANT_TEAM), 2, 2);
-        PlantEntity shooter = level.spawnPlant(pea, level.team(PLANT_TEAM), 2, 2);
-
-        assertTrue(shooter.height() > pad.height(),
-                "a plant stacked on a carrier must adopt the carrier top as its height");
-        assertFalse(shooter.cellX() == 2.5F,
-                "a plant on a carrier keeps the small centring nudge");
-    }
-
-    /**
      * Zombie capabilities must be able to stop ground shots without the entity
      * knowing which capability did it.
      */

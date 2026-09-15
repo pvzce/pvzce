@@ -1,5 +1,6 @@
 package com.pvzce.server.entity;
 
+import com.pvzce.api.content.DamageTypeDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ZombieDef;
 import com.pvzce.api.content.ZombieStatus;
@@ -14,6 +15,7 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.capability.zombie.ArmorCapability;
+import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
@@ -46,12 +48,32 @@ public class ZombieEntity extends PvzceEntity {
      */
     public static final int CORPSE_TICKS = 360;
 
+    /**
+     * How long a zombie keeps flinching after taking a hit, in ticks.
+     *
+     * <p>About an eighth of a second: long enough that the state is still current when the
+     * entity sync goes out (which happens every third tick, so a shorter hold can miss it
+     * entirely), and short enough that the zombie does not appear to be staggering. The
+     * client's own {@code hit} clip is far longer - it eases in, holds its first pose and
+     * eases back out, so what the player sees is a flinch rather than a clip change.
+     */
+    public static final int HIT_HOLD_TICKS = 8;
+
     private final ZombieDef def;
     private final List<Instance> capabilities = new ArrayList<>();
     private final List<StatusInstance> statuses = new ArrayList<>();
     private int biteCooldown;
     private int leftCountdown;
     private int speedBoostTicks;
+    /**
+     * How many more ticks the zombie keeps flinching, or zero.
+     *
+     * <p>Counted rather than derived from the clip: the server does not know how long the
+     * client's {@code hit} clip is, and it must not - the length lives in the animation
+     * data, which is exactly the kind of presentation the simulation stays out of. This is
+     * only "long enough that the state is actually published and the blend can breathe".
+     */
+    private int hitTicks;
     /** Ticks left of this zombie's own death animation; 0 while it is alive. */
     private int corpseTicks;
     /** Balloon zombies fly until something pops the balloon. */
@@ -197,22 +219,39 @@ public class ZombieEntity extends PvzceEntity {
             setAnimation(EntityAnimations.IDLE);
             return;
         }
+        // The flinch is held for a beat rather than published for the single tick the damage
+        // landed on. The state goes out with the every-third-tick entity sync, so a one-tick
+        // hit was usually never sent at all - and when it was, the client played a clip that
+        // is well over a second long for one tick and then blended straight back, which is
+        // the flicker that made a zombie under fire look choppy. Holding it makes the
+        // clip's own blend do the work: it eases in, holds its first pose, eases out.
+        //
+        // Movement and biting are deliberately *not* paused: the original's zombie keeps
+        // walking into the peas, and stopping would make the whole lane stutter instead.
+        if (hitTicks > 0) {
+            hitTicks--;
+            setAnimation(EntityAnimations.HIT);
+        }
         PlantEntity plant = level.plantAt(gridX(), gridY());
         if (plant != null) {
-            setAnimation(EntityAnimations.EAT);
+            if (hitTicks <= 0) {
+                setAnimation(EntityAnimations.EAT);
+            }
             if (biteCooldown > 0) {
                 biteCooldown--;
             } else {
                 int damage = Math.round(def.biteDamage()
                         * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
-                plant.damage(damage);
+                plant.damageFrom(damage);
                 biteCooldown = def.biteIntervalTicks();
                 level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
                         def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
             }
             return;
         }
-        setAnimation(EntityAnimations.WALK);
+        if (hitTicks <= 0) {
+            setAnimation(EntityAnimations.WALK);
+        }
         setCellX(cellX() - moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
         if (biteCooldown > 0) {
             biteCooldown--;
@@ -256,19 +295,17 @@ public class ZombieEntity extends PvzceEntity {
         if (!isAlive()) {
             return;
         }
-        int dmg = Math.max(1, Math.round(amount
-                * level.rules().getFloat(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER)));
+        int dmg = scaled(amount, level);
+        // A shot is what a projectile layer means, so this is the one caller that
+        // passes the hit down to the armour capabilities itself: which slot it meets
+        // (a shield first, a hat instead of no shield at all) is a property of the
+        // shot, not of the damage type.
         for (Instance instance : capabilities) {
             if (instance.capability.onProjectileHit(this, projectile, dmg, level)) {
                 return;
             }
         }
-        if (!grounded) {
-            grounded = true;
-            setAnimation(EntityAnimations.FALL);
-            level.emitEffect("", cellX(), cellY(),
-                    def.sounds().special().orElse(PvzceSounds.ZOMBIE_BALLOON_POP));
-        }
+        ground(level);
         damageBody(dmg, level);
         if (!removed) {
             Identifier hitSound = projectile.sounds().impact()
@@ -281,25 +318,86 @@ public class ZombieEntity extends PvzceEntity {
      * Impact damage from something that is not a shot: a rolling bowling nut, a giant's
      * fist, a hammer.
      *
-     * <p>Armor still absorbs it (a Conehead has to be hit twice by a Wall-nut, a
-     * Buckethead three times, exactly as in the original), which is why this is not
-     * {@link #damageBody}: that path exists for explosions and deliberately ignores armor.
+     * <p>Goes through the registered {@code pvzce:impact} damage type rather than
+     * straight to {@link #damageBody}: armour absorbs it (a Conehead has to be hit twice
+     * by a Wall-nut, a Buckethead three times, exactly as in the original), which is why
+     * {@code damageBody} is not the entry point - that one is for damage types authored
+     * with {@code ignores_armor}.
      */
     public void damageImpact(int amount, LevelAccess level) {
+        damage(amount, impactType(), level);
+    }
+
+    /**
+     * The one damage entry point: every hit, from every source, arrives here.
+     *
+     * <p>{@code type} decides whether the zombie's own armour capabilities get first
+     * refusal. A type that ignores armour skips them entirely, so a cherry bomb kills a
+     * Buckethead and a lawn mower flattens one; a type that does not runs the impact
+     * hooks, whose {@code onImpact} answers front-before-top (a shield, then a hat).
+     *
+     * <p>The plant damage multiplier is applied here, once, for the same reason the
+     * routing is: three call sites each multiplying would make {@code /rule
+     * plant_damage_multiplier} mean a different thing depending on which one ran. A
+     * {@code null} type is read as {@code pvzce:projectile}, so an unknown or
+     * not-yet-loaded registry cannot turn a hit into a free pass.
+     */
+    public void damage(int amount, DamageTypeDef type, LevelAccess level) {
         if (!isAlive()) {
             return;
         }
-        int dmg = Math.max(1, Math.round(amount
-                * level.rules().getFloat(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER)));
-        for (Instance instance : capabilities) {
-            if (instance.capability.onImpact(this, dmg, level)) {
-                return;
+        int dmg = scaled(amount, level);
+        if (!ignoresArmor(type)) {
+            for (Instance instance : capabilities) {
+                if (instance.capability.onImpact(this, dmg, level)) {
+                    return;
+                }
             }
         }
         damageBody(dmg, level);
     }
 
-    /** Explosions / area damage bypass armor. */
+    /** The registered damage type for {@code id}, or the projectile fallback. */
+    public static DamageTypeDef damageType(Identifier id) {
+        DamageTypeDef type = id == null ? null : BuiltInRegistries.DAMAGE_TYPES.get(id);
+        return type == null ? projectileType() : type;
+    }
+
+    private static DamageTypeDef projectileType() {
+        return damageType(PvzceIds.DAMAGE_PROJECTILE);
+    }
+
+    private static DamageTypeDef impactType() {
+        return damageType(PvzceIds.DAMAGE_IMPACT);
+    }
+
+    private static boolean ignoresArmor(DamageTypeDef type) {
+        return type != null && type.ignoresArmor();
+    }
+
+    private static int scaled(int amount, LevelAccess level) {
+        return Math.max(1, Math.round(amount
+                * level.rules().getFloat(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER)));
+    }
+
+    /** Grounds a flier that something just hit, with the balloon popping. */
+    private void ground(LevelAccess level) {
+        if (grounded) {
+            return;
+        }
+        grounded = true;
+        setAnimation(EntityAnimations.FALL);
+        level.emitEffect("", cellX(), cellY(),
+                def.sounds().special().orElse(PvzceSounds.ZOMBIE_BALLOON_POP));
+    }
+
+    /**
+     * Explosions / area damage bypass armor.
+     *
+     * <p>Named for what it is rather than called {@code damage}: the entry point is
+     * {@link #damage(int, DamageTypeDef, LevelAccess)}, and a second overload would only
+     * make "which one did this call site mean" a question again.
+     */
     public void damageBody(int amount, LevelAccess level) {
         if (!isAlive()) {
             return;
@@ -307,6 +405,8 @@ public class ZombieEntity extends PvzceEntity {
         int before = health();
         setHealth(Math.max(0, health() - amount));
         setAnimation(EntityAnimations.HIT);
+        // Held for a beat by walkOrEat; see the note there for why one tick was not enough.
+        hitTicks = HIT_HOLD_TICKS;
         // Half health costs an ordinary zombie its outer arm, as it does in the original -
         // but only once nothing is left on its head: a Conehead loses the arm at half of
         // the health it has *under* the cone, and only after the cone is gone. Losing an
@@ -325,10 +425,13 @@ public class ZombieEntity extends PvzceEntity {
             // happened, and a despawn in the same breath never showed any of it.
             corpseTicks = CORPSE_TICKS;
             setAnimation(EntityAnimations.DEATH);
-            // No detached-head particle: the sprite is a whole head with its own motion,
-            // and drawn as one burst per death it read as a second zombie rather than as
-            // the first one coming apart. The sound is the death cue.
-            level.emitEffect("", cellX(), cellY(),
+            // The head leaves the body as its own particle. The model keeps it hidden in the
+            // death clip - that is how the original is authored - so this is the only thing
+            // that puts one on the lawn, and the sprite's own motion is what makes it drop
+            // where the zombie fell rather than fly off the board (see
+            // data/pvzce/particles/zombie/zombie_head.json).
+            level.emitEffect(def.dropsHead() ? PvzceParticles.ZOMBIE_HEAD.toString() : "",
+                    cellX(), cellY(),
                     def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
             dropEquipment(level);
             for (Instance instance : capabilities) {
@@ -420,6 +523,7 @@ public class ZombieEntity extends PvzceEntity {
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
         tag.putInt("biteCooldown", biteCooldown);
+        tag.putInt("hitTicks", hitTicks);
         tag.putInt("leftCountdown", leftCountdown);
         tag.putInt("speedBoostTicks", speedBoostTicks);
         tag.putInt("grounded", grounded ? 1 : 0);
@@ -450,6 +554,7 @@ public class ZombieEntity extends PvzceEntity {
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
         biteCooldown = tag.getInt("biteCooldown");
+        hitTicks = tag.getInt("hitTicks");
         leftCountdown = tag.getInt("leftCountdown");
         speedBoostTicks = tag.getInt("speedBoostTicks");
         grounded = !tag.contains("grounded") || tag.getInt("grounded") != 0;

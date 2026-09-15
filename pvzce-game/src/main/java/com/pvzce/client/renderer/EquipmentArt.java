@@ -92,11 +92,11 @@ public final class EquipmentArt implements BoneArt {
             return null;
         }
         boolean hasEquipment = !def.equipment().isEmpty();
-        if (!hasEquipment && !def.dropsArm()) {
+        if (!hasEquipment && !def.dropsArm() && def.hiddenBones().isEmpty()) {
             return null;
         }
         Plan plan = PLANS.computeIfAbsent(entity.defIdString(), id -> Plan.of(def, model));
-        if (plan.entries().isEmpty() && !def.dropsArm()) {
+        if (plan.entries().isEmpty() && !def.dropsArm() && plan.hiddenBones().isEmpty()) {
             return null;
         }
         return new EquipmentArt(plan, def, entity);
@@ -122,6 +122,12 @@ public final class EquipmentArt implements BoneArt {
             // the cone with the head, the newspaper's gasp has no paper in it), and putting
             // one back would undo that.
             boolean drawnByClip = entry.bones().stream().anyMatch(visible::contains);
+            // How this zombie holds what it is holding, if the piece brought its own limb.
+            // The flag zombie's hand is a bone of the flag's own reanim rather than one of
+            // the cone family's damage states, so it is invisible to the loop above and is
+            // read separately - see armBones() and the data's own note.
+            String armHost = entry.armHost();
+            boolean armDrawn = armHost != null && visible.contains(armHost);
             visible.removeAll(entry.bones());
             if (drawnByClip) {
                 String chosen = entry.chooseFor(entity, def);
@@ -129,10 +135,26 @@ public final class EquipmentArt implements BoneArt {
                     visible.add(chosen);
                 }
             }
+            if (!entry.equipment().armBones().isEmpty()) {
+                // The piece and the limb that carries it are one thing, so exactly one of the
+                // two is ever drawn. The death clip drops the flag - and with it the hand
+                // that held the pole, which is a bone of the flag's own reanim - so hiding
+                // the ordinary arm unconditionally left an armless zombie falling over.
+                // Handing the arm back on those frames is the whole point of scoping this to
+                // "is the piece's own hand on screen" rather than to the zombie.
+                if (armDrawn) {
+                    visible.removeAll(entry.equipment().armBones());
+                } else {
+                    visible.addAll(entry.equipment().armBones());
+                }
+            }
         }
         if (plan.armLoss() && lostArm()) {
             visible.removeAll(OUTER_ARM_BONES);
         }
+        // Last, so nothing above can put one back: this is the definition saying "this sprite
+        // is the same limb as another one, and only one of them is this zombie's".
+        visible.removeAll(plan.hiddenBones());
         return visible;
     }
 
@@ -150,6 +172,20 @@ public final class EquipmentArt implements BoneArt {
 
     /** One equipment entry and the bones that draw it, by damage state. */
     private record Entry(EquipmentDef equipment, List<String> bones) {
+        /**
+         * The bone that means "this piece's own arm is on screen", or {@code null}.
+         *
+         * <p>Invisible to {@link #bones()} on purpose: the host is the bone the piece hangs
+         * off rather than a drawing of the piece, so it is not part of the family the clip
+         * turns on and off. It still has to be asked about, because it is the only thing that
+         * says whether the limb came with the piece.
+         */
+        String armHost() {
+            return equipment.armBones().isEmpty() || equipment.host().isEmpty()
+                    ? null
+                    : equipment.host().get();
+        }
+
         /**
          * The bone to draw for the zombie's current state, or {@code null} for "it is gone".
          *
@@ -208,7 +244,7 @@ public final class EquipmentArt implements BoneArt {
     }
 
     /** One zombie definition's equipment, resolved against its model once. */
-    private record Plan(List<Entry> entries, boolean armLoss) {
+    private record Plan(List<Entry> entries, boolean armLoss, Set<String> hiddenBones) {
         static Plan of(ZombieDef def, ControllerModel model) {
             List<Entry> resolved = new ArrayList<>();
             for (EquipmentDef equipment : def.equipment()) {
@@ -220,7 +256,8 @@ public final class EquipmentArt implements BoneArt {
                     resolved.add(new Entry(equipment, family));
                 }
             }
-            return new Plan(List.copyOf(resolved), def.dropsArm());
+            return new Plan(List.copyOf(resolved), def.dropsArm(),
+                    Set.copyOf(def.hiddenBones()));
         }
 
         /** The model's bones for one art family, ordered by their damage-state number. */

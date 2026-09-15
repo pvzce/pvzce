@@ -182,6 +182,7 @@ public record ParticleDef(
      * @param gravity     downward acceleration in cells per second squared
      * @param drag        fraction of velocity shed per second
      * @param bounce      stop at the ground line instead of falling through it
+     * @param groundFriction how much horizontal speed one landing keeps, 0..1
      */
     public record ParticleMotion(
             float speed,
@@ -190,11 +191,30 @@ public record ParticleDef(
             float angleSpread,
             float gravity,
             float drag,
-            boolean bounce
+            boolean bounce,
+            float groundFriction
     ) {
+        /**
+         * What one bounce does to horizontal speed when a definition says nothing.
+         *
+         * <p>1 keeps every bit of it, which is what every definition written before this
+         * field existed was authored against: the engine used to zero {@code vy} on landing
+         * and leave {@code vx} completely alone, so a thrown head kept sliding sideways at
+         * its launch speed for the rest of its life. That is a real behaviour some of those
+         * definitions look fine with - a hat skittering along the lawn reads as a hat - so
+         * the default preserves it and content opts into stopping by asking for less.
+         *
+         * <p>A thrown head that has to "drop where it fell" wants a small value: see
+         * {@code data/pvzce/particles/zombie/zombie_head.json}.
+         *
+         * <p>Declared before {@link #STILL} because Java runs static initialisers in source
+         * order and the constant below reads it.
+         */
+        public static final float DEFAULT_GROUND_FRICTION = 1F;
+
         /** A particle that never moves: the default when a definition omits {@code motion}. */
         public static final ParticleMotion STILL =
-                new ParticleMotion(0F, 0F, 90F, 0F, 0F, 0F, false);
+                new ParticleMotion(0F, 0F, 90F, 0F, 0F, 0F, false, DEFAULT_GROUND_FRICTION);
 
         public static final MapCodec<ParticleMotion> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
                 Codec.FLOAT.optionalFieldOf("speed", 0F).forGetter(ParticleMotion::speed),
@@ -203,7 +223,9 @@ public record ParticleDef(
                 Codec.FLOAT.optionalFieldOf("angle_spread", 0F).forGetter(ParticleMotion::angleSpread),
                 Codec.FLOAT.optionalFieldOf("gravity", 0F).forGetter(ParticleMotion::gravity),
                 Codec.FLOAT.optionalFieldOf("drag", 0F).forGetter(ParticleMotion::drag),
-                Codec.BOOL.optionalFieldOf("bounce", false).forGetter(ParticleMotion::bounce)
+                Codec.BOOL.optionalFieldOf("bounce", false).forGetter(ParticleMotion::bounce),
+                Codec.floatRange(0F, 1F).optionalFieldOf("ground_friction", DEFAULT_GROUND_FRICTION)
+                        .forGetter(ParticleMotion::groundFriction)
         ).apply(i, ParticleMotion::new));
     }
 

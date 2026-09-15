@@ -194,6 +194,58 @@ def range_of(text: Optional[str]) -> Optional[Tuple[float, float]]:
     return (min(values), max(values))
 
 
+def growth_curve(text: Optional[str]) -> Optional[List[List[float]]]:
+    """The authored size trajectory as a table, or ``None`` for a constant size.
+
+    A range is not a fade and must not be read as one. ``ParticleScale [.7 .9]``
+    means "start at .7, end at .9", but the generic curve reader sees three numbers
+    in ``.2 .5,7`` and pairs them as (value, time) keyframes, which flattens the
+    ramp into "0.2 for the whole life" - the explosion's flash was drawn at its
+    starting size and never grew.
+
+    Everything before the first comma is the value trajectory; everything after it
+    is the curve *type* and where it starts, which the engine's table does not
+    carry (it samples linearly between its own points). ``value`` reaches ``value2``
+    either by the end of the life, or - when the type names a fractional time, as in
+    ``.5,60 0`` - by that point and then falls to nothing.
+    """
+    if not text:
+        return None
+    head, _, tail = text.partition(",")
+    match = re.search(r"\[([^\]]*)\]", head)
+    if match:
+        numbers = parse_numbers(match.group(1))
+    else:
+        # A bare pair *has* to be the whole head; ``.4 EaseIn 10,10`` and ``1 25``
+        # also open with numbers, but there the pair is a value and its *time*, and
+        # there is no range to read.
+        pair = re.match(r"^\s*(-?(?:\d+\.?\d*|\.\d+))\s+(-?(?:\d+\.?\d*|\.\d+))\s*$", head)
+        numbers = [float(pair.group(1)), float(pair.group(2))] if pair else []
+    if not numbers:
+        return None
+    start = numbers[0]
+    end = numbers[1] if len(numbers) > 1 else start
+    if abs(end - start) < 1e-6:
+        return None
+    tail_numbers = parse_numbers(tail)
+    if tail_numbers:
+        # A trailing curve type with a *time* in front of it (``,7``, ``,50 1``)
+        # describes a curve shape this table cannot carry, and guessing which of the
+        # two numbers is the time - ``,60 0`` versus ``,7`` - produces tables that
+        # are plainly wrong (a flash that grows to 60%, or one that holds for 7% and
+        # then jumps to its final size). An authored ramp is only read when the
+        # string has no time in it at all; the rest stay the constant the base
+        # ``scale`` already expresses.
+        return None
+    if max(start, end) > 1.0:
+        # Not a fraction, so not a size: ``10 15`` and ``1600`` are the original
+        # writing pixel sizes for effects this project draws from its own sprites.
+        return None
+    if min(start, end) < 0:
+        return None
+    return [[0.0, start], [1.0, end]]
+
+
 def parse_curve(text: Optional[str]) -> List[Tuple[float, float]]:
     """A fade curve as ``(time, value)`` pairs with the time normalised to 0..1.
 
@@ -456,6 +508,11 @@ class Emitter:
         if scale is not None and abs(scale[0] - 1.0) > 0.001:
             look["scale"] = round(scale[0], 4)
         scale_curve = sampled_curve(scale_text)
+        if scale_curve is None:
+            # Nothing curve-shaped came out, but a bracketed range is still a ramp:
+            # see growth_curve. The base ``scale`` is the low end, so the table holds
+            # the ratio and the two agree at t=0.
+            scale_curve = growth_curve(scale_text)
         if scale_curve is not None:
             look["scale_curve"] = scale_curve
         # ``ParticleRed`` is a fraction when it is small (``.7``) and a 0..255 byte when it

@@ -63,6 +63,24 @@ public interface PlantCapability {
         return true;
     }
 
+    /**
+     * Whether this capability makes the plant immune to damage right now.
+     *
+     * <p>The ash line's answer: a cherry bomb has 100 health and a zombie's bite is 100,
+     * so without this a single bite cancels the plant the player just paid 150 sun for -
+     * and the original does not allow that. Zombies still <em>bite</em> it (the chomp
+     * sound, the eat animation and the zombie standing still all still happen); nothing
+     * comes of it. That distinction is why this is not {@link #occupiesCell}: the plant
+     * is still furniture of its cell, it just cannot be worn down.
+     *
+     * <p>Any capability saying yes is enough, and it is asked on every hit rather than
+     * cached, because it is a temporary state - an unexploded bomb is immune until its
+     * fuse runs out and an ordinary plant is never immune at all.
+     */
+    default boolean invulnerable(PlantEntity plant) {
+        return false;
+    }
+
     /** Persists per-plant state; the caller stores it under this capability's type id. */
     default void save(CompoundTag tag) {
     }

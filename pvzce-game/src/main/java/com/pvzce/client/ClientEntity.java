@@ -85,12 +85,94 @@ public final class ClientEntity extends Entity implements Animatable {
         return layer;
     }
 
+    /**
+     * How long one server sync period is, in nanoseconds.
+     *
+     * <p>{@code LevelServer.syncSlots} publishes every entity's position every
+     * {@code tickCount % 3 == 0} - 20 times a second, against a client that draws 60 to 260
+     * times. Drawing the raw packet position is therefore a 20 Hz staircase: the zombie
+     * stands still for five frames and then jumps, which reads as a stutter and is worst
+     * exactly when the player is watching one zombie (<em>being hit</em>, being eaten,
+     * walking the last cell).
+     *
+     * <p>The two numbers are coupled by construction, so they are stated here together:
+     * if the server's cadence changes, this is the constant that has to follow it. Getting
+     * it wrong is graceful in both directions - too long only makes the slide lag behind
+     * the packet, too short reaches the sample early and then waits.
+     */
+    public static final long SYNC_PERIOD_NANOS =
+            3L * 1_000_000_000L / com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
+
+    /**
+     * Where the last packet left this entity, and when it arrived.
+     *
+     * <p>Only <em>rendering</em> samples: {@link #cellX()} and {@link #height()} stay the
+     * server's numbers, so hit tests, camera maths and anything a test asserts keep reading
+     * the authoritative value. Height is in here because it is not decoration: a falling
+     * drop's height is what carries it down the screen, so interpolating x and y while
+     * stepping the height would still leave the sun's fall at 20 Hz.
+     */
+    private float renderCellX;
+    private float renderCellY;
+    private float renderHeight;
+    private long syncNanos;
+    /** False until an update lands, so a fresh spawn is never interpolated from nowhere. */
+    private boolean interpolating;
+
+    /**
+     * The x to draw this entity at, sliding from the previous sample to the current one.
+     *
+     * <p>Linear on the wall clock rather than eased: the entity is moving at a constant
+     * speed between two samples, and an ease would make it visibly accelerate and brake
+     * twenty times a second. The result is clamped to the segment, so a late packet can
+     * never overshoot past the position the server has already given.
+     */
+    public float visualCellX() {
+        return slide(renderCellX, cellX());
+    }
+
+    /** The y to draw this entity at; same rule as {@link #visualCellX()}. */
+    public float visualCellY() {
+        return slide(renderCellY, cellY());
+    }
+
+    /** How high off its cell this entity is drawn; same rule as {@link #visualCellX()}. */
+    public float visualHeight() {
+        return slide(renderHeight, height());
+    }
+
+    private float slide(float from, float to) {
+        if (!interpolating || from == to) {
+            return to;
+        }
+        return from + (to - from) * syncProgress();
+    }
+
+    /**
+     * 0..1 through the current sync period, clamped.
+     *
+     * <p>Computed once per read rather than per frame: it is a clock value, and the three
+     * positions an entity has must slide together or a falling drop would bend.
+     */
+    private float syncProgress() {
+        return Math.min(1F, Math.max(0F,
+                (System.nanoTime() - syncNanos) / (float) SYNC_PERIOD_NANOS));
+    }
+
     /** Applies a delta update; only the fields the server streams are touched. */
     public void update(float cellX, float cellY, int health, String animation, float height) {
         update(cellX, cellY, health, animation, height, armor);
     }
 
     public void update(float cellX, float cellY, int health, String animation, float height, int armor) {
+        // Interpolation starts from where this entity is being *drawn*, not from where the
+        // last packet put it: a packet delayed past one sync period would otherwise make the
+        // entity jump backwards to the previous sample before sliding forward again.
+        this.renderCellX = visualCellX();
+        this.renderCellY = visualCellY();
+        this.renderHeight = visualHeight();
+        this.syncNanos = System.nanoTime();
+        this.interpolating = true;
         setCellX(cellX);
         setCellY(cellY);
         setHealth(health);

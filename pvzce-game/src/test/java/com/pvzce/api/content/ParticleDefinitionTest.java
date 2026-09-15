@@ -130,27 +130,27 @@ class ParticleDefinitionTest {
     }
 
     /**
-     * The effects the built-in capabilities emit have to be real particle ids.
+     * The explosion flash has to grow.
      *
-     * <p>An unresolvable one is an effect the player never sees, and the only symptom
-     * is a client log line with no address, so the set is worth pinning. What is
-     * asserted is that the names are well-formed and each one names a single effect -
-     * not that every one currently has a definition, because the shipped set depends
-     * on which of the original's emitter sprites the working copy has
-     * (see {@code tools/particles_to_pvzce.py}).
+     * <p>{@code Pow.xml} authors two sizes - ``.2 .5,7`` - and the converter read the
+     * three numbers as (value, time) keyframes, which flattened the ramp into "0.2 for
+     * the whole life". The blast was therefore drawn at its *starting* size and never
+     * expanded, which is what "只有一个很小的贴图" was: the curve was missing, not the
+     * engine (it has carried {@code scale_curve} all along).
+     *
+     * <p>Asserted on the shipped definition rather than on a literal, so the guard is
+     * against the data losing the ramp again.
      */
     @Test
-    void builtInEffectIdsAreWellFormed() {
-        // Distinct *names*, not distinct sprites: several effects legitimately share one
-        // particle (the ash line's blast is the same Powie the melon bursts with), and
-        // the constant table is where that substitution is recorded. So a repeated id is
-        // not an error - a malformed one is.
-        List<Identifier> ids = PvzceParticles.all();
-        assertFalse(ids.isEmpty());
-        for (Identifier id : ids) {
-            assertEquals("pvzce", id.namespace());
-            assertFalse(id.path().isBlank());
-        }
+    void theExplosionFlashGrowsOverItsLife() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        ParticleDef pow = BuiltInRegistries.PARTICLES.get(PvzceParticles.EXPLOSION_POW);
+        assertNotNull(pow, "pvzce:pow must be defined");
+
+        float start = pow.look().scale() * pow.look().scaleAt(0F);
+        float end = pow.look().scale() * pow.look().scaleAt(1F);
+        assertTrue(end > start * 2F,
+                "the flash must expand: " + start + " -> " + end + " cells");
     }
 
     /**
