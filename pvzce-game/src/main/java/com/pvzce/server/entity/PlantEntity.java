@@ -5,6 +5,7 @@ import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.entity.EntityLayers;
+import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.Team;
@@ -59,12 +60,30 @@ public class PlantEntity extends PvzceEntity {
             return;
         }
         age++;
+        // A sleeping plant is not acting: only the capability that puts it to sleep keeps
+        // ticking (it is the one publishing the animation). Asking here rather than in each
+        // active capability is what makes "asleep" one fact instead of a check every new
+        // behaviour has to remember.
+        boolean asleep = isAsleep(level);
         for (Instance instance : capabilities) {
+            if (asleep && !instance.capability.ticksWhileAsleep(this)) {
+                continue;
+            }
             instance.capability.tick(this, level);
             if (removed) {
                 break;
             }
         }
+    }
+
+    /** True while a capability says this plant is asleep (a nocturnal mushroom in daylight). */
+    public boolean isAsleep(LevelAccess level) {
+        for (Instance instance : capabilities) {
+            if (instance.capability.asleep(this, level)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -131,11 +150,23 @@ public class PlantEntity extends PvzceEntity {
         return true;
     }
 
-    /** Instant activation (energy bean, coffee bean, glove); a no-op when nothing can charge. */
-    public void boost() {
+    /**
+     * Wakes this plant up (a coffee bean); a no-op for a plant that does not sleep.
+     *
+     * <p>Replaces the old {@code boost()} fan-out: the coffee bean is the only thing that
+     * ever called it, and the original's coffee bean wakes a sleeping mushroom and does
+     * nothing else. The generic "instant activation" an energy bean will want is a
+     * different mechanic (see {@code 02-第二阶段} §2.2.5) and gets its own hook.
+     *
+     * @return {@code true} when something was actually asleep and is now awake, so the
+     *         caller can tell a used coffee bean from a wasted one
+     */
+    public boolean wake() {
+        boolean woke = false;
         for (Instance instance : capabilities) {
-            instance.capability.boost(this);
+            woke |= instance.capability.wake(this);
         }
+        return woke;
     }
 
     /**

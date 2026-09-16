@@ -375,6 +375,13 @@ class ServerMenuFlowTest {
                     "and so must its background track: " + stoppedBeforeInit);
 
             // Resync of the running level: its music is current, so nothing may be stopped.
+            //
+            // Wait for the new instance to have ticked first. A level's opening music cue is
+            // sent by `processMusicCues` on its first tick, which is *after* the init it was
+            // created with - so a baseline taken between the two would count that cue as "the
+            // resync changed the music" and fail roughly one run in four.
+            server.waitForCondition(() -> server.server().level() != null
+                    && server.server().level().tickCount() > 1, 5_000);
             int beforeResync = server.packets().size();
             server.send(new ContinueLevelC2S("pvzce:yard/adventure/1_1", "musicworld"));
             awaitInitAfter(server, beforeResync);

@@ -150,29 +150,36 @@
     "lines": [
       {
         "character": "pvzce:pea_chan",
+        "portrait": "welcome",
+        "text": "又见面啦",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
         "portrait": "smile",
-        "text": "再次见面了喵",
+        "text": "怎么样呢？还是轻松吧~",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "那就继续？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "不过有了向日葵的话，就可以种更多豌豆了哦",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
         "portrait": "zako",
-        "text": "僵尸开始变多了哦，小杂鱼还可以应付吗？",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "没事，向日葵会给你帮助喵",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "tsundere",
-        "text": "才...才不是要帮你呢！",
+        "text": "加油哦，小杂鱼~",
         "voice": "",
         "side": "left"
       }

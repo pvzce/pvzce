@@ -1,5 +1,6 @@
 {
   "pvzce.award.coins": "金币 +{0}",
+  "pvzce.award.coins_collected": "本局收集的金币",
   "pvzce.award.continue": "继续",
   "pvzce.award.money_bag": "点击钱袋收集金币",
   "pvzce.award.new_card": "获得新植物！",
@@ -103,6 +104,9 @@
   "pvzce.glove": "手套",
   "pvzce.grass": "草地",
   "pvzce.grave": "墓碑",
+  "pvzce.grave_cross": "十字墓碑",
+  "pvzce.grave_slab": "断裂墓碑",
+  "pvzce.grave_wide": "宽墓碑",
   "pvzce.graves_spawn_night": "墓碑夜间出怪",
   "pvzce.ground": "裸地",
   "pvzce.hammer": "锤子",
@@ -154,6 +158,7 @@
   "pvzce.plant_damage_multiplier": "植物伤害倍率",
   "pvzce.pole_vaulter_zombie": "撑杆僵尸",
   "pvzce.potato_mine": "土豆雷",
+  "pvzce.puff_shroom": "小喷菇",
   "pvzce.quit": "退出",
   "pvzce.readysetplant": "准备… 安放… 种植！",
   "pvzce.redstone": "红石",
@@ -172,7 +177,9 @@
   "pvzce.split_pea": "分裂豌豆",
   "pvzce.squash": "窝瓜",
   "pvzce.start": "开始游戏",
+  "pvzce.story": "剧情",
   "pvzce.sun": "阳光",
+  "pvzce.sun_shroom": "阳光菇",
   "pvzce.sun_spawn_chance": "阳光掉落概率",
   "pvzce.sun_value": "阳光价值",
   "pvzce.sunflower": "向日葵",
@@ -194,6 +201,5 @@
   "pvzce.zombie": "僵尸方",
   "pvzce.zombie_boss": "僵尸首领",
   "pvzce.zombie_damage_multiplier": "僵尸伤害倍率",
-  "pvzce.zombie_speed_multiplier": "僵尸速度倍率",
-  "pvzce.award.coins_collected": "本局收集的金币"
+  "pvzce.zombie_speed_multiplier": "僵尸速度倍率"
 }

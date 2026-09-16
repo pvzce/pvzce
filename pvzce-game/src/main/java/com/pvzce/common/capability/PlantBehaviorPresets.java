@@ -3,7 +3,7 @@ package com.pvzce.common.capability;
 import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.common.capability.plant.BoostBelowCapability;
+import com.pvzce.common.capability.plant.WakeBelowCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
 import com.pvzce.common.capability.plant.MeleeCapability;
 import com.pvzce.common.capability.plant.ProducerCapability;
@@ -63,8 +63,8 @@ public final class PlantBehaviorPresets {
         register("melee", List.of(cap(PlantCapabilities.MELEE,
                 new MeleeCapability(MeleeCapability.DEFAULT_RANGE, 0, MeleeCapability.DEFAULT_CHEW_TICKS,
                         Optional.empty()))));
-        register("support", List.of(cap(PlantCapabilities.BOOST_BELOW,
-                new BoostBelowCapability(Optional.empty(), Optional.empty()))));
+        register("support", List.of(cap(PlantCapabilities.WAKE_BELOW,
+                new WakeBelowCapability(Optional.empty(), Optional.empty()))));
         // Passive behaviors intentionally expand to nothing.
         register("passive", List.of());
         register("defense", List.of());

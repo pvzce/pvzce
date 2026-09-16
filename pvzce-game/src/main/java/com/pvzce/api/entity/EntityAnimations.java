@@ -27,6 +27,14 @@ public final class EntityAnimations {
     public static final String LANDED = "landed";
     /** A plant that is moving under its own power (bowling Wall-nut). */
     public static final String ROLL = "roll";
+    /**
+     * A nocturnal plant asleep in daylight (Puff-shroom, Doom-shroom).
+     *
+     * <p>Like every other state this is a wire string and a clip name: the art has to
+     * define a {@code sleep} clip, or the client silently falls back to {@code idle} and
+     * a sleeping mushroom looks exactly like a wide-awake one.
+     */
+    public static final String SLEEP = "sleep";
 
     private EntityAnimations() {
     }

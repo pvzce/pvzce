@@ -139,6 +139,15 @@ public final class LevelServer implements LevelAccess {
     private float waveProgress;
     private boolean waveWarningActive;
     private boolean waveWarningFinal;
+    /**
+     * Whether a due wave is being held back for an opening wave's field to clear, and for how
+     * much longer. See {@link #openingWaveStillOnTheField()}.
+     */
+    private boolean openingGateArmed;
+    private int openingGateTicks;
+    private int openingGateHoldTicks;
+    /** True while the wave that is due is waiting on that gate; keeps its banner up. */
+    private boolean waveArrivalHeld;
     private String gameState = GameStateS2C.RUNNING;
     private Identifier winner;
     private Identifier humanTeamId = PvzceIds.PLANT_TEAM;
@@ -478,6 +487,11 @@ public final class LevelServer implements LevelAccess {
     }
 
     @Override
+    public boolean isNight() {
+        return clock.isNight(rules);
+    }
+
+    @Override
     public SceneElementDef sceneAt(int x, int y) {
         return scene.get(x, y);
     }
@@ -700,13 +714,15 @@ public final class LevelServer implements LevelAccess {
     }
 
     @Override
-    public void spawnZombie(Identifier zombieId, Team team, float x, int row) {
+    public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(zombieId);
         if (def == null) {
-            return;
+            return null;
         }
-        addEntity(new ZombieEntity(def, team, x, row));
+        ZombieEntity zombie = new ZombieEntity(def, team, x, row);
+        addEntity(zombie);
         emitEffect("", x, row + 0.5F, def.sounds().spawn().orElse(PvzceSounds.ZOMBIE_GROAN));
+        return zombie;
     }
 
     /** Debug spawn used by /spawn and /summon. */
@@ -1143,8 +1159,13 @@ public final class LevelServer implements LevelAccess {
             if (firstWave || !waveStillReleasing()) {
                 waveIntervalTicks = Math.min(waveIntervalTicks + 1, nextWaveDelayTicks);
             }
-            if (waveIntervalTicks >= nextWaveDelayTicks) {
-                triggerWave(waves.get(nextWaveIndex));
+            // Due, and then held only if an opening wave is still on the field: the clock runs
+            // while the player fights, so clearing the field early never costs the gap the
+            // level asked for - it only ever costs the *arrival* of a wave that is already due.
+            boolean due = waveIntervalTicks >= nextWaveDelayTicks;
+            waveArrivalHeld = due && openingWaveStillOnTheField();
+            if (due && !waveArrivalHeld) {
+                triggerWave(waves.get(nextWaveIndex), nextWaveIndex);
             } else {
                 updateWaveWarning();
             }
@@ -1152,23 +1173,62 @@ public final class LevelServer implements LevelAccess {
             waveProgress = 1F;
             waveWarningActive = false;
             waveWarningFinal = false;
+            waveArrivalHeld = false;
         }
         spawnPendingWaveZombies();
     }
 
-    private void triggerWave(WaveDef wave) {
+    /**
+     * Whether a due wave has to wait for an opening wave's zombies to be gone.
+     *
+     * <p>The other half of {@link com.pvzce.api.content.WaveDef#holdUntilDead(int)}: the
+     * zombies of an opening wave come one at a time, and the wave after them does not walk
+     * into the back of the last one. Only the *arrival* waits - the delay has already run,
+     * so a player who clears the field before the wave is due sees exactly the pacing the
+     * level asked for, and one who is still fighting gets the wave as soon as the field is
+     * clear. The wait is capped like the per-zombie one: a player who is losing the opening
+     * should meet the second wave late, not never.
+     *
+     * <p>The counter is the number of ticks already spent held, and the flag is cleared once
+     * the wait is over (either way), so a level only ever pays for this once per opening wave.
+     *
+     * @return true while a due wave must be held back
+     */
+    private boolean openingWaveStillOnTheField() {
+        if (!openingGateArmed) {
+            return false;
+        }
+        if (aliveZombieCount() == 0 || openingGateTicks >= openingGateHoldTicks) {
+            openingGateArmed = false;
+            return false;
+        }
+        openingGateTicks++;
+        return true;
+    }
+
+    private void triggerWave(WaveDef wave, int waveIndex) {
         nextWaveIndex++;
         waveIntervalTicks = 0;
         waveProgress = 0F;
         waveWarningActive = false;
         waveWarningFinal = false;
+        waveArrivalHeld = false;
         waveDirty = true;
+
+        int holdTicks = wave.holdUntilDead(waveIndex);
+        // An opening wave hands its pacing to the player, and the wave after it waits for
+        // the field to be clear. Recorded here, where the wave is known, because by the time
+        // the wait matters the queue is gone.
+        openingGateArmed = holdTicks > 0;
+        openingGateTicks = 0;
+        openingGateHoldTicks = holdTicks;
 
         List<Identifier> zombies = expandEntries(wave.entries());
         Collections.shuffle(zombies, random);
-        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(), wave.spawnInterval()));
+        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(), wave.spawnInterval(),
+                holdTicks));
 
-        int announcedIndex = nextWaveIndex - 1;
+        int announcedIndex = waveIndex;
         boolean firstAnnouncement = announcedWaves.add(announcedIndex);
         // The huge-wave call belongs to the warning (see announceWaveWarning); a wave whose
         // data asks for no warning window would otherwise arrive in silence, so it is played
@@ -1206,7 +1266,12 @@ public final class LevelServer implements LevelAccess {
         // "a huge wave is coming" that never stops.
         boolean countingDown = nextWaveDelayTicks > 0
                 && remaining > 0 && remaining <= nextWaveDelayTicks;
-        boolean active = next.isHuge() && warningTicks > 0 && countingDown && remaining <= warningTicks;
+        // A held arrival keeps its banner: the countdown has finished because the field is
+        // still occupied, and a wave that is due is exactly what the banner is warning about.
+        // Without this it went out at the due tick and the wave then arrived in silence, up to
+        // the gate's cap later.
+        boolean active = next.isHuge() && warningTicks > 0
+                && (waveArrivalHeld || (countingDown && remaining <= warningTicks));
         boolean finalWarning = active && next.type() == WaveDef.WaveType.FINAL;
         if (active && !waveWarningActive) {
             announceWaveWarning(nextWaveIndex);
@@ -1252,18 +1317,46 @@ public final class LevelServer implements LevelAccess {
                 continue;
             }
             if (queue.ticksUntilNext > 0) {
-                queue.ticksUntilNext--;
-                continue;
+                // A gated queue is waiting for the zombie it released: the next one is due the
+                // moment that zombie dies. Either way the wait ends with the counter at zero,
+                // and the spawn below happens on the following tick - the same one-tick shape
+                // an interval has always had, so a cap of 1200 reads as "about twenty seconds"
+                // exactly like an interval of 1200 would.
+                boolean previousDied = queue.waitsForPrevious()
+                        && queue.gateZombieId >= 0 && !zombieAlive(queue.gateZombieId);
+                if (previousDied) {
+                    queue.ticksUntilNext = 0;
+                } else {
+                    queue.ticksUntilNext--;
+                    continue;
+                }
             }
             Identifier zombieId = queue.zombies.poll();
             int row = queue.rows.get(queue.rowIndex++ % queue.rows.size());
-            spawnZombie(zombieId, zombieTeam, width() + 0.6F, row);
-            queue.ticksUntilNext = queue.intervalTicks;
+            ZombieEntity spawned = spawnZombie(zombieId, zombieTeam, width() + 0.6F, row);
+            queue.gateZombieId = queue.waitsForPrevious() && spawned != null ? spawned.id() : -1;
+            queue.ticksUntilNext = queue.waitsForPrevious() ? queue.holdTicks : queue.intervalTicks;
             if (queue.zombies.isEmpty()) {
                 iterator.remove();
             }
         }
         flushPending();
+    }
+
+    /**
+     * True while the zombie with this id is still standing.
+     *
+     * <p>A corpse does not count: the death clip is what the player watches, and pacing the
+     * next zombie on "the body has finished falling over" would add six seconds to every
+     * opening wave for no reason.
+     */
+    private boolean zombieAlive(int id) {
+        for (PvzceEntity entity : entities) {
+            if (entity.id() == id && entity instanceof ZombieEntity zombie) {
+                return zombie.isAlive();
+            }
+        }
+        return false;
     }
 
     private static List<Identifier> expandEntries(List<WaveDef.Entry> entries) {
@@ -1332,18 +1425,35 @@ public final class LevelServer implements LevelAccess {
      * <p>The interval belongs to the wave rather than to the level: an easy level's early
      * waves should take ten seconds between zombies and its last wave three, which is a
      * property of the wave, not of the file.
+     *
+     * <p>{@code holdTicks} replaces that interval for a wave that paces itself by the
+     * player's kills: the next zombie is due the moment the one this queue released dies,
+     * and at the latest {@code holdTicks} after it was released. {@code gateZombieId} is
+     * that zombie - the queue's own handle on it, not its position, because by the time the
+     * answer matters it may already have been removed from the level.
      */
     private static final class PendingWaveSpawn {
         private final ArrayDeque<Identifier> zombies;
         private final List<Integer> rows;
         private final int intervalTicks;
+        /** Ticks to wait for the previously released zombie, or 0 to use the interval. */
+        private final int holdTicks;
         private int rowIndex;
         private int ticksUntilNext;
+        /** The zombie this queue is waiting for, or -1 when it is not waiting for one. */
+        private int gateZombieId = -1;
 
-        private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows, int intervalTicks) {
+        private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows, int intervalTicks,
+                                 int holdTicks) {
             this.zombies = new ArrayDeque<>(zombies);
             this.rows = rows;
             this.intervalTicks = Math.max(1, intervalTicks);
+            this.holdTicks = Math.max(0, holdTicks);
+        }
+
+        /** True when this queue waits for the zombie it just released. */
+        private boolean waitsForPrevious() {
+            return holdTicks > 0;
         }
     }
 
@@ -1857,6 +1967,14 @@ public final class LevelServer implements LevelAccess {
         root.putInt("WaveIntervalTicks", waveIntervalTicks);
         root.putLong("DayTicks", clock.dayTicks());
         root.putInt("NextMusicCueIndex", nextMusicCueIndex);
+        root.putInt("OpeningGateTicks", openingGateTicks);
+        root.putInt("OpeningGateHoldTicks", openingGateHoldTicks);
+        if (openingGateArmed) {
+            root.putByte("OpeningGateArmed", (byte) 1);
+        }
+        if (waveArrivalHeld) {
+            root.putByte("WaveArrivalHeld", (byte) 1);
+        }
 
         ListTag pendingWaves = new ListTag();
         for (PendingWaveSpawn queue : pendingWaveSpawns) {
@@ -1874,6 +1992,11 @@ public final class LevelServer implements LevelAccess {
             queueTag.putInt("IntervalTicks", queue.intervalTicks);
             queueTag.putInt("RowIndex", queue.rowIndex);
             queueTag.putInt("TicksUntilNext", queue.ticksUntilNext);
+            queueTag.putInt("HoldTicks", queue.holdTicks);
+            // The zombie the gate is waiting for is deliberately not written: entity ids come
+            // from a process-wide counter, so a restored id may name a different zombie (or
+            // none at all). A resumed queue waits out its cap instead of trusting a number
+            // that means nothing in this process.
             pendingWaves.add(queueTag);
         }
         root.put("PendingWaveSpawns", pendingWaves);
@@ -1993,6 +2116,10 @@ public final class LevelServer implements LevelAccess {
         // within a level instance, so a resumed window calls out at most once more.
         announcedWarnings.clear();
         waveIntervalTicks = Math.max(0, root.getInt("WaveIntervalTicks"));
+        openingGateArmed = root.getInt("OpeningGateArmed") != 0;
+        waveArrivalHeld = root.getInt("WaveArrivalHeld") != 0;
+        openingGateTicks = Math.max(0, root.getInt("OpeningGateTicks"));
+        openingGateHoldTicks = Math.max(0, root.getInt("OpeningGateHoldTicks"));
         nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
         restoreScene(root.getList("Scene"));
@@ -2091,11 +2218,15 @@ public final class LevelServer implements LevelAccess {
                 continue;
             }
             // The interval is saved with the queue: a save taken mid-release has to
-            // keep trickling at the wave's own pace, not at today's default.
+            // keep trickling at the wave's own pace, not at today's default. Same for the
+            // death gate's cap - but not the zombie it was waiting for, whose id does not
+            // survive a process (see the save side), so a resumed queue paces itself by the
+            // cap until it releases a zombie it can follow again.
             PendingWaveSpawn queue = new PendingWaveSpawn(zombieIds, rows,
                     queueTag.getInt("IntervalTicks") > 0
                             ? queueTag.getInt("IntervalTicks")
-                            : WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS);
+                            : WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS,
+                    Math.max(0, queueTag.getInt("HoldTicks")));
             queue.rowIndex = Math.max(0, queueTag.getInt("RowIndex"));
             queue.ticksUntilNext = Math.max(0, queueTag.getInt("TicksUntilNext"));
             pendingWaveSpawns.add(queue);

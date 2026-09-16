@@ -5,13 +5,14 @@ import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.capability.plant.BoostBelowCapability;
 import com.pvzce.common.capability.plant.BowlCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
 import com.pvzce.common.capability.plant.MeleeCapability;
+import com.pvzce.common.capability.plant.NocturnalCapability;
 import com.pvzce.common.capability.plant.ProducerCapability;
 import com.pvzce.common.capability.plant.ShooterCapability;
 import com.pvzce.common.capability.plant.ThrowerCapability;
+import com.pvzce.common.capability.plant.WakeBelowCapability;
 import com.mojang.serialization.Codec;
 
 import java.util.List;
@@ -30,8 +31,9 @@ public final class PlantCapabilities {
     public static final CapabilityType<ProducerCapability> PRODUCER = type("producer", ProducerCapability.CODEC);
     public static final CapabilityType<ExplosiveCapability> EXPLOSIVE = type("explosive", ExplosiveCapability.CODEC);
     public static final CapabilityType<MeleeCapability> MELEE = type("melee", MeleeCapability.CODEC);
-    public static final CapabilityType<BoostBelowCapability> BOOST_BELOW = type("boost_below", BoostBelowCapability.CODEC);
+    public static final CapabilityType<WakeBelowCapability> WAKE_BELOW = type("wake_below", WakeBelowCapability.CODEC);
     public static final CapabilityType<BowlCapability> BOWL = type("bowl", BowlCapability.CODEC);
+    public static final CapabilityType<NocturnalCapability> NOCTURNAL = type("nocturnal", NocturnalCapability.CODEC);
 
     public static final Codec<TypedCapability<PlantCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.PLANT_CAPABILITIES, "plant");
@@ -48,8 +50,9 @@ public final class PlantCapabilities {
         register(PRODUCER, "producer");
         register(EXPLOSIVE, "explosive");
         register(MELEE, "melee");
-        register(BOOST_BELOW, "boost_below");
+        register(WAKE_BELOW, "wake_below");
         register(BOWL, "bowl");
+        register(NOCTURNAL, "nocturnal");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

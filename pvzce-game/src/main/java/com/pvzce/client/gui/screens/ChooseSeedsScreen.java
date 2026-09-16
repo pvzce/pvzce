@@ -883,11 +883,23 @@ public final class ChooseSeedsScreen extends Screen {
         float panMax = Math.max(0F, (stage.width() - guiW) / 2F);
         float panOffset = panProgress() * panMax;
         float stageX = stage.x() - panOffset;
+        LevelStage.Board board = LevelStage.board(guiW, guiH, levelWidth, levelHeight);
+
+        // The board is drawn the way the level will open, night levels included: this screen
+        // is a preview of the board, so a 2-1 that turned dark only after "开始游戏" was
+        // previewing a different level. The tint follows the board across the pan because the
+        // glow is mapped into the board's own pixels.
+        client.applyLevelLighting(levelId, board.x() + (stageX - stage.x()), board.y(),
+                board.cellWidth(), board.cellHeight());
         client.drawTexture(LevelStage.BACKGROUND_TEXTURE, stageX, stage.y(),
                 stage.width(), stage.height(), -1F, 1F, 1F, 1F, 1F);
 
-        drawSceneLawn(stage, stageX);
+        drawSceneLawn(board, stageX);
         drawZombiePreview(stage, stageX, previewProgress());
+        // Everything from here on is UI - the wooden panel, the cards, the top bar, the
+        // conversation over it - and a night tint on those would be a filter on the interface
+        // rather than on the lawn.
+        client.beginGuiView();
 
         float panelProgress = panelProgress();
         float currentPanelX = panelCurrentX();
@@ -911,10 +923,9 @@ public final class ChooseSeedsScreen extends Screen {
         }
     }
 
-    private void drawSceneLawn(LevelStage.Stage stage, float stageX) {
-        LevelStage.Board board = LevelStage.board(client.guiWidth(), client.guiHeight(),
-                levelWidth, levelHeight);
-        float panShift = stageX - stage.x();
+    private void drawSceneLawn(LevelStage.Board board, float stageX) {
+        // The pan is the whole change of frame: the board travels with the backdrop.
+        float panShift = stageX - LevelStage.cover(client.guiWidth(), client.guiHeight()).x();
         float boardX = board.x() + panShift;
         client.clipping().push(boardX, board.y(), board.width(), board.height());
         try {

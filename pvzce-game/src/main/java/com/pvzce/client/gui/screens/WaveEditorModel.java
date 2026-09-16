@@ -43,6 +43,11 @@ public final class WaveEditorModel {
                         ? Math.max(0, waveJson.get("spawn_interval").getAsInt()) : 0;
                 wave.warningTicks = waveJson.has("warning_ticks")
                         ? waveJson.get("warning_ticks").getAsInt() : 600;
+                // Same rule as spawn_interval, and for the same reason: the editor has no
+                // field for the opening death gate, so it must carry one it did not write
+                // through untouched instead of dropping it on the next save.
+                wave.holdUntilDeadTicks = waveJson.has("hold_until_dead")
+                        ? waveJson.get("hold_until_dead").getAsInt() : null;
                 if (waveJson.has("entries")) {
                     for (JsonElement entryElement : waveJson.getAsJsonArray("entries")) {
                         JsonObject entryJson = entryElement.getAsJsonObject();
@@ -71,6 +76,9 @@ public final class WaveEditorModel {
                 waveJson.addProperty("warning_ticks", wave.warningTicks);
                 if (wave.spawnInterval > 0) {
                     waveJson.addProperty("spawn_interval", wave.spawnInterval);
+                }
+                if (wave.holdUntilDeadTicks != null) {
+                    waveJson.addProperty("hold_until_dead", wave.holdUntilDeadTicks);
                 }
                 JsonArray entries = new JsonArray();
                 for (EntryModel entry : wave.entries) {
@@ -115,6 +123,13 @@ public final class WaveEditorModel {
          * the file readable and lets the default move later.
          */
         public int spawnInterval;
+        /**
+         * The opening death gate this wave wrote, or null to leave the field out.
+         *
+         * <p>Not editable from the wave table yet, so it is only ever carried: an author who
+         * wrote {@code hold_until_dead} by hand must not lose it by opening the editor.
+         */
+        public Integer holdUntilDeadTicks;
         public final List<EntryModel> entries = new ArrayList<>();
 
         /** Short "2× 普通僵尸, 1× 铁桶僵尸" style summary for the table row. */

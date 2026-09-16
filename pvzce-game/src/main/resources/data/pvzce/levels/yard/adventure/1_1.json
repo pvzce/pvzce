@@ -116,56 +116,63 @@
       {
         "character": "pvzce:pea_chan",
         "portrait": "welcome",
-        "text": "欢迎来到植物和僵尸的世界",
+        "text": "你好～",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
         "portrait": "welcome",
-        "text": "先自我介绍一下喵，你可以叫我，豌豆酱",
+        "text": "是咱们的初次见面呢",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
         "portrait": "smile",
-        "text": "这里是你的院子里喵，等下会有僵尸想要吃掉你的脑子哦",
+        "text": "先介绍下咱，咱的名字是豌豆酱",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "biu biu biu~",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "豌豆是很厉害的植物呢",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
         "portrait": "zako",
-        "text": "但是你笨笨的肯定不会打僵尸啦",
+        "text": "可以打倒杂鱼僵尸们~",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
         "portrait": "smile",
-        "text": "所以咱就给了你豌豆射手喵，打僵尸很厉害哦",
+        "text": "那就给你一株小豌豆",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
-        "portrait": "tsundere",
-        "text": "才...才不是要帮你呢！",
+        "portrait": "evil_smile",
+        "text": "尽情战斗吧",
         "voice": "",
         "side": "left"
       },
       {
         "character": "pvzce:pea_chan",
-        "portrait": "tsundere",
-        "text": "只是想让你知道咱很厉害喵",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "scared",
-        "text": "不好！僵尸要来了喵！快上！",
+        "portrait": "evil_smile",
+        "text": "一会见",
         "voice": "",
         "side": "left"
       }

@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:puff_shroom",
+  "kind": "plant",
+  "content": "pvzce:puff_shroom",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/puff_shroom"
+}

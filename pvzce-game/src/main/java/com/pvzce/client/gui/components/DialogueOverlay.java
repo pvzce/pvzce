@@ -128,7 +128,8 @@ public final class DialogueOverlay extends Dialog {
 
     /** One resolved line: the definitions behind a {@link DialogueLine}, looked up once. */
     private record Frame(DialogueCharacterDef character, Identifier portrait, String text,
-                         String voice, boolean left, boolean center) {
+                         String voice, boolean left, boolean center,
+                         com.pvzce.api.content.DialogueAnimation animation) {
         String name() {
             return character == null ? "" : character.displayName();
         }
@@ -148,22 +149,43 @@ public final class DialogueOverlay extends Dialog {
 
     private final PvzceClient client;
     private final List<Frame> frames;
+    /** How this conversation's first portrait comes on and its last one goes off. */
+    private final boolean enterSlides;
+    private final boolean exitSlides;
     private int index;
     private boolean finished;
+    /**
+     * True while the closing slide is playing: the conversation is over, the portrait is
+     * still on its way out, and {@code onFinish} waits for it.
+     */
+    private boolean exiting;
+    private long exitStartNanos;
+    /** When the first portrait started sliding in. */
+    private final long enterStartNanos;
+    /** The portrait size the current line animates from and to. */
+    private float scaleFrom = 1F;
+    private float scaleTo = 1F;
     private Runnable onFinish;
     /** When the current line started typing; the reveal is derived from wall time. */
-    private long lineStartNanos = System.nanoTime();
+    private long lineStartNanos;
     /** True once the line is fully on screen, either by typing out or by a click. */
     private boolean lineComplete;
     /** Ids already reported as unknown, so a level with a typo logs once instead of per frame. */
     private static final Set<String> REPORTED = new HashSet<>();
 
-    private DialogueOverlay(PvzceClient client, List<Frame> frames) {
+    private DialogueOverlay(PvzceClient client, List<Frame> frames,
+                            com.pvzce.api.content.DialogueEffect enter,
+                            com.pvzce.api.content.DialogueEffect exit) {
         super(0, 0, 0, 0, "");
         this.client = client;
         this.frames = frames;
+        this.enterSlides = enter.slides();
+        this.exitSlides = exit.slides();
         closeOnEscape(false);
-        lineStartNanos = System.nanoTime();
+        enterStartNanos = System.nanoTime();
+        lineStartNanos = enterStartNanos;
+        scaleTo = frames.isEmpty() ? 1F : frames.get(0).animation().targetScale();
+        scaleFrom = 1F;
         playVoice(frames.isEmpty() ? null : frames.get(0).voice());
     }
 
@@ -174,10 +196,13 @@ public final class DialogueOverlay extends Dialog {
      * {@code null} to mean "no dialogue" instead of carrying an empty overlay around and
      * asking it whether it is empty on every path.
      */
-    public static DialogueOverlay create(PvzceClient client, List<DialogueLine> script, Runnable onFinish) {
-        if (script == null || script.isEmpty()) {
+    public static DialogueOverlay create(PvzceClient client,
+                                         com.pvzce.api.content.LevelDialogue dialogue,
+                                         Runnable onFinish) {
+        if (dialogue == null || dialogue.isEmpty()) {
             return null;
         }
+        List<DialogueLine> script = dialogue.lines();
         List<Frame> frames = new ArrayList<>(script.size());
         for (DialogueLine line : script) {
             DialogueCharacterDef character = line.character() == null
@@ -188,9 +213,10 @@ public final class DialogueOverlay extends Dialog {
             }
             Identifier portrait = character == null ? null : character.portraitTexture(line.portrait());
             frames.add(new Frame(character, portrait, line.text(), line.voice(),
-                    !line.side().isRight() && !line.side().isCenter(), line.side().isCenter()));
+                    !line.side().isRight() && !line.side().isCenter(), line.side().isCenter(),
+                    line.animation()));
         }
-        DialogueOverlay overlay = new DialogueOverlay(client, frames);
+        DialogueOverlay overlay = new DialogueOverlay(client, frames, dialogue.enter(), dialogue.exit());
         overlay.onFinish = onFinish;
         return overlay;
     }
@@ -207,9 +233,13 @@ public final class DialogueOverlay extends Dialog {
      * means "I have read enough, show me the rest"; once it is all there, a click means
      * "next". A single-stage click would skip text the player never saw, and making them
      * wait for a line they already finished reading is the other way to get this wrong.
+     *
+     * <p>On the last line the click ends the conversation, which is where the closing slide
+     * goes: the portrait leaves the screen first and {@code onFinish} runs when it is gone.
+     * Clicks during that beat do nothing - there is nothing left to advance.
      */
     public void advance() {
-        if (!isActive()) {
+        if (!isActive() || exiting) {
             return;
         }
         if (!lineComplete && revealedCharacters(System.nanoTime()) < visibleLength(frames.get(index).text())) {
@@ -220,10 +250,37 @@ public final class DialogueOverlay extends Dialog {
             index++;
             lineComplete = false;
             lineStartNanos = System.nanoTime();
+            startLineAnimation(frames.get(index));
             playVoice(frames.get(index).voice());
             return;
         }
+        if (exitSlides) {
+            exiting = true;
+            exitStartNanos = System.nanoTime();
+            return;
+        }
         finish();
+    }
+
+    /**
+     * Arms a line's own animation: the size it wants and, for a shake, its start time.
+     *
+     * <p>The size is interpolated from whatever the previous line left behind, so two lines
+     * that ask for different sizes grow and shrink instead of snapping; a line with no
+     * animation returns the portrait to its layout size the same way.
+     */
+    private void startLineAnimation(Frame frame) {
+        scaleFrom = currentScale(System.nanoTime());
+        scaleTo = frame.animation().targetScale();
+    }
+
+    /** The portrait's size right now, mid-interpolation. */
+    private float currentScale(long nowNanos) {
+        if (frames.isEmpty()) {
+            return 1F;
+        }
+        com.pvzce.api.content.DialogueAnimation animation = frames.get(index).animation();
+        return DialogueMotion.scaleAt(scaleFrom, scaleTo, nowNanos, lineStartNanos, animation.isScale());
     }
 
     /**
@@ -304,7 +361,12 @@ public final class DialogueOverlay extends Dialog {
         return line.substring(0, end);
     }
 
-    /** Jumps to the end of the conversation (ESC, or a host that needs to skip it). */
+    /**
+     * Jumps to the end of the conversation (ESC, or a host that needs to skip it).
+     *
+     * <p>No closing slide: this is the player saying "I am done reading", and making them
+     * wait out an animation they just asked to skip is the one thing a skip must not do.
+     */
     public void skipAll() {
         if (isActive()) {
             finish();
@@ -313,9 +375,22 @@ public final class DialogueOverlay extends Dialog {
 
     private void finish() {
         finished = true;
+        exiting = false;
         setVisible(false);
         if (onFinish != null) {
             onFinish.run();
+        }
+    }
+
+    /**
+     * Ends the conversation once the closing slide has played out.
+     *
+     * <p>Called from {@link #render}: the overlay is drawn every frame while it is up, which
+     * is the frame clock this beat belongs to.
+     */
+    private void tickExit(long nowNanos) {
+        if (exiting && DialogueMotion.progress(nowNanos, exitStartNanos, DialogueMotion.SLIDE_NANOS) >= 1F) {
+            finish();
         }
     }
 
@@ -383,6 +458,13 @@ public final class DialogueOverlay extends Dialog {
         if (!isActive()) {
             return;
         }
+        long now = System.nanoTime();
+        tickExit(now);
+        if (!isActive()) {
+            // The closing slide just finished: this frame has nothing left to draw and the
+            // host has already been told the conversation is over.
+            return;
+        }
         Frame frame = frames.get(index);
         float guiW = client.guiWidth();
         float guiH = client.guiHeight();
@@ -391,7 +473,7 @@ public final class DialogueOverlay extends Dialog {
         float textScale = Math.max(0.85F, Math.min(1.35F, guiH / 300F));
         float lineHeight = client.font().lineHeight(textScale);
 
-        Portrait portrait = portraitBox(frame, guiW, guiH);
+        Portrait portrait = animatedPortrait(frame, guiW, guiH, now);
         Bubble bubble = bubbleBox(client, frame, portrait, guiW, guiH, textScale, lineHeight);
 
         if (portrait != null) {
@@ -493,6 +575,60 @@ public final class DialogueOverlay extends Dialog {
                     : guiW - width - guiW * PORTRAIT_MARGIN_RATIO;
         }
         return new Portrait(texture, x, 0F, width, height);
+    }
+
+    /**
+     * The portrait where it is <em>this frame</em>: sized for the line, shaken if the line
+     * asks for it, and pushed off screen while the conversation slides on or off.
+     *
+     * <p>All three are applied to the box rather than to a transform stack, because the bubble
+     * is anchored to the portrait's edge: moving the box is what makes the two travel together
+     * instead of the bubble standing still while its speaker walks.
+     *
+     * <p>The size scales about the portrait's floor - a character grows taller, they do not
+     * float - which is why a line may only ask for so much of it ({@code MAX_SCALE}): past the
+     * window's own height the top of the art leaves the screen.
+     */
+    private Portrait animatedPortrait(Frame frame, float guiW, float guiH, long nowNanos) {
+        Portrait placed = portraitBox(frame, guiW, guiH);
+        if (placed == null) {
+            return null;
+        }
+        float scale = currentScale(nowNanos);
+        float width = placed.width() * scale;
+        float height = placed.height() * scale;
+        // Keep the floor and the centre line: growing goes up, shrinking settles down.
+        float x = placed.x() + (placed.width() - width) / 2F;
+        float y = placed.y();
+
+        float progress = slideProgress(nowNanos);
+        boolean entering = !exiting;
+        float offsetX = DialogueMotion.slideOffsetX(
+                progress, frame.center(), frame.left(), entering, guiW);
+        float offsetY = DialogueMotion.slideOffsetY(progress, frame.center(), entering, guiH);
+        if (frame.animation().isShake()) {
+            offsetX += DialogueMotion.shakeOffset(nowNanos, lineStartNanos, guiW,
+                    frame.animation().amount());
+        }
+        return new Portrait(placed.texture(), x + offsetX, y + offsetY, width, height);
+    }
+
+    /**
+     * How far the slide that is running has come: the closing one while the conversation is
+     * ending, the opening one otherwise, and 1 (in place) when there is no opening slide.
+     *
+     * <p>The closing slide is a separate timer rather than a rewind of the opening one, so a
+     * conversation with {@code "enter": "none"} - or one that was read past its opening beat -
+     * still leaves from its place on screen.
+     */
+    private float slideProgress(long nowNanos) {
+        if (exiting) {
+            return DialogueMotion.slideProgress(nowNanos, exitStartNanos);
+        }
+        if (!enterSlides) {
+            return 1F;
+        }
+        return DialogueMotion.slideProgress(nowNanos, enterStartNanos);
     }
 
     /**

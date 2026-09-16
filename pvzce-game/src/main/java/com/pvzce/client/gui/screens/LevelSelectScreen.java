@@ -114,6 +114,8 @@ public final class LevelSelectScreen extends Screen {
     private int createHeight;
     private Button nextButton;
     private Button editButton;
+    /** The 剧情 switch; its label carries the state, so it is re-labelled on every click. */
+    private Button storyToggle;
     private String lastLevelSignature = "";
     private String lastTabSignature = "";
 
@@ -209,7 +211,37 @@ public final class LevelSelectScreen extends Screen {
         addWidget(new Button(centerX(customWidth), createY, customWidth, createHeight,
                 GuiLang.raw("pvzce.editor.new_level", "新建关卡"), this::openCreateDialog)
                 .style(Button.Style.SEED_CHOOSER));
+
+        addWidget(storyToggle(guiW, guiH));
         updateActionButtons();
+    }
+
+    /**
+     * The 剧情 switch, in the screen's top-left corner.
+     *
+     * <p>A plain {@link Button} whose label carries the state, like the world screen's sandbox
+     * switch: a click toggles it, and the label is the checkbox. It belongs on this screen
+     * because this is where a level is chosen - the one moment before a conversation would
+     * play - and it is saved with the rest of the client config, so "I have read 1-5's
+     * dialogue three times" is answered once instead of every run.
+     */
+    private Button storyToggle(int guiW, int guiH) {
+        int height = Math.max(22, Math.min(30, guiH / 24));
+        int width = Math.max(110, Math.min(themeColumnWidth, guiW / 4));
+        storyToggle = new Button(themeColumnX, guiH - height - 8, width, height, storyLabel(),
+                this::toggleStory).style(Button.Style.SEED_CHOOSER);
+        return storyToggle;
+    }
+
+    private void toggleStory() {
+        client.setStoryEnabled(!client.storyEnabled());
+        if (storyToggle != null) {
+            storyToggle.setLabel(storyLabel());
+        }
+    }
+
+    private String storyLabel() {
+        return GuiLang.raw("pvzce.story", "剧情") + "：" + (client.storyEnabled() ? "开" : "关");
     }
 
     /**

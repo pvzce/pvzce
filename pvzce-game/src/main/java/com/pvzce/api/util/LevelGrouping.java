@@ -1,6 +1,7 @@
 package com.pvzce.api.util;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -194,6 +195,89 @@ public final class LevelGrouping {
         String path = id.path();
         int slash = path.lastIndexOf('/');
         return slash < 0 ? path : path.substring(slash + 1);
+    }
+
+    /**
+     * Level ids in the order a person reads them: {@code 1_2} before {@code 1_10}.
+     *
+     * <p>Plain string order puts {@code 1_10} between {@code 1_1} and {@code 1_2}, because
+     * {@code '1'} sorts before {@code '2'} at the third character. Levels are numbered by
+     * people, so the number is compared as a number: digit runs are compared by magnitude
+     * (leading zeros ignored), everything else character by character.
+     *
+     * <p>Lives here rather than at each call site because the level list, the tab table
+     * and anything else that walks the registry have to agree on the order - a list that
+     * reads 1-1, 1-10, 1-2 while the tab next to it was derived in another order is worse
+     * than either order alone.
+     */
+    public static int compareIds(String a, String b) {
+        if (a == null || b == null) {
+            return a == null ? (b == null ? 0 : -1) : 1;
+        }
+        int i = 0;
+        int j = 0;
+        while (i < a.length() && j < b.length()) {
+            char ca = a.charAt(i);
+            char cb = b.charAt(j);
+            if (Character.isDigit(ca) && Character.isDigit(cb)) {
+                int endA = i;
+                while (endA < a.length() && Character.isDigit(a.charAt(endA))) {
+                    endA++;
+                }
+                int endB = j;
+                while (endB < b.length() && Character.isDigit(b.charAt(endB))) {
+                    endB++;
+                }
+                int byNumber = compareDigits(a, i, endA, b, j, endB);
+                if (byNumber != 0) {
+                    return byNumber;
+                }
+                i = endA;
+                j = endB;
+                continue;
+            }
+            if (ca != cb) {
+                return Character.compare(ca, cb);
+            }
+            i++;
+            j++;
+        }
+        return Integer.compare(a.length() - i, b.length() - j);
+    }
+
+    /** {@link #compareIds} as a comparator, for the registry walk and for tests. */
+    public static Comparator<String> idOrder() {
+        return LevelGrouping::compareIds;
+    }
+
+    /**
+     * One pair of digit runs by magnitude, then by how they were written.
+     *
+     * <p>The length after dropping leading zeros is the magnitude (so no overflow on an
+     * id with thirty digits), and equal magnitudes fall back to the raw run so
+     * {@code "01"} and {@code "1"} still have a stable, total order.
+     */
+    private static int compareDigits(String a, int startA, int endA, String b, int startB, int endB) {
+        int firstA = startA;
+        while (firstA < endA && a.charAt(firstA) == '0') {
+            firstA++;
+        }
+        int firstB = startB;
+        while (firstB < endB && b.charAt(firstB) == '0') {
+            firstB++;
+        }
+        int lengthA = endA - firstA;
+        int lengthB = endB - firstB;
+        if (lengthA != lengthB) {
+            return Integer.compare(lengthA, lengthB);
+        }
+        for (int k = 0; k < lengthA; k++) {
+            int byDigit = Character.compare(a.charAt(firstA + k), b.charAt(firstB + k));
+            if (byDigit != 0) {
+                return byDigit;
+            }
+        }
+        return Integer.compare(endA - startA, endB - startB);
     }
 
     private static Group unclassified(String name) {

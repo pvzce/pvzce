@@ -103,17 +103,24 @@ public final class LevelValidator {
     /**
      * Reports an opening dialogue the game could not present as written.
      *
-     * <p>Three failures read as "the character said nothing" in game and point nowhere:
-     * an unknown character id (no portrait, no name), a misspelt {@code side} (it decodes
-     * into {@link com.pvzce.api.content.DialogueLine.Side#UNKNOWN} rather than failing the
-     * level, exactly like a misspelt reward {@code type}), and a line with no text at all.
-     * A portrait name that is not a valid identifier path is reported too: it would
-     * resolve to no file, and the path is what keeps {@code ../} out of the texture lookup.
+     * <p>The failures that read as "nothing happened" in game and point nowhere: an unknown
+     * character id (no portrait, no name), a misspelt {@code side} or {@code enter}/{@code exit}
+     * (they decode into {@code UNKNOWN} rather than failing the level, exactly like a misspelt
+     * reward {@code type}), a line whose {@code animation.type} this version does not know, and
+     * a portrait name that is not a valid identifier path. A line with no text at all is a
+     * portrait-only beat and is deliberately not one of these.
      */
     public static List<String> validateDialogue(LevelDef def) {
         List<String> errors = new ArrayList<>();
         if (def.dialogue() == null) {
             return errors;
+        }
+        for (String side : List.of("enter", "exit")) {
+            com.pvzce.api.content.DialogueEffect effect = "enter".equals(side)
+                    ? def.dialogue().enter() : def.dialogue().exit();
+            if (effect == com.pvzce.api.content.DialogueEffect.UNKNOWN) {
+                errors.add("dialogue." + side + " is not 'slide' or 'none', so the dialogue slides");
+            }
         }
         List<com.pvzce.api.content.DialogueLine> lines = def.dialogue().lines();
         for (int i = 0; i < lines.size(); i++) {
@@ -133,6 +140,11 @@ public final class LevelValidator {
             if (line.side() == com.pvzce.api.content.DialogueLine.Side.UNKNOWN) {
                 errors.add(where + ".side is not 'left', 'center' or 'right',"
                         + " so the speaker is drawn on the left");
+            }
+            if (line.animation() != null && !line.animation().isKnown()) {
+                errors.add(where + ".animation.type is '" + line.animation().type()
+                        + "', which this version does not know (expected 'shake' or 'scale'),"
+                        + " so the line is played with no animation");
             }
             // An empty text is a portrait-only beat, not a mistake: the character is on
             // screen and nobody is talking, and the overlay draws no bubble for it. It used

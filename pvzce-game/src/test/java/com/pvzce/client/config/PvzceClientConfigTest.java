@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** M5: TOML volume config round-trip. */
 class PvzceClientConfigTest {
@@ -39,6 +40,8 @@ class PvzceClientConfigTest {
         assertEquals(PvzceClientConfig.DEFAULT_HEIGHT, config.windowHeight());
         assertEquals(PvzceClientConfig.AUTO_GUI_SCALE, config.guiScale());
         assertEquals(PvzceClientConfig.DEFAULT_SHADERS_ENABLED, config.shadersEnabled());
+        assertTrue(PvzceClientConfig.DEFAULT_STORY_ENABLED, "剧情 plays until the player says otherwise");
+        assertTrue(config.storyEnabled(), "which is also what an unwritten config means");
 
         config.setMaxFps(240);
         config.setVsync(false);
@@ -46,6 +49,7 @@ class PvzceClientConfigTest {
         config.setWindowSize(1920, 1080);
         config.setGuiScale(2);
         config.setShadersEnabled(false);
+        config.setStoryEnabled(false);
         config.save();
 
         PvzceClientConfig loaded = PvzceClientConfig.load(dir);
@@ -56,6 +60,7 @@ class PvzceClientConfigTest {
         assertEquals(1080, loaded.windowHeight());
         assertEquals(2, loaded.guiScale());
         assertEquals(false, loaded.shadersEnabled());
+        assertEquals(false, loaded.storyEnabled(), "the 剧情 switch survives a restart");
 
         loaded.setMaxFps(9999);
         assertEquals(PvzceClientConfig.UNLIMITED_FPS, loaded.maxFps());

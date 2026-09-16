@@ -43,17 +43,25 @@ public final class DeckMechanic implements LevelMechanic<MechanicData.Empty> {
     }
 
     /**
-     * The deck's own rules: it must have cards, and they must exist.
+     * The deck's own rules: it must be able to put cards on the bar, and they must exist.
      *
      * <p>They live here rather than in one level-wide card check because "what a deck needs"
      * is the deck's business: the belt validates its pool instead, and neither the level
      * record nor the validator has to know what a card source is.
+     *
+     * <p>An empty {@code slots} list is <em>not</em> an empty bar any more. A level that pins
+     * no cards is asking the player to bring their own, and the bar is filled from the
+     * backpack - so the only broken shape left is a level with nothing pinned <em>and</em>
+     * nothing to pick, which means the pack carries no cards at all.
      */
     @Override
     public List<String> validate(LevelDef def, MechanicData.Empty data) {
-        if (def.slots().isEmpty()) {
-            return List.of("This level has no cards, so the player enters with an empty card bar");
+        List<String> errors = new java.util.ArrayList<>(LevelMechanics.unknownCards(def.slots(), "card"));
+        if (def.slots().isEmpty()
+                && com.pvzce.common.core.SeedOptions.cardPool(def, null).isEmpty()) {
+            errors.add("This level pins no cards and the game has none to offer,"
+                    + " so the player enters with an empty card bar");
         }
-        return LevelMechanics.unknownCards(def.slots(), "card");
+        return errors;
     }
 }

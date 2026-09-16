@@ -210,5 +210,82 @@
     {
       "trigger": "on_card_refused"
     }
-  ]
+  ],
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "dislike",
+        "text": "...",
+        "voice": "",
+        "side": "center"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "诶嘿～",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "开个玩笑啦",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "tsundere",
+        "text": "现在你也有不少植物了呢",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "tsundere",
+        "text": "不过你肯定还是离不开豌豆的，对不对",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "哼哼",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "如果没有豌豆的话，杂鱼是不是就过不了关啦？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "......",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "scared",
+        "text": "诶诶！？僵尸好像要来了！",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "scared",
+        "text": "你快上！",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  }
 }

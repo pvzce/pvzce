@@ -26,8 +26,6 @@ import java.util.Optional;
  */
 public final class ShooterCapability implements PlantCapability {
     public static final int DEFAULT_INTERVAL = 90;
-    /** Boosted shots (energy bean / coffee bean) may never fire faster than this. */
-    private static final int MIN_BOOSTED_INTERVAL = 15;
 
     private final int intervalTicks;
     private final List<ProjectileRef> shots;
@@ -35,7 +33,6 @@ public final class ShooterCapability implements PlantCapability {
     private final int firstDelayTicks;
 
     private int cooldown;
-    private boolean boosted;
 
     public ShooterCapability(int intervalTicks, List<ProjectileRef> shots, Optional<Identifier> sound,
                              int firstDelayTicks) {
@@ -101,8 +98,7 @@ public final class ShooterCapability implements PlantCapability {
         }
         level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
-        cooldown = boosted ? Math.max(MIN_BOOSTED_INTERVAL, intervalTicks / 2) : intervalTicks;
-        boosted = false;
+        cooldown = intervalTicks;
     }
 
     /**
@@ -112,9 +108,15 @@ public final class ShooterCapability implements PlantCapability {
      * ({@code backward}), so the search is per shot rather than per plant: the
      * threepeater fires when anything is in one of its three lanes, the split pea when
      * anything is in front <em>or</em> behind it.
+     *
+     * <p>{@code range} is the same number the shot itself expires at, measured from the same
+     * place the projectile is born (the muzzle), so a short-ranged plant (Puff-shroom)
+     * neither wastes spores on a zombie it cannot reach nor holds fire while one is walking
+     * into its range.
      */
     private boolean hasTarget(PlantEntity plant, LevelAccess level) {
         for (ProjectileRef shot : shots) {
+            float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
             for (int rowOffset : shot.coveredRowOffsets()) {
                 int row = plant.gridY() + rowOffset;
                 if (row < 0 || row >= level.height()) {
@@ -122,9 +124,7 @@ public final class ShooterCapability implements PlantCapability {
                 }
                 boolean found = level.zombiesInRow(row).stream()
                         .filter(z -> !z.isRemoved() && z.canBeHitByGround())
-                        .anyMatch(z -> shot.backward()
-                                ? z.cellX() < plant.cellX()
-                                : z.cellX() > plant.cellX());
+                        .anyMatch(z -> shot.covers(muzzleX, z.cellX()));
                 if (found) {
                     return true;
                 }
@@ -133,23 +133,13 @@ public final class ShooterCapability implements PlantCapability {
         return false;
     }
 
-    /** Energy bean / coffee bean activation: the next attack fires immediately. */
-    @Override
-    public void boost(PlantEntity plant) {
-        cooldown = 0;
-        boosted = true;
-        plant.setAnimation(EntityAnimations.SHOOT);
-    }
-
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
-        tag.putInt("boosted", boosted ? 1 : 0);
     }
 
     @Override
     public void load(CompoundTag tag) {
         cooldown = tag.getInt("cooldown");
-        boosted = tag.getInt("boosted") != 0;
     }
 }

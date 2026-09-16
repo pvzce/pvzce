@@ -46,6 +46,8 @@ public final class DialoguePage implements EditorPage {
     private EditBox dialogueTextBox;
     private EditBox dialogueVoiceBox;
     private Button dialogueSideButton;
+    private Button dialogueAnimationButton;
+    private EditBox dialogueAnimationValueBox;
     /** The line the detail form was last built for; the list has no change event. */
     private DialogueEditorModel.LineModel lastDialogueLineShown;
     /** The picker values that came from the model rather than from a click. */
@@ -131,16 +133,28 @@ public final class DialoguePage implements EditorPage {
         // Right column, bottom-up: the line's own fields, then the two pickers above them.
         // Each row is a field plus the room for its label, which is drawn in the gap above
         // it - packing the rows at rowH+6 put every label on top of the field before it.
+        // The count is what keeps the column inside the page: the lowest field sits on the
+        // page's own bottom edge and the pickers take what is above it.
         int fieldRow = rowH + 16;
-        int fieldTop = y + pad + fieldRow * 2;
+        int fieldRows = 4;
+        int fieldTop = y + pad + fieldRow * (fieldRows - 1);
         dialogueTextBox = context.own(new EditBox(detailX, fieldTop, detailW, rowH,
                 this::commitDialogueFieldsNow));
         dialogueVoiceBox = context.own(new EditBox(detailX, fieldTop - fieldRow, detailW, rowH,
                 this::commitDialogueFieldsNow));
         dialogueSideButton = context.own(new Button(detailX, fieldTop - fieldRow * 2, detailW, rowH,
                 "位置：左", () -> cycleDialogueSide(context)));
+        // The per-line animation shares one row with its number: they are one setting, and the
+        // form already has the pickers below it - a fifth row would push them off the page.
+        // The box is disabled for 无, because there is nothing to give a line that does nothing.
+        int animationButtonW = Math.max(70, detailW * 3 / 5);
+        dialogueAnimationButton = context.own(new Button(detailX, fieldTop - fieldRow * 3,
+                animationButtonW, rowH, "动画：无", () -> cycleDialogueAnimation(context)));
+        dialogueAnimationValueBox = context.own(new EditBox(detailX + animationButtonW + 5,
+                fieldTop - fieldRow * 3, Math.max(50, detailW - animationButtonW - 5), rowH,
+                this::commitDialogueFieldsNow));
 
-        int listsBottom = y + pad + fieldRow * 3 + 18;
+        int listsBottom = y + pad + fieldRow * fieldRows + 18;
         int listBlockH = Math.max(70, (y + h - pad - 18) - listsBottom);
         int halfW = Math.max(70, (detailW - gap) / 2);
         dialogueCharacterList = context.own(new AbstractSelectionList<Identifier>(detailX, listsBottom,
@@ -213,6 +227,17 @@ public final class DialoguePage implements EditorPage {
         applyDialoguePortraitChoice();
     }
 
+    /** What the value box means for the selected line's kind; the box itself is generic. */
+    private String animationValueLabel() {
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        String kind = line == null ? "none" : line.animation;
+        return switch (kind == null ? "none" : kind.toLowerCase(java.util.Locale.ROOT)) {
+            case "shake" -> "抖动幅度（1 = 默认）";
+            case "scale" -> "缩放倍率（1.25 ≈ 放大四分之一）";
+            default -> "动画：无（先在上面选一种）";
+        };
+    }
+
     /** A character id's display name, or the id itself when it is not registered. */
     private static String dialogueSpeakerName(String characterId) {
         Identifier id = Identifier.tryParse(characterId);
@@ -261,10 +286,15 @@ public final class DialoguePage implements EditorPage {
         dialogueTextBox.setActive(has);
         dialogueVoiceBox.setActive(has);
         dialogueSideButton.setActive(has);
+        dialogueAnimationButton.setActive(has);
+        dialogueAnimationValueBox.setActive(has && !"none".equalsIgnoreCase(
+                currentDialogueLine() == null ? "none" : currentDialogueLine().animation));
         if (!has) {
             dialogueTextBox.setValue("", false);
             dialogueVoiceBox.setValue("", false);
             dialogueSideButton.setLabel("位置：-");
+            dialogueAnimationButton.setLabel("动画：-");
+            dialogueAnimationValueBox.setValue("", false);
             if (dialoguePortraitList != null) {
                 dialoguePortraitList.setEntries(List.of());
             }
@@ -277,6 +307,10 @@ public final class DialoguePage implements EditorPage {
             dialogueVoiceBox.setValue(line.voice, false);
         }
         dialogueSideButton.setLabel("位置：" + line.sideLabel());
+        dialogueAnimationButton.setLabel("动画：" + line.animationLabel());
+        if (!dialogueAnimationValueBox.isFocused()) {
+            dialogueAnimationValueBox.setValue(line.animationValueText(), false);
+        }
 
         // The pickers follow the line rather than the other way around; the "last choice"
         // marks are what stop that sync from being read back as a user choice, which
@@ -324,6 +358,18 @@ public final class DialoguePage implements EditorPage {
         }
         line.text = dialogueTextBox.value();
         line.voice = dialogueVoiceBox.value().trim();
+        if (dialogueAnimationValueBox != null) {
+            // Parsed with the content's own limits, so a typo lands on the clamp the overlay
+            // would apply anyway instead of on a value only this page believes in.
+            boolean scale = "scale".equalsIgnoreCase(line.animation);
+            line.setAnimationValue(GuiText.parseFloat(dialogueAnimationValueBox.value(),
+                    scale ? com.pvzce.api.content.DialogueAnimation.DEFAULT_SCALE
+                            : com.pvzce.api.content.DialogueAnimation.DEFAULT_AMOUNT,
+                    scale ? com.pvzce.api.content.DialogueAnimation.MIN_SCALE
+                            : 0F,
+                    scale ? com.pvzce.api.content.DialogueAnimation.MAX_SCALE
+                            : com.pvzce.api.content.DialogueAnimation.MAX_AMOUNT));
+        }
     }
 
     private void commitDialogueFieldsNow() {
@@ -338,6 +384,17 @@ public final class DialoguePage implements EditorPage {
             return;
         }
         line.cycleSide();
+        refreshDialogueDetail(context);
+        refreshDialogueLineList();
+    }
+
+    /** Cycles 无 → 抖动 → 缩放 and rebuilds the row, since the value box changes meaning. */
+    private void cycleDialogueAnimation(EditorContext context) {
+        DialogueEditorModel.LineModel line = currentDialogueLine();
+        if (line == null) {
+            return;
+        }
+        line.cycleAnimation();
         refreshDialogueDetail(context);
         refreshDialogueLineList();
     }

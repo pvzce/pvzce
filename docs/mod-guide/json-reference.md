@@ -26,12 +26,13 @@
 
 | type | 字段 | 说明 |
 |---|---|---|
-| `pvzce:shooter` | `interval`(90) `shots`[] `sound`? `first_delay`(0) | 直线射击；`shots` 元素为 `{projectile, damage, count}` |
+| `pvzce:shooter` | `interval`(90) `shots`[] `sound`? `first_delay`(0) | 直线射击；`shots` 元素为 `{projectile, damage, count, row_offset, backward, rows, range}`（`range` 是这一发能飞几格，0 = 不限，小喷菇用 3） |
 | `pvzce:thrower` | `interval`(90) `shots`[] `butter_chance`(0) `butter_projectile`(`pvzce:butter`) `sound`? `first_delay`(0) | 抛物线投掷，按概率换成黄油弹 |
 | `pvzce:producer` | `resource`(必填) `amount`(25) `every`(必填) `first_delay`(-1=300) `sound`? | 周期产出资源掉落物 |
 | `pvzce:explosive` | `trigger`(`timed`\|`proximity`) `fuse_ticks`(60) `radius`(1.0) `damage`(1800) `trigger_range`(0.6) `sound`? `damage_type`(`pvzce:ash`) | 樱桃炸弹 / 土豆雷共用。**引信期间不可被伤害**（僵尸照咬，但咬不掉）；爆炸后植物会多留 30 tick 播完 `explode` |
 | `pvzce:melee` | `range`(0.7) `swallow_max_health`(0) `chew_ticks`(240) `sound`? | 吞噬弱僵尸后咀嚼消失 |
-| `pvzce:boost_below` | `sound`? `boosted_sound`? | 立即强化下方植物并消耗自身（咖啡豆） |
+| `pvzce:wake_below` | `sound`? `wake_sound`? | 唤醒下方睡觉的植物并消耗自身（咖啡豆）。对**醒着的**植物无事发生（豆子照样被消耗），`wake_sound` 只在真的叫醒时播 |
+| `pvzce:nocturnal` | 无 | 蘑菇：白天睡觉（不射击、不产出，播 `sleep` clip），入夜自动醒来；被咖啡豆唤醒后**永久**不睡。状态由关卡时钟推出，只有"被唤醒过"进存档 |
 
 ```jsonc
 {
@@ -192,6 +193,24 @@
 | dialogue | LevelDialogue? | 可选；关卡开始前的一段对话（见下） |
 | hints | LevelHint[] | 可选；底部灰色提示框的台词（见下） |
 
+### 时间与夜晚（`rules` 里的三条）
+
+| 规则 | 默认 | 说明 |
+|---|---|---|
+| `pvzce:day_length` | `0` | 白天长度（tick）；`0` = 没有白天 |
+| `pvzce:night_length` | `-1` | 夜晚长度；`-1` = 没有夜晚 |
+| `pvzce:sun_spawn_chance` | `0.001` | 每 tick 从天上掉一颗阳光的概率，`0` = 不掉 |
+| `pvzce:graves_spawn_night` | `true` | 夜晚时每座墓碑每 tick 摇一次（约 15 秒一只）；2-1 这类"墓碑只是障碍"的关卡记得写 `false` |
+
+四种写法与它们的含义（判据在 `DayNightCycle`）：
+
+| 写法 | 含义 |
+|---|---|
+| `day_length: 0`, `night_length: -1` | **永远白天**（1-1~1-9 都是这一种） |
+| `day_length: 0`, `night_length > 0` | **永远夜晚**（2-1：没有白天可回，客户端第一帧就是暗的） |
+| `day_length: D > 0`, `night_length: -1` | 同样永远白天 |
+| `day_length: D > 0`, `night_length: N > 0` | 真正的昼夜循环，每 `D + N` tick 一轮（1-10：一分钟白天 + 一百分钟夜晚） |
+
 ### 提示文本（hints）
 
 屏幕底部那个灰色半透明框（原版同款位置）的台词。一条提示写成：
@@ -264,22 +283,42 @@
 下一句；气泡大小在开打之前就按整句算好，所以不会一边打字一边变形。写了 `dialogue` 的关卡在**每一次新开一局**时都会播，
 继续一局存档不会重播；通关后再玩一遍同样会播。
 
+**播不播还取决于玩家的「剧情」开关**（关卡选择页左上角，存在客户端 `config/pvzce-client.toml` 的 `story`，缺省开）：
+关掉之后客户端根本不会构造这段对话，两条播放路径（选卡页 / 关卡内）一起静默，关卡数据不用为它改任何东西。
+
 ```jsonc
 "dialogue": {
+  // 整段对话的首尾演出：第一句的立绘从自己那一侧滑入（center 从下方升起），
+  // 最后一句点完时滑出，滑完才继续（选卡页开始平移 / 关卡开始）。缺省 slide。
+  "enter": "slide",      // slide | none
+  "exit": "slide",       // slide | none
   "lines": [
     { "character": "pvzce:pea_chan", "portrait": "welcome",
-      "text": "欢迎来到植物和僵尸的世界", "voice": "", "side": "left" }
+      "text": "欢迎来到植物和僵尸的世界", "voice": "", "side": "left" },
+    // 每条台词可以加一个动画，缺省无：抖动一次，或改这一句立绘的大小
+    { "character": "pvzce:pea_chan", "portrait": "panic", "text": "诶诶诶！", "side": "left",
+      "animation": { "type": "shake", "amount": 2 } },
+    { "character": "pvzce:pea_chan", "portrait": "evil_smile", "text": "看招！", "side": "center",
+      "animation": { "type": "scale", "scale": 1.25 } }
   ]
 }
 ```
 
+**整段的首尾各演一次**：中间换说话人不动画（这正是"这两个效果＝这场对话开始了 / 结束了"的意思）；
+ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时播一次：`shake` 的 `amount` 是幅度倍数
+（缺省 1，`0` = 不抖），`scale` 的 `scale` 是这一句立绘的尺寸倍率（缺省 1.25，上限 1.6：立绘以底边为基准
+缩放，再大头顶就会被窗口裁掉）；下一条没写 `animation` 就回到原尺寸。拼错的 `enter`/`exit`/`type`
+由 `LevelValidator` 报出来，表现上退回缺省（滑入 / 无动画）。
+
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
+| enter / exit | `slide`\|`none` | `slide` | 整段对话的入场/出场演出；见上方示例 |
 | character | Identifier | 必填 | 说话的角色，引用 `dialogue_character` 注册表（见下） |
 | portrait | String | `""` | **文件名**（不带 `.png`），位于该角色的立绘目录下；留空则不画立绘 |
 | text | String | `""` | 台词；按气泡宽度逐字换行，写 `\n` 可强制换行 |
 | voice | Identifier | `""` | 播哪条音效（`assets/<ns>/sounds/...` + `sounds.json` 里的事件 id）；留空＝不播 |
 | side | `left` \| `right` | `left` | 角色站哪一边；气泡自动画在对侧，尾巴指向角色 |
+| animation | `{type, amount?, scale?}`? | 无 | 这条台词的动画：`shake`（抖一次，`amount` 幅度倍数）或 `scale`（立绘尺寸倍率）；缺省无动画 |
 
 - 对话由**客户端**播放，数据也由客户端从同一份数据包读取（与 `usesConveyorBelt` / `lockedSlotsFor` 同一层）。
 - 播放位置取决于这一局怎么进的：走**选卡界面**的关卡在关卡入口（镜头横摇之前）播；**传送带关卡**这类
@@ -437,6 +476,29 @@
 （`tickWaves` 在还有僵尸没放完时冻结这个计时）。所以 `(僵尸数-1) × spawn_interval ≤ delay` 是
 「下一波不要插进上一波的出怪窗口」的写法，而不是硬性要求：写小了会让两波的出怪队列同时跑，
 玩家看到的是两波的僵尸混在一起，`LevelServer` 不会拦。
+
+### 开局两波：等上一只死（`hold_until_dead`）
+
+```jsonc
+"waves": [
+  { "delay": 1500, "entries": [ { "id": "pvzce:basic_zombie", "count": 3 } ] },          // 缺省：等
+  { "delay": 1500, "entries": [ ... ], "hold_until_dead": 600 },                          // 换封顶值
+  { "delay": 1500, "entries": [ ... ], "hold_until_dead": 0 }                             // 关掉，回到 spawn_interval
+]
+```
+
+**每一关的前 2 波，只要类型是 `small`，就不按 `spawn_interval` 出怪**，而是"上一只死了就出下一只"，
+最多等 1200 tick（20 秒）——超时照出，不拖住关卡。它替代 `spawn_interval`（不是叠加）：玩家快，节奏就快；
+玩家慢，僵尸就一只一只来。第 2 波也会等第 1 波清完（同样 20 秒封顶），所以开局不会两头一起冒——**但那只扣住"已经到点"的到达**：延迟照常跑，玩家清得早完全按关卡节奏走，清得晚也只在大波该来时场上还有僵尸的情况下才被推迟，且最多 20 秒。
+
+| 写法 | 含义 |
+|---|---|
+| 不写 | 前 2 波里的 `small` 波自动如此；`huge`/`final` 与后面的波按 `spawn_interval` |
+| `"hold_until_dead": <tick>` | 换成这个封顶值 |
+| `"hold_until_dead": 0` | 完全不门控，回到纯 `spawn_interval`（前 2 波也一样） |
+
+「不写」与「写 0」是两件事，所以字段是可选的整数；想给一个自己写清楚节奏的关卡关掉它，就写 0。
+门控是**滚动**的：第 3 只等第 2 只，而不是等整波清空。
 
 ### 粒子大小（`scale`）
 

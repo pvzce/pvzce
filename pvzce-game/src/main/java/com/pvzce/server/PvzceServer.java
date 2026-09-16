@@ -387,7 +387,9 @@ public final class PvzceServer implements Runnable {
                 profile.unlockedLevels(), profile::owns, profile.coins(), profile.unlocksEverything());
         List<LevelListS2C.LevelInfo> levels = new ArrayList<>();
         BuiltInRegistries.LEVELS.keySet().stream()
-                .sorted(Comparator.comparing(Identifier::toString))
+                // Natural order, so 1-10 comes after 1-9 instead of after 1-1.
+                .sorted(Comparator.comparing(Identifier::toString,
+                        com.pvzce.api.util.LevelGrouping.idOrder()))
                 .forEach(id -> {
                     LevelDef def = BuiltInRegistries.LEVELS.get(id);
                     LevelUnlocks.State unlock = LevelUnlocks.evaluate(id, def.unlock(), unlockContext);

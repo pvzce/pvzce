@@ -14,7 +14,7 @@
   },
   "capabilities": [
     {
-      "type": "pvzce:boost_below"
+      "type": "pvzce:wake_below"
     }
   ],
   "animation_dir": "plant/environment",

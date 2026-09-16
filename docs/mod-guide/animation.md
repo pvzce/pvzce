@@ -155,13 +155,13 @@ handle.setSpeed(1.5F);
 | 类别 | 实体 |
 |---|---|
 | 资源掉落 | 阳光（`Sun.reanim`，旋转循环） |
-| 植物 | 豌豆射手、向日葵、樱桃炸弹、坚果墙、土豆雷、大嘴花、玉米投手、金盏花、睡莲、花盆、咖啡豆 |
+| 植物 | 豌豆射手、向日葵、樱桃炸弹、坚果墙、土豆雷、大嘴花、玉米投手、金盏花、睡莲、花盆、咖啡豆、寒冰射手、双发射手、三线射手、分裂豌豆、机枪射手、仙人掌、卷心菜/西瓜/冰西瓜投手、火爆辣椒、毁灭菇、窝瓜、小喷菇 |
 | 僵尸 | 普通僵尸、路障/铁桶/铁门（共用 `Zombie.reanim`）、读报僵尸、撑杆僵尸、气球僵尸、矿工僵尸、巨人僵尸、僵王博士、小鬼僵尸 |
 
 - 控制器资源默认位于 `assets/pvzce/animations/<entity_path>.json`，部件贴图位于 `assets/pvzce/textures/entities/<entity_path>/`。**内置包两者都按类目分层**（`animations/plant/attacker/pea_shooter.json`、`textures/entities/plant/attacker/pea_shooter/`），所以内置内容的定义里写了 `"animation_dir": "plant/attacker"` 与 `"texture": "…"`；**mod 两个字段都不写也照常工作**。
 - `model.size` 是实体的参考视觉尺寸（世界格），阴影和未来 UI 会读取它；巨人僵尸、僵王博士比普通僵尸大，小鬼僵尸比普通僵尸小。
-- 服务器状态字符串直接作为 clip 名；例如 `idle/walk/eat/hit/death`、`shoot`、`explode`、`grow/armed`、`chew`、`hammer`、`jump`、`dig/dig_exit`、`fly/fall` 等。
-- 子弹（pea/kernel/melon/butter）没有对应 reanim，仍使用静态/贴图回退。
+- 服务器状态字符串直接作为 clip 名；例如 `idle/walk/eat/hit/death`、`shoot`、`explode`、`grow/armed`、`chew`、`hammer`、`jump`、`dig/dig_exit`、`fly/fall`、`sleep`（蘑菇白天睡觉）等。**能力按名字要哪个 clip，美术就得有哪个**：缺一个不会报错，只会静默回退到 `idle`。
+- 子弹（pea/kernel/melon/butter/puff）没有对应 reanim，仍使用静态/贴图回退。
 
 重新生成全部已接入实体：
 

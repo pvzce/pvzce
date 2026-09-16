@@ -32,6 +32,16 @@ public interface LevelAccess {
     /** Read-only view of the level's game-rule table. */
     GameRuleAccess rules();
 
+    /**
+     * Whether the level's own clock says it is night right now.
+     *
+     * <p>A question about the level rather than about a rule value: "is it night" is
+     * {@code DayNightCycle}'s answer, and content that cares (a nocturnal mushroom
+     * deciding whether to be asleep) must not re-derive it from {@code day_length} /
+     * {@code night_length} and drift from the client's lighting.
+     */
+    boolean isNight();
+
     List<ZombieEntity> zombiesInRow(int row);
 
     List<PlantEntity> plantsAt(int column, int row);
@@ -59,7 +69,15 @@ public interface LevelAccess {
      */
     void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team);
 
-    void spawnZombie(Identifier zombieId, Team team, float x, int row);
+    /**
+     * Puts a zombie on the field at {@code x} in {@code row}.
+     *
+     * <p>Returns what it created, like {@link #spawnPlant} does - the wave spawner has to be
+     * able to follow the zombie it just released (an opening wave waits for it to die), and
+     * an id is the only handle that survives it being removed from the entity list.
+     * {@code null} when the id names no registered zombie.
+     */
+    ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row);
 
     /**
      * Hits every zombie within {@code radius} cells of a point with one damage type.

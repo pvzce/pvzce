@@ -1,0 +1,32 @@
+{
+  "id": "pvzce:puff_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 0
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:nocturnal"
+    },
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:puff",
+          "damage": 20,
+          "count": 1,
+          "range": 3.0
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/puff"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/puff_shroom"
+}

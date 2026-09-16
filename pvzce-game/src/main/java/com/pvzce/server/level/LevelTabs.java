@@ -35,7 +35,10 @@ public final class LevelTabs {
                                         Registry<LevelThemeDef> themes,
                                         Registry<LevelCategoryDef> categories) {
         List<Identifier> levelIds = new ArrayList<>(levels.keySet());
-        levelIds.sort((a, b) -> a.toString().compareTo(b.toString()));
+        // Same order the level list itself is sent in (see LevelGrouping.compareIds): the
+        // pages are derived from the levels, and a table built in a different order than
+        // the list it describes is a difference nobody can see until it matters.
+        levelIds.sort((a, b) -> com.pvzce.api.util.LevelGrouping.compareIds(a.toString(), b.toString()));
         List<Identifier> themeIds = new ArrayList<>(themes.keySet());
 
         List<Identifier> categoryIds = new ArrayList<>(categories.keySet());

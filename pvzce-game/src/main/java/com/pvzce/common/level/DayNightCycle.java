@@ -30,10 +30,28 @@ public final class DayNightCycle {
     }
 
     /**
-     * Hard day/night answer. A level is night only when it has both a positive day
-     * and a positive night length; {@code nightLength < 0} means "never night".
+     * Whether the level is at night for its whole run.
+     *
+     * <p>Written as "there is no day, and there is a night": {@code day_length: 0} with a
+     * positive {@code night_length}. The night's own length is then only a number the file has
+     * to give - with no day to come back to, the cycle never leaves the night - which is what
+     * the original's Night area is. The other three shapes stay as they were:
+     * {@code night_length < 0} is "never night" (every Day level), both positive is a cycle,
+     * and neither is a level that simply never gets dark.
+     */
+    public static boolean alwaysNight(int dayLength, int nightLength) {
+        return dayLength <= 0 && nightLength > 0;
+    }
+
+    /**
+     * Hard day/night answer. A level is night when it has no day at all
+     * ({@link #alwaysNight}), or when it has both a positive day and a positive night length
+     * and the clock is past the day; {@code nightLength < 0} means "never night".
      */
     public static boolean isNight(long dayTicks, int dayLength, int nightLength) {
+        if (alwaysNight(dayLength, nightLength)) {
+            return true;
+        }
         if (dayLength <= 0 || nightLength <= 0) {
             return false;
         }
@@ -45,6 +63,10 @@ public final class DayNightCycle {
      * a window of {@link #fadeWindow} ticks on either side of the boundary.
      */
     public static float nightBlend(long dayTicks, int dayLength, int nightLength) {
+        if (alwaysNight(dayLength, nightLength)) {
+            // No dusk to cross: a level with no day opens dark, on its first frame.
+            return 1F;
+        }
         long cycle = cycleLength(dayLength, nightLength);
         if (cycle <= 0) {
             return 0F;

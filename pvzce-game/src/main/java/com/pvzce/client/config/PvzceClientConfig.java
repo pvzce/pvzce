@@ -26,6 +26,16 @@ public final class PvzceClientConfig {
     public static final int MAX_MANUAL_GUI_SCALE = 4;
     public static final boolean DEFAULT_SHADERS_ENABLED = true;
     public static final int DEFAULT_WATER_QUALITY = WaterQuality.HIGH;
+    /**
+     * Whether entering a level plays its opening conversation.
+     *
+     * <p>A client preference rather than a level's: a player replaying a level they have read
+     * three times does not want to click through it again, and the level author has no way to
+     * know that. Switching it off skips the overlay entirely - it is not "hide the text", the
+     * conversation simply does not start, so nothing has to be clicked and no level tick is
+     * spent paused under it.
+     */
+    public static final boolean DEFAULT_STORY_ENABLED = true;
 
     /**
      * How much of the water shader runs.
@@ -70,6 +80,7 @@ public final class PvzceClientConfig {
     private int guiScale = AUTO_GUI_SCALE;
     private boolean shadersEnabled = DEFAULT_SHADERS_ENABLED;
     private int waterQuality = DEFAULT_WATER_QUALITY;
+    private boolean storyEnabled = DEFAULT_STORY_ENABLED;
     private Path file;
 
     public static PvzceClientConfig load(Path gameDir) {
@@ -91,6 +102,7 @@ public final class PvzceClientConfig {
                 config.shadersEnabled = getBoolean(toml, "shaders_enabled", DEFAULT_SHADERS_ENABLED);
                 config.waterQuality = WaterQuality.clamp(
                         getInt(toml, "water_quality", DEFAULT_WATER_QUALITY));
+                config.storyEnabled = getBoolean(toml, "story", DEFAULT_STORY_ENABLED);
             } else {
                 config.save();
             }
@@ -139,7 +151,8 @@ public final class PvzceClientConfig {
                     + "\nwindow_height = " + height
                     + "\ngui_scale = " + guiScale
                     + "\nshaders_enabled = " + shadersEnabled
-                    + "\nwater_quality = " + waterQuality + "\n";
+                    + "\nwater_quality = " + waterQuality
+                    + "\nstory = " + storyEnabled + "\n";
             Files.writeString(file, content);
         } catch (IOException e) {
             System.err.println("Failed to write config: " + e.getMessage());
@@ -229,5 +242,14 @@ public final class PvzceClientConfig {
 
     public void setWaterQuality(int waterQuality) {
         this.waterQuality = WaterQuality.clamp(waterQuality);
+    }
+
+    /** Whether entering a level plays its opening conversation; see {@link #DEFAULT_STORY_ENABLED}. */
+    public boolean storyEnabled() {
+        return storyEnabled;
+    }
+
+    public void setStoryEnabled(boolean storyEnabled) {
+        this.storyEnabled = storyEnabled;
     }
 }

@@ -177,5 +177,65 @@
     {
       "trigger": "on_card_refused"
     }
-  ]
+  ],
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "welcome",
+        "text": "嗯...没错，又是我",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "如果每一关都可以见到你的话",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "confused",
+        "text": "好像也不错?",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "好啦，回到正题",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "僵尸们也越来越多了哦",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "小杂鱼还可以应付的过来嘛？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "咱相信你哦~",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "加油",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  }
 }

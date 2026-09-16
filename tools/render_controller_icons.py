@@ -58,6 +58,8 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "jalapeno": ("idle", 0.0),
     "doom_shroom": ("idle", 0.0),
     "squash": ("idle", 0.0),
+    "puff_shroom": ("idle", 0.0),
+    "sun_shroom": ("idle", 0.0),
 }
 
 # Content id -> the directory its animation lives in, mirroring the content JSON's
@@ -80,7 +82,9 @@ ANIMATION_DIRS: Dict[str, str] = {
     "cabbage_pult": "plant/attacker",
     "melon_pult": "plant/attacker",
     "winter_melon": "plant/attacker",
+    "puff_shroom": "plant/attacker",
     "sunflower": "plant/producer",
+    "sun_shroom": "plant/producer",
     "marigold": "plant/producer",
     "wall_nut": "plant/defense",
     "lily_pad": "plant/environment",
@@ -111,6 +115,7 @@ PLANT_ENTITIES = [
     # The shooter and pult lines, converted from the original's own reanims.
     "snow_pea", "repeater", "gatling_pea", "threepeater", "split_pea", "cactus",
     "cabbage_pult", "melon_pult", "winter_melon", "jalapeno", "doom_shroom", "squash",
+    "puff_shroom", "sun_shroom",
 ]
 
 

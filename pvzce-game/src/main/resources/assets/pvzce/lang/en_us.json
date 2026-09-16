@@ -1,5 +1,6 @@
 {
   "pvzce.award.coins": "Coins +{0}",
+  "pvzce.award.coins_collected": "Coins collected this run",
   "pvzce.award.continue": "Continue",
   "pvzce.award.money_bag": "Click the money bag to collect your coins",
   "pvzce.award.new_card": "You got a new plant!",
@@ -103,6 +104,9 @@
   "pvzce.glove": "Glove",
   "pvzce.grass": "Grass",
   "pvzce.grave": "Grave",
+  "pvzce.grave_cross": "Cross Gravestone",
+  "pvzce.grave_slab": "Broken Gravestone",
+  "pvzce.grave_wide": "Wide Gravestone",
   "pvzce.graves_spawn_night": "Graves Spawn At Night",
   "pvzce.ground": "Bare Ground",
   "pvzce.hammer": "Hammer",
@@ -154,6 +158,7 @@
   "pvzce.plant_damage_multiplier": "Plant Damage Multiplier",
   "pvzce.pole_vaulter_zombie": "Pole Vaulter Zombie",
   "pvzce.potato_mine": "Potato Mine",
+  "pvzce.puff_shroom": "Puff-shroom",
   "pvzce.quit": "Quit",
   "pvzce.readysetplant": "Ready... Set... Plant!",
   "pvzce.redstone": "Redstone",
@@ -172,7 +177,9 @@
   "pvzce.split_pea": "Split Pea",
   "pvzce.squash": "Squash",
   "pvzce.start": "Start Game",
+  "pvzce.story": "Story",
   "pvzce.sun": "Sun",
+  "pvzce.sun_shroom": "Sun-shroom",
   "pvzce.sun_spawn_chance": "Sun Drop Chance",
   "pvzce.sun_value": "Sun Value",
   "pvzce.sunflower": "Sunflower",
@@ -194,6 +201,5 @@
   "pvzce.zombie": "Zombies",
   "pvzce.zombie_boss": "Zombie Boss",
   "pvzce.zombie_damage_multiplier": "Zombie Damage Multiplier",
-  "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier",
-  "pvzce.award.coins_collected": "Coins collected this run"
+  "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier"
 }

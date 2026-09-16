@@ -108,12 +108,6 @@ public final class ProducerCapability implements PlantCapability {
     }
 
     @Override
-    public void boost(PlantEntity plant) {
-        cooldown = 0;
-        plant.setAnimation(EntityAnimations.PRODUCE);
-    }
-
-    @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
     }

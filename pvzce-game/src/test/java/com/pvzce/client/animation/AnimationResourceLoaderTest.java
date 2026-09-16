@@ -184,6 +184,24 @@ class AnimationResourceLoaderTest {
         }
     }
 
+    /**
+     * The nocturnal plants have to be able to look asleep.
+     *
+     * <p>Same trap as the ash line's fuse: the server publishes the {@code sleep} state by
+     * name and a file without that clip plays {@code idle} instead - so a mushroom asleep in
+     * daylight would look exactly like a wide-awake one, which is the one thing the player
+     * has to be able to see before spending a coffee bean on it.
+     */
+    @Test
+    void theNocturnalPlantsDefineASleepClip() throws Exception {
+        for (String plant : new String[]{"puff_shroom", "doom_shroom"}) {
+            String path = animationPath(plant);
+            ControllerFile controller = (ControllerFile) parseClasspath(plant);
+            assertTrue(controller.clip("sleep").isPresent(),
+                    path + " has no 'sleep' clip, so a sleeping plant is drawn awake");
+        }
+    }
+
     private static AnimationFile parseClasspath(String path) throws Exception {
         String resolved = animationPath(path);
         try (var stream = AnimationResourceLoaderTest.class.getResourceAsStream(resolved)) {

@@ -114,12 +114,6 @@ public final class ThrowerCapability implements PlantCapability {
     }
 
     @Override
-    public void boost(PlantEntity plant) {
-        cooldown = 0;
-        plant.setAnimation(EntityAnimations.SHOOT);
-    }
-
-    @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
     }

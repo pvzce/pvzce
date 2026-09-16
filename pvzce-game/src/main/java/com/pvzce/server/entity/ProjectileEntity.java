@@ -43,6 +43,17 @@ public class ProjectileEntity extends PvzceEntity {
     /** Id of the zombie this shot was aimed at, or -1 for a straight shot. */
     private final int targetId;
     private final float targetX;
+    /**
+     * Where the shot was fired from and how far it may travel, in cells
+     * ({@link ProjectileRef#UNLIMITED_RANGE} = the whole board).
+     *
+     * <p>Carried by the entity rather than by the motion capability because it is a
+     * property of the <em>shot</em>: the same spore art is fired by a plant that reaches
+     * three cells, and a projectile definition that hard-coded a distance would make that
+     * unreachable. The reference the plant fired is the only place the number exists.
+     */
+    private final float originX;
+    private final float maxRange;
 
     public ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
                             float cellX, float cellY, float startHeight) {
@@ -58,6 +69,8 @@ public class ProjectileEntity extends PvzceEntity {
         this.direction = ref != null ? ref.direction() : 1F;
         this.targetId = target != null ? target.id() : -1;
         this.targetX = target != null ? target.cellX() : -1F;
+        this.originX = cellX;
+        this.maxRange = ref != null ? ref.range() : ProjectileRef.UNLIMITED_RANGE;
         setHeight(startHeight);
         for (TypedCapability<ProjectileCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
@@ -127,6 +140,13 @@ public class ProjectileEntity extends PvzceEntity {
             }
         }
         if (cellX() > level.width() + 1F) {
+            remove();
+            return;
+        }
+        // A short-ranged shot dies where its plant's reach ends. Measured from the muzzle,
+        // which is both where this projectile was born and what the shooter's target search
+        // measures from - one origin, so "worth firing at" and "can actually reach" agree.
+        if (maxRange > 0F && Math.abs(cellX() - originX) >= maxRange) {
             remove();
             return;
         }

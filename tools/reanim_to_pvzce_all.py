@@ -299,6 +299,21 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         },
     ),
     EntityConfig(
+        output="sun_shroom",
+        group="plant/producer",
+        reanim="SunShroom.reanim",
+        target_box=PLANT_BOX,
+        # The original carries both forms of the mushroom - anim_grow, anim_bigidle and
+        # anim_bigsleep are the grown one - and this version ships the small one, so the
+        # grown art is simply not exported. `anim_sleep` is also the name of the track that
+        # draws the sleeping head, and that is the one that makes a sleeping mushroom look
+        # asleep.
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
+    EntityConfig(
         output="marigold",
         group="plant/producer",
         reanim="Marigold.reanim",
@@ -360,6 +375,26 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "force_visible_hidden": True,
                 "force_visible_exclude_prefixes": ["blink"],
             },
+        },
+    ),
+    EntityConfig(
+        output="puff_shroom",
+        group="plant/attacker",
+        reanim="PuffShroom.reanim",
+        target_box=PLANT_BOX,
+        # The original files the sleeping pose as its own mask (a slow 17-frame breathing
+        # loop), so the server can ask for a "sleep" clip by name. No force_visible_hidden
+        # here: the only bone the shooting mask hides is the closed-eye overlay, and
+        # rescuing it would draw a sleeping face on a plant that is firing.
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "shoot": {
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
+            },
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
         },
     ),
     EntityConfig(
@@ -560,6 +595,9 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=PLANT_BOX,
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
+            # A mushroom sleeps in daylight (pvzce:nocturnal), and the original draws the
+            # sleeping head from its own sprite.
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
             "explode": {
                 "mask": "anim_explode",
                 "loop": False,

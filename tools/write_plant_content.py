@@ -18,8 +18,10 @@ cactus             125     20, and the raised-arm clip for airborne targets
 cabbage_pult       100     lobbed 40
 melon_pult         300     lobbed 80 with a 1.5 cell splash
 winter_melon       200     lobbed 80, splash, plus slow
+puff_shroom        0       20, three cells of reach, asleep in daylight (coffee bean wakes it)
+sun_shroom         25      15 sun every 24s, asleep in daylight (the night's sun)
 jalapeno           125     one row, 1800
-doom_shroom        125     3.5 cell blast, 1800, leaves a crater
+doom_shroom        125     3.5 cell blast, 1800, leaves a crater, asleep in daylight
 squash             50      one cell, 1800, proximity triggered
 =================  ======  ==================================================================
 
@@ -112,6 +114,36 @@ PLANTS: Dict[str, Dict[str, object]] = {
         "winter_melon", "plant/attacker", 200, 450, 130,
         [{"projectile": f"{NS}:winter_melon", "damage": 80, "count": 1}],
         f"{NS}:sfx/plant/throw"),
+    # The night's sun: cheap, and the reason a level with no sky sun is playable at all. The
+    # original's small form (15 per harvest); its grown form is art this version does not use
+    # yet, so the amount does not step up.
+    "sun_shroom": {
+        "id": f"{NS}:sun_shroom",
+        "cost": cost(25, 300),
+        "health": 300,
+        "capabilities": [
+            {"type": f"{NS}:nocturnal"},
+            {"type": f"{NS}:producer", "resource": f"{NS}:sun", "amount": 15, "every": 1440},
+        ],
+        "animation_dir": "plant/producer",
+        "texture": f"{NS}:textures/entities/plant/producer/sun_shroom",
+    },
+    # The mushroom: free, weak, and short-ranged - the spore dies after three cells, which
+    # is the ``range`` on the shot (the same number the shooter uses to decide it has a
+    # target). Nocturnal, so in daylight it sleeps until a coffee bean wakes it.
+    "puff_shroom": {
+        "id": f"{NS}:puff_shroom",
+        "cost": cost(0, 300),
+        "health": 300,
+        "capabilities": [
+            {"type": f"{NS}:nocturnal"},
+            {"type": f"{NS}:shooter", "interval": 90, "shots": [
+                {"projectile": f"{NS}:puff", "damage": 20, "count": 1, "range": 3.0}]},
+        ],
+        "sounds": {"shoot": f"{NS}:sfx/plant/puff"},
+        "animation_dir": "plant/attacker",
+        "texture": f"{NS}:textures/entities/plant/attacker/puff_shroom",
+    },
     # The ash line: a timed fuse that detonates on its own. Jalapeno burns its whole row,
     # which is the same blast with a wide, shallow radius.
     "jalapeno": {
@@ -133,13 +165,16 @@ PLANTS: Dict[str, Dict[str, object]] = {
         "id": f"{NS}:doom_shroom",
         "cost": cost(125, 3000),
         "health": 100,
-        "capabilities": [{
-            "type": f"{NS}:explosive",
-            "trigger": "timed",
-            "fuse_ticks": 90,
-            "radius": 3.5,
-            "damage": 1800,
-        }],
+        "capabilities": [
+            {"type": f"{NS}:nocturnal"},
+            {
+                "type": f"{NS}:explosive",
+                "trigger": "timed",
+                "fuse_ticks": 90,
+                "radius": 3.5,
+                "damage": 1800,
+            },
+        ],
         "sounds": {"explode": f"{NS}:sfx/plant/doomshroom"},
         "animation_dir": "plant/special",
         "texture": f"{NS}:textures/entities/plant/special/doom_shroom",
@@ -184,6 +219,15 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
         "sounds": {"impact": f"{NS}:sfx/projectile/hit"},
         "texture": f"{NS}:textures/entities/projectile/butter",
     },
+    # The spore. Its short reach is not here: it belongs to the shot that fires it
+    # (``range`` on the plant's ``shots`` entry), so any plant can fire a bounded puff.
+    "puff": {
+        "id": f"{NS}:puff",
+        "layer": "ground",
+        "capabilities": [{"type": f"{NS}:linear", "speed": 2.0}],
+        "sounds": {"impact": f"{NS}:sfx/projectile/hit"},
+        "texture": f"{NS}:textures/entities/projectile/puff",
+    },
     "cabbage": {
         "id": f"{NS}:cabbage",
         "layer": "air",
@@ -192,6 +236,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
             {"type": f"{NS}:splash", "radius": 0.7},
         ],
         "sounds": {"impact": f"{NS}:sfx/plant/kernelpult2"},
+        "texture": f"{NS}:textures/entities/projectile/cabbage",
     },
     "winter_melon": {
         "id": f"{NS}:winter_melon",
@@ -203,6 +248,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
                 {"status": "slow", "ticks": 240, "magnitude": 0.5}]},
         ],
         "sounds": {"impact": f"{NS}:sfx/plant/melonimpact2"},
+        "texture": f"{NS}:textures/entities/projectile/melon",
     },
 }
 
@@ -219,6 +265,8 @@ NAMES: Dict[str, Dict[str, str]] = {
     "winter_melon": {"en_us": "Winter Melon", "zh_cn": "冰西瓜"},
     "jalapeno": {"en_us": "Jalapeno", "zh_cn": "火爆辣椒"},
     "doom_shroom": {"en_us": "Doom-shroom", "zh_cn": "毁灭菇"},
+    "puff_shroom": {"en_us": "Puff-shroom", "zh_cn": "小喷菇"},
+    "sun_shroom": {"en_us": "Sun-shroom", "zh_cn": "阳光菇"},
     "squash": {"en_us": "Squash", "zh_cn": "窝瓜"},
 }
 

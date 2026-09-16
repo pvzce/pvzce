@@ -253,6 +253,59 @@ class LevelFileWriterTest {
         assertEquals(original.coinDropAmount(), parsed.coinDropAmount());
     }
 
+    /**
+     * The per-line animation survives a round trip, and a line without one stays clean.
+     *
+     * <p>This is the half of the feature the editor owns: an animation written by hand must
+     * come back from the page unchanged (including a kind this version cannot draw), and a
+     * conversation that has none must not gain a {@code "type": "none"} on every line.
+     */
+    @Test
+    void dialogueAnimationsRoundTripThroughThePage() {
+        JsonObject root = JsonParser.parseString("""
+                {
+                  "id": "pvzce:loud",
+                  "dialogue": {
+                    "enter": "none",
+                    "lines": [
+                      { "character": "pvzce:pea_chan", "text": "嗨" },
+                      { "character": "pvzce:pea_chan", "text": "诶！",
+                        "animation": { "type": "shake", "amount": 2 } },
+                      { "character": "pvzce:pea_chan", "text": "看招！",
+                        "animation": { "type": "scale", "scale": 1.3 } },
+                      { "character": "pvzce:pea_chan", "text": "以后再说",
+                        "animation": { "type": "sparkle", "sparkle": 3 } }
+                    ]
+                  }
+                }
+                """).getAsJsonObject();
+        com.pvzce.client.gui.screens.DialogueEditorModel.Config config =
+                com.pvzce.client.gui.screens.DialogueEditorModel.Config.fromJson(root);
+        assertEquals(4, config.lines.size());
+        assertEquals(2F, config.lines.get(1).animationAmount, 0.0001F);
+        assertEquals(1.3F, config.lines.get(2).animationScale, 0.0001F);
+
+        JsonDraft draft = JsonDraft.of(root.deepCopy());
+        LevelFileWriter.dialogue(draft, config);
+        JsonObject written = draft.json().getAsJsonObject("dialogue");
+        JsonArray lines = written.getAsJsonArray("lines");
+        assertFalse(lines.get(0).getAsJsonObject().has("animation"),
+                "a line with no animation writes no block");
+        assertEquals("shake", lines.get(1).getAsJsonObject().getAsJsonObject("animation")
+                .get("type").getAsString());
+        assertEquals(2F, lines.get(1).getAsJsonObject().getAsJsonObject("animation")
+                .get("amount").getAsFloat(), 0.0001F);
+        assertEquals(1.3F, lines.get(2).getAsJsonObject().getAsJsonObject("animation")
+                .get("scale").getAsFloat(), 0.0001F);
+        // A kind the page cannot draw is kept verbatim, numbers and all - the same rule the
+        // unlock page follows for condition types it has no UI for.
+        JsonObject unknown = lines.get(3).getAsJsonObject().getAsJsonObject("animation");
+        assertEquals("sparkle", unknown.get("type").getAsString());
+        assertEquals(3, unknown.get("sparkle").getAsInt());
+        // The block's own effects are not the page's business, so they must survive it.
+        assertEquals("none", written.get("enter").getAsString());
+    }
+
     /** An empty conversation removes the block rather than writing one with no lines. */
     @Test
     void anEmptyConversationWritesNoBlock() {

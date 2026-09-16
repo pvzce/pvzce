@@ -9,6 +9,9 @@
   "health": 100,
   "capabilities": [
     {
+      "type": "pvzce:nocturnal"
+    },
+    {
       "type": "pvzce:explosive",
       "trigger": "timed",
       "fuse_ticks": 90,

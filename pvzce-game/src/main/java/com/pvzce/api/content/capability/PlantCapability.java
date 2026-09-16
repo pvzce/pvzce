@@ -35,11 +35,40 @@ public interface PlantCapability {
     }
 
     /**
-     * Instant activation from an energy bean, a coffee bean or the glove tool.
-     * Capabilities that have nothing to charge ignore it, so boosting a wall-nut
-     * is a no-op instead of a special case in the caller.
+     * Wakes this plant if it is asleep, and reports whether that did anything.
+     *
+     * <p>The coffee bean's whole effect. Capabilities that sleep answer here; every
+     * other capability ignores it, so "put a coffee bean on a sunflower" is a wasted
+     * item rather than a special case in the caller - which is what the original does.
+     *
+     * @return {@code true} when this capability was asleep and is now awake
      */
-    default void boost(PlantEntity plant) {
+    default boolean wake(PlantEntity plant) {
+        return false;
+    }
+
+    /**
+     * Whether this plant is asleep right now and therefore not acting.
+     *
+     * <p>Asked by {@code PlantEntity} before it ticks anything: a sleeping plant skips
+     * every capability that does not opt in through {@link #ticksWhileAsleep}, so the
+     * shooter, producer and fuse of a nocturnal mushroom all stop together instead of
+     * each remembering to check. Derived from the level's clock rather than stored, so
+     * "night fell" and "the clock was rolled back" both work without bookkeeping.
+     */
+    default boolean asleep(PlantEntity plant, LevelAccess level) {
+        return false;
+    }
+
+    /**
+     * Whether this capability still wants ticks while the plant is asleep.
+     *
+     * <p>Only the capability that does the sleeping answers yes - it is the one that
+     * publishes the {@code sleep} animation. Everything that would make the plant act
+     * stays false, which is what "asleep" means.
+     */
+    default boolean ticksWhileAsleep(PlantEntity plant) {
+        return false;
     }
 
     /**

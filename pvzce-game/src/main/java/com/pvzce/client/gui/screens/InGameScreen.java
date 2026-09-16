@@ -297,7 +297,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private DialogueOverlay dialogue;
     /** True while this screen is holding the server paused for a dialogue. */
     private boolean dialogueHoldsPause;
-    private final List<DialogueLine> openingDialogue;
+    private final com.pvzce.api.content.LevelDialogue openingDialogue;
     /** Last coin count the HUD noticed, and when it last changed. */
     private int seenCoins = -1;
     private long coinBankNanos;
@@ -405,7 +405,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private java.util.List<com.pvzce.client.mechanic.ClientMechanic.WorldOverlay> overlays;
 
     public InGameScreen(PvzceClient client) {
-        this(client, List.of());
+        this(client, com.pvzce.api.content.LevelDialogue.EMPTY);
     }
 
     /**
@@ -413,13 +413,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      *                        a conveyor level, which never shows the seed chooser - has no
      *                        other screen to show it on, so it plays here, over the lawn,
      *                        with the level paused until it is over. A level entered
-     *                        through the chooser passes an empty list: it has already
+     *                        through the chooser passes the empty block: it has already
      *                        been shown there, and replaying it here would say everything
      *                        twice.
      */
-    public InGameScreen(PvzceClient client, List<DialogueLine> openingDialogue) {
+    public InGameScreen(PvzceClient client, com.pvzce.api.content.LevelDialogue openingDialogue) {
         super(client);
-        this.openingDialogue = List.copyOf(openingDialogue == null ? List.of() : openingDialogue);
+        this.openingDialogue = openingDialogue == null
+                ? com.pvzce.api.content.LevelDialogue.EMPTY : openingDialogue;
     }
 
     @Override

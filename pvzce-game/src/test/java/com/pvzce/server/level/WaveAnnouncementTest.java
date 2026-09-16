@@ -79,10 +79,14 @@ class WaveAnnouncementTest {
      * gap would make this the slowest test in the suite.
      */
     private static LevelDef level(int wave1Delay) {
+        // hold_until_dead 0: this level is about how often a stinger fires, not about the
+        // opening's pacing, and nothing here ever kills the zombie the gate would wait for.
         WaveDef small = new WaveDef(WaveDef.WaveType.SMALL, 60, 0, List.of(
-                new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)));
+                new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)),
+                WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS, java.util.Optional.of(0));
         WaveDef last = new WaveDef(WaveDef.WaveType.FINAL, wave1Delay, 40, List.of(
-                new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)));
+                new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)),
+                WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS, java.util.Optional.of(0));
         return new LevelDef(Identifier.withDefaultNamespace("wave_announce_test"), "波次", "",
                 3, 1,
                 Map.of(Identifier.withDefaultNamespace("grass"), List.of("0,0", "1,0", "2,0")),

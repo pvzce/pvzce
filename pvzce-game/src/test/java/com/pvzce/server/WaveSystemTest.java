@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -140,6 +141,30 @@ class WaveSystemTest {
         assertEquals(2, wave.entries().get(0).count());
         assertEquals(1, wave.entries().get(1).count());
         assertEquals(3, wave.totalZombies());
+        assertTrue(wave.holdUntilDeadTicks().isEmpty(), "unwritten: the level's rule decides");
+
+        // Unwritten is not the same as zero, and the rule it falls back to is narrow: the
+        // opening's small waves wait for their kill, a huge wave never does.
+        WaveDef opening = WaveDef.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("""
+                {
+                  "delay": 10,
+                  "entries": [ { "id": "pvzce:basic_zombie" } ]
+                }
+                """)).getOrThrow();
+        assertTrue(opening.holdUntilDead(0) > 0, "an opening small wave waits for its kill");
+        assertTrue(opening.holdUntilDead(1) > 0, "the second one too");
+        assertEquals(0, opening.holdUntilDead(2), "later waves do not");
+        assertEquals(0, wave.holdUntilDead(0), "a huge wave in slot 0 does not either");
+
+        WaveDef explicit = WaveDef.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("""
+                {
+                  "delay": 10,
+                  "entries": [ { "id": "pvzce:basic_zombie" } ],
+                  "hold_until_dead": 0
+                }
+                """)).getOrThrow();
+        assertEquals(Optional.of(0), explicit.holdUntilDeadTicks());
+        assertEquals(0, explicit.holdUntilDead(0), "written 0 always wins");
     }
 
     private static LevelDef testLevel(float intervalEndMultiplier, int... delays) {
@@ -157,6 +182,15 @@ class WaveSystemTest {
 
     /** The same level with intervals chosen per wave, which is the point of the field. */
     private static LevelDef testLevel(float intervalEndMultiplier, List<WaveDef> waves) {
+        return levelWith(intervalEndMultiplier, pacedByIntervalOnly(waves));
+    }
+
+    /** As above, with the waves exactly as written - opening death gate and all. */
+    private static LevelDef gatedLevel(float intervalEndMultiplier, List<WaveDef> waves) {
+        return levelWith(intervalEndMultiplier, waves);
+    }
+
+    private static LevelDef levelWith(float intervalEndMultiplier, List<WaveDef> waves) {
         return new LevelDef(
                 Identifier.withDefaultNamespace("wave_test"),
                 "", "", 9, 5,
@@ -185,6 +219,23 @@ class WaveSystemTest {
                         new com.pvzce.api.content.MowerData(java.util.Optional.of(List.of())))),
                 com.pvzce.api.content.LevelDialogue.EMPTY
         );
+    }
+
+    /**
+     * The same waves with the opening death gate turned off.
+     *
+     * <p>Every test in this class is about clocks - an interval, a delay, a warning window -
+     * and the gate makes an opening wave's pace depend on a zombie dying, which none of these
+     * levels ever does. A wave that wants the gate is exercised by
+     * {@link #theOpeningWaveWaitsForEachZombieToDie} and its neighbours.
+     */
+    private static List<WaveDef> pacedByIntervalOnly(List<WaveDef> waves) {
+        List<WaveDef> paced = new ArrayList<>(waves.size());
+        for (WaveDef wave : waves) {
+            paced.add(new WaveDef(wave.type(), wave.delay(), wave.warningTicks(), wave.entries(),
+                    wave.spawnIntervalTicks(), Optional.of(0)));
+        }
+        return paced;
     }
 
     /**
@@ -280,6 +331,186 @@ class WaveSystemTest {
         int waveTwo = tickUntil(level, bridge, () -> level.currentWave() >= 2);
         assertEquals(632, waveTwo, "wave 2's 20-tick delay runs from the tick wave 1 was spent");
         assertEquals(4, bridge.zombieSpawns(), "and it starts with its own first zombie");
+    }
+
+    // ------------------------------------------------------------------
+    // The opening waves: one zombie at a time, paced by the player's kills
+    // ------------------------------------------------------------------
+
+    /**
+     * A level's opening wave releases its next zombie when the previous one dies.
+     *
+     * <p>The complaint this answers: a wave authored at one zombie every seven seconds put
+     * two of them on a one-plant lawn inside ten seconds, which the level has no way to know
+     * is too fast. Waiting for the kill hands the pace to the player, who does know.
+     */
+    @Test
+    void theOpeningWaveWaitsForEachZombieToDie() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3))),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        // Far past every authored interval (the wave's own is 300, the floor is 15): the
+        // second zombie is still the first one's business.
+        tick(level, bridge, 500);
+        assertEquals(1, bridge.zombieSpawns(), "the next zombie waits for this one to die");
+
+        killZombies(level);
+        assertEquals(511, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2),
+                "and comes out on the next tick, not on the wave's 300-tick interval");
+
+        // Rolling gate: the third waits for the second, which is the only one left to wait for.
+        tick(level, bridge, 500);
+        assertEquals(2, bridge.zombieSpawns());
+        killZombies(level);
+        assertEquals(1012, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 3));
+    }
+
+    /**
+     * The wait is capped, so a player who cannot kill the first zombie still gets a game.
+     *
+     * <p>Twenty seconds is the cap: the zombie is left standing, and the wave's own interval
+     * - which the gate replaces - never enters into it.
+     */
+    @Test
+    void theOpeningWaveGivesUpWaitingAfterTwentySeconds() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2))),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        // The cap behaves exactly like an interval of the same length, one-tick shape and all.
+        assertEquals(10 + WaveDef.DEFAULT_EARLY_HOLD_TICKS + 1,
+                tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2),
+                "the cap is twenty seconds, not the wave's authored interval");
+        assertEquals(1200, WaveDef.DEFAULT_EARLY_HOLD_TICKS, "twenty seconds at 60tps");
+    }
+
+    /**
+     * The wave after an opening one waits for the field to be clear, capped the same way.
+     *
+     * <p>Only the arrival waits. Wave 2's 100-tick delay is already spent by the time the
+     * player finishes wave 1 here, so the wave comes the tick the field is clear - the player
+     * is never charged the gap a second time for having taken longer to kill something.
+     */
+    @Test
+    void theSecondWaveWaitsForTheOpeningToBeCleared() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                new WaveDef(WaveDef.WaveType.SMALL, 100, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        tick(level, bridge, 400);
+        assertEquals(1, level.currentWave(),
+                "wave 2 must not open onto the zombie wave 1 left standing");
+
+        killZombies(level);
+        assertEquals(411, tickUntil(level, bridge, () -> level.currentWave() >= 2),
+                "the wave is due, so clearing the field is the only thing left to wait for");
+        assertEquals(2, bridge.zombieSpawns());
+    }
+
+    /**
+     * Clearing the opening early costs nothing.
+     *
+     * <p>The reported bug: the wave clock used to be frozen while the field was occupied, so a
+     * player who killed the opening zombie quickly still waited the whole gap with an empty
+     * lawn - the level looked stuck in front of the huge wave. The clock runs through the
+     * fight now, and the gate only ever holds an arrival that is already due.
+     */
+    @Test
+    void clearingTheOpeningEarlyDoesNotDelayTheNextWave() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                new WaveDef(WaveDef.WaveType.SMALL, 100, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        killZombies(level);
+        assertEquals(110, tickUntil(level, bridge, () -> level.currentWave() >= 2),
+                "wave 2 arrives on its own 100-tick delay, measured from wave 1");
+    }
+
+    /** And gives up on that too: an opening nobody finishes cannot hold the level forever. */
+    @Test
+    void theSecondWaveIsReleasedWhenTheOpeningNeverEnds() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                new WaveDef(WaveDef.WaveType.SMALL, 100, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        // Due at 110 (wave 1's own delay), held for the cap, then released.
+        assertEquals(110 + WaveDef.DEFAULT_EARLY_HOLD_TICKS,
+                tickUntil(level, bridge, () -> level.currentWave() >= 2),
+                "the cap is measured from the moment the wave was due");
+    }
+
+    /** A wave that writes {@code hold_until_dead: 0} keeps its authored interval. */
+    @Test
+    void aWaveCanOptOutOfTheOpeningGate() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)),
+                        15, Optional.of(0)),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        assertEquals(26, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2),
+                "no waiting for a kill: the interval is the whole clock again");
+    }
+
+    /** A huge wave in the opening slot pours on its interval: the gate is for small ones. */
+    @Test
+    void aHugeOpeningWaveIsNotGated() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.HUGE, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3)), 15),
+                new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        assertEquals(42, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 3),
+                "a huge wave's own interval paces it, alive or not");
+    }
+
+    /** Takes every zombie off the field, the way a player's lawn does. */
+    private static void killZombies(LevelServer level) {
+        for (var entity : level.entities()) {
+            if (entity instanceof com.pvzce.server.entity.ZombieEntity zombie && !zombie.isRemoved()) {
+                zombie.remove();
+            }
+        }
     }
 
     /**

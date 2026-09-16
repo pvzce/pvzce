@@ -9,22 +9,30 @@ import java.util.Locale;
 /**
  * One spoken line of a level's opening dialogue.
  *
- * <p>Five fields, one per thing the author decides: who speaks, with which portrait, what
- * they say, which voice clip (if any) plays, and which side of the screen they stand on.
- * The character is a reference - everything shared between lines lives in
- * {@link DialogueCharacterDef}.
+ * <p>Six fields, one per thing the author decides: who speaks, with which portrait, what
+ * they say, which voice clip (if any) plays, which side of the screen they stand on, and
+ * what the portrait does while the line is spoken. The character is a reference -
+ * everything shared between lines lives in {@link DialogueCharacterDef}.
  *
  * <p>Authored as:
  * <pre>{@code
  * { "character": "pvzce:pea_chan", "portrait": "welcome",
  *   "text": "欢迎来到植物和僵尸的世界", "voice": "", "side": "left" }
+ * { "character": "pvzce:pea_chan", "portrait": "panic", "text": "诶诶诶！",
+ *   "side": "left", "animation": { "type": "shake" } }
  * }</pre>
  *
  * <p>{@code text} may be empty, which is a line with no words: the portrait is shown on its
  * own and a click moves on. The original stages its silent beats that way, and a blank line
  * that still drew an empty bubble read as a missing translation.
  */
-public record DialogueLine(Identifier character, String portrait, String text, String voice, Side side) {
+public record DialogueLine(Identifier character, String portrait, String text, String voice, Side side,
+                           DialogueAnimation animation) {
+    /** A line with no animation: what every line written before animations existed is. */
+    public DialogueLine(Identifier character, String portrait, String text, String voice, Side side) {
+        this(character, portrait, text, voice, side, DialogueAnimation.NONE);
+    }
+
     /**
      * Which side of the screen the speaker stands on.
      *
@@ -77,7 +85,9 @@ public record DialogueLine(Identifier character, String portrait, String text, S
             Codec.STRING.optionalFieldOf("portrait", "").forGetter(DialogueLine::portrait),
             Codec.STRING.optionalFieldOf("text", "").forGetter(DialogueLine::text),
             Codec.STRING.optionalFieldOf("voice", "").forGetter(DialogueLine::voice),
-            Side.CODEC.optionalFieldOf("side", Side.LEFT).forGetter(DialogueLine::side)
+            Side.CODEC.optionalFieldOf("side", Side.LEFT).forGetter(DialogueLine::side),
+            DialogueAnimation.CODEC.optionalFieldOf("animation", DialogueAnimation.NONE)
+                    .forGetter(DialogueLine::animation)
     ).apply(i, DialogueLine::new));
 
     public DialogueLine {
@@ -85,5 +95,6 @@ public record DialogueLine(Identifier character, String portrait, String text, S
         text = text == null ? "" : text;
         voice = voice == null ? "" : voice;
         side = side == null ? Side.LEFT : side;
+        animation = animation == null ? DialogueAnimation.NONE : animation;
     }
 }

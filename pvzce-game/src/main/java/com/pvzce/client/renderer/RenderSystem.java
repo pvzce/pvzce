@@ -137,6 +137,19 @@ public final class RenderSystem {
         shader.setShadowMode(false);
     }
 
+    /**
+     * The same, but keeps whatever tint is active.
+     *
+     * <p>For a sub-view drawn <em>inside</em> a lit board - the seed chooser's zombie preview
+     * sits in the night lawn it previews, so it has to keep the night tint. Its own world has
+     * nothing to do with the board's pixels, so the caller also drops the glow rather than
+     * letting a sun that was mapped for the board land somewhere in a four-unit-tall world.
+     */
+    public static void setOverlayShader() {
+        shader.clearPointLights();
+        shader.setShadowMode(false);
+    }
+
     public static void clear(float r, float g, float b, float a) {
         GL20.glClearColor(r, g, b, a);
         GL20.glClear(GL11.GL_COLOR_BUFFER_BIT);

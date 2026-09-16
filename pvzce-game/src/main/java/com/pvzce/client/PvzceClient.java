@@ -27,6 +27,7 @@ import com.pvzce.client.renderer.PvzceCamera;
 import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.client.renderer.ShaderProgram;
 import com.pvzce.client.renderer.TextureUv;
+import com.pvzce.client.renderer.TimeOfDayLighting;
 import com.pvzce.client.renderer.SpriteRenderer;
 import com.pvzce.client.renderer.font.FontRenderer;
 import com.pvzce.client.renderer.sprite.Sprite;
@@ -264,6 +265,11 @@ public final class PvzceClient {
         this.connection = connection;
         this.gameDir = gameDir;
         this.classLoader = classLoader;
+        // Settings are read here rather than in run(): the window is built from them, and a
+        // windowless client (tests, tooling) has to be able to ask for a preference without
+        // running the render loop. `load` writes the file out when there is none, so this
+        // also means a constructed client always has a config directory.
+        this.config = PvzceClientConfig.load(gameDir);
         // Which mechanic draws which HUD, registered before any level can arrive. A mod
         // adds its own from a ClientModInitializer; the built-ins are here so a mechanic
         // that ships with the game always has its client half.
@@ -295,7 +301,6 @@ public final class PvzceClient {
             LOGGER.warn("[tags] {}", error);
         }
 
-        config = PvzceClientConfig.load(gameDir);
         loadSeedSelections();
         window = new PvzceWindow("PVZ Community Edition", config);
         lastWindowWidth = window.width();
@@ -883,7 +888,7 @@ public final class PvzceClient {
         int viewportHeight = Math.max(1, Math.round(guiHeight * scale));
         RenderSystem.viewport(viewportX, viewportY, viewportWidth, viewportHeight);
         RenderSystem.setProjectionMatrix(Matrix4f.ortho(worldLeft, worldRight, worldBottom, worldTop, -10F, 10F));
-        RenderSystem.setGuiShader();
+        RenderSystem.setOverlayShader();
     }
 
     /** Sun drops act as warm point lights for the board around them. */
@@ -936,98 +941,87 @@ public final class PvzceClient {
      */
     private void applyTimeOfDayShader() {
         var time = level.timeOfDay();
-        float dayTicks = level.smoothDayTicks();
-        float nightBlend = level.nightBlendAt(dayTicks);
-        int w = Math.max(1, level.width());
-        int h = Math.max(1, level.height());
+        TimeOfDayLighting.Lighting lighting = TimeOfDayLighting.compute(
+                level.smoothDayTicks(), time.dayLength(), time.nightLength(),
+                level.width(), level.height());
+        worldLightX = lighting.sunX();
+        worldLightY = lighting.sunY();
+        worldTintR = lighting.tintR();
+        worldTintG = lighting.tintG();
+        worldTintB = lighting.tintB();
+        worldTintLift = lighting.lift();
+        worldLightR = lighting.sunR();
+        worldLightG = lighting.sunG();
+        worldLightB = lighting.sunB();
+        worldLightStrength = lighting.strength();
+        worldNightBlend = lighting.nightBlend();
+        RenderSystem.setTimeOfDay(lighting.tintR(), lighting.tintG(), lighting.tintB(), lighting.lift(),
+                lighting.sunX(), lighting.sunY(), lighting.sunRadius(),
+                lighting.sunR(), lighting.sunG(), lighting.sunB(), lighting.strength());
+    }
 
-        // Day parameters.
-        float dayTintR;
-        float dayTintG;
-        float dayTintB;
-        float dayLift;
-        float daySunX;
-        float daySunY;
-        float daySunR;
-        float daySunG;
-        float daySunB;
-        float dayStrength;
-        float dayRadius = Math.max(w, h) * 0.9F;
-
-        if (time.dayLength() <= 0) {
-            // Permanent day: sun directly overhead, neutral warm light.
-            dayTintR = 1.04F;
-            dayTintG = 1.01F;
-            dayTintB = 0.94F;
-            dayLift = 0.015F;
-            dayStrength = 0.20F;
-            daySunX = w * 0.5F;
-            daySunY = h * 3F;
-            daySunR = 1F;
-            daySunG = 1F;
-            daySunB = 0.9F;
-        } else {
-            int cycle = Math.max(1, time.dayLength() + Math.max(0, time.nightLength()));
-            long dayPos = Math.floorMod((long) Math.floor(dayTicks), cycle);
-            int dayLength = Math.max(1, time.dayLength());
-            int nightLength = Math.max(0, time.nightLength());
-            int window = Math.max(1, Math.min(120, Math.min(dayLength, Math.max(1, nightLength)) / 4));
-            // Keep the setting sun in the west through dusk; use the pre-sunrise
-            // east position for the final dawn blend.
-            float progress = dayPos <= dayLength + window
-                    ? Math.min(1F, dayPos / (float) dayLength)
-                    : 0F;
-            daySunX = w * (0.05F + 0.9F * progress); // east(left) -> west(right)
-            daySunY = h * (0.5F + 1.6F * Math.abs((float) Math.sin(Math.PI * progress)));
-            dayStrength = 0.22F + 0.16F * (float) Math.sin(Math.PI * progress);
-            float morning = Math.max(0F, 1F - progress * 2F);
-            float evening = Math.max(0F, (progress - 0.5F) * 2F);
-            dayTintR = 1F + 0.08F * morning + 0.10F * evening;
-            dayTintG = 1F + 0.02F * morning - 0.15F * evening;
-            dayTintB = 1F - 0.10F * morning - 0.30F * evening;
-            dayLift = 0.01F;
-            daySunR = 1F;
-            daySunG = 0.75F + 0.25F * morning - 0.15F * evening;
-            daySunB = 0.45F + 0.25F * morning;
+    /**
+     * The lighting a level <em>will open with</em>, for a screen that draws its board before
+     * the level exists.
+     *
+     * <p>The seed chooser is the caller: it shows the lawn the player is about to play on, and
+     * it has no clock - no {@code LevelInitS2C} has arrived yet - so a night level used to be
+     * previewed in broad daylight and then turn dark the moment it started. The level's own
+     * file is what the client has instead, read locally the same way the chooser already reads
+     * {@code usesConveyorBelt} and the seed pool, and tick zero is where a fresh run starts.
+     *
+     * <p>{@code x}/{@code y}/{@code cellWidth}/{@code cellHeight} are the board's rectangle in
+     * the caller's own pixels, so the moon glow lands on the lawn the caller drew rather than
+     * on the lawn's world coordinates. Null - an unknown level - leaves the shader neutral.
+     *
+     * <p>Static, and separate from {@link #applyLevelLighting}, because it is the half worth a
+     * test: it reads the packs and does the arithmetic, and needs no window to do either.
+     */
+    public static TimeOfDayLighting.Lighting levelLighting(String levelId, float x, float y,
+                                                           float cellWidth, float cellHeight) {
+        Identifier id = Identifier.tryParse(levelId);
+        LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
+        if (def == null) {
+            return null;
         }
+        return TimeOfDayLighting.inRect(TimeOfDayLighting.compute(0F,
+                        ruleInt(def, PvzceIds.RULE_DAY_LENGTH, 0),
+                        ruleInt(def, PvzceIds.RULE_NIGHT_LENGTH, -1),
+                        def.width(), def.height()),
+                x, y, cellWidth, cellHeight);
+    }
 
-        // Night parameters: PvZ-style cool blue moonlight.
-        float nightTintR = 0.40F;
-        float nightTintG = 0.46F;
-        float nightTintB = 0.78F;
-        float nightLift = -0.015F;
-        float nightStrength = 0.34F;
-        float nightSunX = w * 0.72F; // moon above the western side
-        float nightSunY = h * 2.1F;
-        float nightSunR = 0.68F;
-        float nightSunG = 0.80F;
-        float nightSunB = 1.0F;
-        float nightRadius = Math.max(w, h) * 1.05F;
+    /** Applies {@link #levelLighting}; an unknown level leaves the shader neutral. */
+    public void applyLevelLighting(String levelId, float x, float y,
+                                   float cellWidth, float cellHeight) {
+        TimeOfDayLighting.Lighting lighting = levelLighting(levelId, x, y, cellWidth, cellHeight);
+        if (lighting == null) {
+            RenderSystem.setGuiShader();
+            return;
+        }
+        applyLighting(lighting);
+    }
 
-        float tintR = lerp(dayTintR, nightTintR, nightBlend);
-        float tintG = lerp(dayTintG, nightTintG, nightBlend);
-        float tintB = lerp(dayTintB, nightTintB, nightBlend);
-        float lift = lerp(dayLift, nightLift, nightBlend);
-        float sunX = lerp(daySunX, nightSunX, nightBlend);
-        float sunY = lerp(daySunY, nightSunY, nightBlend);
-        float sunR = lerp(daySunR, nightSunR, nightBlend);
-        float sunG = lerp(daySunG, nightSunG, nightBlend);
-        float sunB = lerp(daySunB, nightSunB, nightBlend);
-        float strength = lerp(dayStrength, nightStrength, nightBlend);
-        float radius = lerp(dayRadius, nightRadius, nightBlend);
+    /** Pushes one computed lighting into the shader. */
+    public static void applyLighting(TimeOfDayLighting.Lighting lighting) {
+        RenderSystem.setTimeOfDay(lighting.tintR(), lighting.tintG(), lighting.tintB(), lighting.lift(),
+                lighting.sunX(), lighting.sunY(), lighting.sunRadius(),
+                lighting.sunR(), lighting.sunG(), lighting.sunB(), lighting.strength());
+    }
 
-        worldLightX = sunX;
-        worldLightY = sunY;
-        worldTintR = tintR;
-        worldTintG = tintG;
-        worldTintB = tintB;
-        worldTintLift = lift;
-        worldLightR = sunR;
-        worldLightG = sunG;
-        worldLightB = sunB;
-        worldLightStrength = strength;
-        worldNightBlend = nightBlend;
-        RenderSystem.setTimeOfDay(tintR, tintG, tintB, lift, sunX, sunY, radius, sunR, sunG, sunB, strength);
+    /**
+     * One of a level's rules as an int, with the registry's own default when the file is silent.
+     *
+     * <p>Read locally for the same reason the seed pool is: the client parses the same packs,
+     * and the answer only decides what is drawn.
+     */
+    private static int ruleInt(LevelDef def, Identifier rule, int fallback) {
+        var element = def.rules().get(rule);
+        if (element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+            return element.getAsInt();
+        }
+        var type = BuiltInRegistries.GAME_RULES.get(rule);
+        return type == null ? fallback : (int) type.defaultValue();
     }
 
     private static float lerp(float a, float b, float t) {
@@ -1474,8 +1468,8 @@ public final class PvzceClient {
         // Only a run that skipped the seed chooser still owes the player its opening
         // conversation; one that went through the chooser has already shown it.
         String levelId = level.levelId();
-        List<DialogueLine> opening = levelId != null && levelId.equals(directDialogueLevelId)
-                ? levelDialogue(levelId) : List.of();
+        com.pvzce.api.content.LevelDialogue opening = levelId != null && levelId.equals(directDialogueLevelId)
+                ? levelDialogue(levelId) : com.pvzce.api.content.LevelDialogue.EMPTY;
         directDialogueLevelId = null;
         setScreenReplacing(new InGameScreen(this, opening));
         if (deferredSavePrompt != null) {
@@ -1519,11 +1513,33 @@ public final class PvzceClient {
      * <p>Read locally for the same reason {@link #dealsItsOwnCards} and
      * {@link #lockedSlotsFor} are: the client loads the same packs as the server, and the
      * answer only decides what is drawn. An unknown level has no dialogue.
+     *
+     * <p>The whole block, not just its lines: how the conversation is staged (the opening and
+     * closing slides) is part of what the overlay is handed, and splitting it into a second
+     * lookup would let the two answers come from different reads.
+     *
+     * <p>Empty when the player switched 剧情 off: both places that play a conversation (the
+     * seed chooser and the in-game overlay of a level entered without one) build it from this,
+     * so "no dialogue" is one decision rather than a check each of them has to make.
      */
-    public List<DialogueLine> levelDialogue(String levelId) {
+    public com.pvzce.api.content.LevelDialogue levelDialogue(String levelId) {
+        if (!config.storyEnabled()) {
+            return com.pvzce.api.content.LevelDialogue.EMPTY;
+        }
         Identifier id = Identifier.tryParse(levelId);
         LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
-        return def == null ? List.of() : def.dialogue().lines();
+        return def == null ? com.pvzce.api.content.LevelDialogue.EMPTY : def.dialogue();
+    }
+
+    /** Whether entering a level plays its opening conversation (the 剧情 switch). */
+    public boolean storyEnabled() {
+        return config.storyEnabled();
+    }
+
+    /** The 剧情 switch; persisted, and read on the next level entry rather than mid-scene. */
+    public void setStoryEnabled(boolean enabled) {
+        config.setStoryEnabled(enabled);
+        config.save();
     }
 
     /**

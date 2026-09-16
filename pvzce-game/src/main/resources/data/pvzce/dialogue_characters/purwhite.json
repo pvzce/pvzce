@@ -1,0 +1,8 @@
+{
+  "id": "pvzce:purwhite",
+  "name": "紫夜白",
+  "portrait_dir": "pvzce:textures/gui/dialogue/purwhite",
+  "scale": 1.0,
+  "box_left": "pvzce:textures/gui/dialogue/box_left",
+  "box_right": "pvzce:textures/gui/dialogue/box_right"
+}

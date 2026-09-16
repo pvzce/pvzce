@@ -1,0 +1,23 @@
+{
+  "id": "pvzce:sun_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:nocturnal"
+    },
+    {
+      "type": "pvzce:producer",
+      "resource": "pvzce:sun",
+      "amount": 15,
+      "every": 1440
+    }
+  ],
+  "animation_dir": "plant/producer",
+  "texture": "pvzce:textures/entities/plant/producer/sun_shroom"
+}
