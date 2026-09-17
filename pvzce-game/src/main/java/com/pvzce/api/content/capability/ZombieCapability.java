@@ -39,6 +39,20 @@ public interface ZombieCapability {
     }
 
     /**
+     * The animation state the walking loop should publish, or {@code null} for the default.
+     *
+     * <p>A zombie that carries something changes how it walks, not whether it walks: the
+     * pole vaulter jogs with its pole held out until it has vaulted, and walks empty-handed
+     * afterwards. The state is asked for rather than set from {@link #tick} because the walk
+     * loop publishes its state after the capabilities have run - anything a capability set
+     * there would be overwritten in the same tick (which is the whole reason a vaulting
+     * zombie's jump was never visible).
+     */
+    default String walkState(ZombieEntity zombie) {
+        return null;
+    }
+
+    /**
      * Whether the zombie enters the level airborne (balloon zombies). The entity
      * asks its capabilities instead of hardcoding which one flies, so a new
      * airborne capability works without touching {@code ZombieEntity}.

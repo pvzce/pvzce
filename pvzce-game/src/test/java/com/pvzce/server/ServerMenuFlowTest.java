@@ -54,6 +54,9 @@ class ServerMenuFlowTest {
             assertTrue(tabs.tabs().stream().anyMatch(tab -> tab.theme().equals("pvzce:yard")
                             && tab.category().equals("pvzce:adventure")),
                     "the shipped yard/adventure levels need a page: " + tabs.tabs());
+            assertTrue(tabs.tabs().stream().anyMatch(tab -> tab.theme().equals("pvzce:yard")
+                            && tab.category().equals("pvzce:minigame")),
+                    "the shipped yard/minigame level needs a page too: " + tabs.tabs());
             assertFalse(tabs.tabs().stream().anyMatch(tab -> tab.theme().equals("pvzce:uncategorized")),
                     "the server lists levels, not empty pages: " + tabs.tabs());
 
@@ -61,7 +64,6 @@ class ServerMenuFlowTest {
             for (LevelListS2C.LevelInfo info : list.levels()) {
                 assertFalse(info.isUncategorized(), info.id() + " fell out of its theme/category");
                 assertEquals("pvzce:yard", info.theme(), info.id());
-                assertEquals("pvzce:adventure", info.category(), info.id());
                 assertTrue(tabs.tabs().contains(new LevelTabsS2C.Tab(info.theme(), info.category())),
                         "no page for " + info.id() + ": " + tabs.tabs());
             }

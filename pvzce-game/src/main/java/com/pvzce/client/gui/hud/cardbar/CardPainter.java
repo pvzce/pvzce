@@ -29,7 +29,7 @@ public final class CardPainter {
         com.pvzce.client.gui.SeedCardRenderer.CardModel model =
                 new com.pvzce.client.gui.SeedCardRenderer.CardModel(
                         icon, com.pvzce.client.gui.SeedCardRenderer.CardKind.fromJson(slot.kind()),
-                        cost, dark, alpha, ready, slot.cooldownLeft() / 300F, selected, null, false);
+                        cost, dark, alpha, ready, slot.cooldownRatio(), selected, null, false);
         if (SHOVEL_ID.equals(slot.defId())) {
             model = model.chrome(com.pvzce.client.gui.SeedCardRenderer.SHOVEL_SLOT_BACKGROUND, true);
         }

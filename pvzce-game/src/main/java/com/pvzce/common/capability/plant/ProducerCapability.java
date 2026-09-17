@@ -40,11 +40,60 @@ public final class ProducerCapability implements PlantCapability {
     private final int everyTicks;
     private final int firstDelayTicks;
     private final Optional<Identifier> sound;
+    /** What this producer's drop is drawn at, before growth. */
+    private final float dropScale;
+    /**
+     * How this producer grows up, or {@code null} for one that does not.
+     *
+     * <p>Growth belongs on the producer rather than on a capability of its own because the
+     * two things it changes are both the producer's: how much the drop is worth and how big
+     * the drop is drawn. The art variant is published through
+     * {@link com.pvzce.server.entity.PlantEntity#setState}.
+     */
+    private final Growth growth;
 
     private int cooldown;
+    /** Ticks until this producer grows, or 0 when it has no growth left to do. */
+    private int growTicks;
+    /** Ticks of the grow performance left; the plant produces nothing while it plays. */
+    private int growingTicks;
+
+    /**
+     * A producer that grows into a bigger one: the sun-shroom, whose small form makes a
+     * 15-value sun and whose grown form makes a 25-value one.
+     *
+     * @param afterTicks  how long after planting the growth happens
+     * @param amount      what the drop is worth afterwards
+     * @param dropScale   how big the drop is drawn afterwards
+     * @param variant     clip-name suffix of the grown art ({@code big} for {@code idle_big})
+     * @param clipTicks   how long the {@code grow} performance lasts; production pauses for it
+     */
+    public record Growth(int afterTicks, int amount, float dropScale, String variant, int clipTicks,
+                         Identifier sound) {
+        public static final int DEFAULT_CLIP_TICKS = 60;
+
+        public static final MapCodec<Growth> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
+                Codec.INT.fieldOf("after_ticks").forGetter(Growth::afterTicks),
+                Codec.INT.fieldOf("amount").forGetter(Growth::amount),
+                Codec.FLOAT.optionalFieldOf("drop_scale", 1F).forGetter(Growth::dropScale),
+                Codec.STRING.optionalFieldOf("variant", "big").forGetter(Growth::variant),
+                Codec.INT.optionalFieldOf("clip_ticks", DEFAULT_CLIP_TICKS).forGetter(Growth::clipTicks),
+                // Growing is an event, so it has a sound by default rather than being silent
+                // by default: the original plays one when a plant matures, and a mushroom
+                // that doubles in size in silence reads as a graphics glitch.
+                Identifier.CODEC.optionalFieldOf("sound", com.pvzce.common.PvzceSounds.PLANT_GROW)
+                        .forGetter(Growth::sound)
+        ).apply(i, Growth::new));
+    }
 
     public ProducerCapability(Identifier resource, int amount, int everyTicks, int firstDelayTicks,
                               Optional<Identifier> sound) {
+        this(resource, amount, everyTicks, firstDelayTicks, sound,
+                com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE, Optional.empty());
+    }
+
+    public ProducerCapability(Identifier resource, int amount, int everyTicks, int firstDelayTicks,
+                              Optional<Identifier> sound, float dropScale, Optional<Growth> growth) {
         this.resource = resource;
         this.amount = Math.max(1, amount);
         this.everyTicks = Math.max(1, everyTicks);
@@ -52,6 +101,11 @@ public final class ProducerCapability implements PlantCapability {
                 ? Math.min(this.everyTicks, DEFAULT_FIRST_DELAY)
                 : Math.min(firstDelayTicks, this.everyTicks);
         this.sound = sound;
+        this.dropScale = dropScale <= 0F
+                ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE
+                : dropScale;
+        this.growth = growth == null ? null : growth.orElse(null);
+        this.growTicks = this.growth == null ? 0 : Math.max(1, this.growth.afterTicks());
         this.cooldown = this.firstDelayTicks;
     }
 
@@ -60,7 +114,11 @@ public final class ProducerCapability implements PlantCapability {
             Codec.INT.optionalFieldOf("amount", DEFAULT_AMOUNT).forGetter(ProducerCapability::amount),
             Codec.INT.fieldOf("every").forGetter(ProducerCapability::everyTicks),
             Codec.INT.optionalFieldOf("first_delay", -1).forGetter(ProducerCapability::firstDelayTicks),
-            Identifier.CODEC.optionalFieldOf("sound").forGetter(ProducerCapability::sound)
+            Identifier.CODEC.optionalFieldOf("sound").forGetter(ProducerCapability::sound),
+            Codec.FLOAT.optionalFieldOf("drop_scale",
+                    com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE)
+                    .forGetter(ProducerCapability::dropScale),
+            Growth.CODEC.codec().optionalFieldOf("grow").forGetter(ProducerCapability::growth)
     ).apply(i, ProducerCapability::new));
 
     public Identifier resource() {
@@ -83,23 +141,70 @@ public final class ProducerCapability implements PlantCapability {
         return sound;
     }
 
+    /** How this producer grows up, or empty for one that does not. */
+    public Optional<Growth> growth() {
+        return Optional.ofNullable(growth);
+    }
+
+    /** What this producer's drop is drawn at right now, grown or not. */
+    public float dropScale() {
+        return isGrown() ? growth.dropScale() : dropScale;
+    }
+
+    /** What this producer's drop is worth right now. */
+    public int currentAmount() {
+        return isGrown() ? growth.amount() : amount;
+    }
+
+    /** True once this producer has grown into its bigger form. */
+    public boolean isGrown() {
+        return growth != null && growTicks <= 0;
+    }
+
+    /** How the plant's art is suffixed once grown ({@code big} → {@code idle_big}). */
+    @Override
+    public String variantSuffix(PlantEntity plant) {
+        return isGrown() ? growth.variant() : "";
+    }
+
     @Override
     public PlantCapability instantiate() {
-        return new ProducerCapability(resource, amount, everyTicks, firstDelayTicks, sound);
+        return new ProducerCapability(resource, amount, everyTicks, firstDelayTicks, sound,
+                dropScale, growth());
     }
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
+        if (growingTicks > 0) {
+            // The growth performance owns the plant for its second or so: it is the one
+            // moment the art is neither form, and producing through it would drop a sun out
+            // of a mushroom that is visibly mid-transformation.
+            growingTicks--;
+            // `grow` is one clip for both forms, so it is published raw: suffixing it would
+            // ask for a `grow_big` that no artist drew.
+            plant.setAnimation(EntityAnimations.GROW);
+            return;
+        }
+        if (growth != null && growTicks > 0 && --growTicks <= 0) {
+            // `isGrown` is true from here on, so the very next state this producer publishes
+            // is already the grown one and the clip below runs into `idle_big` (the clip's own
+            // `on_end`), not into the small idle.
+            growingTicks = Math.max(1, growth.clipTicks());
+            plant.setAnimation(EntityAnimations.GROW);
+            level.emitEffect("", plant.cellX(), plant.cellY(), growth.sound());
+            return;
+        }
         if (cooldown > 0) {
             cooldown--;
         }
         if (cooldown > 0) {
-            plant.setAnimation(EntityAnimations.IDLE);
+            plant.setState(EntityAnimations.IDLE);
             return;
         }
         cooldown = everyTicks;
-        plant.setAnimation(EntityAnimations.PRODUCE);
-        level.spawnProducedResource(resource, amount, plant.cellX(), plant.cellY(), plant.team());
+        plant.setState(EntityAnimations.PRODUCE);
+        level.spawnProducedResource(resource, currentAmount(), plant.cellX(), plant.cellY(),
+                plant.team(), dropScale());
         // No fallback sound: "the definition did not name one" means the plant makes no
         // noise, and the chime that used to stand in for it belongs to the pickup. An
         // empty id is what LevelServer already reads as "play nothing".
@@ -110,10 +215,19 @@ public final class ProducerCapability implements PlantCapability {
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
+        tag.putInt("growTicks", growTicks);
+        tag.putInt("growingTicks", growingTicks);
     }
 
     @Override
     public void load(CompoundTag tag) {
         cooldown = tag.getInt("cooldown");
+        // A plant saved mid-growth finishes growing where it left off; one saved by a build
+        // without growth, or by a definition that has none, keeps the timer it was built
+        // with (see the constructor), so the block below only applies to a real growth.
+        if (growth != null) {
+            growTicks = Math.max(0, tag.getInt("growTicks"));
+            growingTicks = Math.max(0, tag.getInt("growingTicks"));
+        }
     }
 }

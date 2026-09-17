@@ -20,7 +20,7 @@ import java.util.Optional;
  * {@value #DEFAULT_REPEAT_COINS} coins when replayed (declare {@code "repeat": []}
  * to opt out), and every zombie drops a silver coin with a
  * {@value #DEFAULT_COIN_DROP_CHANCE} chance. First clears pay nothing extra until
- * a level declares an {@code unlock}.
+ * a level declares an {@code unlock}, a {@code coins} bounty or a {@code resource}.
  */
 public record LevelRewards(
         List<Reward> firstClear,
@@ -72,12 +72,21 @@ public record LevelRewards(
      * One payout entry.
      *
      * <p>{@code type} is the discriminator: {@code "unlock"} carries {@code id},
-     * {@code "coins"} carries {@code amount}. An unknown type is not an error the
-     * codec can see, so {@link com.pvzce.server.level.LevelValidator} reports it.
+     * {@code "coins"} carries {@code amount}, {@code "resource"} carries both - {@code amount}
+     * of the resource {@code id}. An unknown type is not an error the codec can see, so
+     * {@link com.pvzce.server.level.LevelValidator} reports it.
+     *
+     * <p>{@code resource} is the third shape because a wallet can only hold one kind of
+     * thing: a level that hands over a diamond hands over a coin worth 1000, and the two
+     * halves are not interchangeable - "1000 coins" is a number, "a diamond" is an object
+     * the award page draws. The generic form keeps the worth in the resource definition
+     * ({@code default_value}), where the whole denomination ladder already lives, instead of
+     * writing 1000 a second time in a level file.
      */
     public record Reward(String type, Optional<Identifier> id, int amount) {
         public static final String TYPE_UNLOCK = "unlock";
         public static final String TYPE_COINS = "coins";
+        public static final String TYPE_RESOURCE = "resource";
 
         public static final Codec<Reward> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.STRING.fieldOf("type").forGetter(Reward::type),
@@ -93,12 +102,21 @@ public record LevelRewards(
             return new Reward(TYPE_COINS, Optional.empty(), amount);
         }
 
+        /** {@code amount} of one resource; the wallet is credited what it is worth. */
+        public static Reward resource(Identifier id, int amount) {
+            return new Reward(TYPE_RESOURCE, Optional.of(id), amount);
+        }
+
         public boolean isUnlock() {
             return TYPE_UNLOCK.equals(type);
         }
 
         public boolean isCoins() {
             return TYPE_COINS.equals(type);
+        }
+
+        public boolean isResource() {
+            return TYPE_RESOURCE.equals(type);
         }
 
         /** True when this entry names something the codec could not carry out. */
@@ -108,6 +126,9 @@ public record LevelRewards(
             }
             if (isCoins()) {
                 return amount <= 0;
+            }
+            if (isResource()) {
+                return id.isEmpty() || amount <= 0;
             }
             return true;
         }

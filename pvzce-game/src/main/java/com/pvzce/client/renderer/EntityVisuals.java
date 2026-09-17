@@ -68,6 +68,53 @@ public final class EntityVisuals {
     /** Underground zombies are drawn under the lawn rather than among the entities. */
     public static final int UNDERGROUND_SORT_BUCKET = -100;
 
+    /**
+     * The colour a slowed zombie is drawn in.
+     *
+     * <p>The original's frozen zombie is the same art under a cold wash, and a per-channel
+     * multiply is the cheapest way to say that: red and green come down, blue goes up, and
+     * the black outline and the white highlights survive because multiplying by a colour
+     * cannot invent detail. It is deliberately not a white-blue blend - a blend would wash
+     * the sprite towards flat blue and lose the shading that makes it read as a zombie.
+     *
+     * <p>Only {@code slow} wears it (see {@code ZombieEntity#chilled}), and the same tint
+     * covers every slowed zombie however it was slowed.
+     */
+    public static final float CHILLED_TINT_R = 0.62F;
+    public static final float CHILLED_TINT_G = 0.88F;
+    public static final float CHILLED_TINT_B = 1.45F;
+
+    /**
+     * How much of the night tint a plant or a zombie is allowed to cancel.
+     *
+     * <p>The scene tint is a multiply applied to everything the world shader draws, and it
+     * has to say "night" - but it says it about the lawn, the street and the house, while the
+     * plants and zombies are what the player is reading the board by. At full night strength
+     * the lane turns into silhouettes.
+     *
+     * <p>This is a <em>fraction of the tint to undo</em> rather than a brightness multiplier,
+     * which matters: undoing part of a blue tint means undoing more red than blue, so the
+     * entity keeps its own colours and simply looks less night-lit than the grass it stands
+     * on. Multiplying every channel by the same number would leave a zombie in a blue scene
+     * looking blue as well - brighter, but no more legible.
+     *
+     * <p>Presentation only, and applied through the entity ink stack, so it never touches the
+     * scene, the HUD or a drop (see {@link #liftsAtNight}).
+     */
+    public static final float NIGHT_LIFT = 0.55F;
+
+    /**
+     * Whether this kind is drawn brighter as the scene darkens.
+     *
+     * <p>Plants and zombies only. A drop is meant to glow on its own account - the sun is
+     * the board's only light and is deliberately kept from blowing out (see
+     * {@link #DROP_TINT}) - and a projectile is small enough that lifting it would only make
+     * it look like it belonged to a different scene.
+     */
+    public static boolean liftsAtNight(String kind) {
+        return EntityKind.PLANT.equals(kind) || EntityKind.ZOMBIE.equals(kind);
+    }
+
     public static Visuals of(String kind) {
         return switch (kind == null ? "" : kind) {
             case EntityKind.PLANT -> PLANT;

@@ -30,6 +30,24 @@ public interface PlantCapability {
     default void tick(PlantEntity plant, LevelAccess level) {
     }
 
+    /**
+     * The art variant this capability puts the plant in, or {@code ""} for the plain one.
+     *
+     * <p>A plant that grows swaps one set of clips for another - the sun-shroom's small
+     * `idle`/`sleep` become `idle_big`/`sleep_big` - and every capability that publishes an
+     * animation has to agree on which set is in play. Rather than each one asking the
+     * growing capability (or, worse, keeping its own copy of "am I grown"), the state names
+     * go through {@code PlantEntity#setState}, which appends the suffix its capabilities
+     * report. `sleep` therefore becomes `sleep_big` without the nocturnal capability
+     * knowing that growth exists, and a capability that grows only has to answer here.
+     *
+     * <p>The suffix is a clip-name suffix, not a separate field on the wire: the client is
+     * sent the finished state name and looks up the clip it does not have a definition for.
+     */
+    default String variantSuffix(PlantEntity plant) {
+        return "";
+    }
+
     /** Called when the plant leaves the field for any reason. */
     default void onRemoved(PlantEntity plant, LevelAccess level) {
     }

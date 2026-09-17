@@ -20,9 +20,10 @@ import java.util.Random;
 /**
  * The original's end-of-level award page.
  *
- * <p>A won level shows one of two things in the frame: a seed packet dropping into place
- * when this run unlocked a card, or the coins this run paid out when it did not (a replay,
- * or a level whose first clear grants nothing).
+ * <p>A won level shows one of three things in the frame: a seed packet dropping into place
+ * when this run unlocked a card, the resource it was handed when the level pays in objects
+ * (a mini-game's trophy diamond), or the coins this run paid out when it did neither (a
+ * replay, or a level whose first clear grants nothing).
  *
  * <p><b>This page is a summary, not a place to collect.</b> The money bag used to be drawn
  * here, and the player had to click it to see the coins - while the coins themselves had
@@ -71,6 +72,15 @@ public final class AwardScreen extends Screen {
     private final String unlockedName;
     /** The new card's own sun cost, so the packet reads like every other card. */
     private final int unlockedCost;
+    /**
+     * The object this run was handed, when the level pays a {@code resource} reward.
+     *
+     * <p>Null for every other payout. A card and an item never both take the frame: the card
+     * is the bigger news, and the fields below are filled only when there is no card to show.
+     */
+    private final Identifier rewardItemIcon;
+    private final String rewardItemName;
+    private final int rewardItemAmount;
     private final long startNanos = System.nanoTime();
     private final List<Sprinkled> coins = new ArrayList<>();
     private final Random random = new Random();
@@ -93,11 +103,29 @@ public final class AwardScreen extends Screen {
         this.unlockedIcon = card == null ? null : card.icon().orElse(null);
         this.unlockedCost = card == null ? 0 : card.costSun();
         this.unlockedName = reward.hasUnlock() ? GuiLang.name(reward.unlockedCard()) : "";
+        // The frame holds one thing, and a card is the bigger news: asked in the same order
+        // the drop on the lawn asks it, so the two cannot disagree about what was paid.
+        boolean item = !reward.hasUnlock() && reward.hasRewardItem();
+        Identifier itemId = item ? Identifier.tryParse(reward.rewardItem()) : null;
+        com.pvzce.api.content.ResourceDef itemDef = itemId == null
+                ? null : com.pvzce.common.core.BuiltInRegistries.RESOURCES.get(itemId);
+        // An unknown resource still gets a name and the shared missing-texture tile: the
+        // wallet was credited, and a receipt that shows nothing is worse than one that says
+        // "something you do not have the art for".
+        this.rewardItemIcon = !item ? null
+                : (itemDef != null ? itemDef.icon() : com.pvzce.common.core.EntityArt.sprite(itemId));
+        this.rewardItemName = item ? GuiLang.name(reward.rewardItem()) : "";
+        this.rewardItemAmount = item ? reward.rewardItemAmount() : 0;
     }
 
     /** True when the frame shows a new card rather than the run's coin payout. */
     private boolean showsCard() {
         return unlockedIcon != null;
+    }
+
+    /** True when the frame shows an object the level handed over instead of coins. */
+    private boolean showsItem() {
+        return rewardItemIcon != null;
     }
 
     @Override
@@ -155,10 +183,15 @@ public final class AwardScreen extends Screen {
 
         if (showsCard()) {
             renderDroppingCard(fit, guiW, guiH, fade);
+        } else if (showsItem()) {
+            // The level paid in objects: the object falls into the frame, on the same beat
+            // and from the same place as the card. No coin shower - what the wallet gained is
+            // written below, and a shower of coins over a diamond would say the wrong thing.
+            renderDroppingItem(fit, fade);
         } else {
-            // No card: the page's own beat is a shower of the coins this run paid out. It
-            // used to need a click on the bag first; the bag is on the lawn now, so here it
-            // simply happens, on the same wall clock as the rest of the page.
+            // No card and no object: the page's own beat is a shower of the coins this run
+            // paid out. It used to need a click on the bag first; the bag is on the lawn now,
+            // so here it simply happens, on the same wall clock as the rest of the page.
             spawnSprinkledCoins(fit);
         }
         renderSprinkledCoins(fit);
@@ -206,6 +239,25 @@ public final class AwardScreen extends Screen {
                         unlockedIcon, SeedCardRenderer.CardKind.PLANT, unlockedCost)
                         .withAlpha(fade),
                 centerX - size / 2F, y, size, cardHeight * fit.scale());
+    }
+
+    /**
+     * The coin shower's own beat, for a reward that was an object instead.
+     *
+     * <p>Same drop-and-settle as the card, and the coin shower's own size and resting place,
+     * because the frame is where the coins would have been sprayed: an item landing there
+     * reads as the same award in a different currency.
+     */
+    private void renderDroppingItem(CoverFit fit, float fade) {
+        float elapsed = (System.nanoTime() - startNanos) / (float) DROP_NANOS;
+        float progress = MathUtil.easeOutCubic(Math.max(0F, Math.min(1F, elapsed)));
+        float size = fit.scale() * Math.min(150F, (WINDOW_BOTTOM - WINDOW_TOP) * 0.82F);
+        float centerX = fit.mapX((WINDOW_LEFT + WINDOW_RIGHT) / 2F);
+        float settledY = fit.mapY(WINDOW_BOTTOM - 12F, ART_HEIGHT);
+        float fromY = fit.mapY(-160F, ART_HEIGHT);
+        float y = MathUtil.lerp(fromY, settledY, progress);
+        client.drawTexture(rewardItemIcon, centerX - size / 2F, y, size, size, 0.5F,
+                1F, 1F, 1F, fade);
     }
 
     /**
@@ -281,6 +333,14 @@ public final class AwardScreen extends Screen {
             y = drawCentered(GuiLang.raw("pvzce.award.new_card", "获得新植物！"),
                     centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
             y = drawCentered(unlockedName, centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
+        } else if (showsItem()) {
+            // The object by name and count, so the receipt says what the frame is showing -
+            // and the coin lines below still state what it was worth, because the wallet is
+            // the only thing that actually changed.
+            y = drawCentered(GuiLang.raw("pvzce.award.new_item", "获得战利品！"),
+                    centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
+            y = drawCentered(rewardItemName + " ×" + rewardItemAmount,
+                    centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
         } else {
             // Not "click the bag to collect": there is no bag here any more, and the coins
             // were collected on the board. This line states what the run was worth.

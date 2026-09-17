@@ -26,6 +26,7 @@ import com.pvzce.common.core.PlantPlacement.PlantLayer;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.core.SlotResolver;
+import com.pvzce.common.level.CardCooldown;
 import com.pvzce.common.level.DayNightCycle;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.SceneGrid;
@@ -103,6 +104,14 @@ public final class LevelServer implements LevelAccess {
     private final List<PvzceEntity> pendingAdd = new ArrayList<>();
     private final List<PvzceEntity> pendingRemove = new ArrayList<>();
     private final List<PendingWaveSpawn> pendingWaveSpawns = new ArrayList<>();
+    /**
+     * Entities that joined the level while no bridge was set, and still owe the client a
+     * spawn packet.
+     *
+     * <p>Not saved: the client is sent a full state whenever it enters a level, so an entity
+     * waiting here across a save is covered by that instead.
+     */
+    private final List<PvzceEntity> awaitSpawnPacket = new ArrayList<>();
     private final Map<Integer, Integer> craterTimers = new HashMap<>();
     private final Random random = new Random();
     private final PvzcePlayer plantPlayer;
@@ -690,16 +699,30 @@ public final class LevelServer implements LevelAccess {
 
     @Override
     public void spawnResource(Identifier resourceId, int amount, float x, float y, Team team) {
-        spawnResource(resourceId, amount, x, y, team, null);
+        spawnResource(resourceId, amount, x, y, team, null,
+                com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE);
     }
 
     @Override
     public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team) {
-        spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE);
+        spawnProducedResource(resourceId, amount, x, y, team,
+                com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE);
+    }
+
+    @Override
+    public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                      float scale) {
+        spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE, scale);
     }
 
     private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
                                ResourceDef.DropMotion motion) {
+        spawnResource(resourceId, amount, x, y, team, motion,
+                com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE);
+    }
+
+    private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
+                               ResourceDef.DropMotion motion, float scale) {
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(resourceId);
         if (resource == null) {
             return;
@@ -710,7 +733,7 @@ public final class LevelServer implements LevelAccess {
         float scatter = Math.max(0F, resource.riseScatter());
         float driftX = scatter <= 0F ? 0F : (random.nextFloat() * 2F - 1F) * scatter;
         addEntity(new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y),
-                amount, motion, driftX));
+                amount, motion, driftX, scale));
     }
 
     @Override
@@ -989,6 +1012,12 @@ public final class LevelServer implements LevelAccess {
             entities.add(entity);
             if (bridge != null) {
                 bridge.send(entity.spawnPacket());
+            } else {
+                // Nothing to send it down, but the entity exists now: it joins the level and
+                // waits for the next flush that does have a bridge. Dropping the packet
+                // instead is how `/spawn plant` came to answer "已生成" and draw nothing -
+                // the plant was in the level, and the client had never been told.
+                awaitSpawnPacket.add(entity);
             }
         }
         pendingAdd.clear();
@@ -996,6 +1025,10 @@ public final class LevelServer implements LevelAccess {
             pendingRemove.clear();
             return;
         }
+        for (PvzceEntity entity : awaitSpawnPacket) {
+            bridge.send(entity.spawnPacket());
+        }
+        awaitSpawnPacket.clear();
         for (PvzceEntity entity : pendingRemove) {
             entities.remove(entity);
             bridge.send(new EntityDespawnS2C(entity.id()));
@@ -1238,6 +1271,7 @@ public final class LevelServer implements LevelAccess {
         }
         if (firstAnnouncement && wave.type() == WaveDef.WaveType.FINAL) {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.EFFECT_AWOOGA, 1F, 1F);
+            riseGraveZombies(wave);
         }
 
         nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
@@ -1473,14 +1507,77 @@ public final class LevelServer implements LevelAccess {
                         setScene(x, y, PvzceIds.GRASS);
                         sendSceneCell(x, y);
                     }
-                } else if (PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())
-                        && clock.isNight(rules)
-                        && rules.getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT)
-                        && random.nextInt(900) == 0) {
-                    spawnZombie(PvzceIds.id("basic_zombie"), zombieTeam(), x + 0.5F, y);
                 }
             }
         }
+    }
+
+    /**
+     * Opens every grave on the lawn at the last wave.
+     *
+     * <p>The night levels' farewell: the tombstones the player has been planting around all
+     * level give up one zombie each, as in the original. It is the final wave only, and the
+     * level's {@code graves_spawn_night} rule turns it off - a level whose graves are pure
+     * scenery says so with {@code false}.
+     *
+     * <p>The zombie is the weakest one this wave already contains, so the graves cannot raise
+     * the difficulty past what the level asked for: a wave of Bucketheads gets a grave full of
+     * Bucketheads, and one of ordinary zombies gets ordinary ones. Nothing is added out of
+     * thin air, and a wave with no entries at all opens nothing.
+     */
+    private void riseGraveZombies(WaveDef wave) {
+        if (!clock.isNight(rules) || !rules.getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT)) {
+            return;
+        }
+        Identifier weakest = weakestZombieOf(wave);
+        if (weakest == null) {
+            return;
+        }
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                SceneElementDef element = scene.get(x, y);
+                if (element == null || !PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) {
+                    continue;
+                }
+                float cellX = x + 0.5F;
+                // The zombie exists from this tick and climbs for a second: it is a state on
+                // the zombie rather than a delayed spawn, so the client can draw it *under*
+                // the lawn and raise it (and a save taken mid-climb resumes mid-climb).
+                ZombieEntity riser = spawnZombie(weakest, zombieTeam(), cellX, y);
+                if (riser != null) {
+                    riser.beginRise();
+                    requestEntitySync();
+                }
+                // An arm out of the dirt, and the dirt itself, for the whole climb.
+                emitEffect(PvzceParticles.ZOMBIE_RISE.toString(), cellX, y + 0.5F, null);
+                emitEffect(PvzceParticles.DIRT_BIG.toString(), cellX, y + 0.5F,
+                        PvzceSounds.EFFECT_DIRT_RISE);
+            }
+        }
+    }
+
+    /**
+     * The cheapest zombie in a wave, by the health its definition declares.
+     *
+     * <p>"Weakest" is read from the content rather than from a hardcoded id: which zombie a
+     * grave holds is a property of the wave the level wrote, and a level that ships its own
+     * zombies gets its own answer. {@code null} for a wave whose entries name nothing that is
+     * registered.
+     */
+    private Identifier weakestZombieOf(WaveDef wave) {
+        Identifier weakest = null;
+        int lowest = Integer.MAX_VALUE;
+        for (WaveDef.Entry entry : wave.entries()) {
+            ZombieDef def = BuiltInRegistries.ZOMBIES.get(entry.id());
+            if (def == null) {
+                continue;
+            }
+            if (def.health() < lowest) {
+                lowest = def.health();
+                weakest = entry.id();
+            }
+        }
+        return weakest;
     }
 
     private void maybeSpawnSun() {
@@ -1746,7 +1843,7 @@ public final class LevelServer implements LevelAccess {
             return false;
         }
         if (!finishingMove) {
-            slot.startCooldown(tool.cooldownTicks());
+            slot.startCooldown(effectiveCooldownTicks(slot));
             slot.consumeUse();
         }
         bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
@@ -1870,8 +1967,29 @@ public final class LevelServer implements LevelAccess {
         boolean available = slot.kind() == Slot.Kind.RESOURCE
                 || (slot.ready() && plantPlayer != null
                         && plantPlayer.team().resourcesOf(PvzceIds.SUN) >= Math.max(0, price));
+        // The bar draws the recharge as "how much of this card's cooldown is left", so the
+        // divisor travels with the remainder rather than being re-derived per card on the
+        // client - which is how a sweep used to fill only its last 300 ticks whatever the
+        // card's real cooldown was, and how a level with a multiplier would have drawn a
+        // full bar as three-quarters full.
         return new SlotInfo(slot.index(), slot.defId().toString(), slot.kind().json(), price,
-                slot.cooldownLeft(), slot.usesLeft(), available);
+                slot.cooldownLeft(), effectiveCooldownTicks(slot), slot.usesLeft(), available);
+    }
+
+    /**
+     * The ticks this card waits before it can be used again, level multiplier included.
+     *
+     * <p>The one place the level's {@code pvzce:seed_cooldown_multiplier} is applied, read
+     * from the live rules rather than baked into the bar when it was dealt: {@code /gamerule}
+     * changes the cooldowns of the cards already in the player's hand, and the card bar's
+     * recharge is drawn against the same number the charge used.
+     */
+    public int effectiveCooldownTicks(Slot slot) {
+        if (slot == null) {
+            return 0;
+        }
+        return CardCooldown.effective(slot.cooldownTicks(),
+                rules.getFloat(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER));
     }
 
     public List<SlotInfo> slotInfos() {
@@ -1941,6 +2059,7 @@ public final class LevelServer implements LevelAccess {
         bridge = null;
         gameState = "closed";
         pendingAdd.clear();
+        awaitSpawnPacket.clear();
         pendingRemove.clear();
         entities.clear();
         pendingWaveSpawns.clear();
@@ -2000,6 +2119,7 @@ public final class LevelServer implements LevelAccess {
             pendingWaves.add(queueTag);
         }
         root.put("PendingWaveSpawns", pendingWaves);
+
 
         // Teams, cards, resources and every entity live in one tag; the server no
         // longer writes a second copy of the same data or a per-team side file.

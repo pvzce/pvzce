@@ -42,6 +42,7 @@ public final class RulePage {
             Map.entry("pvzce:zombie_damage_multiplier", new float[]{0F, 5F}),
             Map.entry("pvzce:zombie_speed_multiplier", new float[]{0F, 5F}),
             Map.entry("pvzce:plant_damage_multiplier", new float[]{0F, 5F}),
+            Map.entry("pvzce:seed_cooldown_multiplier", new float[]{0F, 5F}),
             Map.entry("pvzce:max_players_per_team", new float[]{1F, 64F}));
 
     /** Rules whose value is a whole number of ticks or players; the slider rounds. */
@@ -52,8 +53,9 @@ public final class RulePage {
     /** The order the page lists them in: pacing, economy, combat, then the rest. */
     private static final List<String> ORDER = List.of(
             "pvzce:day_length", "pvzce:night_length", "pvzce:sun_spawn_chance", "pvzce:sun_value",
-            "pvzce:crater_recovery", "pvzce:grave_spawn_night", "pvzce:zombie_damage_multiplier",
+            "pvzce:crater_recovery", "pvzce:graves_spawn_night", "pvzce:zombie_damage_multiplier",
             "pvzce:zombie_speed_multiplier", "pvzce:plant_damage_multiplier",
+            "pvzce:seed_cooldown_multiplier",
             "pvzce:max_players_per_team", "pvzce:level_pause_on_single_player");
 
     public static EditorPage create() {

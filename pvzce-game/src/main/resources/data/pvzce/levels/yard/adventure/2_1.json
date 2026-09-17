@@ -77,8 +77,7 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": 360000,
-    "pvzce:sun_spawn_chance": 0,
-    "pvzce:graves_spawn_night": false
+    "pvzce:sun_spawn_chance": 0
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,

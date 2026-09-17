@@ -94,10 +94,20 @@ public final class TimeOfDayLighting {
         }
 
         // Night parameters: PvZ-style cool blue moonlight.
-        float nightTintR = 0.40F;
-        float nightTintG = 0.46F;
-        float nightTintB = 0.78F;
-        float nightLift = -0.015F;
+        //
+        // Blue-led but *not* dark: the original's night levels are the same lawn under a
+        // cold wash, and a lawn the player cannot read is not atmosphere, it is a handicap -
+        // every plant on it is a dark shape, and the one thing the player is doing at night
+        // is deciding what to plant where. Red comes down the most, blue stays at full, and
+        // the small positive lift keeps the darkest grass out of pure black.
+        //
+        // Entities are lifted back out of this tint on their own (see
+        // EntityVisuals#NIGHT_LIFT), so the lawn and the street wear all of it and the plants
+        // and zombies wear about half.
+        float nightTintR = 0.62F;
+        float nightTintG = 0.72F;
+        float nightTintB = 1.00F;
+        float nightLift = 0.02F;
         float nightStrength = 0.34F;
         float nightSunX = w * 0.72F; // moon above the western side
         float nightSunY = h * 2.1F;

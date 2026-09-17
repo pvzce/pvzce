@@ -81,7 +81,10 @@ class PacketProtocolTest {
                 List.of(new SceneSyncS2C.Cell(1, 2, "pvzce:water")), List.of(), List.of());
         List<LevelListS2C.TeamInfo> teams = List.of(
                 new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves"));
-        List<SlotInfo> slots = List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 12, -1, true));
+        // A card that is mid-cooldown, with the total it is counting down from: the two ints
+        // sit next to each other on the wire, so a writer/reader swap between them would
+        // leave the bar drawing a recharge that never matches the card.
+        List<SlotInfo> slots = List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 12, 300, -1, true));
 
         return List.of(
                 new ContinueLevelC2S("pvzce:level_1", "world"),
@@ -107,7 +110,7 @@ class PacketProtocolTest {
                         "pvzce:zombie_team", "僵尸方", PvzcePackets.PROTOCOL_VERSION),
                 new LevelListS2C(List.of(LevelListS2C.LevelInfo.of("pvzce:yard/adventure/level_1", "第一关", "描述",
                         "pvzce:plant_team", teams, "in_progress", "day",
-                        "pvzce:yard", "pvzce:adventure", true, payload,
+                        "pvzce:yard", "pvzce:adventure", true, true, payload,
                         // A locked row, so the sample set covers the unlock fields too.
                         new LevelListS2C.UnlockInfo(false, true, 500, "通关 1_1",
                                 List.of(com.pvzce.api.content.LevelUnlock.Requirement.level(
@@ -122,8 +125,9 @@ class PacketProtocolTest {
                 new OpenEditorS2C("pvzce:demo_level"),
                 new SceneSyncS2C(List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass"))),
                 new EntitySpawnS2C(9, "zombie", "pvzce:basic_zombie", "pvzce:zombie_team",
-                        4.5F, 2.5F, 0, 200, "walk", 0.0F, 370),
-                new EntityUpdateS2C(9, 4.25F, 2.5F, 180, "eat", 0.1F, 190),
+                        4.5F, 2.5F, 0, 200, "walk", 0.0F, 370, true,
+                        EntitySpawnS2C.DEFAULT_SCALE),
+                new EntityUpdateS2C(9, 4.25F, 2.5F, 180, "eat", 0.1F, 190, true),
                 new EntityDespawnS2C(9),
                 // The ripple fields are set (not left at their defaults) so the two
                 // added columns are actually round-tripped. The class has exactly one
@@ -134,7 +138,7 @@ class PacketProtocolTest {
                         "pvzce:water", 1F),
                 new ResourceCollectS2C(11, "pvzce:sun", 25, 3.5F, 1.5F, 0.4F, "pvzce:textures/resource/sun"),
                 new ResourceDeltaS2C("pvzce:plant_team", "pvzce:redstone", 30),
-                new SlotSyncS2C(new SlotInfo(1, "pvzce:sun", "resource", 0, 0, -1, true)),
+                new SlotSyncS2C(new SlotInfo(1, "pvzce:sun", "resource", 0, 0, 0, -1, true)),
                 new GameStateS2C(GameStateS2C.WON, "pvzce:plant_team"),
                 new TeamSyncS2C("pvzce:zombie_team", "僵尸方"),
                 new SuggestionsS2C(7, List.of(new SuggestionsS2C.Suggestion(7, 13, "pvzce:basic_zombie"))),
@@ -147,7 +151,8 @@ class PacketProtocolTest {
                 // Non-default values: an empty unlock list or zero coins would hide a
                 // writer/reader swap in either column.
                 new ProfileS2C(350, List.of("pvzce:pea_shooter", "pvzce:sunflower", "pvzce:shovel"), false),
-                new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower"),
+                new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower",
+                        "pvzce:diamond", 1, 4.5F, 2.5F, 3, 150),
                 // A belt card has no price (SlotInfo.NO_PRICE), which is the value a
                 // writer/reader swap on costSun would silently turn into a real one. The
                 // payload is opaque to the protocol, so a payload that decodes cleanly is

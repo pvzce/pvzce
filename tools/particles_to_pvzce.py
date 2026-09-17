@@ -88,6 +88,12 @@ CELL_PIXELS = 80.0
 BASE_SCALE_CELLS = 0.16
 
 # ---- thrown objects ------------------------------------------------------
+#
+# NOTE: the shipped definitions of this family are *hand-tuned* after conversion - the
+# zombie head and arm were rescaled to 0.4/0.33 cells so they match the head on the model,
+# the coin-sized drops carry their own render_scale, and the thrown hats carry the lifetime
+# `SystemDuration` implies. Re-running the converter rewrites those files and loses the
+# tuning, so regenerate a particle deliberately and diff it, never as a bulk refresh.
 # The table at the top of this file reads the original's ``LaunchSpeed`` as pixels per
 # frame, which is what the puffs and splats were converted with. That reading is wrong
 # for the one family the original marks with a ``GroundConstraint`` - the objects a
@@ -488,7 +494,16 @@ class Emitter:
             motion["bounce"] = True
         spin = range_of(self.text("ParticleSpinSpeed"))
         if spin is not None and (abs(spin[0]) > 0.01 or abs(spin[1]) > 0.01):
-            look["spin"] = round((spin[0] + spin[1]) / 2.0 * (1.0 if thrown else FPS), 2)
+            spin_factor = 1.0 if thrown else FPS
+            look["spin"] = round((spin[0] + spin[1]) / 2.0 * spin_factor, 2)
+            # Almost every emitter names a *range* of spin speeds, and the midpoint of a
+            # symmetric one is zero: `[-720 720]` - the head a lawn mower throws - came out
+            # as a head that did not rotate at all, so it read as sliding across the grass
+            # rather than tumbling. The half-width goes to the engine, which rolls a speed
+            # per particle (ParticleLook#spinSpread).
+            spin_spread = (max(spin) - min(spin)) / 2.0 * spin_factor
+            if spin_spread > 0.01:
+                look["spin_spread"] = round(spin_spread, 2)
         if (self.text("RandomLaunchSpin") or "0").strip() not in ("", "0"):
             look["random_spin"] = True
 
@@ -525,7 +540,14 @@ class Emitter:
             look["color"] = [round(min(1.0, channel / scale), 4) for channel in tint]
 
         # --- lifetime and frames -----------------------------------------
-        look["life"] = round(max(1.0, first_number(self.text("ParticleDuration"), 30.0)) / FPS, 4)
+        # `ParticleDuration` is each particle's life; when the emitter does not give one, the
+        # particles live as long as the system that spawns them (`SystemDuration`), and only
+        # then does the 30-frame default apply. Reading the default straight away cut every
+        # emitter that spells only `SystemDuration` down to half a second - the cone and the
+        # bucket fly off the zombie's head with `SystemDuration 50` (0.83s) and were gone
+        # before they landed, which is why a knocked-off hat read as a hat that vanished.
+        duration_text = self.text("ParticleDuration") or self.text("SystemDuration")
+        look["life"] = round(max(1.0, first_number(duration_text, 30.0)) / FPS, 4)
         look["frames_per_second"] = FPS
         look["loop"] = True
         # A one-shot emitter (a splat that appears and stays) should not loop its

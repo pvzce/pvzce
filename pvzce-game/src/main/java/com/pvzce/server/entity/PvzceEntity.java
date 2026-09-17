@@ -56,11 +56,37 @@ public abstract class PvzceEntity extends Entity {
     public EntitySpawnS2C spawnPacket() {
         return new EntitySpawnS2C(id(), entityKind(), defId().toString(),
                 team == null ? "" : team.id().toString(),
-                cellX(), cellY(), layer(), health(), animation(), height(), armor());
+                cellX(), cellY(), layer(), health(), animation(), height(), armor(),
+                chilled(), renderScale());
     }
 
     public EntityUpdateS2C updatePacket() {
-        return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(), armor());
+        return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(),
+                armor(), chilled());
+    }
+
+    /**
+     * Whether this entity is currently under a slowing effect.
+     *
+     * <p>Only the zombie overrides it, and only this side can answer: a status is server
+     * state. The client draws the frozen look from it, which is why it travels with the
+     * entity's other visible state rather than being guessed at from the animation.
+     */
+    public boolean chilled() {
+        return false;
+    }
+
+    /**
+     * How much bigger than its art this entity is drawn, on top of the definition's own
+     * {@code render_scale}.
+     *
+     * <p>{@link EntitySpawnS2C#DEFAULT_SCALE} for everything that is drawn at the size its
+     * definition declares - which is every entity whose size is content rather than state.
+     * A produced sun is the exception: the same resource is worth 15 and drawn small out of
+     * a small sun-shroom, so the <em>drop</em> carries the factor.
+     */
+    public float renderScale() {
+        return EntitySpawnS2C.DEFAULT_SCALE;
     }
 
     /**

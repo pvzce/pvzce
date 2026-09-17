@@ -60,6 +60,8 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "squash": ("idle", 0.0),
     "puff_shroom": ("idle", 0.0),
     "sun_shroom": ("idle", 0.0),
+    # A tool card, drawn from Hammer.reanim's own idle pose.
+    "hammer": ("idle", 0.0),
 }
 
 # Content id -> the directory its animation lives in, mirroring the content JSON's
@@ -95,6 +97,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "jalapeno": "plant/special",
     "doom_shroom": "plant/special",
     "squash": "plant/special",
+    "hammer": "tool",
     "basic_zombie": "zombie/basic",
     "flag_zombie": "zombie/basic",
     "conehead_zombie": "zombie/armored",
@@ -116,6 +119,18 @@ PLANT_ENTITIES = [
     "snow_pea", "repeater", "gatling_pea", "threepeater", "split_pea", "cactus",
     "cabbage_pult", "melon_pult", "winter_melon", "jalapeno", "doom_shroom", "squash",
     "puff_shroom", "sun_shroom",
+]
+
+# Tools whose card is drawn from a controller model rather than a flat PNG.
+#
+# The shovel and the glove have always had a single sprite and keep it, but the hammer
+# only exists as a reanim: its card pointed at
+# `textures/entities/tool/hammer/hammer`, and that file was never generated - the
+# directory holds the three *parts* (`1`/`2`/`3`) the model is built from. Rendering the
+# model is therefore the only way to get a picture of a hammer, and it is the same
+# painter the plant cards use.
+TOOL_ENTITIES = [
+    "hammer",
 ]
 
 
@@ -394,7 +409,8 @@ def render_entity(entity: str, resources: Path, namespace: str) -> Path:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     wanted = set(args.entity) if args.entity else None
-    entities = [entity for entity in PLANT_ENTITIES if wanted is None or entity in wanted]
+    entities = [entity for entity in PLANT_ENTITIES + TOOL_ENTITIES
+                if wanted is None or entity in wanted]
     if not entities:
         print("No matching entities", file=sys.stderr)
         return 2

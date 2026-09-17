@@ -302,6 +302,7 @@ public final class BuiltInRegistries {
         registerRule(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
+        registerRule(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 5F));
         registerRule(PvzceIds.id("max_players_per_team"), new GameRuleType.IntRule(8, 1, 64));
         registerRule(PvzceIds.RULE_GRAVES_SPAWN_NIGHT, new GameRuleType.BooleanRule(true));
         registerRule(PvzceIds.id("level_pause_on_single_player"), new GameRuleType.BooleanRule(true));

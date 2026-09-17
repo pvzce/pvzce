@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** M3: representative plant/zombie/projectile/scene behaviors. */
@@ -60,6 +61,16 @@ class CombatSystemsTest {
         ZombieEntity zombie = level.zombiesInRow(row).stream()
                 .filter(z -> z.defId().equals(Identifier.withDefaultNamespace(id)))
                 .findFirst().orElseThrow();
+        return zombie;
+    }
+
+    /** Spawns one zombie and hands back exactly that one, not the first of its row. */
+    private static ZombieEntity spawnExact(LevelServer level, CapturingBridge bridge, Identifier id,
+                                           float x, int row) {
+        ZombieEntity zombie = level.spawnZombie(id, level.team(Identifier.withDefaultNamespace("zombie_team")),
+                x, row);
+        level.flushPending(bridge);
+        assertNotNull(zombie, id + " must be registered");
         return zombie;
     }
 
@@ -139,6 +150,61 @@ class CombatSystemsTest {
                 "cherry bomb 3x3 area should kill all; dying=" + a.isDying() + "," + b.isDying() + "," + c.isDying()
                         + " plantAlive=" + level.entities().stream().anyMatch(e -> e.entityKind().equals("plant") && !e.isRemoved())
                         + " state=" + level.gameState());
+    }
+
+    /**
+     * The reported bug: a cherry bomb covered less than the 3x3 the original clears.
+     *
+     * <p>The blast is a square, {@code |dx| <= radius} per axis, and the radius was 1.0 - which
+     * reaches exactly the *centre* of each neighbouring cell. A zombie in the far half of an
+     * adjacent cell, the one about to step on the bomb, was outside it; a zombie two cells away
+     * must stay outside whatever the number is. The three zombies below are at the two ends of
+     * "in the 3x3", so the test cannot pass by being lucky about where they stood.
+     */
+    @Test
+    void cherryBombCoversTheWholeThreeByThree() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        assertTrue(level.placePlant(bridge, 4, 3, 0)); // the bomb itself at (3,0)
+        // The far edge of the cell to its right, the far edge of the cell diagonally below
+        // it, and one more cell out in a straight line. Spawned directly rather than through
+        // the local helper, which hands back the first zombie of the row.
+        Identifier basic = Identifier.withDefaultNamespace("basic_zombie");
+        ZombieEntity farRight = spawnExact(level, bridge, basic, 4.99F, 0);
+        ZombieEntity diagonal = spawnExact(level, bridge, basic, 4.99F, 1);
+        ZombieEntity outside = spawnExact(level, bridge, basic, 5.6F, 0);
+
+        tick(level, bridge, 90);
+        assertTrue(farRight.isDying(), "the neighbouring cell is inside the blast, all of it");
+        assertTrue(diagonal.isDying(), "and so is the diagonal");
+        assertFalse(outside.isDying(), "but the third cell over is not");
+    }
+
+    /**
+     * A slowed zombie is drawn frozen, which means the flag has to reach the client.
+     *
+     * <p>The status itself is server state and the client cannot derive it from anything else
+     * it is sent, so it travels with the entity's other visible state. Pinned here because
+     * "the client draws it" and "the server says it" are two ends of one wire field.
+     */
+    @Test
+    void aSlowedZombieReportsItselfChilled() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        ZombieEntity zombie = spawnExact(level, bridge,
+                Identifier.withDefaultNamespace("basic_zombie"), 6.5F, 0);
+        assertFalse(zombie.chilled(), "nothing has slowed it yet");
+        assertFalse(zombie.updatePacket().chilled(), "and the wire says so");
+        float normalSpeed = zombie.moveSpeed(level);
+
+        zombie.applyStatus(com.pvzce.api.content.ZombieStatus.SLOW, 240, 0.5F);
+        assertTrue(zombie.chilled(), "a slow status is what the frozen look is drawn from");
+        assertTrue(zombie.updatePacket().chilled(), "and it is streamed");
+        assertEquals(normalSpeed * 0.5F, zombie.moveSpeed(level), 0.0001F,
+                "the status still halves its speed: the flag is presentation, not the effect");
+
+        tick(level, bridge, 241);
+        assertFalse(zombie.chilled(), "and the flag goes away with the status");
     }
 
     @Test
@@ -464,62 +530,132 @@ class CombatSystemsTest {
         assertEquals("GRASS", level.sceneAt(0, 0).surfaceClass());
     }
 
+    /**
+     * A hit does not touch the animation.
+     *
+     * <p>It used to hold the {@code hit} clip for eight ticks, and that clip is the zombie's
+     * *standing* pose: a zombie walking into a stream of peas froze for an eighth of a second
+     * on every hit and restarted its walk cycle when it came back, which read as the walk
+     * animation being reset. The original has no hurt animation - the splat and the sound are
+     * the feedback - so the pose is left exactly as the walk loop published it.
+     */
     @Test
-    void aHitIsHeldLongEnoughToBeSeen() {
-        // The flinch used to be published for the single tick the damage landed on, and the
-        // entity sync runs every third tick - so the client usually never heard about it, and
-        // a zombie under fire just kept its walk cycle. When it did hear, it played a
-        // second-long clip for one tick and blended straight back out. Both read as choppy.
+    void aHitLeavesTheWalkCycleAlone() {
         LevelServer level = newLevel();
         CapturingBridge bridge = bridge();
         ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 6.5F, 0);
+        tick(level, bridge, 2);
+        assertEquals("walk", zombie.animation());
 
-        zombie.damageBody(10, level);
-        assertEquals("hit", zombie.animation(), "a hit has to say so");
-        zombie.tick(level);
-        assertEquals("hit", zombie.animation(), "and still be saying it on the next tick");
-
-        // Held for the whole beat, then handed back to the walk cycle - a zombie that never
-        // stopped flinching would be just as wrong as one that never flinched.
-        tick(level, bridge, ZombieEntity.HIT_HOLD_TICKS);
-        assertEquals("walk", zombie.animation(), "the flinch has to end");
-    }
-
-    @Test
-    void aFlinchDoesNotStopTheZombie() {
-        // The hold is a change of *pose*, not of behaviour: the original's zombie walks
-        // into the peas. Pausing it would turn one zombie's flinch into a stutter for the
-        // whole lane.
-        LevelServer level = newLevel();
-        CapturingBridge bridge = bridge();
-        ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 6.5F, 0);
         float before = zombie.cellX();
-
         zombie.damageBody(10, level);
+        assertEquals("walk", zombie.animation(), "being shot is not a change of pose");
         zombie.tick(level);
-
-        assertTrue(zombie.cellX() < before,
-                "a flinching zombie must keep walking: " + before + " -> " + zombie.cellX());
+        assertEquals("walk", zombie.animation(), "and it is still walking on the next tick");
+        assertTrue(zombie.cellX() < before, "and still moving: " + before + " -> " + zombie.cellX());
     }
 
+    /**
+     * Armour hits play the armour's own sound, not the shot's.
+     *
+     * <p>A pea hitting a bucket used to splat with the projectile's generic impact sound,
+     * because that sound was preferred over the zombie's {@code armor_hit}. End to end here
+     * (a real peashooter, a real conehead) rather than by calling the damage method, because
+     * the effect only travels while the level is inside a tick.
+     */
     @Test
-    void aFlinchSurvivesASaveAndLoad() {
-        // hitTicks is state, so it goes in the snapshot like every other counter. Without it
-        // a save taken mid-flinch comes back as a zombie that stopped flinching early.
+    void armorHitsUseTheZombiesOwnSound() {
         LevelServer level = newLevel();
         CapturingBridge bridge = bridge();
-        ZombieEntity zombie = spawn(level, bridge, "basic_zombie", 6.5F, 0);
-        zombie.damageBody(10, level);
-        zombie.tick(level);
+        assertTrue(level.placePlant(bridge, 0, 1, 0)); // pea_shooter slot
+        spawn(level, bridge, "conehead_zombie", 7F, 0);
 
-        ZombieEntity restored = new ZombieEntity(
-                BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("basic_zombie")),
-                level.team(Identifier.withDefaultNamespace("zombie_team")), 6.5F, 0);
-        restored.restoreState(zombie.saveState());
-        assertEquals(zombie.animation(), restored.animation());
-        restored.tick(level);
-        assertEquals("hit", restored.animation(),
-                "a restored mid-flinch zombie must still be flinching");
+        tick(level, bridge, 900);
+        assertNotNull(effect(bridge, "plastichit"),
+                "the cone is a plastic hat and must clank like one");
+        assertNull(effect(bridge, "sfx/projectile/hit"),
+                "and it must not splat like a bare body while the cone is still on");
+    }
+
+    /**
+     * A knocked-off cone flies from the zombie's head, and it is the cone that flies.
+     *
+     * <p>Two things were wrong here: the debris was spawned at the zombie's feet, so a hat
+     * came off its boots, and the particle's lifetime was half a second - the cone was gone
+     * before it landed, which reads as a hat that vanished rather than one that fell.
+     */
+    @Test
+    void aBrokenConeFallsFromTheHead() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        // Two shooters, so the cone's 370 durability is gone in about 900 ticks - before the
+        // zombie reaches them. The effects only travel while the level is inside a tick, so
+        // the hits have to come from a real shooter rather than a direct damage call.
+        var peaShooter = BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace("pea_shooter"));
+        assertNotNull(peaShooter);
+        var plantTeam = level.team(Identifier.withDefaultNamespace("plant_team"));
+        level.spawnPlant(peaShooter, plantTeam, 1, 0);
+        level.spawnPlant(peaShooter, plantTeam, 2, 0);
+        ZombieEntity conehead = spawn(level, bridge, "conehead_zombie", 6.5F, 0);
+        float rowCentre = conehead.cellY();
+
+        tick(level, bridge, 1_200);
+        var debris = particle(bridge, "zombie_traffic_cone");
+        assertNotNull(debris, "the cone itself is the debris when it breaks");
+        assertTrue(debris.y() > rowCentre + 0.3F,
+                "and it comes off the head, not the boots: y=" + debris.y() + " row " + rowCentre);
+    }
+
+    /**
+     * An armed potato mine rises once, then holds the armed pose.
+     *
+     * <p>Asking for the emergence ({@code armed}) every tick restarted it every time its clip
+     * handed over to the loop, so a mine that had already surfaced kept climbing out of the
+     * ground while it waited for a zombie.
+     */
+    @Test
+    void aPotatoMineRisesOnceThenHolds() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        assertTrue(level.placePlant(bridge, 12, 3, 0)); // potato_mine slot in demo_level
+        PlantEntity mine = level.entities().stream()
+                .filter(e -> e instanceof PlantEntity p && p.defId() != null
+                        && p.defId().path().equals("potato_mine"))
+                .map(e -> (PlantEntity) e)
+                .findFirst().orElseThrow();
+
+        // The arm-up countdown is 900 ticks, and `grow` is what it publishes while buried.
+        tick(level, bridge, 1);
+        assertEquals("grow", mine.animation(), "buried while the fuse burns");
+        tick(level, bridge, 899);
+        assertEquals("armed", mine.animation(), "the tick it surfaces");
+        tick(level, bridge, 2);
+        assertEquals("armed_loop", mine.animation(),
+                "and from then on it holds the loop, not the emergence");
+    }
+
+    /** The last effect event carrying the given particle, or null. */
+    private static com.pvzce.common.network.packet.EffectEventS2C particle(CapturingBridge bridge, String id) {
+        com.pvzce.common.network.packet.EffectEventS2C found = null;
+        for (PvzcePacket packet : bridge.packets) {
+            if (packet instanceof com.pvzce.common.network.packet.EffectEventS2C event
+                    && event.particle().contains(id)) {
+                found = event;
+            }
+        }
+        return found;
+    }
+
+    /** The last effect event whose sound contains {@code needle}, or null. */
+    private static com.pvzce.common.network.packet.EffectEventS2C effect(CapturingBridge bridge, String needle) {
+        com.pvzce.common.network.packet.EffectEventS2C found = null;
+        for (PvzcePacket packet : bridge.packets) {
+            if (packet instanceof com.pvzce.common.network.packet.EffectEventS2C event
+                    && event.sound().contains(needle)) {
+                found = event;
+            }
+        }
+        return found;
     }
 
     private static final class CapturingBridge implements LevelServer.ServerBridge {

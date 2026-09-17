@@ -45,6 +45,18 @@ public class ResourceDropEntity extends PvzceEntity {
     /** The reason a drop's motion can be overridden: see {@link #motionOverride}. */
     private final ResourceDef.DropMotion motionOverride;
 
+    /**
+     * How much bigger than the resource's own art this particular drop is drawn.
+     *
+     * <p>One resource, two sizes: a sun is worth 25 and a small sun-shroom's sun is worth
+     * 15, and the original draws the 15 one smaller. The size belongs to the drop rather
+     * than to the resource because only the producer knows which of the two it just made.
+     *
+     * <p>Not final, because it is state: a drop saved mid-fall and restored has to come
+     * back the size it was, or a small sun grows into a big one by being reloaded.
+     */
+    private float renderScale;
+
     public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount) {
         this(def, team, gridX, gridY, amount, null, 0F);
     }
@@ -59,12 +71,22 @@ public class ResourceDropEntity extends PvzceEntity {
      */
     public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount,
                               ResourceDef.DropMotion motion, float driftX) {
+        this(def, team, gridX, gridY, amount, motion, driftX,
+                com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE);
+    }
+
+    /** The full constructor, with the per-drop draw scale. */
+    public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount,
+                              ResourceDef.DropMotion motion, float driftX, float renderScale) {
         super(def.id(), team, gridX + 0.5F, gridY + 0.5F, 1);
         this.def = def;
         this.amount = amount;
         this.motionOverride = motion;
         this.riseOriginX = cellX();
         this.driftX = driftX;
+        this.renderScale = renderScale <= 0F
+                ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE
+                : renderScale;
         switch (motion()) {
             case FALL -> setHeight(START_HEIGHT);
             case RISE, LANDED -> {
@@ -72,6 +94,11 @@ public class ResourceDropEntity extends PvzceEntity {
                 landed = motion() == ResourceDef.DropMotion.LANDED;
             }
         }
+    }
+
+    @Override
+    public float renderScale() {
+        return renderScale;
     }
 
     /** How this drop arrives. */
@@ -170,6 +197,7 @@ public class ResourceDropEntity extends PvzceEntity {
         tag.putInt("riseTicks", riseTicks);
         tag.putFloat("riseOriginX", riseOriginX);
         tag.putFloat("driftX", driftX);
+        tag.putFloat("renderScale", renderScale);
         return tag;
     }
 
@@ -182,5 +210,11 @@ public class ResourceDropEntity extends PvzceEntity {
         riseTicks = tag.getInt("riseTicks");
         riseOriginX = tag.contains("riseOriginX") ? tag.getFloat("riseOriginX") : cellX();
         driftX = tag.getFloat("driftX");
+        // A save written before drops carried a size of their own has no key; NBT's getFloat
+        // would hand back 0, which is not a size, so the default stands in for it.
+        float savedScale = tag.getFloat("renderScale");
+        renderScale = savedScale <= 0F
+                ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE
+                : savedScale;
     }
 }

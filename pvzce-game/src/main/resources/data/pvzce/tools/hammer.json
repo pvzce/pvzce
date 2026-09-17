@@ -9,5 +9,6 @@
     "zombie"
   ],
   "effect": "pvzce:hammer",
-  "uses": -1
+  "uses": -1,
+  "texture": "pvzce:textures/gui/cards/hammer"
 }

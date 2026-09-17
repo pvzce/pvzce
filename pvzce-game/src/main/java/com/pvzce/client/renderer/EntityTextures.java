@@ -33,6 +33,17 @@ public final class EntityTextures {
         return EntityArt.sprite(defId);
     }
 
+    /**
+     * The same, in the registry the entity's kind names.
+     *
+     * <p>An id can be in two registries at once - the snow pea is a plant and the projectile
+     * it fires - so a caller that knows its kind says so and gets that one's art. Without it
+     * a snow pea in flight was drawn with the plant's picture.
+     */
+    public static Identifier forEntity(Identifier defId, String kind) {
+        return EntityArt.sprite(defId, kind);
+    }
+
     public static Identifier forEntity(String defId) {
         return forEntity(Identifier.tryParse(defId));
     }

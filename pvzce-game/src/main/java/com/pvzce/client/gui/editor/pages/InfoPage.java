@@ -17,6 +17,7 @@ import com.pvzce.client.gui.editor.LevelFileWriter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -27,7 +28,8 @@ import java.util.function.Consumer;
  * the theme/category rows are the level's place in the list. The page owns its slice of the
  * level file: {@link #readFrom} loads name, description, {@code initial_sun} and
  * {@code rewards} from the draft, and {@link #writeTo} hands them back to
- * {@link LevelFileWriter#info}.
+ * {@link LevelFileWriter#info}. Reward entries the page has no box for (a {@code resource}
+ * bounty, today) are read and written back untouched rather than normalised away.
  *
  * <p>Picking another theme or category is the one rename the editor allows. The new id is
  * declared here, through {@link EditorContext#setLevelId}, so the editor's save path already
@@ -58,6 +60,16 @@ public final class InfoPage implements EditorPage {
     private float rewardCoinDropChance = LevelRewards.DEFAULT_COIN_DROP_CHANCE;
     private String rewardCoinDrop = LevelRewards.DEFAULT_COIN_DROP.toString();
     private int rewardCoinDropAmount = LevelRewards.DEFAULT_COIN_DROP_AMOUNT;
+    /**
+     * Reward entries this page has no box for, kept exactly as they were read.
+     *
+     * <p>Today that is {@code type: "resource"} - "a first clear hands over a diamond" is data
+     * the page cannot edit, and the alternative to carrying it through a save is an author
+     * quietly losing the reward they wrote by hand the first time they touch the name field
+     * (the same rule the unlock page follows for condition types it has no UI for).
+     */
+    private List<LevelRewards.Reward> untouchedFirstClear = List.of();
+    private List<LevelRewards.Reward> untouchedRepeat = List.of();
 
     /** Vertical pitch between the info page's fields; the labels live in the gap. */
     private int infoRowPitch;
@@ -280,9 +292,13 @@ public final class InfoPage implements EditorPage {
         if (unlock != null) {
             firstClear.add(LevelRewards.Reward.unlock(unlock));
         }
-        List<LevelRewards.Reward> repeat = rewardRepeatCoins > 0
-                ? List.of(LevelRewards.Reward.coins(rewardRepeatCoins))
-                : List.of();
+        // The entries with no box of their own go back exactly as they came in.
+        firstClear.addAll(untouchedFirstClear);
+        List<LevelRewards.Reward> repeat = new ArrayList<>();
+        if (rewardRepeatCoins > 0) {
+            repeat.add(LevelRewards.Reward.coins(rewardRepeatCoins));
+        }
+        repeat.addAll(untouchedRepeat);
         Identifier drop = Identifier.tryParse(rewardCoinDrop);
         if (drop == null) {
             drop = LevelRewards.DEFAULT_COIN_DROP;
@@ -293,46 +309,25 @@ public final class InfoPage implements EditorPage {
     /**
      * Reads the editable half of a level's {@code rewards} block.
      *
-     * <p>Only the numbers the info page shows come back: first clear keeps its first
-     * unlock and drops the rest with a log line, because normalising silently is how
-     * an author loses a reward they wrote by hand.
+     * <p>The two reward lists go through {@link #readRewardLists(JsonObject)} (pure, and the
+     * half worth testing); the drop settings are read here because they are plain numbers in
+     * boxes.
      */
     private void readRewards(JsonObject sourceJson) {
-        rewardUnlock = "";
-        rewardRepeatCoins = LevelRewards.DEFAULT_REPEAT_COINS;
         rewardCoinDropChance = LevelRewards.DEFAULT_COIN_DROP_CHANCE;
         rewardCoinDrop = LevelRewards.DEFAULT_COIN_DROP.toString();
         rewardCoinDropAmount = LevelRewards.DEFAULT_COIN_DROP_AMOUNT;
-        if (!sourceJson.has("rewards") || !sourceJson.get("rewards").isJsonObject()) {
+        JsonObject rewards = sourceJson != null && sourceJson.has("rewards")
+                && sourceJson.get("rewards").isJsonObject()
+                ? sourceJson.getAsJsonObject("rewards")
+                : null;
+        RewardLists lists = rewards == null ? RewardLists.EMPTY : readRewardLists(rewards);
+        rewardUnlock = lists.unlock();
+        rewardRepeatCoins = lists.repeatCoins();
+        untouchedFirstClear = lists.keptFirstClear();
+        untouchedRepeat = lists.keptRepeat();
+        if (rewards == null) {
             return;
-        }
-        JsonObject rewards = sourceJson.getAsJsonObject("rewards");
-        if (rewards.has("first_clear") && rewards.get("first_clear").isJsonArray()) {
-            JsonArray firstClear = rewards.getAsJsonArray("first_clear");
-            for (JsonElement element : firstClear) {
-                if (!element.isJsonObject()) {
-                    continue;
-                }
-                JsonObject entry = element.getAsJsonObject();
-                if (entry.has("id") && entry.get("id").isJsonPrimitive()) {
-                    if (rewardUnlock.isEmpty()) {
-                        rewardUnlock = entry.get("id").getAsString();
-                    } else {
-                        System.err.println("[PVZCE] Level grants more than one card on a first clear;"
-                                + " the editor edits the first one and keeps the rest only until the"
-                                + " next save: " + entry.get("id").getAsString());
-                    }
-                }
-            }
-        }
-        if (rewards.has("repeat") && rewards.get("repeat").isJsonArray()) {
-            int coins = 0;
-            for (JsonElement element : rewards.getAsJsonArray("repeat")) {
-                if (element.isJsonObject() && element.getAsJsonObject().has("amount")) {
-                    coins += element.getAsJsonObject().get("amount").getAsInt();
-                }
-            }
-            rewardRepeatCoins = Math.max(0, coins);
         }
         if (rewards.has("coin_drop_chance")) {
             rewardCoinDropChance = com.pvzce.common.util.MathUtil.clamp(
@@ -344,6 +339,107 @@ public final class InfoPage implements EditorPage {
         if (rewards.has("coin_drop_amount")) {
             rewardCoinDropAmount = Math.max(0, rewards.get("coin_drop_amount").getAsInt());
         }
+    }
+
+    /**
+     * A rewards block split into "what the page edits" and "what it carries through".
+     *
+     * @param unlock         the card in the first-clear box, or empty
+     * @param repeatCoins    the repeat stipend, summed over the {@code coins} entries
+     * @param keptFirstClear first-clear entries with no box on the page, verbatim
+     * @param keptRepeat     repeat entries with no box on the page, verbatim
+     */
+    record RewardLists(String unlock, int repeatCoins, List<LevelRewards.Reward> keptFirstClear,
+                       List<LevelRewards.Reward> keptRepeat) {
+        static final RewardLists EMPTY = new RewardLists("", LevelRewards.DEFAULT_REPEAT_COINS,
+                List.of(), List.of());
+    }
+
+    /**
+     * Splits a {@code rewards} object into the editable picks and the kept-because-uneditable
+     * entries.
+     *
+     * <p>An entry this page has no box for - a {@code resource} bounty, today - is returned in
+     * the kept list so {@link #currentRewards} writes it back byte for byte. Dropping it (or,
+     * worse, reading its {@code id} as the unlock box's card) is how an author loses a reward
+     * they wrote by hand the first time they open the level in the editor.
+     *
+     * <p>A second {@code unlock} is the one thing that is still normalised away, with a log
+     * line: the block has one box for it, and the level only ever draws one.
+     */
+    static RewardLists readRewardLists(JsonObject rewards) {
+        String unlock = "";
+        List<LevelRewards.Reward> keptFirstClear = new ArrayList<>();
+        List<LevelRewards.Reward> keptRepeat = new ArrayList<>();
+        // A block that never mentions `repeat` is showing the codec's default stipend; one
+        // that says `"repeat": []` is an author opting out of it, and the box has to keep
+        // saying zero or the next save silently pays the stipend again.
+        int repeatCoins = rewards != null && rewards.has("repeat") ? 0 : LevelRewards.DEFAULT_REPEAT_COINS;
+        if (rewards == null) {
+            return RewardLists.EMPTY;
+        }
+        if (rewards.has("first_clear") && rewards.get("first_clear").isJsonArray()) {
+            for (JsonElement element : rewards.getAsJsonArray("first_clear")) {
+                LevelRewards.Reward entry = readReward(element);
+                if (entry == null) {
+                    continue;
+                }
+                Identifier card = entry.isUnlock() ? entry.id().orElse(null) : null;
+                if (card == null) {
+                    keptFirstClear.add(entry);
+                    continue;
+                }
+                if (unlock.isEmpty()) {
+                    unlock = card.toString();
+                } else {
+                    System.err.println("[PVZCE] Level grants more than one card on a first clear;"
+                            + " the editor edits the first one and keeps the rest only until the"
+                            + " next save: " + card);
+                }
+            }
+        }
+        if (rewards.has("repeat") && rewards.get("repeat").isJsonArray()) {
+            for (JsonElement element : rewards.getAsJsonArray("repeat")) {
+                LevelRewards.Reward entry = readReward(element);
+                if (entry == null) {
+                    continue;
+                }
+                if (entry.isCoins()) {
+                    repeatCoins += entry.amount();
+                } else {
+                    keptRepeat.add(entry);
+                }
+            }
+        }
+        return new RewardLists(unlock, Math.max(0, repeatCoins),
+                List.copyOf(keptFirstClear), List.copyOf(keptRepeat));
+    }
+
+    /**
+     * One raw reward entry as a {@link LevelRewards.Reward}, or {@code null} when it is not
+     * one.
+     *
+     * <p>Read from the file rather than through the codec, like everything else this page
+     * loads: it describes the draft the editor is holding, which may be a level the loader
+     * would reject. A missing or non-numeric {@code amount} is zero, so an entry this page
+     * only carries through cannot fail here and take the editor with it.
+     */
+    private static LevelRewards.Reward readReward(JsonElement element) {
+        if (element == null || !element.isJsonObject()) {
+            return null;
+        }
+        JsonObject entry = element.getAsJsonObject();
+        if (!entry.has("type") || !entry.get("type").isJsonPrimitive()) {
+            return null;
+        }
+        Identifier id = entry.has("id") && entry.get("id").isJsonPrimitive()
+                ? Identifier.tryParse(entry.get("id").getAsString()) : null;
+        int amount = 0;
+        if (entry.has("amount") && entry.get("amount").isJsonPrimitive()
+                && entry.getAsJsonPrimitive("amount").isNumber()) {
+            amount = entry.get("amount").getAsInt();
+        }
+        return new LevelRewards.Reward(entry.get("type").getAsString(), Optional.ofNullable(id), amount);
     }
 
     /** Every theme the server's tab table offers, plus the unclassified bucket. */

@@ -87,7 +87,7 @@ public final class ThrowerCapability implements PlantCapability {
         if (cooldown > 0) {
             cooldown--;
             if (cooldown == 0) {
-                plant.setAnimation(EntityAnimations.IDLE);
+                plant.setState(EntityAnimations.IDLE);
             }
             return;
         }
@@ -97,10 +97,10 @@ public final class ThrowerCapability implements PlantCapability {
                 .findFirst()
                 .orElse(null);
         if (target == null) {
-            plant.setAnimation(EntityAnimations.IDLE);
+            plant.setState(EntityAnimations.IDLE);
             return;
         }
-        plant.setAnimation(EntityAnimations.SHOOT);
+        plant.setState(EntityAnimations.SHOOT);
         for (ProjectileRef shot : shots) {
             boolean butter = butterChance > 0F && level.random().nextFloat() < butterChance;
             ProjectileRef ref = butter

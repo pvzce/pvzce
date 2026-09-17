@@ -72,7 +72,16 @@ public final class PvzcePackets {
     // level and what they were worth.
     // 15: ReleaseMowerC2S lets the player send a parked mower by hand instead of waiting for
     // a zombie to reach the house.
-    public static final int PROTOCOL_VERSION = 15;
+    // 16: entity spawn/update carry two more presentation fields: whether a zombie is
+    // currently slowed (`chilled`, which the client draws as the frozen look) and a
+    // per-entity scale multiplier (the small sun a small sun-shroom produces is the same
+    // resource as the big one at a smaller size).
+    // 17: the bar's recharge travels with its divisor (SlotInfo.cooldownTotal, so a level
+    // that scales card cooldowns draws the sweep over the real recharge), the level list
+    // carries whether a level was ever beaten (LevelInfo.cleared, which is what the row's
+    // trophy reads), and the reward carries the resource a level handed over when it pays in
+    // objects rather than in cards (LevelRewardS2C.rewardItem).
+    public static final int PROTOCOL_VERSION = 17;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

@@ -8,12 +8,8 @@
         1.0
       ],
       [
-        0.3333,
+        0.7,
         1.0
-      ],
-      [
-        0.6667,
-        0.8333
       ],
       [
         1.0,
@@ -21,16 +17,19 @@
       ]
     ],
     "scale": 0.33,
-    "life": 0.5,
+    "life": 1.1,
     "frames_per_second": 60.0,
     "loop": true,
-    "texture": "pvzce:textures/particles/zombie/reanim/zombie_paper_paper_3"
+    "texture": "pvzce:textures/particles/zombie/reanim/zombie_paper_paper_3",
+    "spin_spread": 100.0
   },
   "motion": {
     "speed": 2.5,
     "angle": 150.0,
     "angle_spread": 60.0,
-    "gravity": 12.75
+    "gravity": 12.75,
+    "bounce": true,
+    "ground_offset": 0.91
   },
   "count": 1
 }

@@ -169,8 +169,14 @@ public final class SeedCardRenderer {
             client.drawSolid(x, y, width, height, 0.3F, 0.1F, 0.1F, 0.1F, 0.45F);
         }
         if (model.cooldownRatio() > 0F) {
-            float ratio = Math.max(0F, Math.min(1F, 1F - model.cooldownRatio()));
-            client.drawSolid(x, y, width, height * ratio, 0.32F, 0.05F, 0.05F, 0.05F, 0.5F);
+            // The share of the card that has not come back yet, measured down from the top,
+            // so the packet fills up from the bottom as the card recharges - the original's
+            // gesture, and the reason the ratio is "left" rather than "elapsed". Drawing the
+            // elapsed share up from the bottom in the same dark colour made a card darken on
+            // its way to being ready and then pop back to full.
+            float remaining = Math.max(0F, Math.min(1F, model.cooldownRatio()));
+            client.drawSolid(x, y + height * (1F - remaining), width, height * remaining,
+                    0.32F, 0.05F, 0.05F, 0.05F, 0.5F);
         }
         if (model.highlighted()) {
             client.drawSolid(x, y, width, height, 0.4F, 1F, 1F, 0.2F, 0.35F);

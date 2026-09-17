@@ -54,6 +54,17 @@ DEFAULT_NAMESPACE = "pvzce"
 # Target visual boxes in world cells, matching the existing flat sprites.
 PLANT_BOX = [0.76, 0.76]
 ZOMBIE_BOX = [0.70, 0.95]
+# Plants the original draws small, fitted to their own height rather than to the 0.76 a
+# full-sized plant gets.
+#
+# The box is what makes a plant's size absolute: fitting *every* plant to the same height
+# throws away the only thing that said the puff-shroom is a mushroom and not a shrub. One
+# reference plant (sunflower, 74.7px) is 0.76 cells, so 1px is 0.010175 cells and the box
+# below is that factor applied to the reanim's own bounding box - the original's
+# proportions, not a guess. A plant that *grows* is measured by its small form and the
+# grown form then comes out at its true relative size, because both are authored in one
+# reanim space (see sun_shroom).
+SMALL_PLANT_BOX = [0.38, 0.38]
 
 # Accessory image references inside the combined Zombie.reanim master file.
 # Basic/bucket/door zombies share the base body tracks; the accessory tracks
@@ -232,6 +243,9 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "grow": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             # Server switches to "armed" when the countdown ends: play the
             # emergence clip once, then hold the armed loop.
+            # The rise is the one clip that needs the rescue (the rocks only come out with
+            # it), and even there the blink overlay stays out: it is hidden for the whole
+            # emergence and belongs to the armed loop.
             "armed": {
                 "mask": "anim_rise",
                 "loop": False,
@@ -239,14 +253,17 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "next": "armed_loop",
                 "transition": 0.1,
                 "force_visible_hidden": True,
+                "force_visible_exclude_prefixes": ["blink"],
             },
             "armed_loop": {"mask": "anim_armed", "loop": True, "transition": 0.1},
+            # One frame of the flattened mine, and *nothing* may be rescued into it: the
+            # rescue put the body, the stem and all six rocks back, so the blast held the
+            # mine exactly as it looked before it went off.
             "explode": {
                 "mask": "anim_mashed",
                 "loop": False,
                 "on_end": "hold",
                 "transition": 0.05,
-                "force_visible_hidden": True,
             },
         },
     ),
@@ -255,29 +272,35 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="plant/attacker",
         reanim="Chomper.reanim",
         target_box=PLANT_BOX,
-        exclude_image_regex=r"ZOMBIE",
+        # The two ZOMBIE tracks are the arm hanging out of the mouth: the original draws it
+        # from `Zombie_outerarm_hand`/`_lower`, visible for frames 50..84 - the whole chew
+        # and the first half of the swallow. They used to be filtered out by an image
+        # regex, which is why a chewing chomper had an empty mouth. The same two sprites
+        # are shared with the zombie models, so nothing new had to be drawn.
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
+            # No force_visible_hidden on any of the three: every part these masks draw is
+            # already visible in its own frame range, so the rescue could only add parts the
+            # original keeps hidden - and it did. `Chomper_stomach` (visible 79..93 only) and
+            # the tongue-lick overlay came back for the whole bite and chew, which is the
+            # purple lump that hung behind a chewing chomper's head.
             "chew": {
                 "mask": "anim_chew",
                 "loop": False,
                 "on_end": "idle",
                 "transition": 0.1,
-                "force_visible_hidden": True,
             },
             "bite": {
                 "mask": "anim_bite",
                 "loop": False,
                 "on_end": "idle",
                 "transition": 0.1,
-                "force_visible_hidden": True,
             },
             "swallow": {
                 "mask": "anim_swallow",
                 "loop": False,
                 "on_end": "idle",
                 "transition": 0.1,
-                "force_visible_hidden": True,
             },
         },
     ),
@@ -302,15 +325,33 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="sun_shroom",
         group="plant/producer",
         reanim="SunShroom.reanim",
-        target_box=PLANT_BOX,
-        # The original carries both forms of the mushroom - anim_grow, anim_bigidle and
-        # anim_bigsleep are the grown one - and this version ships the small one, so the
-        # grown art is simply not exported. `anim_sleep` is also the name of the track that
-        # draws the sleeping head, and that is the one that makes a sleeping mushroom look
-        # asleep.
+        target_box=SMALL_PLANT_BOX,
+        # The original carries both forms of the mushroom in one timeline - `anim_grow`
+        # (27..38) turns the small one into the grown one, `anim_bigidle` (39..50) and the
+        # second half of `anim_sleep` (51..62) are that grown form - so both are exported
+        # and the server picks the pair by name (`grow` / `idle_big` / `sleep_big`).
+        #
+        # The model is sized by the *small* form, which is the `idle` clip and therefore
+        # what `reference_range` measures; the grown form then lands at the size the
+        # original draws it (58.3px against the small one's 38.6px, i.e. about 0.59 of a
+        # lawn cell) without a second scale factor anywhere.
+        #
+        # `anim_sleep` is both the small and the grown sleeping pose, which is why one of
+        # the two clips below has to name its frame range instead of a mask: a mask
+        # resolves to its first visible range, and that is the small one.
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+            "grow": {"mask": "anim_grow", "loop": False, "on_end": "idle_big", "transition": 0.1},
+            "idle_big": {"mask": "anim_bigidle", "loop": True, "transition": 0.1},
+            "sleep_big": {"range": [51, 62], "loop": True, "transition": 0.1},
+            # `produce` is what the producer capability publishes when a sun pops out, and
+            # this plant has no dedicated one in the original: producing is its idle pose, in
+            # whichever form it is in. Both are exported so the grown mushroom does not fall
+            # back to the *small* idle for that beat - a missing clip resolves to `idle`, and
+            # `produce_big` is only missing because nobody drew one.
+            "produce": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "produce_big": {"mask": "anim_bigidle", "loop": True, "transition": 0.1},
         },
     ),
     EntityConfig(
@@ -381,7 +422,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="puff_shroom",
         group="plant/attacker",
         reanim="PuffShroom.reanim",
-        target_box=PLANT_BOX,
+        target_box=SMALL_PLANT_BOX,
         # The original files the sleeping pose as its own mask (a slow 17-frame breathing
         # loop), so the server can ask for a "sleep" clip by name. No force_visible_hidden
         # here: the only bone the shooting mask hides is the closed-eye overlay, and
@@ -397,21 +438,27 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
         },
     ),
+    # ------------------------------------------------------------------
+    # The two pea shooters
+    #
+    # The original names its reanims after the gun, not after the plant:
+    # `PeaShooterSingle.reanim` is the one-headed Peashooter (its extra `anim_sprout` is
+    # the sprout on top of the head) and `PeaShooter.reanim` is the *Repeater* - the same
+    # plant with a second head, whose six `idle_headleaf_*` tracks are the back head's
+    # leaves. Reading the two files the other way round is what shipped the repeater's
+    # art on the peashooter's card and vice versa.
+    #
+    # Both keep the shooter line's shape: an `anim_full_idle` loop (79..103, the range
+    # where body *and* head are visible) and a one-shot `anim_shooting`, whose range
+    # (54..78) hides the leaves in the source, hence `force_visible_hidden`.
+    # ------------------------------------------------------------------
     EntityConfig(
-        output="repeater",
+        output="pea_shooter",
         group="plant/attacker",
-        reanim="GatlingPea.reanim",
+        reanim="PeaShooterSingle.reanim",
         target_box=PLANT_BOX,
-        # GatlingPea.reanim is the four-barrel model; the two-barrel repeater is the
-        # same plant with the extra pair dropped, so the art is shared. The filter is on
-        # the *track*, not the image: all four barrels are drawn from one sprite, so an
-        # image filter either removed none of them or - with a broader "GATLING" pattern
-        # - also removed the head, helmet and mouth, leaving a bare leaf.
-        exclude_image_regex=r"GATLINGPEA_HELMET",
-        exclude_track_regex=r"GATLINGPEA_BARREL[34]$",
         animations={
-            "idle": {"mask": "anim_head_idle", "loop": True, "transition": 0.1,
-                     "force_visible": r"(head|mouth|barrel|blink|eyebrow)"},
+            "idle": {"mask": "anim_full_idle", "loop": True, "transition": 0.1},
             "shoot": {
                 "mask": "anim_shooting",
                 "loop": False,
@@ -419,7 +466,23 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "transition": 0.1,
                 "force_visible_hidden": True,
                 "force_visible_exclude_prefixes": ["blink"],
-                "force_visible": r"(head|mouth|barrel|blink|eyebrow)",
+            },
+        },
+    ),
+    EntityConfig(
+        output="repeater",
+        group="plant/attacker",
+        reanim="PeaShooter.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_full_idle", "loop": True, "transition": 0.1},
+            "shoot": {
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
+                "force_visible_hidden": True,
+                "force_visible_exclude_prefixes": ["blink"],
             },
         },
     ),
@@ -598,12 +661,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             # A mushroom sleeps in daylight (pvzce:nocturnal), and the original draws the
             # sleeping head from its own sprite.
             "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+            # The sleeping head is its own sprite (see `sleep`), and it is hidden for the
+            # whole blast - so the rescue brought a closed-eyed head back for the explosion.
             "explode": {
                 "mask": "anim_explode",
                 "loop": False,
                 "on_end": "hold",
                 "transition": 0.05,
                 "force_visible_hidden": True,
+                "force_visible_exclude_prefixes": ["sleep"],
             },
         },
     ),
@@ -789,8 +855,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_polevaulter.reanim",
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
+        # Two walking clips, and the difference between them is the pole: `anim_run` (13..49)
+        # is the jog towards the plant with the pole held out, `anim_walk` (93..137) is the
+        # walk after the vault. `anim_jump` (50..92) is the vault itself, and `_ground` marks
+        # exactly the two grounded ranges - so which clip is which is the file's own answer,
+        # not a guess. Only the walk used to be exported, so the zombie jogged the
+        # empty-handed clip while still carrying the pole.
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
+            "run": {"mask": "anim_run", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
             "eat": {"mask": "anim_eat", "loop": True},
             "jump": {"mask": "anim_jump", "loop": False, "on_end": "walk", "transition": 0.05},
@@ -1164,6 +1237,26 @@ def resolve_range(spec: Dict[str, object], tracks: Sequence[core.Track]) -> Tupl
     return mask_range(tracks, str(spec["mask"]))
 
 
+def excluded_from_rescue(name: str, prefixes: Sequence[str]) -> bool:
+    """Whether ``force_visible_hidden`` must leave this bone alone.
+
+    <p>A bone's name is built from the *image* it draws, so it can carry the source
+    entity's prefix - ``PeaShooter_blink1.png`` becomes ``peashooter_blink_1`` for the pea
+    shooter, while the snow pea's equivalent is a bare ``blink_1``. Matching the prefix
+    with ``str.startswith`` therefore caught one plant's closed-eye overlay and rescued the
+    other's for the whole clip, which drew a blink over both eyes for the entire shooting
+    animation. The check is per underscore-separated word instead, so a prefix means "this
+    word starts the name or a word in it".
+    """
+
+    lowered = name.lower()
+    return any(
+        lowered.startswith(prefix.lower())
+        or any(word.startswith(prefix.lower()) for word in lowered.split("_"))
+        for prefix in prefixes
+    )
+
+
 def build_animation(
     state: str,
     spec: Dict[str, object],
@@ -1212,7 +1305,7 @@ def build_animation(
         visibility: List[bool] = []
         for frame in range(start, end + 1):
             is_visible = bool(source.visibility[frame])
-            if force_visible and permanently_hidden and not bone.name.startswith(exclude_prefixes):
+            if force_visible and permanently_hidden and not excluded_from_rescue(bone.name, exclude_prefixes):
                 is_visible = True
             if force_visible_re is not None and force_visible_re.search(bone.name):
                 is_visible = True

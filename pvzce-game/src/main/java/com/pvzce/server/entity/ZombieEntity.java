@@ -49,15 +49,15 @@ public class ZombieEntity extends PvzceEntity {
     public static final int CORPSE_TICKS = 360;
 
     /**
-     * How long a zombie keeps flinching after taking a hit, in ticks.
+     * How long a zombie's own rise out of a grave takes, in ticks.
      *
-     * <p>About an eighth of a second: long enough that the state is still current when the
-     * entity sync goes out (which happens every third tick, so a shorter hold can miss it
-     * entirely), and short enough that the zombie does not appear to be staggering. The
-     * client's own {@code hit} clip is far longer - it eases in, holds its first pose and
-     * eases back out, so what the player sees is a flinch rather than a clip change.
+     * <p>One second of climbing, during which it neither walks nor bites and is drawn below
+     * the ground line (see {@code InGameScreen}, which paints risers before the scene so the
+     * lawn covers the part that is still underground).
      */
-    public static final int HIT_HOLD_TICKS = 8;
+    public static final int RISE_TICKS = 60;
+    /** How far below its cell a rising zombie starts, in cells. */
+    public static final float RISE_DEPTH = 0.55F;
 
     private final ZombieDef def;
     private final List<Instance> capabilities = new ArrayList<>();
@@ -66,14 +66,13 @@ public class ZombieEntity extends PvzceEntity {
     private int leftCountdown;
     private int speedBoostTicks;
     /**
-     * How many more ticks the zombie keeps flinching, or zero.
+     * Ticks left of this zombie's climb out of a grave, or zero for one that is on its feet.
      *
-     * <p>Counted rather than derived from the clip: the server does not know how long the
-     * client's {@code hit} clip is, and it must not - the length lives in the animation
-     * data, which is exactly the kind of presentation the simulation stays out of. This is
-     * only "long enough that the state is actually published and the blend can breathe".
+     * <p>A state, not a spawn delay: the zombie exists from the moment the grave opens, so a
+     * save taken mid-rise comes back mid-rise, and the client can draw the part that is
+     * still underground.
      */
-    private int hitTicks;
+    private int riseTicks;
     /** Ticks left of this zombie's own death animation; 0 while it is alive. */
     private int corpseTicks;
     /** Balloon zombies fly until something pops the balloon. */
@@ -90,6 +89,29 @@ public class ZombieEntity extends PvzceEntity {
 
     public ZombieDef def() {
         return def;
+    }
+
+    /**
+     * How many ticks this zombie still has to climb out of the ground, or zero.
+     *
+     * <p>The client reads it to draw the zombie sinking into (or rising out of) the lawn:
+     * negative height alone would paint the part below the ground line *over* the tile
+     * underneath, so a riser is drawn before the scene instead. See {@link #RISE_DEPTH} for
+     * how far down it starts.
+     */
+    public int riseTicks() {
+        return riseTicks;
+    }
+
+    /** How far through its climb this zombie is, 0 (buried) to 1 (standing). */
+    public float riseProgress() {
+        return riseTicks <= 0 ? 1F : 1F - riseTicks / (float) RISE_TICKS;
+    }
+
+    /** Sends this zombie up out of the ground: it spends {@link #RISE_TICKS} climbing. */
+    public void beginRise() {
+        riseTicks = RISE_TICKS;
+        setAnimation(EntityAnimations.IDLE);
     }
 
     /**
@@ -170,6 +192,24 @@ public class ZombieEntity extends PvzceEntity {
             }
             return;
         }
+        if (riseTicks > 0) {
+            // Still climbing out of its grave. It does not walk, bite, drown or run its
+            // capabilities - it is not on the lawn yet - and the client draws it below the
+            // ground line for as long as this lasts (see `InGameScreen#renderRisingZombies`).
+            // Being *shot* while it climbs is allowed, exactly as in the original.
+            riseTicks--;
+            setAnimation(EntityAnimations.IDLE);
+            // Below the ground line while it climbs. Height is the entity's own "how high off
+            // its cell" and already travels every sync, so the climb needs no new field - and
+            // the client draws everything with a negative height *before* the scene, which is
+            // what keeps the buried half behind the lawn instead of on top of the row below.
+            setHeight(-RISE_DEPTH * (1F - riseProgress()));
+            tickStatuses();
+            if (riseTicks <= 0) {
+                setHeight(0F);
+            }
+            return;
+        }
         tickStatuses();
         if (drownInWater(level)) {
             return;
@@ -219,24 +259,16 @@ public class ZombieEntity extends PvzceEntity {
             setAnimation(EntityAnimations.IDLE);
             return;
         }
-        // The flinch is held for a beat rather than published for the single tick the damage
-        // landed on. The state goes out with the every-third-tick entity sync, so a one-tick
-        // hit was usually never sent at all - and when it was, the client played a clip that
-        // is well over a second long for one tick and then blended straight back, which is
-        // the flicker that made a zombie under fire look choppy. Holding it makes the
-        // clip's own blend do the work: it eases in, holds its first pose, eases out.
-        //
-        // Movement and biting are deliberately *not* paused: the original's zombie keeps
-        // walking into the peas, and stopping would make the whole lane stutter instead.
-        if (hitTicks > 0) {
-            hitTicks--;
-            setAnimation(EntityAnimations.HIT);
-        }
+        // Being hit does not change the pose. It used to hold the `hit` clip for eight ticks,
+        // and that clip is the zombie's *standing* pose - so a zombie walking into a stream
+        // of peas froze for an eighth of a second on every hit, restarted its walk cycle when
+        // it came back, and jumped its pole (or its arms) to a pose that belonged to the
+        // other clip. The original has no hurt animation at all: the splat particle and the
+        // impact sound are the feedback, and the legs keep walking. Armour hits are the same
+        // story - `ArmorCapability` no longer reaches for a clip either.
         PlantEntity plant = level.plantAt(gridX(), gridY());
         if (plant != null) {
-            if (hitTicks <= 0) {
-                setAnimation(EntityAnimations.EAT);
-            }
+            setAnimation(EntityAnimations.EAT);
             if (biteCooldown > 0) {
                 biteCooldown--;
             } else {
@@ -249,14 +281,31 @@ public class ZombieEntity extends PvzceEntity {
             }
             return;
         }
-        if (hitTicks <= 0) {
-            setAnimation(EntityAnimations.WALK);
-        }
+        setAnimation(walkState());
         setCellX(cellX() - moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
         if (biteCooldown > 0) {
             biteCooldown--;
         }
         checkReachedLeft(level);
+    }
+
+    /**
+     * The state this zombie's walk loop publishes.
+     *
+     * <p>Plain {@code walk} unless a capability says otherwise, because "how does this one
+     * walk" is a property of what it is carrying (see {@link
+     * com.pvzce.api.content.capability.ZombieCapability#walkState}). Asked here rather than
+     * set by the capability itself: the walk loop runs after the capabilities, so a state
+     * they published would be replaced on the same tick.
+     */
+    private String walkState() {
+        for (Instance instance : capabilities) {
+            String state = instance.capability.walkState(this);
+            if (state != null && !state.isBlank()) {
+                return state;
+            }
+        }
+        return EntityAnimations.WALK;
     }
 
     /** Move speed after capability multipliers, the speed boost and statuses. */
@@ -404,9 +453,6 @@ public class ZombieEntity extends PvzceEntity {
         }
         int before = health();
         setHealth(Math.max(0, health() - amount));
-        setAnimation(EntityAnimations.HIT);
-        // Held for a beat by walkOrEat; see the note there for why one tick was not enough.
-        hitTicks = HIT_HOLD_TICKS;
         // Half health costs an ordinary zombie its outer arm, as it does in the original -
         // but only once nothing is left on its head: a Conehead loses the arm at half of
         // the health it has *under* the cone, and only after the cone is gone. Losing an
@@ -505,6 +551,19 @@ public class ZombieEntity extends PvzceEntity {
         return statuses.stream().anyMatch(instance -> instance.status == status);
     }
 
+    /**
+     * A slowed zombie is drawn frozen.
+     *
+     * <p>"Chilled" is exactly the {@code slow} status and nothing else: the client has no
+     * clock for it and no way to tell a slowed zombie from a normal one by looking at the
+     * position it was sent, so the state goes out with the rest of the entity's visible
+     * state (see {@code EntityUpdateS2C#chilled}).
+     */
+    @Override
+    public boolean chilled() {
+        return hasStatus(ZombieStatus.SLOW);
+    }
+
     private void tickStatuses() {
         if (speedBoostTicks > 0) {
             speedBoostTicks--;
@@ -523,7 +582,7 @@ public class ZombieEntity extends PvzceEntity {
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
         tag.putInt("biteCooldown", biteCooldown);
-        tag.putInt("hitTicks", hitTicks);
+        tag.putInt("riseTicks", riseTicks);
         tag.putInt("leftCountdown", leftCountdown);
         tag.putInt("speedBoostTicks", speedBoostTicks);
         tag.putInt("grounded", grounded ? 1 : 0);
@@ -554,7 +613,7 @@ public class ZombieEntity extends PvzceEntity {
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
         biteCooldown = tag.getInt("biteCooldown");
-        hitTicks = tag.getInt("hitTicks");
+        riseTicks = Math.max(0, tag.getInt("riseTicks"));
         leftCountdown = tag.getInt("leftCountdown");
         speedBoostTicks = tag.getInt("speedBoostTicks");
         grounded = !tag.contains("grounded") || tag.getInt("grounded") != 0;

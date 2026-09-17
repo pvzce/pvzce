@@ -24,7 +24,8 @@
     "life": 0.5,
     "frames_per_second": 60.0,
     "loop": true,
-    "texture": "pvzce:textures/particles/zombie/zombiearm"
+    "texture": "pvzce:textures/particles/zombie/zombiearm",
+    "spin_spread": 90.0
   },
   "motion": {
     "speed": 4.25,

@@ -34,17 +34,6 @@ public final class ParticleEngine {
     public static final float MAX_STEP_SECONDS = 0.1F;
     /** Hard cap on live particles; the oldest are dropped first. */
     public static final int MAX_PARTICLES = 1024;
-    /**
-     * Where the ground line sits for {@code bounce} definitions, in cells below the point
-     * the particle was spawned at.
-     *
-     * <p>Relative, not absolute: a thrown cone or a zombie's arm is spawned at the centre
-     * of its own cell and has to land on the lawn <em>under that cell</em>. The check used
-     * to compare against the world coordinate {@code -GROUND_OFFSET}, which is the ground
-     * only for a particle spawned in row 0 - anything thrown in row 1 or above fell past
-     * the bottom edge of the lawn instead of landing on it.
-     */
-    private static final float GROUND_OFFSET = 0.42F;
     /** Particles draw above entities but below GUI text. */
     private static final float PARTICLE_Z = 0.5F;
 
@@ -105,6 +94,9 @@ public final class ParticleEngine {
     }
 
     private Particle instantiate(ParticleDef def, float x, float y) {
+        if (Boolean.getBoolean("pvzce.traceEffects")) {
+            System.out.println("[PARTICLES] spawn " + def.id() + " at " + x + "," + y);
+        }
         ParticleDef.ParticleLook look = def.look();
         ParticleDef.ParticleMotion motion = def.motion();
         Particle particle = new Particle();
@@ -121,10 +113,18 @@ public final class ParticleEngine {
         particle.vy = (float) Math.sin(angle) * speed;
         // Fixed at birth: the ground belongs to where the particle came from, not to
         // where it has drifted to.
-        particle.groundY = motion.bounce() ? y - GROUND_OFFSET : Float.NaN;
+        // Relative, not absolute: a thrown cone or a zombie's arm is spawned in its own cell
+        // and has to land on the lawn *under that cell*, whatever row that is. How far below
+        // is the definition's own number, because the spawn point is not always the ground -
+        // a hat leaves the zombie's head (see ParticleMotion#groundOffset).
+        particle.groundY = motion.bounce() ? y - motion.groundOffset() : Float.NaN;
         particle.scale = Math.max(0.01F, look.scale() + spread(look.scaleSpread()));
         particle.angle = look.randomSpin() ? random.nextFloat() * 360F : 0F;
-        particle.spin = look.spin();
+        // Rolled here with the rest of the birth state: the original's emitters name a
+        // *range* of spin speeds ([-720 720] for a head the lawn mower threw), and taking
+        // the midpoint of a symmetric range is zero - a solid object that slides instead of
+        // tumbling. See ParticleLook#spinSpread.
+        particle.spin = look.spin() + spread(look.spinSpread());
         return particle;
     }
 

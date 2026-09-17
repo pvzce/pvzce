@@ -136,6 +136,31 @@ public class PlantEntity extends PvzceEntity {
     }
 
     /**
+     * Publishes a plant animation state, in the art variant this plant is in.
+     *
+     * <p>Every capability that names a state goes through here rather than calling
+     * {@code setAnimation} directly: a grown sun-shroom's {@code idle} is {@code idle_big},
+     * and the capability that sleeps has no business knowing that growth exists. The suffix
+     * comes from {@link PlantCapability#variantSuffix}, so "which art is this plant wearing"
+     * is one answer derived from the capabilities that decide it - not a field that the
+     * growing capability and every publisher would have to keep in step.
+     */
+    public void setState(String state) {
+        setAnimation(state + variantSuffix());
+    }
+
+    /** The clip-name suffix of the art variant this plant is currently in. */
+    public String variantSuffix() {
+        for (Instance instance : capabilities) {
+            String suffix = instance.capability.variantSuffix(this);
+            if (suffix != null && !suffix.isEmpty()) {
+                return "_" + suffix;
+            }
+        }
+        return "";
+    }
+
+    /**
      * True when the plant is still part of its cell, i.e. a zombie may eat it and a tool
      * may remove it. A capability that moves the plant out of its cell (a bowling nut)
      * answers false; every capability has to agree, so combining a stationary behaviour

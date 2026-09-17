@@ -195,7 +195,7 @@ public final class ExplosiveCapability implements PlantCapability {
             // The blast has already happened: everything left is the drawing. The plant
             // removes itself when the count runs out, which is what makes this a state on
             // the plant rather than a special case in the level's removal pass.
-            plant.setAnimation(EntityAnimations.EXPLODE);
+            plant.setState(EntityAnimations.EXPLODE);
             linger--;
             if (linger <= 0) {
                 plant.remove();
@@ -204,7 +204,7 @@ public final class ExplosiveCapability implements PlantCapability {
         }
         if (fuse > 0) {
             fuse--;
-            plant.setAnimation(trigger == Trigger.PROXIMITY
+            plant.setState(trigger == Trigger.PROXIMITY
                     ? (fuse == 0 ? EntityAnimations.ARMED : EntityAnimations.GROW)
                     // A timed explosive has nothing to grow into. The ash line's own art
                     // says so: only the two mines have a `grow` clip, and asking a cherry
@@ -226,14 +226,16 @@ public final class ExplosiveCapability implements PlantCapability {
                 .findFirst()
                 .orElse(null);
         if (target == null) {
-            plant.setAnimation(EntityAnimations.ARMED);
+            // The loop, not the emergence: `armed` is the one-shot that ends on this, and
+            // re-requesting it every tick restarted the mine's rise for as long as it waited.
+            plant.setState(EntityAnimations.ARMED_LOOP);
             return;
         }
         detonate(plant, level);
     }
 
     private void detonate(PlantEntity plant, LevelAccess level) {
-        plant.setAnimation(EntityAnimations.EXPLODE);
+        plant.setState(EntityAnimations.EXPLODE);
         // The blast has to cover whatever set it off. A proximity mine triggers on
         // "a zombie is within trigger_range", so a mine whose radius is smaller than its
         // trigger range detonates while the zombie is still outside the blast - which is

@@ -78,15 +78,15 @@ public final class ShooterCapability implements PlantCapability {
         if (cooldown > 0) {
             cooldown--;
             if (cooldown == 0) {
-                plant.setAnimation(EntityAnimations.IDLE);
+                plant.setState(EntityAnimations.IDLE);
             }
             return;
         }
         if (!hasTarget(plant, level)) {
-            plant.setAnimation(EntityAnimations.IDLE);
+            plant.setState(EntityAnimations.IDLE);
             return;
         }
-        plant.setAnimation(EntityAnimations.SHOOT);
+        plant.setState(EntityAnimations.SHOOT);
         for (ProjectileRef shot : shots) {
             // The muzzle sits on the firing side, so a backward shot leaves the plant
             // from its other edge instead of appearing inside it.

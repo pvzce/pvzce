@@ -67,7 +67,22 @@ public interface LevelAccess {
      * definition because the same sun is both - the sky drops one and a sunflower
      * makes one.
      */
-    void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team);
+    default void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team) {
+        spawnProducedResource(resourceId, amount, x, y, team,
+                com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE);
+    }
+
+    /**
+     * The same, for a producer whose drop is drawn at its own size.
+     *
+     * <p>A small sun-shroom makes a sun worth 15 and the original draws it smaller than the
+     * 25 the sky drops, so the drop - not the resource - carries the factor: the producing
+     * plant is the only thing that knows which of the two it just made. Presentation only;
+     * the amount is what the player is paid.
+     *
+     * @param scale draw size multiplier on top of the resource's own {@code render_scale}
+     */
+    void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team, float scale);
 
     /**
      * Puts a zombie on the field at {@code x} in {@code row}.

@@ -225,8 +225,13 @@ public final class AnimationManager {
         }
         float[] anchor = anchor(entity);
         float vs = visualScale(entity);
+        // How this entity is lit: a drop is dimmed so its glow layers do not clip to white,
+        // everything else wears the night lift and, if it is a slowed zombie, the frozen
+        // tint. One push, one pop, both paths below.
         if (EntityKind.RESOURCE.equals(entity.kind())) {
             client.pushEntityTint(EntityVisuals.DROP_TINT);
+        } else {
+            client.pushEntityLook(entity);
         }
         activeBoneArt = playback.file() instanceof ControllerFile controller
                 ? com.pvzce.client.renderer.EquipmentArt.forEntity(entity, controller.model())
@@ -235,9 +240,7 @@ public final class AnimationManager {
             playback.render(client, anchor[0], anchor[1], baseZ(entity), xScaleFor(entity, vs));
         } finally {
             activeBoneArt = null;
-            if (EntityKind.RESOURCE.equals(entity.kind())) {
-                client.popEntityTint();
-            }
+            client.popEntityTint();
         }
         return true;
     }
@@ -275,7 +278,7 @@ public final class AnimationManager {
 
     /** The definition's {@code render_scale}, or 1 for anything that declares none. */
     float renderScale(ClientEntity entity) {
-        return EntityArt.renderScale(entity.defId());
+        return EntityArt.renderScale(entity.defId()) * entity.renderScale();
     }
 
     /**
@@ -454,9 +457,14 @@ public final class AnimationManager {
      * resource drop could never use an animation override. The lookup now lives in
      * {@link EntityArt}, which is also what the renderer asks for fallback sprites -
      * so "which art does this id use" has one answer again.
+     *
+     * <p>The kind travels with the id because an id can be in two registries at once - the
+     * snow pea is a plant and a projectile - and the answer has to be the one for the thing
+     * being drawn. It used to be dropped here, and every snow pea in flight was drawn with
+     * the plant's controller model.
      */
     private AnimationBindings bindings(String kind, Identifier defId) {
-        AnimationBindings bindings = EntityArt.bindings(defId);
+        AnimationBindings bindings = EntityArt.bindings(defId, kind);
         return bindings == null ? AnimationBindings.EMPTY : bindings;
     }
 

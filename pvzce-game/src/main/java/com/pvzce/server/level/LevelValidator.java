@@ -327,9 +327,22 @@ public final class LevelValidator {
                 if (reward.amount() <= 0) {
                     errors.add("rewards." + block + ": a coins entry needs a positive \"amount\"");
                 }
+            } else if (reward.isResource()) {
+                Identifier resource = reward.id().orElse(null);
+                if (resource == null) {
+                    errors.add("rewards." + block + ": a resource entry needs an \"id\"");
+                } else if (BuiltInRegistries.RESOURCES.get(resource) == null) {
+                    // The entry would still credit its worth - a resource nobody defined is
+                    // worth nothing - so the symptom is "the first clear paid a diamond and
+                    // the wallet did not move", which points at nothing.
+                    errors.add("rewards." + block + ": unknown resource '" + resource
+                            + "', which is worth nothing to the wallet");
+                } else if (reward.amount() <= 0) {
+                    errors.add("rewards." + block + ": a resource entry needs a positive \"amount\"");
+                }
             } else {
                 errors.add("rewards." + block + ": unknown type '" + reward.type()
-                        + "' (expected \"unlock\" or \"coins\")");
+                        + "' (expected \"unlock\", \"coins\" or \"resource\")");
             }
         }
     }

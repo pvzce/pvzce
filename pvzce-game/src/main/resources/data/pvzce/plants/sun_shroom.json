@@ -15,7 +15,16 @@
       "type": "pvzce:producer",
       "resource": "pvzce:sun",
       "amount": 15,
-      "every": 1440
+      "every": 1440,
+      "drop_scale": 0.65,
+      "grow": {
+        "after_ticks": 3600,
+        "amount": 25,
+        "drop_scale": 1.0,
+        "variant": "big",
+        "clip_ticks": 60,
+        "sound": "pvzce:sfx/plant/plantgrow"
+      }
     }
   ],
   "animation_dir": "plant/producer",

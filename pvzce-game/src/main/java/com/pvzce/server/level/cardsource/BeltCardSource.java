@@ -116,7 +116,10 @@ public final class BeltCardSource implements CardSource {
             if (resolved == null) {
                 continue;
             }
-            rebuilt.add(new Slot(card.id(), resolved.kind(), resolved.content(), 0, 0, Slot.UNLIMITED_USES));
+            // No cooldown at all: a belt card is handed to the player, so there is nothing
+            // to recharge and the bar has no clock of its own.
+            rebuilt.add(new Slot(card.id(), resolved.kind(), resolved.content(), 0, 0,
+                    Slot.UNLIMITED_USES, 0));
         }
         player.replaceSlots(rebuilt);
     }

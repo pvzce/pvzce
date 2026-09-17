@@ -154,6 +154,72 @@ class ParticleDefinitionTest {
     }
 
     /**
+     * The head a lawn mower throws tumbles.
+     *
+     * <p>The original writes {@code ParticleSpinSpeed [-720 720]} for it, and the converter
+     * kept only the midpoint of a range - zero, because the range is symmetric - so the head
+     * crossed the lawn without turning at all: a solid object sliding left, which is what
+     * "the mowed zombie's head looks wrong" was. The half-width travels as
+     * {@code spin_spread} now and the engine rolls a speed per particle.
+     */
+    @Test
+    void theMowedZombieHeadTumbles() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        ParticleDef head = BuiltInRegistries.PARTICLES.get(PvzceParticles.MOWERED_ZOMBIE_HEAD);
+        assertNotNull(head, "pvzce:mowered_zombie_head must be defined");
+
+        float spin = Math.abs(head.look().spin());
+        float spread = head.look().spinSpread();
+        assertTrue(spread > 0F, "the head must be able to roll, not just face one way");
+        assertTrue(spin + spread >= 180F,
+                "and a mower throws it hard enough to read as a tumble: " + (spin + spread) + " deg/s");
+    }
+
+    /**
+     * A hat knocked off a zombie actually falls to the lawn.
+     *
+     * <p>Two numbers decide whether the player sees anything at all, and both were wrong: the
+     * piece was spawned at the zombie's *head* while its ground line stayed the default 0.42
+     * cells below the spawn point, so it "landed" in mid-air just under the head and skittered
+     * there for the half second it lived - a hat that vanishes rather than a hat that falls.
+     * The ground line is the definition's own {@code ground_offset} now.
+     */
+    @Test
+    void aKnockedOffHatFallsToTheLawn() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        ParticleDef cone = BuiltInRegistries.PARTICLES.get(
+                Identifier.of("pvzce", "zombie_traffic_cone"));
+        assertNotNull(cone, "the cone a Conehead drops must be defined");
+
+        // A zombie in row 0 stands at cell y 0.5; its head is about half a cell above that,
+        // which is where ArmorCapability emits the debris.
+        float head = 1.05F;
+        float lawn = 0.14F;
+        ParticleEngine engine = new ParticleEngine();
+        engine.spawn(cone.id().toString(), 3F, head);
+
+        // Still in the air half a second later: the drop has to be watchable, not a flash.
+        tickSeconds(engine, 0.5F);
+        assertEquals(1, engine.count(), "the hat is still falling after half a second");
+
+        // And it comes to rest on the grass under the zombie, not on an invisible line just
+        // below the head. Checked while it is still alive: its lifetime is 1.1s.
+        tickSeconds(engine, 0.4F);
+        assertEquals(1, engine.count(), "still on screen at 0.9s");
+        float[] resting = engine.position(0);
+        assertNotNull(resting);
+        assertEquals(lawn, resting[1], 0.12F, "a fallen hat lies on the lawn: y=" + resting[1]);
+    }
+
+    /** Advances the engine in 60ths of a second, the rate its ages are authored against. */
+    private static void tickSeconds(ParticleEngine engine, float seconds) {
+        int steps = Math.round(seconds * 60F);
+        for (int i = 0; i < steps; i++) {
+            engine.tick(1F / 60F);
+        }
+    }
+
+    /**
      * The engine must not invent particles for an id that does not exist.
      *
      * <p>It used to answer every unknown name with a red square, which made a typo

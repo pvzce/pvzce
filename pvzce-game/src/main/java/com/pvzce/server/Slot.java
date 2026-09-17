@@ -34,21 +34,28 @@ public final class Slot {
     private final Kind kind;
     private final Identifier defId;
     private final int costSun;
+    /**
+     * How long this card takes to come back, before the level's multiplier.
+     *
+     * <p>The card's own number, read from its definition when the bar was built, and zero
+     * for a card that has no cooldown at all. The level scales it at the moment the card is
+     * spent ({@code LevelServer.effectiveCooldownTicks}), so a {@code /gamerule} change
+     * reaches every card that is still on the bar instead of only the ones dealt after it.
+     */
+    private final int cooldownTicks;
     private int cooldownLeft;
     /** Remaining uses for limited tools, or {@link #UNLIMITED_USES}. */
     private int usesLeft;
 
-    public Slot(int index, Kind kind, Identifier defId, int costSun, int cooldownLeft) {
-        this(index, kind, defId, costSun, cooldownLeft, UNLIMITED_USES);
-    }
-
-    public Slot(int index, Kind kind, Identifier defId, int costSun, int cooldownLeft, int usesLeft) {
+    public Slot(int index, Kind kind, Identifier defId, int costSun, int cooldownLeft,
+                int usesLeft, int cooldownTicks) {
         this.index = index;
         this.kind = kind;
         this.defId = defId;
         this.costSun = costSun;
         this.cooldownLeft = cooldownLeft;
         this.usesLeft = usesLeft;
+        this.cooldownTicks = Math.max(0, cooldownTicks);
     }
 
     public int index() {
@@ -65,6 +72,11 @@ public final class Slot {
 
     public int costSun() {
         return costSun;
+    }
+
+    /** This card's own cooldown in ticks, before the level's multiplier; 0 = none. */
+    public int cooldownTicks() {
+        return cooldownTicks;
     }
 
     public int cooldownLeft() {

@@ -767,26 +767,35 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
-     * Turns the reward's own money bag into coins, from where the bag is lying.
+     * Pays out the reward's own share: coins out of the money bag, or the object itself.
      *
-     * <p>The bag is what a win pays when it has no card to unlock: first clears, repeat
-     * clears and the flat bonus all land in the wallet as coins, and the packet's
-     * {@code bonusCoins} is that number. In the original the bag bursts where it lies and
-     * the coins arc into the bank; the award page that follows is a summary, not a second
-     * place to collect the same money from.
+     * <p>This is what a win pays when it has no card to unlock - a first clear's bounty, a
+     * repeat clear's stipend, the flat bonus - and the packet's {@code bonusCoins} is that
+     * number. In the original the bag bursts where it lies and the coins arc into the bank;
+     * the award page that follows is a summary, not a second place to collect the same money
+     * from. A level that paid in objects sends {@code rewardItem} instead, and then the
+     * object flies: the wallet was credited what it is worth, and paying that out as ten
+     * silver coins would show an exchange the player never asked for.
      *
      * <p>The count is derived from the value rather than fixed, so the player watches the
      * amount they were actually credited - one coin per hundred, at least one, capped so a
      * five-thousand-coin clear does not become a swarm that outlasts the celebration. The
-     * per-coin worth is that division, not a constant, so the coins add up to the bonus.
+     * per-coin worth is that division, not a constant, so the coins add up to the share.
      */
     private void payForRewardBag() {
         if (reward == null || reward.hasUnlock() || reward.bonusCoins() <= 0) {
             return;
         }
-        int coins = Math.max(1, Math.min(REWARD_BAG_MAX_COINS, reward.bonusCoins() / 100));
-        int worth = Math.max(1, reward.bonusCoins() / coins);
-        claimedRewardCoins = reward.bonusCoins();
+        // What is left of the bonus once the mowers have been paid for themselves. The two
+        // are one wallet deposit, but they are two gestures: each mower turns into its own
+        // coin where it stands, and the bag (or the item) is the level's completion payout.
+        // Paying the bag the whole bonus as well counted the mowers twice - once here and
+        // once at their own positions - so the receipt read higher than the wallet moved.
+        int share = rewardOnlyCoins();
+        if (share <= 0) {
+            return;
+        }
+        claimedRewardCoins = share;
         // From the bag's own rectangle, which is also where it is drawn and where the player
         // just clicked - the same rule the mowers follow, for the same reason.
         float[] rect = rewardRect();
@@ -794,11 +803,51 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float guiScale = Math.max(1, client.guiScale());
         float worldX = camera.worldX(rect[0] + rect[2] / 2F, rect[1] + rect[3] / 2F);
         float worldY = camera.worldY(rect[0] + rect[2] / 2F, rect[1] + rect[3] / 2F);
+        if (reward.hasRewardItem()) {
+            // The object itself flies into the bank. It is worth exactly what the wallet was
+            // credited for it, so the diamond arrives as one diamond rather than as ten
+            // silver coins - the exchange the player never asked for.
+            client.level().addCollectAnimation(new ResourceCollectAnimation(
+                    REWARD_BAG_FIRST_ID, reward.rewardItem(), share, rewardItemIcon(),
+                    worldX, worldY, 0.3F));
+            return;
+        }
+        int coins = Math.max(1, Math.min(REWARD_BAG_MAX_COINS, share / 100));
+        int worth = Math.max(1, share / coins);
         for (int i = 0; i < coins; i++) {
             client.level().addCollectAnimation(new ResourceCollectAnimation(
                     REWARD_BAG_FIRST_ID - i, claimResourceId(), worth, COIN_ICON,
                     worldX + (i % 3 - 1) * 0.08F, worldY, 0.3F));
         }
+    }
+
+    /**
+     * The reward's own coins: the bonus minus the share the parked mowers were paid.
+     *
+     * <p>{@code bonusCoins} is one deposit that already includes the mower payout (see
+     * {@code PvzceServer.awardProfile}), so this is the part the bag stands for. Never
+     * negative: a level whose whole bonus was its mowers pays nothing out of the bag.
+     */
+    private int rewardOnlyCoins() {
+        return Math.max(0, reward.bonusCoins() - reward.mowerCoins());
+    }
+
+    /**
+     * The sprite a reward item is drawn with: the resource's own icon.
+     *
+     * <p>Falls back to the shared missing-texture tile through {@code EntityArt} when the
+     * resource is unknown, so a client that is missing the pack draws the same magenta tile
+     * it draws for every other unresolved reference instead of nothing at all - the wallet
+     * was credited either way.
+     */
+    private Identifier rewardItemIcon() {
+        Identifier id = Identifier.tryParse(reward.rewardItem());
+        com.pvzce.api.content.ResourceDef def = id == null
+                ? null : com.pvzce.common.core.BuiltInRegistries.RESOURCES.get(id);
+        if (def != null) {
+            return def.icon();
+        }
+        return com.pvzce.common.core.EntityArt.sprite(id);
     }
 
     /**
@@ -898,6 +947,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                             card == null ? 0 : card.costSun())
                             .withBrightness(brightness),
                     rect[0], rect[1], rect[2], rect[3]);
+        } else if (reward().hasRewardItem()) {
+            // A resource is an object, not a packet: drawn square inside the slot the drop is
+            // laid out for, so the diamond keeps its shape on a card-shaped rectangle.
+            float size = rect[3];
+            client.drawTexture(rewardItemIcon(), rect[0] + (rect[2] - size) / 2F, rect[1], size, size,
+                    0.55F, brightness, brightness, brightness, 1F);
         } else {
             client.drawTexture(REWARD_BAG, rect[0], rect[1], rect[2], rect[3], 0.55F,
                     brightness, brightness, brightness, 1F);
@@ -1063,6 +1118,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         EffectEventS2C effect;
         while ((effect = client.level().effects().poll()) != null) {
+            if (Boolean.getBoolean("pvzce.traceEffects")) {
+                System.out.println("[EFFECT] particle='" + effect.particle() + "' sound='" + effect.sound()
+                        + "' x=" + effect.x() + " y=" + effect.y());
+            }
             if (!effect.particle().isEmpty()) {
                 client.particles().spawn(effect.particle(), effect.x(), effect.y());
             }
@@ -1179,6 +1238,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 Math.max(1, (int) Math.ceil(Math.abs(boardRight - boardLeft) + marginX * 2F)),
                 Math.max(1, (int) Math.ceil(Math.abs(boardTop - boardBottom) + marginY * 2F)));
         try {
+            // Zombies still climbing out of their graves go *under* the lawn, so they are
+            // drawn before it: a negative height alone would paint the buried half over the
+            // row below (see ZombieEntity#RISE_DEPTH). The clip is already in place.
+            renderRisingZombies();
             SceneTileRenderer.render(client, client.level().width(), client.level().height(),
                     (x, y) -> client.level().sceneAt(x, y),
                     camera.unitY() / Math.max(0.0001F, camera.unitX()),
@@ -1216,6 +1279,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         List<ClientEntity> renderEntities = new ArrayList<>(client.level().entities().values());
         renderEntities.sort(Comparator.comparingInt(InGameScreen::renderOrder).thenComparingInt(ClientEntity::id));
         for (ClientEntity entity : renderEntities) {
+            // Risers were already drawn, before the lawn. Drawing them again here would put
+            // the buried half back on top of it.
+            if (isRising(entity)) {
+                continue;
+            }
             renderEntity(entity);
         }
         renderPlacementPreview();
@@ -1328,7 +1396,34 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     /** Namespace-preserving sprite id; shared with the seed chooser and editor. */
     private static Identifier entityTexture(ClientEntity entity) {
-        return com.pvzce.client.renderer.EntityTextures.forEntity(entity.defId());
+        return com.pvzce.client.renderer.EntityTextures.forEntity(entity.defId(), entity.kind());
+    }
+
+    /**
+     * Whether this entity is still on its way up out of the ground.
+     *
+     * <p>A zombie in that state is drawn below its cell (negative height, see
+     * {@code ZombieEntity#RISE_DEPTH}), which is the whole of what the client is told: the
+     * climb is a height animation, so no new field travels for it.
+     */
+    private static boolean isRising(ClientEntity entity) {
+        return entity.kind().equals(com.pvzce.api.entity.EntityKind.ZOMBIE) && entity.height() < 0F;
+    }
+
+    /**
+     * Paints every zombie that is still climbing out of a grave, behind the lawn.
+     *
+     * <p>Called before the scene tiles. It draws no shadow: a shadow under the grass would
+     * be the one part of a buried zombie the player could see, and the sun does not reach
+     * down there.
+     */
+    private void renderRisingZombies() {
+        for (ClientEntity entity : client.level().entities().values()) {
+            if (isRising(entity)) {
+                entity.playAnimation(entity.animation());
+                drawEntityArt(entity);
+            }
+        }
     }
 
     private void renderEntity(ClientEntity entity) {
@@ -1366,7 +1461,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // board's aspect correction for everything but a drop, and the definition's own
         // render_scale for everything, applied to both axes so it never changes the shape.
         boolean drop = entity.kind().equals(com.pvzce.api.entity.EntityKind.RESOURCE);
-        float renderScale = com.pvzce.common.core.EntityArt.renderScale(entity.defId());
+        // Two factors, the same two the animation path uses (see AnimationManager#xScaleFor):
+        // the definition's own render_scale, and the entity's per-drop multiplier on top of
+        // it - a small sun-shroom's sun is the same resource drawn smaller.
+        float renderScale = com.pvzce.common.core.EntityArt.renderScale(entity.defId())
+                * entity.renderScale();
         float xScale = (drop ? 1F : client.spriteXScale()) * renderScale;
         float yScale = renderScale;
         EntityVisuals.Visuals visuals = EntityVisuals.of(entity.kind());
@@ -1381,10 +1480,22 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     0.4F, 0.28F, 0.16F, 0.9F);
             return;
         }
-        client.drawTexture(texture, drawX - visuals.spriteOffsetX() * xScale,
-                drawY - visuals.spriteOffsetY() * yScale + drawHeight,
-                visuals.spriteWidth() * xScale, visuals.spriteHeight() * yScale, visuals.baseZ(),
-                1, 1, 1, 1);
+        // The same look the animated path wears: the night lift and, for a slowed zombie,
+        // the frozen tint. A sprite fallback that ignored them would be a second answer to
+        // "how is this entity lit" - visible the moment a content pack ships no animation.
+        if (drop) {
+            client.pushEntityTint(EntityVisuals.DROP_TINT);
+        } else {
+            client.pushEntityLook(entity);
+        }
+        try {
+            client.drawTexture(texture, drawX - visuals.spriteOffsetX() * xScale,
+                    drawY - visuals.spriteOffsetY() * yScale + drawHeight,
+                    visuals.spriteWidth() * xScale, visuals.spriteHeight() * yScale, visuals.baseZ(),
+                    1, 1, 1, 1);
+        } finally {
+            client.popEntityTint();
+        }
     }
 
     /**
@@ -1394,10 +1505,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private void drawShadow(PvzceClient client, ClientEntity entity, Identifier texture) {
         float[] visual = client.animations() == null ? null : client.animations().visualSize(entity);
         float spriteXScale = client.spriteXScale();
-        // A definition can ask to be drawn bigger or smaller than its art; the shadow has
-        // to follow it, or a scaled entity slides around on a shadow that belongs to the
-        // size it no longer is.
-        float renderScale = com.pvzce.common.core.EntityArt.renderScale(entity.defId());
+        // A definition can ask to be drawn bigger or smaller than its art, and a drop can
+        // ask for a size of its own on top of that; the shadow has to follow both, or a
+        // scaled entity slides around on a shadow that belongs to the size it no longer is.
+        float renderScale = com.pvzce.common.core.EntityArt.renderScale(entity.defId())
+                * entity.renderScale();
         // Same interpolated position as the art: a shadow that arrives a packet early or
         // late slides out from under the thing casting it.
         float drawX = entity.visualCellX();

@@ -211,6 +211,17 @@
 | `day_length: D > 0`, `night_length: -1` | 同样永远白天 |
 | `day_length: D > 0`, `night_length: N > 0` | 真正的昼夜循环，每 `D + N` tick 一轮（1-10：一分钟白天 + 一百分钟夜晚） |
 
+`rules` 里还有这些（写错规则名或写非法取值都会在加载时被 `LevelValidator` 报出来）：
+
+| 规则 | 默认 | 说明 |
+|---|---|---|
+| `pvzce:sun_value` | `25` | 一颗阳光值多少 |
+| `pvzce:crater_recovery` | `6000` | 弹坑多久长回草地（tick） |
+| `pvzce:zombie_damage_multiplier` | `1` | 僵尸伤害倍率 |
+| `pvzce:zombie_speed_multiplier` | `1` | 僵尸移速倍率（1-5 用 `1.5`） |
+| `pvzce:plant_damage_multiplier` | `1` | 植物伤害倍率 |
+| `pvzce:seed_cooldown_multiplier` | `1` | **卡片冷却倍率**；`0.3333` = 本关所有卡片冷却只有平时的三分之一（睡眠剥夺用的就是它）。卡自己的冷却仍写在植物/工具定义里，关卡只做缩放 |
+
 ### 提示文本（hints）
 
 屏幕底部那个灰色半透明框（原版同款位置）的台词。一条提示写成：
@@ -252,9 +263,17 @@
 }
 ```
 
+一条奖励（`Reward`）是三种形状之一：
+
+| `type` | 需要的字段 | 发什么 |
+|---|---|---|
+| `unlock` | `id`（卡 id） | 把一张植物/工具卡放进背包。**不看首通标记**：任何一次通关只要背包里还没有它就会补发 |
+| `coins` | 正数 `amount` | 直接进钱包 |
+| `resource` | `id`（资源 id）+ 正数 `amount` | 发放 `amount` 个该资源，**钱包按资源定义的 `default_value` 折算**（`pvzce:diamond` 一个就是 1000 金币），并且结算页把你发的那个东西画进相框（如睡眠剥夺首通发一颗钻石）。第一项之外的资源奖励照常折算，只是没有画 |
+
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| first_clear | Reward[] | `[]` | 首通奖励；`type:"unlock"` 需要 `id`（卡 id），`type:"coins"` 需要正数 `amount` |
+| first_clear | Reward[] | `[]` | 首通奖励；每一项见上表（`unlock` / `coins` / `resource`） |
 | repeat | Reward[] | `[{coins:100}]` | 重复通关奖励；写 `[]` 可以完全不给 |
 | coin_drop | Identifier | `pvzce:coin_silver` | 掉哪种币；四种面额可换（见下） |
 | coin_drop_chance | float | `0.25` | 每只僵尸死亡时掉币的概率，0 表示不掉 |
@@ -273,7 +292,8 @@
 
 - **首通判定**：`saves/<world>/level_status/<key>.dat` 是否存在。已经拿到的卡不会再发一次（会当成已拥有跳过）。
 - **金币是跨关卡的**：本局捡到的金币在**关卡结束（胜负都算）**时计入 `saves/<world>/profile.dat`；奖励里的金币只有**植物方获胜**才发。
-- `type` 拼错不会被 codec 拦住（它只是字符串），加载时由 `LevelValidator` 报出来。
+- **编辑器只编辑"一张首通卡 + 一条重复金币"**：`resource` 这类它没有输入框的条目会**原样写回**（不会因为"编辑了一下"被删掉），但页面上看不到，也改不了。
+- `type` 拼错不会被 codec 拦住（它只是字符串），加载时由 `LevelValidator` 报出来；`resource` 的 `id` 指向不存在的资源同样会被报出来（否则首通会发一个不值钱的东西）。
 - 僵尸掉币用的资源是 `pvzce:coin`（`collectible_without_card: true`，捡钱不需要卡槽）。
 
 ### 开场对话（dialogue）
@@ -437,19 +457,24 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
 ## level_themes / level_categories
 
-关卡选择页的两级导航：左侧列是**主题**，顶部行是**类别**。两者各是一份数据文件，都只有两个
-字段——**没有 `name`**：显示名与植物/僵尸一样走语言文件，key 按 `GuiLang` 的 `<ns>.<path>`
-规则生成（`pvzce:yard` → `"pvzce.yard"`），缺失时回退到 id 的最后一段。
+关卡选择页的两级导航：左侧列是**主题**，顶部行是**类别**。两者各是一份数据文件，**没有 `name`**：
+显示名与植物/僵尸一样走语言文件，key 按 `GuiLang` 的 `<ns>.<path>` 规则生成（`pvzce:yard` → `"pvzce.yard"`），
+缺失时回退到 id 的最后一段。
 
 ```jsonc
 // data/mymod/pvzce/level_themes/redstone.json
 { "id": "mymod:redstone", "order": 10 }
 
 // data/mymod/pvzce/level_categories/minigame.json
-{ "id": "mymod:minigame", "order": 1 }
+// trophy: 通关这一类别下的关卡会在列表行右侧得一个奖杯（原版迷你游戏的金杯）
+{ "id": "mymod:minigame", "order": 1, "trophy": true }
 ```
 
 - `order` 决定页签顺序（小的在前，相同按 id 排序）；**未分类**页永远排在最后。
+- `trophy`（缺省 `false`）是类别的性质，不是关卡的性质：它说的是"这一类关卡通关算一枚奖章"，
+  所以同一类别下**所有**关卡共用同一个判定，新加一关不用再声明。奖杯读的是**通关过至少一次**
+  这件事本身（`LevelInfo.cleared`），所以"已通关 + 又开了一局中途退出"时列表行虽然显示"进行中"，
+  奖杯不会掉。
 - 一个类别只声明一次，可以被任意多个主题使用；某个主题下出现哪些类别，由该主题下**实际存在
   的关卡**决定（见 [levels](#levels)），所以不需要、也没有「主题 → 类别」的声明字段。
 - 一个关卡若引用了未注册的主题/类别，会被归入未分类页，并在 `/reload` 时输出原因。

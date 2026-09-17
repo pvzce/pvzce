@@ -30,9 +30,10 @@ class TimeOfDayLightingTest {
     void aFixedNightLevelIsLitAsNight() {
         TimeOfDayLighting.Lighting night = TimeOfDayLighting.compute(0F, 0, 360000, 9, 5);
         assertEquals(1F, night.nightBlend(), 0.0001F);
-        assertEquals(0.40F, night.tintR(), 0.0001F);
-        assertEquals(0.46F, night.tintG(), 0.0001F);
-        assertEquals(0.78F, night.tintB(), 0.0001F, "the cool blue moonlight tint");
+        assertEquals(0.62F, night.tintR(), 0.0001F);
+        assertEquals(0.72F, night.tintG(), 0.0001F);
+        assertEquals(1.00F, night.tintB(), 0.0001F, "the cool blue moonlight tint");
+        assertTrue(night.tintB() > night.tintR() * 1.4F, "night is blue-led, not merely dim");
         assertEquals(0.34F, night.strength(), 0.0001F);
 
         TimeOfDayLighting.Lighting later = TimeOfDayLighting.compute(60 * 60 * 24F, 0, 360000, 9, 5);

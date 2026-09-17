@@ -120,15 +120,15 @@ class AnimationResourceLoaderTest {
 
         assertInstanceOf(ControllerFile.class, file);
         ControllerFile controller = (ControllerFile) file;
-        assertEquals(20, controller.model().bones().size());
+        assertEquals(16, controller.model().bones().size());
         assertEquals(2.083333F, controller.clip("idle").orElseThrow().duration(), 0.001F);
         assertEquals(2.083333F, controller.clip("shoot").orElseThrow().duration(), 0.001F);
         assertEquals(AnimationClip.OnEnd.IDLE, controller.clip("shoot").orElseThrow().onEnd());
 
         var shoot = (ControllerClip) controller.clip("shoot").orElseThrow();
-        assertTrue(shoot.samplePose(controller.model(), 0D).get("stalk_bottom").visible());
-        assertTrue(shoot.samplePose(controller.model(), 0D).get("backleaf").visible());
-        assertFalse(shoot.samplePose(controller.model(), 0D).get("blink_1").visible());
+        assertTrue(shoot.samplePose(controller.model(), 0D).get("peashooter_stalk_bottom").visible());
+        assertTrue(shoot.samplePose(controller.model(), 0D).get("peashooter_backleaf").visible());
+        assertFalse(shoot.samplePose(controller.model(), 0D).get("peashooter_blink_1").visible());
     }
 
     @Test

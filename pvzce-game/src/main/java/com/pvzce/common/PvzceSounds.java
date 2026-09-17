@@ -15,6 +15,8 @@ public final class PvzceSounds {
     public static final Identifier PLANT_SHOOT_PEA = id("sfx/plant/shoot_pea");
     public static final Identifier PLANT_THROW = id("sfx/plant/throw");
     public static final Identifier PLANT_PLANT = id("sfx/plant/plant");
+    /** A plant that grows into a bigger form (the sun-shroom). */
+    public static final Identifier PLANT_GROW = id("sfx/plant/plantgrow");
     public static final Identifier PLANT_PLANT_WATER = id("sfx/plant/plant_water");
     public static final Identifier PLANT_WAKEUP = id("sfx/plant/wakeup");
 

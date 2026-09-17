@@ -69,7 +69,7 @@ public final class MeleeCapability implements PlantCapability {
     public void tick(PlantEntity plant, LevelAccess level) {
         if (remainingChewTicks > 0) {
             remainingChewTicks--;
-            plant.setAnimation(EntityAnimations.CHEW);
+            plant.setState(EntityAnimations.CHEW);
             if (remainingChewTicks == 0) {
                 plant.remove();
             }
@@ -80,12 +80,12 @@ public final class MeleeCapability implements PlantCapability {
                 .findFirst()
                 .orElse(null);
         if (target == null || target.health() > swallowMaxHealth) {
-            plant.setAnimation(EntityAnimations.IDLE);
+            plant.setState(EntityAnimations.IDLE);
             return;
         }
         target.remove();
         remainingChewTicks = Math.max(1, chewTicks);
-        plant.setAnimation(EntityAnimations.CHEW);
+        plant.setState(EntityAnimations.CHEW);
         level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().melee().orElse(PvzceSounds.EFFECT_BITE)));
     }

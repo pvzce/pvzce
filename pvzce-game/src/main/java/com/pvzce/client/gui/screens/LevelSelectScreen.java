@@ -53,6 +53,17 @@ public final class LevelSelectScreen extends Screen {
     private static final Identifier LOCK_ICON =
             Identifier.withDefaultNamespace("textures/gui/icon/lock");
 
+    /**
+     * The medal a beaten mini-game earns, pinned to the right of its row.
+     *
+     * <p>The original's own trophy sprite ({@code refer/im7/images/trophy.png}), drawn at its
+     * own aspect ratio: it is a cup, and stretching it to a square would read as a shield.
+     */
+    private static final Identifier TROPHY =
+            Identifier.withDefaultNamespace("textures/gui/screen/level/minigame_trophy");
+    private static final float TROPHY_ART_WIDTH = 83F;
+    private static final float TROPHY_ART_HEIGHT = 63F;
+
     /** True once {@code pvzce.smokeTab} has found its page; see {@link #openSmokeTab}. */
     private boolean smokeTabApplied;
     /**
@@ -770,7 +781,15 @@ public final class LevelSelectScreen extends Screen {
                         lockSize, lockSize, 0.3F, 1F, 1F, 1F, 0.9F);
                 textX += lockSize + 6F;
             }
-            float availableWidth = Math.max(30F, cardX + gridWidth - 10F - textX);
+            // The trophy a beaten trophy-category level has earned, pinned to the right.
+            // It reads `cleared` rather than the status label: a row that says 进行中 because
+            // a replay was abandoned is still a row the player has won, and the medal is not
+            // taken back by starting over. Everything else on the row yields to it, so a long
+            // level name shrinks instead of running underneath the cup.
+            float trophyHeight = showsTrophy(level) ? Math.max(16F, Math.min(rowHeight - 12F, iconSize)) : 0F;
+            float trophyWidth = trophyHeight * TROPHY_ART_WIDTH / TROPHY_ART_HEIGHT;
+            float reservedRight = 10F + (trophyHeight > 0F ? trophyWidth + 8F : 0F);
+            float availableWidth = Math.max(30F, cardX + gridWidth - reservedRight - textX);
             String name = level.name().isEmpty() ? level.id() : level.name();
             float nameScale = 1.1F;
             while (nameScale > 0.55F && client.font().width(name, nameScale) > availableWidth) {
@@ -795,8 +814,13 @@ public final class LevelSelectScreen extends Screen {
             if (selected) {
                 String id = level.id();
                 float idScale = 0.6F;
-                client.font().draw(id, cardX + gridWidth - 10F - client.font().width(id, idScale),
+                client.font().draw(id, cardX + gridWidth - reservedRight - client.font().width(id, idScale),
                         cardY + 5F, idScale, 0.7F, 0.72F, 0.65F, 1F);
+            }
+            if (trophyHeight > 0F) {
+                client.drawTexture(TROPHY, cardX + gridWidth - 10F - trophyWidth,
+                        cardY + (rowHeight - trophyHeight) / 2F,
+                        trophyWidth, trophyHeight, 0.4F, 1F, 1F, 1F, locked ? 0.75F : 1F);
             }
         }
 
@@ -862,6 +886,26 @@ public final class LevelSelectScreen extends Screen {
     /** Shared with the level setup screen so the same state cannot read differently. */
     static String statusLabel(String status) {
         return com.pvzce.client.gui.GuiStatusText.label(status);
+    }
+
+    /**
+     * True when this row has earned the category's trophy: beaten, in a trophy category.
+     *
+     * <p>Both halves are needed. {@code cleared} is the durable fact the server sends beside
+     * the status label, and {@code trophy} is the category's own statement that beating one
+     * of its levels is a medal rather than just progress - asked of the registry the client
+     * loaded from the same packs, so a pack that marks another category earns trophies there
+     * without a code change. An unknown category answers false rather than throwing: a
+     * client that is missing the pack still draws the list.
+     */
+    static boolean showsTrophy(LevelListS2C.LevelInfo level) {
+        if (level == null || !level.cleared()) {
+            return false;
+        }
+        Identifier category = Identifier.tryParse(level.category() == null ? "" : level.category());
+        com.pvzce.api.content.LevelCategoryDef def =
+                category == null ? null : com.pvzce.common.core.BuiltInRegistries.LEVEL_CATEGORIES.get(category);
+        return def != null && def.trophy();
     }
 
     /**

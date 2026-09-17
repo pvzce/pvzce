@@ -126,7 +126,7 @@ public final class BowlCapability implements PlantCapability {
 
     @Override
     public void onPlaced(PlantEntity plant, LevelAccess level) {
-        plant.setAnimation(EntityAnimations.ROLL);
+        plant.setState(EntityAnimations.ROLL);
     }
 
     @Override
@@ -158,7 +158,7 @@ public final class BowlCapability implements PlantCapability {
         }
         plant.setCellX(nextX);
         plant.setCellY(Math.max(minY, Math.min(maxY, nextY)));
-        plant.setAnimation(EntityAnimations.ROLL);
+        plant.setState(EntityAnimations.ROLL);
 
         ZombieEntity target = findTarget(plant, level);
         if (target != null) {

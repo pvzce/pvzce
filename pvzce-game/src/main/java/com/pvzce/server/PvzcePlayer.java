@@ -64,9 +64,12 @@ public final class PvzcePlayer {
         int index = 0;
         for (SlotResolver.ResolvedCard card : SlotResolver.resolveAll(
                 selectedSlots == null ? List.of() : selectedSlots)) {
-            // A freshly built card bar is ready to use; the card's cooldown is applied when
-            // the card is actually spent.
-            slots.add(new Slot(index++, card.kind(), card.content(), card.costSun(), 0, card.uses()));
+            // A freshly built card bar is ready to use; the card's cooldown starts when the
+            // card is actually spent. The card keeps its own cooldown rather than a scaled
+            // one, so the level's multiplier is read at that moment and a /gamerule change
+            // reaches the cards that are already on the bar.
+            slots.add(new Slot(index++, card.kind(), card.content(), card.costSun(), 0, card.uses(),
+                    card.cooldownTicks()));
         }
         return slots;
     }

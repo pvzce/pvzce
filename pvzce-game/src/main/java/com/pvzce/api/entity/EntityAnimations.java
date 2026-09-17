@@ -15,6 +15,15 @@ public final class EntityAnimations {
     public static final String EXPLODE = "explode";
     public static final String GROW = "grow";
     public static final String ARMED = "armed";
+    /**
+     * The pose an armed mine holds while it waits.
+     *
+     * <p>{@link #ARMED} is the *emergence* - a one-shot that ends on this - and the two are
+     * separate states because a mine waits for a zombie for up to fifteen seconds: asking for
+     * the emergence again on every tick restarts it every time its clip hands over, which is
+     * a potato mine that pops out of the ground over and over.
+     */
+    public static final String ARMED_LOOP = "armed_loop";
     public static final String HIT = "hit";
     public static final String ANGRY = "angry";
     public static final String DEATH = "death";
@@ -23,6 +32,14 @@ public final class EntityAnimations {
     public static final String DIG = "dig";
     public static final String DIG_EXIT = "dig_exit";
     public static final String JUMP = "jump";
+    /**
+     * A zombie walking while it still carries what it walks with.
+     *
+     * <p>The pole vaulter's approach: the original draws it jogging with the pole held out
+     * ({@code anim_run}), then vaulting, then walking empty-handed. Without this it walked
+     * its *post-vault* clip from the start, pole already gone.
+     */
+    public static final String RUN = "run";
     public static final String HAMMER = "hammer";
     public static final String LANDED = "landed";
     /** A plant that is moving under its own power (bowling Wall-nut). */

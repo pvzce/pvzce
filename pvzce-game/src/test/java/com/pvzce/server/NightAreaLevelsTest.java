@@ -84,14 +84,15 @@ class NightAreaLevelsTest {
     }
 
     /**
-     * The original's four gravestones are obstacles - they block planting and nothing more.
+     * The original's four gravestones block planting, and open once - at the last wave.
      *
-     * <p>{@code graves_spawn_night} is off on purpose: the engine's rule rolls once per grave
-     * per tick, so four graves would feed a zombie every four seconds, and the original only
-     * spawns out of graves in 2-5 ("Whack a Zombie").
+     * <p>{@code graves_spawn_night} is left at its default (on) because the rule now means
+     * "this level's graves give up their dead at the final wave" rather than "roll for a
+     * zombie every tick", which is what four graves would have done four seconds apart. The
+     * rise itself is covered by {@code GraveRiseTest}.
      */
     @Test
-    void theGravestonesBlockPlantingAndDoNotSpawn() {
+    void theGravestonesBlockPlantingAndOpenAtTheLastWave() {
         LevelDef def = level("2_1");
         List<String> graves = new java.util.ArrayList<>();
         def.scene().forEach((element, cells) -> {
@@ -103,10 +104,11 @@ class NightAreaLevelsTest {
         assertEquals(4, def.scene().keySet().stream()
                         .filter(id -> id.path().startsWith("grave")).count(),
                 "one of each design: the lawn shows a mix, not four copies");
-        assertFalse(def.rules().get(PvzceIds.RULE_GRAVES_SPAWN_NIGHT).getAsBoolean(),
-                "2-1's graves are scenery, not spawners");
-
         LevelServer level = new LevelServer(def);
+        // The level declares nothing, so the engine's default applies - which is what "2-1's
+        // graves open at the last wave" is spelled as now.
+        assertTrue(level.rules().getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT),
+                "2-1's graves open at the last wave");
         PlantDef pea = BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter"));
         for (String grave : graves) {
             String[] parts = grave.split(",");

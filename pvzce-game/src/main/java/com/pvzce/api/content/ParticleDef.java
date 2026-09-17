@@ -67,6 +67,8 @@ public record ParticleDef(
      * @param scale           base size in world cells
      * @param scaleSpread     +/- random variation on {@code scale}
      * @param spin            degrees per second; 0 keeps the particle upright
+     * @param spinSpread      +/- random variation on {@code spin}, so the pieces of one
+     *                        burst do not tumble in lockstep
      * @param randomSpin      start at a random angle as well
      * @param alphaFrom       opacity at birth
      * @param alphaTo         opacity at death, when there is no curve
@@ -83,6 +85,7 @@ public record ParticleDef(
             float scale,
             float scaleSpread,
             float spin,
+            float spinSpread,
             boolean randomSpin,
             float alphaFrom,
             float alphaTo,
@@ -108,6 +111,7 @@ public record ParticleDef(
                 Codec.FLOAT.optionalFieldOf("scale", DEFAULT_SCALE).forGetter(ParticleLook::scale),
                 Codec.FLOAT.optionalFieldOf("scale_spread", 0F).forGetter(ParticleLook::scaleSpread),
                 Codec.FLOAT.optionalFieldOf("spin", 0F).forGetter(ParticleLook::spin),
+                Codec.FLOAT.optionalFieldOf("spin_spread", 0F).forGetter(ParticleLook::spinSpread),
                 Codec.BOOL.optionalFieldOf("random_spin", false).forGetter(ParticleLook::randomSpin),
                 Codec.FLOAT.optionalFieldOf("alpha_from", 1F).forGetter(ParticleLook::alphaFrom),
                 Codec.FLOAT.optionalFieldOf("alpha_to", 0F).forGetter(ParticleLook::alphaTo),
@@ -192,7 +196,20 @@ public record ParticleDef(
             float gravity,
             float drag,
             boolean bounce,
-            float groundFriction
+            float groundFriction,
+            /**
+             * Where a {@code bounce} particle's ground line sits, in cells below the point it
+             * was spawned at.
+             *
+             * <p>Relative to the spawn and not to the world, because that is the only thing
+             * that works for every row: a particle spawned in row 3 has to land on the lawn
+             * under row 3. It is data rather than a constant because the spawn point is not
+             * always the ground - a hat leaves the zombie's *head*, which is half a cell up,
+             * and with the old fixed 0.42 it "landed" in mid-air just under the head and
+             * skittered there. The emitter's own number (the original's {@code GroundConstraint})
+             * is the right one, so it travels.
+             */
+            float groundOffset
     ) {
         /**
          * What one bounce does to horizontal speed when a definition says nothing.
@@ -213,8 +230,17 @@ public record ParticleDef(
         public static final float DEFAULT_GROUND_FRICTION = 1F;
 
         /** A particle that never moves: the default when a definition omits {@code motion}. */
+        /**
+         * The ground line a {@code bounce} particle gets when it does not say.
+         *
+         * <p>0.42 cells below the spawn point: the distance from a cell's centre to the grass
+         * a zombie stands on. A definition spawned at head height has to name a bigger one.
+         */
+        public static final float DEFAULT_GROUND_OFFSET = 0.42F;
+
         public static final ParticleMotion STILL =
-                new ParticleMotion(0F, 0F, 90F, 0F, 0F, 0F, false, DEFAULT_GROUND_FRICTION);
+                new ParticleMotion(0F, 0F, 90F, 0F, 0F, 0F, false, DEFAULT_GROUND_FRICTION,
+                        DEFAULT_GROUND_OFFSET);
 
         public static final MapCodec<ParticleMotion> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
                 Codec.FLOAT.optionalFieldOf("speed", 0F).forGetter(ParticleMotion::speed),
@@ -225,7 +251,9 @@ public record ParticleDef(
                 Codec.FLOAT.optionalFieldOf("drag", 0F).forGetter(ParticleMotion::drag),
                 Codec.BOOL.optionalFieldOf("bounce", false).forGetter(ParticleMotion::bounce),
                 Codec.floatRange(0F, 1F).optionalFieldOf("ground_friction", DEFAULT_GROUND_FRICTION)
-                        .forGetter(ParticleMotion::groundFriction)
+                        .forGetter(ParticleMotion::groundFriction),
+                Codec.FLOAT.optionalFieldOf("ground_offset", DEFAULT_GROUND_OFFSET)
+                        .forGetter(ParticleMotion::groundOffset)
         ).apply(i, ParticleMotion::new));
     }
 

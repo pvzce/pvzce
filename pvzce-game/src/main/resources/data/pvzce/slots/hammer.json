@@ -6,5 +6,5 @@
     "resources": {},
     "cooldown": 120
   },
-  "icon": "pvzce:textures/entities/tool/hammer/hammer"
+  "icon": "pvzce:textures/gui/cards/hammer"
 }

@@ -73,6 +73,25 @@ public final class PvzceIds {
     public static final Identifier RULE_ZOMBIE_DAMAGE_MULTIPLIER = id("zombie_damage_multiplier");
     public static final Identifier RULE_ZOMBIE_SPEED_MULTIPLIER = id("zombie_speed_multiplier");
     public static final Identifier RULE_PLANT_DAMAGE_MULTIPLIER = id("plant_damage_multiplier");
+    /**
+     * How long this level's cards take to recharge, as a multiple of the card's own cooldown.
+     *
+     * <p>The original's mini-games are where the card bar stops behaving like the adventure's:
+     * Sleep Deprivation hands the player five cards and lets them come back three times as
+     * fast. A multiplier rather than a per-card override because a level that wants faster
+     * cards wants it for the bar it dealt, and because the card's own number is authored in
+     * the plant/tool definition - a level is the wrong place to restate it.
+     */
+    public static final Identifier RULE_SEED_COOLDOWN_MULTIPLIER = id("seed_cooldown_multiplier");
+    /**
+     * Whether this level's graves give up their dead at the last wave.
+     *
+     * <p>The name is the original rule's; what it means changed from "roll for a zombie on
+     * every grave every tick" to "every grave opens once, when the final wave arrives". The
+     * per-tick roll fed a zombie every four seconds from the four graves a night level
+     * ships, which is the 2-5 minigame and not what a level wants its scenery to do; the
+     * last wave is where the original puts it.
+     */
     public static final Identifier RULE_GRAVES_SPAWN_NIGHT = id("graves_spawn_night");
 
     public static final Identifier ENV_PLANT_AI = id("plant_ai");

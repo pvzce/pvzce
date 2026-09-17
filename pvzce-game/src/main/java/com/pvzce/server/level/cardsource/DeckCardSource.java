@@ -65,7 +65,11 @@ public final class DeckCardSource implements CardSource {
             bridge.send(new ServerMessageS2C("阳光不足！"));
             return false;
         }
-        slot.startCooldown(plant.cost().cooldownTicks());
+        // The card's cooldown as this level charges it, which is the card's own number scaled
+        // by pvzce:seed_cooldown_multiplier. Both the charge and the bar's recharge come from
+        // the same call, so a level that recharges cards faster cannot end up drawing the
+        // sweep over a longer wait than the one the player actually has.
+        slot.startCooldown(level.effectiveCooldownTicks(slot));
         return true;
     }
 

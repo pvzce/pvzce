@@ -406,13 +406,16 @@ public final class PvzceServer implements Runnable {
                     // Two independent facts travel side by side: whether a run is waiting to
                     // be resumed, and the label. A cleared level with an abandoned replay is
                     // both "has a save" and "completed", and the entry decision needs the
-                    // first while the row needs the second.
+                    // first while the row needs the second. Whether it was ever cleared
+                    // travels as its own third field: the row's trophy is earned once and is
+                    // not taken back by an abandoned replay.
                     boolean runningSave = hasRunningSave(levelDir(worldPath(gameDir, safeWorld), id));
+                    boolean beaten = cleared.contains(id);
                     String status = runningSave ? LevelListS2C.LevelInfo.IN_PROGRESS
-                            : (cleared.contains(id) ? LevelListS2C.LevelInfo.COMPLETED : "");
+                            : (beaten ? LevelListS2C.LevelInfo.COMPLETED : "");
                     levels.add(LevelListS2C.LevelInfo.of(id.toString(), def.displayName(), def.description(),
                             def.winTeam().toString(), teams, status, levelIcon(def),
-                            group.theme().toString(), group.category().toString(), runningSave,
+                            group.theme().toString(), group.category().toString(), runningSave, beaten,
                             LevelServer.payloadFor(def, seeds),
                             LevelListS2C.UnlockInfo.of(unlock)));
                 });
@@ -1160,7 +1163,7 @@ public final class PvzceServer implements Runnable {
         // every loss the full completion stipend.
         RewardOutcome outcome = plantWin
                 ? applyRewards(id, rewards, firstClear, profile)
-                : new RewardOutcome(0, null);
+                : new RewardOutcome(0, null, null, 0);
         // Mowers that were never needed are worth a gold coin each. It is a *win* bonus:
         // a row that still has its mower is a row the zombies never got through, and a
         // defeat has no such rows to speak of. The count is what the client turns into
@@ -1169,12 +1172,14 @@ public final class PvzceServer implements Runnable {
         int mowerCoins = mowers * mowerCoinValue();
         int bonus = outcome.bonus() + mowerCoins;
         Identifier unlocked = outcome.unlocked();
+        Identifier item = outcome.item();
         profile.grantCoins(collected + bonus);
         saveProfile(currentWorld, profile);
         // The award screen is presentation; the wallet is already written above, so
         // a client that never renders the screen still got its coins.
         connection.send(new LevelRewardS2C(id.toString(), collected, bonus, profile.coins(),
                 unlocked == null ? "" : unlocked.toString(),
+                item == null ? "" : item.toString(), outcome.itemAmount(),
                 current.lastKillX(), current.lastKillY(), mowers, mowerCoins));
         connection.send(profilePacket(profile));
         // The finished level's row must stop saying "进行中" without a round trip. The
@@ -1184,8 +1189,11 @@ public final class PvzceServer implements Runnable {
         sendLevelList(currentWorld);
     }
 
-    /** What one payout granted: the coin bonus, and the first card it unlocked (if any). */
-    private record RewardOutcome(int bonus, Identifier unlocked) {
+    /**
+     * What one payout granted: the coin bonus, the first card it unlocked, and the first
+     * resource it paid out (with how many), which the award page draws instead of cash.
+     */
+    private record RewardOutcome(int bonus, Identifier unlocked, Identifier item, int itemAmount) {
     }
 
     /**
@@ -1220,6 +1228,13 @@ public final class PvzceServer implements Runnable {
      * what is idempotent, not the payout. Repeat coins are unaffected, so a replay still
      * pays its stipend.
      *
+     * <p>A {@code resource} entry is worth what the resource definition says it is worth,
+     * multiplied by how many are paid - the wallet holds one number, so a diamond <em>is</em>
+     * 1000 coins, and the worth is read from the same {@code default_value} the whole
+     * denomination ladder lives in rather than written again in the level file. The entry is
+     * also reported back so the award page can draw the object rather than count the money.
+     * Like coins, resources follow the first-clear/repeat split.
+     *
      * <p>Shared by the real win and by {@link #awardProfileForTest}, because the bug this
      * guards against lives here and nowhere else.
      */
@@ -1227,6 +1242,8 @@ public final class PvzceServer implements Runnable {
                                        PlayerProfile profile) {
         int bonus = 0;
         Identifier unlocked = null;
+        Identifier rewardItem = null;
+        int rewardItemAmount = 0;
         for (LevelRewards.Reward reward : rewards.firstClear()) {
             if (!reward.isUnlock() || reward.id().isEmpty()) {
                 continue;
@@ -1248,20 +1265,24 @@ public final class PvzceServer implements Runnable {
                 unlocked = card;
             }
         }
-        if (firstClear) {
-            for (LevelRewards.Reward reward : rewards.firstClear()) {
-                if (reward.isCoins()) {
-                    bonus += reward.amount();
-                }
-            }
-        } else {
-            for (LevelRewards.Reward reward : rewards.repeat()) {
-                if (reward.isCoins()) {
-                    bonus += reward.amount();
+        for (LevelRewards.Reward reward : firstClear ? rewards.firstClear() : rewards.repeat()) {
+            if (reward.isCoins()) {
+                bonus += reward.amount();
+            } else if (reward.isResource() && reward.id().isPresent()) {
+                Identifier resource = reward.id().get();
+                com.pvzce.api.content.ResourceDef def = BuiltInRegistries.RESOURCES.get(resource);
+                int worth = def == null ? 0 : Math.max(0, def.defaultValue());
+                bonus += worth * Math.max(0, reward.amount());
+                if (rewardItem == null) {
+                    // The page's frame holds one object, so the first entry is the one drawn -
+                    // the same convention {@code unlock} already follows with its cards. A
+                    // second entry is still paid; it just has no picture of its own.
+                    rewardItem = resource;
+                    rewardItemAmount = reward.amount();
                 }
             }
         }
-        return new RewardOutcome(bonus, unlocked);
+        return new RewardOutcome(bonus, unlocked, rewardItem, rewardItemAmount);
     }
 
     /**

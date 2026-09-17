@@ -67,7 +67,10 @@ public final class NocturnalCapability implements PlantCapability {
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
         if (asleep(plant, level)) {
-            plant.setAnimation(EntityAnimations.SLEEP);
+            // Through `setState`, so a grown sun-shroom sleeps in its grown art
+            // (`sleep_big`): the mushroom's growth is not this capability's business, and
+            // the suffix is what keeps it from having to be.
+            plant.setState(EntityAnimations.SLEEP);
         }
     }
 
@@ -77,7 +80,7 @@ public final class NocturnalCapability implements PlantCapability {
             return false;
         }
         awake = true;
-        plant.setAnimation(EntityAnimations.IDLE);
+        plant.setState(EntityAnimations.IDLE);
         return true;
     }
 

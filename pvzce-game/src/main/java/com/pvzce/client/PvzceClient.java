@@ -910,11 +910,30 @@ public final class PvzceClient {
             float r = lerp(1F, 0.72F, nightBlend);
             float g = lerp(0.85F, 0.82F, nightBlend);
             float b = lerp(0.35F, 1F, nightBlend);
-            float strength = lerp(0.5F, 0.38F, nightBlend);
+            // Brighter at night than by day, which is the opposite of how this started and
+            // the point of the number: the lawn at noon is already fully lit, so a sun lying
+            // on it only washed a square of grass towards white - the glare the player read
+            // as "the sun is too bright" - while at night the same glow is the one warm
+            // thing on the board. Presentation only; nothing about collection changes.
+            float strength = lerp(SUN_LIGHT_DAY, SUN_LIGHT_NIGHT, nightBlend);
             RenderSystem.setPointLight(i, sun.cellX(), sun.cellY() + sun.height(),
-                    2.4F, r, g, b, strength);
+                    SUN_LIGHT_RADIUS, r, g, b, strength);
         }
     }
+
+    /**
+     * How strongly a sun drop lights the grass around it, by day and by night.
+     *
+     * <p>Both are guesses that were tuned against a screenshot, which is why they live
+     * together with their own names: the day value is "bright enough to notice you dropped
+     * something, dim enough not to bleach the cell it landed on", and the night value is
+     * "still reads as a light source after the scene tint has taken most of the colour out
+     * of the lawn".
+     */
+    private static final float SUN_LIGHT_DAY = 0.16F;
+    private static final float SUN_LIGHT_NIGHT = 0.30F;
+    /** How far a sun drop's glow reaches, in cells. */
+    private static final float SUN_LIGHT_RADIUS = 2.2F;
 
     private static float distanceSq(float x1, float y1, float x2, float y2) {
         float dx = x1 - x2;
@@ -1108,18 +1127,31 @@ public final class PvzceClient {
 
     /** Draws a UV sub-region of a texture (u/v increase toward the world's +x/+y). */
     /**
-     * Multiplier applied to every colour drawn while it is on the stack.
+     * Colour multiplier applied to every draw colour while it is on the stack, as
+     * {@code {r, g, b, a}}.
      *
      * <p>One stack rather than a field: a part sheet is drawn by a loop that may itself
      * call back into a tinted draw, and a single field would leak the tint outwards.
-     * Sprites are 1x1; this is for art that is too bright to read at its own values.
+     *
+     * <p>The channels are a colour rather than one brightness because the two things that
+     * use this stack need different answers: a resource drop is <em>dimmed</em> (all three
+     * channels down, {@link EntityVisuals#DROP_TINT}), while a slowed zombie is drawn
+     * <em>frozen</em> - and the frozen look is a blue tint, which one number cannot say. A
+     * value above 1 is legal and is how the night lift brightens an entity the scene tint
+     * has just darkened; GL clamps the finished pixel, not the vertex colour.
      */
     private final java.util.ArrayDeque<float[]> entityInk = new java.util.ArrayDeque<>();
 
-    /** Dims everything drawn until the matching {@link #popEntityTint}. */
-    public void pushEntityTint(float multiplier) {
+    /** Multiplies the draw colour (per channel) until the matching {@link #popEntityTint}. */
+    public void pushEntityTint(float r, float g, float b) {
         float[] current = entityInk();
-        entityInk.push(new float[]{clamp(current[0] * multiplier), current[1]});
+        entityInk.push(new float[]{clampInk(current[0] * r), clampInk(current[1] * g),
+                clampInk(current[2] * b), current[3]});
+    }
+
+    /** The grey form: brightens or dims every channel by the same factor. */
+    public void pushEntityTint(float multiplier) {
+        pushEntityTint(multiplier, multiplier, multiplier);
     }
 
     public void popEntityTint() {
@@ -1139,7 +1171,7 @@ public final class PvzceClient {
      */
     public void pushEntityAlpha(float multiplier) {
         float[] current = entityInk();
-        entityInk.push(new float[]{current[0], clamp(current[1] * multiplier)});
+        entityInk.push(new float[]{current[0], current[1], current[2], clamp(current[3] * multiplier)});
     }
 
     public void popEntityAlpha() {
@@ -1148,22 +1180,35 @@ public final class PvzceClient {
 
     private float[] entityInk() {
         float[] ink = entityInk.peek();
-        return ink == null ? new float[]{1F, 1F} : ink;
+        return ink == null ? new float[]{1F, 1F, 1F, 1F} : ink;
     }
 
     private static float clamp(float value) {
         return Math.max(0F, Math.min(1F, value));
     }
 
+    /** The colour multiplier's own clamp: dimmable to nothing, brightenable a little. */
+    private static float clampInk(float value) {
+        return Math.max(0F, Math.min(MAX_ENTITY_INK, value));
+    }
+
+    /**
+     * How far a channel may be multiplied up.
+     *
+     * <p>Four is a guard rail, not a look: the night lift lands near 1.5, and anything that
+     * asked for more than this is a bug rather than a style.
+     */
+    private static final float MAX_ENTITY_INK = 4F;
+
     public void drawTextureRegion(Identifier id, float u0, float v0, float u1, float v1,
                                   float x, float y, float w, float h, float z, float r, float g, float b, float a) {
         float[] ink = entityInk();
         try {
             SpriteRenderer.textured(new Sprite(textures.getOrLoad(id), u0, v0, u1, v1), x, y, w, h, z,
-                    r * ink[0], g * ink[0], b * ink[0], a * ink[1]);
+                    r * ink[0], g * ink[1], b * ink[2], a * ink[3]);
         } catch (Exception e) {
             warnMissingTexture(id);
-            drawMissingTexture(x, y, w, h, z, r * ink[0], g * ink[0], b * ink[0], a * ink[1]);
+            drawMissingTexture(x, y, w, h, z, r * ink[0], g * ink[1], b * ink[2], a * ink[3]);
         }
     }
 
@@ -1198,9 +1243,9 @@ public final class PvzceClient {
                                 float z, float r, float g, float b, float a) {
         float[] ink = entityInk();
         float cr = r * ink[0];
-        float cg = g * ink[0];
-        float cb = b * ink[0];
-        float ca = a * ink[1];
+        float cg = g * ink[1];
+        float cb = b * ink[2];
+        float ca = a * ink[3];
         try {
             var texture = textures.getOrLoad(id);
             SpriteRenderer.texturedQuad(texture,
@@ -1314,6 +1359,51 @@ public final class PvzceClient {
     public float worldNightBlend() {
         return worldNightBlend;
     }
+
+    /**
+     * Pushes the tint one board entity wears, until the matching {@link #popEntityTint}.
+     *
+     * <p>One frame for every effect rather than one per effect: the night lift and the
+     * frozen look multiply together here, so a caller pushes once and pops once whatever
+     * applies to the entity it is drawing. Both are presentation and both are about the same
+     * question - "how is this one thing lit" - which is why they share a place.
+     */
+    public void pushEntityLook(com.pvzce.client.ClientEntity entity) {
+        float lift = com.pvzce.client.renderer.EntityVisuals.liftsAtNight(entity.kind())
+                ? com.pvzce.client.renderer.EntityVisuals.NIGHT_LIFT
+                : 0F;
+        float r = liftChannel(lift, worldTintR);
+        float g = liftChannel(lift, worldTintG);
+        float b = liftChannel(lift, worldTintB);
+        if (entity.chilled()) {
+            r *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_R;
+            g *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_G;
+            b *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_B;
+        }
+        float[] current = entityInk();
+        entityInk.push(new float[]{clampInk(current[0] * r), clampInk(current[1] * g),
+                clampInk(current[2] * b), current[3]});
+    }
+
+    /**
+     * The per-channel ink that undoes {@code amount} of one channel of the scene tint.
+     *
+     * <p>The shader draws {@code texel * ink * tint}, so undoing part of the tint means
+     * dividing by it here: {@code 1 + amount * (1/tint - 1)}. Zero leaves the channel alone
+     * (the entity wears the full tint), one cancels it outright (the entity looks like it
+     * does at noon), and the fraction in between is what {@code NIGHT_LIFT} asks for.
+     *
+     * <p>Clipped below at a fifth: a tint channel of zero would divide by zero, and no tint
+     * this renderer produces comes close.
+     */
+    private static float liftChannel(float amount, float tint) {
+        if (amount <= 0F) {
+            return 1F;
+        }
+        float inverse = 1F / Math.max(0.2F, tint);
+        return 1F + amount * (inverse - 1F);
+    }
+
 
     /** Surface disturbances from server effect events. */
     public com.pvzce.client.renderer.liquid.LiquidRipples liquidRipples() {

@@ -29,6 +29,14 @@ import java.util.List;
  * than being fields every zombie carries.
  */
 public final class ArmorCapability implements ZombieCapability {
+    /**
+     * How high above the zombie's cell a broken piece starts its fall, in cells.
+     *
+     * <p>The zombie model is 0.95 cells tall, so this is roughly shoulder height - where a
+     * cone or a bucket actually sits.
+     */
+    private static final float DROP_HEIGHT = 0.55F;
+
     private final List<ArmorDef> armor;
     private final float postArmorSpeed;
 
@@ -112,8 +120,12 @@ public final class ArmorCapability implements ZombieCapability {
     public boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage, LevelAccess level) {
         boolean lobbed = "air".equals(projectile.layer());
         String wanted = lobbed ? ArmorDef.TOP : ArmorDef.FRONT;
-        Identifier armorSound = projectile.sounds().impact()
-                .orElse(zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
+        // The armour's own sound first, not the shot's: a pea hitting a bucket is a metal
+        // clank, and it was playing the same *splat* as a pea hitting a body because the
+        // projectile's generic impact sound was preferred. A piece of content that declares
+        // no `armor_hit` still falls back to it, and then to the shield hit.
+        Identifier armorSound = zombie.def().sounds().armorHit()
+                .orElse(projectile.sounds().impact().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
         if (absorb(zombie, wanted, damage, level, armorSound)) {
             return true;
         }
@@ -147,12 +159,18 @@ public final class ArmorCapability implements ZombieCapability {
             return false;
         }
         piece.hp -= damage;
-        zombie.setAnimation(EntityAnimations.HIT);
         boolean broke = false;
         if (piece.hp <= 0) {
             piece.hp = 0;
             broke = true;
-            zombie.setAnimation(EntityAnimations.ANGRY);
+            // Only a piece whose *definition* promises a speed change is a rage trigger: the
+            // newspaper is the one that tears, and `angry` is its clip. A cone or a bucket
+            // breaking changes how the zombie looks, not how it behaves, and asking for a
+            // clip the model does not have made the client fall back to `idle` - the same
+            // standing-pose stutter the hit state used to cause.
+            if (postArmorSpeed > 0F) {
+                zombie.setAnimation(EntityAnimations.ANGRY);
+            }
         }
         // What the hit throws off depends on whether it took the armour with it: a piece
         // that is still on the zombie gives a spark, the piece that just shattered is
@@ -169,7 +187,9 @@ public final class ArmorCapability implements ZombieCapability {
         } else {
             particle = PvzceParticles.HIT_SPARK.toString();
         }
-        level.emitEffect(particle, zombie.cellX(), zombie.cellY(), sound);
+        // From the head, where the piece was: a cone that pops out of the zombie's boots
+        // reads as a particle that happened to fire, not as a hat coming off.
+        level.emitEffect(particle, zombie.cellX(), zombie.cellY() + DROP_HEIGHT, sound);
         if (broke && zombie.def().sounds().special().isPresent()) {
             level.emitEffect("", zombie.cellX(), zombie.cellY(), zombie.def().sounds().special().get());
         }

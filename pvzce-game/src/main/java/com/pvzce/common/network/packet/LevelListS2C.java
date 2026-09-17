@@ -93,8 +93,8 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
      */
     public record LevelInfo(String id, String name, String description, String winTeam,
                             List<TeamInfo> teams, String status, String icon, String theme,
-                            String category, boolean runningSave, LevelPayload payload,
-                            UnlockInfo unlock) {
+                            String category, boolean runningSave, boolean cleared,
+                            LevelPayload payload, UnlockInfo unlock) {
         /** A resumable save exists for this level in the world the list was asked for. */
         public static final String IN_PROGRESS = "in_progress";
         /** Finished at least once and no resumable save is left. */
@@ -110,21 +110,39 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
                 .field(LevelInfo::theme, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .field(LevelInfo::category, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .field(LevelInfo::runningSave, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+                // Whether this level has ever been beaten in this world. Its own field
+                // beside runningSave for the same reason runningSave is beside status: the
+                // trophy is earned once and never taken back, while an abandoned replay
+                // makes the row read "in progress" and must not cost the player the medal.
+                .field(LevelInfo::cleared, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
                 .list(LevelInfo::teams, TeamInfo::encode, TeamInfo::decode)
                 .nested(LevelInfo::payload, LevelPayload.CODEC)
                 .nested(LevelInfo::unlock, UnlockInfo.CODEC)
                 .build(values -> new LevelInfo((String) values.get(0), (String) values.get(1),
                         (String) values.get(2), (String) values.get(3),
-                        (List<TeamInfo>) values.get(9), (String) values.get(4), (String) values.get(5),
+                        (List<TeamInfo>) values.get(10), (String) values.get(4), (String) values.get(5),
                         (String) values.get(6), (String) values.get(7), (Boolean) values.get(8),
-                        (LevelPayload) values.get(10), (UnlockInfo) values.get(11)));
+                        (Boolean) values.get(9), (LevelPayload) values.get(11),
+                        (UnlockInfo) values.get(12)));
 
+        public static LevelInfo of(String id, String name, String description, String winTeam,
+                                   List<TeamInfo> teams, String status, String icon,
+                                   String theme, String category, boolean runningSave, boolean cleared,
+                                   LevelPayload payload, UnlockInfo unlock) {
+            return new LevelInfo(id, name, description, winTeam, teams, status, icon, theme,
+                    category, runningSave, cleared, payload, unlock);
+        }
+
+        /**
+         * The same row for a level that has never been beaten; used by tests and by the
+         * editor, which lists levels nobody has played.
+         */
         public static LevelInfo of(String id, String name, String description, String winTeam,
                                    List<TeamInfo> teams, String status, String icon,
                                    String theme, String category, boolean runningSave,
                                    LevelPayload payload, UnlockInfo unlock) {
-            return new LevelInfo(id, name, description, winTeam, teams, status, icon, theme,
-                    category, runningSave, payload, unlock);
+            return of(id, name, description, winTeam, teams, status, icon, theme, category,
+                    runningSave, false, payload, unlock);
         }
 
         /** True when the player may enter this level yet. */

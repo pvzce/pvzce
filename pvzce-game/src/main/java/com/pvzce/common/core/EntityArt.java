@@ -8,6 +8,7 @@ import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ResourceDef;
 import com.pvzce.api.content.ToolDef;
 import com.pvzce.api.content.ZombieDef;
+import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.util.Identifier;
 
 /**
@@ -82,21 +83,76 @@ public final class EntityArt {
      * seed chooser drifted apart before.
      */
     public static Identifier sprite(Identifier defId) {
+        return sprite(defId, null);
+    }
+
+    /**
+     * The same, in the registry the entity's kind names.
+     *
+     * <p>See {@link #bindings(Identifier, String)} for why the kind matters: two registries
+     * may hold the same id, and the snow pea is both a plant and the projectile it fires -
+     * so a projectile that asked without saying so was answered with the plant's texture.
+     */
+    public static Identifier sprite(Identifier defId, String kind) {
         if (defId == null) {
             return MISSING_TEXTURE;
         }
-        Identifier declared = declaredTexture(defId);
+        Identifier declared = declaredTexture(defId, kind);
         if (declared != null) {
             return declared;
         }
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
-        if (resource != null) {
-            return resource.icon() == null ? withPrefix(RESOURCE_PREFIX, defId) : resource.icon();
+        if (EntityKind.RESOURCE.equals(kind) || (kind == null && resource != null)) {
+            if (resource != null) {
+                return resource.icon() == null ? withPrefix(RESOURCE_PREFIX, defId) : resource.icon();
+            }
         }
         return withPrefix(ENTITY_PREFIX, defId);
     }
 
-    /** The animation bindings of a content id across every entity registry. */
+    /**
+     * The animation bindings of a content id <em>in the registry its kind names</em>.
+     *
+     * <p>The kind is not decoration. Content ids are free to collide across registries - the
+     * snow pea is both a plant and the projectile it fires - and asking "which definition has
+     * this id" without saying which registry answers with whichever one is checked first. That
+     * is exactly how every snow pea in flight was drawn as a whole snow pea <em>plant</em>:
+     * the projectile inherited the plant's {@code animation_dir} and played the plant's
+     * controller model.
+     *
+     * <p>An unknown or absent kind falls back to {@link #bindings(Identifier)}, because a
+     * caller that has no kind (a card, an editor palette) still has to get an answer.
+     */
+    public static AnimationBindings bindings(Identifier defId, String kind) {
+        if (defId == null) {
+            return null;
+        }
+        PlantDef plant = BuiltInRegistries.PLANTS.get(defId);
+        if (EntityKind.PLANT.equals(kind)) {
+            return plant == null ? null : plant.animations();
+        }
+        ZombieDef zombie = BuiltInRegistries.ZOMBIES.get(defId);
+        if (EntityKind.ZOMBIE.equals(kind)) {
+            return zombie == null ? null : zombie.animations();
+        }
+        ProjectileDef projectile = BuiltInRegistries.PROJECTILES.get(defId);
+        if (EntityKind.PROJECTILE.equals(kind)) {
+            return projectile == null ? null : projectile.animations();
+        }
+        ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
+        if (EntityKind.RESOURCE.equals(kind)) {
+            return resource == null ? null : resource.animations();
+        }
+        return bindings(defId);
+    }
+
+    /**
+     * The animation bindings of a content id across every entity registry.
+     *
+     * <p>For callers that have an id and nothing else. A caller that knows the entity's kind
+     * must use {@link #bindings(Identifier, String)}: two registries can hold the same id and
+     * this search returns whichever is checked first.
+     */
     public static AnimationBindings bindings(Identifier defId) {
         if (defId == null) {
             return null;
@@ -147,13 +203,28 @@ public final class EntityArt {
         return resource == null ? ContentDefs.DEFAULT_RENDER_SCALE : resource.renderScale();
     }
 
-    private static Identifier declaredTexture(Identifier defId) {
+    private static Identifier declaredTexture(Identifier defId, String kind) {
         Identifier texture = null;
         PlantDef plant = BuiltInRegistries.PLANTS.get(defId);
         ZombieDef zombie = BuiltInRegistries.ZOMBIES.get(defId);
         ProjectileDef projectile = BuiltInRegistries.PROJECTILES.get(defId);
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
         ToolDef tool = BuiltInRegistries.TOOLS.get(defId);
+        // The kind, when the caller has one, picks the registry outright: an id in two
+        // registries (the snow pea is a plant and a projectile) otherwise answers with
+        // whichever is tested first.
+        if (EntityKind.PLANT.equals(kind)) {
+            return plant == null ? null : plant.texture().orElse(null);
+        }
+        if (EntityKind.ZOMBIE.equals(kind)) {
+            return zombie == null ? null : zombie.texture().orElse(null);
+        }
+        if (EntityKind.PROJECTILE.equals(kind)) {
+            return projectile == null ? null : projectile.texture().orElse(null);
+        }
+        if (EntityKind.RESOURCE.equals(kind)) {
+            return resource == null ? null : resource.texture().orElse(null);
+        }
         if (plant != null) {
             texture = plant.texture().orElse(null);
         } else if (zombie != null) {

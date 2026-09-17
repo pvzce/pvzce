@@ -331,6 +331,29 @@ class ContentFoundationTest {
         assertEquals("pvzce:textures/gui/hud/sun_bank", sun.icon().orElseThrow().toString());
     }
 
+    /**
+     * Every card's declared icon is a file that exists.
+     *
+     * <p>The hammer's pointed at {@code textures/entities/tool/hammer/hammer}, which was never
+     * generated - that directory holds the three parts the model is built from - so its card
+     * drew the missing-texture checkerboard. Nothing else complains about a card icon that
+     * does not resolve: the slot loads, the card is playable, and only the picture is wrong.
+     */
+    @Test
+    void everyCardIconResolvesToAFile() throws Exception {
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        for (SlotDef slot : BuiltInRegistries.SLOT_TYPES) {
+            Identifier icon = slot.icon().orElse(null);
+            if (icon == null) {
+                continue;
+            }
+            String path = "assets/" + icon.toPath() + ".png";
+            try (var in = loader.getResourceAsStream(path)) {
+                assertNotNull(in, slot.id() + "'s icon is missing: " + path);
+            }
+        }
+    }
+
     @Test
     void projectileAnimationOverridesParseFromJson() {
         ProjectileDef projectile = ProjectileDef.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("""
