@@ -5,10 +5,10 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.LevelInitS2C;
-import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,10 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Game-speed button protocol and per-level reset behavior. */
 class GameSpeedTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     @Test
     void speedButtonPacketChangesServerTickRateAndRestartResetsIt() throws Exception {
         PvzcePackets.register();
-        Path gameDir = Files.createTempDirectory("pvzce-game-speed");
         Connection.Pair pair = Connection.createMemoryPair();
         PvzceServer server = new PvzceServer(pair.server(), gameDir, Thread.currentThread().getContextClassLoader());
         server.start();

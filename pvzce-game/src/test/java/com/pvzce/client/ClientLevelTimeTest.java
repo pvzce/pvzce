@@ -18,12 +18,20 @@ class ClientLevelTimeTest {
                 List.of(), 6, List.of(), List.of(), "", "", List.of());
         level.setTimeOfDay(new TimeOfDayS2C(600, 600, 600));
 
+        long start = System.nanoTime();
         float before = level.smoothDayTicks();
         Thread.sleep(80);
         float after = level.smoothDayTicks();
+        // Derived from the time that really passed, not from the sleep that was asked for: a
+        // loaded machine that oversleeps must not turn "the client clock is not frozen and does
+        // not run away" into a failure. The two properties are what this test is for - the
+        // extrapolation runs at the server's rate between syncs, and it is bounded.
+        double elapsedTicks = (System.nanoTime() - start) * 60D / 1_000_000_000D;
 
         assertTrue(after > before, "client clock should advance between server syncs");
-        assertTrue(after < before + 60, "80ms should only advance about 5 ticks");
+        assertTrue(after - before <= elapsedTicks + 2D,
+                "extrapolation must stay near the server rate, advanced " + (after - before)
+                        + " ticks in " + elapsedTicks + " ticks of wall clock");
     }
 
     @Test

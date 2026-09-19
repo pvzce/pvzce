@@ -11,6 +11,7 @@ import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -57,11 +58,7 @@ class CharmTest {
     private static LevelServer level() {
         LevelDef def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/2_1"));
         assertNotNull(def, "the shipped 2-1 must load");
-        LevelDef quiet = new LevelDef(def.id(), def.name(), def.description(), def.width(), def.height(),
-                def.scene(), def.teams(), def.winTeam(), def.rules(), def.envVars(), List.of(),
-                def.waveIntervalEndMultiplier(), def.slots(), def.unlockResources(), def.initialSun(),
-                def.music(), List.of(), def.maxSeedSlots(), def.rewards(), def.unlock(),
-                def.mechanics(), def.dialogue(), def.hints(), def.playableTeams());
+        LevelDef quiet = TestLevels.copy(def).waves(List.of()).initialEntities(List.of()).build();
         return new LevelServer(quiet);
     }
 

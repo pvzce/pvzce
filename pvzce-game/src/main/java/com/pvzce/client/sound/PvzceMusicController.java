@@ -1,5 +1,7 @@
 package com.pvzce.client.sound;
 
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.network.packet.MusicEventS2C;
 
 import java.util.Locale;
@@ -21,7 +23,6 @@ public final class PvzceMusicController {
     public static final String TRACK_BACKGROUND = MusicEventS2C.TRACK_BACKGROUND;
     public static final String TRACK_BATTLE = MusicEventS2C.TRACK_BATTLE;
     public static final String TRACK_STINGER = MusicEventS2C.TRACK_STINGER;
-    public static final float DEFAULT_FADE_SECONDS = 1F;
 
     private static final int TRACK_COUNT = 4;
     private static final int SOURCES_PER_TRACK = 2;
@@ -152,8 +153,8 @@ public final class PvzceMusicController {
         stopCue(TRACK_BACKGROUND, 0.8F);
         stopCue(TRACK_BATTLE, 0.8F);
         stopCue(TRACK_STINGER, 0.2F);
-        playCue(TRACK_STINGER, win ? "pvzce:music/win" : "pvzce:music/lose",
-                false, false, 1F, 0.8F);
+        Identifier stinger = win ? PvzceSounds.MUSIC_WIN : PvzceSounds.MUSIC_LOSE;
+        playCue(TRACK_STINGER, stinger.toString(), false, false, 1F, 0.8F);
     }
 
     public void stopAll() {

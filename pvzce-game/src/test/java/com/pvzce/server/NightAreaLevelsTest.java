@@ -2,7 +2,6 @@ package com.pvzce.server;
 
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
-import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.capability.plant.NocturnalCapability;
 import com.pvzce.common.capability.plant.ProducerCapability;

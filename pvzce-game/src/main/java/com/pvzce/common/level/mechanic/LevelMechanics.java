@@ -18,6 +18,8 @@ import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.cardsource.CardSource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +41,8 @@ import java.util.Optional;
  * write one themselves.
  */
 public final class LevelMechanics {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Mechanics");
     public static final DeckMechanic DECK = new DeckMechanic();
     public static final ConveyorMechanic CONVEYOR = new ConveyorMechanic();
     public static final PlacementZoneMechanic PLACEMENT_ZONE = new PlacementZoneMechanic();
@@ -223,9 +227,15 @@ public final class LevelMechanics {
                 continue;
             }
             String block = encodeBlock(mechanic, typed);
-            if (block != null) {
-                payloads.add(new LevelPayload.MechanicPayload(typed.type(), block));
+            if (block == null) {
+                // Decoding reports its own failures at the caller (ClientLevel.applyMechanics);
+                // this is the other half, and without it the mechanic simply vanishes from the
+                // client's HUD with nothing to point at.
+                LOGGER.warn("Mechanic {} could not be encoded; the client will not receive it",
+                        typed.type());
+                continue;
             }
+            payloads.add(new LevelPayload.MechanicPayload(typed.type(), block));
         }
         return List.copyOf(payloads);
     }

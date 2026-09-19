@@ -6,6 +6,8 @@ import com.pvzce.client.gui.components.AbstractWidget;
 import com.pvzce.client.gui.components.Dialog;
 import com.pvzce.client.gui.components.EditBox;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +25,8 @@ import java.util.List;
  * widget list to find "the dialog that is currently on top".
  */
 public abstract class Screen {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Input");
     /**
      * Default full-screen background used by every menu screen that does not
      * override {@link #backgroundTexture()}.
@@ -248,14 +252,6 @@ public abstract class Screen {
     }
 
     /**
-     * The click dispatch itself, on logical GUI coordinates.
-     *
-     * <p>Separate from {@link #mouseClicked} so it can be driven without a window: the
-     * only thing the raw entry point adds is the framebuffer-to-GUI conversion, and a
-     * test that wants to prove a dialog receives a click should not have to create a GL
-     * context to do it.
-     */
-    /**
      * This screen's widgets, in dispatch order.
      *
      * <p>Read-only and public for tests, which have to reach a control that has no accessor of
@@ -266,6 +262,14 @@ public abstract class Screen {
         return java.util.List.copyOf(widgets);
     }
 
+    /**
+     * The click dispatch itself, on logical GUI coordinates.
+     *
+     * <p>Separate from {@link #mouseClicked} so it can be driven without a window: the
+     * only thing the raw entry point adds is the framebuffer-to-GUI conversion, and a
+     * test that wants to prove a dialog receives a click should not have to create a GL
+     * context to do it.
+     */
     public void dispatchMouseClicked(double guiX, double guiY, int button) {
         // Development diagnostic (`-Dpvzce.traceInput=true`): which widget a click landed on.
         // A synthetic click that misses by one row is otherwise completely silent - the screen
@@ -279,8 +283,8 @@ public abstract class Screen {
                         .append(' ').append(widget.width()).append('x').append(widget.height())
                         .append(widget.isMouseOver(guiX, guiY) ? " HIT" : "").append(']');
             }
-            System.out.println("[INPUT] click " + guiX + "," + guiY + " on "
-                    + getClass().getSimpleName() + ":" + where);
+            LOGGER.info("input trace: click {},{} on {}:{}",
+                    guiX, guiY, getClass().getSimpleName(), where);
         }
         Dialog modal = modalDialog();
         if (modal != null) {

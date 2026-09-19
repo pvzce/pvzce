@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -50,23 +51,26 @@ public record EntityUpdateS2C(int entityId, float cellX, float cellY, int health
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<EntityUpdateS2C> CODEC = PacketStruct.<EntityUpdateS2C>builder()
+    .field(EntityUpdateS2C::entityId, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(EntityUpdateS2C::cellX, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EntityUpdateS2C::cellY, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EntityUpdateS2C::health, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(EntityUpdateS2C::animation, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(EntityUpdateS2C::height, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    // 0 (worn out) and -1 (never had any) are different answers, so armour is not a boolean.
+    .field(EntityUpdateS2C::armor, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(EntityUpdateS2C::chilled, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    .field(EntityUpdateS2C::charmed, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    .field(EntityUpdateS2C::teamId, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new EntityUpdateS2C((Integer) values.get(0), (Float) values.get(1), (Float) values.get(2), (Integer) values.get(3), (String) values.get(4), (Float) values.get(5), (Integer) values.get(6), (Boolean) values.get(7), (Boolean) values.get(8), (String) values.get(9)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeInt(entityId);
-        buf.writeFloat(cellX);
-        buf.writeFloat(cellY);
-        buf.writeInt(health);
-        buf.writeString(animation);
-        buf.writeFloat(height);
-        buf.writeInt(armor);
-        buf.writeBoolean(chilled);
-        buf.writeBoolean(charmed);
-        buf.writeString(teamId);
+        CODEC.encode(this, buf);
     }
 
     public static EntityUpdateS2C decode(PacketByteBuf buf) {
-        return new EntityUpdateS2C(buf.readInt(), buf.readFloat(), buf.readFloat(), buf.readInt(),
-                buf.readString(), buf.readFloat(), buf.readInt(), buf.readBoolean(),
-                buf.readBoolean(), buf.readString());
+        return CODEC.decode(buf);
     }
 }

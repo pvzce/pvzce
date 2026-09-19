@@ -1,7 +1,6 @@
 package com.pvzce.server.entity;
 
 import com.pvzce.api.entity.Entity;
-import com.pvzce.api.entity.EntityLayers;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
@@ -17,12 +16,6 @@ import com.pvzce.server.level.LevelServer;
  * entry point and symmetric save/restore.
  */
 public abstract class PvzceEntity extends Entity {
-    public static final int LAYER_UNDERGROUND = EntityLayers.UNDERGROUND;
-    public static final int LAYER_GROUND = EntityLayers.GROUND;
-    public static final int LAYER_PLANT = EntityLayers.PLANT;
-    public static final int LAYER_PROJECTILE = EntityLayers.PROJECTILE;
-    public static final int LAYER_AIR = EntityLayers.AIR;
-
     /**
      * Which side this entity is on.
      *

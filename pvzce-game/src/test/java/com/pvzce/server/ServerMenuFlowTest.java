@@ -20,9 +20,9 @@ import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.WaveProgressS2C;
-import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** M2: menu flow packets (level list -> enter level -> leave) over the memory connection. */
 class ServerMenuFlowTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     /**
      * The shipped levels are grouped, and the pages travel with them.
      *
@@ -45,7 +49,7 @@ class ServerMenuFlowTest {
      */
     @Test
     void theShippedLevelsCarryTheirThemeAndCategoryAndTheirPages() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-level-tabs"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.send(new RequestLevelListC2S("tabworld"));
             LevelTabsS2C tabs = server.awaitPacket(LevelTabsS2C.class, 5_000);
             // Only pages that have levels: the unclassified bucket is added by the client
@@ -72,7 +76,7 @@ class ServerMenuFlowTest {
 
     @Test
     void requestLevelListThenEnterLevelCreatesWorldSave() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-menu-flow"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             LevelListS2C list = server.levelList("testworld");
             assertTrue(list.levels().stream().anyMatch(l -> l.id().equals("pvzce:yard/adventure/1_1")));
 
@@ -103,7 +107,7 @@ class ServerMenuFlowTest {
 
     @Test
     void brigadierCommandsExecute() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-commands"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.send(new CommandC2S("/tick"));
             server.waitFor(p -> p instanceof ServerMessageS2C m && m.message().startsWith("游戏 tick="), 5_000);
 
@@ -122,7 +126,7 @@ class ServerMenuFlowTest {
 
     @Test
     void brigadierSuggestionsCoverSubcommands() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-suggestions"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.server().sendSuggestions("/level ", 1);
             server.waitFor(p -> p instanceof SuggestionsS2C, 3_000);
             List<String> texts = suggestions(server.packets());
@@ -176,7 +180,6 @@ class ServerMenuFlowTest {
 
     @Test
     void startLevelUsesSanitizedSelectedSeedCards() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-seed-start");
         writeFreeSlotLevel(gameDir);
         try (ServerHarness server = ServerHarness.createWithWorld(gameDir, "seedworld", true)) {
             server.send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false,
@@ -198,7 +201,6 @@ class ServerMenuFlowTest {
 
     @Test
     void startLevelAllowsEmptySeedSelection() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-seed-empty");
         writeFreeSlotLevel(gameDir);
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.send(new PlayLevelC2S(FREE_SLOT_LEVEL, "seedworld", false, List.of()));
@@ -212,7 +214,6 @@ class ServerMenuFlowTest {
 
     @Test
     void continueSaveRestoresPreviouslyChosenSeedCards() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-seed-continue");
         writeFreeSlotLevel(gameDir);
         try (ServerHarness server = ServerHarness.createWithWorld(gameDir, "seedworld", true)) {
             // The bar the level actually starts with: its own two cards, then the two picks.
@@ -233,7 +234,7 @@ class ServerMenuFlowTest {
 
     @Test
     void existingSaveIsLoadedBeforePromptAndContinueDoesNotCreateAnotherLevel() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-save-prompt"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             List<String> chosen = List.of("pvzce:sun", "pvzce:pea_shooter");
             server.send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "seedworld", false, chosen));
             server.waitForCondition(() -> initCount(server.packets()) >= 1, 5_000);
@@ -267,7 +268,6 @@ class ServerMenuFlowTest {
 
     @Test
     void restartFromSavePromptWaitsForExplicitSeedSelectionBeforeCreatingFreshLevel() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-restart-seeds");
         // Written before the server starts: it scans `datapacks/` during startup, so a pack
         // created afterwards is never seen and the level would not exist.
         writeFreeSlotLevel(gameDir);
@@ -319,7 +319,7 @@ class ServerMenuFlowTest {
      */
     @Test
     void pushedLevelListRefreshDescribesTheWorldTheClientWasViewing() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-push-world"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             // A save in "alphaworld" only: in "world" (the server's fallback) there is none.
             server.send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "alphaworld", false,
                     List.of("pvzce:sun", "pvzce:pea_shooter")));
@@ -352,7 +352,7 @@ class ServerMenuFlowTest {
      */
     @Test
     void aNewLevelInstanceResetsTheClientsMusicAndAResyncDoesNot() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-music-reset"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "musicworld", false,
                     List.of("pvzce:sun", "pvzce:pea_shooter")));
             server.waitForCondition(() -> initCount(server.packets()) >= 1, 5_000);
@@ -394,7 +394,7 @@ class ServerMenuFlowTest {
 
     @Test
     void pauseGamePacketFreezesAndResumesLevelTicks() throws Exception {
-        try (ServerHarness server = ServerHarness.create(Files.createTempDirectory("pvzce-pause"))) {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.send(new RestartLevelC2S("pvzce:yard/adventure/1_1", "pauseworld", List.of()));
             server.awaitPacket(LevelInitS2C.class, 5_000);
             server.waitForCondition(() -> server.server().level() != null

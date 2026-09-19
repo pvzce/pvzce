@@ -10,6 +10,7 @@ import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.PaletteList;
 import com.pvzce.client.gui.editor.EditorContext;
+import com.pvzce.client.gui.screens.ListEditorSupport;
 import com.pvzce.client.gui.editor.EditorPage;
 import com.pvzce.client.gui.editor.LevelFileWriter;
 import com.pvzce.client.gui.screens.CardPoolEditorDialog;
@@ -18,6 +19,7 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.mechanic.LevelMechanic;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -120,7 +122,7 @@ public final class CardsPage implements EditorPage {
     public void writeTo(EditorContext context) {
         maxSeedSlots = cardPoolConfig.maxSeedSlots < 0
                 ? LevelDef.UNSET_MAX_SEED_SLOTS
-                : clamp(cardPoolConfig.maxSeedSlots, 1, CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
+                : MathUtil.clamp(cardPoolConfig.maxSeedSlots, 1, CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
         LevelFileWriter.cards(context.draft(), cardPoolConfig.pool, maxSeedSlots);
     }
 
@@ -143,7 +145,7 @@ public final class CardsPage implements EditorPage {
     private void buildCardPage(EditorContext context) {
         EditorContext.Rect content = context.content();
         int sideW = context.side().width();
-        int rowH = clamp(content.height() / 14, 26, 34);
+        int rowH = MathUtil.clamp(content.height() / 14, 26, 34);
         int actionRows = 2;
         int actionBlock = rowH * actionRows + 18;
         cardListTop = content.y() + actionBlock;
@@ -153,13 +155,13 @@ public final class CardsPage implements EditorPage {
         int availX = content.x() + colW + gap;
 
         poolList = context.own(new AbstractSelectionList<String>(content.x(), cardListTop, colW, listH,
-                clamp(listH / 8, 26, 38),
+                MathUtil.clamp(listH / 8, 26, 38),
                 (renderClient, id, rx, ry) -> renderCardRow(renderClient, id, rx, ry, false)));
         poolList.setEntries(new ArrayList<>(cardPoolConfig.pool));
 
         rebuildAvailableRows();
         availableList = context.own(new AbstractSelectionList<AvailableRow>(availX, cardListTop, colW, listH,
-                clamp(listH / 8, 26, 38), this::renderAvailableRow));
+                MathUtil.clamp(listH / 8, 26, 38), this::renderAvailableRow));
         availableList.setEntries(new ArrayList<>(availableRows));
 
         int actionW = Math.max(72, (colW - gap) / 2);
@@ -351,24 +353,17 @@ public final class CardsPage implements EditorPage {
     }
 
     private void removePoolEntry() {
-        int index = poolList == null ? -1 : poolList.selectedIndex();
-        if (index < 0 || index >= cardPoolConfig.pool.size()) {
-            return;
-        }
-        cardPoolConfig.pool.remove(index);
+        String card = poolList == null ? null : poolList.selected();
+        ListEditorSupport.remove(cardPoolConfig.pool, card);
         refreshCardLists();
     }
 
     private void movePoolEntry(int delta) {
-        int index = poolList == null ? -1 : poolList.selectedIndex();
-        int target = index + delta;
-        if (index < 0 || target < 0 || target >= cardPoolConfig.pool.size()) {
-            return;
+        String card = poolList == null ? null : poolList.selected();
+        if (ListEditorSupport.move(cardPoolConfig.pool, card, delta)) {
+            refreshCardLists();
+            poolList.select(cardPoolConfig.pool.indexOf(card));
         }
-        String value = cardPoolConfig.pool.remove(index);
-        cardPoolConfig.pool.add(target, value);
-        refreshCardLists();
-        poolList.select(target);
     }
 
     /**
@@ -384,26 +379,26 @@ public final class CardsPage implements EditorPage {
         // so the first press shows the player what they are changing rather than a 0.
         int current = cardPoolConfig.maxSeedSlots < 0
                 ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS : cardPoolConfig.maxSeedSlots;
-        cardPoolConfig.maxSeedSlots = clamp(current + delta, floor,
+        cardPoolConfig.maxSeedSlots = MathUtil.clamp(current + delta, floor,
                 CardPoolEditorDialog.MAX_SEED_SLOTS_LIMIT);
         maxSeedSlots = cardPoolConfig.maxSeedSlots;
     }
 
+    /**
+     * Rebuilds both card lists, each keeping its own selection.
+     *
+     * <p>By item, not by row: the "available cards" list is rebuilt from the registries each
+     * time, so a row number can point at a different card after an edit - which is exactly the
+     * class of bug {@link ListEditorSupport} exists to prevent.
+     */
     private void refreshCardLists() {
         if (poolList != null) {
-            int keep = poolList.selectedIndex();
-            poolList.setEntries(new ArrayList<>(cardPoolConfig.pool));
-            if (keep >= 0 && keep < cardPoolConfig.pool.size()) {
-                poolList.select(keep);
-            }
+            ListEditorSupport.refresh(poolList, new ArrayList<>(cardPoolConfig.pool), poolList.selected());
         }
         if (availableList != null) {
-            int keep = availableList.selectedIndex();
+            AvailableRow keep = availableList.selected();
             rebuildAvailableRows();
-            availableList.setEntries(new ArrayList<>(availableRows));
-            if (keep >= 0 && keep < availableRows.size()) {
-                availableList.select(keep);
-            }
+            ListEditorSupport.refresh(availableList, new ArrayList<>(availableRows), keep);
         }
     }
 
@@ -426,7 +421,4 @@ public final class CardsPage implements EditorPage {
         }
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

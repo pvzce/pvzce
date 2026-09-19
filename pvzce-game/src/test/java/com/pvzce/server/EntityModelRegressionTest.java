@@ -6,6 +6,7 @@ import com.pvzce.api.content.TeamDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.Slot;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
@@ -15,7 +16,6 @@ import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -98,7 +98,7 @@ class EntityModelRegressionTest {
         CompoundTag saved = original.saveState();
 
         LevelServer restoredLevel = new LevelServer(level(9, 5));
-        restoredLevel.restore(saveTagFor(level, saved));
+        restoredLevel.restore(saveTagFor(level, saved, original.entityKind()));
         PlantEntity restored = restoredLevel.plantsAt(3, 2).stream().findFirst().orElseThrow();
 
         assertEquals(original.health(), restored.health());
@@ -108,9 +108,15 @@ class EntityModelRegressionTest {
         assertEquals(original.age(), restored.age());
     }
 
-    /** Wraps one entity snapshot in a minimal running save the level will restore. */
-    private static CompoundTag saveTagFor(LevelServer source, CompoundTag entityTag) {
+    /**
+     * Wraps one entity snapshot in a minimal running save the level will restore.
+     *
+     * <p>The {@code Kind} key is part of the contract: {@code LevelServer.save} writes it
+     * next to every entity snapshot, and restore builds the shell from it.
+     */
+    private static CompoundTag saveTagFor(LevelServer source, CompoundTag entityTag, String kind) {
         CompoundTag root = source.save();
+        entityTag.putString("Kind", kind);
         com.pvzce.common.nbt.ListTag entities = new com.pvzce.common.nbt.ListTag();
         entities.add(entityTag);
         root.put("Entities", entities);

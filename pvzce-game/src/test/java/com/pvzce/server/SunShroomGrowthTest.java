@@ -14,6 +14,7 @@ import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ResourceDropEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -60,12 +61,7 @@ class SunShroomGrowthTest {
         overrides.forEach((id, value) -> rules.put(id, PvzceIds.RULE_SUN_SPAWN_CHANCE.equals(id)
                 ? new JsonPrimitive(value.floatValue())
                 : new JsonPrimitive(value)));
-        return new LevelDef(source.id(), source.name(), source.description(), source.width(),
-                source.height(), source.scene(), source.teams(), source.winTeam(), rules,
-                source.envVars(), List.of(), source.waveIntervalEndMultiplier(), source.slots(),
-                source.unlockResources(), source.initialSun(), source.music(),
-                source.initialEntities(), source.maxSeedSlots(), source.rewards(), source.unlock(),
-                source.mechanics(), source.dialogue(), source.hints());
+        return TestLevels.copy(source).rules(rules).waves(List.of()).build();
     }
 
     private static final class CapturingBridge implements LevelServer.ServerBridge {

@@ -17,6 +17,7 @@ import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -42,6 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * directory, and NBT accessors that failed late or not at all.
  */
 class FoundationRegressionTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     @BeforeAll
     static void bootstrap() {
         BuiltInRegistries.bootstrap();
@@ -94,7 +99,6 @@ class FoundationRegressionTest {
      */
     @Test
     void nestedContentPathsProduceDistinctIds() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-nested-ids");
         Path pack = gameDir.resolve("datapacks/nested");
         Path first = pack.resolve("data/test/plants/tier1/pea.json");
         Path second = pack.resolve("data/test/plants/tier2/pea.json");
@@ -119,7 +123,6 @@ class FoundationRegressionTest {
     /** Two files claiming the same id must be reported, not silently resolved by order. */
     @Test
     void duplicateContentIdsAreReported() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-duplicate-ids");
         Path pack = gameDir.resolve("datapacks/dupes");
         Path first = pack.resolve("data/test/plants/pea.json");
         Path second = pack.resolve("data/test/plants/other.json");
@@ -149,19 +152,22 @@ class FoundationRegressionTest {
         // One spelling per pack: with both files in one pack a single contains() would
         // pass even if one of the two paths were rejected outright, which is exactly the
         // bug this pins.
-        for (String dir : new String[]{"plant", "plants"}) {
-            Path gameDir = Files.createTempDirectory("pvzce-tag-" + dir);
-            Path file = gameDir.resolve("datapacks/tags" + dir + "/data/test/tags/" + dir + "/group.json");
+        for (String spelling : new String[]{"plant", "plants"}) {
+            // A subdirectory per spelling: both packs must exist at once, and one @TempDir
+            // per test method is shared by the loop.
+            Path packDir = Files.createDirectory(gameDir.resolve(spelling));
+            Path file = packDir.resolve("datapacks/tags" + spelling + "/data/test/tags/"
+                    + spelling + "/group.json");
             Files.createDirectories(file.getParent());
             Files.writeString(file, "{\"values\":[\"pvzce:pea_shooter\"]}");
 
             PvzceResourceManager resources = new PvzceResourceManager(
                     Thread.currentThread().getContextClassLoader());
-            resources.init(gameDir);
+            resources.init(packDir);
             PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
 
             assertTrue(PvzceTags.MANAGER.contains(group, Identifier.withDefaultNamespace("pea_shooter")),
-                    "a tag under tags/" + dir + "/ must resolve to the plant registry");
+                    "a tag under tags/" + spelling + "/ must resolve to the plant registry");
         }
     }
 

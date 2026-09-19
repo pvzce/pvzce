@@ -16,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -238,11 +237,13 @@ public final class AnimationManager {
         }
         float[] anchor = anchor(entity);
         float[] scales = scalesFor(entity);
-        // How this entity is lit: a drop is dimmed so its glow layers do not clip to white,
-        // everything else wears the night lift and, if it is a slowed zombie, the frozen
-        // tint. One push, one pop, both paths below.
+        // How this entity is lit: a drop wears its resource's own tint - dimmer than its art, so
+        // its glow layers do not clip to white, and as warm as the resource says, so a sun stays
+        // yellow - while everything else wears the night lift and, if it is a slowed zombie, the
+        // frozen tint. One push, one pop, both paths below.
         if (EntityKind.RESOURCE.equals(entity.kind())) {
-            client.pushEntityTint(EntityVisuals.DROP_TINT);
+            float[] dropTint = EntityVisuals.dropTint(entity.defIdString());
+            client.pushEntityTint(dropTint[0], dropTint[1], dropTint[2]);
         } else {
             client.pushEntityLook(entity);
         }

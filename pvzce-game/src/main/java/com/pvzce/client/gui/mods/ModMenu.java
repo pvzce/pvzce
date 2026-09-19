@@ -4,6 +4,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -16,6 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * client before the mods screen is opened.
  */
 public final class ModMenu {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/ModMenu");
     private static final List<ModInfo> MODS = new ArrayList<>();
     private static final Map<String, ConfigScreenFactory<?>> CONFIG_FACTORIES = new ConcurrentHashMap<>();
     private static final Map<String, ModContainer> CONTAINERS = new ConcurrentHashMap<>();
@@ -44,8 +48,8 @@ public final class ModMenu {
                 }
                 api.getProvidedConfigScreenFactories().forEach(CONFIG_FACTORIES::putIfAbsent);
             } catch (Throwable t) {
-                System.err.println("Broken pvzce.modmenu entrypoint " + entrypoint.getProvider().getMetadata().getId()
-                        + ": " + t);
+                LOGGER.warn("Broken pvzce.modmenu entrypoint "
+                        + entrypoint.getProvider().getMetadata().getId(), t);
             }
         }
         if (builtinFactory != null) {

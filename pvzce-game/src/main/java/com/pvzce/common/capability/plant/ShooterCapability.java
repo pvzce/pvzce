@@ -11,7 +11,6 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
-import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
 
 import java.util.List;

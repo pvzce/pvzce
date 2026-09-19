@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -36,21 +37,23 @@ public record EffectEventS2C(String particle, float x, float y, String sound, fl
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<EffectEventS2C> CODEC = PacketStruct.<EffectEventS2C>builder()
+    .field(EffectEventS2C::particle, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(EffectEventS2C::x, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EffectEventS2C::y, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EffectEventS2C::sound, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(EffectEventS2C::volume, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EffectEventS2C::pitch, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EffectEventS2C::ripple, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(EffectEventS2C::rippleStrength, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+            .build(values -> new EffectEventS2C((String) values.get(0), (Float) values.get(1), (Float) values.get(2), (String) values.get(3), (Float) values.get(4), (Float) values.get(5), (String) values.get(6), (Float) values.get(7)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeString(particle);
-        buf.writeFloat(x);
-        buf.writeFloat(y);
-        buf.writeString(sound);
-        buf.writeFloat(volume);
-        buf.writeFloat(pitch);
-        buf.writeString(ripple);
-        buf.writeFloat(rippleStrength);
+        CODEC.encode(this, buf);
     }
 
     public static EffectEventS2C decode(PacketByteBuf buf) {
-        return new EffectEventS2C(buf.readString(), buf.readFloat(), buf.readFloat(),
-                buf.readString(), buf.readFloat(), buf.readFloat(),
-                buf.readString(), buf.readFloat());
+        return CODEC.decode(buf);
     }
 }

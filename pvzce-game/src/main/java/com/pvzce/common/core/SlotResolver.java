@@ -6,8 +6,10 @@ import com.pvzce.api.content.SlotDef;
 import com.pvzce.api.content.ToolDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
-import com.pvzce.server.Slot;
+import com.pvzce.common.core.Slot;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -24,6 +26,8 @@ import java.util.Set;
  * ids are reported once instead of being papered over.
  */
 public final class SlotResolver {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Slots");
     private static final Set<Identifier> REPORTED = new HashSet<>();
 
     /**
@@ -78,13 +82,6 @@ public final class SlotResolver {
             return Optional.of(new ResolvedCard(slotId, slot.content(), kind, cost, cooldown, uses,
                     slot.icon().isPresent() ? slot.icon() : fallbackIcon(kind, slot.content())));
         }
-        // Legacy level JSON may list a plant id directly instead of a slot id.
-        PlantDef plant = BuiltInRegistries.PLANTS.get(slotId);
-        if (plant != null) {
-            return Optional.of(new ResolvedCard(slotId, slotId, Slot.Kind.PLANT,
-                    plant.cost().amountOf(PvzceIds.SUN), plant.cost().cooldownTicks(), Slot.UNLIMITED_USES,
-                    fallbackIcon(Slot.Kind.PLANT, slotId)));
-        }
         reportUnknown(slotId);
         return Optional.empty();
     }
@@ -124,11 +121,39 @@ public final class SlotResolver {
                 && (resolved.kind() == Slot.Kind.PLANT || resolved.kind() == Slot.Kind.TOOL);
     }
 
+    /**
+     * True when a backpack with these unlocks owns this card.
+     *
+     * <p>The server's {@code PlayerProfile} and the client's {@code ClientProfile} both ask
+     * this, and they had each written the same thirteen lines out: a sandbox world owns
+     * everything, a resource card is never gated, and a plant counts as owned when either its
+     * slot id or the content that slot grants is in the unlocked set - a level may name a
+     * plant directly instead of its slot, and "I own the peashooter" must not depend on which
+     * spelling the level happened to use.
+     *
+     * @param unlocked  the ids in the player's backpack
+     * @param unlockAll the sandbox flag: everything is owned, including future content
+     * @param card      a slot id or the content id it grants
+     */
+    public static boolean owns(java.util.Set<Identifier> unlocked, boolean unlockAll, Identifier card) {
+        if (card == null) {
+            return false;
+        }
+        if (!requiresUnlock(card) || unlockAll) {
+            return true;
+        }
+        if (unlocked.contains(card)) {
+            return true;
+        }
+        ResolvedCard resolved = resolve(card).orElse(null);
+        return resolved != null && unlocked.contains(resolved.content());
+    }
+
     private static void reportUnknown(Identifier slotId) {
         synchronized (REPORTED) {
             if (REPORTED.add(slotId)) {
-                System.err.println("[PVZCE] Level lists unknown card '" + slotId
-                        + "': no slot, plant, tool or resource with that id. The card is skipped.");
+                LOGGER.warn("Level lists unknown card '{}': no slot with that id."
+                        + " The card is skipped.", slotId);
             }
         }
     }

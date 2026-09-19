@@ -5,7 +5,6 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.client.animation.AnimationComponent;
 import com.pvzce.client.animation.AnimationHandle;
 import com.pvzce.client.animation.AnimationManager;
-import com.pvzce.client.api.Animatable;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
 

@@ -1,7 +1,6 @@
 package com.pvzce.api.content;
 
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.DataResult;
 
 /**
  * A registered game-rule type, mirroring Minecraft's
@@ -13,12 +12,29 @@ import com.mojang.serialization.DataResult;
  * (the generic method erases to {@code Object}).
  */
 public sealed interface GameRuleType<T> permits GameRuleType.BooleanRule, GameRuleType.IntRule,
-        GameRuleType.FloatRule, GameRuleType.DoubleRule, GameRuleType.EnumRule {
+        GameRuleType.FloatRule {
     T defaultValue();
 
     Codec<T> codec();
 
     T clamp(T value);
+
+    /**
+     * The inclusive bounds {@link #clamp} enforces, or {@code null} for a type with none.
+     *
+     * <p>Exposed because the level editor has to offer a range the server will not silently
+     * clamp: it kept a hand-written copy of these numbers, and the copy had already drifted
+     * ({@code sun_value} was editable up to 500 while the server accepted 10000, so a level
+     * could not express a value the game allows). One registration, one range.
+     */
+    default float[] bounds() {
+        return null;
+    }
+
+    /** True when only whole numbers are meaningful - a tick count, a player count. */
+    default boolean integral() {
+        return false;
+    }
 
     final class BooleanRule implements GameRuleType<Boolean> {
         private final Boolean value;
@@ -68,6 +84,16 @@ public sealed interface GameRuleType<T> permits GameRuleType.BooleanRule, GameRu
         public Integer clamp(Integer value) {
             return value == null ? this.value : Math.max(min, Math.min(max, value));
         }
+
+        @Override
+        public float[] bounds() {
+            return new float[]{min, max};
+        }
+
+        @Override
+        public boolean integral() {
+            return true;
+        }
     }
 
     final class FloatRule implements GameRuleType<Float> {
@@ -95,63 +121,11 @@ public sealed interface GameRuleType<T> permits GameRuleType.BooleanRule, GameRu
         public Float clamp(Float value) {
             return value == null ? this.value : Math.max(min, Math.min(max, value));
         }
-    }
-
-    final class DoubleRule implements GameRuleType<Double> {
-        private final Double value;
-        private final double min;
-        private final double max;
-
-        public DoubleRule(double value, double min, double max) {
-            this.value = value;
-            this.min = min;
-            this.max = max;
-        }
 
         @Override
-        public Double defaultValue() {
-            return value;
-        }
-
-        @Override
-        public Codec<Double> codec() {
-            return Codec.DOUBLE;
-        }
-
-        @Override
-        public Double clamp(Double value) {
-            return value == null ? this.value : Math.max(min, Math.min(max, value));
+        public float[] bounds() {
+            return new float[]{min, max};
         }
     }
 
-    final class EnumRule<E extends Enum<E>> implements GameRuleType<E> {
-        private final Class<E> enumClass;
-        private final E value;
-
-        public EnumRule(Class<E> enumClass, E value) {
-            this.enumClass = enumClass;
-            this.value = value;
-        }
-
-        @Override
-        public E defaultValue() {
-            return value;
-        }
-
-        @Override
-        public Codec<E> codec() {
-            return Codec.STRING.flatXmap(name -> {
-                try {
-                    return DataResult.success(Enum.valueOf(enumClass, name));
-                } catch (IllegalArgumentException e) {
-                    return DataResult.error(() -> "Unknown enum constant " + name + " for " + enumClass.getSimpleName());
-                }
-            }, v -> DataResult.success(v.name()));
-        }
-
-        @Override
-        public E clamp(E value) {
-            return value == null ? this.value : value;
-        }
-    }
 }

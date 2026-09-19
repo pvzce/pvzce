@@ -5,7 +5,6 @@ import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +28,7 @@ public final class ClientHarness implements AutoCloseable {
     /** @param tempPrefix prefix for this client's throwaway game directory */
     public static ClientHarness create(String tempPrefix) throws Exception {
         PvzcePackets.register();
-        Path gameDir = Files.createTempDirectory(tempPrefix);
+        Path gameDir = TestDirs.create(tempPrefix);
         Connection.Pair pair = Connection.createMemoryPair();
         List<PvzcePacket> sent = new ArrayList<>();
         pair.server().setListener(sent::add);

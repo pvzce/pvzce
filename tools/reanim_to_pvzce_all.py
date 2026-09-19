@@ -140,6 +140,16 @@ class EntityConfig:
     # A regex over the image reference, because a reanim names its glows by number
     # (``IMAGE_REANIM_SUN2``/``SUN3``) and there is no other pattern to key on.
     additive_images: Optional[str] = None
+    # How much of its authored alpha an additively blended sprite keeps.
+    #
+    # Light adds, and a stack of glows adds up: the sun is a saturated yellow core with two
+    # pale halos over it, and at full authored alpha the sum clips to white with the core's
+    # colour lost inside it. Scaling the additive pass down keeps the halo's shape and the
+    # core's colour, which is the pair a player reads a sun by.
+    #
+    # Applied to the alpha channel the clip already writes, so nothing about the geometry,
+    # the clip length or the hit box changes.
+    additive_alpha_scale: float = 1.0
     # Extra sprites for one bone, as its damage states: ``{host bone: ((new bone, png), ...)}``.
     #
     # The original swaps a worn cone/bucket/flag for a more damaged drawing in code, so
@@ -247,7 +257,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         # at 0.50-0.84. The glows are light, and the original adds them; drawn source-over
         # they are flat discs that swallow the core, which is why the sun used to read as a
         # bright blob with no shape. The core stays normal, so the sprite keeps an edge.
+        #
+        # And the glows are held back to 70% of their authored alpha: added at full strength
+        # on top of a yellow core they clip to white, which is what "the sun is a white blob"
+        # was. The remaining 30% is what the core's own colour needs to stay readable through
+        # them; the rest of the fix is the resource's own warm `tint` (see resources/sun.json).
         additive_images=r"SUN2|SUN3",
+        additive_alpha_scale=0.7,
         animations={
             "idle": {"range": "all", "loop": True},
             "landed": {"range": "all", "loop": True},
@@ -1070,16 +1086,25 @@ ENTITY_CONFIGS: List[EntityConfig] = [
     # ------------------------------------------------------------------
     # Tools
     #
-    # A tool card needs one static sprite, and Hammer.reanim is where the original's is.
-    # It gets a single idle clip so the generator has something to write; the card draws
-    # the first model part, not the clip.
+    # A tool card needs one static sprite, and Hammer.reanim is where the original's is;
+    # the card draws the first model part, not a clip.
+    #
+    # The two clips are that file's `anim_whack_zombie` range cut in half. Read as one
+    # 9-frame cycle it starts at the raised pose, lands the blow on its second frame and
+    # lifts back to where it started - so the swing is the whole range played once, and
+    # the pose it is held in between swings is the last frame of it. The range's other
+    # half (`anim_open_pot`) is the Zen Garden's pot-opening flourish and is not exported.
     # ------------------------------------------------------------------
     EntityConfig(
         output="hammer",
         group="tool",
         reanim="Hammer.reanim",
         target_box=(0.5, 0.5),
-        animations={"idle": {"mask": "anim_whack_zombie", "loop": True}},
+        animations={
+            "idle": {"mask": "anim_whack_zombie", "range": [8, 8], "loop": True},
+            "attack": {"mask": "anim_whack_zombie", "loop": False, "on_end": "idle",
+                       "transition": 0.05},
+        },
     ),
     # ------------------------------------------------------------------
     # Level props
@@ -1585,8 +1610,13 @@ def build_animation(
             emitting the channel unconditionally would add a constant block to all 2688
             bone tracks in the shipped set to say nothing. A bone whose alpha never leaves
             1 omits the channel, and the runtime's default (1) is already the answer.
+
+            ``additive_alpha_scale`` is applied *before* that test, so a glow whose source
+            alpha is a flat 1 still gets the channel it needs to be held back.
             """
-            values = [bone.states[frame].a for frame in range(start, end + 1)]
+            scale = (config.additive_alpha_scale
+                     if additive_search(config, bone.asset.ref) else 1.0)
+            values = [bone.states[frame].a * scale for frame in range(start, end + 1)]
             if all(abs(value - 1.0) <= 1e-6 for value in values):
                 return {}
             keys: Dict[str, float] = {}

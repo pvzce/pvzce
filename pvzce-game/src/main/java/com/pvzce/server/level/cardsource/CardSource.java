@@ -4,7 +4,7 @@ import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.PvzcePlayer;
-import com.pvzce.server.Slot;
+import com.pvzce.common.core.Slot;
 import com.pvzce.server.level.LevelServer;
 
 import java.util.List;

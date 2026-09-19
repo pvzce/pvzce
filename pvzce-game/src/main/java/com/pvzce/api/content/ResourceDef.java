@@ -37,6 +37,15 @@ import java.util.Optional;
  * reason: collecting a coin used to play the sun's chime, so a bowling combo - which
  * drops a coin per ricochet - sounded like a shower of sun. Coins ring; the sun keeps
  * the collect sound it always had.
+ *
+ * <p>{@code tint} is the colour a drop of this resource is drawn with, and it is per
+ * resource for the same reason the two above are: a drop is a light rather than a piece
+ * of paint (see {@link #dropMotion}), so the number that keeps one of them from washing
+ * out the lawn is a property of its art. The sun's own art stacks two pale halos
+ * additively over a saturated yellow core, and adding pale yellow to yellow is how a sun
+ * reads as a white blob; a warm tint keeps the core's colour and takes the blue out of
+ * the halos. A resource that declares none is drawn with {@link DropTint#DEFAULT}, which
+ * is what every drop looked like before this field existed.
  */
 public record ResourceDef(
         Identifier id,
@@ -53,8 +62,41 @@ public record ResourceDef(
         Optional<Identifier> pickupEffect,
         Identifier pickupSound,
         float riseHeight,
-        float riseScatter
+        float riseScatter,
+        DropTint tint
 ) {
+    /**
+     * A drop's colour multiplier, as one number per channel.
+     *
+     * <p>Written as three floats in a list rather than as a nested object because that is
+     * how a colour is written everywhere else a data pack says one, and it is clamped to
+     * the same shape on the way in - a list that is not three long is a typo, and the
+     * codec refuses it rather than reading the channels off by one.
+     *
+     * <p>A value above 1 is legal: the renderer clamps the finished pixel, not the vertex
+     * colour, so a bright tint is how a resource is told to glow harder.
+     */
+    public record DropTint(float r, float g, float b) {
+        /**
+         * Drops are drawn dimmer than their art.
+         *
+         * <p>The sun's animation stacks several additive glow layers. Added, they clip to flat
+         * white - the sun reads as a bright blob with no shape to it, which is worse than small -
+         * and the two 117px and 77px halos are the ones doing the blowing out. Scaling the draw
+         * colour back keeps the 36px core readable through them; the alpha is untouched, so this
+         * is not "more transparent", just less blown out.
+         *
+         * <p>Half rather than the 0.72 it used to be: that value was chosen when the glow layers
+         * were drawn opaque and the alpha channel was still being dropped on the floor, so it was
+         * compensating for a bug rather than for the art. With the authored alpha and additive
+         * blending in place, 0.72 left the sun washing the lawn out.
+         */
+        public static final DropTint DEFAULT = new DropTint(0.5F, 0.5F, 0.5F);
+
+        public static final Codec<DropTint> CODEC = Codec.FLOAT.listOf(3, 3)
+                .xmap(values -> new DropTint(values.get(0), values.get(1), values.get(2)),
+                        tint -> java.util.List.of(tint.r(), tint.g(), tint.b()));
+    }
     /** The chime a collected resource plays unless it names its own. */
     public static final Identifier DEFAULT_PICKUP_SOUND =
             com.pvzce.common.PvzceSounds.UI_COLLECT;
@@ -91,12 +133,14 @@ public record ResourceDef(
                        Identifier dropAnim, int maxStack, boolean collectibleWithoutCard) {
         this(id, defaultValue, collectible, icon, dropAnim, maxStack, collectibleWithoutCard,
                 AnimationBindings.EMPTY, Optional.empty(), DropMotion.FALL, ContentDefs.DEFAULT_RENDER_SCALE,
-                Optional.empty(), DEFAULT_PICKUP_SOUND, RISE_HEIGHT, DEFAULT_RISE_SCATTER);
+                Optional.empty(), DEFAULT_PICKUP_SOUND, RISE_HEIGHT, DEFAULT_RISE_SCATTER,
+                DropTint.DEFAULT);
     }
 
     public static final Codec<ResourceDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(ResourceDef::id),
-            Codec.INT.optionalFieldOf("default_value", 25).forGetter(ResourceDef::defaultValue),
+            Codec.INT.optionalFieldOf("default_value", com.pvzce.common.PvzceConstants.SUN_VALUE)
+                    .forGetter(ResourceDef::defaultValue),
             Codec.BOOL.optionalFieldOf("collectible", true).forGetter(ResourceDef::collectible),
             Identifier.CODEC.optionalFieldOf("icon", Identifier.withDefaultNamespace("textures/resource/generic")).forGetter(ResourceDef::icon),
             Identifier.CODEC.optionalFieldOf("drop_anim", Identifier.withDefaultNamespace("sun_fall")).forGetter(ResourceDef::dropAnim),
@@ -113,7 +157,8 @@ public record ResourceDef(
                     .forGetter(ResourceDef::pickupSound),
             Codec.FLOAT.optionalFieldOf("rise_height", RISE_HEIGHT).forGetter(ResourceDef::riseHeight),
             Codec.FLOAT.optionalFieldOf("rise_scatter", DEFAULT_RISE_SCATTER)
-                    .forGetter(ResourceDef::riseScatter)
+                    .forGetter(ResourceDef::riseScatter),
+            DropTint.CODEC.optionalFieldOf("tint", DropTint.DEFAULT).forGetter(ResourceDef::tint)
     ).apply(i, ResourceDef::new));
 
     /**
@@ -133,7 +178,4 @@ public record ResourceDef(
         }
         return DropMotion.FALL;
     }
-
-    /** True when this resource's sprite is doubled in size, for readability. */
-    public static final float DROP_SPRITE_SCALE = 2F;
 }

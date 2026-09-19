@@ -5,7 +5,10 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.util.MathUtil;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,8 +31,8 @@ import java.util.Random;
  * so a particle keeps its proportions when the board is rescaled.
  */
 public final class ParticleEngine {
-    /** Authored gravity, in world cells per second squared. */
-    public static final float GRAVITY_PER_SECOND = 0.15F * com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Particles");
     /** Longest step applied in one frame, so a stall cannot teleport particles. */
     public static final float MAX_STEP_SECONDS = 0.1F;
     /** Hard cap on live particles; the oldest are dropped first. */
@@ -95,7 +98,7 @@ public final class ParticleEngine {
 
     private Particle instantiate(ParticleDef def, float x, float y) {
         if (Boolean.getBoolean("pvzce.traceEffects")) {
-            System.out.println("[PARTICLES] spawn " + def.id() + " at " + x + "," + y);
+            LOGGER.info("particle trace: spawn {} at {},{}", def.id(), x, y);
         }
         ParticleDef.ParticleLook look = def.look();
         ParticleDef.ParticleMotion motion = def.motion();
@@ -156,8 +159,8 @@ public final class ParticleEngine {
             long now = System.nanoTime();
             if (now - lastMissingLogNanos > 1_000_000_000L) {
                 lastMissingLogNanos = now;
-                System.err.println("[PVZCE] Effect '" + id + "' has no particle definition; nothing is drawn. "
-                        + "Add data/<ns>/particles/<name>.json.");
+                LOGGER.warn("Effect '{}' has no particle definition; nothing is drawn."
+                        + " Add data/<ns>/particles/<name>.json.", id);
             }
             return null;
         }
@@ -242,7 +245,7 @@ public final class ParticleEngine {
     private void renderOne(PvzceClient client, Particle particle) {
         ParticleDef.ParticleLook look = particle.look;
         float progress = Math.min(1F, particle.age / particle.lifetime);
-        float alpha = clamp01(look.alphaAt(progress) * fadeIn(progress));
+        float alpha = MathUtil.clamp01(look.alphaAt(progress) * fadeIn(progress));
         if (alpha <= 0.001F) {
             return;
         }
@@ -298,10 +301,6 @@ public final class ParticleEngine {
             index = Math.min(index, frames.size() - 1);
         }
         return frames.get(Math.max(0, index));
-    }
-
-    private static float clamp01(float value) {
-        return value < 0F ? 0F : (value > 1F ? 1F : value);
     }
 
     public void clear() {

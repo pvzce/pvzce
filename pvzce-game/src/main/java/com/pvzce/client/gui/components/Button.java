@@ -12,11 +12,8 @@ import com.pvzce.client.PvzceClient;
  * directly or use {@link #builder(String, Runnable)}.</p>
  */
 public class Button extends AbstractWidget {
-    public static final int SMALL_WIDTH = 120;
     public static final int DEFAULT_WIDTH = 150;
-    public static final int BIG_WIDTH = 200;
     public static final int DEFAULT_HEIGHT = 20;
-    public static final int DEFAULT_SPACING = 8;
 
     private static final Identifier NORMAL_LEFT = Identifier.withDefaultNamespace("textures/gui/button/button_left");
     private static final Identifier NORMAL_MIDDLE = Identifier.withDefaultNamespace("textures/gui/button/button_middle");

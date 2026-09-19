@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 import java.util.List;
@@ -31,13 +32,17 @@ public record SuggestionsS2C(int requestId, List<Suggestion> suggestions) implem
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<SuggestionsS2C> CODEC = PacketStruct.<SuggestionsS2C>builder()
+    .field(SuggestionsS2C::requestId, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .list(SuggestionsS2C::suggestions, Suggestion::encode, Suggestion::decode)
+            .build(values -> new SuggestionsS2C((Integer) values.get(0), (List<Suggestion>) values.get(1)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeInt(requestId);
-        buf.writeList(suggestions, Suggestion::encode);
+        CODEC.encode(this, buf);
     }
 
     public static SuggestionsS2C decode(PacketByteBuf buf) {
-        return new SuggestionsS2C(buf.readInt(), buf.readList(Suggestion::decode));
+        return CODEC.decode(buf);
     }
 }

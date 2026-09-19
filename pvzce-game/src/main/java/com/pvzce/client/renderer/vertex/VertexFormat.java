@@ -19,10 +19,6 @@ public final class VertexFormat {
 
     public static final VertexFormat POSITION_COLOR_UV = new VertexFormat(SPRITE_FLOATS);
 
-    public enum Mode {
-        TRIANGLES
-    }
-
     private final int vertexFloats;
 
     public VertexFormat(int vertexFloats) {
@@ -31,9 +27,5 @@ public final class VertexFormat {
 
     public int vertexFloats() {
         return vertexFloats;
-    }
-
-    public int vertexBytes() {
-        return vertexFloats * Float.BYTES;
     }
 }

@@ -1,6 +1,7 @@
 package com.pvzce.client.gui.screens;
 
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.util.WorldPaths;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
@@ -148,7 +149,7 @@ public final class TitleScreen extends Screen {
     private void enterCurrentPlayer() {
         String current = client.currentWorld();
         if (current == null || current.isBlank()
-                || !client.gameDir().resolve("saves").resolve(current).toFile().isDirectory()) {
+                || !WorldPaths.worldDir(client.gameDir(), current).toFile().isDirectory()) {
             openPlayerPicker();
             return;
         }

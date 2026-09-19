@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -36,18 +37,21 @@ public record MusicEventS2C(String track, String event, boolean loop, boolean st
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<MusicEventS2C> CODEC = PacketStruct.<MusicEventS2C>builder()
+    .field(MusicEventS2C::track, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(MusicEventS2C::event, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(MusicEventS2C::loop, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    .field(MusicEventS2C::stop, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    .field(MusicEventS2C::volume, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(MusicEventS2C::fadeSeconds, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+            .build(values -> new MusicEventS2C((String) values.get(0), (String) values.get(1), (Boolean) values.get(2), (Boolean) values.get(3), (Float) values.get(4), (Float) values.get(5)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeString(track);
-        buf.writeString(event);
-        buf.writeBoolean(loop);
-        buf.writeBoolean(stop);
-        buf.writeFloat(volume);
-        buf.writeFloat(fadeSeconds);
+        CODEC.encode(this, buf);
     }
 
     public static MusicEventS2C decode(PacketByteBuf buf) {
-        return new MusicEventS2C(buf.readString(), buf.readString(), buf.readBoolean(),
-                buf.readBoolean(), buf.readFloat(), buf.readFloat());
+        return CODEC.decode(buf);
     }
 }

@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import com.pvzce.api.content.LevelBelt;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.common.resource.PvzceDataLoader;
 import com.pvzce.api.content.PlacementZone;
 import com.pvzce.api.content.mechanic.MechanicData;
 import com.pvzce.api.content.mechanic.TypedMechanic;
@@ -199,6 +200,10 @@ class LevelMechanicTest {
      * <p>They are not accepted any more, and they are not ignored silently either: a level
      * still written the old way loads as an ordinary level whose belt never arrives, so the
      * loader reports the block to write instead.
+     *
+     * <p>Only these two are checked, because the codec's own field names cannot be recovered
+     * from it: encoding a decoded value omits every field equal to its default, so the encoded
+     * form is not a schema (see {@code PvzceDataLoader.MOVED_LEVEL_KEYS}).
      */
     @Test
     void theOldTopLevelKeysAreReportedWithTheirNewHome() {
@@ -207,11 +212,12 @@ class LevelMechanicTest {
                  "conveyor":{"cards":[{"id":"pvzce:bowling_nut"}]},
                  "placement_zone":{"min_x":0,"max_x":3}}
                 """).getAsJsonObject();
-        List<String> errors = LevelValidator.validateLegacyKeys(raw);
+        List<String> errors = PvzceDataLoader.validateLegacyKeys(raw);
         assertEquals(2, errors.size(), errors.toString());
         assertTrue(errors.get(0).contains("pvzce:conveyor"), errors.get(0));
         assertTrue(errors.get(1).contains("pvzce:placement_zone"), errors.get(1));
-        assertEquals(List.of(), LevelValidator.validateLegacyKeys(JsonParser.parseString("{}").getAsJsonObject()));
+        assertEquals(List.of(), PvzceDataLoader.validateLegacyKeys(
+                JsonParser.parseString("{}").getAsJsonObject()));
     }
 
     @Test

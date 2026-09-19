@@ -144,22 +144,6 @@ public final class PacketByteBuf {
         return value.isEmpty() ? null : Identifier.tryParse(value);
     }
 
-    public void writeIdentifierList(List<Identifier> ids) {
-        writeList(ids, (id, buf) -> buf.writeIdentifier(id));
-    }
-
-    public List<Identifier> readIdentifierList() {
-        return readList(PacketByteBuf::readIdentifierOrNull);
-    }
-
-    public void writeOptionalIdentifier(Optional<Identifier> id) {
-        writeString(id.map(Identifier::toString).orElse(""));
-    }
-
-    public Optional<Identifier> readOptionalIdentifier() {
-        return Optional.ofNullable(readIdentifierOrNull());
-    }
-
     // ---------- collections ----------
 
     /**

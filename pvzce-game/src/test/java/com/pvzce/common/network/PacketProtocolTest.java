@@ -21,7 +21,6 @@ import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.OpenEditorS2C;
-import com.pvzce.common.network.packet.MovePlantC2S;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
@@ -53,7 +52,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -103,7 +101,6 @@ class PacketProtocolTest {
                 new PauseGameC2S(true),
                 new CreateWorldC2S("sandbox", true),
                 new UnlockLevelC2S("pvzce:yard/adventure/1_2", "world"),
-                new MovePlantC2S(2, 3, 4),
                 new com.pvzce.common.network.packet.ReleaseMowerC2S(3),
                 // A tool the level grants rather than a card the player holds: the id is all it
                 // names, and the two coordinates follow it.
@@ -167,6 +164,105 @@ class PacketProtocolTest {
                                 new SlotInfo(4, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true),
                                 new SlotInfo(5, "pvzce:bowling_nut", "plant", SlotInfo.NO_PRICE, 0, true)))));
     }
+
+    /**
+     * Every packet's bytes, so a change to the wire format has to be deliberate.
+     *
+     * <p>The round-trip test below proves a packet agrees with <em>itself</em>: encode and
+     * decode are written by the same hand and will happily drift together, which would break
+     * every existing client and server at once without failing anything here. This compares
+     * the actual bytes against a recorded dump, so moving a field, changing a type or
+     * reordering two ints shows up as a diff rather than as a mystery desync in a build that
+     * passed.
+     *
+     * <p>Set {@code -Ppvzce.smoke=pvzce.printWire=true} to print the current dump (the build
+     * forwards that property into the test JVM); paste it below when the change is intended,
+     * and bump {@code PROTOCOL_VERSION}.
+     */
+    @Test
+    void theWireFormatIsUnchanged() {
+        String actual = wireDump();
+        if (Boolean.getBoolean("pvzce.printWire")) {
+            System.out.println("----- wire dump begin -----");
+            System.out.println(actual);
+            System.out.println("----- wire dump end -----");
+            return;
+        }
+        assertEquals(EXPECTED_WIRE_FORMAT.trim(), actual.trim(),
+                "a packet's bytes changed; if that is intended, print the dump and update"
+                        + " PROTOCOL_VERSION");
+    }
+
+    /** {@code Name:hex} per packet, in sample order. */
+    private static String wireDump() {
+        StringBuilder dump = new StringBuilder();
+        for (PvzcePacket packet : samplePackets()) {
+            var buffer = Unpooled.buffer();
+            try {
+                PacketByteBuf out = new PacketByteBuf(buffer);
+                out.writeVarInt(PacketRegistry.id(packet));
+                packet.encode(out);
+                byte[] bytes = new byte[buffer.readableBytes()];
+                buffer.getBytes(buffer.readerIndex(), bytes);
+                dump.append(packet.getClass().getSimpleName()).append(':');
+                for (byte b : bytes) {
+                    dump.append(String.format("%02x", b));
+                }
+                dump.append('\n');
+            } finally {
+                buffer.release();
+            }
+        }
+        return dump.toString();
+    }
+
+    /**
+     * The recorded dump; regenerate with {@code -Ppvzce.smoke=pvzce.printWire=true}.
+     */
+    private static final String EXPECTED_WIRE_FORMAT = """
+            ContinueLevelC2S:010d70767a63653a6c6576656c5f3105776f726c64
+            PlayLevelC2S:020d70767a63653a6c6576656c5f3105776f726c6400021170767a63653a7065615f73686f6f7465720970767a63653a73756e
+            RestartLevelC2S:030d70767a63653a6c6576656c5f3105776f726c64010970767a63653a73756e
+            RequestLevelListC2S:0405776f726c64
+            RequestSuggestionsC2S:05072f737061776e2000000007
+            LeaveLevelC2S:06
+            PickCardC2S:0700000002
+            PlacePlantC2S:08000000000000000300000004
+            UseToolC2S:09000000010000000500000001
+            CollectResourceC2S:0a0000002a
+            CommandC2S:0b0d2f74696d652073657420363030
+            SetGameSpeedC2S:0c02
+            PauseGameC2S:0d01
+            CreateWorldC2S:0e0773616e64626f7801
+            UnlockLevelC2S:0f1870767a63653a796172642f616476656e747572652f315f3205776f726c64
+            ReleaseMowerC2S:1100000003
+            UseGrantedToolC2S:120c70767a63653a68616d6d65720000000200000004
+            LevelInitS2C:41000000120d70767a63653a6c6576656c5f3101000000001170767a63653a7065615f73686f6f74657205706c616e74000000640000000c0000012cffffffff0102066e6f726d616c0566696e616c0000000900000005011170767a63653a7065615f73686f6f74657205706c616e741170767a63653a7065615f73686f6f7465722370767a63653a74657874757265732f656e7469746965732f7065615f73686f6f7465720000006400000006011270767a63653a62617369635f7a6f6d6269650100000001000000020b70767a63653a776174657200001170767a63653a7a6f6d6269655f7465616d09e583b5e5b0b8e696b9
+            LevelListS2C:42011c70767a63653a796172642f616476656e747572652f6c6576656c5f3109e7acace4b880e585b306e68f8fe8bfb01070767a63653a706c616e745f7465616d0b696e5f70726f6772657373036461790a70767a63653a796172640f70767a63653a616476656e747572650101011070767a63653a706c616e745f7465616d09e6a48de789a9e696b90d737572766976655f7761766573010000000900000005011170767a63653a7065615f73686f6f74657205706c616e741170767a63653a7065615f73686f6f7465722370767a63653a74657874757265732f656e7469746965732f7065615f73686f6f7465720000006400000006011270767a63653a62617369635f7a6f6d6269650100000001000000020b70767a63653a776174657200000001000001f40ae9809ae585b320315f3101056c6576656c1870767a63653a796172642f616476656e747572652f315f310000000100
+            LevelTabsS2C:56020a70767a63653a796172640f70767a63653a616476656e747572651370767a63653a756e63617465676f72697a65641370767a63653a756e63617465676f72697a6564
+            LevelSavePromptS2C:430d70767a63653a6c6576656c5f3105776f726c6409e7acace4b880e585b3000004d200000007000000fa
+            OpenEditorS2C:441070767a63653a64656d6f5f6c6576656c
+            SceneSyncS2C:450100000000000000000b70767a63653a6772617373
+            EntitySpawnS2C:4600000009067a6f6d6269651270767a63653a62617369635f7a6f6d6269651170767a63653a7a6f6d6269655f7465616d409000004020000000000000000000c80477616c6b0000000000000172013f800000
+            EntityUpdateS2C:47000000094088000040200000000000b4036561743dcccccd000000be010000
+            EntityDespawnS2C:4800000009
+            EffectEventS2C:490c70767a63653a73706c617368406000003fc000001570767a63653a7366782f6566666563742f626974653f8000003f8000000b70767a63653a77617465723f800000
+            ResourceCollectS2C:4a0000000b0970767a63653a73756e00000019406000003fc000003ecccccd1b70767a63653a74657874757265732f7265736f757263652f73756e
+            ResourceDeltaS2C:4b1070767a63653a706c616e745f7465616d0e70767a63653a72656473746f6e650000001e
+            SlotSyncS2C:4c000000010970767a63653a73756e087265736f75726365000000000000000000000000ffffffff01
+            GameStateS2C:4d03776f6e1070767a63653a706c616e745f7465616d
+            TeamSyncS2C:4e1170767a63653a7a6f6d6269655f7465616d09e583b5e5b0b8e696b9
+            SuggestionsS2C:4f0000000701000000070000000d1270767a63653a62617369635f7a6f6d626965
+            ServerMessageS2C:500a2b323520e998b3e58589
+            WaveProgressS2C:5100000003000000053ed70a3d0100
+            TimeOfDayS2C:5200000258000004b000000258
+            DebugInfoS2C:5300000000000181cd0001
+            GameSpeedS2C:5443340000
+            MusicEventS2C:550a6261636b67726f756e641570767a63653a6d757369632f677261737377616c6b01003f59999a3fc00000
+            ProfileS2C:570000015e031170767a63653a7065615f73686f6f7465720f70767a63653a73756e666c6f7765720c70767a63653a73686f76656c000000000008
+            LevelRewardS2C:581870767a63653a796172642f616476656e747572652f315f310000000c00000064000001ce0f70767a63653a73756e666c6f7765720d70767a63653a6469616d6f6e640000000140900000402000000000000300000096
+            MechanicSyncS2C:590e70767a63653a636f6e7665796f725b02000000041170767a63653a626f776c696e675f6e757405706c616e74ffffffff0000000000000000ffffffff01000000051170767a63653a626f776c696e675f6e757405706c616e74ffffffff0000000000000000ffffffff01
+            """;
 
     /**
      * Every packet must survive a round trip with all fields intact and no bytes

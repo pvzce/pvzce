@@ -3,18 +3,12 @@ package com.pvzce.common.core;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.common.nbt.CompoundTag;
-import com.pvzce.common.nbt.ListTag;
-import com.pvzce.common.nbt.NbtIo;
 import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CoreSmokeTest {
     @Test

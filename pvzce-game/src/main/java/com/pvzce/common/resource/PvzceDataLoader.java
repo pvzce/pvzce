@@ -5,8 +5,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
-import com.pvzce.api.content.EnvVarType;
-import com.pvzce.api.content.GameRuleType;
 import com.pvzce.api.content.LevelCategoryDef;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.LevelThemeDef;
@@ -26,7 +24,6 @@ import com.pvzce.api.registry.RegistryAccess;
 import com.pvzce.api.registry.ResourceKey;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.PvzceRegistries;
-import com.pvzce.server.level.LevelValidator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +53,52 @@ import java.util.Map;
  * and each entry declares both spellings.
  */
 public final class PvzceDataLoader {
+    /**
+     * Keys that used to be level fields and are now mechanics.
+     *
+     * <p>The old spelling is not silently accepted: a level still written with a top-level
+     * {@code "conveyor"} block loads as an ordinary level with no belt, and the symptom - "the
+     * cards never come" - points at nothing. The message names the block to write instead.
+     *
+     * <p>Why this is a fixed list rather than "any key the codec does not read": the codec's field
+     * names cannot be recovered from it. Encoding a decoded value omits every field whose value
+     * equals the codec's default ({@code width} 9, an empty name), so the encoded form is not the
+     * schema, and comparing against it would report half the file as unknown. Checking only the
+     * keys a schema change actually moved is what can be done soundly without a second copy of
+     * every field name to drift.
+     */
+    private static final java.util.Map<String, String> MOVED_LEVEL_KEYS = movedLevelKeys();
+
+    /** A linked map, so the messages come out in the same order on every run. */
+    private static java.util.Map<String, String> movedLevelKeys() {
+        java.util.Map<String, String> keys = new java.util.LinkedHashMap<>();
+        keys.put("conveyor", "move it into \"mechanics\": [ { \"type\": \"pvzce:conveyor\", ... } ]");
+        keys.put("placement_zone",
+                "move it into \"mechanics\": [ { \"type\": \"pvzce:placement_zone\", ... } ]");
+        return java.util.Collections.unmodifiableMap(keys);
+    }
+
+    /**
+     * Reports a level file that still uses a key this project moved into {@code mechanics}.
+     *
+     * <p>Called on every level file read, because this is a property of the file rather than of
+     * the decoded definition - the codec has already dropped the key by the time there is a
+     * {@code LevelDef} to look at.
+     */
+    public static List<String> validateLegacyKeys(com.google.gson.JsonObject raw) {
+        List<String> errors = new ArrayList<>();
+        if (raw == null) {
+            return errors;
+        }
+        for (java.util.Map.Entry<String, String> moved : MOVED_LEVEL_KEYS.entrySet()) {
+            if (raw.has(moved.getKey())) {
+                errors.add("Unknown key \"" + moved.getKey() + "\": this block is a mechanic now - "
+                        + moved.getValue());
+            }
+        }
+        return errors;
+    }
+
     /**
      * {@code data/<ns>/<registry path>/<file>.json} - the id is the whole
      * relative path. The listing prefix has no separator (packs join it
@@ -242,12 +285,12 @@ public final class PvzceDataLoader {
             registry.registerDynamic(registeredId, value);
             loaded.add(registeredId);
             // A level file is the one registry whose *shape* changed after release-shaped
-            // data existed: keys that used to be level fields are now mechanics, and the
-            // codec ignores unknown keys by design. Reporting them here - on load, where
-            // the raw JSON still exists - is what keeps a stale file from loading as an
-            // ordinary level whose belt silently never arrives.
+            // data existed: keys that used to be level fields are now mechanics, and the codec
+            // ignores unknown keys by design. Reporting the ones that moved - on load, where the
+            // raw JSON still exists - is what keeps a stale file from loading as an ordinary
+            // level whose belt silently never arrives.
             if (data.key().equals(PvzceRegistries.LEVELS) && json.isJsonObject()) {
-                errors.addAll(LevelValidator.validateLegacyKeys(json.getAsJsonObject()));
+                errors.addAll(validateLegacyKeys(json.getAsJsonObject()));
             }
         } catch (RuntimeException e) {
             errors.add("Failed to load " + file.path() + ": " + e.getMessage());

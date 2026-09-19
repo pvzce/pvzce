@@ -10,11 +10,15 @@ import com.pvzce.client.gui.layout.GuiLayout;
 import com.pvzce.client.renderer.texture.Texture;
 import com.pvzce.common.resource.PackResource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 
 /** Mod list screen: left search/list pane, right mod description pane. */
 public final class ModsScreen extends Screen {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Mods");
     private static final int LEFT_X = 24;
 
     private int leftWidth;
@@ -113,6 +117,7 @@ public final class ModsScreen extends Screen {
         try {
             return client.textures().uploadAndCache(id, new PackResource(mod.id(), mod.iconPath(), bytes));
         } catch (Exception e) {
+            LOGGER.debug("Could not load the icon of mod {}; its row stays blank", mod.id(), e);
             return null;
         }
     }

@@ -1,6 +1,7 @@
 package com.pvzce.server;
 
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.core.Slot;
 import com.pvzce.common.core.SlotResolver;
 
 import java.util.ArrayList;

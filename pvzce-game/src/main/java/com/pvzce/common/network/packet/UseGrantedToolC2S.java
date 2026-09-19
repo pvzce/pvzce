@@ -3,6 +3,7 @@ package com.pvzce.common.network.packet;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -23,14 +24,18 @@ public record UseGrantedToolC2S(Identifier tool, int gridX, int gridY) implement
         return ConnectionDirection.SERVERBOUND;
     }
 
+    public static final PacketStruct.Codec<UseGrantedToolC2S> CODEC = PacketStruct.<UseGrantedToolC2S>builder()
+    .field(UseGrantedToolC2S::tool, PacketByteBuf::writeIdentifier, PacketByteBuf::readIdentifierOrNull)
+    .field(UseGrantedToolC2S::gridX, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(UseGrantedToolC2S::gridY, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .build(values -> new UseGrantedToolC2S((Identifier) values.get(0), (Integer) values.get(1), (Integer) values.get(2)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeIdentifier(tool);
-        buf.writeInt(gridX);
-        buf.writeInt(gridY);
+        CODEC.encode(this, buf);
     }
 
     public static UseGrantedToolC2S decode(PacketByteBuf buf) {
-        return new UseGrantedToolC2S(buf.readIdentifierOrNull(), buf.readInt(), buf.readInt());
+        return CODEC.decode(buf);
     }
 }

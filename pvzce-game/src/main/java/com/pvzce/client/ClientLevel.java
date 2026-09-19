@@ -12,6 +12,8 @@ import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * controlled team).
  */
 public final class ClientLevel {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/ClientLevel");
     private final Map<Integer, ClientEntity> entities = new ConcurrentHashMap<>();
     private final List<SlotInfo> slots = new ArrayList<>();
     private final List<String> messages = new ArrayList<>();
@@ -65,7 +69,7 @@ public final class ClientLevel {
     private volatile long timeAnchorNanos;
     private volatile long lastSyncedDayTicks;
     private volatile long lastSyncedNanos;
-    private volatile double serverTicksPerNano = PvzceConstantsTicks.PER_NANO;
+    private volatile double serverTicksPerNano = TICKS_PER_NANO;
     private volatile long debugTickCount;
     private volatile float measuredTps;
     private volatile float targetTps = 60F;
@@ -77,14 +81,6 @@ public final class ClientLevel {
     private volatile long debugAnchorTick;
     private volatile boolean initialized;
     /**
-     * The level's mechanics, as the server sent them: id to decoded block.
-     *
-     * <p>Held rather than reduced to a handful of fields. The client used to keep
-     * {@code conveyor}/{@code beltCapacity}/{@code zone*} here, which meant every new
-     * mechanic added four fields and a getter; now a mechanic's data is whatever its codec
-     * decoded, and the client's HUD asks for it by id.
-     */
-    /**
      * Per-mechanic run state, the client's mirror of {@code LevelServer.mechanicState}.
      *
      * <p>A client mechanic is a shared registry entry too, so a mechanic that draws something
@@ -93,6 +89,14 @@ public final class ClientLevel {
      * overlay get the same one.
      */
     private final java.util.Map<Identifier, Object> mechanicState = new java.util.HashMap<>();
+    /**
+     * The level's mechanics, as the server sent them: id to decoded block.
+     *
+     * <p>Held rather than reduced to a handful of fields. The client used to keep
+     * {@code conveyor}/{@code beltCapacity}/{@code zone*} here, which meant every new
+     * mechanic added four fields and a getter; now a mechanic's data is whatever its codec
+     * decoded, and the client's HUD asks for it by id.
+     */
     private final java.util.Map<Identifier, com.pvzce.api.content.mechanic.MechanicData> mechanics =
             new java.util.concurrent.ConcurrentHashMap<>();
     /**
@@ -109,10 +113,9 @@ public final class ClientLevel {
     private volatile String disconnectReason = "";
     private volatile AnimationManager animations;
 
-    /** Ticks-per-second conversion kept in one place for this class. */
-    private static final class PvzceConstantsTicks {
-        private static final double PER_NANO = 60D / 1_000_000_000D;
-    }
+    /** Ticks per nanosecond at the nominal rate, derived from the shared tick rate. */
+    private static final double TICKS_PER_NANO =
+            (double) com.pvzce.common.PvzceConstants.TICKS_PER_SECOND / 1_000_000_000D;
 
     /**
      * Replaces the whole mirror with the server's full state. Every field the
@@ -144,7 +147,7 @@ public final class ClientLevel {
         this.timeAnchorNanos = System.nanoTime();
         this.lastSyncedDayTicks = 0;
         this.lastSyncedNanos = timeAnchorNanos;
-        this.serverTicksPerNano = PvzceConstantsTicks.PER_NANO;
+        this.serverTicksPerNano = TICKS_PER_NANO;
         this.initialized = true;
     }
 
@@ -187,7 +190,7 @@ public final class ClientLevel {
         timeAnchorNanos = System.nanoTime();
         lastSyncedDayTicks = 0;
         lastSyncedNanos = timeAnchorNanos;
-        serverTicksPerNano = PvzceConstantsTicks.PER_NANO;
+        serverTicksPerNano = TICKS_PER_NANO;
         timeOfDay = new TimeOfDayS2C(0, 0, -1);
         debugTickCount = 0;
         measuredTps = 60F;
@@ -366,8 +369,7 @@ public final class ClientLevel {
             var data = com.pvzce.common.level.mechanic.LevelMechanics
                     .decodeBlock(payload.type(), payload.block());
             if (data.isEmpty()) {
-                org.slf4j.LoggerFactory.getLogger("pvzce-client-level")
-                        .warn("[mechanics] cannot decode the block for {}; skipping it", payload.type());
+                LOGGER.warn("[mechanics] cannot decode the block for {}; skipping it", payload.type());
                 continue;
             }
             mechanics.put(payload.type(), data.get());

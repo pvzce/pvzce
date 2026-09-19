@@ -1,18 +1,11 @@
 package com.pvzce.server;
 
 import com.pvzce.api.content.LevelDef;
-import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.api.util.LevelGrouping;
-import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.nbt.CompoundTag;
-import com.pvzce.common.nbt.IntTag;
-import com.pvzce.common.nbt.ListTag;
-import com.pvzce.common.nbt.NbtIo;
-import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PacketListener;
 import com.pvzce.common.network.PvzcePacket;
@@ -36,12 +29,10 @@ import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
-import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SuggestionsS2C;
-import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.UseToolC2S;
 import com.pvzce.common.core.LevelUnlocks;
 import com.pvzce.common.core.SlotResolver;
@@ -51,7 +42,8 @@ import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.common.tag.TagManager;
 import com.pvzce.server.command.PvzceCommandSource;
 import com.pvzce.server.command.PvzceCommands;
-import com.pvzce.server.level.LevelKey;
+import com.pvzce.common.util.LevelKey;
+import com.pvzce.common.util.WorldPaths;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.LevelTabs;
 import com.pvzce.server.level.LevelValidator;
@@ -59,8 +51,9 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -68,16 +61,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.LockSupport;
 
 /** The 60tps authoritative game server (integrated in phase 1). */
 public final class PvzceServer implements Runnable {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Server");
+
     private static final int MAX_TICKS_PER_FRAME = 5;
 
     private final Connection connection;
@@ -114,12 +107,13 @@ public final class PvzceServer implements Runnable {
      * the same bytes. The world name is the cache key, which also makes switching
      * worlds in the level list load the right file.
      */
-    private PlayerProfile profile;
-    private String profileWorld;
+    /** Where this world's profile and level saves live. */
+    private final WorldStore worlds;
     private Thread thread;
     private long lastDebugInfoNanos;
 
     public PvzceServer(Connection connection, Path gameDir, ClassLoader classLoader) {
+        this.worlds = new WorldStore(gameDir);
         this.connection = connection;
         this.gameDir = gameDir;
         this.resourceManager = new PvzceResourceManager(classLoader);
@@ -158,6 +152,11 @@ public final class PvzceServer implements Runnable {
         return resourceManager;
     }
 
+    /** The world store: profiles, run saves and completion markers on disk. */
+    public WorldStore worlds() {
+        return worlds;
+    }
+
     public Path gameDir() {
         return gameDir;
     }
@@ -190,7 +189,7 @@ public final class PvzceServer implements Runnable {
                     .limit(16)
                     .toList()));
         } catch (Exception e) {
-            System.err.println("[Suggestions] failed for '" + input + "': " + e);
+            LOGGER.warn("Suggestions failed for '" + input + "'", e);
             connection.send(new SuggestionsS2C(requestId, List.of()));
         }
     }
@@ -259,8 +258,8 @@ public final class PvzceServer implements Runnable {
                     long tickCount = tickRate.tickCount();
                     if (tickCount % 600 == 0) {
                         long elapsedMs = (System.nanoTime() - serverStartNanos) / 1_000_000L;
-                        System.out.println("[PVZCE] tick check: tick=" + tickCount + " elapsed_ms=" + elapsedMs
-                                + " target=" + tickRate.tickRate() + "tps");
+                        LOGGER.debug("tick check: tick={} elapsed_ms={} target={}tps",
+                                tickCount, elapsedMs, tickRate.tickRate());
                     }
                 }
                 if (ticks == MAX_TICKS_PER_FRAME) {
@@ -270,15 +269,16 @@ public final class PvzceServer implements Runnable {
                 LockSupport.parkNanos(tickRate.nanosUntilNextTick());
             }
         } catch (Throwable t) {
-            t.printStackTrace();
+            LOGGER.error("The server loop failed", t);
             connection.send(new ServerMessageS2C("服务器异常: " + t.getMessage()));
         } finally {
             saveGame();
             // The wallet has to survive a shutdown that never went through leaveLevel.
-            flushProfile();
+            worlds.flushProfile();
             try {
                 resourceManager.close();
-            } catch (IOException ignored) {
+            } catch (IOException e) {
+                LOGGER.warn("Failed to close the resource manager", e);
             }
         }
     }
@@ -288,7 +288,7 @@ public final class PvzceServer implements Runnable {
             FabricLoader.getInstance().invokeEntrypoints("server", DedicatedServerModInitializer.class,
                     DedicatedServerModInitializer::onInitializeServer);
         } catch (Throwable t) {
-            System.err.println("A server entrypoint failed: " + t.getMessage());
+            LOGGER.error("A server entrypoint failed", t);
         }
     }
 
@@ -348,7 +348,7 @@ public final class PvzceServer implements Runnable {
             reportErrors("内置粒子", validateBuiltInParticles());
             reportErrors("伤害类型", LevelValidator.validateDamageTypes());
         } catch (Throwable t) {
-            t.printStackTrace();
+            LOGGER.error("Reload failed", t);
             if (announce) {
                 connection.send(new ServerMessageS2C("重载失败: " + t.getMessage()));
             }
@@ -358,7 +358,7 @@ public final class PvzceServer implements Runnable {
     /** Surfaces load errors to the log and (at most once per message) to the player. */
     private void reportErrors(String label, java.util.List<String> errors) {
         for (String error : errors) {
-            System.err.println("[PVZCE/" + label + "] " + error);
+            LOGGER.warn("[{}] {}", label, error);
         }
         if (!errors.isEmpty()) {
             connection.send(new ServerMessageS2C("[" + label + "] " + errors.size() + " 个问题，详见日志"));
@@ -378,10 +378,10 @@ public final class PvzceServer implements Runnable {
     }
 
     private void sendLevelList(String worldName) {
-        String safeWorld = sanitizeWorldName(worldName);
+        String safeWorld = WorldPaths.sanitize(worldName);
         // The list is where a client learns the world's coins and unlocks, so the
         // profile travels with it rather than on a separate request.
-        PlayerProfile profile = profileFor(safeWorld);
+        PlayerProfile profile = worlds.profileFor(safeWorld);
         Set<Identifier> cleared = clearedLevels(safeWorld);
         LevelUnlocks.Context unlockContext = new LevelUnlocks.Context(cleared,
                 profile.unlockedLevels(), profile::owns, profile.coins(), profile.unlocksEverything());
@@ -410,7 +410,7 @@ public final class PvzceServer implements Runnable {
                     // first while the row needs the second. Whether it was ever cleared
                     // travels as its own third field: the row's trophy is earned once and is
                     // not taken back by an abandoned replay.
-                    boolean runningSave = hasRunningSave(levelDir(worldPath(gameDir, safeWorld), id));
+                    boolean runningSave = WorldStore.hasRunningSave(LevelKey.levelDir(WorldPaths.worldDir(gameDir, safeWorld), id));
                     boolean beaten = cleared.contains(id);
                     String status = runningSave ? LevelListS2C.LevelInfo.IN_PROGRESS
                             : (beaten ? LevelListS2C.LevelInfo.COMPLETED : "");
@@ -443,8 +443,8 @@ public final class PvzceServer implements Runnable {
             connection.send(new ServerMessageS2C("未找到关卡 " + levelId));
             return;
         }
-        String safeWorld = sanitizeWorldName(worldName);
-        PlayerProfile profile = profileFor(safeWorld);
+        String safeWorld = WorldPaths.sanitize(worldName);
+        PlayerProfile profile = worlds.profileFor(safeWorld);
         LevelUnlocks.State state = LevelUnlocks.evaluate(id, def.unlock(),
                 unlockContext(safeWorld, profile));
         if (state.unlocked()) {
@@ -462,7 +462,7 @@ public final class PvzceServer implements Runnable {
         }
         profile.setCoins(profile.coins() - cost);
         profile.unlockLevel(id);
-        saveProfile(safeWorld, profile);
+        worlds.saveProfile(safeWorld, profile);
         connection.send(new ServerMessageS2C("已解锁 " + def.displayName() + "，花费 " + cost + " 金币"));
         // The list carries the profile, so sending it also refreshes the coin counter and
         // the row's padlock in one go.
@@ -497,10 +497,10 @@ public final class PvzceServer implements Runnable {
         if (worldName == null || worldName.isBlank()) {
             return Set.of();
         }
-        Path worldDir = worldPath(gameDir, worldName);
+        Path worldDir = WorldPaths.worldDir(gameDir, worldName);
         Set<Identifier> cleared = new LinkedHashSet<>();
         for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
-            if (isLevelCompleted(worldDir, id)) {
+            if (WorldStore.isCompletedIn(worldDir, id)) {
                 cleared.add(id);
             }
         }
@@ -526,8 +526,8 @@ public final class PvzceServer implements Runnable {
      */
     public ProfileSnapshot profileSnapshot() {
         String world = menuWorld();
-        PlayerProfile snapshot = profileFor(world);
-        return new ProfileSnapshot(sanitizeWorldName(world), snapshot.coins(),
+        PlayerProfile snapshot = worlds.profileFor(world);
+        return new ProfileSnapshot(WorldPaths.sanitize(world), snapshot.coins(),
                 snapshot.unlockedIds().size(), snapshot.unlockedLevelIds().size(),
                 snapshot.unlocksEverything(), snapshot.seedSlots());
     }
@@ -540,10 +540,10 @@ public final class PvzceServer implements Runnable {
      * clamp lives in the profile and both callers get the same ceiling.
      */
     public String grantSeedSlots(int slots) {
-        String safeWorld = sanitizeWorldName(menuWorld());
-        PlayerProfile profile = profileFor(safeWorld);
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
         profile.setSeedSlots(slots);
-        saveProfile(safeWorld, profile);
+        worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
         connection.send(profilePacket(profile));
         return "世界 " + safeWorld + " 的卡槽数现在是 " + profile.seedSlots()
@@ -561,10 +561,10 @@ public final class PvzceServer implements Runnable {
         if (levelId == null || BuiltInRegistries.LEVELS.get(levelId) == null) {
             return "未找到关卡 " + levelId;
         }
-        String safeWorld = sanitizeWorldName(menuWorld());
-        PlayerProfile profile = profileFor(safeWorld);
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
         profile.unlockLevel(levelId);
-        saveProfile(safeWorld, profile);
+        worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
         connection.send(profilePacket(profile));
         return "已解锁关卡 " + levelId + "（世界 " + safeWorld + "）";
@@ -572,10 +572,10 @@ public final class PvzceServer implements Runnable {
 
     /** Switches the current world into sandbox mode: every card and every level. */
     public String grantEverything() {
-        String safeWorld = sanitizeWorldName(menuWorld());
-        PlayerProfile profile = profileFor(safeWorld);
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
         profile.unlockAll();
-        saveProfile(safeWorld, profile);
+        worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
         connection.send(profilePacket(profile));
         return "世界 " + safeWorld + " 已切换为沙盒：全部卡与全部关卡解锁";
@@ -651,8 +651,8 @@ public final class PvzceServer implements Runnable {
             // Reported as information, not as a data error: a pack is allowed to drop a
             // particle we default to, and the alternative - a red square for every
             // unknown name - is what made a typo look like a real effect.
-            System.out.println("[PVZCE] " + missing.size() + " built-in effect(s) have no particle definition "
-                    + "and will draw nothing: " + String.join(", ", missing));
+            LOGGER.info("{} built-in effect(s) have no particle definition and will draw nothing: {}",
+                    missing.size(), String.join(", ", missing));
         }
         return List.of();
     }
@@ -664,7 +664,9 @@ public final class PvzceServer implements Runnable {
         if (nightRule != null && nightRule.isJsonPrimitive()) {
             try {
                 night = nightRule.getAsInt() > 0;
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException e) {
+                LOGGER.warn("Level {} has a non-numeric night_length; showing it as a day level",
+                        def.id(), e);
             }
         }
         boolean roof = def.scene().keySet().stream().anyMatch(key -> key.path().contains("roof"));
@@ -678,84 +680,7 @@ public final class PvzceServer implements Runnable {
         return night ? "night" : "day";
     }
 
-    private static String sanitizeWorldName(String worldName) {
-        String safe = worldName == null ? "world" : worldName.trim().replaceAll("[^A-Za-z0-9_-]", "_");
-        return safe.isBlank() ? "world" : safe;
-    }
-
-    private static Path worldPath(Path gameDir, String worldName) {
-        return gameDir.resolve("saves").resolve(sanitizeWorldName(worldName));
-    }
-
-    /**
-     * One level's save directory inside a world; the key is {@link LevelKey}'s.
-     */
-    private static Path levelDir(Path worldDir, Identifier id) {
-        return worldDir.resolve("levels").resolve(LevelKey.of(id));
-    }
-
-    private static Path levelStatusFile(Path worldDir, Identifier id) {
-        return worldDir.resolve("level_status").resolve(LevelKey.of(id) + ".dat");
-    }
-
     /** A world's persistent player record: coins and unlocked cards. */
-    private static Path profileFile(Path worldDir) {
-        return worldDir.resolve("profile.dat");
-    }
-
-    /**
-     * The profile of a world, loaded on first use.
-     *
-     * <p>A world without a record - every world that existed before profiles did -
-     * gets {@link PlayerProfile#starter()}, the same thing a new world gets; see
-     * the round-trip note in {@link #saveProfile}. Never returns null, so callers
-     * do not have to decide what an absent profile means.
-     */
-    public PlayerProfile profileFor(String worldName) {
-        String safeWorld = sanitizeWorldName(worldName);
-        if (profile != null && safeWorld.equals(profileWorld)) {
-            return profile;
-        }
-        Path file = profileFile(worldPath(gameDir, safeWorld));
-        PlayerProfile loaded = PlayerProfile.starter();
-        if (Files.isRegularFile(file)) {
-            try {
-                loaded = PlayerProfile.load(NbtIo.readCompressed(file));
-            } catch (Throwable t) {
-                System.err.println("Failed to read profile " + file + ": " + t.getMessage()
-                        + " - starting from the default profile.");
-            }
-        }
-        profile = loaded;
-        profileWorld = safeWorld;
-        return loaded;
-    }
-
-    /** Writes a world's profile, creating the world directory when needed. */
-    public void saveProfile(String worldName, PlayerProfile toSave) {
-        String safeWorld = sanitizeWorldName(worldName);
-        Path worldDir = worldPath(gameDir, safeWorld);
-        try {
-            Files.createDirectories(worldDir);
-            NbtIo.writeCompressed(toSave.save(), profileFile(worldDir));
-        } catch (Throwable t) {
-            System.err.println("Failed to write profile for " + safeWorld + ": " + t.getMessage());
-        }
-        profile = toSave;
-        profileWorld = safeWorld;
-    }
-
-    /** Flushes the cached profile if it belongs to this world; used on the way out. */
-    private void flushProfile() {
-        if (profile != null && profileWorld != null) {
-            saveProfile(profileWorld, profile);
-        }
-    }
-
-    private static boolean hasRunningSave(Path levelDir) {
-        return Files.isRegularFile(levelDir.resolve("level.dat"));
-    }
-
     /**
      * What the client asked for when it named a level.
      *
@@ -812,17 +737,17 @@ public final class PvzceServer implements Runnable {
             return;
         }
 
-        String safeWorld = sanitizeWorldName(worldName);
+        String safeWorld = WorldPaths.sanitize(worldName);
         // Leaving a world for another one has to write the first world's record
         // before the cache below replaces it.
         if (currentWorld != null && !safeWorld.equals(currentWorld)) {
-            flushProfile();
+            worlds.flushProfile();
         }
         // Refused before anything is torn down: a locked level must not close the run the
         // player is already in. The verdict is recomputed here rather than trusted from
         // the list, so a client that skips the menu cannot walk past the gate.
         LevelUnlocks.State unlock = LevelUnlocks.evaluate(id, def.unlock(),
-                unlockContext(safeWorld, profileFor(safeWorld)));
+                unlockContext(safeWorld, worlds.profileFor(safeWorld)));
         if (!unlock.unlocked()) {
             String label = def.displayName().isBlank() ? id.toString() : def.displayName();
             connection.send(new ServerMessageS2C("关卡 " + label + " 尚未解锁：" + unlock.reason()));
@@ -841,11 +766,11 @@ public final class PvzceServer implements Runnable {
             connection.send(new GameSpeedS2C(tickRate.tickRate()));
             return;
         }
-        Path worldDir = worldPath(gameDir, safeWorld);
-        Path saveDir = levelDir(worldDir, id);
-        boolean hasSave = hasRunningSave(saveDir);
+        Path worldDir = WorldPaths.worldDir(gameDir, safeWorld);
+        Path saveDir = LevelKey.levelDir(worldDir, id);
+        boolean hasSave = WorldStore.hasRunningSave(saveDir);
         // Resolved before the level is built: the backpack decides the card bar.
-        PlayerProfile profile = profileFor(safeWorld);
+        PlayerProfile profile = worlds.profileFor(safeWorld);
 
         // Switching to a different level without asking for a fresh run keeps
         // the current level's progress under its own save directory.
@@ -858,26 +783,15 @@ public final class PvzceServer implements Runnable {
         // asked about), while the save prompt's 重新开始 and the pause menu's restart discard it.
         boolean loadSave = (intent == LevelIntent.CONTINUE || intent == LevelIntent.PLAY) && hasSave;
         if (!loadSave && hasSave) {
-            deleteRunningSave(saveDir);
+            WorldStore.deleteRunningSave(saveDir);
         }
 
         // A level whose card source deals its own cards - a conveyor belt - never takes a
         // seed selection: the level's own cards would be a second source for the same bar,
         // and its save holds the cards it was carrying, which the source restores itself.
         boolean selfDealt = com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
-        List<Identifier> seeds = selfDealt
-                ? List.of()
-                : requestedSeeds == null ? null : sanitizeSeedSelection(def, requestedSeeds, profile);
-        if (loadSave && !selfDealt) {
-            // Continuing a save restores the exact card bar the player had.
-            List<Identifier> savedSeeds = readSavedSeedSelection(saveDir);
-            if (savedSeeds != null) {
-                seeds = sanitizeSeedSelection(def, savedSeeds, profile);
-            }
-        }
-        if (seeds == null) {
-            seeds = defaultSeedSelection(def, profile);
-        }
+        List<Identifier> seeds = SeedSelection.plan(def, profile, requestedSeeds, saveDir, loadSave,
+                selfDealt);
 
         LevelServer newLevel = new LevelServer(def, seeds, LevelServer.SeedContext.forProfile(def, profile));
         // Entering/restarting a level always starts at the normal 60tps speed.
@@ -887,14 +801,14 @@ public final class PvzceServer implements Runnable {
         boolean loadedSave = false;
         if (loadSave) {
             try {
-                saveTag = NbtIo.readCompressed(saveDir.resolve("level.dat"));
-                restoreLevel(newLevel, saveDir, saveTag);
+                saveTag = worlds.readLevelSave(saveDir);
+                newLevel.restore(saveTag);
                 loadedSave = true;
-                System.out.println("[PVZCE] Restored " + saveTag.getInt("PlantCount") + " plants from " + saveDir);
+                LOGGER.info("Restored {} plants from {}", saveTag.getInt("PlantCount"), saveDir);
                 connection.send(new ServerMessageS2C("已从存档继续 " + def.displayName()));
             } catch (Throwable t) {
-                System.err.println("Failed to read save: " + t.getMessage());
-                deleteRunningSave(saveDir);
+                LOGGER.warn("Failed to read save; treating the level as not started.", t);
+                WorldStore.deleteRunningSave(saveDir);
                 saveTag = null;
             }
         }
@@ -947,95 +861,6 @@ public final class PvzceServer implements Runnable {
     }
 
     /**
-     * The bar a level actually starts with: the level's own cards, then as many of the
-     * player's picks as still fit.
-     *
-     * <p>The level's cards come first and are never dropped, so a client cannot talk its way
-     * out of them, and a pick naming a card the level already pinned is ignored. The slot
-     * count applies to the combined bar, which is why a level whose {@code slots} already
-     * fill it simply grants those.
-     *
-     * <p>{@code profile} filters what may be <em>picked</em>, never what the level pinned:
-     * a level that hands the player a card they have not unlocked still gets to do that,
-     * which is exactly how the first level works before sunflower exists. The same filter
-     * builds the pool the client was shown ({@link LevelServer.SeedContext}), so a card the
-     * client could not see is also a card this method refuses.
-     */
-    private static List<Identifier> sanitizeSeedSelection(LevelDef def, List<Identifier> requested,
-                                                         PlayerProfile profile) {
-        List<Identifier> pool = SeedOptions.cardPool(def, profile == null ? null : profile::owns);
-        // The same resolved bar size the client was shown, so "the cards this method
-        // accepts" cannot be a longer or shorter row than "the cards the chooser offered".
-        LevelDef.SeedPlan plan = def.seedPlan(pool, effectiveSlots(def, profile));
-        List<Identifier> result = new ArrayList<>();
-        Set<Identifier> seen = new HashSet<>();
-        for (Identifier locked : plan.lockedSlots()) {
-            if (seen.add(locked)) {
-                result.add(locked);
-            }
-        }
-        Set<Identifier> pickable = new HashSet<>(plan.pickableSlots());
-        for (Identifier seed : requested) {
-            if (seed == null || !pickable.contains(seed) || !seen.add(seed)) {
-                continue;
-            }
-            result.add(seed);
-            if (result.size() >= plan.maxSlots()) {
-                break;
-            }
-        }
-        return List.copyOf(result);
-    }
-
-    /**
-     * The bar a level starts with when nobody made a choice - the "next level" button
-     * rather than the seed chooser.
-     *
-     * <p>Fills the free slots from the backpack, so a level that pins nothing hands the
-     * player everything they have unlocked instead of an empty bar. A level whose own cards
-     * already fill the bar is unaffected.
-     */
-    private static List<Identifier> defaultSeedSelection(LevelDef def, PlayerProfile profile) {
-        return def.defaultSeedSelection(SeedOptions.cardPool(def, profile == null ? null : profile::owns),
-                effectiveSlots(def, profile));
-    }
-
-    /**
-     * The bar size a level gets for this player: its own {@code max_seed_slots} when it
-     * declares one, otherwise the backpack's.
-     *
-     * <p>One helper because the two entry points above and the level's own
-     * {@code SeedContext} have to agree - a selection sanitised against a different
-     * length than the chooser drew is exactly the bug this rule was written to avoid.
-     */
-    private static int effectiveSlots(LevelDef def, PlayerProfile profile) {
-        return def.effectiveMaxSeedSlots(profile == null
-                ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS : profile.seedSlots());
-    }
-
-    /** The card bar a running save was created with, or {@code null} when there is none. */
-    private static List<Identifier> readSavedSeedSelection(Path saveDir) {
-        Path saveFile = saveDir.resolve("level.dat");
-        if (!Files.isRegularFile(saveFile)) {
-            return null;
-        }
-        try {
-            ListTag slots = NbtIo.readCompressed(saveFile).getList("Slots");
-            List<Identifier> seeds = new ArrayList<>();
-            for (int i = 0; i < slots.size(); i++) {
-                Identifier seed = Identifier.tryParse(slots.getCompound(i).getString("def"));
-                if (seed != null) {
-                    seeds.add(seed);
-                }
-            }
-            return List.copyOf(seeds);
-        } catch (Throwable t) {
-            System.err.println("Failed to read saved seed selection from " + saveFile + ": " + t.getMessage());
-            return null;
-        }
-    }
-
-    /**
      * Gives a freshly created world its profile.
      *
      * <p>The directory is made on the client (the world list reads the disk
@@ -1043,9 +868,9 @@ public final class PvzceServer implements Runnable {
      * write creates the directory too, so a world always ends up with a record.
      */
     private void createWorld(String worldName, boolean unlockAll) {
-        String safeWorld = sanitizeWorldName(worldName);
+        String safeWorld = WorldPaths.sanitize(worldName);
         PlayerProfile created = unlockAll ? PlayerProfile.unlockEverything() : PlayerProfile.starter();
-        saveProfile(safeWorld, created);
+        worlds.saveProfile(safeWorld, created);
         connection.send(new ServerMessageS2C("世界 " + safeWorld + " 已创建"
                 + (unlockAll ? "（全解锁）" : "（初始：豌豆射手 + 铲子）")));
         connection.send(profilePacket(created));
@@ -1056,7 +881,7 @@ public final class PvzceServer implements Runnable {
         manualPause = false;
         saveGame();
         // Coins and unlocks outlive the level they were earned in.
-        flushProfile();
+        worlds.flushProfile();
         if (level != null) {
             level.shutdown();
         }
@@ -1077,33 +902,13 @@ public final class PvzceServer implements Runnable {
             return;
         }
         Identifier id = currentLevelId != null ? currentLevelId : current.def().id();
-        Path saveDir = levelDir(worldPath(gameDir, currentWorld), id);
+        Path saveDir = LevelKey.levelDir(WorldPaths.worldDir(gameDir, currentWorld), id);
         try {
-            saveLevel(current, saveDir);
-            System.out.println("[PVZCE] Saved " + saveDir);
+            worlds.saveLevel(current.save(), saveDir);
+            LOGGER.info("Saved {}", saveDir);
         } catch (Throwable t) {
-            t.printStackTrace();
+            LOGGER.error("Failed to save {}", saveDir, t);
         }
-    }
-
-    /**
-     * Writes one level's running save.
-     *
-     * <p>Everything the level needs - teams, resources, unlocks, the card bar,
-     * the scene grid and every entity snapshot - is written by
-     * {@link LevelServer#save()} into a single {@code level.dat}. The old split
-     * (level.dat plus a byte-identical level_state.dat, plus per-team and player
-     * side files that were written but never read) is gone; it silently dropped
-     * every resource except sun and could not restore anything it wrote.
-     */
-    private void saveLevel(LevelServer current, Path saveDir) throws IOException {
-        Files.createDirectories(saveDir);
-        NbtIo.writeCompressed(current.save(), saveDir.resolve("level.dat"));
-    }
-
-    /** Hands the whole save to the level; there is nothing left for the server to unpack. */
-    private void restoreLevel(LevelServer newLevel, Path saveDir, CompoundTag root) {
-        newLevel.restore(root);
     }
 
     /**
@@ -1128,266 +933,48 @@ public final class PvzceServer implements Runnable {
         }
         levelFinishHandled = true;
         Identifier id = currentLevelId != null ? currentLevelId : current.def().id();
-        Path worldDir = worldPath(gameDir, currentWorld);
+        Path worldDir = WorldPaths.worldDir(gameDir, currentWorld);
         try {
-            boolean plantWin = isPlantWin(current);
-            boolean firstClear = plantWin && !isLevelCompleted(currentWorld, id);
+            boolean plantWin = RewardSettlement.isPlantWin(current);
+            boolean firstClear = plantWin && !worlds.isCompleted(currentWorld, id);
             if (plantWin) {
-                writeLevelStatus(worldDir, id, current);
+                worlds.writeCompletion(worldDir, id, current.winner(), current.tickCount(), current.plantCount());
             }
-            deleteRunningSave(levelDir(worldDir, id));
-            System.out.println("[PVZCE] Level finished, cleared running save for " + id);
+            WorldStore.deleteRunningSave(LevelKey.levelDir(worldDir, id));
+            LOGGER.info("Level finished, cleared running save for {}", id);
             // Banks the run and pushes a fresh level list - after the running save is
             // gone, because that file IS the "进行中" label: refreshing first described
             // the level as still resumable, which is the opposite of what just happened.
             awardProfile(id, current, plantWin, firstClear);
         } catch (Throwable t) {
-            System.err.println("Failed to finish level " + id + ": " + t.getMessage());
+            LOGGER.error("Failed to finish level " + id, t);
         }
     }
 
     /**
      * Turns a finished run into profile progress and tells the client what it got.
      *
-     * <p>Split out of {@link #onLevelFinished} because it is the half that must stay
-     * correct when the win/loss rules change: the level's own card rewards only apply
-     * on a plant win, while collected coins bank either way.
+     * <p>The rules themselves live in {@link RewardSettlement}; this is the wiring around them -
+     * which world's profile, saving it once, and the packets that describe the outcome.
      */
     private void awardProfile(Identifier id, LevelServer current, boolean plantWin, boolean firstClear) {
-        PlayerProfile profile = profileFor(currentWorld);
-        LevelRewards rewards = current.def().rewards();
-
-        int collected = collectedCoins(current);
-        // The level's own rewards are for a win, first clear or repeat; a loss banks only
-        // what the run picked up. This used to read ``isPlantWin(current)`` - and the
-        // refactor that pulled the payout out of here dropped that condition, which paid
-        // every loss the full completion stipend.
-        RewardOutcome outcome = plantWin
-                ? applyRewards(id, rewards, firstClear, profile)
-                : new RewardOutcome(0, null, null, 0);
-        // Mowers that were never needed are worth a gold coin each. It is a *win* bonus:
-        // a row that still has its mower is a row the zombies never got through, and a
-        // defeat has no such rows to speak of. The count is what the client turns into
-        // coins on screen, so it is sent beside the amount the wallet was given.
-        int mowers = plantWin ? current.readyMowerCount() : 0;
-        int mowerCoins = mowers * mowerCoinValue();
-        int bonus = outcome.bonus() + mowerCoins;
-        Identifier unlocked = outcome.unlocked();
-        Identifier item = outcome.item();
-        profile.grantCoins(collected + bonus);
-        saveProfile(currentWorld, profile);
+        PlayerProfile profile = worlds.profileFor(currentWorld);
+        RewardSettlement.Payout payout =
+                RewardSettlement.settle(current, profile, plantWin, firstClear);
+        worlds.saveProfile(currentWorld, profile);
         // The award screen is presentation; the wallet is already written above, so
         // a client that never renders the screen still got its coins.
-        connection.send(new LevelRewardS2C(id.toString(), collected, bonus, profile.coins(),
-                unlocked == null ? "" : unlocked.toString(),
-                item == null ? "" : item.toString(), outcome.itemAmount(),
-                current.lastKillX(), current.lastKillY(), mowers, mowerCoins));
+        connection.send(new LevelRewardS2C(id.toString(), payout.collected(), payout.bonus(),
+                profile.coins(),
+                payout.unlocked() == null ? "" : payout.unlocked().toString(),
+                payout.item() == null ? "" : payout.item().toString(), payout.itemAmount(),
+                current.lastKillX(), current.lastKillY(), payout.mowers(), payout.mowerCoins()));
         connection.send(profilePacket(profile));
         // The finished level's row must stop saying "进行中" without a round trip. The
         // refresh names the world the level was in, not the last world a *list* was
         // asked for: those differ whenever a level was entered without going through
         // the list (the editor's test button), and the row belongs to the former.
         sendLevelList(currentWorld);
-    }
-
-    /**
-     * What one payout granted: the coin bonus, the first card it unlocked, and the first
-     * resource it paid out (with how many), which the award page draws instead of cash.
-     */
-    private record RewardOutcome(int bonus, Identifier unlocked, Identifier item, int itemAmount) {
-    }
-
-    /**
-     * What one surviving lawn mower is worth, read from the gold coin it is paid in.
-     *
-     * <p>Not a literal: the denominations and their values live in the resource
-     * definitions, and a pack that revalues the gold coin revalues the mowers with it. A
-     * pack that deletes the coin entirely gets zero rather than a number invented here.
-     */
-    private static int mowerCoinValue() {
-        com.pvzce.api.content.ResourceDef coin =
-                BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_GOLD);
-        return coin == null ? 0 : Math.max(0, coin.defaultValue());
-    }
-
-    /**
-     * Applies a level's rewards to a profile.
-     *
-     * <p>The coins follow the first-clear/repeat split. The unlocks do <em>not</em>: a
-     * {@code first_clear} unlock is paid out on any clear whose profile does not have that
-     * card yet. "First clear" is a file's existence, not "the reward was handed over", and
-     * the two disagree in both directions that matter:
-     *
-     * <ul>
-     *   <li>a world cleared before the level declared the unlock can never receive it -
-     *       every later clear takes the repeat branch, so the reward page shows the money
-     *       bag forever (this is what happened to 1-4's glove);</li>
-     *   <li>a pack that adds an unlock to an already-cleared level would never pay it.</li>
-     * </ul>
-     *
-     * <p>Granting an already-owned card is a no-op, so this is idempotent: the card is
-     * what is idempotent, not the payout. Repeat coins are unaffected, so a replay still
-     * pays its stipend.
-     *
-     * <p>A {@code resource} entry is worth what the resource definition says it is worth,
-     * multiplied by how many are paid - the wallet holds one number, so a diamond <em>is</em>
-     * 1000 coins, and the worth is read from the same {@code default_value} the whole
-     * denomination ladder lives in rather than written again in the level file. The entry is
-     * also reported back so the award page can draw the object rather than count the money.
-     * Like coins, resources follow the first-clear/repeat split.
-     *
-     * <p>Shared by the real win and by {@link #awardProfileForTest}, because the bug this
-     * guards against lives here and nowhere else.
-     */
-    private RewardOutcome applyRewards(Identifier id, LevelRewards rewards, boolean firstClear,
-                                       PlayerProfile profile) {
-        int bonus = 0;
-        Identifier unlocked = null;
-        Identifier rewardItem = null;
-        int rewardItemAmount = 0;
-        for (LevelRewards.Reward reward : rewards.firstClear()) {
-            if (!reward.isUnlock() || reward.id().isEmpty()) {
-                continue;
-            }
-            Identifier card = reward.id().get();
-            if (profile.owns(card)) {
-                // Already in the backpack - an ordinary replay of a level whose unlock was
-                // paid long ago, or a sandbox world where everything is open. Nothing to do;
-                // ``unlock`` is a set add and would report a grant the player cannot see.
-                continue;
-            }
-            if (!SlotResolver.requiresUnlock(card)) {
-                System.err.println("[PVZCE] Level " + id + " rewards '" + card
-                        + "' as an unlock, but that card needs no unlocking."
-                        + " The reward does nothing.");
-                continue;
-            }
-            if (profile.unlock(card) && unlocked == null) {
-                unlocked = card;
-            }
-        }
-        for (LevelRewards.Reward reward : firstClear ? rewards.firstClear() : rewards.repeat()) {
-            if (reward.isCoins()) {
-                bonus += reward.amount();
-            } else if (reward.isResource() && reward.id().isPresent()) {
-                Identifier resource = reward.id().get();
-                com.pvzce.api.content.ResourceDef def = BuiltInRegistries.RESOURCES.get(resource);
-                int worth = def == null ? 0 : Math.max(0, def.defaultValue());
-                bonus += worth * Math.max(0, reward.amount());
-                if (rewardItem == null) {
-                    // The page's frame holds one object, so the first entry is the one drawn -
-                    // the same convention {@code unlock} already follows with its cards. A
-                    // second entry is still paid; it just has no picture of its own.
-                    rewardItem = resource;
-                    rewardItemAmount = reward.amount();
-                }
-            }
-        }
-        return new RewardOutcome(bonus, unlocked, rewardItem, rewardItemAmount);
-    }
-
-    /**
-     * Runs the reward payout for a level without a finished run.
-     *
-     * <p>For tests of the payout itself: reaching it through a real win would mostly
-     * exercise the simulation, and the bug it guards against - an unlock reward that
-     * granted nothing because it was gated on {@code owns} - is entirely in here.
-     */
-    public void awardProfileForTest(Identifier levelId, String worldName, boolean firstClear) {
-        LevelDef def = BuiltInRegistries.LEVELS.get(levelId);
-        if (def == null) {
-            throw new IllegalArgumentException("unknown level " + levelId);
-        }
-        PlayerProfile profile = profileFor(worldName);
-        applyRewards(levelId, def.rewards(), firstClear, profile);
-        saveProfile(worldName, profile);
-    }
-
-    /**
-     * Coins the run picked up, summed over every denomination.
-     *
-     * <p>Each denomination's amount is already its worth in coins, so this is a sum and
-     * not a conversion - the ladder lives in the resource definitions, once.
-     */
-    private static int collectedCoins(LevelServer current) {
-        Team plantTeam = current.team(PvzceIds.PLANT_TEAM);
-        if (plantTeam == null) {
-            return 0;
-        }
-        int total = 0;
-        for (Identifier denomination : PvzceIds.COIN_DENOMINATIONS) {
-            total += plantTeam.resourcesOf(denomination);
-        }
-        return total;
-    }
-
-    private static boolean isPlantWin(LevelServer current) {
-        return GameStateS2C.WON.equals(current.gameState())
-                && current.winner() != null
-                && current.winner().equals(current.def().winTeam());
-    }
-
-    private void writeLevelStatus(Path worldDir, Identifier id, LevelServer current) throws IOException {
-        Path statusFile = levelStatusFile(worldDir, id);
-        Files.createDirectories(statusFile.getParent());
-        CompoundTag status = new CompoundTag();
-        status.putInt("DataVersion", com.pvzce.common.PvzceConstants.SAVE_DATA_VERSION);
-        status.putString("LevelId", id.toString());
-        status.putString("GameState", LevelListS2C.LevelInfo.COMPLETED);
-        status.putString("Winner", current.winner().toString());
-        status.putInt("Tick", current.tickCount());
-        status.putInt("PlantCount", current.plantCount());
-        NbtIo.writeCompressed(status, statusFile);
-    }
-
-    /**
-     * True when this level has a completion marker in the world - "cleared at least once".
-     *
-     * <p><b>Completion is permanent.</b> The marker is a record of something that already
-     * happened, so nothing that happens later may take it away: replaying a cleared level,
-     * losing that replay, or leaving it half-finished all leave it cleared.
-     *
-     * <p>It is deliberately not the same question as "has a resumable save", which is a
-     * property of the moment and lives beside it in {@code sendLevelList} and in
-     * {@link LevelListS2C.LevelInfo#hasRunningSave()}. Reading one off the other is what
-     * made an abandoned replay of a cleared level both lock the levels behind it again and
-     * hide the fact that a run was waiting to be resumed.
-     *
-     * <p>Failed levels leave no marker of their own: a level that was never cleared has
-     * nothing to report.
-     */
-    private boolean isLevelCompleted(String worldName, Identifier id) {
-        if (worldName == null || worldName.isBlank()) {
-            return false;
-        }
-        return isLevelCompleted(worldPath(gameDir, worldName), id);
-    }
-
-    /** True when this world's completion marker for the level is on disk and says so. */
-    private static boolean isLevelCompleted(Path worldDir, Identifier id) {
-        Path statusFile = levelStatusFile(worldDir, id);
-        if (!Files.isRegularFile(statusFile)) {
-            return false;
-        }
-        try {
-            CompoundTag status = NbtIo.readCompressed(statusFile);
-            return LevelListS2C.LevelInfo.COMPLETED.equals(status.getString("GameState"));
-        } catch (Throwable t) {
-            return false;
-        }
-    }
-
-    private static void deleteRunningSave(Path saveDir) {
-        if (!Files.exists(saveDir)) {
-            return;
-        }
-        try (var paths = Files.walk(saveDir)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
-            }
-        } catch (IOException e) {
-            System.err.println("Failed to delete level save " + saveDir + ": " + e.getMessage());
-        }
     }
 
     /** Parses a packet's card ids, skipping the ones the identifier rules reject. */
@@ -1411,7 +998,7 @@ public final class PvzceServer implements Runnable {
                 // the prompt, resuming is just an unpause - which is the whole point of
                 // loading the save *before* asking about it.
                 if (savePromptPending && current != null && currentWorld != null
-                        && currentWorld.equals(sanitizeWorldName(request.worldName()))
+                        && currentWorld.equals(WorldPaths.sanitize(request.worldName()))
                         && current.def().id().toString().equals(request.levelId())) {
                     savePromptPending = false;
                     return;

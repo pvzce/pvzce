@@ -4,6 +4,7 @@ import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,10 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReloadTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     @Test
     void dataPackReloadPicksUpChanges() throws Exception {
         BuiltInRegistries.bootstrap();
-        Path gameDir = Files.createTempDirectory("pvzce-reload");
         Path pack = gameDir.resolve("datapacks/testpack");
         Files.createDirectories(pack.resolve("data/test/plants"));
 

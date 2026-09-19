@@ -3,6 +3,7 @@ package com.pvzce.server;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.core.Slot;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
@@ -174,31 +175,13 @@ public final class PlayerProfile {
         return true;
     }
 
-    /**
-     * True when the player may put this card in a bar.
-     *
-     * <p>Accepts both the slot id and the content it grants, because a level may
-     * name a plant directly instead of its slot ({@link SlotResolver} resolves
-     * both) and "I own the peashooter" must not depend on which spelling a level
-     * happened to use.
-     */
+    /** True when the player may put this card in a bar; the rule is {@link SlotResolver#owns}. */
     public boolean owns(Identifier card) {
-        if (card == null) {
-            return false;
-        }
-        if (!SlotResolver.requiresUnlock(card) || unlockAll) {
-            return true;
-        }
-        if (unlocked.contains(card)) {
-            return true;
-        }
-        SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
-        return resolved != null && unlocked.contains(resolved.content());
+        return SlotResolver.owns(unlocked, unlockAll, card);
     }
 
     public CompoundTag save() {
         CompoundTag root = new CompoundTag();
-        root.putInt("DataVersion", PvzceConstants.SAVE_DATA_VERSION);
         root.putInt("Coins", coins);
         root.putInt("SeedSlots", seedSlots);
         // Stored numerically: CompoundTag has no boolean getter, and its numeric

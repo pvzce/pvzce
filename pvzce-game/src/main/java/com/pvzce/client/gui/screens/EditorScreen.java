@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.util.WorldPaths;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.AbstractWidget;
@@ -13,7 +14,10 @@ import com.pvzce.client.gui.editor.EditorPage;
 import com.pvzce.client.gui.editor.pages.CanvasPage;
 import com.pvzce.common.core.JsonDraft;
 import com.pvzce.common.network.packet.CommandC2S;
+import com.pvzce.common.util.MathUtil;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +40,8 @@ import java.util.List;
  * construction rather than by a seventeen-parameter writer remembering to copy it across.
  */
 public final class EditorScreen extends Screen {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Editor");
     private static final int MAX_COLUMNS = 20;
     private static final int MAX_ROWS = 10;
 
@@ -112,9 +118,9 @@ public final class EditorScreen extends Screen {
                 levelName = sourceJson.get("name").getAsString();
             }
         }
-        int width = clamp(sourceJson.has("width") ? sourceJson.get("width").getAsInt()
+        int width = MathUtil.clamp(sourceJson.has("width") ? sourceJson.get("width").getAsInt()
                 : (newLevelWidth > 0 ? newLevelWidth : 9), 1, MAX_COLUMNS);
-        int height = clamp(sourceJson.has("height") ? sourceJson.get("height").getAsInt()
+        int height = MathUtil.clamp(sourceJson.has("height") ? sourceJson.get("height").getAsInt()
                 : (newLevelHeight > 0 ? newLevelHeight : 5), 1, MAX_ROWS);
 
         draft = JsonDraft.of(sourceJson);
@@ -168,15 +174,12 @@ public final class EditorScreen extends Screen {
                 return new LevelSource(json, Files.exists(writable) ? writable : null);
             }
         } catch (Exception e) {
-            System.err.println("[PVZCE] Could not read level " + levelId + " for the editor: " + e.getMessage());
+            LOGGER.error("Could not read level " + levelId + " for the editor", e);
         }
         return null;
     }
 
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 
     // ------------------------------------------------------------------
     // Layout
@@ -551,8 +554,7 @@ public final class EditorScreen extends Screen {
         if (world == null || world.isBlank()) {
             return null;
         }
-        String safe = world.trim().replaceAll("[^A-Za-z0-9_-]", "_");
-        return client.gameDir().resolve("saves").resolve(safe.isBlank() ? "world" : safe);
+        return WorldPaths.worldDir(client.gameDir(), world);
     }
 
     private Path resolveSaveFile() {

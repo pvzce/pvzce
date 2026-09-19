@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -19,14 +20,18 @@ public record TimeOfDayS2C(int dayTicks, int dayLength, int nightLength) impleme
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<TimeOfDayS2C> CODEC = PacketStruct.<TimeOfDayS2C>builder()
+    .field(TimeOfDayS2C::dayTicks, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(TimeOfDayS2C::dayLength, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(TimeOfDayS2C::nightLength, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .build(values -> new TimeOfDayS2C((Integer) values.get(0), (Integer) values.get(1), (Integer) values.get(2)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeInt(dayTicks);
-        buf.writeInt(dayLength);
-        buf.writeInt(nightLength);
+        CODEC.encode(this, buf);
     }
 
     public static TimeOfDayS2C decode(PacketByteBuf buf) {
-        return new TimeOfDayS2C(buf.readInt(), buf.readInt(), buf.readInt());
+        return CODEC.decode(buf);
     }
 }

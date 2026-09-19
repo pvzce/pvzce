@@ -216,6 +216,8 @@
 | 规则 | 默认 | 说明 |
 |---|---|---|
 | `pvzce:sun_value` | `25` | 一颗阳光值多少 |
+| `pvzce:zombie_sun_drop_chance` | `0` | 僵尸死亡时掉阳光的概率，`0` = 不掉（2-5 用 `0.03`，因为那一关没有产出植物、天上也不掉） |
+| `pvzce:zombie_sun_drop_count` | `3` | 一次掉几颗；概率是**按这个颗数读的**，所以"少而值钱"要同时调这两个。掉落物是 `landed`，落在僵尸倒下的那一格或它相邻的格里 |
 | `pvzce:crater_recovery` | `6000` | 弹坑多久长回草地（tick） |
 | `pvzce:zombie_damage_multiplier` | `1` | 僵尸伤害倍率 |
 | `pvzce:zombie_speed_multiplier` | `1` | 僵尸移速倍率（1-5 用 `1.5`） |
@@ -363,7 +365,7 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
 ### 关卡机制（mechanics）
 
-关卡可以声明若干**机制**（`mechanics` 数组，`{"type": "...", ...}`）。内置三个，都是可选的：
+关卡可以声明若干**机制**（`mechanics` 数组，`{"type": "...", ...}`）。都是可选的：
 
 ```jsonc
 "mechanics": [
@@ -373,9 +375,20 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
   // 可种植区：只有这块草坪能种（红线画在它的边缘）
   { "type": "pvzce:placement_zone", "min_x": 0, "max_x": 3 },
   // 小推车：这一关哪些行有（见下）
-  { "type": "pvzce:mower", "rows": [] }
+  { "type": "pvzce:mower", "rows": [] },
+  // 关卡自带的工具：空手点击就用它（2-5 的鼠标就是木槌）
+  { "type": "pvzce:tool", "tool": "pvzce:hammer", "default": true,
+    "cooldown": 0, "cost": { "resources": {} } },
+  // 会补的墓碑：僵尸从墓碑里冒出来（2-5 打地鼠）
+  { "type": "pvzce:grave_spawner", "zombies": ["pvzce:basic_zombie"],
+    "min_graves": 9, "initial_graves": 9, "graves_per_wave": 1,
+    "interval": 90, "min_x": 4, "max_x": 8 }
 ]
 ```
+
+**关卡自带的工具（`pvzce:tool`）**：`tool` 是 `tools/<id>.json` 里的工具 id；`default: true` 表示手上没卡时点击就是用它（不占卡槽、不印价格、没有充能条）；`cooldown` / `cost` 是**这一关对这把工具的覆盖**，不写就沿用工具自己的数。工具自己的美术（卡片贴图 `texture` 与动画 `animation_dir`）写在工具定义里，动画文件里要有对应的 clip（木槌的 `idle` = 举起、`attack` = 挥下）。
+
+**会补的墓碑（`pvzce:grave_spawner`）**：`zombies` 是墓碑能冒出什么；`interval` 是两次冒怪之间隔多少 tick（从**随机一座**在场的墓碑里放一只）；`min_graves` 是维持的座数，`initial_graves` 是开局先补到多少（`-1` = 同 `min_graves`）；`graves_per_wave` 让**每来一波目标座数 +1**（2-5 用 1：9 座起步、第六波 15 座；不写就是恒定）；`min_x` / `max_x` 限定新墓碑出现的列。注意两件事：这一关的 `waves` 通常是**空壳**（`entries: []`，只用来算进度与收尾，僵尸全部来自墓碑），而**最后一波放完之后墓碑不再冒僵尸** —— 胜利判定要的是"场上没有僵尸"，每 1.5 秒冒一只的话这一关永远打不完。
 
 **小推车（`pvzce:mower`）——不写就是每行一辆。** 普通关卡的 JSON 里**不需要**任何声明：草坪本来就是每行一辆推车，僵尸走到房子前会触发它，它向右开过去碾掉该行地面上的僵尸，然后消失；那一行之后就是敞开的。想改的关卡才声明：
 
@@ -483,7 +496,7 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
 ## resources / slots / tools / scene_elements
 
-- `resources`：`id` / `default_value` / `collectible` / `icon` / `drop_anim` / `max_stack` / `collectible_without_card`
+- `resources`：`id` / `default_value` / `collectible` / `icon` / `drop_anim` / `max_stack` / `collectible_without_card` / `tint`（可选，`[r, g, b]` 乘色，默认 `[0.5, 0.5, 0.5]`；阳光用暖黄 `[0.58, 0.50, 0.15]` 让两层叠加光晕不发白）
 - `slots`：`id` / `kind`(`plant`|`resource`|`tool`) / `content` / `cost` / `icon`（可选；缺省走 `EntityArt.sprite`，即定义的 `texture`，再回退 `textures/entities/<content>`）
 
 ### 波次出怪间隔（`spawn_interval`）

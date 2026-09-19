@@ -8,10 +8,12 @@ import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.EditBox;
 import com.pvzce.client.gui.editor.EditorContext;
+import com.pvzce.client.gui.screens.ListEditorSupport;
 import com.pvzce.client.gui.editor.EditorPage;
 import com.pvzce.client.gui.editor.LevelFileWriter;
 import com.pvzce.client.gui.screens.MusicEditorModel;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,7 +90,7 @@ public final class MusicPage implements EditorPage {
         int y = area.y();
         int w = area.width();
         int h = area.height();
-        int rowH = clamp(h / 16, 26, 34);
+        int rowH = MathUtil.clamp(h / 16, 26, 34);
         int pad = 8;
         int gap = 10;
 
@@ -99,7 +101,7 @@ public final class MusicPage implements EditorPage {
         int listTop = y + h - rowH - pad - 20;
         int listH = Math.max(60, listTop - (y + rowH + pad + 20));
         musicCueList = context.own(new AbstractSelectionList<MusicEditorModel.CueModel>(x, y + rowH + pad + 20,
-                listW, listH, clamp(listH / 8, 28, 40), (renderClient, cue, rx, ry) -> {
+                listW, listH, MathUtil.clamp(listH / 8, 28, 40), (renderClient, cue, rx, ry) -> {
         }));
         musicCueList.setEntryRenderer(this::renderMusicCueRow);
         musicCueList.setEntries(new ArrayList<>(musicConfig.cues));
@@ -134,7 +136,7 @@ public final class MusicPage implements EditorPage {
         int eventsTop = top - (rowH + 6) * 2 - 20;
         int eventsBottom = y + pad + rowH + 6;
         musicEventList = context.own(new AbstractSelectionList<String>(detailX, eventsBottom, detailW,
-                Math.max(50, eventsTop - eventsBottom), clamp(rowH - 2, 24, 32),
+                Math.max(50, eventsTop - eventsBottom), MathUtil.clamp(rowH - 2, 24, 32),
                 (renderClient, event, rx, ry) -> renderClient.font().draw(event, rx, ry + 4,
                         0.68F, 0.9F, 0.95F, 0.9F, 1F)));
         musicEventList.setEntries(musicEventOptions());
@@ -298,38 +300,28 @@ public final class MusicPage implements EditorPage {
     }
 
     private void removeMusicCue() {
-        int index = musicCueList == null ? -1 : musicCueList.selectedIndex();
-        if (index < 0 || index >= musicConfig.cues.size()) {
-            return;
-        }
-        musicConfig.cues.remove(index);
+        MusicEditorModel.CueModel cue = musicCueList == null ? null : musicCueList.selected();
+        MusicEditorModel.CueModel next = ListEditorSupport.remove(musicConfig.cues, cue);
         refreshMusicCueList();
-        if (!musicConfig.cues.isEmpty()) {
-            musicCueList.select(Math.min(index, musicConfig.cues.size() - 1));
+        if (next != null) {
+            musicCueList.select(musicConfig.cues.indexOf(next));
         }
         refreshMusicDetail();
     }
 
     private void moveMusicCue(int delta) {
-        int index = musicCueList == null ? -1 : musicCueList.selectedIndex();
-        int target = index + delta;
-        if (index < 0 || target < 0 || target >= musicConfig.cues.size()) {
-            return;
+        MusicEditorModel.CueModel cue = musicCueList == null ? null : musicCueList.selected();
+        if (ListEditorSupport.move(musicConfig.cues, cue, delta)) {
+            refreshMusicCueList();
+            musicCueList.select(musicConfig.cues.indexOf(cue));
+            refreshMusicDetail();
         }
-        MusicEditorModel.CueModel cue = musicConfig.cues.remove(index);
-        musicConfig.cues.add(target, cue);
-        refreshMusicCueList();
-        musicCueList.select(target);
-        refreshMusicDetail();
     }
 
     private void refreshMusicCueList() {
         if (musicCueList != null) {
-            int keep = musicCueList.selectedIndex();
-            musicCueList.setEntries(new ArrayList<>(musicConfig.cues));
-            if (keep >= 0 && keep < musicConfig.cues.size()) {
-                musicCueList.select(keep);
-            }
+            ListEditorSupport.refresh(musicCueList, new ArrayList<>(musicConfig.cues),
+                    musicCueList.selected());
         }
     }
 
@@ -359,7 +351,4 @@ public final class MusicPage implements EditorPage {
         refreshMusicCueList();
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

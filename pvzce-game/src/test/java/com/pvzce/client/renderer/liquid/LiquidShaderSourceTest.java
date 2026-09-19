@@ -1,6 +1,7 @@
 package com.pvzce.client.renderer.liquid;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * here would have failed on it.
  */
 class LiquidShaderSourceTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path directory;
     /**
      * Compiles the shader with glslangValidator if the tool is available.
      *
@@ -43,7 +48,6 @@ class LiquidShaderSourceTest {
                     + "skipping the GLSL compile check");
             return;
         }
-        Path directory = Files.createTempDirectory("pvzce-glsl");
         Path vertex = directory.resolve("liquid.vert");
         Path fragment = directory.resolve("liquid.frag");
         Files.writeString(vertex, LiquidShader.VERTEX, StandardCharsets.UTF_8);

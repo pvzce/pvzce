@@ -170,7 +170,14 @@ public final class EntityArt {
             return projectile.animations();
         }
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
-        return resource == null ? null : resource.animations();
+        if (resource != null) {
+            return resource.animations();
+        }
+        // Tools last: they are not entities and have no kind, but a tool may still carry
+        // controller art - the mallet the player aims with in Whack-a-Zombie is one - and the
+        // cursor that draws it has nothing but the tool's id to resolve it by.
+        ToolDef tool = BuiltInRegistries.TOOLS.get(defId);
+        return tool == null ? null : tool.animations();
     }
 
     /**

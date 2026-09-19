@@ -12,6 +12,7 @@ import com.pvzce.client.gui.editor.EditorContext;
 import com.pvzce.client.gui.editor.EditorPage;
 import com.pvzce.client.gui.editor.LevelFileWriter;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,7 +110,7 @@ public final class UnlockPage implements EditorPage {
         // Four bands stacked from the bottom: the button row, then the card row, then the
         // level row, each with room above it for its own label. The row height comes from
         // what is left, capped so a tall window does not produce absurdly deep text boxes.
-        int rowH = clamp((h - pad * 2 - 96) / 3, 24, 40);
+        int rowH = MathUtil.clamp((h - pad * 2 - 96) / 3, 24, 40);
         int buttonY = y + pad;
         int cardsY = buttonY + rowH + 38;
         int levelsY = cardsY + rowH + 38;
@@ -135,26 +136,6 @@ public final class UnlockPage implements EditorPage {
             unlockCardsBox.setValue("", false);
             commitUnlockFields();
         }));
-    }
-
-    /**
-     * The cards a level may require: plants and tools, never resources.
-     *
-     * <p>A resource card is not part of the backpack ({@code SlotResolver.requiresUnlock}
-     * returns false for it), so requiring one would be a condition that is always already
-     * true - a trap rather than a gate.
-     */
-    private static List<String> unlockableCardIds() {
-        List<String> cards = new ArrayList<>();
-        BuiltInRegistries.SLOT_TYPES.keySet().stream()
-                .filter(id -> {
-                    var slot = BuiltInRegistries.SLOT_TYPES.get(id);
-                    return slot != null && com.pvzce.common.core.SlotResolver.requiresUnlock(slot.id());
-                })
-                .map(Identifier::toString)
-                .sorted()
-                .forEach(cards::add);
-        return cards;
     }
 
     /**
@@ -380,7 +361,4 @@ public final class UnlockPage implements EditorPage {
         return ids;
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

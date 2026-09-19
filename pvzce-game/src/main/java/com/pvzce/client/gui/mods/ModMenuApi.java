@@ -1,6 +1,5 @@
 package com.pvzce.client.gui.mods;
 
-import com.pvzce.client.gui.Screen;
 
 import java.util.Map;
 

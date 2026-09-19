@@ -1,7 +1,6 @@
 package com.pvzce.client.animation;
 
 import com.pvzce.client.ClientEntity;
-import com.pvzce.client.api.Animatable;
 
 /** Per-entity animation slot; injected by {@code ClientLevel} on spawn. */
 public final class AnimationComponent {

@@ -3,8 +3,13 @@ package com.pvzce.client.renderer;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /** Static GL state facade (MC RenderSystem-shaped, self-written). */
 public final class RenderSystem {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Render");
     private static ShaderProgram shader;
     private static Matrix4f projection = Matrix4f.identity();
     private static int boundTexture;
@@ -162,7 +167,7 @@ public final class RenderSystem {
     public static void checkGlError(String where) {
         int error = GL20.glGetError();
         if (error != GL11.GL_NO_ERROR) {
-            System.err.println("[GL] " + where + ": 0x" + Integer.toHexString(error));
+            LOGGER.warn("[GL] {}: 0x{}", where, Integer.toHexString(error));
         }
     }
 }

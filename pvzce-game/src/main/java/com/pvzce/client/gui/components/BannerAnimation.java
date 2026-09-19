@@ -2,6 +2,7 @@ package com.pvzce.client.gui.components;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -159,11 +160,11 @@ public final class BannerAnimation {
             float[] from = word.frames()[index];
             float[] to = word.frames()[Math.min(word.frames().length - 1, index + 1)];
             float t = Math.min(1F, local - index);
-            float dx = lerp(from[0], to[0], t);
-            float dy = lerp(from[1], to[1], t);
-            float scale = lerp(from[2], to[2], t);
+            float dx = MathUtil.lerp(from[0], to[0], t);
+            float dy = MathUtil.lerp(from[1], to[1], t);
+            float scale = MathUtil.lerp(from[2], to[2], t);
             // A fourth component is the alpha; banners without one are fully opaque.
-            float alpha = from.length > 3 ? lerp(from[3], to[3], t) : 1F;
+            float alpha = from.length > 3 ? MathUtil.lerp(from[3], to[3], t) : 1F;
             placed.add(new Placed(word.texture(),
                     dx / word.sourceWidth(), dy / word.sourceWidth(), scale, alpha));
         }
@@ -198,10 +199,6 @@ public final class BannerAnimation {
         } catch (RuntimeException ignored) {
             return 1F;
         }
-    }
-
-    private static float lerp(float from, float to, float delta) {
-        return com.pvzce.common.util.MathUtil.lerp(from, to, delta);
     }
 
     private static Identifier id(String path) {

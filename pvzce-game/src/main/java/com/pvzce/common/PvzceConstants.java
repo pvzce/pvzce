@@ -31,7 +31,6 @@ public final class PvzceConstants {
     public static final int MAX_SEED_SLOTS = 12;
     /** The wallet has no ceiling; the only bound that matters is the 32-bit field it lives in. */
     public static final int COIN_LIMIT = Integer.MAX_VALUE;
-    public static final int SAVE_DATA_VERSION = 2;
 
     private PvzceConstants() {
     }

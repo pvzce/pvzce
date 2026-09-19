@@ -2,6 +2,7 @@ package com.pvzce.client.gui.editor.form;
 
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.editor.EditorContext;
+import com.pvzce.common.util.MathUtil;
 
 /**
  * Row geometry for a form page: labelled rows of controls, in columns when there are too many
@@ -41,11 +42,11 @@ public final class FormLayout {
         int count = Math.max(1, rows);
         // One row for the heading, then the fields.
         int usable = Math.max(1, area.height() - MIN_ROW_HEIGHT);
-        this.columns = Math.min(MAX_COLUMNS, Math.max(1, ceilDiv(count, Math.max(1, usable / MAX_ROW_HEIGHT))));
-        this.rowsPerColumn = ceilDiv(count, columns);
-        this.rowHeight = clamp(usable / Math.max(1, rowsPerColumn + 1), MIN_ROW_HEIGHT, MAX_ROW_HEIGHT);
+        this.columns = Math.min(MAX_COLUMNS, Math.max(1, MathUtil.ceilDiv(count, Math.max(1, usable / MAX_ROW_HEIGHT))));
+        this.rowsPerColumn = MathUtil.ceilDiv(count, columns);
+        this.rowHeight = MathUtil.clamp(usable / Math.max(1, rowsPerColumn + 1), MIN_ROW_HEIGHT, MAX_ROW_HEIGHT);
         this.columnWidth = Math.max(120, (area.width() - 12) / columns);
-        this.labelWidth = clamp(columnWidth / 3, MIN_LABEL_WIDTH, MAX_LABEL_WIDTH);
+        this.labelWidth = MathUtil.clamp(columnWidth / 3, MIN_LABEL_WIDTH, MAX_LABEL_WIDTH);
     }
 
     /** Where the page's heading goes. */
@@ -81,11 +82,4 @@ public final class FormLayout {
                 0.72F, 0.88F, 0.92F, 0.96F, 1F);
     }
 
-    private static int ceilDiv(int value, int divisor) {
-        return (value + divisor - 1) / divisor;
-    }
-
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

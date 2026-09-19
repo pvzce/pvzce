@@ -1,6 +1,5 @@
 package com.pvzce.server;
 
-import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.CommandC2S;
@@ -15,6 +14,7 @@ import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * running, which is what the reported restart bug is about.
  */
 class LevelRestartFlowTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    /** Static: {@link #gameDir()} builds the level before any test instance exists. */
+    @TempDir
+    static Path dir;
     /**
      * A purpose-built level rather than a shipped one.
      *
@@ -81,7 +86,6 @@ class LevelRestartFlowTest {
     }
 
     private static Path gameDir() throws Exception {
-        Path dir = Files.createTempDirectory("pvzce-restart-flow");
         writeTestLevel(dir);
         // Capability types must be registered before the shipped plants can be decoded.
         BuiltInRegistries.bootstrap();
@@ -113,7 +117,9 @@ class LevelRestartFlowTest {
 
             // Plant something so a "restart" that is really a resync is visible.
             harness.send(new PlacePlantC2S(0, 0, 0));
-            harness.waitForCondition(() -> previous.plantCount() == 1, 5_000);
+            harness.waitFor(p -> p instanceof EntitySpawnS2C spawn
+                    && "plant".equals(spawn.entityKind()), 5_000,
+                    "the placed plant never reached the client");
             // And put a run on disk, so "the old progress is gone" below is an assertion
             // about a file that really existed rather than about nothing at all.
             Path saveFile = dir.resolve("saves/" + WORLD + "/levels/" + SAVE_KEY + "/level.dat");
@@ -159,7 +165,9 @@ class LevelRestartFlowTest {
             awaitLevelInit(harness);
             LevelServer running = harness.server().level();
             harness.send(new PlacePlantC2S(0, 0, 0));
-            harness.waitForCondition(() -> running.plantCount() == 1, 5_000);
+            harness.waitFor(p -> p instanceof EntitySpawnS2C spawn
+                    && "plant".equals(spawn.entityKind()), 5_000,
+                    "the placed plant never reached the client");
             harness.clear();
 
             // The player asked for this level again *without* asking for a fresh run.
@@ -187,7 +195,9 @@ class LevelRestartFlowTest {
             awaitLevelInit(harness);
             LevelServer running = harness.server().level();
             harness.send(new PlacePlantC2S(0, 0, 0));
-            harness.waitForCondition(() -> running.plantCount() == 1, 5_000);
+            harness.waitFor(p -> p instanceof EntitySpawnS2C spawn
+                    && "plant".equals(spawn.entityKind()), 5_000,
+                    "the placed plant never reached the client");
             harness.clear();
 
             // The seed chooser only ever sends the cards the player picked.

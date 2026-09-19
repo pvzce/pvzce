@@ -1,8 +1,6 @@
 package com.pvzce.client.animation;
 
-import com.pvzce.api.util.Identifier;
 
-import java.util.List;
 import java.util.Map;
 
 /** Flipbook resource: named frame sequences sharing one on-screen rectangle. */

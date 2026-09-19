@@ -27,32 +27,28 @@ import java.util.Set;
  */
 public final class RulePage {
     /**
-     * Slider ranges per rule path.
+     * The three rules whose slider is deliberately narrower than the rule's own bounds.
      *
-     * <p>{@link GameRuleType} clamps values but does not expose its bounds, and the editor must
-     * not offer a range the server would silently clamp afterwards. These mirror the
-     * registrations in {@code BuiltInRegistries.registerGameRules}.
+     * <p>Everything else takes its range from {@link GameRuleType#bounds()}, so the page offers
+     * exactly what the server accepts. These are registered as "0 (or -1) up to
+     * {@code Integer.MAX_VALUE}" because those really are their bounds - a tick count has no
+     * meaningfully small ceiling - and a slider spanning two billion ticks is not a control
+     * anybody can use. 12000 ticks is 200 seconds, longer than any shipped level's day.
+     *
+     * <p>Written down as a short exception rather than a table: the table this replaces also
+     * listed the rules whose range already matched the registration, and it had drifted from it
+     * ({@code sun_value} stopped at 500 while the server took 10000, so the editor could not
+     * express a value the game allows).
      */
-    private static final Map<String, float[]> RANGES = Map.ofEntries(
-            Map.entry("pvzce:day_length", new float[]{0F, 12000F}),
-            Map.entry("pvzce:night_length", new float[]{-1F, 12000F}),
-            Map.entry("pvzce:sun_spawn_chance", new float[]{0F, 1F}),
-            Map.entry("pvzce:sun_value", new float[]{1F, 500F}),
-            Map.entry("pvzce:crater_recovery", new float[]{0F, 30000F}),
-            Map.entry("pvzce:zombie_damage_multiplier", new float[]{0F, 5F}),
-            Map.entry("pvzce:zombie_speed_multiplier", new float[]{0F, 5F}),
-            Map.entry("pvzce:plant_damage_multiplier", new float[]{0F, 5F}),
-            Map.entry("pvzce:seed_cooldown_multiplier", new float[]{0F, 5F}),
-            Map.entry("pvzce:max_players_per_team", new float[]{1F, 64F}));
-
-    /** Rules whose value is a whole number of ticks or players; the slider rounds. */
-    private static final Set<String> INTEGER_RULES = Set.of(
-            "pvzce:day_length", "pvzce:night_length", "pvzce:crater_recovery",
-            "pvzce:sun_value", "pvzce:max_players_per_team");
+    private static final Map<String, float[]> NARROWER_SLIDER = Map.of(
+            "pvzce:day_length", new float[]{0F, 12000F},
+            "pvzce:night_length", new float[]{-1F, 12000F},
+            "pvzce:crater_recovery", new float[]{0F, 30000F});
 
     /** The order the page lists them in: pacing, economy, combat, then the rest. */
     private static final List<String> ORDER = List.of(
             "pvzce:day_length", "pvzce:night_length", "pvzce:sun_spawn_chance", "pvzce:sun_value",
+            "pvzce:zombie_sun_drop_chance", "pvzce:zombie_sun_drop_count",
             "pvzce:crater_recovery", "pvzce:graves_spawn_night", "pvzce:zombie_damage_multiplier",
             "pvzce:zombie_speed_multiplier", "pvzce:plant_damage_multiplier",
             "pvzce:seed_cooldown_multiplier",
@@ -74,13 +70,30 @@ public final class RulePage {
                 page.field(FieldWidgets.bool(path, label, "开", "关",
                         Optional.of(Boolean.TRUE.equals(booleanRule.defaultValue()))));
             } else {
-                float[] range = RANGES.getOrDefault(id.toString(), new float[]{0F, 1F});
+                float[] range = sliderRange(id, type);
                 float fallback = type.defaultValue() instanceof Number number ? number.floatValue() : range[0];
                 page.field(FieldWidgets.number(path, label, range[0], range[1],
-                        INTEGER_RULES.contains(id.toString()), Optional.of(fallback)));
+                        type.integral(), Optional.of(fallback)));
             }
         }
         return page.build();
+    }
+
+    /**
+     * The range the page offers for one rule.
+     *
+     * <p>Package-private so a test can walk every registered rule and check that the page never
+     * offers less than the server accepts - which is exactly how {@code sun_value} came to be
+     * editable only up to 500.
+     */
+    static float[] sliderRange(Identifier id, GameRuleType<?> type) {
+        float[] bounds = type.bounds();
+        if (bounds == null) {
+            // A numeric rule type with no bounds would silently get a 0..1 slider and clamp away
+            // everything the author typed; failing here says which registration is incomplete.
+            throw new IllegalStateException("Rule " + id + " is numeric but declares no bounds");
+        }
+        return NARROWER_SLIDER.getOrDefault(id.toString(), bounds);
     }
 
     /** Every registered rule: the page's own order first, then anything a mod added. */

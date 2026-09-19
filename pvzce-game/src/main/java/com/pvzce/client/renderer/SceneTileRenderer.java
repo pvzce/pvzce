@@ -3,6 +3,7 @@ package com.pvzce.client.renderer;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.renderer.liquid.LiquidTextures;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -45,8 +46,8 @@ public final class SceneTileRenderer {
             renderGrassMargin(client, width, height, margin);
         }
         Map<String, List<Cell>> layers = collectLayers(width, height, scene);
-        int blocksX = ceilDiv(Math.max(1, width), TILE_CELLS);
-        int blocksY = ceilDiv(Math.max(1, height), TILE_CELLS);
+        int blocksX = MathUtil.ceilDiv(Math.max(1, width), TILE_CELLS);
+        int blocksY = MathUtil.ceilDiv(Math.max(1, height), TILE_CELLS);
 
         for (Map.Entry<String, List<Cell>> layer : layers.entrySet()) {
             String sceneId = layer.getKey();
@@ -257,10 +258,6 @@ public final class SceneTileRenderer {
 
     private static Identifier textureFor(String sceneId) {
         return sceneTexture(sceneId);
-    }
-
-    private static int ceilDiv(int value, int divisor) {
-        return com.pvzce.common.util.MathUtil.ceilDiv(value, divisor);
     }
 
     private record Cell(int x, int y) {

@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -16,19 +17,22 @@ public record ResourceCollectS2C(int entityId, String resourceId, int amount,
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<ResourceCollectS2C> CODEC = PacketStruct.<ResourceCollectS2C>builder()
+    .field(ResourceCollectS2C::entityId, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(ResourceCollectS2C::resourceId, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(ResourceCollectS2C::amount, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(ResourceCollectS2C::x, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(ResourceCollectS2C::y, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(ResourceCollectS2C::height, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(ResourceCollectS2C::icon, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new ResourceCollectS2C((Integer) values.get(0), (String) values.get(1), (Integer) values.get(2), (Float) values.get(3), (Float) values.get(4), (Float) values.get(5), (String) values.get(6)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeInt(entityId);
-        buf.writeString(resourceId);
-        buf.writeInt(amount);
-        buf.writeFloat(x);
-        buf.writeFloat(y);
-        buf.writeFloat(height);
-        buf.writeString(icon);
+        CODEC.encode(this, buf);
     }
 
     public static ResourceCollectS2C decode(PacketByteBuf buf) {
-        return new ResourceCollectS2C(buf.readInt(), buf.readString(), buf.readInt(),
-                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readString());
+        return CODEC.decode(buf);
     }
 }

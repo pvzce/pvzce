@@ -2,10 +2,10 @@ package com.pvzce.common.resource;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * enumerates every level file, and the id inside a file is what identifies it.
  */
 class LevelFileLookupTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     private static final String PREFIX = "data/pvzce/levels/";
 
     /** Writes one level JSON under a pack and returns the resource-manager view of it. */
@@ -48,7 +52,6 @@ class LevelFileLookupTest {
     @Test
     void aLevelIsFoundByTheIdInsideTheFileNotByItsPath() throws Exception {
         BuiltInRegistries.bootstrap();
-        Path gameDir = Files.createTempDirectory("pvzce-level-lookup");
         // Deliberately nested and with a name unrelated to the id: a path derived from
         // "pvzce:arena" would be data/pvzce/levels/arena.json and would miss it.
         Path file = gameDir.resolve("datapacks/user_levels/data/pvzce/levels/tier1/boss.json");
@@ -72,7 +75,6 @@ class LevelFileLookupTest {
     @Test
     void aUserLevelOverridesTheBuiltInOneOfTheSameId() throws Exception {
         TestContent.loadBuiltInContentAndTags();
-        Path gameDir = Files.createTempDirectory("pvzce-level-override");
         Path file = gameDir.resolve("datapacks/user_levels/data/pvzce/levels/demo_level.json");
         Files.createDirectories(file.getParent());
         // Same id as the built-in level: the pack stack must hand back this one, so the

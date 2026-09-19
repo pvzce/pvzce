@@ -1,18 +1,22 @@
 package com.pvzce.client.config;
 
+import com.pvzce.common.util.WorldPaths;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 /** M5: TOML volume config round-trip. */
 class PvzceClientConfigTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path dir;
     @Test
     void configRoundTripsAndClamps() throws Exception {
-        Path dir = Files.createTempDirectory("pvzce-config");
         PvzceClientConfig config = PvzceClientConfig.load(dir);
         assertEquals(PvzceClientConfig.DEFAULT_MASTER, config.masterVolume(), 0.0001F);
 
@@ -32,7 +36,6 @@ class PvzceClientConfigTest {
 
     @Test
     void videoDefaultsAndRoundTripAreMcLike() throws Exception {
-        Path dir = Files.createTempDirectory("pvzce-config-video");
         PvzceClientConfig config = PvzceClientConfig.load(dir);
         assertEquals(PvzceClientConfig.DEFAULT_MAX_FPS, config.maxFps());
         assertEquals(PvzceClientConfig.DEFAULT_VSYNC, config.vsync());
@@ -64,5 +67,25 @@ class PvzceClientConfigTest {
 
         loaded.setMaxFps(9999);
         assertEquals(PvzceClientConfig.UNLIMITED_FPS, loaded.maxFps());
+    }
+
+    /**
+     * Who is playing survives a restart, which is the only reason the key exists.
+     *
+     * <p>A world name is a directory name, so the value is sanitised on the way in: the name in
+     * the file and the directory the menu then opens cannot disagree.
+     */
+    @Test
+    void rememberedWorldRoundTripsAndIsSanitised() throws Exception {
+        PvzceClientConfig config = PvzceClientConfig.load(dir);
+        assertEquals(PvzceClientConfig.DEFAULT_WORLD, config.lastWorld(),
+                "an unwritten config plays as the default player");
+
+        config.setLastWorld("my save");
+        config.save();
+
+        PvzceClientConfig loaded = PvzceClientConfig.load(dir);
+        assertEquals("my_save", loaded.lastWorld(), "the same rule the save directory uses");
+        assertEquals(WorldPaths.worldDir(dir, "my save").getFileName().toString(), loaded.lastWorld());
     }
 }

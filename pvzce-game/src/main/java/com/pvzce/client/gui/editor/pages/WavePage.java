@@ -9,10 +9,12 @@ import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.EditBox;
 import com.pvzce.client.gui.components.PaletteList;
 import com.pvzce.client.gui.editor.EditorContext;
+import com.pvzce.client.gui.screens.ListEditorSupport;
 import com.pvzce.client.gui.editor.EditorPage;
 import com.pvzce.client.gui.editor.LevelFileWriter;
 import com.pvzce.client.gui.screens.WaveEditorModel;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -92,7 +94,7 @@ public final class WavePage implements EditorPage {
         int y = area.y();
         int w = area.width();
         int h = area.height();
-        int rowH = clamp(h / 16, 26, 34);
+        int rowH = MathUtil.clamp(h / 16, 26, 34);
         int pad = 8;
         int gap = 10;
 
@@ -104,7 +106,7 @@ public final class WavePage implements EditorPage {
         int tableTop = y + h - rowH - pad - 20;
         int tableH = Math.max(60, tableTop - (y + rowH + pad + 20));
         waveList = context.own(new AbstractSelectionList<WaveEditorModel.WaveModel>(x, y + rowH + pad + 20,
-                tableW, tableH, clamp(tableH / 8, 30, 44), (renderClient, wave, rx, ry) -> {
+                tableW, tableH, MathUtil.clamp(tableH / 8, 30, 44), (renderClient, wave, rx, ry) -> {
         }));
         waveList.setEntryRenderer(this::renderWaveRow);
         waveList.setEntries(new ArrayList<>(waveConfig.waves));
@@ -144,9 +146,9 @@ public final class WavePage implements EditorPage {
         int listH = Math.max(50, listTop - listBottom);
         int listW = Math.max(80, (detailW - pad * 2 - gap) / 2);
         waveEntryList = context.own(new PaletteList(detailX, listBottom, listW, listH,
-                clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
+                MathUtil.clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
         waveZombieList = context.own(new PaletteList(detailX + listW + gap, listBottom, listW, listH,
-                clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
+                MathUtil.clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
         waveZombieList.setItems(BuiltInRegistries.ZOMBIES.keySet().stream()
                 .sorted()
                 .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, id, null))
@@ -315,11 +317,9 @@ public final class WavePage implements EditorPage {
             return;
         }
         entry.count = GuiText.parseInt(waveCountBox.value(), entry.count, 1, 9999);
-        int index = waveEntryList.selectedIndex();
         refreshWaveDetail(context);
-        if (index >= 0) {
-            waveEntryList.select(index);
-        }
+        // The entry is the same object; only its row may have moved.
+        waveEntryList.select(currentWave().entries.indexOf(entry));
     }
 
     private void cycleWaveType(EditorContext context) {
@@ -332,47 +332,43 @@ public final class WavePage implements EditorPage {
             case "final" -> "small";
             default -> "huge";
         };
-        int index = waveList.selectedIndex();
-        waveList.setEntries(new ArrayList<>(waveConfig.waves));
-        if (index >= 0) {
-            waveList.select(index);
-        }
+        ListEditorSupport.refresh(waveList, new ArrayList<>(waveConfig.waves), wave);
         refreshWaveDetail(context);
     }
 
     private void addWave(EditorContext context) {
-        waveConfig.waves.add(new WaveEditorModel.WaveModel());
+        WaveEditorModel.WaveModel wave = new WaveEditorModel.WaveModel();
+        waveConfig.waves.add(wave);
         waveList.setEntries(new ArrayList<>(waveConfig.waves));
         waveList.select(waveConfig.waves.size() - 1);
         refreshWaveDetail(context);
     }
 
+    /**
+     * Removes the selected wave.
+     *
+     * <p>Used to have a branch for "nothing selected": it deleted the <em>last</em> wave, so a
+     * click that landed on no row would silently drop an entry the author never chose. The list
+     * always has a selection once it has rows, so the branch only ever fired on a state that
+     * should not exist - and now nothing happens instead of something surprising.
+     */
     private void removeWave(EditorContext context) {
-        int index = waveList == null ? -1 : waveList.selectedIndex();
-        if (index < 0 || index >= waveConfig.waves.size()) {
-            if (!waveConfig.waves.isEmpty()) {
-                waveConfig.waves.remove(waveConfig.waves.size() - 1);
-            }
-        } else {
-            waveConfig.waves.remove(index);
-        }
+        WaveEditorModel.WaveModel wave = waveList == null ? null : waveList.selected();
+        WaveEditorModel.WaveModel next = ListEditorSupport.remove(waveConfig.waves, wave);
         waveList.setEntries(new ArrayList<>(waveConfig.waves));
-        if (!waveConfig.waves.isEmpty()) {
-            waveList.select(Math.min(Math.max(index, 0), waveConfig.waves.size() - 1));
+        if (next != null) {
+            waveList.select(waveConfig.waves.indexOf(next));
         }
         refreshWaveDetail(context);
     }
 
     private void moveWave(EditorContext context, int delta) {
-        int index = waveList == null ? -1 : waveList.selectedIndex();
-        int target = index + delta;
-        if (index < 0 || target < 0 || target >= waveConfig.waves.size()) {
+        WaveEditorModel.WaveModel wave = waveList == null ? null : waveList.selected();
+        if (!ListEditorSupport.move(waveConfig.waves, wave, delta)) {
             return;
         }
-        WaveEditorModel.WaveModel wave = waveConfig.waves.remove(index);
-        waveConfig.waves.add(target, wave);
         waveList.setEntries(new ArrayList<>(waveConfig.waves));
-        waveList.select(target);
+        waveList.select(waveConfig.waves.indexOf(wave));
         refreshWaveDetail(context);
     }
 
@@ -447,7 +443,4 @@ public final class WavePage implements EditorPage {
         }
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

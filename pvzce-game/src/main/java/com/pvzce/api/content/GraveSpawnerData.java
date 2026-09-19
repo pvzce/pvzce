@@ -19,7 +19,7 @@ import java.util.List;
  *
  * <pre>
  * { "type": "pvzce:grave_spawner",
- *   "min_graves": 5, "initial_graves": 9, "interval": 420,
+ *   "min_graves": 5, "initial_graves": 9, "interval": 420, "graves_per_wave": 1,
  *   "zombies": ["pvzce:basic_zombie", "pvzce:conehead_zombie"],
  *   "min_x": 4, "max_x": 8 }
  * </pre>
@@ -41,9 +41,16 @@ import java.util.List;
  * @param interval      ticks between one grave raising a zombie and the next
  * @param minX          first column of the region graves may appear in
  * @param maxX          last column of it, inclusive; -1 (or unwritten) means the level's last
+ * @param gravesPerWave how many graves every arriving wave adds to the standing count, so the
+ *                      lawn gets more crowded the deeper the run is: with a floor of nine and a
+ *                      step of one, the sixth wave is fought around fifteen gravestones rather
+ *                      than nine, and each grave buster buys less room than the last. Zero (the
+ *                      default) keeps a level's gravel count steady, which is what a level that
+ *                      only wants the graves to come back needs
  */
 public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int initialGraves,
-                               int interval, int minX, int maxX) implements MechanicData {
+                               int interval, int minX, int maxX, int gravesPerWave)
+        implements MechanicData {
     /** {@code initial_graves} unwritten: raise as many as {@code min_graves}. */
     public static final int INITIAL_AS_MINIMUM = -1;
     /** {@code max_x} unwritten: the level's own last column. */
@@ -58,7 +65,8 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
                     .forGetter(GraveSpawnerData::initialGraves),
             Codec.INT.optionalFieldOf("interval", DEFAULT_INTERVAL).forGetter(GraveSpawnerData::interval),
             Codec.INT.optionalFieldOf("min_x", 0).forGetter(GraveSpawnerData::minX),
-            Codec.INT.optionalFieldOf("max_x", MAX_X_UNSET).forGetter(GraveSpawnerData::maxX)
+            Codec.INT.optionalFieldOf("max_x", MAX_X_UNSET).forGetter(GraveSpawnerData::maxX),
+            Codec.INT.optionalFieldOf("graves_per_wave", 0).forGetter(GraveSpawnerData::gravesPerWave)
     ).apply(i, GraveSpawnerData::new));
 
     public static final Codec<GraveSpawnerData> CODEC = MAP_CODEC.codec();
@@ -69,6 +77,7 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
         initialGraves = initialGraves < 0 ? minGraves : initialGraves;
         interval = Math.max(1, interval);
         minX = Math.max(0, minX);
+        gravesPerWave = Math.max(0, gravesPerWave);
     }
 
     /** The region a new grave may appear in, clamped to a board {@code width} columns wide. */
@@ -80,6 +89,17 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
     /** How many graves the level opens with. */
     public int initialFor() {
         return Math.max(initialGraves, minGraves);
+    }
+
+    /**
+     * How many graves stand on the lawn once {@code wavesArrived} waves have arrived.
+     *
+     * <p>The one place the growth is spelled out: the mechanic keeps the lawn up to this count
+     * and nothing else has to know how the number was reached. Zero waves is the opening board,
+     * so a level with no growth declared reads as its own {@code min_graves} at every wave.
+     */
+    public int standingTarget(int wavesArrived) {
+        return minGraves + gravesPerWave * Math.max(0, wavesArrived);
     }
 
     /** True when this block can never raise a grave, and is therefore worth reporting. */

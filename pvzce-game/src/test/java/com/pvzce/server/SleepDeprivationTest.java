@@ -6,6 +6,7 @@ import com.pvzce.api.content.LevelUnlock;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.core.Slot;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.nbt.CompoundTag;
@@ -20,12 +21,13 @@ import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.ZombieEntity;
-import com.pvzce.server.level.LevelKey;
+import com.pvzce.common.util.LevelKey;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.LevelValidator;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,6 +49,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * level's.
  */
 class SleepDeprivationTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     private static final Identifier LEVEL = PvzceIds.id("yard/minigame/sleep_deprivation");
     private static final String WORLD = "minigameworld";
     private static com.pvzce.common.resource.PvzceResourceManager resources;
@@ -214,7 +220,6 @@ class SleepDeprivationTest {
      */
     @Test
     void aResourceRewardBanksItsWorthAndTravelsAsAnItem() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-diamond-reward");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             writeLevel(gameDir, "diamond_reward_test", """
                     {
@@ -240,7 +245,7 @@ class SleepDeprivationTest {
 
             harness.send(new PlayLevelC2S("pvzce:diamond_reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
-            winLevel(harness);
+            harness.winByClearingTheField();
 
             LevelRewardS2C first = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("pvzce:diamond", first.rewardItem(),
@@ -264,7 +269,7 @@ class SleepDeprivationTest {
             harness.send(new PlayLevelC2S("pvzce:diamond_reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             harness.clear();
-            winLevel(harness);
+            harness.winByClearingTheField();
 
             LevelRewardS2C repeat = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("", repeat.rewardItem(), "a replay pays coins, not a second diamond");
@@ -280,7 +285,6 @@ class SleepDeprivationTest {
      */
     @Test
     void theLevelListCarriesWhetherTheLevelWasEverBeaten() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-minigame-trophy");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             assertFalse(row(harness, WORLD).cleared(), "nothing has been beaten in a fresh world");
 
@@ -315,27 +319,6 @@ class SleepDeprivationTest {
         harness.send(new CommandC2S("/reload"));
         harness.awaitPacket(LevelListS2C.class, 8_000);
         harness.clear();
-    }
-
-    /**
-     * Wins the running level by clearing every zombie and every wave.
-     *
-     * <p>Damage is applied directly rather than through a peashooter: what is under test is
-     * the payout, and {@code CombatSystemsTest} already covers shooting.
-     */
-    private static void winLevel(ServerHarness harness) throws Exception {
-        harness.waitForCondition(() -> {
-            LevelServer level = harness.server().level();
-            if (level == null) {
-                return false;
-            }
-            if (level.aliveZombieCount() > 0) {
-                level.damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), 0F, 0F, 500F, 100_000,
-                        level.team(PvzceIds.PLANT_TEAM));
-            }
-            return level.gameState().equals(GameStateS2C.WON)
-                    && level.winner() != null && level.winner().equals(PvzceIds.PLANT_TEAM);
-        }, 15_000);
     }
 
     private static LevelListS2C.LevelInfo find(LevelListS2C list, Identifier id) {

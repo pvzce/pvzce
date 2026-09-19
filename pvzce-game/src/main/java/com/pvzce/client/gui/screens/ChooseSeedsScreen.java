@@ -13,7 +13,7 @@ import com.pvzce.client.renderer.LevelStage;
 import com.pvzce.client.renderer.SceneTileRenderer;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.SeedOption;
-import org.lwjgl.opengl.GL11;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -348,9 +348,9 @@ public final class ChooseSeedsScreen extends Screen {
         float margin = Math.max(4F, guiH * 0.008F);
         panelPad = Math.max(8F, Math.min(guiW * 0.018F, guiH * 0.035F));
 
-        cardH = clamp(guiH * CARD_HEIGHT_RATIO, CARD_MIN_HEIGHT, CARD_MAX_HEIGHT);
+        cardH = MathUtil.clamp(guiH * CARD_HEIGHT_RATIO, CARD_MIN_HEIGHT, CARD_MAX_HEIGHT);
         cardW = cardH * CARD_ASPECT;
-        cardGap = clamp(cardW * 0.18F, 3F, 14F);
+        cardGap = MathUtil.clamp(cardW * 0.18F, 3F, 14F);
         sectionGap = cardGap * 1.7F;
 
         // Chosen seeds share the pool's card size and sit just above the panel.
@@ -384,12 +384,12 @@ public final class ChooseSeedsScreen extends Screen {
                 gridHeight += sectionGap;
             }
         }
-        panelW = clamp(widestRow + panelPad * 2F, minPanelW, maxPanelW);
+        panelW = MathUtil.clamp(widestRow + panelPad * 2F, minPanelW, maxPanelW);
 
         // Bottom action row: clear on the left, start on the right.
-        float buttonH = clamp(cardH * 0.5F, 18F, 42F);
-        float startW = clamp(panelW * 0.36F, 56F, 160F);
-        float clearW = clamp(panelW * 0.24F, 42F, 120F);
+        float buttonH = MathUtil.clamp(cardH * 0.5F, 18F, 42F);
+        float startW = MathUtil.clamp(panelW * 0.36F, 56F, 160F);
+        float clearW = MathUtil.clamp(panelW * 0.24F, 42F, 120F);
         float buttonsGap = Math.max(6F, panelW * 0.04F);
         float buttonTotal = startW + clearW + buttonsGap;
         float buttonAvailable = panelW - panelPad * 2F;
@@ -425,7 +425,7 @@ public final class ChooseSeedsScreen extends Screen {
         // The bar is the 20px top slice plus the first rows of the tiled wood.
         float panelScale = Math.min(panelH / PANEL_NATIVE_HEIGHT, panelW / PANEL_NATIVE_WIDTH);
         float topBarH = PANEL_BAR_NATIVE * panelScale;
-        titleScale = Math.min(clamp(guiH / 240F, 0.66F, 1.30F),
+        titleScale = Math.min(MathUtil.clamp(guiH / 240F, 0.66F, 1.30F),
                 Math.max(0.25F, topBarH * 0.78F / 18F));
         float titleLineH = client.font().lineHeight(titleScale);
         titleY = panelTop - topBarH + (topBarH - titleLineH) / 2F;
@@ -444,7 +444,7 @@ public final class ChooseSeedsScreen extends Screen {
         // A sub-pixel shortfall must not pop a scrollbar into existence.
         float overflow = gridHeight - gridRegionH;
         gridMaxScroll = overflow > 1F ? overflow : 0F;
-        gridScroll = clamp(gridScroll, 0F, gridMaxScroll);
+        gridScroll = MathUtil.clamp(gridScroll, 0F, gridMaxScroll);
         gridViewTop = gridRegionTop;
         // With room to spare the pool ends above the action row; the clip has
         // to follow the grid so that last row is not cut off.
@@ -669,24 +669,24 @@ public final class ChooseSeedsScreen extends Screen {
 
     private float panelProgress() {
         if (exitNanos != 0L) {
-            return 1F - easeOut(exitProgress());
+            return 1F - MathUtil.easeOutCubic(exitProgress());
         }
         if (dialogueActive()) {
             return 0F;
         }
         long elapsed = System.nanoTime() - panStart();
-        return easeOut(clamp01((elapsed - PANEL_DELAY_NANOS) / (float) PANEL_SLIDE_NANOS));
+        return MathUtil.easeOutCubic(MathUtil.clamp01((elapsed - PANEL_DELAY_NANOS) / (float) PANEL_SLIDE_NANOS));
     }
 
     private float panProgress() {
         if (exitNanos != 0L) {
-            return 1F - easeInOut(exitProgress());
+            return 1F - MathUtil.easeInOut(exitProgress());
         }
         if (dialogueActive()) {
             return 0F;
         }
         long elapsed = System.nanoTime() - panStart();
-        return easeInOut(clamp01(elapsed / (float) PAN_NANOS));
+        return MathUtil.easeInOut(MathUtil.clamp01(elapsed / (float) PAN_NANOS));
     }
 
     /**
@@ -714,7 +714,7 @@ public final class ChooseSeedsScreen extends Screen {
 
     /** 0..1 through the exit beat; the start packet goes out when it reaches 1. */
     private float exitProgress() {
-        return clamp01((System.nanoTime() - exitNanos) / (float) exitDurationNanos());
+        return MathUtil.clamp01((System.nanoTime() - exitNanos) / (float) exitDurationNanos());
     }
 
     /** How long the exit beat lasts: panel and camera together, or just the camera. */
@@ -724,7 +724,7 @@ public final class ChooseSeedsScreen extends Screen {
 
     private float previewProgress() {
         long elapsed = System.nanoTime() - startNanos;
-        return clamp01((elapsed - PREVIEW_DELAY_NANOS) / (float) PREVIEW_FADE_NANOS);
+        return MathUtil.clamp01((elapsed - PREVIEW_DELAY_NANOS) / (float) PREVIEW_FADE_NANOS);
     }
 
     private float panelCurrentX() {
@@ -860,7 +860,7 @@ public final class ChooseSeedsScreen extends Screen {
         }
         int delta = amount > 0 ? -1 : 1;
         float next = gridScroll + delta * (cardH + cardGap);
-        float clamped = clamp(next, 0F, gridMaxScroll);
+        float clamped = MathUtil.clamp(next, 0F, gridMaxScroll);
         if (Math.abs(clamped - gridScroll) > 0.001F) {
             gridScroll = clamped;
             updateLayout();
@@ -974,10 +974,10 @@ public final class ChooseSeedsScreen extends Screen {
             float cellY = worldBottom + offsetY + i * spacing;
             entity.update(0F, cellY, entity.health(), "idle", 0.36F);
             if (!client.animations().render(entity)) {
-                Identifier parsed = entity.defId();
-                Identifier texture = parsed == null
-                        ? Identifier.withDefaultNamespace("textures/entities/unknown")
-                        : Identifier.of(parsed.namespace(), "textures/entities/" + parsed.path());
+                // Same resolver the in-game card bar uses: a modded entity's sprite has to be
+                // its own namespace on both screens, and "textures/entities/<path>" is only the
+                // convention for content that declares no texture of its own.
+                Identifier texture = com.pvzce.client.renderer.EntityTextures.forEntity(entity.defId());
                 client.drawTexture(texture, -0.35F, cellY, 0.7F, 1.0F, 0.4F, 1F, 1F, 1F, alpha);
             }
         }
@@ -1046,7 +1046,7 @@ public final class ChooseSeedsScreen extends Screen {
                 ? "已选 " + selectedOrder.size() + "/" + maxSeedSlots
                 : "已选 " + selectedOrder.size() + "/" + maxSeedSlots
                         + "（锁定 " + lockedSlots.size() + "）";
-        float counterScale = clamp(panelW / 360F, 0.58F, 0.9F);
+        float counterScale = MathUtil.clamp(panelW / 360F, 0.58F, 0.9F);
         client.font().draw(counter,
                 currentPanelX + panelW - titleInset - client.font().width(counter, counterScale),
                 titleY, counterScale, 1F, 0.95F, 0.62F, alpha);
@@ -1056,13 +1056,13 @@ public final class ChooseSeedsScreen extends Screen {
         // reading as the screen closing on its own.
         if (hasNothingToChoose()) {
             String hint = "本关卡组固定，即将开始";
-            float hintScale = clamp(panelW / 420F, 0.5F, 0.72F);
+            float hintScale = MathUtil.clamp(panelW / 420F, 0.5F, 0.72F);
             client.font().draw(hint, currentPanelX + titleInset, titleY - client.font().lineHeight(hintScale) - 2F,
                     hintScale, 1F, 0.88F, 0.5F, alpha);
         }
 
         if (levelName != null && !levelName.isBlank()) {
-            float levelScale = clamp(panelW / 420F, 0.5F, 0.75F);
+            float levelScale = MathUtil.clamp(panelW / 420F, 0.5F, 0.75F);
             float available = startButtonX - (clearButtonX + clearButtonW) - 8F;
             if (available >= 24F) {
                 float width = client.font().width(levelName, levelScale);
@@ -1163,7 +1163,7 @@ public final class ChooseSeedsScreen extends Screen {
         Iterator<Flight> iterator = flights.iterator();
         while (iterator.hasNext()) {
             Flight flight = iterator.next();
-            float progress = clamp01((now - flight.startNanos) / (float) FLY_NANOS);
+            float progress = MathUtil.clamp01((now - flight.startNanos) / (float) FLY_NANOS);
             if (progress >= 1F) {
                 iterator.remove();
                 continue;
@@ -1173,10 +1173,10 @@ public final class ChooseSeedsScreen extends Screen {
                 iterator.remove();
                 continue;
             }
-            float eased = easeOut(progress);
+            float eased = MathUtil.easeOutCubic(progress);
             float[] target = topSlotCenter(targetIndex, shift);
-            float x = lerp(flight.startX, target[0], eased);
-            float y = lerp(flight.startY, target[1], eased);
+            float x = MathUtil.lerp(flight.startX, target[0], eased);
+            float y = MathUtil.lerp(flight.startY, target[1], eased);
             y += (float) Math.sin(Math.PI * progress) * 26F;
             float size = cardW + (topCardW - cardW) * eased;
             float height = cardH + (topCardH - cardH) * eased;
@@ -1267,27 +1267,6 @@ public final class ChooseSeedsScreen extends Screen {
         }
         client.drawTexture(SUN_BANK, x + (width - bankW) / 2F, y + (height - bankH) / 2F,
                 bankW, bankH, 0.2F, brightness, brightness, brightness, alpha);
-    }
-
-    private static float clamp01(float value) {
-        return com.pvzce.common.util.MathUtil.clamp01(value);
-    }
-
-    private static float clamp(float value, float min, float max) {
-        return com.pvzce.common.util.MathUtil.clamp(value, min, max);
-    }
-
-    private static float easeOut(float value) {
-        float inverse = 1F - value;
-        return 1F - inverse * inverse * inverse;
-    }
-
-    private static float easeInOut(float value) {
-        return com.pvzce.common.util.MathUtil.easeInOut(value);
-    }
-
-    private static float lerp(float from, float to, float delta) {
-        return from + (to - from) * delta;
     }
 
     private static String path(String id) {

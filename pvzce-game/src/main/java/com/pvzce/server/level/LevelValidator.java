@@ -48,31 +48,6 @@ public final class LevelValidator {
     }
 
     /**
-     * Reports keys that used to be level fields and are now mechanics.
-     *
-     * <p>The old spelling is not silently accepted: a level still written with a top-level
-     * {@code "conveyor"} block would load as an ordinary level with no belt, and the
-     * symptom - "the cards never come" - points at nothing. The message names the block to
-     * write instead. Called by {@code PvzceDataLoader} on every level it reads, because
-     * this is a property of the file rather than of the decoded definition.
-     */
-    public static List<String> validateLegacyKeys(com.google.gson.JsonObject raw) {
-        List<String> errors = new ArrayList<>();
-        if (raw == null) {
-            return errors;
-        }
-        if (raw.has("conveyor")) {
-            errors.add("This level's top-level \"conveyor\" block is now a mechanic: move it into "
-                    + "\"mechanics\": [ { \"type\": \"pvzce:conveyor\", ... } ]");
-        }
-        if (raw.has("placement_zone")) {
-            errors.add("This level's top-level \"placement_zone\" block is now a mechanic: move it into "
-                    + "\"mechanics\": [ { \"type\": \"pvzce:placement_zone\", ... } ]");
-        }
-        return errors;
-    }
-
-    /**
      * Reports reward entries the simulation cannot carry out.
      *
      * <p>{@code type} is a string discriminator rather than a codec-built sum type,

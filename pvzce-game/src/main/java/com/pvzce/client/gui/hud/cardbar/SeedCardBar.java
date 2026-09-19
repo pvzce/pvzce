@@ -15,12 +15,9 @@ import java.util.List;
  * (pause, speed) are rebuilt when the window is resized.
  */
 public final class SeedCardBar implements CardBar {
-    /** The SunBank is HUD, not a card; it is drawn in the corner instead of in the row. */
+    /** The SunBank is HUD, not a card; it is drawn in the corner instead of in the row, and
+     * {@link CardBarLayout} is where its rectangle and the room it takes live. */
     private static final String SUN_CARD_ID = com.pvzce.common.PvzceIds.SUN.toString();
-    private static final int BANK_MARGIN = 12;
-    private static final int BANK_WIDTH = 70;
-    private static final int BANK_HEIGHT = 78;
-    private static final int BANK_GAP = 8;
 
     private final Host host;
     private int cardScrollOffset;
@@ -161,7 +158,7 @@ public final class SeedCardBar implements CardBar {
         PvzceClient client = host.client();
         int guiW = client.guiWidth();
         int guiH = client.guiHeight();
-        int left = BANK_MARGIN + (host.hasSunBank() ? BANK_WIDTH + BANK_GAP : 0);
+        int left = CardBarLayout.cardsLeft(host.hasSunBank());
         int right = (int) host.rightBound();
         viewportX = left;
         viewportWidth = Math.max(120, right - left);

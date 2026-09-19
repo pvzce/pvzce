@@ -24,13 +24,11 @@ import com.pvzce.server.PvzceTickRateManager;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
 import static com.mojang.brigadier.arguments.IntegerArgumentType.integer;
-import static com.mojang.brigadier.arguments.StringArgumentType.word;
 import static com.mojang.brigadier.builder.RequiredArgumentBuilder.argument;
 
 /** Brigadier command tree (MC-shaped) for PVZCE. */
@@ -560,11 +558,14 @@ public final class PvzceCommands {
                                     }
                                     Identifier resource = ctx.getArgument("resource", Identifier.class);
                                     Team team = level.team(PvzceIds.PLANT_TEAM);
-                                    if (BuiltInRegistries.RESOURCES.get(resource) == null || team == null) {
+                                    var def = BuiltInRegistries.RESOURCES.get(resource);
+                                    if (def == null || team == null) {
                                         ctx.getSource().sendFeedback("未知资源 " + resource);
                                         return 0;
                                     }
-                                    level.spawnResource(resource, 25,
+                                    // One unit at the value the resource declares, so /summon
+                                    // agrees with what the same resource is worth when it drops.
+                                    level.spawnResource(resource, def.defaultValue(),
                                             ctx.getArgument("x", Integer.class),
                                             ctx.getArgument("y", Integer.class), team);
                                     ctx.getSource().sendFeedback("已生成掉落物 " + resource);

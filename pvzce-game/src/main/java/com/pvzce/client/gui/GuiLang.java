@@ -6,6 +6,8 @@ import com.google.gson.JsonParser;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.resource.PvzceResourceManager;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,6 +32,8 @@ import java.util.Map;
  * value; it is loaded once at client start and again on {@code /reload}.
  */
 public final class GuiLang {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Lang");
     /** The locale the built-in files are authored in; also the fallback. */
     public static final String DEFAULT_LOCALE = "zh_cn";
 
@@ -79,7 +83,7 @@ public final class GuiLang {
                 }
             }
         } catch (Exception e) {
-            System.err.println("[PVZCE] Could not list language files: " + e.getMessage());
+            LOGGER.warn("Could not list language files", e);
         }
         java.util.Collections.sort(namespaces);
         // The built-in namespace is read last so a pack's translation wins while the
@@ -103,8 +107,7 @@ public final class GuiLang {
                     }
                 }
             } catch (Exception e) {
-                System.err.println("[PVZCE] Failed to read lang/" + wantedLocale
-                        + ".json from " + namespace + ": " + e.getMessage());
+                LOGGER.warn("Failed to read lang/" + wantedLocale + ".json from " + namespace, e);
             }
         }
         return result;

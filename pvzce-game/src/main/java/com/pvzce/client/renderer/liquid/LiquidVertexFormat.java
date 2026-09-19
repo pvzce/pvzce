@@ -1,6 +1,5 @@
 package com.pvzce.client.renderer.liquid;
 
-import com.pvzce.client.renderer.vertex.VertexFormat;
 
 /**
  * Vertex layout for the liquid pass: the shared sprite layout plus four floats
@@ -47,8 +46,6 @@ public final class LiquidVertexFormat {
 
     public static final int VERTEX_FLOATS =
             POSITION_COMPONENTS + COLOR_COMPONENTS + UV_COMPONENTS + LIQUID_COMPONENTS;
-
-    public static final VertexFormat FORMAT = new VertexFormat(VERTEX_FLOATS);
 
     private LiquidVertexFormat() {
     }

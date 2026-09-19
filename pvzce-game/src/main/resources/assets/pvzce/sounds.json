@@ -239,14 +239,6 @@
       }
     ]
   },
-  "sfx/ambient/choose_your_seeds": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/choose_your_seeds",
-        "stream": true
-      }
-    ]
-  },
   "sfx/plant/coblaunch": {
     "sounds": [
       {
@@ -268,14 +260,6 @@
       {
         "name": "pvzce:sounds/sfx/ui/coin",
         "stream": false
-      }
-    ]
-  },
-  "sfx/misc/crazy_dave": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/crazy_dave",
-        "stream": true
       }
     ]
   },
@@ -524,14 +508,6 @@
       {
         "name": "pvzce:sounds/sfx/effect/grassstep",
         "stream": false
-      }
-    ]
-  },
-  "sfx/misc/grasswalk": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/grasswalk",
-        "stream": true
       }
     ]
   },
@@ -823,22 +799,6 @@
       }
     ]
   },
-  "sfx/misc/loon_boon": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/loon_boon",
-        "stream": true
-      }
-    ]
-  },
-  "sfx/ui/losemusic": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/losemusic",
-        "stream": false
-      }
-    ]
-  },
   "sfx/zombie/lowgroan": {
     "sounds": [
       {
@@ -896,14 +856,6 @@
       {
         "name": "pvzce:sounds/sfx/ui/moneyfalls",
         "stream": false
-      }
-    ]
-  },
-  "sfx/misc/moongrains": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/moongrains",
-        "stream": true
       }
     ]
   },
@@ -1359,14 +1311,6 @@
       }
     ]
   },
-  "sfx/misc/ultimate_battle": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/ultimate_battle",
-        "stream": true
-      }
-    ]
-  },
   "sfx/effect/vase_breaking": {
     "sounds": [
       {
@@ -1399,14 +1343,6 @@
       }
     ]
   },
-  "sfx/ui/winmusic": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/winmusic",
-        "stream": false
-      }
-    ]
-  },
   "sfx/zombie/yuck": {
     "sounds": [
       {
@@ -1428,14 +1364,6 @@
       {
         "name": "pvzce:sounds/sfx/zombie/zamboni",
         "stream": false
-      }
-    ]
-  },
-  "sfx/misc/zen_garden": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/zen_garden",
-        "stream": true
       }
     ]
   },
@@ -1627,22 +1555,6 @@
       },
       {
         "name": "pvzce:sounds/sfx/projectile/splat3",
-        "stream": false
-      }
-    ]
-  },
-  "sfx/ui/win": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/winmusic",
-        "stream": false
-      }
-    ]
-  },
-  "sfx/ui/lose": {
-    "sounds": [
-      {
-        "name": "pvzce:sounds/music/losemusic",
         "stream": false
       }
     ]

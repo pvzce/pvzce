@@ -3,8 +3,8 @@ package com.pvzce.common.tag;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.resource.PvzceDataLoader;
 import com.pvzce.common.resource.PvzceResourceManager;
+import com.pvzce.testutil.TestDirs;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,6 +21,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class TestContent {
     private static final AtomicInteger BOOTSTRAPS = new AtomicInteger();
+
+    /**
+     * One game directory for the whole JVM.
+     *
+     * <p>This used to be a fresh temp directory per call, and {@code loadBuiltInContent} is called
+     * by every test class that needs content: forty-odd directories per run, none of them ever
+     * deleted. The manager only reads from it, so sharing one is safe; {@link TestDirs} removes it
+     * when the JVM exits.
+     */
+    private static final Path SHARED_GAME_DIR = TestDirs.create("pvzce-test-content");
 
     private TestContent() {
     }
@@ -40,10 +50,9 @@ public final class TestContent {
         if (BOOTSTRAPS.getAndIncrement() == 0) {
             BuiltInRegistries.bootstrap();
         }
-        Path gameDir = Files.createTempDirectory("pvzce-test-content");
         PvzceResourceManager resources = new PvzceResourceManager(
                 Thread.currentThread().getContextClassLoader());
-        resources.init(gameDir);
+        resources.init(SHARED_GAME_DIR);
         PvzceDataLoader.LoadResult result = new PvzceDataLoader().load(resources, BuiltInRegistries.ACCESS);
         if (!result.errors().isEmpty()) {
             throw new IllegalStateException("built-in content failed to load: " + result.errors());

@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 import java.util.List;
@@ -33,16 +34,19 @@ public record PlayLevelC2S(String levelId, String worldName, boolean restart,
         return ConnectionDirection.SERVERBOUND;
     }
 
+    public static final PacketStruct.Codec<PlayLevelC2S> CODEC = PacketStruct.<PlayLevelC2S>builder()
+    .field(PlayLevelC2S::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(PlayLevelC2S::worldName, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(PlayLevelC2S::restart, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    .stringList(PlayLevelC2S::selectedSeeds)
+            .build(values -> new PlayLevelC2S((String) values.get(0), (String) values.get(1), (Boolean) values.get(2), (List<String>) values.get(3)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeString(levelId);
-        buf.writeString(worldName);
-        buf.writeBoolean(restart);
-        buf.writeStringList(selectedSeeds);
+        CODEC.encode(this, buf);
     }
 
     public static PlayLevelC2S decode(PacketByteBuf buf) {
-        return new PlayLevelC2S(buf.readString(), buf.readString(), buf.readBoolean(),
-                buf.readStringList());
+        return CODEC.decode(buf);
     }
 }

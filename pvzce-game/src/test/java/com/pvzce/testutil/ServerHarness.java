@@ -5,11 +5,16 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.CreateWorldC2S;
+import com.pvzce.common.network.packet.EntitySpawnS2C;
+import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.server.PvzceServer;
+import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.server.level.LevelServer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -172,6 +177,17 @@ public final class ServerHarness implements AutoCloseable {
     }
 
     public void waitFor(Predicate<PvzcePacket> condition, long timeoutMs) throws Exception {
+        waitFor(condition, timeoutMs, "waiting for a packet");
+    }
+
+    /**
+     * The same wait, with the caller's own words for what never arrived.
+     *
+     * <p>Use this rather than {@code waitForCondition(() -> server().level()...)}: the level's
+     * collections belong to the server thread, and a condition that reads them can stay false for
+     * a tick after the thing it waits for has happened.
+     */
+    public void waitFor(Predicate<PvzcePacket> condition, long timeoutMs, String what) throws Exception {
         long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
         while (System.nanoTime() < deadline) {
             pair.client().tick();
@@ -180,10 +196,21 @@ public final class ServerHarness implements AutoCloseable {
             }
             Thread.sleep(5);
         }
-        throw new AssertionError("Timed out after " + timeoutMs + "ms waiting for a packet" + state());
+        throw new AssertionError("Timed out after " + timeoutMs + "ms " + what + state());
     }
 
     public void waitForCondition(BooleanSupplier condition, long timeoutMs) throws Exception {
+        waitForCondition(condition, timeoutMs, "waiting for the server");
+    }
+
+    /**
+     * The same wait, with the caller's own words for what never happened.
+     *
+     * <p>Worth passing when the condition is a precondition rather than the thing under test:
+     * "the level's wave never produced a zombie" points at the fixture, while "timed out
+     * waiting for the server" leaves the reader to guess which of five waits failed.
+     */
+    public void waitForCondition(BooleanSupplier condition, long timeoutMs, String what) throws Exception {
         long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
         while (System.nanoTime() < deadline) {
             pair.client().tick();
@@ -192,7 +219,7 @@ public final class ServerHarness implements AutoCloseable {
             }
             Thread.sleep(5);
         }
-        throw new AssertionError("Timed out after " + timeoutMs + "ms waiting for the server" + state());
+        throw new AssertionError("Timed out after " + timeoutMs + "ms " + what + state());
     }
 
     /** The state a timed-out wait wants to show: who is connected, what level is open, what came. */
@@ -225,6 +252,56 @@ public final class ServerHarness implements AutoCloseable {
             Thread.sleep(20);
         }
         throw new AssertionError("Timed out waiting for deletion of " + path);
+    }
+
+    /**
+     * Clears the field with ash damage until the plant team has won.
+     *
+     * <p>Two tests pay out on a kill and neither is about combat, so both nuked the board
+     * instead of shooting - and both wrote the same loop, waiting on the level's own counters
+     * while damaging from the test thread. That read is the one thing the server's memory model
+     * does not offer: the entity list is the server thread's, and a count can stay stale for a
+     * whole tick, which is exactly how "a dying zombie drops a coin" used to flake.
+     *
+     * <p>What this waits on instead is what a client sees: the level's own {@code GameStateS2C}
+     * saying the plant team won. A win requires kills, so the payout the callers assert on is
+     * about a real one - and if no zombie ever arrived, the timeout says so, because that is the
+     * failure whose symptom ("the drop was NaN") points at nothing.
+     *
+     * <p>The damage call still happens from the test thread, which is a separate wart this helper
+     * does not pretend to fix: the tests need the board cleared, and the server has no command
+     * that clears it.
+     */
+    public void winByClearingTheField() throws Exception {
+        long deadline = System.nanoTime() + 15_000L * 1_000_000L;
+        while (System.nanoTime() < deadline) {
+            LevelServer level = server.level();
+            if (level != null && level.gameState().equals(GameStateS2C.RUNNING)) {
+                level.damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), 0F, 0F, 500F, 100_000,
+                        level.team(PvzceIds.PLANT_TEAM));
+            }
+            if (plantTeamWon()) {
+                return;
+            }
+            pair.client().tick();
+            Thread.sleep(5);
+        }
+        throw new AssertionError("Timed out after 15000ms "
+                + (sawZombie() ? "waiting for the plant team to win" : "the level's wave never "
+                        + "produced a zombie, so there is no kill to pay out") + state());
+    }
+
+    /** Whether the client has been told the plant team won. */
+    private boolean plantTeamWon() {
+        return packets().stream().anyMatch(p -> p instanceof GameStateS2C state
+                && GameStateS2C.WON.equals(state.state())
+                && PvzceIds.PLANT_TEAM.toString().equals(state.winTeamId()));
+    }
+
+    /** Whether any zombie was ever streamed to the client, wherever the run has got to. */
+    private boolean sawZombie() {
+        return packets().stream().anyMatch(p -> p instanceof EntitySpawnS2C spawn
+                && "zombie".equals(spawn.entityKind()));
     }
 
     /**

@@ -2,6 +2,8 @@ package com.pvzce.common.resource;
 
 import com.pvzce.api.util.Identifier;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -24,6 +26,8 @@ import java.util.function.BiConsumer;
  * a pack failed to open.
  */
 public final class PvzceResourceManager implements AutoCloseable {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Resources");
     private final List<PvzcePack> packs = new ArrayList<>();
     private final ClassLoader classLoader;
     private Path gameDir;
@@ -167,8 +171,7 @@ public final class PvzceResourceManager implements AutoCloseable {
             return pack.open(path);
         } catch (IOException | RuntimeException e) {
             if (!isMissing(pack, path)) {
-                System.err.println("[PVZCE] Failed to read " + path + " from pack " + pack.name()
-                        + ": " + e);
+                LOGGER.warn("Failed to read " + path + " from pack " + pack.name(), e);
             }
             return null;
         }

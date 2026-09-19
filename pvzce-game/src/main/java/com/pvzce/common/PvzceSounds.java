@@ -71,13 +71,26 @@ public final class PvzceSounds {
      * instead of arriving as a rejected placement two actions later.
      */
     public static final Identifier UI_BUZZER = id("sfx/ui/buzzer");
+    /**
+     * The coin cue, named by the coin resources' {@code pickup_sound} rather than played from
+     * code; the constant exists so a test can compare against the name instead of the string.
+     */
     public static final Identifier UI_COIN = id("sfx/ui/coin");
     /** The original's coin-shower cue, used by the award page's money bag. */
     public static final Identifier UI_MONEY_FALLS = id("sfx/ui/moneyfalls");
-    public static final Identifier UI_WIN = id("sfx/ui/win");
-    public static final Identifier UI_LOSE = id("sfx/ui/lose");
 
+    /** The background track of an ordinary day level; a level's music timeline defaults to it. */
     public static final Identifier MUSIC_GRASSWALK = id("music/grasswalk");
+    /**
+     * The two end-of-level stingers, played by the music controller as the run ends.
+     *
+     * <p>They are music rather than {@code sfx/ui/*}: the original ships one file per jingle and
+     * this project used to declare each of them twice, as a {@code music/} event and as an
+     * {@code sfx/ui/} one. Only the {@code music/} pair was ever played, so the aliases are gone
+     * and these names say which of the two spellings survived.
+     */
+    public static final Identifier MUSIC_WIN = id("music/win");
+    public static final Identifier MUSIC_LOSE = id("music/lose");
 
     public static Identifier id(String path) {
         return Identifier.withDefaultNamespace(path);

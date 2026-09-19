@@ -316,9 +316,6 @@ public final class ExplosiveCapability implements PlantCapability {
     @Override
     public void load(CompoundTag tag) {
         fuse = tag.getInt("fuse");
-        // A save written before the linger existed has no such key; NBT's getInt would
-        // hand back 0, which reads as "the drawing is finished" and would remove a mine
-        // that has not gone off. LINGER_NONE is what "not detonated" is spelled as.
-        linger = tag.contains("linger") ? tag.getInt("linger") : LINGER_NONE;
+        linger = tag.getInt("linger");
     }
 }

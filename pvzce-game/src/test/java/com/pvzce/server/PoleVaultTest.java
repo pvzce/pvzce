@@ -3,14 +3,13 @@ package com.pvzce.server;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.entity.EntityAnimations;
-import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.tag.TestContent;
-import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -43,12 +42,7 @@ class PoleVaultTest {
         assertNotNull(source, "the shipped 1-4 must load");
         // No waves: this class is about one zombie and one plant, and an arriving wave would
         // be a second thing to explain.
-        LevelDef quiet = new LevelDef(source.id(), source.name(), source.description(),
-                source.width(), source.height(), source.scene(), source.teams(), source.winTeam(),
-                source.rules(), source.envVars(), List.of(), source.waveIntervalEndMultiplier(),
-                source.slots(), source.unlockResources(), source.initialSun(), source.music(),
-                source.initialEntities(), source.maxSeedSlots(), source.rewards(), source.unlock(),
-                source.mechanics(), source.dialogue(), source.hints());
+        LevelDef quiet = TestLevels.withWaves(source, List.of());
         board = quiet;
     }
 

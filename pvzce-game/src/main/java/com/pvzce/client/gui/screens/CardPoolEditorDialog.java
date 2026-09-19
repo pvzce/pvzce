@@ -1,6 +1,5 @@
 package com.pvzce.client.gui.screens;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pvzce.client.PvzceClient;
@@ -177,7 +176,7 @@ public final class CardPoolEditorDialog extends Dialog {
             return;
         }
         config.pool.add(id);
-        refreshLists(config.pool.size() - 1);
+        refreshLists(id);
     }
 
     private void addAll() {
@@ -187,34 +186,31 @@ public final class CardPoolEditorDialog extends Dialog {
                 config.pool.add(id);
             }
         }
-        refreshLists(config.pool.size() - 1);
+        refreshLists(config.pool.isEmpty() ? null : config.pool.get(config.pool.size() - 1));
     }
 
     private void removeSelected() {
-        int index = poolList.selectedIndex();
-        if (index < 0 || index >= config.pool.size()) {
-            return;
-        }
-        config.pool.remove(index);
-        refreshLists(Math.min(index, config.pool.size() - 1));
+        String card = poolList.selected();
+        String next = ListEditorSupport.remove(config.pool, card);
+        refreshLists(next);
     }
 
     private void moveSelected(int delta) {
-        int index = poolList.selectedIndex();
-        int target = index + delta;
-        if (index < 0 || target < 0 || target >= config.pool.size()) {
-            return;
+        String card = poolList.selected();
+        if (ListEditorSupport.move(config.pool, card, delta)) {
+            refreshLists(card);
         }
-        String value = config.pool.remove(index);
-        config.pool.add(target, value);
-        refreshLists(target);
     }
 
-    private void refreshLists(int selectedIndex) {
-        poolList.setEntries(new ArrayList<>(config.pool));
-        if (selectedIndex >= 0 && selectedIndex < config.pool.size()) {
-            poolList.select(selectedIndex);
-        }
+    /**
+     * Rebuilds both lists; the pool keeps {@code keep} selected when it is still there.
+     *
+     * <p>Selection is by item rather than by row: the two card-pool editors used to disagree
+     * here (this one selected a row number, the editor page kept the index it had), so the same
+     * button left the highlight in a different place depending on where you pressed it.
+     */
+    private void refreshLists(String keep) {
+        ListEditorSupport.refresh(poolList, new ArrayList<>(config.pool), keep);
         availableList.setEntries(new ArrayList<>(config.available));
     }
 }

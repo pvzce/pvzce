@@ -20,14 +20,17 @@ import java.util.Optional;
  * nothing (the shovel, the glove), which is why they have defaults rather than being required.
  *
  * <p>{@code texture} is the card sprite for when the tool's flat PNG does not sit
- * at the id-derived path - the same override every other entity definition has.
- * Tools carry no animation of their own, so {@code AnimationBindings} is absent;
- * a mod adding one can still declare it in the tool's own JSON through the plant
- * or projectile registry, which is where wearable art belongs.
+ * at the id-derived path - the same override every other entity definition has - and
+ * {@code animations} is where a tool's own controller art is declared, exactly as it is for a
+ * plant or a resource. The hammer has both: a card sprite for the bar and a two-clip animation
+ * (held, and the swing) for the mallet the player aims with in Whack-a-Zombie.
  *
  * @param damage     what one swing is worth; see {@link #DEFAULT_DAMAGE}
  * @param damageType the registered damage type one swing lands as; defaults to
  *                   {@code pvzce:impact}, which is "armour absorbs it"
+ * @param animations which animation file this tool's art lives in, and its state overrides;
+ *                   empty for a tool that is only ever a card sprite, which is every tool
+ *                   that shipped before the mallet's cursor became an animation
  */
 public record ToolDef(
         Identifier id,
@@ -55,7 +58,8 @@ public record ToolDef(
          * true. Tools that act on a cell (the shovel, the glove) leave it at 0 and keep the cell
          * rule they always had.
          */
-        float range
+        float range,
+        AnimationBindings animations
 ) {
     /**
      * What one swing is worth when the tool does not say: a normal zombie's health.
@@ -89,26 +93,28 @@ public record ToolDef(
             Codec.INT.optionalFieldOf("damage", DEFAULT_DAMAGE).forGetter(ToolDef::damage),
             Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
                     .forGetter(ToolDef::damageType),
-            Codec.FLOAT.optionalFieldOf("range", DEFAULT_RANGE).forGetter(ToolDef::range)
+            Codec.FLOAT.optionalFieldOf("range", DEFAULT_RANGE).forGetter(ToolDef::range),
+            AnimationBindings.MAP_CODEC.forGetter(ToolDef::animations)
     ).apply(i, ToolDef::new));
 
     /** The common case: a tool whose sprite follows the id convention. */
     public ToolDef(Identifier id, ResourceCost useCost, int cooldownTicks, List<String> targets,
                    String effect, int uses) {
         this(id, useCost, cooldownTicks, targets, effect, uses, Optional.empty(),
-                DEFAULT_DAMAGE, DEFAULT_DAMAGE_TYPE, DEFAULT_RANGE);
+                DEFAULT_DAMAGE, DEFAULT_DAMAGE_TYPE, DEFAULT_RANGE, AnimationBindings.EMPTY);
     }
 
     /** As above, with an explicit card sprite. */
     public ToolDef(Identifier id, ResourceCost useCost, int cooldownTicks, List<String> targets,
                    String effect, int uses, Optional<Identifier> texture) {
         this(id, useCost, cooldownTicks, targets, effect, uses, texture,
-                DEFAULT_DAMAGE, DEFAULT_DAMAGE_TYPE, DEFAULT_RANGE);
+                DEFAULT_DAMAGE, DEFAULT_DAMAGE_TYPE, DEFAULT_RANGE, AnimationBindings.EMPTY);
     }
 
     public ToolDef {
         damage = Math.max(0, damage);
         damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         range = Math.max(0F, range);
+        animations = animations == null ? AnimationBindings.EMPTY : animations;
     }
 }

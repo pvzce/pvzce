@@ -2,7 +2,6 @@ package com.pvzce.server.level;
 
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.LevelRewards;
-import com.pvzce.api.content.PlacementDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ProjectileRef;
@@ -26,9 +25,7 @@ import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.core.PlantPlacement.PlantLayer;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
-import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.CardCooldown;
-import com.pvzce.common.level.DayNightCycle;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.level.SceneGrid;
@@ -40,9 +37,7 @@ import com.pvzce.common.nbt.Tag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
-import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
-import com.pvzce.common.network.PacketRegistry;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelPayload;
@@ -58,7 +53,8 @@ import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.WaveProgressS2C;
 import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.PvzcePlayer;
-import com.pvzce.server.Slot;
+import com.pvzce.server.SeedSelection;
+import com.pvzce.common.core.Slot;
 import com.pvzce.server.Team;
 import com.pvzce.server.ai.PlantAIPlayer;
 import com.pvzce.server.entity.PlantEntity;
@@ -71,12 +67,11 @@ import com.pvzce.server.gamerule.GameRules;
 import com.pvzce.server.gamerule.PvzceClock;
 import com.pvzce.common.PvzceParticles;
 
-import java.util.ArrayDeque;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -93,19 +88,17 @@ import java.util.Random;
  * idea of stacking height, carrier offset and {@code onPlaced} handling, which is
  * exactly why a restored plant behaved differently from a freshly planted one.
  */
-public final class LevelServer implements LevelAccess {
-    public static final int DEFAULT_COLUMNS = PvzceConstants.DEFAULT_GRID_WIDTH;
-    public static final int DEFAULT_ROWS = PvzceConstants.DEFAULT_GRID_HEIGHT;
+public final class LevelServer implements LevelAccess, WaveDirector.Host {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Level");
 
     private final LevelDef def;
-    private final List<WaveDef> waves;
     private final SceneGrid<SceneElementDef> scene;
     private final SeedContext seedContext;
     private final Map<Identifier, Team> teams = new HashMap<>();
     private final List<PvzceEntity> entities = new ArrayList<>();
     private final List<PvzceEntity> pendingAdd = new ArrayList<>();
     private final List<PvzceEntity> pendingRemove = new ArrayList<>();
-    private final List<PendingWaveSpawn> pendingWaveSpawns = new ArrayList<>();
+    private final WaveDirector waves;
     /**
      * Entities that joined the level while no bridge was set, and still owe the client a
      * spawn packet.
@@ -143,22 +136,12 @@ public final class LevelServer implements LevelAccess {
     private ServerBridge bridge;
 
     private int tickCount;
-    private int nextWaveIndex;
     private int nextMusicCueIndex;
-    private int waveIntervalTicks;
-    private int nextWaveDelayTicks;
-    private float waveProgress;
-    private boolean waveWarningActive;
-    private boolean waveWarningFinal;
     /**
      * Whether a due wave is being held back for an opening wave's field to clear, and for how
      * much longer. See {@link #openingWaveStillOnTheField()}.
      */
-    private boolean openingGateArmed;
-    private int openingGateTicks;
-    private int openingGateHoldTicks;
     /** True while the wave that is due is waiting on that gate; keeps its banner up. */
-    private boolean waveArrivalHeld;
     private String gameState = GameStateS2C.RUNNING;
     private Identifier winner;
     private Identifier humanTeamId = PvzceIds.PLANT_TEAM;
@@ -172,7 +155,6 @@ public final class LevelServer implements LevelAccess {
     private float lastKillX = Float.NaN;
     private float lastKillY = Float.NaN;
     private boolean gameEndPacketSent;
-    private boolean waveDirty = true;
     /**
      * Set when something about an entity changed that the client must hear about now.
      *
@@ -197,7 +179,6 @@ public final class LevelServer implements LevelAccess {
      * triggers a wave directly cannot make the siren play twice - which is the one way
      * "the last wave's sound" could loop, since the sound itself does not.
      */
-    private final java.util.Set<Integer> announcedWaves = new java.util.HashSet<>();
     /**
      * Wave indices whose <em>warning</em> has already called out.
      *
@@ -207,7 +188,6 @@ public final class LevelServer implements LevelAccess {
      * fires the sound, and this set keeps a restored save - which re-enters the same window
      * - from calling out twice.
      */
-    private final java.util.Set<Integer> announcedWarnings = new java.util.HashSet<>();
     /**
      * The plant the glove is holding, or {@code -1}.
      *
@@ -252,12 +232,12 @@ public final class LevelServer implements LevelAccess {
      * know which world - let alone which profile - it was started from. The
      * server resolves it once and hands it in; {@link #sendFullState} then only
      * replays what it was given, so the cards the client sees and the cards
-     * {@code PvzceServer.sanitizeSeedSelection} accepts cannot drift apart.
+     * {@link SeedSelection#sanitize} accepts cannot drift apart.
      */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext) {
         this.def = def;
         this.seedContext = seedContext == null ? SeedContext.all(def) : seedContext;
-        this.waves = normalizeWaves(def.waves());
+        this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier());
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
             SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(cell.value());
@@ -271,7 +251,6 @@ public final class LevelServer implements LevelAccess {
         }
         this.rules = new GameRules(def.rules());
         this.envVars = new LevelEnvVars(def.envVars());
-        this.nextWaveDelayTicks = waves.isEmpty() ? -1 : effectiveWaveDelay(0);
 
         this.mechanics = LevelMechanics.effective(def);
         Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
@@ -331,16 +310,16 @@ public final class LevelServer implements LevelAccess {
         problems.addAll(LevelValidator.validateDialogue(def));
         problems.addAll(LevelValidator.validateHints(def));
         if (!problems.isEmpty()) {
-            System.err.println("[PVZCE] Level " + def.id() + " has " + problems.size() + " problem(s):");
+            LOGGER.warn("Level {} has {} problem(s):", def.id(), problems.size());
             for (String problem : problems) {
-                System.err.println("[PVZCE]   - " + problem);
+                LOGGER.warn("  - {}", problem);
             }
         }
         // Notes are not defects: a fixed deck is exactly what the first level is. They
         // are reported separately so that "has N problem(s)" keeps meaning something.
         String note = LevelValidator.describeFixedDeck(def);
         if (note != null) {
-            System.err.println("[PVZCE] Level " + def.id() + " note: " + note);
+            LOGGER.info("Level {} note: {}", def.id(), note);
         }
     }
 
@@ -367,45 +346,6 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
-    /**
-     * Cross-field normalization: a final wave may only be the last one, and the
-     * last wave is always treated as final even when the data omits the type.
-     */
-    private static List<WaveDef> normalizeWaves(List<WaveDef> configured) {
-        if (configured.isEmpty()) {
-            return List.of();
-        }
-        List<WaveDef> normalized = new ArrayList<>(configured.size());
-        int last = configured.size() - 1;
-        for (int i = 0; i <= last; i++) {
-            WaveDef wave = configured.get(i);
-            WaveDef.WaveType type = wave.type();
-            if (i < last && type == WaveDef.WaveType.FINAL) {
-                System.out.println("[PVZCE] Wave " + (i + 1) + " is marked final but is not last; treating it as huge.");
-                type = WaveDef.WaveType.HUGE;
-            } else if (i == last && type != WaveDef.WaveType.FINAL) {
-                type = WaveDef.WaveType.FINAL;
-            }
-            normalized.add(type == wave.type() ? wave : wave.asType(type));
-        }
-        return List.copyOf(normalized);
-    }
-
-    /**
-     * Effective delay of a wave after applying the level's linear interval curve.
-     * The first wave uses the configured delay as-is; the last wave uses
-     * {@code wave_interval_end_multiplier}.
-     */
-    private int effectiveWaveDelay(int waveIndex) {
-        WaveDef wave = waves.get(waveIndex);
-        int total = waves.size();
-        float configuredMultiplier = def.waveIntervalEndMultiplier();
-        float endMultiplier = Float.isFinite(configuredMultiplier) ? configuredMultiplier : 1F;
-        endMultiplier = Math.max(0.05F, Math.min(10F, endMultiplier));
-        float progress = total <= 1 ? 0F : waveIndex / (float) (total - 1);
-        float multiplier = 1F + (endMultiplier - 1F) * progress;
-        return Math.max(1, Math.round(wave.delay() * multiplier));
-    }
 
     public LevelDef def() {
         return def;
@@ -784,7 +724,15 @@ public final class LevelServer implements LevelAccess {
                 amount, motion, driftX, scale));
     }
 
+    /**
+     * Puts one zombie on the board for the wave director, which does not pick teams: a wave
+     * always arrives on the zombie side.
+     */
     @Override
+    public ZombieEntity spawnZombie(Identifier zombieId, float x, int row) {
+        return spawnZombie(zombieId, zombieTeam(), x, row);
+    }
+
     public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(zombieId);
         if (def == null) {
@@ -827,10 +775,13 @@ public final class LevelServer implements LevelAccess {
                 yield true;
             }
             case "resource", "drop", "sun" -> {
-                if (BuiltInRegistries.RESOURCES.get(id) == null) {
+                var resource = BuiltInRegistries.RESOURCES.get(id);
+                if (resource == null) {
                     yield false;
                 }
-                spawnResource(id, 25, x, y, teams.get(PvzceIds.PLANT_TEAM));
+                // One unit of whatever was named, at the value its own definition declares:
+                // a spawned diamond is worth 1000, not the sun's 25.
+                spawnResource(id, resource.defaultValue(), x, y, teams.get(PvzceIds.PLANT_TEAM));
                 yield true;
             }
             default -> false;
@@ -1080,7 +1031,8 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
-    private void flushPending() {
+    @Override
+    public void flushPending() {
         flushPending(bridge);
     }
 
@@ -1131,7 +1083,7 @@ public final class LevelServer implements LevelAccess {
             for (TypedMechanic typed : mechanics) {
                 LevelMechanics.tick(typed, this);
             }
-            tickWaves(bridge);
+            waves.tick();
             syncWaveAndTime(bridge);
             maybeSpawnSun();
             tickScene();
@@ -1296,257 +1248,20 @@ public final class LevelServer implements LevelAccess {
     }
 
     /**
-     * Whether a wave is still releasing the zombies it queued.
-     *
-     * <p>True while any queue still holds zombies: the wave is on the field but not yet
-     * fully announced, and the next wave's countdown has to wait for it. See
-     * {@link #tickWaves}.
-     */
-    private boolean waveStillReleasing() {
-        for (PendingWaveSpawn queue : pendingWaveSpawns) {
-            if (!queue.zombies.isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void tickWaves(ServerBridge bridge) {
-        if (nextWaveIndex < waves.size()) {
-            // A wave's delay is the gap *between waves*, so it starts once the previous
-            // wave has finished releasing, not the moment it was triggered. Counting
-            // from the trigger let two waves' release queues run at once, and zombies
-            // from different waves then arrived a few seconds apart instead of on the
-            // pacing their own wave asked for - the "they all come out together" of a
-            // level whose first waves are authored ten seconds apart.
-            //
-            // The counter is frozen rather than held at its target so the warning window
-            // stays a property of the gap the author wrote: the warning shows for
-            // `warning_ticks` before the wave arrives, and the arrival is this countdown
-            // reaching `nextWaveDelayTicks`.
-            boolean firstWave = nextWaveIndex == 0;
-            if (firstWave || !waveStillReleasing()) {
-                waveIntervalTicks = Math.min(waveIntervalTicks + 1, nextWaveDelayTicks);
-            }
-            // Due, and then held only if an opening wave is still on the field: the clock runs
-            // while the player fights, so clearing the field early never costs the gap the
-            // level asked for - it only ever costs the *arrival* of a wave that is already due.
-            boolean due = waveIntervalTicks >= nextWaveDelayTicks;
-            waveArrivalHeld = due && openingWaveStillOnTheField();
-            if (due && !waveArrivalHeld) {
-                triggerWave(waves.get(nextWaveIndex), nextWaveIndex);
-            } else {
-                updateWaveWarning();
-            }
-        } else {
-            waveProgress = 1F;
-            waveWarningActive = false;
-            waveWarningFinal = false;
-            waveArrivalHeld = false;
-        }
-        spawnPendingWaveZombies();
-    }
-
-    /**
-     * Whether a due wave has to wait for an opening wave's zombies to be gone.
-     *
-     * <p>The other half of {@link com.pvzce.api.content.WaveDef#holdUntilDead(int)}: the
-     * zombies of an opening wave come one at a time, and the wave after them does not walk
-     * into the back of the last one. Only the *arrival* waits - the delay has already run,
-     * so a player who clears the field before the wave is due sees exactly the pacing the
-     * level asked for, and one who is still fighting gets the wave as soon as the field is
-     * clear. The wait is capped like the per-zombie one: a player who is losing the opening
-     * should meet the second wave late, not never.
-     *
-     * <p>The counter is the number of ticks already spent held, and the flag is cleared once
-     * the wait is over (either way), so a level only ever pays for this once per opening wave.
-     *
-     * @return true while a due wave must be held back
-     */
-    private boolean openingWaveStillOnTheField() {
-        if (!openingGateArmed) {
-            return false;
-        }
-        if (aliveZombieCount() == 0 || openingGateTicks >= openingGateHoldTicks) {
-            openingGateArmed = false;
-            return false;
-        }
-        openingGateTicks++;
-        return true;
-    }
-
-    private void triggerWave(WaveDef wave, int waveIndex) {
-        nextWaveIndex++;
-        waveIntervalTicks = 0;
-        waveProgress = 0F;
-        waveWarningActive = false;
-        waveWarningFinal = false;
-        waveArrivalHeld = false;
-        waveDirty = true;
-
-        int holdTicks = wave.holdUntilDead(waveIndex);
-        // An opening wave hands its pacing to the player, and the wave after it waits for
-        // the field to be clear. Recorded here, where the wave is known, because by the time
-        // the wait matters the queue is gone.
-        openingGateArmed = holdTicks > 0;
-        openingGateTicks = 0;
-        openingGateHoldTicks = holdTicks;
-
-        List<Identifier> zombies = expandEntries(wave.entries());
-        Collections.shuffle(zombies, random);
-        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(), wave.spawnInterval(),
-                holdTicks));
-
-        int announcedIndex = waveIndex;
-        boolean firstAnnouncement = announcedWaves.add(announcedIndex);
-        // The huge-wave call belongs to the warning (see announceWaveWarning); a wave whose
-        // data asks for no warning window would otherwise arrive in silence, so it is played
-        // here instead. Never both: the warning marks the index as called out.
-        if (firstAnnouncement && wave.isHuge() && !announcedWarnings.contains(announcedIndex)) {
-            emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE, 1F, 1F);
-        }
-        if (firstAnnouncement && wave.type() == WaveDef.WaveType.FINAL) {
-            emitEffect("", width() / 2F, height() / 2F, PvzceSounds.EFFECT_AWOOGA, 1F, 1F);
-            riseGraveZombies(wave);
-        }
-
-        nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
-    }
-
-    private void updateWaveWarning() {
-        if (nextWaveIndex >= waves.size()) {
-            waveProgress = 1F;
-            waveWarningActive = false;
-            waveWarningFinal = false;
-            return;
-        }
-        WaveDef next = waves.get(nextWaveIndex);
-        int remaining = nextWaveDelayTicks - waveIntervalTicks;
-        int warningTicks = Math.max(0, next.warningTicks());
-        // The wave has to be counting down, not still releasing: ``tickWaves`` freezes the
-        // counter while the previous wave's zombies are coming out, so ``remaining`` no
-        // longer runs negative there - but the release window still sits *before* the
-        // countdown starts, and a banner that went up during it would be announcing a wave
-        // the player has already been told about.
-        // ``nextWaveDelayTicks`` is -1 once the last wave has been released - that is the
-        // "no more waves" sentinel, not a countdown of minus one. Testing it for
-        // positivity is the whole fix: without it ``remaining`` was negative, the
-        // second half of the range check is trivially true for a negative number, and the
-        // banner stayed lit from the final wave until the level ended. That is the
-        // "a huge wave is coming" that never stops.
-        boolean countingDown = nextWaveDelayTicks > 0
-                && remaining > 0 && remaining <= nextWaveDelayTicks;
-        // A held arrival keeps its banner: the countdown has finished because the field is
-        // still occupied, and a wave that is due is exactly what the banner is warning about.
-        // Without this it went out at the due tick and the wave then arrived in silence, up to
-        // the gate's cap later.
-        boolean active = next.isHuge() && warningTicks > 0
-                && (waveArrivalHeld || (countingDown && remaining <= warningTicks));
-        boolean finalWarning = active && next.type() == WaveDef.WaveType.FINAL;
-        if (active && !waveWarningActive) {
-            announceWaveWarning(nextWaveIndex);
-        }
-        if (active != waveWarningActive || finalWarning != waveWarningFinal) {
-            waveDirty = true;
-        }
-        waveWarningActive = active;
-        waveWarningFinal = finalWarning;
-        waveProgress = nextWaveDelayTicks <= 0
-                ? 1F
-                : Math.max(0F, Math.min(1F, waveIntervalTicks / (float) nextWaveDelayTicks));
-    }
-
-    /**
-     * Calls out a huge wave as its warning opens, which is when the original does it.
-     *
-     * <p>The red "a huge wave is approaching" text and Dave's line of the same words are
-     * one beat on screen. Playing the sound at the wave's <em>arrival</em> instead - which
-     * is what this used to do - put it six seconds after the text had faded, so the
-     * announcement was read and then heard about a wave the player had already met.
-     *
-     * <p>Once per wave index, like {@link #triggerWave}'s own announcements: a save
-     * restored inside the warning window re-enters it, and a window is a range of ticks
-     * rather than an event, so "first tick of the window" is the transition that fires it.
-     */
-    private void announceWaveWarning(int waveIndex) {
-        if (announcedWarnings.add(waveIndex)) {
-            emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE, 1F, 1F);
-        }
-    }
-
-    private void spawnPendingWaveZombies() {
-        if (pendingWaveSpawns.isEmpty()) {
-            return;
-        }
-        Team zombieTeam = zombieTeam();
-        Iterator<PendingWaveSpawn> iterator = pendingWaveSpawns.iterator();
-        while (iterator.hasNext()) {
-            PendingWaveSpawn queue = iterator.next();
-            if (queue.zombies.isEmpty()) {
-                iterator.remove();
-                continue;
-            }
-            if (queue.ticksUntilNext > 0) {
-                // A gated queue is waiting for the zombie it released: the next one is due the
-                // moment that zombie dies. Either way the wait ends with the counter at zero,
-                // and the spawn below happens on the following tick - the same one-tick shape
-                // an interval has always had, so a cap of 1200 reads as "about twenty seconds"
-                // exactly like an interval of 1200 would.
-                boolean previousDied = queue.waitsForPrevious()
-                        && queue.gateZombieId >= 0 && !zombieAlive(queue.gateZombieId);
-                if (previousDied) {
-                    queue.ticksUntilNext = 0;
-                } else {
-                    queue.ticksUntilNext--;
-                    continue;
-                }
-            }
-            Identifier zombieId = queue.zombies.poll();
-            int row = queue.rows.get(queue.rowIndex++ % queue.rows.size());
-            ZombieEntity spawned = spawnZombie(zombieId, zombieTeam, width() + 0.6F, row);
-            queue.gateZombieId = queue.waitsForPrevious() && spawned != null ? spawned.id() : -1;
-            queue.ticksUntilNext = queue.waitsForPrevious() ? queue.holdTicks : queue.intervalTicks;
-            if (queue.zombies.isEmpty()) {
-                iterator.remove();
-            }
-        }
-        flushPending();
-    }
-
-    /**
      * True while the zombie with this id is still standing.
      *
      * <p>A corpse does not count: the death clip is what the player watches, and pacing the
      * next zombie on "the body has finished falling over" would add six seconds to every
      * opening wave for no reason.
      */
-    private boolean zombieAlive(int id) {
+    @Override
+    public boolean zombieAlive(int id) {
         for (PvzceEntity entity : entities) {
             if (entity.id() == id && entity instanceof ZombieEntity zombie) {
                 return zombie.isAlive();
             }
         }
         return false;
-    }
-
-    private static List<Identifier> expandEntries(List<WaveDef.Entry> entries) {
-        List<Identifier> zombies = new ArrayList<>();
-        for (WaveDef.Entry entry : entries) {
-            int count = Math.max(0, entry.count());
-            for (int i = 0; i < count; i++) {
-                zombies.add(entry.id());
-            }
-        }
-        return zombies;
-    }
-
-    private List<Integer> shuffledRows() {
-        List<Integer> rows = new ArrayList<>();
-        for (int y = 0; y < height(); y++) {
-            rows.add(y);
-        }
-        Collections.shuffle(rows, random);
-        return rows;
     }
 
     private Team zombieTeam() {
@@ -1559,73 +1274,47 @@ public final class LevelServer implements LevelAccess {
     }
 
     public int currentWave() {
-        return Math.min(nextWaveIndex, waves.size());
+        return waves.currentWave();
     }
 
     public int totalWaves() {
-        return waves.size();
+        return waves.totalWaves();
+    }
+
+    /**
+     * True when every wave has been released and no release queue is left.
+     *
+     * <p>The same question {@code checkEnd} asks before it may call a level won, and public
+     * because a mechanic that produces zombies on its own clock has to know when the level has
+     * stopped sending waves: a grave that keeps raising one every second and a half never lets
+     * the field fall to zero, so a level whose only mouths are its graves could not be finished
+     * at all. See {@code GraveSpawnerMechanic}.
+     */
+    public boolean wavesReleased() {
+        return waves.allWavesReleased();
     }
 
     public boolean waveWarningActive() {
-        return waveWarningActive;
+        return waves.waveWarningActive();
     }
 
     public boolean waveWarningFinal() {
-        return waveWarningFinal;
+        return waves.waveWarningFinal();
     }
 
     public boolean finalWaveActive() {
-        return waveWarningActive && waveWarningFinal;
+        return waves.finalWaveActive();
     }
 
     private void syncWaveAndTime(ServerBridge bridge) {
-        if (waveDirty || tickCount % 10 == 0) {
-            bridge.send(new WaveProgressS2C(currentWave(), totalWaves(), waveProgress,
-                    waveWarningActive, waveWarningFinal));
-            waveDirty = false;
+        if (waves.consumeDirty() || tickCount % 10 == 0) {
+            bridge.send(waves.progressPacket());
         }
         if (tickCount % 60 == 0) {
             bridge.send(timeOfDayPacket());
         }
     }
 
-    /**
-     * One wave's zombies, trickling out at that wave's own pace.
-     *
-     * <p>The interval belongs to the wave rather than to the level: an easy level's early
-     * waves should take ten seconds between zombies and its last wave three, which is a
-     * property of the wave, not of the file.
-     *
-     * <p>{@code holdTicks} replaces that interval for a wave that paces itself by the
-     * player's kills: the next zombie is due the moment the one this queue released dies,
-     * and at the latest {@code holdTicks} after it was released. {@code gateZombieId} is
-     * that zombie - the queue's own handle on it, not its position, because by the time the
-     * answer matters it may already have been removed from the level.
-     */
-    private static final class PendingWaveSpawn {
-        private final ArrayDeque<Identifier> zombies;
-        private final List<Integer> rows;
-        private final int intervalTicks;
-        /** Ticks to wait for the previously released zombie, or 0 to use the interval. */
-        private final int holdTicks;
-        private int rowIndex;
-        private int ticksUntilNext;
-        /** The zombie this queue is waiting for, or -1 when it is not waiting for one. */
-        private int gateZombieId = -1;
-
-        private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows, int intervalTicks,
-                                 int holdTicks) {
-            this.zombies = new ArrayDeque<>(zombies);
-            this.rows = rows;
-            this.intervalTicks = Math.max(1, intervalTicks);
-            this.holdTicks = Math.max(0, holdTicks);
-        }
-
-        /** True when this queue waits for the zombie it just released. */
-        private boolean waitsForPrevious() {
-            return holdTicks > 0;
-        }
-    }
 
     private void tickScene() {
         int recovery = rules.getInt(PvzceIds.RULE_CRATER_RECOVERY);
@@ -1661,7 +1350,8 @@ public final class LevelServer implements LevelAccess {
      * Bucketheads, and one of ordinary zombies gets ordinary ones. Nothing is added out of
      * thin air, and a wave with no entries at all opens nothing.
      */
-    private void riseGraveZombies(WaveDef wave) {
+    @Override
+    public void riseGraveZombies(WaveDef wave) {
         if (!clock.isNight(rules) || !rules.getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT)) {
             return;
         }
@@ -1797,9 +1487,7 @@ public final class LevelServer implements LevelAccess {
 
     private void checkEnd(ServerBridge bridge) {
         if (gameState.equals(GameStateS2C.RUNNING)
-                && !waves.isEmpty()
-                && nextWaveIndex >= waves.size()
-                && pendingWaveSpawns.isEmpty()
+                && waves.allWavesReleased()
                 && hostileZombieCount() == 0) {
             markEnd(teams.get(PvzceIds.PLANT_TEAM));
         }
@@ -1807,7 +1495,7 @@ public final class LevelServer implements LevelAccess {
         if (!gameState.equals(GameStateS2C.RUNNING) && !gameEndPacketSent) {
             gameEndPacketSent = true;
             Team winnerTeam = teams.get(winner);
-            System.out.println("[PVZCE] Game over, winner=" + winner);
+            LOGGER.info("Game over, winner={}", winner);
             bridge.send(new GameStateS2C(gameState, winner != null ? winner.toString() : ""));
             if (winnerTeam != null) {
                 bridge.send(new ServerMessageS2C(winnerTeam.name() + " 获胜！"));
@@ -1864,12 +1552,24 @@ public final class LevelServer implements LevelAccess {
     }
 
     /**
-     * Rolls the level's "a dying zombie leaves a sun" chance and drops one where it fell.
+     * Rolls the level's "a dying zombie leaves sun" chance and drops what it pays where it fell.
      *
      * <p>The heal for a level with no sun economy of its own: 2-5's graves and its mallet mean
      * the player never plants a producer, and without this the only sun in the level is the 50
-     * it starts with. The amount is {@code sun_value}, the same number the sky and a sunflower
-     * pay, so a dropped sun is worth what every other sun is worth.
+     * it starts with. Each sun is worth {@code sun_value}, the same number the sky and a
+     * sunflower pay, so a dropped sun is worth what every other sun is worth.
+     *
+     * <p>A roll pays <code>zombie_sun_drop_count</code> suns rather than one, scattered over the
+     * cell the zombie fell in and its neighbours: a level that pays sun for kills pays it in the
+     * currency the player is looking for (a click each), and the several-at-once shape is what
+     * makes a kill worth crossing the lawn for. The chance is meant to be read against that
+     * count - 3% of kills paying three suns is about the same income as 9% paying one, spread
+     * over fewer, better moments.
+     *
+     * <p>They land where the zombie died rather than falling in from above: a sun is dropped
+     * <em>by</em> the kill, and a drop that arrives from the sky reads as the level's own
+     * weather. {@link ResourceDef.DropMotion#LANDED} is what says so, and it is the same motion
+     * a coin uses for the same reason.
      */
     private void dropZombieSun(ZombieEntity zombie) {
         float chance = rules.getFloat(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE);
@@ -1880,8 +1580,18 @@ public final class LevelServer implements LevelAccess {
         if (plantTeam == null || BuiltInRegistries.RESOURCES.get(PvzceIds.SUN) == null) {
             return;
         }
-        spawnResource(PvzceIds.SUN, rules.getInt(PvzceIds.RULE_SUN_VALUE),
-                zombie.cellX(), zombie.cellY(), plantTeam);
+        int value = rules.getInt(PvzceIds.RULE_SUN_VALUE);
+        int count = Math.max(1, rules.getInt(PvzceIds.RULE_ZOMBIE_SUN_DROP_COUNT));
+        int cellX = (int) Math.floor(zombie.cellX());
+        int cellY = (int) Math.floor(zombie.cellY());
+        for (int i = 0; i < count; i++) {
+            // One cell of scatter, clamped to the board: suns stacked in exactly one cell are
+            // several sprites on one pixel, and a drop outside the lawn cannot be clicked.
+            int x = Math.max(0, Math.min(width() - 1, cellX + random.nextInt(3) - 1));
+            int y = Math.max(0, Math.min(height() - 1, cellY + random.nextInt(3) - 1));
+            spawnResource(PvzceIds.SUN, value, x, y, plantTeam,
+                    ResourceDef.DropMotion.LANDED);
+        }
     }
 
     @Override
@@ -1916,10 +1626,7 @@ public final class LevelServer implements LevelAccess {
         // cleared here. The wave warning was the one that mattered: a win that lands
         // *during* the final warning left the banner lit on the client for good, because
         // the wave that would have turned it off is the one whose zombies just died.
-        waveWarningActive = false;
-        waveWarningFinal = false;
-        waveProgress = 1F;
-        waveDirty = true;
+        waves.clearOnLevelEnd();
     }
 
     // ------------------------------------------------------------------
@@ -1971,7 +1678,7 @@ public final class LevelServer implements LevelAccess {
             return false;
         }
         PlantEntity plant = spawnPlant(plantDef, plantPlayer.team(), x, y);
-        System.out.println("[PVZCE] Planted " + slot.defId() + " at (" + x + "," + y + ") count=" + plantCount());
+        LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, y, plantCount());
         cardSource.afterSpend(this, bridge, slot);
         return !plant.isRemoved() || plant.consumesOnPlace();
     }
@@ -2208,8 +1915,14 @@ public final class LevelServer implements LevelAccess {
                         continue;
                     }
                     zombie.damage(tool.damage(), toolTypeFor(tool), this);
-                    emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(),
-                            PvzceSounds.EFFECT_BONK);
+                    // The blow's sound only. It used to throw the hit spark as well, and the
+                    // spark is a 25-star burst drawn where the cursor is standing - at which
+                    // point the player reads it as a halo around the mallet rather than as a
+                    // hit. The hit's own picture is the mallet's swing, which the client plays
+                    // on the click (see InGameScreen#swingDefaultToolCursor); what the server
+                    // still owes the player is the confirmation that it landed, and that is the
+                    // bonk.
+                    emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
                     hitSomething = true;
                 }
                 yield hitSomething;
@@ -2312,14 +2025,6 @@ public final class LevelServer implements LevelAccess {
     }
 
     /**
-     * The ticks this card waits before it can be used again, level multiplier included.
-     *
-     * <p>The one place the level's {@code pvzce:seed_cooldown_multiplier} is applied, read
-     * from the live rules rather than baked into the bar when it was dealt: {@code /gamerule}
-     * changes the cooldowns of the cards already in the player's hand, and the card bar's
-     * recharge is drawn against the same number the charge used.
-     */
-    /**
      * How wide a zombie counts as, as a fraction of the swing's reach, on the x axis.
      *
      * <p>A zombie is drawn taller than it is wide - the art is a standing figure - so a circular
@@ -2341,6 +2046,14 @@ public final class LevelServer implements LevelAccess {
         return ZombieEntity.damageType(tool.damageType());
     }
 
+    /**
+     * The ticks this card waits before it can be used again, level multiplier included.
+     *
+     * <p>The one place the level's {@code pvzce:seed_cooldown_multiplier} is applied, read
+     * from the live rules rather than baked into the bar when it was dealt: {@code /gamerule}
+     * changes the cooldowns of the cards already in the player's hand, and the card bar's
+     * recharge is drawn against the same number the charge used.
+     */
     public int effectiveCooldownTicks(Slot slot) {
         if (slot == null) {
             return 0;
@@ -2361,11 +2074,8 @@ public final class LevelServer implements LevelAccess {
 
     public void sendFullState(ServerBridge bridge) {
         Team plantTeam = plantPlayer != null ? plantPlayer.team() : null;
-        List<String> waveTypes = waves.stream()
-                .map(wave -> wave.type().name().toLowerCase(Locale.ROOT))
-                .toList();
         LevelPayload payload = payloadFor(def, seedContext);
-        bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waveTypes, payload,
+        bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waves.waveTypes(), payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
         withBridge(bridge, () -> {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
@@ -2403,7 +2113,7 @@ public final class LevelServer implements LevelAccess {
     }
 
     public WaveProgressS2C waveProgressPacket() {
-        return new WaveProgressS2C(currentWave(), totalWaves(), waveProgress, waveWarningActive, waveWarningFinal);
+        return waves.progressPacket();
     }
 
     /**
@@ -2419,7 +2129,7 @@ public final class LevelServer implements LevelAccess {
         awaitSpawnPacket.clear();
         pendingRemove.clear();
         entities.clear();
-        pendingWaveSpawns.clear();
+        waves.clearQueues();
         craterTimers.clear();
     }
 
@@ -2432,50 +2142,15 @@ public final class LevelServer implements LevelAccess {
 
     public CompoundTag save() {
         CompoundTag root = new CompoundTag();
-        root.putInt("DataVersion", PvzceConstants.SAVE_DATA_VERSION);
         root.putString("LevelId", def.id().toString());
         root.putString("GameState", gameState);
         if (winner != null) {
             root.putString("Winner", winner.toString());
         }
         root.putInt("Tick", tickCount);
-        root.putInt("NextWaveIndex", nextWaveIndex);
-        root.putInt("WaveIntervalTicks", waveIntervalTicks);
         root.putLong("DayTicks", clock.dayTicks());
         root.putInt("NextMusicCueIndex", nextMusicCueIndex);
-        root.putInt("OpeningGateTicks", openingGateTicks);
-        root.putInt("OpeningGateHoldTicks", openingGateHoldTicks);
-        if (openingGateArmed) {
-            root.putByte("OpeningGateArmed", (byte) 1);
-        }
-        if (waveArrivalHeld) {
-            root.putByte("WaveArrivalHeld", (byte) 1);
-        }
-
-        ListTag pendingWaves = new ListTag();
-        for (PendingWaveSpawn queue : pendingWaveSpawns) {
-            CompoundTag queueTag = new CompoundTag();
-            ListTag zombies = new ListTag();
-            for (Identifier zombieId : queue.zombies) {
-                zombies.add(new StringTag(zombieId.toString()));
-            }
-            queueTag.put("Zombies", zombies);
-            ListTag rows = new ListTag();
-            for (int row : queue.rows) {
-                rows.add(new IntTag(row));
-            }
-            queueTag.put("Rows", rows);
-            queueTag.putInt("IntervalTicks", queue.intervalTicks);
-            queueTag.putInt("RowIndex", queue.rowIndex);
-            queueTag.putInt("TicksUntilNext", queue.ticksUntilNext);
-            queueTag.putInt("HoldTicks", queue.holdTicks);
-            // The zombie the gate is waiting for is deliberately not written: entity ids come
-            // from a process-wide counter, so a restored id may name a different zombie (or
-            // none at all). A resumed queue waits out its cap instead of trusting a number
-            // that means nothing in this process.
-            pendingWaves.add(queueTag);
-        }
-        root.put("PendingWaveSpawns", pendingWaves);
+        waves.save(root);
 
 
         // Teams, cards, resources and every entity live in one tag; the server no
@@ -2575,29 +2250,7 @@ public final class LevelServer implements LevelAccess {
         clearEntitiesForRestore();
         tickCount = Math.max(0, root.getInt("Tick"));
         clock.setDayTicks(root.getLong("DayTicks"));
-        nextWaveIndex = Math.max(0, Math.min(waves.size(), root.getInt("NextWaveIndex")));
-        // Everything below the index has already walked in, so it has already announced
-        // itself. Without this, resuming a save taken after the last wave started made
-        // ``triggerWave`` see an empty ``announcedWaves`` and play the siren and the
-        // huge-wave call a second time - the sound the player reported as looping, since it
-        // lands while that wave's zombies are still coming in.
-        announcedWaves.clear();
-        for (int i = 0; i < nextWaveIndex; i++) {
-            announcedWaves.add(i);
-        }
-        // The warning call-out is per wave too, but a wave below the index may still be
-        // *inside* its warning window when the save was taken (the window ends when the
-        // wave arrives, and arriving is what advances the index). Seeding it is therefore
-        // wrong in the one case that matters - a save taken during the final warning would
-        // resume in silence - and the client already refuses to repeat either announcement
-        // within a level instance, so a resumed window calls out at most once more.
-        announcedWarnings.clear();
-        waveIntervalTicks = Math.max(0, root.getInt("WaveIntervalTicks"));
-        openingGateArmed = root.getInt("OpeningGateArmed") != 0;
-        waveArrivalHeld = root.getInt("WaveArrivalHeld") != 0;
-        openingGateTicks = Math.max(0, root.getInt("OpeningGateTicks"));
-        openingGateHoldTicks = Math.max(0, root.getInt("OpeningGateHoldTicks"));
-        nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
+        waves.restore(root);
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
         restoreScene(root.getList("Scene"));
         restoreTeams(root.getCompound("Teams"));
@@ -2610,9 +2263,8 @@ public final class LevelServer implements LevelAccess {
             LevelMechanics.applySave(typed, this, root);
         }
         restoreSlots(root.getList("Slots"));
-        restorePendingWaves(root.getList("PendingWaveSpawns"));
         restoreEntities(root.getList(KEY_ENTITIES));
-        updateWaveWarning();
+        waves.refreshWarning();
         flushPending(null);
     }
 
@@ -2670,46 +2322,6 @@ public final class LevelServer implements LevelAccess {
         }
     }
 
-    private void restorePendingWaves(ListTag pending) {
-        pendingWaveSpawns.clear();
-        for (Tag element : pending.values()) {
-            if (!(element instanceof CompoundTag queueTag)) {
-                continue;
-            }
-            List<Identifier> zombieIds = new ArrayList<>();
-            for (Tag tag : queueTag.getList("Zombies").values()) {
-                if (tag instanceof StringTag stringTag) {
-                    Identifier zombieId = Identifier.tryParse(stringTag.value());
-                    if (zombieId != null) {
-                        zombieIds.add(zombieId);
-                    }
-                }
-            }
-            List<Integer> rows = new ArrayList<>();
-            for (Tag tag : queueTag.getList("Rows").values()) {
-                if (tag instanceof IntTag intTag) {
-                    rows.add(intTag.value());
-                }
-            }
-            if (rows.isEmpty()) {
-                continue;
-            }
-            // The interval is saved with the queue: a save taken mid-release has to
-            // keep trickling at the wave's own pace, not at today's default. Same for the
-            // death gate's cap - but not the zombie it was waiting for, whose id does not
-            // survive a process (see the save side), so a resumed queue paces itself by the
-            // cap until it releases a zombie it can follow again.
-            PendingWaveSpawn queue = new PendingWaveSpawn(zombieIds, rows,
-                    queueTag.getInt("IntervalTicks") > 0
-                            ? queueTag.getInt("IntervalTicks")
-                            : WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS,
-                    Math.max(0, queueTag.getInt("HoldTicks")));
-            queue.rowIndex = Math.max(0, queueTag.getInt("RowIndex"));
-            queue.ticksUntilNext = Math.max(0, queueTag.getInt("TicksUntilNext"));
-            pendingWaveSpawns.add(queue);
-        }
-    }
-
     private void restoreEntities(ListTag saved) {
         for (Tag element : saved.values()) {
             if (!(element instanceof CompoundTag entityTag)) {
@@ -2733,15 +2345,6 @@ public final class LevelServer implements LevelAccess {
             return null;
         }
         String kind = tag.getString(KEY_KIND);
-        if (kind.isEmpty()) {
-            // Legacy saves had separate plants/zombies lists, so the kind came from
-            // which list the entry was in; keep accepting the id's registry instead.
-            if (BuiltInRegistries.PLANTS.containsKey(defId)) {
-                kind = com.pvzce.api.entity.EntityKind.PLANT;
-            } else if (BuiltInRegistries.ZOMBIES.containsKey(defId)) {
-                kind = com.pvzce.api.entity.EntityKind.ZOMBIE;
-            }
-        }
         return switch (kind) {
             case com.pvzce.api.entity.EntityKind.PLANT -> {
                 PlantDef def = BuiltInRegistries.PLANTS.get(defId);

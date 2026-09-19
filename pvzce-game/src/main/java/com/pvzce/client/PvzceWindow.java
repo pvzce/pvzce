@@ -1,7 +1,6 @@
 package com.pvzce.client;
 
 import com.pvzce.client.config.PvzceClientConfig;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCharCallback;
 import org.lwjgl.glfw.GLFWErrorCallback;
@@ -13,6 +12,8 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 /** GLFW window + OpenGL 3.2 core context. */
 public final class PvzceWindow implements AutoCloseable {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Window");
     private static final int MIN_WIDTH = 320;
     private static final int MIN_HEIGHT = 240;
     private static final int[][] RESOLUTION_PRESETS = {
@@ -250,7 +253,7 @@ public final class PvzceWindow implements AutoCloseable {
                 leaveFullscreen();
             }
         } catch (RuntimeException e) {
-            System.err.println("Fullscreen change unavailable on this platform: " + e.getMessage());
+            LOGGER.warn("Fullscreen change unavailable on this platform", e);
             fullscreen = false;
             GLFW.glfwMaximizeWindow(handle);
         }

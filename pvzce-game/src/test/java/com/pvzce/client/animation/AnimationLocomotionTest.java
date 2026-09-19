@@ -1,7 +1,6 @@
 package com.pvzce.client.animation;
 
 import com.pvzce.api.util.Identifier;
-import com.pvzce.client.ClientEntity;
 import com.pvzce.client.api.Animatable;
 import org.junit.jupiter.api.Test;
 

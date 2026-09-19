@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.List;
 
@@ -167,7 +168,7 @@ public record ParticleDef(
             if (!alphaCurve.isEmpty()) {
                 return sample(alphaCurve, progress, alphaFrom);
             }
-            return alphaFrom + (alphaTo - alphaFrom) * clamp01(progress);
+            return alphaFrom + (alphaTo - alphaFrom) * MathUtil.clamp01(progress);
         }
 
         /** The size multiplier at {@code progress} (0..1) through the particle's life. */
@@ -279,7 +280,4 @@ public record ParticleDef(
         return curve.get(curve.size() - 1).get(1);
     }
 
-    private static float clamp01(float value) {
-        return value < 0F ? 0F : (value > 1F ? 1F : value);
-    }
 }

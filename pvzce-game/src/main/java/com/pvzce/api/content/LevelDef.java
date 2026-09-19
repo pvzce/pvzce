@@ -55,15 +55,6 @@ public record LevelDef(
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
-     * The bar size levels were written against before "unwritten means the backpack".
-     *
-     * <p>Nothing reads it any more - the codec's default is
-     * {@link #UNSET_MAX_SEED_SLOTS} and the constructors leave the field unset - so it
-     * survives only as the number the legacy-level tests describe old data with. A new
-     * caller that wants six slots should write six.
-     */
-    public static final int LEGACY_DEFAULT_MAX_SEED_SLOTS = 6;
-    /**
      * {@code max_seed_slots} left unwritten: the level follows the player's backpack.
      *
      * <p>A number in the file is a statement about <em>this level</em> (1-1 fixes two

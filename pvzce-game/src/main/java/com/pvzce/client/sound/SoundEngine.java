@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.resource.PackResource;
 import com.pvzce.common.resource.PvzceResourceManager;
+import com.pvzce.common.util.MathUtil;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.openal.AL;
 import org.lwjgl.openal.AL10;
@@ -15,6 +16,8 @@ import org.lwjgl.openal.ALCCapabilities;
 import org.lwjgl.stb.STBVorbis;
 import org.lwjgl.system.MemoryStack;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
@@ -33,6 +36,8 @@ import java.util.Random;
  * of the same event are throttled to avoid bite/hit sound spam.</p>
  */
 public final class SoundEngine implements AutoCloseable {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Sound");
     public static final int MAX_SFX_SOURCES = 16;
     public static final int MUSIC_SOURCE_COUNT = 8;
     private static final long SFX_MIN_INTERVAL_NANOS = 130_000_000L;
@@ -89,7 +94,7 @@ public final class SoundEngine implements AutoCloseable {
             }
             enabled = true;
         } catch (Throwable t) {
-            System.err.println("Sound engine unavailable: " + t.getMessage());
+            LOGGER.warn("Sound engine unavailable; the game runs silently.", t);
             enabled = false;
         }
     }
@@ -99,15 +104,15 @@ public final class SoundEngine implements AutoCloseable {
     }
 
     public void setMasterVolume(float volume) {
-        this.masterVolume = clamp01(volume);
+        this.masterVolume = MathUtil.clamp01(volume);
     }
 
     public void setMusicVolume(float volume) {
-        this.musicVolume = clamp01(volume);
+        this.musicVolume = MathUtil.clamp01(volume);
     }
 
     public void setSfxVolume(float volume) {
-        this.sfxVolume = clamp01(volume);
+        this.sfxVolume = MathUtil.clamp01(volume);
     }
 
     public float masterVolume() {
@@ -158,7 +163,7 @@ public final class SoundEngine implements AutoCloseable {
             long window = now - traceWindowStart;
             if (window > 1_000_000_000L) {
                 if (repeats.size() > 1 || repeats.values().stream().anyMatch(c -> c > 3)) {
-                    System.out.println("[SOUND] last second: " + repeats);
+                    LOGGER.info("sound trace: last second played {}", repeats);
                 }
                 repeats.clear();
                 traceWindowStart = now;
@@ -267,7 +272,7 @@ public final class SoundEngine implements AutoCloseable {
     public void setMusicSourceVolume(int musicSourceIndex, float volume) {
         if (enabled && musicSourceIndex >= 0 && musicSourceIndex < MUSIC_SOURCE_COUNT) {
             AL10.alSourcef(musicSources[musicSourceIndex], AL10.AL_GAIN,
-                    masterVolume * musicVolume * clamp01(volume));
+                    masterVolume * musicVolume * MathUtil.clamp01(volume));
         }
     }
 
@@ -326,7 +331,7 @@ public final class SoundEngine implements AutoCloseable {
                 }
             }
         } catch (Throwable t) {
-            System.err.println("Failed to parse sound event " + eventPath + ": " + t.getMessage());
+            LOGGER.warn("Failed to parse sound event " + eventPath + "; using the file-name fallback.", t);
         }
         // Compatibility fallback: event id doubles as the sound file name.
         return new EventDefinition(List.of(new SoundVariant(eventPath, 1, 1F, 1F)));
@@ -374,12 +379,12 @@ public final class SoundEngine implements AutoCloseable {
                 }
             }
             if (resource.isEmpty()) {
-                System.err.println("Missing sound file " + file);
+                LOGGER.warn("Missing sound file {}", file);
                 return 0;
             }
             return uploadOgg(resource.get());
         } catch (Throwable t) {
-            System.err.println("Failed to load sound file " + file + ": " + t.getMessage());
+            LOGGER.warn("Failed to load sound file " + file, t);
             return 0;
         }
     }
@@ -404,10 +409,6 @@ public final class SoundEngine implements AutoCloseable {
 
     private static String eventPath(String soundId) {
         return soundId.contains(":") ? soundId.substring(soundId.indexOf(':') + 1) : soundId;
-    }
-
-    private static float clamp01(float value) {
-        return com.pvzce.common.util.MathUtil.clamp01(value);
     }
 
     /** Pitch is clamped to the OpenAL-safe range in one place. */

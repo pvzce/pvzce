@@ -1,14 +1,16 @@
 package com.pvzce.server;
 
-import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.NbtIo;
+import com.pvzce.common.network.packet.EntityUpdateS2C;
+import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.CreateWorldC2S;
@@ -26,6 +28,7 @@ import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,6 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * level offers, and what happens to coins when a run ends.
  */
 class BackpackAndCoinsTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     private static final String FIRST_LEVEL = "pvzce:yard/adventure/1_1";
     private static final String WORLD = "backpackworld";
 
@@ -194,14 +201,14 @@ class BackpackAndCoinsTest {
      */
     @Test
     void currencyRingsAndTheSunChimes() {
-        assertEquals(com.pvzce.common.PvzceSounds.UI_COLLECT,
+        assertEquals(PvzceSounds.UI_COLLECT,
                 BuiltInRegistries.RESOURCES.get(PvzceIds.SUN).pickupSound(),
                 "the sun keeps the collect sound it always had");
-        assertEquals(com.pvzce.common.PvzceSounds.UI_COIN,
+        assertEquals(PvzceSounds.UI_COIN,
                 BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_SILVER).pickupSound());
-        assertEquals(com.pvzce.common.PvzceSounds.UI_COIN,
+        assertEquals(PvzceSounds.UI_COIN,
                 BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_GOLD).pickupSound());
-        assertNotEquals(com.pvzce.common.PvzceSounds.UI_COLLECT,
+        assertNotEquals(PvzceSounds.UI_COLLECT,
                 BuiltInRegistries.RESOURCES.get(PvzceIds.COIN_SILVER).pickupSound(),
                 "a coin must not sound like a sun");
     }
@@ -212,7 +219,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void theSeedPoolHidesUnownedCardsButKeepsTheLevelsOwn() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-backpack-pool");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             harness.send(new RequestLevelListC2S(WORLD));
             LevelListS2C list = harness.awaitPacket(LevelListS2C.class, 5_000);
@@ -236,7 +242,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void theFirstLevelFixesPeashooterAndSunAndNothingElse() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-first-level-cards");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             // The client asks for cards it does not own; the level's own two win out.
             harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true,
@@ -253,7 +258,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void aSandboxWorldOffersEveryCard() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-backpack-all");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             harness.send(new CreateWorldC2S(WORLD, true));
             harness.send(new RequestLevelListC2S(WORLD));
@@ -271,7 +275,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void aFirstClearUnlocksTheRewardAndAReplayPaysTheStipend() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-rewards");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             // One zombie, no delay: the level can be won inside a test. Its rewards
             // block is 1-1's, which ContentFoundationTest pins separately.
@@ -300,7 +303,7 @@ class BackpackAndCoinsTest {
             // First clear: the level's first_clear reward is the sunflower.
             harness.send(new PlayLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
-            winLevel(harness);
+            harness.winByClearingTheField();
 
             LevelRewardS2C first = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("pvzce:sunflower", first.unlockedCard(),
@@ -333,7 +336,7 @@ class BackpackAndCoinsTest {
             harness.send(new PlayLevelC2S("pvzce:reward_test", WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
             harness.clear();
-            winLevel(harness);
+            harness.winByClearingTheField();
 
             LevelRewardS2C repeat = harness.awaitPacket(LevelRewardS2C.class, 8_000);
             assertEquals("", repeat.unlockedCard(), "there is nothing left to unlock");
@@ -347,7 +350,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void coinsCollectedInARunAreBankedEvenWhenTheRunIsLost() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-coin-bank");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             harness.send(new PlayLevelC2S(FIRST_LEVEL, WORLD, true, List.of()));
             harness.awaitPacket(LevelInitS2C.class, 5_000);
@@ -377,7 +379,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void aDyingZombieLeavesTheLevelsConfiguredCoinDrop() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-coin-drop");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             // Certain drops, so the test does not gamble on the default 25% roll.
             writeLevel(harness.gameDir(), "drop_test", """
@@ -399,14 +400,20 @@ class BackpackAndCoinsTest {
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));
-            harness.waitForCondition(() -> harness.server().level() != null
-                    && harness.server().level().aliveZombieCount() == 1, 5_000);
+            // Waited for as a packet, not by polling the level: the simulation is single-threaded
+            // and `entities` is a plain ArrayList, so a test thread reading it can keep seeing the
+            // old state - an intermittent five-second timeout that looks like the server never
+            // spawning the zombie. The harness's packet list is drained on this thread, which makes
+            // it the one channel that is safe to observe from here.
+            harness.waitFor(p -> p instanceof EntitySpawnS2C spawn
+                    && "zombie".equals(spawn.entityKind()), 5_000);
 
             // Kills it directly: this is about what a death spawns, not about
             // shooting one to death, which CombatSystemsTest already covers.
             harness.server().level().damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH),
                     5.5F, 2.5F, 2F, 5_000, null);
-            harness.waitForCondition(() -> coinDrops(harness) == 150, 5_000);
+            harness.waitFor(p -> p instanceof EntitySpawnS2C spawn
+                    && "resource".equals(spawn.entityKind()), 5_000);
             assertEquals(150, coinDrops(harness),
                     "three gold coins, and a drop's amount is the denomination's worth");
         }
@@ -414,7 +421,6 @@ class BackpackAndCoinsTest {
 
     @Test
     void aLevelWhoseDropChanceIsZeroNeverSpawnsCoins() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-coin-off");
         try (ServerHarness harness = ServerHarness.create(gameDir)) {
             writeLevel(harness.gameDir(), "nodrop_test", """
                     {
@@ -435,11 +441,16 @@ class BackpackAndCoinsTest {
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));
-            harness.waitForCondition(() -> harness.server().level() != null
-                    && harness.server().level().aliveZombieCount() == 1, 5_000);
+            EntitySpawnS2C spawned = harness.awaitPacket(EntitySpawnS2C.class, 5_000);
+            assertEquals("zombie", spawned.entityKind(), "the summoned zombie must reach the client");
             harness.server().level().damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH),
                     5.5F, 2.5F, 2F, 5_000, null);
-            harness.waitForCondition(() -> harness.server().level().aliveZombieCount() == 0, 5_000);
+            // The death is observed, not the counter: a dying zombie keeps its corpse on the
+            // field for seconds, and the level's entity list belongs to the server thread.
+            harness.waitFor(p -> p instanceof EntityUpdateS2C update
+                    && update.entityId() == spawned.entityId()
+                    && update.animation().startsWith("death"), 5_000,
+                    "the damaged zombie never played its death clip");
             assertEquals(0, coinDrops(harness), "a level that disables drops must stay coin-free");
         }
     }
@@ -485,28 +496,6 @@ class BackpackAndCoinsTest {
         // them back to back instead of billing the suite ~5s of wall clock; the simulated
         // outcome is identical.
         harness.send(new CommandC2S("/tick sprint 400"));
-    }
-
-    /**
-     * Wins the running level by clearing every zombie and every wave.
-     *
-     * <p>Damage is applied directly rather than through a peashooter: what is under test is
-     * the payout, and {@code CombatSystemsTest} already covers shooting. Returns once the
-     * plant team has won.
-     */
-    private static void winLevel(ServerHarness harness) throws Exception {
-        harness.waitForCondition(() -> {
-            LevelServer level = harness.server().level();
-            if (level == null) {
-                return false;
-            }
-            if (level.aliveZombieCount() > 0) {
-                level.damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), 0F, 0F, 500F, 100_000,
-                        level.team(PvzceIds.PLANT_TEAM));
-            }
-            return level.gameState().equals(GameStateS2C.WON)
-                    && level.winner() != null && level.winner().equals(PvzceIds.PLANT_TEAM);
-        }, 15_000);
     }
 
     /** Writes a data pack level; the server only sees it after a reload. */

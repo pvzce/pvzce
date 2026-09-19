@@ -3,7 +3,6 @@ package com.pvzce.server;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.NbtIo;
-import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.CreateWorldC2S;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
@@ -13,6 +12,7 @@ import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,6 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * forgotten on the next load.
  */
 class LevelUnlockFlowTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     private static final String WORLD = "unlockworld";
     private static final String FIRST = "pvzce:yard/adventure/1_1";
     private static final String SECOND = "pvzce:yard/adventure/1_2";
@@ -41,7 +45,6 @@ class LevelUnlockFlowTest {
 
     @Test
     void theShippedChainGatesOneTwoBehindOneOne() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-unlock-list");
         try (ServerHarness harness = ServerHarness.createWithWorld(gameDir, WORLD, false)) {
             LevelListS2C list = harness.levelList(WORLD);
 
@@ -60,7 +63,6 @@ class LevelUnlockFlowTest {
     /** The gate is the server's, not the menu's. */
     @Test
     void enteringALockedLevelIsRefused() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-unlock-refuse");
         try (ServerHarness harness = ServerHarness.createWithWorld(gameDir, WORLD, false)) {
             harness.levelList(WORLD);
             harness.clear();
@@ -84,7 +86,6 @@ class LevelUnlockFlowTest {
      */
     @Test
     void aCompletionMarkerOnThePrerequisiteOpensTheNextLevel() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-unlock-cleared");
         try (ServerHarness harness = ServerHarness.createWithWorld(gameDir, WORLD, false)) {
             assertTrue(find(harness.levelList(WORLD), SECOND).isLocked(), "locked to begin with");
 
@@ -100,7 +101,7 @@ class LevelUnlockFlowTest {
     /** The marker file a finished run writes, under the key the server derives from the id. */
     private static void writeCompletionMarker(Path gameDir, String levelId) throws Exception {
         Identifier id = Identifier.parse(levelId);
-        String key = com.pvzce.server.level.LevelKey.of(id);
+        String key = com.pvzce.common.util.LevelKey.of(id);
         Path dir = gameDir.resolve("saves").resolve(WORLD).resolve("level_status");
         Files.createDirectories(dir);
         CompoundTag status = new CompoundTag();
@@ -119,7 +120,6 @@ class LevelUnlockFlowTest {
      */
     @Test
     void buyingAPricedLevelChargesOnceAndSticks() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-unlock-buy");
 
         // 1. Fresh world, no coins: the purchase is refused with a reason.
         try (ServerHarness harness = ServerHarness.createWithWorld(gameDir, WORLD, false)) {
@@ -172,7 +172,6 @@ class LevelUnlockFlowTest {
     /** A sandbox world ignores every condition. */
     @Test
     void aSandboxWorldListsEverythingAsOpen() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-unlock-sandbox");
         try (ServerHarness harness = ServerHarness.createWithWorld(gameDir, WORLD, false)) {
             harness.send(new CreateWorldC2S(WORLD, true));
             harness.clear();
@@ -185,14 +184,14 @@ class LevelUnlockFlowTest {
 
     /** Puts coins in this world's wallet through the server's own write path. */
     private static void wallet(ServerHarness harness, int coins) {
-        PlayerProfile profile = harness.server().profileFor(WORLD);
+        PlayerProfile profile = harness.server().worlds().profileFor(WORLD);
         profile.setCoins(coins);
-        harness.server().saveProfile(WORLD, profile);
+        harness.server().worlds().saveProfile(WORLD, profile);
     }
 
     /** This world's wallet, read from the profile the server holds for it. */
     private static int coins(ServerHarness harness) {
-        return harness.server().profileFor(WORLD).coins();
+        return harness.server().worlds().profileFor(WORLD).coins();
     }
 
     private static LevelListS2C.LevelInfo find(LevelListS2C list, String id) {

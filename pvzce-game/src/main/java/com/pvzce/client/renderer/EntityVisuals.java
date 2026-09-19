@@ -67,21 +67,25 @@ public final class EntityVisuals {
      * is stated once, here, and read by the tooling's own test.
      */
     public static final float AUTHORED_DROP_CELLS = 0.34F;
+
     /**
-     * Drops are drawn dimmer than their art.
+     * The colour a drop is drawn in.
      *
-     * <p>The sun's animation stacks several additive glow layers. Added, they clip to flat
-     * white - the sun reads as a bright blob with no shape to it, which is worse than small -
-     * and the two 117px and 77px halos are the ones doing the blowing out. Scaling the draw
-     * colour back keeps the 36px core readable through them; the alpha is untouched, so this
-     * is not "more transparent", just less blown out.
-     *
-     * <p>Half rather than the 0.72 it used to be: that value was chosen when the glow layers
-     * were drawn opaque and the alpha channel was still being dropped on the floor, so it was
-     * compensating for a bug rather than for the art. With the authored alpha (0.5-0.84) and
-     * additive blending in place, 0.72 left the sun washing the lawn out.
+     * <p>The number lives on the resource ({@link com.pvzce.api.content.ResourceDef.DropTint}),
+     * because it is a property of that drop's art rather than of "drops": a sun's own animation
+     * stacks two pale halos additively over a saturated yellow core, and the tint that keeps it
+     * yellow is not the one a coin wants. This is only the lookup, with the definition's own
+     * default standing in for a drop whose resource the client cannot resolve.
      */
-    public static final float DROP_TINT = 0.5F;
+    public static float[] dropTint(String defId) {
+        com.pvzce.api.util.Identifier id = com.pvzce.api.util.Identifier.tryParse(defId);
+        com.pvzce.api.content.ResourceDef def = id == null
+                ? null : com.pvzce.common.core.BuiltInRegistries.RESOURCES.get(id);
+        com.pvzce.api.content.ResourceDef.DropTint tint = def == null
+                ? com.pvzce.api.content.ResourceDef.DropTint.DEFAULT : def.tint();
+        return new float[]{tint.r(), tint.g(), tint.b()};
+    }
+
     /** Underground zombies are drawn under the lawn rather than among the entities. */
     public static final int UNDERGROUND_SORT_BUCKET = -100;
 
@@ -138,7 +142,7 @@ public final class EntityVisuals {
      *
      * <p>Plants and zombies only. A drop is meant to glow on its own account - the sun is
      * the board's only light and is deliberately kept from blowing out (see
-     * {@link #DROP_TINT}) - and a projectile is small enough that lifting it would only make
+     * {@link #dropTint}) - and a projectile is small enough that lifting it would only make
      * it look like it belonged to a different scene.
      */
     public static boolean liftsAtNight(String kind) {

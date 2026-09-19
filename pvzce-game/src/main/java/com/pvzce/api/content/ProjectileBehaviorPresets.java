@@ -9,7 +9,6 @@ import com.pvzce.common.capability.projectile.LinearMotionCapability;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Named, canned projectile capability bundles for the optional {@code behavior} shorthand. */

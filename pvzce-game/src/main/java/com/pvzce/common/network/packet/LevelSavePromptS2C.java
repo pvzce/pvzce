@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -22,18 +23,21 @@ public record LevelSavePromptS2C(
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<LevelSavePromptS2C> CODEC = PacketStruct.<LevelSavePromptS2C>builder()
+    .field(LevelSavePromptS2C::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(LevelSavePromptS2C::worldName, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(LevelSavePromptS2C::levelName, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(LevelSavePromptS2C::tickCount, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(LevelSavePromptS2C::plantCount, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+    .field(LevelSavePromptS2C::sun, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            .build(values -> new LevelSavePromptS2C((String) values.get(0), (String) values.get(1), (String) values.get(2), (Integer) values.get(3), (Integer) values.get(4), (Integer) values.get(5)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeString(levelId);
-        buf.writeString(worldName);
-        buf.writeString(levelName);
-        buf.writeInt(tickCount);
-        buf.writeInt(plantCount);
-        buf.writeInt(sun);
+        CODEC.encode(this, buf);
     }
 
     public static LevelSavePromptS2C decode(PacketByteBuf buf) {
-        return new LevelSavePromptS2C(buf.readString(), buf.readString(), buf.readString(),
-                buf.readInt(), buf.readInt(), buf.readInt());
+        return CODEC.decode(buf);
     }
 }

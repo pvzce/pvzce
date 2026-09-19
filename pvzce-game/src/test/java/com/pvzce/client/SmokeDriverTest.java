@@ -1,0 +1,125 @@
+package com.pvzce.client;
+
+import com.pvzce.client.gui.screens.InventoryScreen;
+import com.pvzce.client.gui.screens.LevelSelectScreen;
+import com.pvzce.client.gui.screens.TitleScreen;
+import com.pvzce.common.network.packet.RequestLevelListC2S;
+import com.pvzce.testutil.ClientHarness;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The {@code pvzce.smokeScreen} switch, which decides what a screenshot run opens on.
+ *
+ * <p>This is the one part of the smoke harness that can be exercised without a window: the
+ * properties are read when the driver is built, and picking a screen is a plain method call.
+ * The rest of the harness (synthetic clicks, hover warping, capture) needs a real framebuffer
+ * and is checked by running a smoke screenshot.
+ *
+ * <p>The mapping matters because a smoke run that opens the wrong screen fails silently: the
+ * frames tick by, the PNG is written, and nothing in it says "you asked for the console".
+ */
+class SmokeDriverTest {
+    /**
+     * Properties are read in the constructor, so each case sets them, builds, and clears.
+     *
+     * <p>A run with no properties at all must be inert - that is the property that keeps the
+     * harness from leaking into a normal game.
+     */
+    private static void withScreen(String screen, java.util.function.BiConsumer<PvzceClient, ClientHarness> assertions)
+            throws Exception {
+        String previous = System.getProperty("pvzce.smokeScreen");
+        String previousWorld = System.getProperty("pvzce.smokeWorld");
+        try {
+            if (screen == null) {
+                System.clearProperty("pvzce.smokeScreen");
+            } else {
+                System.setProperty("pvzce.smokeScreen", screen);
+            }
+            System.setProperty("pvzce.smokeWorld", "smokeworld");
+            try (ClientHarness harness = ClientHarness.create("pvzce-smoke-driver")) {
+                SmokeDriver driver = new SmokeDriver(harness.client());
+                driver.applyInitialScreen();
+                assertions.accept(harness.client(), harness);
+            }
+        } finally {
+            if (previous == null) {
+                System.clearProperty("pvzce.smokeScreen");
+            } else {
+                System.setProperty("pvzce.smokeScreen", previous);
+            }
+            if (previousWorld == null) {
+                System.clearProperty("pvzce.smokeWorld");
+            } else {
+                System.setProperty("pvzce.smokeWorld", previousWorld);
+            }
+        }
+    }
+
+    @Test
+    void noPropertiesMeansTheTitleScreen() throws Exception {
+        withScreen(null, (client, harness) -> {
+            assertInstanceOf(TitleScreen.class, client.currentScreen());
+            assertEquals(1, client.screenDepth(), "exactly the one screen the switch installed");
+            assertTrue(harness.sentPackets().isEmpty(), "and nothing of its own to say");
+        });
+    }
+
+    @Test
+    void anUnknownScreenNameAlsoMeansTheTitleScreen() throws Exception {
+        withScreen("smoe_screen", (client, harness) ->
+                assertInstanceOf(TitleScreen.class, client.currentScreen()));
+    }
+
+    /**
+     * {@code levels} has to name the world <em>and</em> ask the server for the list: the list
+     * is per world and an unnamed one comes back empty, which is the trap the smoke guide
+     * documents as "the hook looks like it did nothing".
+     */
+    @Test
+    void theLevelListAsksForItsWorld() throws Exception {
+        withScreen("levels", (client, harness) -> {
+            assertInstanceOf(LevelSelectScreen.class, client.currentScreen());
+            assertEquals("smokeworld", client.currentWorld());
+            assertTrue(harness.sentPackets().stream()
+                            .anyMatch(p -> p instanceof RequestLevelListC2S request
+                                    && "smokeworld".equals(request.worldName())),
+                    "the list only arrives for a named world, so the request carries it");
+        });
+    }
+
+    @Test
+    void theInventorySpellingIsAccepted() throws Exception {
+        withScreen("backpack", (client, harness) ->
+                assertInstanceOf(InventoryScreen.class, client.currentScreen()));
+    }
+
+    @Test
+    void theConsoleOpensAsAnOverlayOverAScreen() throws Exception {
+        withScreen("console", (client, harness) -> {
+            assertInstanceOf(TitleScreen.class, client.currentScreen());
+            assertTrue(client.overlay() != null, "the console floats over the screen it was given");
+        });
+    }
+
+    /**
+     * With no smoke level requested, the per-frame hooks must not send anything: a normal run
+     * must be indistinguishable from one with the harness present.
+     */
+    @Test
+    void theFrameHooksAreInertWithoutProperties() throws Exception {
+        withScreen(null, (client, harness) -> {
+            int depthBefore = client.screenDepth();
+            SmokeDriver driver = new SmokeDriver(client);
+            driver.beforeFrame();
+            assertFalse(driver.afterFrame(client.currentScreen()), "and the run keeps going");
+            assertFalse(driver.openSeedChooserForSmoke(java.util.List.of()));
+            assertEquals(depthBefore, client.screenDepth(), "no screen was pushed or replaced");
+            assertTrue(harness.sentPackets().isEmpty(), "no packet was sent on the player's behalf");
+        });
+    }
+}

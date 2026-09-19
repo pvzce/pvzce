@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.pvzce.api.content.LevelRewards;
-import com.pvzce.api.content.LevelUnlock;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.gui.screens.MusicEditorModel;
 import com.pvzce.client.gui.screens.WaveEditorModel;

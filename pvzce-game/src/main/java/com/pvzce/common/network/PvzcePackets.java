@@ -5,7 +5,6 @@ import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.CreateWorldC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
-import com.pvzce.common.network.packet.MovePlantC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
@@ -103,7 +102,9 @@ public final class PvzcePackets {
     public static final int C2S_PAUSE_GAME = 13;
     public static final int C2S_CREATE_WORLD = 14;
     public static final int C2S_UNLOCK_LEVEL = 15;
-    public static final int C2S_MOVE_PLANT = 16;
+    // 16 was MovePlantC2S. The glove moves a plant through the tool path (UseToolC2S ->
+    // LevelServer.applyToolEffect), so the packet had no sender and no handler; the id is
+    // retired rather than reused, so an old client cannot land on a different packet.
     public static final int C2S_RELEASE_MOWER = 17;
     public static final int C2S_USE_GRANTED_TOOL = 18;
 
@@ -160,8 +161,6 @@ public final class PvzcePackets {
             def(C2S_CREATE_WORLD, ConnectionDirection.SERVERBOUND, CreateWorldC2S.class, CreateWorldC2S::decode),
             def(C2S_UNLOCK_LEVEL, ConnectionDirection.SERVERBOUND, UnlockLevelC2S.class,
                     UnlockLevelC2S::decode),
-            def(C2S_MOVE_PLANT, ConnectionDirection.SERVERBOUND, MovePlantC2S.class,
-                    MovePlantC2S::decode),
             def(C2S_RELEASE_MOWER, ConnectionDirection.SERVERBOUND, ReleaseMowerC2S.class,
                     ReleaseMowerC2S::decode),
             def(C2S_USE_GRANTED_TOOL, ConnectionDirection.SERVERBOUND, UseGrantedToolC2S.class,

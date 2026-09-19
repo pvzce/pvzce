@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 public record SlotSyncS2C(SlotInfo slot) implements PvzcePacket {
@@ -10,12 +11,16 @@ public record SlotSyncS2C(SlotInfo slot) implements PvzcePacket {
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<SlotSyncS2C> CODEC = PacketStruct.<SlotSyncS2C>builder()
+    .nested(SlotSyncS2C::slot, SlotInfo.CODEC)
+            .build(values -> new SlotSyncS2C((SlotInfo) values.get(0)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        slot.encode(buf);
+        CODEC.encode(this, buf);
     }
 
     public static SlotSyncS2C decode(PacketByteBuf buf) {
-        return new SlotSyncS2C(SlotInfo.decode(buf));
+        return CODEC.decode(buf);
     }
 }

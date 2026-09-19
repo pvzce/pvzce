@@ -14,6 +14,7 @@ import com.pvzce.client.gui.editor.LevelFileWriter;
 import com.pvzce.client.gui.screens.DialogueEditorModel;
 import com.pvzce.client.gui.screens.ListEditorSupport;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.util.MathUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +102,7 @@ public final class DialoguePage implements EditorPage {
         int y = area.y();
         int w = area.width();
         int h = area.height();
-        int rowH = clamp(h / 16, 26, 34);
+        int rowH = MathUtil.clamp(h / 16, 26, 34);
         int pad = 8;
         int gap = 10;
 
@@ -112,7 +113,7 @@ public final class DialoguePage implements EditorPage {
         int listTop = y + h - rowH - pad - 20;
         int listH = Math.max(60, listTop - (y + rowH + pad + 20));
         dialogueLineList = context.own(new AbstractSelectionList<DialogueEditorModel.LineModel>(
-                x, y + rowH + pad + 20, listW, listH, clamp(listH / 7, 28, 42),
+                x, y + rowH + pad + 20, listW, listH, MathUtil.clamp(listH / 7, 28, 42),
                 (renderClient, line, rx, ry) -> renderClient.font().draw(
                         line.summary(Math.max(0, dialogueConfig.lines.indexOf(line)),
                                 dialogueSpeakerName(line.character)),
@@ -158,7 +159,7 @@ public final class DialoguePage implements EditorPage {
         int listBlockH = Math.max(70, (y + h - pad - 18) - listsBottom);
         int halfW = Math.max(70, (detailW - gap) / 2);
         dialogueCharacterList = context.own(new AbstractSelectionList<Identifier>(detailX, listsBottom,
-                halfW, listBlockH, clamp(listBlockH / 6, 26, 36), (renderClient, id, rx, ry) -> {
+                halfW, listBlockH, MathUtil.clamp(listBlockH / 6, 26, 36), (renderClient, id, rx, ry) -> {
             var character = BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
             String label = character == null ? id.toString() : character.displayName();
             renderClient.font().draw(label, rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F);
@@ -169,7 +170,7 @@ public final class DialoguePage implements EditorPage {
 
         dialoguePortraitList = context.own(new AbstractSelectionList<String>(
                 detailX + halfW + gap, listsBottom, detailW - halfW - gap, listBlockH,
-                clamp(listBlockH / 6, 26, 36), (renderClient, portrait, rx, ry) ->
+                MathUtil.clamp(listBlockH / 6, 26, 36), (renderClient, portrait, rx, ry) ->
                 renderClient.font().draw(portrait, rx, ry + 4, 0.72F, 0.9F, 1F, 0.9F, 1F)));
         dialoguePortraitList.setEntries(List.of());
 
@@ -225,17 +226,6 @@ public final class DialoguePage implements EditorPage {
         commitDialogueFields(currentDialogueLine());
         applyDialogueCharacterChoice(context);
         applyDialoguePortraitChoice();
-    }
-
-    /** What the value box means for the selected line's kind; the box itself is generic. */
-    private String animationValueLabel() {
-        DialogueEditorModel.LineModel line = currentDialogueLine();
-        String kind = line == null ? "none" : line.animation;
-        return switch (kind == null ? "none" : kind.toLowerCase(java.util.Locale.ROOT)) {
-            case "shake" -> "抖动幅度（1 = 默认）";
-            case "scale" -> "缩放倍率（1.25 ≈ 放大四分之一）";
-            default -> "动画：无（先在上面选一种）";
-        };
     }
 
     /** A character id's display name, or the id itself when it is not registered. */
@@ -480,7 +470,4 @@ public final class DialoguePage implements EditorPage {
         refreshDialogueDetail(context);
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

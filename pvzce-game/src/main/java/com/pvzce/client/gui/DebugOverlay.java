@@ -115,7 +115,7 @@ public final class DebugOverlay {
         long cycle = dayLength > 0 ? dayLength + nightLength : 0L;
         long day = cycle > 0 ? totalTicks / cycle : 0L;
         long timeOfDay = cycle > 0 ? totalTicks % cycle : totalTicks;
-        long totalSeconds = timeOfDay / 60L;
+        long totalSeconds = timeOfDay / com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
         long hours = totalSeconds / 3600L;
         long minutes = totalSeconds % 3600L / 60L;
         long seconds = totalSeconds % 60L;

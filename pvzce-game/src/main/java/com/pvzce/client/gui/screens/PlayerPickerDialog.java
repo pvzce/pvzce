@@ -4,10 +4,13 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
+import com.pvzce.common.util.WorldPaths;
 import com.pvzce.client.gui.components.Dialog;
 import com.pvzce.client.gui.components.EditBox;
 import com.pvzce.common.network.packet.CreateWorldC2S;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +39,8 @@ import java.util.stream.Stream;
  * ({@link #FRAME_SCALE}) - the stone frame's native border is most of a dialog this size.
  */
 public final class PlayerPickerDialog extends Dialog {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Client");
     /**
      * How much of the stone frame's native border to draw.
      *
@@ -118,7 +123,7 @@ public final class PlayerPickerDialog extends Dialog {
     /** Everyone with a save directory, in listing order, current player highlighted. */
     private void refreshWorlds() {
         worlds.clear();
-        Path saves = client.gameDir().resolve("saves");
+        Path saves = WorldPaths.savesDir(client.gameDir());
         if (Files.isDirectory(saves)) {
             try (Stream<Path> entries = Files.list(saves)) {
                 entries.filter(Files::isDirectory)
@@ -126,7 +131,7 @@ public final class PlayerPickerDialog extends Dialog {
                         .sorted(Comparator.naturalOrder())
                         .forEach(worlds::add);
             } catch (IOException e) {
-                System.err.println("Failed to list worlds: " + e.getMessage());
+                LOGGER.warn("Failed to list worlds", e);
             }
         }
         list.setEntries(worlds);
@@ -152,15 +157,13 @@ public final class PlayerPickerDialog extends Dialog {
      * the button that switches says so.
      */
     private void createWorld() {
-        String raw = nameBox.value() == null ? "" : nameBox.value().trim();
-        String name = raw.isBlank() ? "新世界" : raw.replaceAll("[^A-Za-z0-9_-]", "_");
-        if (name.isBlank()) {
-            return;
-        }
+        // The same rule the server derives its profile path from: an empty name becomes
+        // "world" on both sides, so the directory the list shows is the one the server writes.
+        String name = WorldPaths.sanitize(nameBox.value());
         try {
-            Files.createDirectories(client.gameDir().resolve("saves").resolve(name));
+            Files.createDirectories(WorldPaths.worldDir(client.gameDir(), name));
         } catch (IOException e) {
-            System.err.println("Failed to create world " + name + ": " + e.getMessage());
+            LOGGER.error("Failed to create world " + name, e);
             return;
         }
         // The directory is the client's (the list reads the disk), but the profile inside it is
@@ -177,13 +180,13 @@ public final class PlayerPickerDialog extends Dialog {
         if (selected == null) {
             return;
         }
-        Path dir = client.gameDir().resolve("saves").resolve(selected);
+        Path dir = WorldPaths.worldDir(client.gameDir(), selected);
         try (Stream<Path> walk = Files.walk(dir)) {
             for (Path path : walk.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(path);
             }
         } catch (IOException e) {
-            System.err.println("Failed to delete world " + selected + ": " + e.getMessage());
+            LOGGER.error("Failed to delete world " + selected, e);
             return;
         }
         refreshWorlds();

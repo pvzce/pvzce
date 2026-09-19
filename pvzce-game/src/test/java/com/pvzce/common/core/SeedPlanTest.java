@@ -123,13 +123,15 @@ class SeedPlanTest {
                 id("pvzce:lily_pad"), id("pvzce:flower_pot"), id("pvzce:coffee_bean"),
                 id("pvzce:marigold"), id("pvzce:potato_mine"), id("pvzce:sun"), id("pvzce:shovel"));
 
-        LevelDef legacy = level(thirteen, LevelDef.LEGACY_DEFAULT_MAX_SEED_SLOTS);
-        assertEquals(13, legacy.maxSeedSlots(), "the count is raised to fit the pool");
-        assertTrue(legacy.seedPlan(SeedOptions.allCards()).isFullyFixed(),
-                "so a legacy level hands out a fixed deck");
+        // A level that declares six slots while listing more cards than that.
+        int declared = 6;
+        LevelDef crowded = level(thirteen, declared);
+        assertEquals(13, crowded.maxSeedSlots(), "the count is raised to fit the pool");
+        assertTrue(crowded.seedPlan(SeedOptions.allCards()).isFullyFixed(),
+                "so a level whose own cards overflow the bar hands out a fixed deck");
 
-        LevelDef small = level(thirteen.subList(0, 4), LevelDef.LEGACY_DEFAULT_MAX_SEED_SLOTS);
-        assertEquals(LevelDef.LEGACY_DEFAULT_MAX_SEED_SLOTS, small.maxSeedSlots(),
+        LevelDef small = level(thirteen.subList(0, 4), declared);
+        assertEquals(declared, small.maxSeedSlots(),
                 "four cards already fit in six slots, so the count is left alone");
         assertFalse(small.seedPlan(SeedOptions.allCards()).isFullyFixed(),
                 "and the two free slots stay the player's");

@@ -31,7 +31,7 @@ import java.util.Set;
  *
  * <p>The {@code c} namespace holds the cross-content conventions a pack or mod
  * is expected to extend ({@code #c:plantable}, {@code #c:carrier}, ...); this
- * class only declares the keys and the string spelling used in {@code accepts}.
+ * class only declares the keys.
  * Game-specific groupings such as {@code #pvzce:sun_producer} stay in the
  * {@code pvzce} namespace, because "produces sun" is a PVZCE concept rather
  * than something another game layer would agree on.
@@ -123,21 +123,6 @@ public final class PvzceTags {
      */
     public static final TagKey<PlantDef> GRAVE_ONLY =
             plant("grave_only");
-
-    // ------------------------------------------------------------------
-    // String spellings, for `accepts` entries and diagnostics
-    // ------------------------------------------------------------------
-
-    public static final String PLANTABLE_REFERENCE = "#" + SCENE_PLANTABLE.id();
-    public static final String GROUND_REFERENCE = "#" + SCENE_GROUND.id();
-    public static final String UNPLANTABLE_REFERENCE = "#" + SCENE_UNPLANTABLE.id();
-    public static final String WATER_REFERENCE = "#" + SCENE_WATER.id();
-    public static final String CARRIER_REFERENCE = "#" + CARRIER.id();
-    public static final String REQUIRES_GROUND_REFERENCE = "#" + REQUIRES_GROUND.id();
-    public static final String WATER_PLANT_REFERENCE = "#" + WATER_PLANT.id();
-    public static final String PLANT_ONLY_REFERENCE = "#" + PLANT_ONLY.id();
-    public static final String GRAVE_REFERENCE = "#" + SCENE_GRAVE.id();
-    public static final String GRAVE_ONLY_REFERENCE = "#" + GRAVE_ONLY.id();
 
     /**
      * Every tag the built-in placement rules read. A pack that drops one of

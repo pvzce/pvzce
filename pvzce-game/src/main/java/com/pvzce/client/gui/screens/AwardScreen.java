@@ -38,7 +38,7 @@ import java.util.Random;
 public final class AwardScreen extends Screen {
     private static final Identifier BACKGROUND =
             Identifier.withDefaultNamespace("textures/gui/screen/award/award_background");
-    private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin");
+    private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin_gold");
 
     /** The background art's own pixel size; every panel rectangle below is in these units. */
     private static final int ART_WIDTH = 800;
@@ -49,7 +49,6 @@ public final class AwardScreen extends Screen {
     private static final float WINDOW_RIGHT = 552F;
     private static final float WINDOW_BOTTOM = 292F;
     private static final float NOTE_TOP = 342F;
-    private static final float NOTE_BOTTOM = 464F;
 
     private static final long DROP_NANOS = 620_000_000L;
     /**

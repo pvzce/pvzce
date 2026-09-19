@@ -285,7 +285,7 @@ public final class InventoryScreen extends Screen {
                     owned++;
                 }
             }
-            text = GuiLang.raw("pvzce.inventory.hint", "灰色卡片尚未解锁") + "    "
+            text = GuiLang.raw("pvzce.inventory.hint", "通关关卡可以获得新的植物；灰色卡片尚未解锁") + "    "
                     + GuiLang.raw("pvzce.inventory.count", "已解锁 {0} / {1}")
                     .replace("{0}", String.valueOf(owned))
                     .replace("{1}", String.valueOf(flat.size()));

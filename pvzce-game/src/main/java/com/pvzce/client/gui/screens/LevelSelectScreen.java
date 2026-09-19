@@ -30,7 +30,7 @@ import java.util.List;
 public final class LevelSelectScreen extends Screen {
     /** Original money-bag counter art; the coin sprite is the fallback. */
     private static final Identifier MONEY_BAG = Identifier.withDefaultNamespace("textures/gui/award/money_bag");
-    private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin");
+    private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin_gold");
 
     private static final Identifier BACKGROUND = Identifier.withDefaultNamespace("textures/gui/screen/level/challenge_background");
     private static final Identifier ARROW = Identifier.withDefaultNamespace("textures/gui/screen/level/zombatar_next_button");

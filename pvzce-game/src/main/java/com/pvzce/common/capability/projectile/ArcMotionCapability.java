@@ -17,8 +17,6 @@ import com.pvzce.server.entity.ProjectileEntity;
 public final class ArcMotionCapability implements ProjectileCapability {
     public static final float DEFAULT_SPEED = 2.2F;
     public static final float DEFAULT_GRAVITY = 9.0F;
-    /** The shot is considered to have landed at or below this height. */
-    public static final float GROUND_EPSILON = 0.15F;
 
     private final float speedCellsPerSecond;
     private final float gravityCellsPerSecondSquared;

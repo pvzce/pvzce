@@ -32,7 +32,7 @@ import com.pvzce.common.network.packet.TeamSyncS2C;
 
 public final class PvzceClientPacketListener implements PacketListener {
     private static final org.slf4j.Logger LOGGER =
-            org.slf4j.LoggerFactory.getLogger("pvzce-client-packets");
+            org.slf4j.LoggerFactory.getLogger("PVZCE/ClientPackets");
 
     private final PvzceClient client;
     private final ClientLevel level;

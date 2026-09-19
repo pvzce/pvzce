@@ -2,7 +2,9 @@ package com.pvzce.client.gui.hud.cardbar;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.renderer.EntityTextures;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.api.content.SlotDef;
 
@@ -43,7 +45,16 @@ public final class CardPainter {
         com.pvzce.client.gui.SeedCardRenderer.draw(client, model, x, y, width, height);
     }
 
-    /** The sprite a card draws in its window: the slot's own icon, else the content's art. */
+    /**
+     * The sprite a card draws in its window: the slot's own icon, else the content's art.
+     *
+     * <p>The fallback goes through {@link SlotResolver} rather than building a path here. This
+     * method used to strip the namespace and force {@code pvzce}, while the seed chooser's
+     * preview kept it - so a modded entity resolved its sprite on one side and requested a
+     * {@code pvzce:} texture on the other, and was invisible on whichever side lost. The
+     * resolver also knows the slot's <em>content</em>, which is what carries the art when the
+     * slot itself does not (a card's id and the plant it grants need not be the same string).
+     */
     public static Identifier icon(SlotInfo slot) {
         Identifier slotId = Identifier.tryParse(slot.defId());
         if (slotId != null) {
@@ -51,10 +62,11 @@ public final class CardPainter {
             if (slotDef != null && slotDef.icon().isPresent()) {
                 return slotDef.icon().get();
             }
+            return SlotResolver.resolve(slotId)
+                    .flatMap(SlotResolver.ResolvedCard::icon)
+                    .orElseGet(() -> EntityTextures.forEntity(slot.defId()));
         }
-        String path = slot.defId().contains(":")
-                ? slot.defId().substring(slot.defId().indexOf(':') + 1) : slot.defId();
-        return Identifier.withDefaultNamespace("textures/entities/" + path);
+        return EntityTextures.forEntity(slot.defId());
     }
 
     private CardPainter() {

@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
@@ -18,14 +19,18 @@ public record DebugInfoS2C(long tickCount, boolean frozen, boolean sprinting) im
         return ConnectionDirection.CLIENTBOUND;
     }
 
+    public static final PacketStruct.Codec<DebugInfoS2C> CODEC = PacketStruct.<DebugInfoS2C>builder()
+    .field(DebugInfoS2C::tickCount, PacketByteBuf::writeLong, PacketByteBuf::readLong)
+    .field(DebugInfoS2C::frozen, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    .field(DebugInfoS2C::sprinting, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+            .build(values -> new DebugInfoS2C((Long) values.get(0), (Boolean) values.get(1), (Boolean) values.get(2)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeLong(tickCount);
-        buf.writeBoolean(frozen);
-        buf.writeBoolean(sprinting);
+        CODEC.encode(this, buf);
     }
 
     public static DebugInfoS2C decode(PacketByteBuf buf) {
-        return new DebugInfoS2C(buf.readLong(), buf.readBoolean(), buf.readBoolean());
+        return CODEC.decode(buf);
     }
 }

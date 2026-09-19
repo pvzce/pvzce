@@ -33,10 +33,10 @@ import com.pvzce.common.capability.PlantCapabilities;
 import com.pvzce.common.capability.ProjectileCapabilities;
 import com.pvzce.common.capability.ZombieCapabilities;
 import com.pvzce.common.capability.plant.ShooterCapability;
+import com.pvzce.common.level.CardCooldown;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Optional;
 
 /**
@@ -300,10 +300,14 @@ public final class BuiltInRegistries {
         registerRule(PvzceIds.RULE_SUN_VALUE, new GameRuleType.IntRule(
                 PvzceConstants.SUN_VALUE, 1, 10000));
         registerRule(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE, new GameRuleType.FloatRule(0F, 0F, 1F));
+        // Three, not one: a level that pays for kills pays in suns the player has to click, and
+        // one sun per kill is invisible next to the sky's own rain. See the rule's own doc.
+        registerRule(PvzceIds.RULE_ZOMBIE_SUN_DROP_COUNT, new GameRuleType.IntRule(3, 0, 99));
         registerRule(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
-        registerRule(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 5F));
+        registerRule(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER, new GameRuleType.FloatRule(
+                CardCooldown.DEFAULT_MULTIPLIER, 0F, 5F));
         registerRule(PvzceIds.id("max_players_per_team"), new GameRuleType.IntRule(8, 1, 64));
         registerRule(PvzceIds.RULE_GRAVES_SPAWN_NIGHT, new GameRuleType.BooleanRule(true));
         registerRule(PvzceIds.id("level_pause_on_single_player"), new GameRuleType.BooleanRule(true));
@@ -332,8 +336,8 @@ public final class BuiltInRegistries {
         registerSound(PvzceSounds.UI_COLLECT, "收集资源");
         registerSound(PvzceSounds.EFFECT_EXPLOSION, "爆炸");
         registerSound(PvzceSounds.EFFECT_BITE, "啃咬");
-        registerSound(PvzceSounds.UI_WIN, "胜利");
-        registerSound(PvzceSounds.UI_LOSE, "失败");
+        registerSound(PvzceSounds.MUSIC_WIN, "胜利");
+        registerSound(PvzceSounds.MUSIC_LOSE, "失败");
         registerSound(PvzceSounds.UI_CLICK, "点击");
         registerSound(PvzceSounds.MUSIC_GRASSWALK, "背景音乐");
     }

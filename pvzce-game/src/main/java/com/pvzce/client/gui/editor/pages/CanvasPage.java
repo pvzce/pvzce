@@ -17,6 +17,7 @@ import com.pvzce.client.renderer.LevelStage;
 import com.pvzce.client.renderer.SceneTileRenderer;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.JsonDraft;
+import com.pvzce.common.util.MathUtil;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,8 +63,8 @@ public final class CanvasPage implements EditorPage {
         private final List<CanvasEntity> canvasEntities = new ArrayList<>();
 
         public Model(int width, int height) {
-            this.width = clamp(width, 1, MAX_COLUMNS);
-            this.height = clamp(height, 1, MAX_ROWS);
+            this.width = MathUtil.clamp(width, 1, MAX_COLUMNS);
+            this.height = MathUtil.clamp(height, 1, MAX_ROWS);
         }
 
         /**
@@ -104,8 +105,8 @@ public final class CanvasPage implements EditorPage {
         }
 
         private void resize(EditorContext context, int newWidth, int newHeight) {
-            int clampedW = clamp(newWidth, 1, MAX_COLUMNS);
-            int clampedH = clamp(newHeight, 1, MAX_ROWS);
+            int clampedW = MathUtil.clamp(newWidth, 1, MAX_COLUMNS);
+            int clampedH = MathUtil.clamp(newHeight, 1, MAX_ROWS);
             if (clampedW == width && clampedH == height) {
                 return;
             }
@@ -124,14 +125,16 @@ public final class CanvasPage implements EditorPage {
         }
 
         /** The element at a cell, or {@code null} when the author has not painted it. */
+        /**
+         * The element this cell is painted with, or {@code null} when the file leaves it bare.
+         *
+         * <p>The rule - a cell declared twice takes the later declaration - lives in
+         * {@link com.pvzce.common.core.SceneCells#lookup}: it is what playing the level does, and
+         * having the canvas answer it differently meant a file that paints four cells water over a
+         * grass base showed grass here and water in the game.
+         */
         private String sceneAt(int x, int y) {
-            String pos = x + "," + y;
-            for (var entry : scene.entrySet()) {
-                if (entry.getValue().contains(pos)) {
-                    return entry.getKey();
-                }
-            }
-            return null;
+            return com.pvzce.common.core.SceneCells.lookup(scene, x, y);
         }
 
         private void removePositionFromAll(String pos) {
@@ -256,8 +259,8 @@ public final class CanvasPage implements EditorPage {
     @Override
     public void readFrom(EditorContext context) {
         JsonDraft draft = context.draft();
-        model.width = clamp(draft.getInt("width", model.width), 1, MAX_COLUMNS);
-        model.height = clamp(draft.getInt("height", model.height), 1, MAX_ROWS);
+        model.width = MathUtil.clamp(draft.getInt("width", model.width), 1, MAX_COLUMNS);
+        model.height = MathUtil.clamp(draft.getInt("height", model.height), 1, MAX_ROWS);
         model.scene.clear();
         draft.get("scene").filter(JsonElement::isJsonObject).ifPresent(element -> {
             for (Map.Entry<String, JsonElement> entry : element.getAsJsonObject().entrySet()) {
@@ -330,7 +333,7 @@ public final class CanvasPage implements EditorPage {
 
     private void buildPalette(EditorContext context) {
         EditorContext.Rect area = context.palette();
-        int rowH = clamp(context.content().height() / 10, 32, 48);
+        int rowH = MathUtil.clamp(context.content().height() / 10, 32, 48);
         palette = context.own(new PaletteList(area.x(), area.y(), area.width(), area.height(),
                 rowH, view.paletteKind()));
         List<PaletteList.Item> items = switch (view.paletteKind()) {
@@ -372,7 +375,7 @@ public final class CanvasPage implements EditorPage {
 
     private void buildCanvasSidePanel(EditorContext context) {
         EditorContext.Rect side = context.side();
-        int rowH = clamp(context.content().height() / 14, 26, 34);
+        int rowH = MathUtil.clamp(context.content().height() / 14, 26, 34);
         int buttonW = Math.max(56, (side.width() - 8) / 2);
         int top = side.y() + side.height() - rowH;
         context.own(new Button(side.x(), top, buttonW, rowH, "宽 -",
@@ -455,11 +458,36 @@ public final class CanvasPage implements EditorPage {
                 visuals.spriteWidth(), visuals.spriteHeight(), visuals.baseZ(), 1F, 1F, 1F, 1F);
     }
 
-    /** The board footprint inside the canvas, in GUI pixels. */
+    /**
+     * The board footprint inside the canvas, in GUI pixels.
+     *
+     * <p>{@link LevelStage#board} builds a board at the scale it is <em>played</em> at, which is
+     * wider than the editor's canvas panel once the side panel and the palette have taken their
+     * share of a 1280x720 window: a nine-column level came out about 590px wide inside a 400px
+     * panel, so the author saw the last few columns and - the canvas has no panning - could not
+     * reach the ones off the edge. The whole board is scaled down uniformly when it does not fit,
+     * which keeps every cell's aspect ratio (so a plant still looks the size it will in play) and
+     * makes {@link #cellAtCursor} the exact inverse of what is drawn, because both ask here.
+     */
     private LevelStage.Board board(EditorContext context) {
         EditorContext.Rect content = context.content();
-        return LevelStage.board(Math.max(1, content.width()), Math.max(1, content.height()),
-                boardColumns(), boardRows());
+        LevelStage.Board natural = LevelStage.board(Math.max(1, content.width()),
+                Math.max(1, content.height()), boardColumns(), boardRows());
+        float fit = Math.min(1F, Math.min(
+                content.width() / Math.max(1F, natural.width()),
+                content.height() / Math.max(1F, natural.height())));
+        if (fit >= 1F) {
+            return natural;
+        }
+        float width = natural.width() * fit;
+        float height = natural.height() * fit;
+        return new LevelStage.Board(
+                // Centred in the panel: the play-scale board is anchored to the house side, and
+                // keeping that anchor after scaling would leave the gap on one side.
+                (content.width() - width) / 2F,
+                (content.height() - height) / 2F,
+                width, height,
+                natural.cellWidth() * fit, natural.cellHeight() * fit, natural.fit() * fit);
     }
 
     private int boardRows() {
@@ -547,7 +575,4 @@ public final class CanvasPage implements EditorPage {
         }
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

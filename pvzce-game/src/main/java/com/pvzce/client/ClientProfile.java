@@ -72,24 +72,8 @@ public final class ClientProfile {
         return Set.copyOf(unlocked);
     }
 
-    /**
-     * True when this card is available to the player.
-     *
-     * <p>Mirrors the server rule exactly: resources are never gated, a sandbox
-     * world owns everything, and a plant is owned when either its slot id or the
-     * content that slot grants is unlocked.
-     */
+    /** True when this card is available to the player; the rule is {@link SlotResolver#owns}. */
     public boolean owns(Identifier card) {
-        if (card == null) {
-            return false;
-        }
-        if (!SlotResolver.requiresUnlock(card) || unlockAll) {
-            return true;
-        }
-        if (unlocked.contains(card)) {
-            return true;
-        }
-        SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
-        return resolved != null && unlocked.contains(resolved.content());
+        return SlotResolver.owns(unlocked, unlockAll, card);
     }
 }

@@ -7,6 +7,8 @@ import com.pvzce.client.config.PvzceClientConfig;
 import com.pvzce.client.renderer.Matrix4f;
 import org.lwjgl.opengl.GL13;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
@@ -22,6 +24,8 @@ import java.util.List;
  * than the position keeps the shader's pattern continuous in both spaces.
  */
 public final class LiquidRenderer {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Liquid");
     /** Feature bits for the high tier; the lower tiers are subsets. */
     private static final int ALL_FEATURES = LiquidShader.FEATURE_WAVES
             | LiquidShader.FEATURE_CAUSTICS
@@ -79,9 +83,9 @@ public final class LiquidRenderer {
             return true;
         } catch (RuntimeException e) {
             unavailable = true;
-            System.err.println("[PVZCE] WATER SHADER DID NOT COMPILE - the surface is now a flat "
-                    + "fallback colour with no waves, caustics or foam. This is a bug, not a "
-                    + "settings problem. Cause: " + e.getMessage());
+            LOGGER.error("WATER SHADER DID NOT COMPILE - the surface is now a flat fallback"
+                    + " colour with no waves, caustics or foam. This is a bug, not a settings"
+                    + " problem.", e);
             return false;
         }
     }
@@ -219,8 +223,8 @@ public final class LiquidRenderer {
             return;
         }
         lastReported = signature;
-        System.out.printf("[PVZCE] liquid pass: board %dx%d, drew %d cells, "
-                        + "cell range x=%d..%d y=%d..%d, origin=(%.2f,%.2f) size=(%.2fx%.2f)%n",
+        LOGGER.info("liquid pass: board {}x{}, drew {} cells, cell range x={}..{} y={}..{},"
+                        + " origin=({},{}) size=({}x{})",
                 request.width(), request.height(), cells.size(),
                 (int) minX, (int) maxX, (int) minY, (int) maxY,
                 request.originX(), request.originY(), request.cellWidth(), request.cellHeight());

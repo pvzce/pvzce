@@ -9,11 +9,15 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.util.Collection;
 
 /** Game entrypoint invoked by Knot through {@link PvzceGameProvider}. */
 public final class PvzceGame {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Launcher");
+
     private PvzceGame() {
     }
 
@@ -24,14 +28,14 @@ public final class PvzceGame {
             }
         }
         Path gameDir = FabricLoader.getInstance().getGameDir();
-        System.out.println("[PVZCE] " + PvzceVersions.GAME_NAME + " " + PvzceVersions.GAME_VERSION + " starting in " + gameDir);
+        LOGGER.info("{} {} starting in {}", PvzceVersions.GAME_NAME, PvzceVersions.GAME_VERSION, gameDir);
 
         BuiltInRegistries.bootstrap();
 
         Collection<ModContainer> mods = FabricLoader.getInstance().getAllMods();
-        System.out.println("[PVZCE] Loaded mods: " + mods.size());
+        LOGGER.info("Loaded {} mods", mods.size());
         for (ModContainer mod : mods) {
-            System.out.println("[PVZCE]   - " + mod.getMetadata().getId() + " " + mod.getMetadata().getVersion().getFriendlyString());
+            LOGGER.info("  - {} {}", mod.getMetadata().getId(), mod.getMetadata().getVersion().getFriendlyString());
         }
 
         try {
@@ -63,7 +67,7 @@ public final class PvzceGame {
         try {
             client.run();
         } catch (Throwable t) {
-            t.printStackTrace();
+            LOGGER.error("The client loop failed", t);
         } finally {
             server.stop();
             try {

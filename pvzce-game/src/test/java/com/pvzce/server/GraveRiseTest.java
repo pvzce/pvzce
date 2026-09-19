@@ -11,6 +11,7 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -68,12 +69,7 @@ class GraveRiseTest {
     /** The same level with a rule overridden. */
     private static LevelDef withRulesAndWaves(LevelDef source, Map<Identifier, JsonElement> rules,
                                               List<WaveDef> waves) {
-        return new LevelDef(source.id(), source.name(), source.description(), source.width(),
-                source.height(), source.scene(), source.teams(), source.winTeam(), rules,
-                source.envVars(), waves, source.waveIntervalEndMultiplier(), source.slots(),
-                source.unlockResources(), source.initialSun(), source.music(),
-                source.initialEntities(), source.maxSeedSlots(), source.rewards(), source.unlock(),
-                source.mechanics(), source.dialogue(), source.hints());
+        return TestLevels.copy(source).rules(rules).waves(waves).build();
     }
 
     private static LevelDef withRule(LevelDef source, Identifier rule, boolean value) {

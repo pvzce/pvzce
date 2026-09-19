@@ -13,6 +13,7 @@
   "effect": "pvzce:hammer",
   "uses": -1,
   "texture": "pvzce:textures/gui/cards/hammer",
+  "animation_dir": "tool",
   "damage": 200,
   "damage_type": "pvzce:impact"
 }

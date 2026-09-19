@@ -1,7 +1,11 @@
 package com.pvzce.client.config;
 
+import com.pvzce.common.util.MathUtil;
+import com.pvzce.common.util.WorldPaths;
 import com.moandjiezana.toml.Toml;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,6 +15,8 @@ import java.nio.file.Path;
  * {@code config/pvzce-client.toml}.
  */
 public final class PvzceClientConfig {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Config");
     public static final float DEFAULT_MASTER = 1F;
     public static final float DEFAULT_MUSIC = 0.7F;
     public static final float DEFAULT_SFX = 0.8F;
@@ -36,6 +42,15 @@ public final class PvzceClientConfig {
      * spent paused under it.
      */
     public static final boolean DEFAULT_STORY_ENABLED = true;
+    /**
+     * Who plays when the game has not been told yet.
+     *
+     * <p>A world is a player's save, so this is also which save the menu opens. It is remembered
+     * across restarts ({@link #lastWorld()}), and the default is the one
+     * {@link WorldPaths#sanitize} gives an unnamed world, so "no world written yet" and "the
+     * player the picker creates by default" are the same name.
+     */
+    public static final String DEFAULT_WORLD = WorldPaths.DEFAULT_WORLD;
 
     /**
      * How much of the water shader runs.
@@ -81,6 +96,7 @@ public final class PvzceClientConfig {
     private boolean shadersEnabled = DEFAULT_SHADERS_ENABLED;
     private int waterQuality = DEFAULT_WATER_QUALITY;
     private boolean storyEnabled = DEFAULT_STORY_ENABLED;
+    private String lastWorld = DEFAULT_WORLD;
     private Path file;
 
     public static PvzceClientConfig load(Path gameDir) {
@@ -89,9 +105,9 @@ public final class PvzceClientConfig {
         try {
             if (Files.isRegularFile(config.file)) {
                 Toml toml = new Toml().read(config.file.toFile());
-                config.masterVolume = clamp(getFloat(toml, "master_volume", DEFAULT_MASTER));
-                config.musicVolume = clamp(getFloat(toml, "music_volume", DEFAULT_MUSIC));
-                config.sfxVolume = clamp(getFloat(toml, "sfx_volume", DEFAULT_SFX));
+                config.masterVolume = MathUtil.clamp01(getFloat(toml, "master_volume", DEFAULT_MASTER));
+                config.musicVolume = MathUtil.clamp01(getFloat(toml, "music_volume", DEFAULT_MUSIC));
+                config.sfxVolume = MathUtil.clamp01(getFloat(toml, "sfx_volume", DEFAULT_SFX));
                 config.maxFps = clampFps(getInt(toml, "max_fps", DEFAULT_MAX_FPS));
                 config.vsync = getBoolean(toml, "vsync", DEFAULT_VSYNC);
                 config.fullscreen = getBoolean(toml, "fullscreen", DEFAULT_FULLSCREEN);
@@ -103,11 +119,12 @@ public final class PvzceClientConfig {
                 config.waterQuality = WaterQuality.clamp(
                         getInt(toml, "water_quality", DEFAULT_WATER_QUALITY));
                 config.storyEnabled = getBoolean(toml, "story", DEFAULT_STORY_ENABLED);
+                config.lastWorld = WorldPaths.sanitize(getString(toml, "last_world", DEFAULT_WORLD));
             } else {
                 config.save();
             }
         } catch (RuntimeException e) {
-            System.err.println("Failed to read config: " + e.getMessage());
+            LOGGER.warn("Failed to read the config; using the defaults.", e);
         }
         return config;
     }
@@ -127,8 +144,9 @@ public final class PvzceClientConfig {
         return value == null ? fallback : value;
     }
 
-    private static float clamp(float value) {
-        return com.pvzce.common.util.MathUtil.clamp01(value);
+    private static String getString(Toml toml, String key, String fallback) {
+        String value = toml.getString(key);
+        return value == null ? fallback : value;
     }
 
     private static int clampFps(int value) {
@@ -152,10 +170,11 @@ public final class PvzceClientConfig {
                     + "\ngui_scale = " + guiScale
                     + "\nshaders_enabled = " + shadersEnabled
                     + "\nwater_quality = " + waterQuality
-                    + "\nstory = " + storyEnabled + "\n";
+                    + "\nstory = " + storyEnabled
+                    + "\nlast_world = \"" + lastWorld + "\"\n";
             Files.writeString(file, content);
         } catch (IOException e) {
-            System.err.println("Failed to write config: " + e.getMessage());
+            LOGGER.error("Failed to write the config", e);
         }
     }
 
@@ -172,15 +191,15 @@ public final class PvzceClientConfig {
     }
 
     public void setMasterVolume(float masterVolume) {
-        this.masterVolume = clamp(masterVolume);
+        this.masterVolume = MathUtil.clamp01(masterVolume);
     }
 
     public void setMusicVolume(float musicVolume) {
-        this.musicVolume = clamp(musicVolume);
+        this.musicVolume = MathUtil.clamp01(musicVolume);
     }
 
     public void setSfxVolume(float sfxVolume) {
-        this.sfxVolume = clamp(sfxVolume);
+        this.sfxVolume = MathUtil.clamp01(sfxVolume);
     }
 
     public int maxFps() {
@@ -251,5 +270,22 @@ public final class PvzceClientConfig {
 
     public void setStoryEnabled(boolean storyEnabled) {
         this.storyEnabled = storyEnabled;
+    }
+
+    /**
+     * The world the game was last playing as, so a restart does not ask again.
+     *
+     * <p>Not a preference the player sets - it is written whenever the player switches world
+     * ({@code PvzceClient#setCurrentWorld}), and the menu opens on it. It is sanitised like
+     * every other world name, because this value is used as a directory name by both sides and
+     * a remembered name that no directory can have would send the menu to a world that does not
+     * exist.
+     */
+    public String lastWorld() {
+        return lastWorld;
+    }
+
+    public void setLastWorld(String lastWorld) {
+        this.lastWorld = WorldPaths.sanitize(lastWorld);
     }
 }

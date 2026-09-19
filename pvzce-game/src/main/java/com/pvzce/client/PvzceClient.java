@@ -11,13 +11,11 @@ import com.pvzce.client.gui.config.ConfigCategory;
 import com.pvzce.client.gui.config.ConfigEntryBuilder;
 import com.pvzce.client.gui.config.ConfigScreen;
 import com.pvzce.client.gui.mods.ModMenu;
-import com.pvzce.client.gui.mods.ModsScreen;
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
 import com.pvzce.client.gui.screens.EditorScreen;
 import com.pvzce.client.gui.screens.InGameScreen;
 import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
-import com.pvzce.client.gui.screens.SettingsScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.client.particle.ParticleEngine;
@@ -37,7 +35,6 @@ import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SeedOptions;
-import com.pvzce.api.content.DialogueLine;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelRewardS2C;
@@ -47,24 +44,20 @@ import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
-import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.common.tag.PvzceTags;
+import com.pvzce.common.util.MathUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.lwjgl.BufferUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.stb.STBImageWrite;
 
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -113,7 +106,15 @@ public final class PvzceClient {
      */
     private com.pvzce.client.gui.Overlay overlay;
 
-    private String currentWorld = "world";
+    /**
+     * Who this session is playing as, and therefore which save the menus read.
+     *
+     * <p>Seeded from the config in the constructor rather than left at the default: a world is
+     * one player's save, and asking "who is playing?" on every start is a question the player
+     * answered the last time they played. The menu still shows the name, and changing it is one
+     * click away on the title screen's player board.
+     */
+    private String currentWorld = PvzceClientConfig.DEFAULT_WORLD;
     private volatile List<LevelListS2C.LevelInfo> levelList = List.of();
     private volatile List<LevelTabsS2C.Tab> levelTabs = List.of();
     /** Coins and unlocks of the current world; menus only, the server is authoritative. */
@@ -123,105 +124,13 @@ public final class PvzceClient {
     private long clientTick;
     private int lastWindowWidth;
     private int lastWindowHeight;
-    private final int captureFrame = Integer.getInteger("pvzce.captureFrame", -1);
-    private final String capturePath = System.getProperty("pvzce.capturePath");
-    private final int smokeFrames = Integer.getInteger("pvzce.smokeFrames", 0);
-    private final String smokeLevel = System.getProperty("pvzce.smokeLevel", "");
-    private final boolean smokeLevelRestart = Boolean.parseBoolean(
-            System.getProperty("pvzce.smokeLevelRestart", "true"));
-    private final String smokeSeedLevel = System.getProperty("pvzce.smokeSeedLevel", "");
-    /** Opens the editor for an existing level; UI smoke tests and screenshots. */
-    private final String smokeEditorLevel = System.getProperty("pvzce.smokeEditor", "");
-    /** Opens the editor for a brand-new level id, exercising the create path. */
-    private final String smokeNewEditor = System.getProperty("pvzce.smokeNewEditor", "");
-    /** Which editor page to switch to, by its lang key suffix (rule/wave/info/...). */
-    private final String smokeEditorPage = System.getProperty("pvzce.smokeEditorPage", "");
-    /** Opens the wave table on top of the editor. */
-    private final boolean smokeWaveEditor = Boolean.getBoolean("pvzce.smokeWaveEditor");
-    /** Saves the editor once, so a smoke run can verify the write round trip. */
-    private final boolean smokeSave = Boolean.getBoolean("pvzce.smokeSave");
-    /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
-    private final String smokePlace = System.getProperty("pvzce.smokePlace", "");
-    private boolean smokeLevelRequested;
     /**
-     * Smoke hook: treat the {@code smokeLevel} request as a direct fresh run, so a level's
-     * opening dialogue plays in game.
+     * The {@code pvzce.smoke*} development harness; see {@link SmokeDriver} and the smoke guide.
      *
-     * <p>Off by default because the smoke level is normally opened to photograph the
-     * board; a developer who wants the in-game dialogue photographs it with this on.
+     * <p>Constructed with no properties set it is inert: the title screen opens and every hook
+     * returns immediately.
      */
-    private final boolean smokeDialogue = Boolean.getBoolean("pvzce.smokeDialogue");
-    /**
-     * Synthesises a finished level's payout, for screenshots of the reward flow.
-     *
-     * <p>{@code unlock} lands a seed packet, {@code money} the money bag. The two
-     * packets this replaces (a plant win, then {@code LevelRewardS2C}) are covered by
-     * tests; what cannot be tested is whether the drop is visible, clickable, and
-     * lands on the award page, and that is what this drives.
-     */
-    private final String smokeReward = System.getProperty("pvzce.smokeReward", "");
-    private boolean smokeRewardFired;
-    private boolean smokeSeedListRequested;
-    private boolean smokeSeedOpened;
-    private boolean smokeEditorOpened;
-    /** A GUI point to click, as {@code x,y} in logical GUI coordinates. */
-    private final double[] smokeClickAt = parsePoint(System.getProperty("pvzce.smokeClick", ""));
-    /**
-     * Development smoke hook: drag from {@code pvzce.smokeClick} to this GUI point and let go.
-     *
-     * <p>A press and a release at the same pixel is a click, so {@code smokeClick} alone
-     * cannot exercise a drag gesture - and dragging is now how a card gets to a cell. The
-     * press happens at {@code smokeClickFrame}, the drag and release here.
-     */
-    private final double[] smokeDragTo = parsePoint(System.getProperty("pvzce.smokeDragTo", ""));
-    private final int smokeDragFrame = Integer.getInteger("pvzce.smokeDragFrame", 60);
-    private boolean smokeDragDone;
-    /**
-     * Smoke hook: keep the pointer at this GUI point, so hover states can be photographed.
-     *
-     * <p>{@code smokeClick} delivers a click at a point without moving the pointer, and half
-     * the HUD is about where the pointer <em>is</em> - a cell highlight, the ghost of the
-     * plant about to be placed. This warps the real cursor (the platform's own call, so the
-     * window receives a normal move event) from {@code smokeHoverFrame} onwards, every
-     * frame, because a screen that rebuilds itself can lose a one-shot move.
-     */
-    private final double[] smokeHoverAt = parsePoint(System.getProperty("pvzce.smokeHover", ""));
-    private final int smokeHoverFrame = Integer.getInteger("pvzce.smokeHoverFrame", 3);
-    private final int smokeClickFrame = Integer.getInteger("pvzce.smokeClickFrame", 45);
-    /**
-     * How many times {@code smokeClick} repeats, and how many frames apart.
-     *
-     * <p>A conversation is advanced one click at a time, and so is a card bar that has to
-     * be filled before a level can start: one click cannot photograph the far side of
-     * either. The default is one click, which is what the hook always did.
-     */
-    private final int smokeClickRepeat = Integer.getInteger("pvzce.smokeClickRepeat", 1);
-    private final int smokeClickPeriod = Integer.getInteger("pvzce.smokeClickPeriod", 12);
-    private int smokeClicksSent;
-    /**
-     * {@code -Dpvzce.traceInput=true}: what the synthetic input is aimed at.
-     *
-     * <p>Trace, not test: it is the only way to see where a {@code smokeClick} actually landed,
-     * short of a screenshot - and a click that misses is silent by construction.
-     */
-    private final boolean traceInput = Boolean.getBoolean("pvzce.traceInput");
-    /**
-     * Commands to run once a level is up, separated by {@code |}.
-     *
-     * <p>For smoke runs that need to put something specific on the board - a drop with a
-     * particular motion, a plant with something on it - which the level file cannot
-     * express without becoming a fixture that other tests depend on. Runs the real command
-     * path, so what is screenshotted is what a player could produce.
-     *
-     * <p>Write a space as {@code +}: {@code pvzce.smoke} itself is a whitespace-separated
-     * list, so {@code smokeCommands=/spawn+resource+pvzce:sun+3+1}.
-     */
-    private final String smokeCommands = System.getProperty("pvzce.smokeCommands", "");
-    private boolean smokeCommandsSent;
-    /** A dialog button to click, found by its label. */
-    private final String smokeClickLabel = System.getProperty("pvzce.smokeClickLabel", "");
-    private boolean smokeClickDone;
-    private boolean smokeEditorHookDone;
+    private final SmokeDriver smoke = new SmokeDriver(this);
     /** Set while waiting for the level list that follows a test-run reload. */
     private String pendingTestLevelId;
     private long backspaceNextNanos;
@@ -276,6 +185,9 @@ public final class PvzceClient {
         // running the render loop. `load` writes the file out when there is none, so this
         // also means a constructed client always has a config directory.
         this.config = PvzceClientConfig.load(gameDir);
+        // The remembered player, from the same file: who is playing is a fact about this game
+        // directory, not about this process, so it survives a restart.
+        this.currentWorld = config.lastWorld();
         // Which mechanic draws which HUD, registered before any level can arrive. A mod
         // adds its own from a ClientModInitializer; the built-ins are here so a mechanic
         // that ships with the game always has its client half.
@@ -331,55 +243,7 @@ public final class PvzceClient {
         connection.setListener(new PvzceClientPacketListener(this, level));
         ModMenu.setBuiltinConfigFactory(parent -> buildSettingsConfig());
 
-        String smokeScreen = System.getProperty("pvzce.smokeScreen", "");
-        if ("mods".equals(smokeScreen)) {
-            setScreenReplacing(new ModsScreen(this));
-        } else if ("settings".equals(smokeScreen)) {
-            setScreenReplacing(new SettingsScreen(this));
-        } else if ("console".equals(smokeScreen)) {
-            // The console is an overlay, so the run needs a screen for it to float over.
-            setScreenReplacing(new TitleScreen(this));
-            openConsole("");
-        } else if ("create".equals(smokeScreen)) {
-            com.pvzce.client.gui.screens.LevelSelectScreen levels =
-                    new com.pvzce.client.gui.screens.LevelSelectScreen(this);
-            setScreenReplacing(levels);
-            com.pvzce.client.gui.screens.LevelCreateDialog create =
-                    // Same callback LevelSelectScreen uses, so the smoke run exercises the
-                    // real confirm -> editor path rather than a print-only stub.
-                    com.pvzce.client.gui.screens.LevelCreateDialog.create(this, null, null, request -> {
-                        System.out.println("[SMOKE] new-level dialog confirmed: " + request.id());
-                        openNewLevelEditor(request.id(), request.name(),
-                                request.width(), request.height());
-                    });
-            levels.showDialog(create);
-        } else if ("levels".equals(smokeScreen)) {
-            // The level list is where "new level" and "edit level" now live, and it needs
-            // a level list from the server to show anything. The world has to be named:
-            // the list is per world, and an unnamed one comes back empty.
-            setCurrentWorld(System.getProperty("pvzce.smokeWorld", "world"));
-            setScreenReplacing(new com.pvzce.client.gui.screens.LevelSelectScreen(this));
-            connection.send(new com.pvzce.common.network.packet.RequestLevelListC2S(currentWorld));
-        } else if ("title".equals(smokeScreen) || "main".equals(smokeScreen)) {
-            setScreenReplacing(new TitleScreen(this));
-        } else if ("inventory".equals(smokeScreen) || "backpack".equals(smokeScreen)) {
-            setScreenReplacing(new com.pvzce.client.gui.screens.InventoryScreen(this));
-        } else if ("award".equals(smokeScreen)) {
-            // The award page only reads the reward packet, so a synthetic one is enough
-            // to render it - winning a level to reach it would make the screen
-            // unreachable for a screenshot run. Same spirit as the "create" key below,
-            // which posts a real dialog with a stub confirm callback.
-            setScreenReplacing(new com.pvzce.client.gui.screens.AwardScreen(this,
-                    new com.pvzce.common.network.packet.LevelRewardS2C(
-                            "pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower")));
-        } else if ("award_money".equals(smokeScreen)) {
-            // The other branch: nothing unlocked, so the frame shows the money bag.
-            setScreenReplacing(new com.pvzce.client.gui.screens.AwardScreen(this,
-                    new com.pvzce.common.network.packet.LevelRewardS2C(
-                            "pvzce:yard/adventure/1_1", 0, 100, 462, "")));
-        } else {
-            setScreenReplacing(new TitleScreen(this));
-        }
+        smoke.applyInitialScreen();
 
         long nextFrameNanos = System.nanoTime();
         while (!window.shouldClose()) {
@@ -388,104 +252,7 @@ public final class PvzceClient {
 
             connection.tick();
 
-            // Development smoke hook: request a level automatically so CI can
-            // render gameplay without driving the title/level screens.
-            if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
-                smokeLevelRequested = true;
-                if (smokeDialogue) {
-                    requestFreshRunDirectly(smokeLevel, smokeLevelRestart);
-                } else {
-                    requestLevel(smokeLevel, smokeLevelRestart);
-                }
-            }
-            if (!smokeReward.isBlank() && !smokeRewardFired && clientTick > 90
-                    && currentScreen() instanceof InGameScreen) {
-                smokeRewardFired = true;
-                String card = "unlock".equals(smokeReward) ? "pvzce:sunflower" : "";
-                level.setGameState(com.pvzce.common.network.packet.GameStateS2C.WON, "pvzce:plant_team");
-                // A spot on the right of the lane rather than the middle, so the
-                // screenshot proves the reward lands where it is told to.
-                onLevelReward(new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, card,
-                        6.5F, 0F));
-            }
-            if (!smokeSeedLevel.isBlank() && !smokeSeedListRequested && clientTick > 2) {
-                smokeSeedListRequested = true;
-                connection.send(new RequestLevelListC2S(currentWorld));
-            }
-            // Development smoke hook: drive the console once a level is actually running.
-            if (!smokeCommands.isBlank() && !smokeCommandsSent
-                    && currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen) {
-                smokeCommandsSent = true;
-                for (String command : smokeCommands.split("\\|")) {
-                    // ``pvzce.smoke`` is split on whitespace, so a command's own spaces are
-                    // written as '+': the alternative is a Gradle property that silently
-                    // truncates every command at its first argument.
-                    String line = command.trim().replace('+', ' ');
-                    // And no leading slash: a console line is the command without one, so
-                    // "/spawn ..." would reach the parser as "//spawn ...".
-                    while (line.startsWith("/")) {
-                        line = line.substring(1);
-                    }
-                    if (!line.isBlank()) {
-                        connection.send(new CommandC2S(line));
-                    }
-                }
-            }
-            // Development smoke hook for the editor: the editor is four screens deep
-            // (title -> world -> level list -> editor), which no smoke run could
-            // reach, so screenshots of it were impossible to automate.
-            if (!smokeEditorOpened && clientTick > 20 && currentScreen() instanceof TitleScreen) {
-                if (!smokeEditorLevel.isBlank()) {
-                    smokeEditorOpened = true;
-                    Identifier editorId = Identifier.tryParse(smokeEditorLevel);
-                    if (editorId != null) {
-                        openEditor(editorId);
-                    }
-                } else if (!smokeNewEditor.isBlank()) {
-                    smokeEditorOpened = true;
-                    Identifier editorId = Identifier.tryParse(smokeNewEditor);
-                    if (editorId != null) {
-                        openNewLevelEditor(editorId, "冒烟测试关卡", 9, 5);
-                    }
-                }
-            }
-            if (smokeEditorOpened && !smokeEditorHookDone && clientTick > 40
-                    && currentScreen() instanceof EditorScreen editor) {
-                if (smokeWaveEditor) {
-                    // The wave editor is a page now, so "open the wave editor" is a page
-                    // switch rather than a screen push.
-                    if (clientTick > 60) {
-                        smokeEditorHookDone = true;
-                        editor.showPageForSmoke("wave");
-                    }
-                } else {
-                    // Placement happens before the save/page switch: a run that asks for
-                    // both expects the board it described to be what gets written.
-                    if (!smokePlace.isBlank()) {
-                        // "kind=id@x,y;kind=id@x,y"
-                        for (String placement : smokePlace.split(";")) {
-                            int at = placement.indexOf('@');
-                            int eq = placement.indexOf('=');
-                            if (eq < 0 || at < 0) {
-                                continue;
-                            }
-                            String[] cell = placement.substring(at + 1).split(",");
-                            editor.placeForSmoke(placement.substring(0, eq),
-                                    placement.substring(eq + 1, at),
-                                    Integer.parseInt(cell[0].trim()), Integer.parseInt(cell[1].trim()));
-                        }
-                    }
-                    if (smokeSave) {
-                        smokeEditorHookDone = true;
-                        editor.saveForSmoke();
-                    } else if (!smokeEditorPage.isBlank()) {
-                        smokeEditorHookDone = true;
-                        editor.showPageForSmoke(smokeEditorPage);
-                    } else if (!smokePlace.isBlank()) {
-                        smokeEditorHookDone = true;
-                    }
-                }
-            }
+        smoke.beforeFrame();
 
             pollInput();
             Screen screen = currentScreen();
@@ -495,69 +262,8 @@ public final class PvzceClient {
             animations.tick();
             render();
 
-            // Development smoke hook: click a GUI point given in logical GUI coordinates,
-            // so a dialog's buttons can be exercised without a human at the mouse.
-            // Click a dialog button by its label: dialog geometry depends on the window
-            // size, so a hard-coded point is easy to get wrong and silently misses.
-            if (!smokeClickLabel.isBlank() && !smokeClickDone && clientTick == smokeClickFrame) {
-                for (com.pvzce.client.gui.components.Dialog dialog : currentScreen().dialogs()) {
-                    for (com.pvzce.client.gui.components.AbstractWidget child : dialog.children()) {
-                        if (child instanceof com.pvzce.client.gui.components.Button button
-                                && smokeClickLabel.equals(button.label())) {
-                            smokeClickDone = true;
-                            int cx = child.x() + child.width() / 2;
-                            int cy = child.y() + child.height() / 2;
-                            System.out.println("[SMOKE] clicking '" + smokeClickLabel + "' at " + cx + "," + cy);
-                            deliverGuiClick(cx, cy, 0);
-                        }
-                    }
-                }
-            }
-            if (smokeClickAt != null && smokeClicksSent < Math.max(1, smokeClickRepeat)
-                    && clientTick >= smokeClickFrame
-                    && (clientTick - smokeClickFrame) % Math.max(1, smokeClickPeriod) == 0) {
-                smokeClicksSent++;
-                smokeClickDone = true;
-                double[] gui = smokeClickAt;
-                double rawX = gui[0] * window.width() / (double) Math.max(1, guiWidth());
-                double rawY = window.height() - gui[1] * window.height() / (double) Math.max(1, guiHeight());
-                if (traceInput) {
-                    System.out.println("[SMOKE] click gui=" + gui[0] + "," + gui[1]
-                            + " raw=" + rawX + "," + rawY
-                            + " window=" + window.width() + "x" + window.height()
-                            + " gui=" + guiWidth() + "x" + guiHeight()
-                            + " screen=" + (currentScreen() == null ? "none"
-                                    : currentScreen().getClass().getSimpleName()));
-                }
-                deliverRawClick(rawX, rawY, 0);
-            }
-            if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
-                // The same conversion smokeClick uses, and for the same reason: the cursor is
-                // reported top-down while GUI Y grows upwards, so a point that is 40% up the
-                // GUI is 60% down the window. Getting this backwards points the "hover" at the
-                // vertical mirror of the cell under test, which is exactly the kind of
-                // off-by-a-reflection a screenshot is supposed to catch.
-                double rawX = smokeHoverAt[0] * window.width() / (double) Math.max(1, guiWidth());
-                double rawY = window.height()
-                        - smokeHoverAt[1] * window.height() / (double) Math.max(1, guiHeight());
-                window.warpCursor(rawX, rawY);
-            }
-            if (smokeDragTo != null && !smokeDragDone && clientTick == smokeDragFrame) {
-                smokeDragDone = true;
-                double[] gui = smokeDragTo;
-                double rawX = gui[0] * window.width() / (double) Math.max(1, guiWidth());
-                double rawY = window.height() - gui[1] * window.height() / (double) Math.max(1, guiHeight());
-                System.out.println("[SMOKE] dragging to gui=" + gui[0] + "," + gui[1]
-                        + " backToGui=" + guiMouseX(rawX) + "," + guiMouseY(rawY));
-                deliverRawDrag(rawX, rawY, 0);
-                deliverRawRelease(rawX, rawY, 0);
-            }
-            if (smokeFrames > 0 && clientTick == smokeFrames) {
-                System.out.println("[SMOKE] frame " + smokeFrames + " rendered, screen=" + screen.getClass().getSimpleName());
+            if (smoke.afterFrame(screen)) {
                 break;
-            }
-            if (capturePath != null && clientTick == captureFrame) {
-                capture(capturePath);
             }
             window.swapBuffers();
 
@@ -743,7 +449,7 @@ public final class PvzceClient {
     }
 
     /** Opens the console over the current screen; {@code initialContents} pre-fills it. */
-    private void openConsole(String initialContents) {
+    void openConsole(String initialContents) {
         if (overlay == null) {
             overlay = new com.pvzce.client.gui.ConsoleOverlay(this, initialContents);
         }
@@ -776,7 +482,7 @@ public final class PvzceClient {
     // ------------------------------------------------------------------
 
     /** A click in logical GUI coordinates, to whichever layer owns the mouse. */
-    private void deliverGuiClick(double guiX, double guiY, int button) {
+    void deliverGuiClick(double guiX, double guiY, int button) {
         if (overlay != null) {
             overlay.mouseClicked(guiX, guiY, button);
         } else {
@@ -785,7 +491,7 @@ public final class PvzceClient {
     }
 
     /** A click in raw framebuffer coordinates, to whichever layer owns the mouse. */
-    private void deliverRawClick(double rawX, double rawY, int button) {
+    void deliverRawClick(double rawX, double rawY, int button) {
         if (overlay != null) {
             overlay.mouseClicked(guiMouseX(rawX), guiMouseY(rawY), button);
         } else {
@@ -793,7 +499,7 @@ public final class PvzceClient {
         }
     }
 
-    private void deliverRawDrag(double rawX, double rawY, int button) {
+    void deliverRawDrag(double rawX, double rawY, int button) {
         if (overlay != null) {
             overlay.mouseDragged(guiMouseX(rawX), guiMouseY(rawY), button);
         } else {
@@ -801,7 +507,7 @@ public final class PvzceClient {
         }
     }
 
-    private void deliverRawRelease(double rawX, double rawY, int button) {
+    void deliverRawRelease(double rawX, double rawY, int button) {
         if (overlay != null) {
             overlay.mouseReleased(guiMouseX(rawX), guiMouseY(rawY), button);
         } else {
@@ -923,15 +629,15 @@ public final class PvzceClient {
         for (int i = 0; i < lightCount; i++) {
             ClientEntity sun = suns.get(i);
             // Sun drops stay warm by day and crossfade to pale moonlit glows at night.
-            float r = lerp(1F, 0.72F, nightBlend);
-            float g = lerp(0.85F, 0.82F, nightBlend);
-            float b = lerp(0.35F, 1F, nightBlend);
+            float r = MathUtil.lerp(1F, 0.72F, nightBlend);
+            float g = MathUtil.lerp(0.85F, 0.82F, nightBlend);
+            float b = MathUtil.lerp(0.35F, 1F, nightBlend);
             // Brighter at night than by day, which is the opposite of how this started and
             // the point of the number: the lawn at noon is already fully lit, so a sun lying
             // on it only washed a square of grass towards white - the glare the player read
             // as "the sun is too bright" - while at night the same glow is the one warm
             // thing on the board. Presentation only; nothing about collection changes.
-            float strength = lerp(SUN_LIGHT_DAY, SUN_LIGHT_NIGHT, nightBlend);
+            float strength = MathUtil.lerp(SUN_LIGHT_DAY, SUN_LIGHT_NIGHT, nightBlend);
             RenderSystem.setPointLight(i, sun.cellX(), sun.cellY() + sun.height(),
                     SUN_LIGHT_RADIUS, r, g, b, strength);
         }
@@ -1003,7 +709,7 @@ public final class PvzceClient {
      * it has no clock - no {@code LevelInitS2C} has arrived yet - so a night level used to be
      * previewed in broad daylight and then turn dark the moment it started. The level's own
      * file is what the client has instead, read locally the same way the chooser already reads
-     * {@code usesConveyorBelt} and the seed pool, and tick zero is where a fresh run starts.
+     * {@code dealsItsOwnCards} and the seed pool, and tick zero is where a fresh run starts.
      *
      * <p>{@code x}/{@code y}/{@code cellWidth}/{@code cellHeight} are the board's rectangle in
      * the caller's own pixels, so the moon glow lands on the lawn the caller drew rather than
@@ -1059,10 +765,6 @@ public final class PvzceClient {
         return type == null ? fallback : (int) type.defaultValue();
     }
 
-    private static float lerp(float a, float b, float t) {
-        return com.pvzce.common.util.MathUtil.lerp(a, b, t);
-    }
-
     /** Full-window orthographic projection in logical (scaled) GUI pixels. */
     public void beginGuiView() {
         spriteXScale = 1F;
@@ -1071,15 +773,15 @@ public final class PvzceClient {
         RenderSystem.setGuiShader();
     }
 
-    /**
-     * MC {@code Window.calculateScale}-shaped GUI scale. Auto uses the max
-     * usable integer scale; a manual scale is clamped by the same constraints.
-     */
     /** GUI-space clipping rectangles; see {@link com.pvzce.client.gui.Clipping}. */
     public com.pvzce.client.gui.Clipping clipping() {
         return clipping;
     }
 
+    /**
+     * MC {@code Window.calculateScale}-shaped GUI scale. Auto uses the max
+     * usable integer scale; a manual scale is clamped by the same constraints.
+     */
     public int guiScale() {
         return guiScaleFor(config.guiScale() == PvzceClientConfig.AUTO_GUI_SCALE
                 ? PvzceClientConfig.MAX_MANUAL_GUI_SCALE
@@ -1107,15 +809,11 @@ public final class PvzceClient {
     }
 
     public int guiWidth() {
-        return ceilDiv(window.width(), guiScale());
+        return MathUtil.ceilDiv(window.width(), guiScale());
     }
 
     public int guiHeight() {
-        return ceilDiv(window.height(), guiScale());
-    }
-
-    private static int ceilDiv(int value, int divisor) {
-        return com.pvzce.common.util.MathUtil.ceilDiv(value, divisor);
+        return MathUtil.ceilDiv(window.height(), guiScale());
     }
 
     /** Converts a raw framebuffer mouse X to logical GUI X. */
@@ -1181,9 +879,10 @@ public final class PvzceClient {
      * call back into a tinted draw, and a single field would leak the tint outwards.
      *
      * <p>The channels are a colour rather than one brightness because the two things that
-     * use this stack need different answers: a resource drop is <em>dimmed</em> (all three
-     * channels down, {@link EntityVisuals#DROP_TINT}), while a slowed zombie is drawn
-     * <em>frozen</em> - and the frozen look is a blue tint, which one number cannot say. A
+     * use this stack need different answers: a resource drop wears its resource's own tint -
+     * dimmed, and as warm as the art needs
+     * ({@link com.pvzce.api.content.ResourceDef.DropTint}) - while a slowed zombie is drawn
+     * <em>frozen</em>, and the frozen look is a blue tint, which one number cannot say. A
      * value above 1 is legal and is how the night lift brightens an entity the scene tint
      * has just darkened; GL clamps the finished pixel, not the vertex colour.
      */
@@ -1218,7 +917,7 @@ public final class PvzceClient {
      */
     public void pushEntityAlpha(float multiplier) {
         float[] current = entityInk();
-        entityInk.push(new float[]{current[0], current[1], current[2], clamp(current[3] * multiplier)});
+        entityInk.push(new float[]{current[0], current[1], current[2], MathUtil.clamp01(current[3] * multiplier)});
     }
 
     public void popEntityAlpha() {
@@ -1228,10 +927,6 @@ public final class PvzceClient {
     private float[] entityInk() {
         float[] ink = entityInk.peek();
         return ink == null ? new float[]{1F, 1F, 1F, 1F} : ink;
-    }
-
-    private static float clamp(float value) {
-        return Math.max(0F, Math.min(1F, value));
     }
 
     /** The colour multiplier's own clamp: dimmable to nothing, brightenable a little. */
@@ -1336,9 +1031,9 @@ public final class PvzceClient {
             lightY = centerY + height * 4F;
         }
         float nightBlend = level.nightBlendAt(level.smoothDayTicks());
-        float shadowR = lerp(0.02F, 0.03F, nightBlend);
-        float shadowG = lerp(0.03F, 0.06F, nightBlend);
-        float shadowB = lerp(0.08F, 0.22F, nightBlend);
+        float shadowR = MathUtil.lerp(0.02F, 0.03F, nightBlend);
+        float shadowG = MathUtil.lerp(0.03F, 0.06F, nightBlend);
+        float shadowB = MathUtil.lerp(0.08F, 0.22F, nightBlend);
         try {
             SpriteRenderer.projectedShadow(Sprite.whole(textures.getOrLoad(texture)),
                     lightX, lightY, centerY, centerX, width, height, 0.04F,
@@ -1474,13 +1169,9 @@ public final class PvzceClient {
         if (missingTextures.add(id)) {
             LOGGER.warn("Missing texture reference: {}", id);
             if (Boolean.getBoolean("pvzce.traceTextures")) {
-                new Throwable("missing " + id).printStackTrace();
+                LOGGER.warn("missing texture {}", id, new Throwable("missing " + id));
             }
         }
-    }
-
-    private static float clamp(float value, float min, float max) {
-        return com.pvzce.common.util.MathUtil.clamp(value, min, max);
     }
 
     public void drawSolid(float x, float y, float w, float h, float z, float r, float g, float b, float a) {
@@ -1557,20 +1248,6 @@ public final class PvzceClient {
      * hard-coded {@code "custom_level"} from a single button, so every visit edited
      * the same level and anything saved under another name was unreachable.
      */
-    private static double[] parsePoint(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String[] parts = raw.split(",");
-        if (parts.length != 2) {
-            return null;
-        }
-        try {
-            return new double[]{Double.parseDouble(parts[0].trim()), Double.parseDouble(parts[1].trim())};
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
 
     public void openEditor(Identifier levelId) {
         openScreen(new EditorScreen(this, levelId));
@@ -1652,7 +1329,7 @@ public final class PvzceClient {
      * there is no chooser, the level's opening dialogue has to play in game, and the
      * pending id is what carries that decision across the round trip.
      */
-    private void requestFreshRunDirectly(String levelId, boolean restart) {
+    void requestFreshRunDirectly(String levelId, boolean restart) {
         directDialogueLevelId = levelId;
         connection.send(restart
                 ? new RestartLevelC2S(levelId, currentWorld, List.of())
@@ -1945,7 +1622,7 @@ public final class PvzceClient {
                 rememberedSeeds.put(entry.getKey(), List.copyOf(seeds));
             }
         } catch (Throwable t) {
-            System.err.println("Failed to read seed selections: " + t.getMessage());
+            LOGGER.warn("Failed to read the seed selections", t);
         }
     }
 
@@ -1965,7 +1642,7 @@ public final class PvzceClient {
             }
             Files.writeString(seedSelectionFile, root.toString());
         } catch (Throwable t) {
-            System.err.println("Failed to write seed selections: " + t.getMessage());
+            LOGGER.warn("Failed to write the seed selections", t);
         }
     }
 
@@ -2290,17 +1967,24 @@ public final class PvzceClient {
     }
 
     public void setCurrentWorld(String currentWorld) {
+        String world = com.pvzce.common.util.WorldPaths.sanitize(currentWorld);
         // A level list describes exactly one world - its 进行中/已通关 labels are the save
         // files of that world. Carrying the previous world's snapshot into the new one showed
         // those labels for the wrong world (and they drive whether entering a level loads a
         // save or opens the seed chooser), so drop it and let the level list refetch.
-        if (!java.util.Objects.equals(this.currentWorld, currentWorld)) {
+        if (!java.util.Objects.equals(this.currentWorld, world)) {
             levelList = List.of();
             // The profile is per world too: keeping the previous world's coins on
             // screen while the new world's list loads would show another world's money.
             profile.reset();
         }
-        this.currentWorld = currentWorld;
+        this.currentWorld = world;
+        // Written through on every switch, so the next start opens on the player that was
+        // actually being played as; an unchanged switch writes nothing.
+        if (!world.equals(config.lastWorld())) {
+            config.setLastWorld(world);
+            config.save();
+        }
     }
 
     public List<LevelListS2C.LevelInfo> levelList() {
@@ -2338,15 +2022,7 @@ public final class PvzceClient {
 
     public void setLevelList(List<LevelListS2C.LevelInfo> levelList) {
         this.levelList = levelList == null ? List.of() : List.copyOf(levelList);
-        if (!smokeSeedLevel.isBlank() && !smokeSeedOpened) {
-            for (LevelListS2C.LevelInfo info : this.levelList) {
-                if (smokeSeedLevel.equals(info.id())) {
-                    smokeSeedOpened = true;
-                    openSeedSelection(info, false);
-                    break;
-                }
-            }
-        }
+        smoke.openSeedChooserForSmoke(this.levelList);
         // A test run saved the level and asked the server for a reload; the list that
         // arrives next carries the saved definition, so this is where its seed chooser can
         // open with current data.
@@ -2403,21 +2079,4 @@ public final class PvzceClient {
      * state on the writer rather than a per-call argument, so leaving it set would
      * affect any later write too.
      */
-    private void capture(String path) {
-        int w = window.width();
-        int h = window.height();
-        ByteBuffer pixels = BufferUtils.createByteBuffer(w * h * 4);
-        GL11.glReadPixels(0, 0, w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
-        ByteBuffer flipped = BufferUtils.createByteBuffer(w * h * 4);
-        byte[] row = new byte[w * 4];
-        for (int y = h - 1; y >= 0; y--) {
-            pixels.get(w * y * 4, row, 0, w * 4);
-            flipped.put(row);
-        }
-        flipped.flip();
-        STBImageWrite.stbi_flip_vertically_on_write(false);
-        if (!STBImageWrite.stbi_write_png(path, w, h, 4, flipped, w * 4)) {
-            System.err.println("[SMOKE] failed to write screenshot " + path);
-        }
-    }
 }

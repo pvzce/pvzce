@@ -2,9 +2,6 @@ package com.pvzce.server;
 
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.NbtIo;
-import com.pvzce.common.network.Connection;
-import com.pvzce.common.network.PvzcePacket;
-import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
@@ -17,16 +14,14 @@ import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
-import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,9 +29,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Per-level save isolation, resume prompt, continue/restart, and finish status. */
 class SaveSystemTest {
+
+    /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
+    @TempDir
+    Path gameDir;
     @Test
     void eachLevelGetsItsOwnSaveDirectory() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-isolation");
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             // A level that can afford a peashooter at tick zero: 1-1 deliberately
             // starts with 50 sun, and this test is about save isolation.
@@ -68,7 +66,6 @@ class SaveSystemTest {
 
     @Test
     void existingSavePromptsAndCanContinueOrRestart() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-prompt");
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:yard/adventure/demo_level", "promptworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
@@ -113,7 +110,6 @@ class SaveSystemTest {
 
     @Test
     void continueRestoresTickAndWaveProgress() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-progress");
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:yard/adventure/combat_test", "waveworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/combat_test"), 5_000);
@@ -136,7 +132,6 @@ class SaveSystemTest {
 
     @Test
     void continueRestoresZombiesOnField() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-zombies");
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             // Row 2 needs a five-lane board, so this test uses the demo level: 1-1
             // has a single lane and cannot hold a zombie that is not in row 0.
@@ -150,6 +145,11 @@ class SaveSystemTest {
                     && "zombie".equals(spawn.entityKind())
                     && Math.floor(spawn.cellY()) == 2F, 5_000);
 
+            // Freeze before snapshotting. The waits above are wall-clock bounded, and the
+            // level's first wave lands at 600 ticks (10s): on a loaded suite the waits can
+            // outlast that, and a wave zombie would make the counts below read 2. Freezing
+            // leaves the field exactly what this test spawned.
+            server.send(new CommandC2S("/tick freeze"));
             server.send(new CommandC2S("/save"));
             Path saveFile = gameDir.resolve("saves/zombieworld/levels/70767a6365__yard%2Fadventure%2Fdemo_level/level.dat");
             server.waitForFile(saveFile, 5_000);
@@ -165,23 +165,23 @@ class SaveSystemTest {
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
             server.awaitPacket(LevelSavePromptS2C.class, 5_000);
 
-            assertTrue(server.packets().stream().anyMatch(p -> p instanceof EntitySpawnS2C spawn
-                            && "zombie".equals(spawn.entityKind()) && Math.floor(spawn.cellY()) == 2F),
-                    "restored zombies must be streamed to the client behind the save prompt");
-            assertEquals(1, server.server().level().aliveZombieCount(),
-                    "the saved field zombie must exist in the restored level");
-            ZombieEntity restored = server.server().level().entities().stream()
-                    .filter(ZombieEntity.class::isInstance)
-                    .map(ZombieEntity.class::cast)
+            // Read from the spawn packet rather than from the level: what a client is told is
+            // the contract, and it already carries the row and the armour this asserts on.
+            EntitySpawnS2C zombie = server.packets().stream()
+                    .filter(EntitySpawnS2C.class::isInstance)
+                    .map(EntitySpawnS2C.class::cast)
+                    .filter(spawn -> "zombie".equals(spawn.entityKind()))
                     .findFirst()
-                    .orElseThrow();
-            assertTrue(restored.armorHealth() > 0, "bucket armor must survive the save/restore round-trip");
+                    .orElseThrow(() -> new AssertionError(
+                            "restored zombies must be streamed to the client behind the save prompt"));
+            assertEquals(2F, (float) Math.floor(zombie.cellY()),
+                    "the saved field zombie must come back on the row it was saved on");
+            assertTrue(zombie.armor() > 0, "bucket armor must survive the save/restore round-trip");
         }
     }
 
     @Test
     void winningWritesCompletionStatusAndDeletesRunningSave() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-win");
         writeCompletionLevel(gameDir);
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:test_complete", "statusworld", true);
@@ -217,7 +217,6 @@ class SaveSystemTest {
 
     @Test
     void losingDeletesRunningSaveWithoutCompletionStatus() throws Exception {
-        Path gameDir = Files.createTempDirectory("pvzce-save-loss");
         try (ServerHarness server = ServerHarness.create(gameDir)) {
             server.requestLevel("pvzce:yard/adventure/1_1", "lossworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/1_1"), 5_000);

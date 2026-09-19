@@ -1,5 +1,6 @@
 package com.pvzce.client.renderer;
 
+import com.pvzce.common.util.MathUtil;
 /**
  * The board's day/night lighting as pure numbers, for any caller that has to draw a board.
  *
@@ -117,17 +118,17 @@ public final class TimeOfDayLighting {
         float nightRadius = Math.max(w, h) * 1.05F;
 
         return new Lighting(
-                lerp(dayTintR, nightTintR, nightBlend),
-                lerp(dayTintG, nightTintG, nightBlend),
-                lerp(dayTintB, nightTintB, nightBlend),
-                lerp(dayLift, nightLift, nightBlend),
-                lerp(daySunX, nightSunX, nightBlend),
-                lerp(daySunY, nightSunY, nightBlend),
-                lerp(dayRadius, nightRadius, nightBlend),
-                lerp(daySunR, nightSunR, nightBlend),
-                lerp(daySunG, nightSunG, nightBlend),
-                lerp(daySunB, nightSunB, nightBlend),
-                lerp(dayStrength, nightStrength, nightBlend),
+                MathUtil.lerp(dayTintR, nightTintR, nightBlend),
+                MathUtil.lerp(dayTintG, nightTintG, nightBlend),
+                MathUtil.lerp(dayTintB, nightTintB, nightBlend),
+                MathUtil.lerp(dayLift, nightLift, nightBlend),
+                MathUtil.lerp(daySunX, nightSunX, nightBlend),
+                MathUtil.lerp(daySunY, nightSunY, nightBlend),
+                MathUtil.lerp(dayRadius, nightRadius, nightBlend),
+                MathUtil.lerp(daySunR, nightSunR, nightBlend),
+                MathUtil.lerp(daySunG, nightSunG, nightBlend),
+                MathUtil.lerp(daySunB, nightSunB, nightBlend),
+                MathUtil.lerp(dayStrength, nightStrength, nightBlend),
                 nightBlend);
     }
 
@@ -156,7 +157,4 @@ public final class TimeOfDayLighting {
                 lighting.nightBlend());
     }
 
-    private static float lerp(float a, float b, float t) {
-        return com.pvzce.common.util.MathUtil.lerp(a, b, t);
-    }
 }

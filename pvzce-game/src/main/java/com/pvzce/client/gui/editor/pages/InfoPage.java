@@ -1,6 +1,5 @@
 package com.pvzce.client.gui.editor.pages;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pvzce.api.content.LevelRewards;
@@ -13,7 +12,10 @@ import com.pvzce.client.gui.components.EditBox;
 import com.pvzce.client.gui.editor.EditorContext;
 import com.pvzce.client.gui.editor.EditorPage;
 import com.pvzce.client.gui.editor.LevelFileWriter;
+import com.pvzce.common.util.MathUtil;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -38,6 +40,8 @@ import java.util.function.Consumer;
  * alone - that is the file the move has to carry.
  */
 public final class InfoPage implements EditorPage {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Editor");
     private String levelName = "";
     private String description = "";
     private int initialSun = 150;
@@ -167,7 +171,7 @@ public final class InfoPage implements EditorPage {
         EditorContext.Rect content = context.content();
         groupThemeButtons.clear();
         groupCategoryButtons.clear();
-        int rowH = clamp(content.height() / 14, 26, 34);
+        int rowH = MathUtil.clamp(content.height() / 14, 26, 34);
         infoRowPitch = rowH + 30;
         int fieldW = Math.min(460, content.width() + context.side().width() + 10);
         int top = content.y() + content.height() - rowH;
@@ -239,7 +243,7 @@ public final class InfoPage implements EditorPage {
             context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_chance", "僵尸掉币概率 0~1"),
                     coinDropChanceBox.x(), coinDropChanceBox.y() + coinDropChanceBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_amount", "掉币数量"),
+            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_amount", "每次掉币数量"),
                     coinDropAmountBox.x(), coinDropAmountBox.y() + coinDropAmountBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
             context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_coin", "掉哪种币"),
@@ -392,9 +396,8 @@ public final class InfoPage implements EditorPage {
                 if (unlock.isEmpty()) {
                     unlock = card.toString();
                 } else {
-                    System.err.println("[PVZCE] Level grants more than one card on a first clear;"
-                            + " the editor edits the first one and keeps the rest only until the"
-                            + " next save: " + card);
+                    LOGGER.warn("Level grants more than one card on a first clear; the editor"
+                            + " edits the first one and keeps the rest only until the next save: {}", card);
                 }
             }
         }
@@ -552,7 +555,4 @@ public final class InfoPage implements EditorPage {
         return LevelGrouping.levelId(current.namespace(), theme, category, LevelGrouping.leafName(current));
     }
 
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
 }

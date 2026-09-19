@@ -1,5 +1,6 @@
 package com.pvzce.client.animation;
 
+import com.pvzce.common.util.MathUtil;
 /** Sampled pose of a single controller bone. */
 public record BonePose(float[] translation, float[] rotation, float[] scale, boolean visible, float alpha) {
     public static final BonePose IDENTITY = new BonePose(
@@ -35,20 +36,17 @@ public record BonePose(float[] translation, float[] rotation, float[] scale, boo
             return a;
         }
         return new BonePose(
-                new float[]{lerp(a.translation[0], b.translation[0], t), lerp(a.translation[1], b.translation[1], t)},
+                new float[]{MathUtil.lerp(a.translation[0], b.translation[0], t), MathUtil.lerp(a.translation[1], b.translation[1], t)},
                 new float[]{
-                        lerp(a.rotation[0], b.rotation[0], t),
-                        lerp(a.rotation[1], b.rotation[1], t),
-                        lerp(a.rotation[2], b.rotation[2], t)
+                        MathUtil.lerp(a.rotation[0], b.rotation[0], t),
+                        MathUtil.lerp(a.rotation[1], b.rotation[1], t),
+                        MathUtil.lerp(a.rotation[2], b.rotation[2], t)
                 },
-                new float[]{lerp(a.scale[0], b.scale[0], t), lerp(a.scale[1], b.scale[1], t)},
+                new float[]{MathUtil.lerp(a.scale[0], b.scale[0], t), MathUtil.lerp(a.scale[1], b.scale[1], t)},
                 t < 0.5F ? a.visible : b.visible,
-                lerp(a.alpha, b.alpha, t));
+                MathUtil.lerp(a.alpha, b.alpha, t));
     }
 
-    private static float lerp(float a, float b, float t) {
-        return com.pvzce.common.util.MathUtil.lerp(a, b, t);
-    }
 
     /**
      * Builds the bone's local affine matrix. The bone origin is at

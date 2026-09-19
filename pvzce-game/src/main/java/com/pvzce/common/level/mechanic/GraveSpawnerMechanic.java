@@ -25,9 +25,15 @@ import java.util.List;
  * mechanic rather than another game rule.
  *
  * <p><strong>What it does not do</strong>: it raises no road zombies. A level using this still
- * gets whatever its {@code waves} say, so a level that wants the graves to be the only way in
- * writes an empty wave list and lets {@link #tick} do the work - and a level that wants both
+ * gets whatever its {@code waves} say, so a level whose zombies all come out of the ground
+ * writes its waves with empty {@code entries} - the waves then only carry the level's pacing,
+ * its progress bar and its ending - and lets {@link #tick} do the work. A level that wants both
  * gets both.
+ *
+ * <p><strong>When it stops</strong>: the last wave. The field has to be able to fall to zero for
+ * the level to be won, and a grave raising one zombie every second and a half never lets it. So
+ * the rise clock is dropped once {@code waves} have all been released, while the graves
+ * themselves keep being topped up to the standing count.
  *
  * <p>The run state is the countdown and the grave counter, kept in a {@link Rig} the level owns
  * (a mechanic instance is a shared registry entry, and two levels must not share one lawn's
@@ -92,7 +98,9 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
                 FieldSpec.integer("interval", "pvzce.mechanic.grave_spawner.field.interval", 1, 12000),
                 FieldSpec.integer("min_x", "pvzce.mechanic.grave_spawner.field.min_x", 0, 64),
                 FieldSpec.integer("max_x", "pvzce.mechanic.grave_spawner.field.max_x",
-                        GraveSpawnerData.MAX_X_UNSET, 64));
+                        GraveSpawnerData.MAX_X_UNSET, 64),
+                FieldSpec.integer("graves_per_wave", "pvzce.mechanic.grave_spawner.field.graves_per_wave",
+                        0, 81));
     }
 
     @Override
@@ -107,12 +115,25 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         Rig rig = rig(level, data);
         // The opening board first: a level paints its own graves, and this raises whatever
         // shortfall is left over before anything starts coming out of them. The target is the
-        // *initial* count until it has been reached, and the standing minimum forever after -
+        // *initial* count until it has been reached, and the standing target forever after -
         // so a block that opens with nine graves and settles at five does not spend the whole
         // level putting the ninth one back.
-        int target = rig.raised < data.initialFor() ? data.initialFor() : data.minGraves();
+        //
+        // The standing target grows with the waves that have arrived (see
+        // GraveSpawnerData#standingTarget): every wave the level announces also asks the lawn
+        // for more holes, which is how Whack-a-Zombie gets harder without a single road zombie.
+        int standing = data.standingTarget(level.currentWave());
+        int target = rig.raised < data.initialFor()
+                ? Math.max(standing, data.initialFor())
+                : standing;
         keepGravesUp(level, data, rig, target);
-        if (data.zombies().isEmpty()) {
+        // The graves stop giving up their dead once the level has sent its last wave. Without
+        // this the field could never fall to zero - the level is won by clearing the board after
+        // the final wave - and a 90-tick rise clock makes that a race no player can win. The
+        // graves themselves keep coming back: what ends is the trickle of zombies, not the
+        // mechanic. A level with no waves at all (an endless sandbox) is unaffected, because
+        // "every wave released" is false while there are none to release.
+        if (data.zombies().isEmpty() || level.wavesReleased()) {
             return;
         }
         if (--rig.ticksUntilRise > 0) {

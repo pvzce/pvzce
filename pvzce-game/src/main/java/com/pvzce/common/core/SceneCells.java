@@ -5,6 +5,8 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,8 @@ import java.util.Map;
  * on a malformed entry and aborted level creation.
  */
 public final class SceneCells {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/Scene");
     private SceneCells() {
     }
 
@@ -35,8 +39,7 @@ public final class SceneCells {
             for (String pos : entry.getValue()) {
                 int[] parsed = parsePosition(pos);
                 if (parsed == null) {
-                    System.err.println("[PVZCE] Ignoring malformed scene position '" + pos
-                            + "' for " + entry.getKey());
+                    LOGGER.warn("Ignoring malformed scene position '{}' for {}", pos, entry.getKey());
                     continue;
                 }
                 if (width > 0 && height > 0
@@ -63,6 +66,33 @@ public final class SceneCells {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * Which element a cell ends up with, or {@code null} when nothing declares it.
+     *
+     * <p><strong>The last declaration wins</strong>, which is what playing the level does: the
+     * server walks {@link #parse} in the map's own order and calls {@code scene.set} for every
+     * cell, so a file that lists every cell as grass and then names four of them water plays as
+     * water. The level editor's canvas used to answer the opposite way - first match wins - so the
+     * same file showed grass where the game showed water, roof and graves, and an author had no way
+     * to see the difference. Both sides read the rule from here now.
+     *
+     * <p>Keys are generic because the editor holds the file's own spelling (it writes the JSON back
+     * untouched) while the server holds parsed {@link Identifier}s.
+     */
+    public static <K> K lookup(Map<K, List<String>> scene, int x, int y) {
+        if (scene == null) {
+            return null;
+        }
+        String pos = x + "," + y;
+        K found = null;
+        for (Map.Entry<K, List<String>> entry : scene.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().contains(pos)) {
+                found = entry.getKey();
+            }
+        }
+        return found;
     }
 
     /** Packet form of a level's authored scene map. */

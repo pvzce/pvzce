@@ -6,6 +6,7 @@ import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.ToolData;
+import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -17,6 +18,7 @@ import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -70,12 +72,18 @@ class NightAreaTwoLevelsTest {
 
     /** The level as it ships, with no waves, so a test drives the simulation itself. */
     private static LevelServer running(LevelDef def) {
-        LevelDef quiet = new LevelDef(def.id(), def.name(), def.description(), def.width(), def.height(),
-                def.scene(), def.teams(), def.winTeam(), def.rules(), def.envVars(), List.of(),
-                def.waveIntervalEndMultiplier(), def.slots(), def.unlockResources(), def.initialSun(),
-                def.music(), List.of(), def.maxSeedSlots(), def.rewards(), def.unlock(),
-                def.mechanics(), def.dialogue(), def.hints(), def.playableTeams());
+        LevelDef quiet = TestLevels.copy(def).waves(List.of()).initialEntities(List.of()).build();
         return new LevelServer(quiet);
+    }
+
+    /**
+     * The same, but with a wave table short enough to tick through.
+     *
+     * <p>{@link #running} drops the waves so a test can drive the level itself; a test about what
+     * the waves do needs them back, and 2-5's own six-wave table is two minutes of ticks.
+     */
+    private static LevelServer runningWithWaves(LevelDef def, List<WaveDef> waves) {
+        return new LevelServer(TestLevels.withWaves(def, waves));
     }
 
     private static int graveCount(LevelServer level) {
@@ -247,6 +255,77 @@ class NightAreaTwoLevelsTest {
         assertEquals(data.minGraves(), graveCount(level), "the lawn is back up to nine");
     }
 
+    /**
+     * Every wave the level sends also asks the lawn for more gravestones.
+     *
+     * <p>2-5's waves carry no zombies of their own - the graves are the only way in - so a wave
+     * is a beat in the level's pacing and a step up in how crowded the lawn is. The growth is
+     * {@code graves_per_wave} on top of {@code min_graves}, counted from the waves that have
+     * actually arrived.
+     */
+    @Test
+    void everyWaveRaisesAnotherGrave() {
+        LevelDef def = level("2_5");
+        GraveSpawnerData data = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_GRAVE_SPAWNER,
+                GraveSpawnerData.class).orElseThrow();
+        assertEquals(9, data.minGraves(), "nine to start with");
+        assertEquals(1, data.gravesPerWave(), "and one more per wave");
+
+        // Three waves a few seconds apart instead of the level's six: what the mechanic reads is
+        // how many have arrived, not which ones they are, and ticking a whole 2-5 run to reach
+        // the last one would be two minutes of simulation for the same assertion. Three rather
+        // than two because the level is *won* the moment its last wave is released onto an empty
+        // lawn - a two-wave table would end the run at the second arrival and stop ticking the
+        // very mechanic under test.
+        LevelServer level = runningWithWaves(def, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 20, 0, List.of()),
+                new WaveDef(WaveDef.WaveType.SMALL, 20, 0, List.of()),
+                new WaveDef(WaveDef.WaveType.FINAL, 60, 0, List.of())));
+        Bridge bridge = new Bridge();
+        assertEquals(9, graveCount(level), "the opening board is the level's own nine graves");
+
+        tick(level, bridge, 25);
+        assertEquals(10, graveCount(level), "the first wave grew one");
+
+        tick(level, bridge, 20);
+        assertEquals(11, graveCount(level), "and the second grew another");
+    }
+
+    /**
+     * The graves stop giving up their dead once every wave has been released.
+     *
+     * <p>A level is won by clearing the field after its last wave, and a grave that keeps raising
+     * a zombie every second and a half never lets the field be clear - so without this 2-5 could
+     * not be finished at all. The graves themselves keep coming back; what ends is the trickle.
+     */
+    @Test
+    void theGravesStopRisingOnceEveryWaveIsOut() {
+        LevelDef def = level("2_5");
+        GraveSpawnerData data = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_GRAVE_SPAWNER,
+                GraveSpawnerData.class).orElseThrow();
+        // One wave, arriving after the rise clock has already fired twice.
+        LevelServer level = runningWithWaves(def, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, data.interval() * 2 + 20, 0, List.of())));
+        Bridge bridge = new Bridge();
+
+        tick(level, bridge, data.interval() * 2 + 20);
+        long risen = level.aliveZombieCount();
+        assertTrue(risen >= 2, "the graves were feeding the lawn before the wave: " + risen);
+        assertTrue(level.wavesReleased(), "and that wave was the level's last");
+
+        // Three more rise clocks' worth of ticks: a mechanic that kept its own clock running
+        // would have raised three more zombies by now.
+        tick(level, bridge, data.interval() * 3);
+        assertEquals(risen, level.aliveZombieCount(),
+                "no further zombies come up once the level has sent every wave");
+    }
+
+    private static void tick(LevelServer level, Bridge bridge, int ticks) {
+        for (int i = 0; i < ticks; i++) {
+            level.tick(bridge);
+        }
+    }
+
     /** Zombies come up out of the graves, and only gravestones that are still standing. */
     @Test
     void zombiesClimbOutOfTheGraves() {
@@ -341,13 +420,18 @@ class NightAreaTwoLevelsTest {
     }
 
     /**
-     * A dying zombie can leave a sun, and 2-5 is a level that needs it.
+     * A dying zombie can leave sun, and 2-5 is a level that needs it.
      *
      * <p>Its cards are three plants and no producer, and no sun falls from its sky, so without
      * this the player has the 50 sun they started with and nothing else.
+     *
+     * <p>A kill that pays pays {@code zombie_sun_drop_count} suns, and they land where the zombie
+     * died rather than falling in from the sky: the drop is the kill's, so it belongs where the
+     * player is already looking. Both are asserted here because both are what makes the level's
+     * economy read as "kill a zombie, get paid" instead of "something fell out of the sky".
      */
     @Test
-    void aDyingZombieCanLeaveASunInWhackAZombie() {
+    void aDyingZombieCanLeaveSunWhereItFell() {
         LevelDef def = level("2_5");
         float chance = def.rules().get(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE).getAsFloat();
         assertTrue(chance > 0F && chance < 0.5F, "a small chance, not a fountain: " + chance);
@@ -357,32 +441,47 @@ class NightAreaTwoLevelsTest {
         // Certain drops for the test, so the roll is not what is under test.
         LevelServer level = running(withRule(def, PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE, 1F));
         Bridge bridge = new Bridge();
+        int perKill = level.rules().getInt(PvzceIds.RULE_ZOMBIE_SUN_DROP_COUNT);
+        assertTrue(perKill > 1, "a kill pays several suns, not one: " + perKill);
+
         ZombieEntity zombie = level.spawnZombie(PvzceIds.id("basic_zombie"),
                 level.team(ZOMBIE_TEAM), 4.5F, 0);
         level.flushPending(bridge);
         int before = sunDrops(level);
         zombie.damage(1800, ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), level);
         level.flushPending(bridge);
-        assertEquals(before + 1, sunDrops(level), "the kill left a sun on the lawn");
+        assertEquals(before + perKill, sunDrops(level), "the kill left its suns on the lawn");
+
+        // Where they landed, and how they got there: the cell the zombie died in or a neighbour
+        // of it (they scatter by one cell so three of them are not one sprite on one pixel), and
+        // already on the ground - a falling sun hangs in the air for five seconds, which is the
+        // "in the sky" this replaced.
+        for (com.pvzce.server.entity.ResourceDropEntity drop : sunDropList(level)) {
+            assertTrue(drop.landed(), "a kill's sun is on the ground when it appears");
+            assertTrue(Math.abs(drop.gridX() - 4) <= 1 && Math.abs(drop.gridY() - 0) <= 1,
+                    "dropped around the cell the zombie died in, not at (" + drop.gridX()
+                            + "," + drop.gridY() + ")");
+        }
     }
 
     /** How many sun drops are lying on the board. */
     private static int sunDrops(LevelServer level) {
-        return (int) level.entities().stream()
-                .filter(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity drop
-                        && PvzceIds.SUN.equals(drop.defId()))
-                .count();
+        return sunDropList(level).size();
+    }
+
+    private static List<com.pvzce.server.entity.ResourceDropEntity> sunDropList(LevelServer level) {
+        return level.entities().stream()
+                .filter(com.pvzce.server.entity.ResourceDropEntity.class::isInstance)
+                .map(com.pvzce.server.entity.ResourceDropEntity.class::cast)
+                .filter(drop -> PvzceIds.SUN.equals(drop.defId()))
+                .toList();
     }
 
     /** The same level with one rule replaced; used to make a chance certain. */
     private static LevelDef withRule(LevelDef def, Identifier rule, float value) {
         Map<Identifier, com.google.gson.JsonElement> rules = new java.util.LinkedHashMap<>(def.rules());
         rules.put(rule, new com.google.gson.JsonPrimitive(value));
-        return new LevelDef(def.id(), def.name(), def.description(), def.width(), def.height(),
-                def.scene(), def.teams(), def.winTeam(), rules, def.envVars(), List.of(),
-                def.waveIntervalEndMultiplier(), def.slots(), def.unlockResources(), def.initialSun(),
-                def.music(), List.of(), def.maxSeedSlots(), def.rewards(), def.unlock(),
-                def.mechanics(), def.dialogue(), def.hints(), def.playableTeams());
+        return TestLevels.copy(def).rules(rules).waves(List.of()).initialEntities(List.of()).build();
     }
 
     /** Swung for real: the plain one dies, the armoured ones cost more than one blow. */
@@ -586,7 +685,7 @@ class NightAreaTwoLevelsTest {
                 java.util.Map.of(), 50, LevelDef.LevelMusicDef.DEFAULT, List.of());
         GraveSpawnerData data = new GraveSpawnerData(
                 List.of(PvzceIds.id("basic_zombie")), 5, GraveSpawnerData.INITIAL_AS_MINIMUM,
-                420, 4, GraveSpawnerData.MAX_X_UNSET);
+                420, 4, GraveSpawnerData.MAX_X_UNSET, 0);
         assertFalse(LevelMechanics.GRAVE_SPAWNER.validate(noGraves, data).isEmpty(),
                 "a lawn with no gravestone would grow its first one out of thin air");
         assertTrue(LevelMechanics.GRAVE_SPAWNER.validate(level("2_5"),

@@ -2,6 +2,7 @@ package com.pvzce.client.gui.screens;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.api.util.LevelGrouping;
+import com.pvzce.common.util.LevelKey;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,8 +18,8 @@ import java.nio.file.Path;
  * disappears.
  *
  * <p>Static and free of the client so the arithmetic can be tested without a window:
- * {@link #idAfterMove}, {@link #saveKeyAfterMove} and {@link #saveDirectoryAfterMove} are
- * the three derivations, and the rest is the two renames.
+ * {@link #idAfterMove} is the derivation, and the rest is the two renames. Where a save lives is
+ * not decided here - {@link LevelKey} owns that rule for both sides.
  */
 final class LevelMove {
     /** What moving a level does, or why it does not. */
@@ -53,62 +54,6 @@ final class LevelMove {
         String name = LevelGrouping.leafName(current);
         Identifier moved = LevelGrouping.levelId(current.namespace(), theme, category, name);
         return moved == null ? null : Identifier.tryParse(moved.toString());
-    }
-
-    /**
-     * The world-save directory key for a level id, mirroring the server's {@code LevelKey}.
-     *
-     * <p>Duplicated here on purpose: this screen runs on the client and has to be able to say
-     * where a save <em>would</em> live - and move it - without a server round trip. The two
-     * must produce the same string, which is what {@code LevelMoveTest} pins.
-     *
-     * <p>The rule is "hex namespace, {@code __}, path with {@code %} and {@code /} escaped",
-     * which is injective: two different level ids can never share a save directory. The old
-     * rule replaced {@code /} with {@code _} and could not tell {@code a/b} from {@code a_b}.
-     */
-    static String saveKeyAfterMove(Identifier id) {
-        if (id == null) {
-            return "";
-        }
-        return hexNamespace(id.namespace()) + "__" + escapeForSaveKey(id.path());
-    }
-
-    private static String hexNamespace(String namespace) {
-        StringBuilder builder = new StringBuilder(namespace.length() * 2);
-        for (int i = 0; i < namespace.length(); i++) {
-            char c = namespace.charAt(i);
-            builder.append(Character.forDigit((c >> 4) & 0xF, 16)).append(Character.forDigit(c & 0xF, 16));
-        }
-        return builder.toString();
-    }
-
-    private static String escapeForSaveKey(String path) {
-        StringBuilder builder = new StringBuilder(path.length());
-        for (int i = 0; i < path.length(); i++) {
-            char c = path.charAt(i);
-            switch (c) {
-                case '%' -> builder.append("%25");
-                case '/' -> builder.append("%2F");
-                default -> builder.append(c);
-            }
-        }
-        return builder.toString();
-    }
-
-    /** The per-level save directory inside a world's {@code saves/} folder. */
-    static Path saveDirectoryAfterMove(Path worldDirectory, Identifier id) {
-        if (worldDirectory == null) {
-            return null;
-        }
-        return worldDirectory.resolve("levels").resolve(saveKeyAfterMove(id));
-    }
-
-    /** The completion marker for a level inside a world's {@code saves/} folder. */
-    static Path statusFileAfterMove(Path worldDirectory, Identifier id) {
-        if (worldDirectory == null) {
-            return null;
-        }
-        return worldDirectory.resolve("level_status").resolve(saveKeyAfterMove(id) + ".dat");
     }
 
     /**
@@ -153,14 +98,14 @@ final class LevelMove {
      * which is what "not migrated" means everywhere else. The message says so.
      */
     private static void moveSave(Path worldDirectory, Identifier from, Identifier to) throws IOException {
-        Path fromDir = saveDirectoryAfterMove(worldDirectory, from);
-        Path toDir = saveDirectoryAfterMove(worldDirectory, to);
+        Path fromDir = LevelKey.levelDir(worldDirectory, from);
+        Path toDir = LevelKey.levelDir(worldDirectory, to);
         if (Files.isDirectory(fromDir) && !Files.exists(toDir)) {
             Files.createDirectories(toDir.getParent());
             Files.move(fromDir, toDir);
         }
-        Path fromStatus = statusFileAfterMove(worldDirectory, from);
-        Path toStatus = statusFileAfterMove(worldDirectory, to);
+        Path fromStatus = LevelKey.statusFile(worldDirectory, from);
+        Path toStatus = LevelKey.statusFile(worldDirectory, to);
         if (Files.isRegularFile(fromStatus) && !Files.exists(toStatus)) {
             Files.createDirectories(toStatus.getParent());
             Files.move(fromStatus, toStatus);

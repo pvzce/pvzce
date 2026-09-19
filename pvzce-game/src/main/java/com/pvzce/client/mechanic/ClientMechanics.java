@@ -23,7 +23,7 @@ public final class ClientMechanics {
     private static final Map<Identifier, ClientMechanic> REGISTRY = new HashMap<>();
     private static final java.util.Set<Identifier> REPORTED_MISSING = new java.util.HashSet<>();
     private static final org.slf4j.Logger LOGGER =
-            org.slf4j.LoggerFactory.getLogger("pvzce-client-mechanics");
+            org.slf4j.LoggerFactory.getLogger("PVZCE/ClientMechanics");
     private static volatile boolean bootstrapped;
 
     /** Registers every built-in client mechanic; idempotent. */
@@ -86,22 +86,6 @@ public final class ClientMechanics {
     public static com.pvzce.api.content.ToolData defaultTool(ClientLevel level) {
         ClientMechanic mechanic = REGISTRY.get(com.pvzce.common.PvzceIds.MECHANIC_TOOL);
         return mechanic instanceof ToolClientMechanic tools ? tools.defaultTool(level) : null;
-    }
-
-    /**
-     * How far the level's default tool reaches around the click, in cells; 0 = the clicked cell.
-     *
-     * <p>Read from the same tool definition the server swings with, so the aim indicator the
-     * player sees and the hit box the server applies cannot disagree.
-     */
-    public static float defaultToolRange(ClientLevel level) {
-        com.pvzce.api.content.ToolData data = defaultTool(level);
-        if (data == null || data.tool() == null) {
-            return 0F;
-        }
-        com.pvzce.api.content.ToolDef def =
-                com.pvzce.common.core.BuiltInRegistries.TOOLS.get(data.tool());
-        return def == null ? 0F : def.range();
     }
 
     /** World-space overlays for a level, in the order the level declares its mechanics. */

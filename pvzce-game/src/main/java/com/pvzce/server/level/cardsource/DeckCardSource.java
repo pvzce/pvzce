@@ -6,7 +6,7 @@ import com.pvzce.common.network.packet.ResourceDeltaS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.server.PvzcePlayer;
-import com.pvzce.server.Slot;
+import com.pvzce.common.core.Slot;
 import com.pvzce.server.level.LevelServer;
 
 import java.util.List;

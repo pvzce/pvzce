@@ -77,6 +77,15 @@ public final class PvzceIds {
      * and no sky needs. The original's Whack-a-Zombie is the case it exists for.
      */
     public static final Identifier RULE_ZOMBIE_SUN_DROP_CHANCE = id("zombie_sun_drop_chance");
+    /**
+     * How many suns one paying kill drops.
+     *
+     * <p>The other half of {@code zombie_sun_drop_chance}: three suns scattered around where the
+     * zombie fell is a different offer from one, and a level with no producers and no sky pays
+     * its player in exactly this currency. The chance is read against the count, so a level that
+     * wants the same income in fewer, better moments lowers the chance and keeps the count.
+     */
+    public static final Identifier RULE_ZOMBIE_SUN_DROP_COUNT = id("zombie_sun_drop_count");
     public static final Identifier RULE_CRATER_RECOVERY = id("crater_recovery");
     public static final Identifier RULE_ZOMBIE_DAMAGE_MULTIPLIER = id("zombie_damage_multiplier");
     public static final Identifier RULE_ZOMBIE_SPEED_MULTIPLIER = id("zombie_speed_multiplier");

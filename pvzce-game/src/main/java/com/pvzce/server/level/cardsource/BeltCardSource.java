@@ -9,7 +9,7 @@ import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.PvzcePlayer;
-import com.pvzce.server.Slot;
+import com.pvzce.common.core.Slot;
 import com.pvzce.server.level.ConveyorBelt;
 import com.pvzce.server.level.LevelServer;
 

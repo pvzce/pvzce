@@ -1,9 +1,7 @@
 package com.pvzce.common.resource;
 
-import com.pvzce.api.util.Identifier;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 

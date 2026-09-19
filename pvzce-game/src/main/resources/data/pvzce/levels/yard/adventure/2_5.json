@@ -83,16 +83,17 @@
     "pvzce:sun_spawn_chance": 0,
     "pvzce:graves_spawn_night": true,
     "pvzce:zombie_speed_multiplier": 2.2,
-    "pvzce:zombie_sun_drop_chance": 0.08
+    "pvzce:zombie_sun_drop_chance": 0.03
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
     "pvzce:grave_buster",
     "pvzce:potato_mine",
-    "pvzce:cherry_bomb"
+    "pvzce:cherry_bomb",
+    "pvzce:sun"
   ],
-  "max_seed_slots": 3,
+  "max_seed_slots": 4,
   "unlock_resources": {},
   "initial_sun": 50,
   "mechanics": [
@@ -105,7 +106,8 @@
       ],
       "min_graves": 9,
       "initial_graves": 9,
-      "interval": 600,
+      "graves_per_wave": 1,
+      "interval": 90,
       "min_x": 4,
       "max_x": 8
     },
@@ -127,109 +129,33 @@
     {
       "type": "small",
       "delay": 900,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 12
-        }
-      ],
-      "spawn_interval": 210
+      "entries": []
     },
     {
       "type": "small",
       "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 12
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 3
-        }
-      ],
-      "spawn_interval": 195
+      "entries": []
     },
     {
       "type": "small",
       "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 12
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 6
-        }
-      ],
-      "spawn_interval": 180
+      "entries": []
     },
     {
       "type": "huge",
       "delay": 1800,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 15
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 6
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 3
-        }
-      ],
-      "spawn_interval": 90,
+      "entries": [],
       "warning_ticks": 180
     },
     {
       "type": "small",
       "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 15
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 6
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 3
-        }
-      ],
-      "spawn_interval": 165
+      "entries": []
     },
     {
       "type": "final",
       "delay": 1680,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 18
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 9
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 6
-        }
-      ],
-      "spawn_interval": 75,
+      "entries": [],
       "warning_ticks": 180
     }
   ],

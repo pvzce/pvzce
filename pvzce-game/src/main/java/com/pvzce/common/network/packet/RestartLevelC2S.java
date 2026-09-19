@@ -2,6 +2,7 @@ package com.pvzce.common.network.packet;
 
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
+import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 import java.util.List;
@@ -29,14 +30,18 @@ public record RestartLevelC2S(String levelId, String worldName,
         return ConnectionDirection.SERVERBOUND;
     }
 
+    public static final PacketStruct.Codec<RestartLevelC2S> CODEC = PacketStruct.<RestartLevelC2S>builder()
+    .field(RestartLevelC2S::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .field(RestartLevelC2S::worldName, PacketByteBuf::writeString, PacketByteBuf::readString)
+    .stringList(RestartLevelC2S::selectedSeeds)
+            .build(values -> new RestartLevelC2S((String) values.get(0), (String) values.get(1), (List<String>) values.get(2)));
+
     @Override
     public void encode(PacketByteBuf buf) {
-        buf.writeString(levelId);
-        buf.writeString(worldName);
-        buf.writeStringList(selectedSeeds);
+        CODEC.encode(this, buf);
     }
 
     public static RestartLevelC2S decode(PacketByteBuf buf) {
-        return new RestartLevelC2S(buf.readString(), buf.readString(), buf.readStringList());
+        return CODEC.decode(buf);
     }
 }

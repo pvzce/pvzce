@@ -7,11 +7,11 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.ResourceCollectAnimation;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.hud.cardbar.CardBar;
+import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.util.MathUtil;
-import com.pvzce.api.content.DialogueLine;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.DialogueOverlay;
 import com.pvzce.client.gui.components.Dialog;
@@ -27,14 +27,17 @@ import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.UseToolC2S;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.opengl.GL11;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 /** The playable level: board rendering + card bar + HUD. */
 public final class InGameScreen extends Screen implements com.pvzce.client.gui.hud.cardbar.CardBar.Host {
+    private static final org.slf4j.Logger LOGGER =
+            org.slf4j.LoggerFactory.getLogger("PVZCE/InGame");
     private static final Identifier SUN_BANK = Identifier.withDefaultNamespace("textures/gui/hud/sun_bank");
     /** The resource card that toggles the sun bank instead of a normal packet. */
     private static final String SUN_CARD_ID = com.pvzce.common.PvzceIds.SUN.toString();
@@ -90,11 +93,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final int[] PARTS_FLAG = {53, 1, 20, 18};
     /** The reward money bag, same art the award page uses. */
     private static final Identifier REWARD_BAG = Identifier.withDefaultNamespace("textures/gui/award/money_bag");
-    /** Sun bank geometry, shared by the HUD, the card layout and the fly-to-bank target. */
-    private static final int BANK_WIDTH = 78;
-    private static final int BANK_HEIGHT = 87;
-    private static final int BANK_MARGIN = 8;
-    private static final int BANK_GAP = 6;
     /**
      * Bottom-left coin bank: the art's own 128x31, so the frame is not stretched.
      *
@@ -114,6 +112,29 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final long COIN_BANK_FADE_NANOS = 600_000_000L;
     /** Small visual grass ring beyond the playable board, in world cells. */
     private static final float GRASS_VISUAL_MARGIN_CELLS = 0.12F;
+    /**
+     * The clip a click asks the default tool's cursor for.
+     *
+     * <p>Not an {@link com.pvzce.api.entity.EntityAnimations} state: those are the wire states
+     * the server publishes, and nothing on the server knows or cares that the cursor swings -
+     * the blow is already the server's, this is only its gesture. It is a clip name in the
+     * tool's own animation file, like the {@code drive} clip the lawn mower's mechanic asks for.
+     */
+    private static final String ATTACK_CLIP = "attack";
+    /**
+     * How much bigger the cursor's box is than the card sprite's was.
+     *
+     * <p>The sprite was drawn inside a transparent margin while an animation's box is the
+     * model's bounding box, so the same number would arrive as a visibly smaller mallet.
+     */
+    private static final float CURSOR_BOX_SCALE = 1.35F;
+    /**
+     * Half the world-space box the cursor's animation is projected into, in cells.
+     *
+     * <p>Half of the hammer model's own 0.5-cell box: the projection is square and the drawing
+     * scale is 1, so the model lands in the box at exactly the size the converter authored it.
+     */
+    private static final float CURSOR_HALF_CELLS = 0.25F;
     /**
      * The "Ready... Set... Plant!" banner, timed from the original reanim rather than from
      * a constant: it is three words and lasts exactly as long as they do.
@@ -420,6 +441,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private CardBar cardBar;
     /** World-space overlays the level's mechanics ask for (the plantable area's line). */
     private java.util.List<com.pvzce.client.mechanic.ClientMechanic.WorldOverlay> overlays;
+    /** The default tool's cursor animation, built on first draw; see {@link #toolCursor}. */
+    private com.pvzce.client.animation.ArtTarget toolCursor;
+    /** Which tool {@link #toolCursor} was built for, so a changed tool rebuilds it. */
+    private Identifier toolCursorTool;
 
     public InGameScreen(PvzceClient client) {
         this(client, com.pvzce.api.content.LevelDialogue.EMPTY);
@@ -1137,8 +1162,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         EffectEventS2C effect;
         while ((effect = client.level().effects().poll()) != null) {
             if (Boolean.getBoolean("pvzce.traceEffects")) {
-                System.out.println("[EFFECT] particle='" + effect.particle() + "' sound='" + effect.sound()
-                        + "' x=" + effect.x() + " y=" + effect.y());
+                LOGGER.info("effect trace: particle='{}' sound='{}' x={} y={}",
+                        effect.particle(), effect.sound(), effect.x(), effect.y());
             }
             if (!effect.particle().isEmpty()) {
                 client.particles().spawn(effect.particle(), effect.x(), effect.y());
@@ -1237,18 +1262,27 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         long now = System.nanoTime();
+        // Both maps are keyed by entity id, and sleeping plants come and go (planted, dug up,
+        // eaten), so the ids seen this frame are what survives the sweep at the bottom.
+        java.util.Set<Integer> breathing = new java.util.HashSet<>();
         for (ClientEntity entity : client.level().entities().values()) {
             if (!com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())
                     || !com.pvzce.api.entity.EntityAnimations.SLEEP.equals(entity.animation())) {
                 continue;
             }
-            // Staggered by entity id so a row of sleeping mushrooms does not puff in lockstep:
-            // they are asleep, not a chorus line.
-            long due = zzzNextNanos.getOrDefault(entity.id(), 0L) + (entity.id() % 4) * ZZZ_STAGGER_NANOS;
+            breathing.add(entity.id());
+            // The first breath is staggered by entity id so a row of sleeping mushrooms does
+            // not puff in lockstep: they are asleep, not a chorus line. Every later breath is
+            // ZZZ_INTERVAL_NANOS after the previous due time, so the offsets never converge.
+            long due = zzzNextNanos.computeIfAbsent(entity.id(),
+                    id -> now + (id % 4) * ZZZ_STAGGER_NANOS);
             if (now < due) {
                 continue;
             }
-            zzzNextNanos.put(entity.id(), now);
+            // A pause or a level reload can leave the timer far behind; resynchronise instead
+            // of letting the plant puff once a frame until it has caught up.
+            long next = due + ZZZ_INTERVAL_NANOS;
+            zzzNextNanos.put(entity.id(), next < now ? now + ZZZ_INTERVAL_NANOS : next);
             // The three sizes in order, so one plant's breath is a spiral: a small z, then a
             // bigger one further up, then the biggest, and back to the start.
             int step = zzzStep.getOrDefault(entity.id(), 0);
@@ -1260,6 +1294,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             client.particles().spawn(zzz.toString(),
                     entity.cellX() - 0.18F, entity.cellY() + ZZZ_HEIGHT);
         }
+        zzzNextNanos.keySet().retainAll(breathing);
+        zzzStep.keySet().retainAll(breathing);
     }
 
     /** How often a sleeping plant breathes one Zzz, in nanoseconds. */
@@ -1273,9 +1309,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * The mallet under the pointer, in a level that makes a tool its click.
      *
      * <p>Whack-a-Zombie's cursor <em>is</em> the mallet in the original, and the gesture it
-     * describes is not "click this cell" but "hit this zombie": the hover tint says where the
-     * blow lands, and this says what the blow is. Drawn last, in GUI space, so it is over the
-     * HUD the way the system pointer is - a cursor that the card bar can cover is not a cursor.
+     * describes is not "click this cell" but "hit this zombie" - so what the cursor has to say is
+     * what the blow is, and it says it by swinging. Drawn last, in GUI space, so it is over the
+     * HUD the way the system pointer is: a cursor that the card bar can cover is not a cursor.
+     *
+     * <p>Drawn as the tool's own animation rather than as its card sprite: the two clips the
+     * animation file carries are the held pose and the swing ({@link #swingDefaultToolCursor}),
+     * and a still picture cannot tell the player that a click landed. The box is square and the
+     * projection inside it is square, so the mallet keeps its shape; the offset up and to the
+     * right of the pointer is unchanged, so the head still sits where the system arrow's tip was.
      *
      * <p>Nothing is drawn while a card is selected, and nothing is drawn for a level with no
      * default tool: this is the tool's own advertisement, not a new HUD element.
@@ -1289,15 +1331,108 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (granted == null || granted.tool() == null) {
             return;
         }
-        Identifier icon = com.pvzce.client.gui.hud.cardbar.CardPainter.icon(
-                new SlotInfo(-1, granted.tool().toString(), "tool", SlotInfo.NO_PRICE, 0, 0,
-                        SlotInfo.UNLIMITED_USES, true));
+        com.pvzce.client.animation.AnimationManager animations = client.animations();
+        if (animations == null) {
+            return;
+        }
+        com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, granted.tool());
+        if (cursor == null) {
+            return;
+        }
+        // The held pose unless a swing is on screen. Asking every frame is what makes the
+        // transition back from `attack` automatic (`on_end: idle` is the clip's own answer), and
+        // asking only when the swing is over is what keeps this from cancelling it: the manager
+        // reads a request for a different state as "replace what is playing".
+        com.pvzce.client.animation.AnimationPlayback playback = animations.playback(cursor);
+        if (playback == null || !ATTACK_CLIP.equals(playback.activeName())) {
+            cursor.play(com.pvzce.api.entity.EntityAnimations.IDLE);
+            playback = animations.playback(cursor);
+        }
+        if (playback == null) {
+            return;
+        }
         float size = Math.max(24F, client.guiHeight() * 0.055F);
-        // Offset up-right of the pointer so the sprite's head sits where the system arrow's
-        // tip was: a mallet drawn centred on the cursor hides the cell it is about to hit.
-        float x = (float) client.guiMouseX(client.window().cursorX()) + size * 0.15F;
-        float y = (float) client.guiMouseY(client.window().cursorY()) - size * 0.9F;
-        client.drawTexture(icon, x, y, size, size, 0.95F, 1F, 1F, 1F, 1F);
+        float box = size * CURSOR_BOX_SCALE;
+        float half = box / 2F;
+        // The centre of the box the card sprite used to occupy, so the mallet does not move.
+        float centerX = (float) client.guiMouseX(client.window().cursorX()) + size * 0.65F;
+        float centerY = (float) client.guiMouseY(client.window().cursorY()) - size * 0.4F;
+        // An overlay world view rather than the GUI space the other HUD pieces are drawn in:
+        // the animation renderer works in world units, and this is the one projection that maps
+        // a world rectangle onto a GUI rectangle. The tint is whatever the GUI pass left in the
+        // shader - neutral - so the mallet is not lit by the lawn's night.
+        client.beginOverlayWorldView(centerX - half, centerY - half, box, box,
+                -CURSOR_HALF_CELLS, CURSOR_HALF_CELLS, -CURSOR_HALF_CELLS, CURSOR_HALF_CELLS);
+        try {
+            // Anchored at the *bottom* of that box, because a converted model's origin is the
+            // ground line it was fitted on: y = 0 is the bottom of the model and the art grows
+            // upward from it. Anchoring at the centre - which is what a cursor "at the pointer"
+            // suggests - draws the mallet half a box too high and the viewport clips its head.
+            playback.render(client, 0F, -CURSOR_HALF_CELLS, 0F, 1F, 1F);
+        } finally {
+            client.beginGuiView();
+        }
+    }
+
+    /**
+     * Swings the mallet under the pointer, for the click that asked the server for a blow.
+     *
+     * <p>Played on the click rather than on the server's answer: that answer is one round trip
+     * away, and a cursor that waits for it feels broken every time the player swings at a zombie
+     * that has already died. A swing at an empty cell therefore still animates - which is also
+     * what the original does, and the reason the bonk is the server's business while the gesture
+     * is the client's.
+     */
+    private void swingDefaultToolCursor() {
+        com.pvzce.client.animation.AnimationManager animations = client.animations();
+        if (animations == null) {
+            return;
+        }
+        com.pvzce.api.content.ToolData granted =
+                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
+        if (granted == null || granted.tool() == null) {
+            return;
+        }
+        com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, granted.tool());
+        if (cursor != null) {
+            cursor.play(ATTACK_CLIP);
+        }
+    }
+
+    /**
+     * The playback target for the default tool's cursor, built on first use.
+     *
+     * <p>An {@link com.pvzce.client.animation.ArtTarget} rather than a {@code ClientEntity}: the
+     * mallet is not on the board, it has no health, no team and no cell, and the animation
+     * manager's entity path would ask the level for all three. A target that names its own file
+     * is the same route the lawn mower takes.
+     *
+     * <p>Rebuilt when the level hands over a different tool: the file is part of the target, and
+     * a level that swaps its mallet for something else must not keep drawing the old one.
+     */
+    private com.pvzce.client.animation.ArtTarget toolCursor(
+            com.pvzce.client.animation.AnimationManager animations, Identifier toolId) {
+        if (toolCursor != null && toolId.equals(toolCursorTool)) {
+            return toolCursor;
+        }
+        Identifier file = com.pvzce.common.core.EntityArt.animationFile(toolId);
+        if (file == null) {
+            return null;
+        }
+        com.pvzce.client.animation.ArtTarget created = new com.pvzce.client.animation.ArtTarget(file);
+        created.attach(animations);
+        toolCursor = created;
+        toolCursorTool = toolId;
+        return created;
+    }
+
+    /** Drops the cursor's playback; the animation manager outlives this screen. */
+    private void releaseToolCursor() {
+        if (toolCursor != null) {
+            toolCursor.stopAnimation();
+            toolCursor = null;
+            toolCursorTool = null;
+        }
     }
 
     private void renderWorld() {
@@ -1366,11 +1501,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             }
         }
 
-
-        // The mallet's aim, drawn on the ground before the entities: it marks a place on the
-        // lawn, so the zombie standing there has to be on top of it.
-        renderDefaultToolHover(camera);
-
         // Stable back-to-front order, and it is a *total* order so nothing flickers:
         // back rows first (y is depth on this board), then plants before zombies so an
         // eating zombie covers the plant, then spawn id. A cell's plants share one render
@@ -1389,67 +1519,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         renderPlacementPreview();
         client.particles().render(client);
-    }
-
-    /**
-     * The cell a default tool would be swung at, and the tool itself, while nothing is in hand.
-     *
-     * <p>Whack-a-Zombie's mallet is the cursor, so the level owes the player two pieces of
-     * feedback that a card would have carried: which cell is about to be hit (the original's
-     * mallet lands on a cell, not on a point) and what the click is going to do. Drawn in world
-     * space beside the placement ghost, and only when there really is a default tool - a level
-     * without one must keep looking exactly as it did.
-     */
-    private void renderDefaultToolHover(PvzceCamera camera) {
-        if (selectedCard >= 0 || !client.level().gameState().equals("running")) {
-            return;
-        }
-        com.pvzce.api.content.ToolData granted =
-                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
-        if (granted == null || granted.tool() == null) {
-            return;
-        }
-        double cursorX = client.window().cursorX();
-        double cursorY = client.window().cursorY();
-        if (!camera.inBoard(cursorX, cursorY)) {
-            return;
-        }
-        // A disc around the pointer rather than a tinted cell: the mallet hits what is near the
-        // click (see LevelServer's hammer case), so the thing worth showing the player is the
-        // reach, not which square the cursor happens to be inside.
-        float x = camera.worldX(cursorX, cursorY);
-        float y = camera.worldY(cursorX, cursorY);
-        float reach = com.pvzce.client.mechanic.ClientMechanics.defaultToolRange(client.level());
-        if (reach <= 0F) {
-            int cellX = camera.cellX(cursorX, cursorY);
-            int cellY = camera.cellY(cursorX, cursorY);
-            client.drawSolid(cellX, cellY, 1F, 1F, 0.2F, 1F, 1F, 0.75F, 0.22F);
-            return;
-        }
-        drawAimDisc(x, y, reach);
-    }
-
-    /**
-     * A translucent disc of radius {@code reach} centred on a world point.
-     *
-     * <p>Bands rather than a circle primitive: there is no curved-fill call in this renderer,
-     * and a disc is the shape the player has to read at a glance. One quad per band, so the
-     * number of draw calls is a constant the caller chooses rather than a function of the radius.
-     */
-    private void drawAimDisc(float centerX, float centerY, float reach) {
-        int bands = 12;
-        float bandHeight = reach * 2F / bands;
-        for (int i = 0; i < bands; i++) {
-            float y = centerY - reach + i * bandHeight;
-            // The half-width of the disc at this band's centre.
-            float fromCenter = (i + 0.5F) * bandHeight - reach;
-            float half = (float) Math.sqrt(Math.max(0F, reach * reach - fromCenter * fromCenter));
-            if (half <= 0.01F) {
-                continue;
-            }
-            client.drawSolid(centerX - half, y, half * 2F, bandHeight * 1.02F, 0.2F,
-                    1F, 1F, 0.75F, 0.20F);
-        }
     }
 
     /**
@@ -1550,6 +1619,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // Playbacks are keyed by target and would otherwise outlive this screen: the
         // animation manager belongs to the level, not to the HUD.
         releasePlacementPreview();
+        releaseToolCursor();
     }
 
     /**
@@ -1651,7 +1721,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // the frozen tint. A sprite fallback that ignored them would be a second answer to
         // "how is this entity lit" - visible the moment a content pack ships no animation.
         if (drop) {
-            client.pushEntityTint(EntityVisuals.DROP_TINT);
+            float[] dropTint = EntityVisuals.dropTint(entity.defIdString());
+            client.pushEntityTint(dropTint[0], dropTint[1], dropTint[2]);
         } else {
             client.pushEntityLook(entity);
         }
@@ -1704,11 +1775,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // The original PvZ-style sun bank appears when the player picked the SunBank card
         // in the seed chooser: collecting sun is what that card buys.
         if (hasSunBank()) {
-            int bankY = height - BANK_HEIGHT - BANK_MARGIN;
-            client.drawTexture(SUN_BANK, BANK_MARGIN, bankY, BANK_WIDTH, BANK_HEIGHT, 0.1F, 1F, 1F, 1F, 1F);
+            int bankY = CardBarLayout.bankY(height);
+            client.drawTexture(SUN_BANK, CardBarLayout.bankX(), bankY,
+                    CardBarLayout.BANK_WIDTH, CardBarLayout.BANK_HEIGHT, 0.1F, 1F, 1F, 1F, 1F);
             String sunText = String.valueOf(client.level().sun());
-            client.font().draw(sunText, BANK_MARGIN + (BANK_WIDTH - client.font().width(sunText, 1F)) / 2F,
-                    bankY + BANK_HEIGHT * 0.08F, 1F, 0.12F, 0.07F, 0.03F, 1F);
+            client.font().draw(sunText,
+                    CardBarLayout.bankX()
+                            + (CardBarLayout.BANK_WIDTH - client.font().width(sunText, 1F)) / 2F,
+                    bankY + CardBarLayout.BANK_HEIGHT * 0.08F, 1F, 0.12F, 0.07F, 0.03F, 1F);
         }
         renderCoinBank();
 
@@ -1859,8 +1933,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         // Bottom-left corner: the sun bank owns the top-left, and the wave meter owns
         // the bottom-right, so this is the one corner that is always lawn.
-        int bankX = BANK_MARGIN;
-        int bankY = BANK_MARGIN;
+        int bankX = CardBarLayout.MARGIN;
+        int bankY = CardBarLayout.MARGIN;
         if (client.hasTexture(COIN_BANK)) {
             client.drawTexture(COIN_BANK, bankX, bankY, COIN_BANK_WIDTH, COIN_BANK_HEIGHT,
                     0.1F, 1F, 1F, 1F, alpha);
@@ -1926,9 +2000,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private float[] bankTarget(String resourceId) {
         if (com.pvzce.common.PvzceIds.isCoin(resourceId)) {
             // The coin bank's bag, which is the left third of the art.
-            return new float[]{BANK_MARGIN + COIN_BANK_WIDTH * 0.15F, BANK_MARGIN + COIN_BANK_HEIGHT / 2F};
+            return new float[]{CardBarLayout.MARGIN + COIN_BANK_WIDTH * 0.15F,
+                    CardBarLayout.MARGIN + COIN_BANK_HEIGHT / 2F};
         }
-        return new float[]{BANK_MARGIN + BANK_WIDTH / 2F, client.guiHeight() - BANK_HEIGHT / 2F - BANK_MARGIN};
+        return CardBarLayout.bankCentre(client.guiHeight());
     }
 
     /**
@@ -2231,11 +2306,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             float targetY = target[1];
             float startX = camera.screenX(animation.worldX()) / guiScale;
             float startY = camera.screenY(animation.worldY() + Math.max(0F, animation.height()) - 0.22F) / guiScale;
-            float eased = easeOutCubic(progress);
+            float eased = MathUtil.easeOutCubic(progress);
             float distance = Math.max(0F, (float) Math.hypot(targetX - startX, targetY - startY));
             float arc = Math.min(90F, 18F + distance * 0.16F) * (float) Math.sin(Math.PI * progress);
-            float x = lerp(startX, targetX, eased);
-            float y = lerp(startY, targetY, eased) + arc;
+            float x = MathUtil.lerp(startX, targetX, eased);
+            float y = MathUtil.lerp(startY, targetY, eased) + arc;
 
             float baseSize = Math.max(22F, Math.min(40F, guiH / 15F));
             float size = baseSize * (1F - 0.62F * progress);
@@ -2243,14 +2318,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             client.drawTexture(animation.icon(), x - size / 2F, y - size / 2F,
                     size, size, 0.6F, 1F, 1F, 1F, alpha);
         }
-    }
-
-    private static float easeOutCubic(float t) {
-        return com.pvzce.common.util.MathUtil.easeOutCubic(t);
-    }
-
-    private static float lerp(float from, float to, float delta) {
-        return com.pvzce.common.util.MathUtil.lerp(from, to, delta);
     }
 
     private void renderEndOverlay() {
@@ -2434,6 +2501,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         com.pvzce.api.content.ToolData granted =
                 com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
         if (granted != null && granted.tool() != null) {
+            // The gesture is the client's and goes first: the cursor has to answer the click in
+            // the frame the player made it, not one round trip later.
+            swingDefaultToolCursor();
             client.connection().send(new com.pvzce.common.network.packet.UseGrantedToolC2S(
                     granted.tool(), cellX, cellY));
         }

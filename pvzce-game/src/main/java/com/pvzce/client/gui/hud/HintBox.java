@@ -79,7 +79,7 @@ public final class HintBox {
     private Kind kind = Kind.TUTORIAL;
     private long shownNanos;
     /** Nanoseconds the line stays fully up; {@link LevelHint#PERSISTENT} means forever. */
-    private long holdNanos = LevelHint.DEFAULT_DURATION_TICKS * 1_000_000_000L / 60L;
+    private long holdNanos = ticksToNanos(LevelHint.DEFAULT_DURATION_TICKS);
 
     public HintBox(PvzceClient client) {
         this.client = client;
@@ -102,7 +102,7 @@ public final class HintBox {
         }
         long hold = hint.persistent()
                 ? Long.MAX_VALUE / 4L
-                : Math.max(1, hint.durationTicks()) * 1_000_000_000L / 60L;
+                : ticksToNanos(Math.max(1, hint.durationTicks()));
         show(hint.text(), Kind.TUTORIAL, hold);
     }
 
@@ -111,7 +111,12 @@ public final class HintBox {
         if (line == null || line.isBlank()) {
             return;
         }
-        show(line, Kind.REFUSAL, LevelHint.DEFAULT_DURATION_TICKS * 1_000_000_000L / 60L);
+        show(line, Kind.REFUSAL, ticksToNanos(LevelHint.DEFAULT_DURATION_TICKS));
+    }
+
+    /** Ticks as wall-clock nanoseconds; the multiply happens before the divide, so no rounding drifts. */
+    private static long ticksToNanos(int ticks) {
+        return ticks * 1_000_000_000L / com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
     }
 
     private void show(String line, Kind newKind, long hold) {
@@ -239,7 +244,7 @@ public final class HintBox {
         }
 
         public static String notEnough() {
-            return GuiLang.raw("pvzce.not_enough", "资源不足");
+            return GuiLang.raw("pvzce.not_enough", "阳光不足");
         }
 
         private Refusal() {
