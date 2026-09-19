@@ -41,5 +41,9 @@
   "animation_dir": "zombie/boss",
   "texture": "pvzce:textures/entities/zombie/boss/zombie_boss",
   "drops_arm": false,
-  "drops_head": false
+  "drops_head": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred",
+    "death": "pvzce:zombie/boss/zombie_boss"
+  }
 }

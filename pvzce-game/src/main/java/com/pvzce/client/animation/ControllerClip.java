@@ -11,6 +11,8 @@ public record ControllerClip(
         OnEnd onEnd,
         String next,
         float transition,
+        float rate,
+        float referenceSpeed,
         Map<String, BoneTracks> bones,
         List<AnimationCue.Sound> soundCues,
         List<AnimationCue.Particle> particleCues
@@ -18,6 +20,8 @@ public record ControllerClip(
     public ControllerClip {
         duration = Math.max(0F, duration);
         next = next == null ? "" : next;
+        rate = AnimationPlayback.sanitizeRate(rate);
+        referenceSpeed = Math.max(0F, referenceSpeed);
         bones = Map.copyOf(bones);
         soundCues = List.copyOf(soundCues);
         particleCues = List.copyOf(particleCues);
@@ -42,7 +46,8 @@ public record ControllerClip(
             float[] rotation = tracks.rotation().sample(t, rest.rotation());
             float[] scale = tracks.scale().sample(t, rest.scale());
             boolean visible = tracks.visible().sample(t, rest.visible());
-            poses.put(bone.name(), new BonePose(translation, rotation, scale, visible));
+            float alpha = tracks.alpha().sample(t, rest.alpha());
+            poses.put(bone.name(), new BonePose(translation, rotation, scale, visible, alpha));
         }
         return poses;
     }
@@ -56,13 +61,15 @@ public record ControllerClip(
             VectorTrack translation,
             VectorTrack rotation,
             VectorTrack scale,
-            BooleanTrack visible
+            BooleanTrack visible,
+            FloatTrack alpha
     ) {
         public BoneTracks {
             translation = translation == null ? new VectorTrack(List.of()) : translation;
             rotation = rotation == null ? new VectorTrack(List.of()) : rotation;
             scale = scale == null ? new VectorTrack(List.of()) : scale;
             visible = visible == null ? new BooleanTrack(List.of()) : visible;
+            alpha = alpha == null ? new FloatTrack(List.of()) : alpha;
         }
     }
 }

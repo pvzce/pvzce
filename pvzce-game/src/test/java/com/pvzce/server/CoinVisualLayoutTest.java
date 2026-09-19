@@ -56,16 +56,22 @@ class CoinVisualLayoutTest {
     }
 
     /**
-     * A coin's art is authored square, at exactly the size {@code render_scale} draws it.
+     * A dropped denomination's model has the same shape as the art it is drawn from.
      *
-     * <p>For an animated drop the renderer fits the <em>width</em> to {@code 0.8 *
-     * render_scale} cells and takes the height from the art itself. That makes the art's own
-     * height the second half of the coin's size, and it is why "make the coins smaller" first
-     * produced thin slivers: {@code render_scale} shrank one axis and the art kept the other.
-     * A coin whose art is not square at that size is drawn squashed, so this pins both.
+     * <p>That is the whole of "not squashed": the renderer fits a drop to
+     * {@code 0.8 * render_scale} cells in <em>both</em> dimensions, so a model whose aspect
+     * ratio differs from its own artwork's is stretched on one axis. The rule the renderer
+     * used to follow was worse than wrong, it was self-contradicting - the width was fitted to
+     * that target while the height came from the art - so the model had to be hand-authored at
+     * whatever number the fit produced. That is why the coins sat at a hand-edited {@code 0.2}
+     * and why re-running the converter silently put them back.
+     *
+     * <p>Checked against the part's own UV rectangle, which is the source PNG's pixel box: the
+     * model's aspect and the artwork's aspect are the same statement, and comparing them needs
+     * no knowledge of what the numbers are.
      */
     @Test
-    void aCoinsArtIsAuthoredAtTheSizeRenderScaleDrawsIt() throws Exception {
+    void everyDenominationsModelHasTheSameShapeAsItsArt() throws Exception {
         TestContent.loadBuiltInContentAndTags();
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
 
@@ -76,14 +82,47 @@ class CoinVisualLayoutTest {
             try (InputStream in = loader.getResourceAsStream(path)) {
                 assertNotNull(in, denomination + " needs an animation at " + path);
                 JsonObject model = JsonParser.parseReader(
-                        new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject()
+                                new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject()
                         .getAsJsonObject("model");
-                float expected = 0.8F * def.renderScale();
-                assertEquals(expected, model.getAsJsonArray("size").get(0).getAsFloat(), 0.02F,
-                        denomination + " model width");
-                assertEquals(expected, model.getAsJsonArray("size").get(1).getAsFloat(), 0.02F,
-                        denomination + " model height: a drop's height comes from its art, so a "
-                                + "non-square model is drawn squashed");
+
+                float largest = 0F;
+                for (var bone : model.getAsJsonArray("bones")) {
+                    JsonObject entry = bone.getAsJsonObject();
+                    if (!entry.has("parts")) {
+                        continue;
+                    }
+                    for (var part : entry.getAsJsonArray("parts")) {
+                        JsonObject shape = part.getAsJsonObject();
+                        if (shape.has("blend") && "add".equals(shape.get("blend").getAsString())) {
+                            // A flare is drawn over the sprite rather than being it, and its
+                            // shape is its own business.
+                            continue;
+                        }
+                        float modelWidth = shape.getAsJsonArray("size").get(0).getAsFloat();
+                        float modelHeight = shape.getAsJsonArray("size").get(1).getAsFloat();
+                        var uv = shape.getAsJsonArray("uv");
+                        float artWidth = uv.get(2).getAsFloat() - uv.get(0).getAsFloat();
+                        float artHeight = uv.get(3).getAsFloat() - uv.get(1).getAsFloat();
+                        assertTrue(artWidth > 0F && artHeight > 0F, denomination + " part UV has no area");
+                        assertEquals(artWidth / artHeight, modelWidth / modelHeight, 0.02F,
+                                denomination + " part " + entry.get("name").getAsString()
+                                        + ": the model must have the artwork's proportions, or the "
+                                        + "drop is drawn stretched");
+                        largest = Math.max(largest, Math.max(modelWidth, modelHeight));
+                    }
+                }
+
+                // And the art is authored at the agreed size rather than at whatever a fit
+                // happened to produce, so a drop's drawn size is a number in the data. Checked
+                // as a band rather than an equality because the box fits the sprite *sheet* the
+                // parts were cut from: a denomination whose tallest sprite is not its widest
+                // one (the gold coin's dollar sign) lands a little under the box, and that is
+                // the source art's proportions talking, not a sizing rule.
+                float modelHeight = model.getAsJsonArray("size").get(1).getAsFloat();
+                float authored = com.pvzce.client.renderer.EntityVisuals.AUTHORED_DROP_CELLS;
+                assertTrue(modelHeight > authored * 0.6F && modelHeight < authored * 1.5F,
+                        denomination + " is authored at " + modelHeight + " cells tall, nowhere near"
+                                + " the " + authored + " the converter and the renderer agree on");
             }
         }
     }

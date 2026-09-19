@@ -1,14 +1,18 @@
 {
   "id": "pvzce:hammer",
   "use_cost": {
-    "resources": {},
+    "resources": {
+      "pvzce:sun": 50
+    },
     "cooldown": 0
   },
-  "cooldown": 120,
+  "cooldown": 1800,
   "targets": [
     "zombie"
   ],
   "effect": "pvzce:hammer",
   "uses": -1,
-  "texture": "pvzce:textures/gui/cards/hammer"
+  "texture": "pvzce:textures/gui/cards/hammer",
+  "damage": 200,
+  "damage_type": "pvzce:impact"
 }

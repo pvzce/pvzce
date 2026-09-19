@@ -106,6 +106,16 @@ public final class PvzceParticles {
     /** The puffy cloud it kicks up on a hit. */
     public static final Identifier MOWER_CLOUD_POWIE = id("mower_cloud_powie_big_clouds");
 
+    /**
+     * The three puffs of a sleeping mushroom's breath, smallest first.
+     *
+     * <p>Three sizes rather than one scaled puff because a particle's size is a number in its
+     * definition (see {@code tools/gen_zzz_sprite.py}): the spiral a sleeper breathes out is
+     * then three definitions and the emitting code just walks the list.
+     */
+    public static final java.util.List<Identifier> SLEEP_ZZZ = java.util.List.of(
+            id("zzz_1"), id("zzz_2"), id("zzz_3"));
+
     /** Every constant above, so a validator can check they all resolve. */
     public static java.util.List<Identifier> all() {
         return java.util.List.of(
@@ -115,7 +125,7 @@ public final class PvzceParticles {
                 ZOMBIE_HELMET, ZOMBIE_TRAFFIC_CONE, ZOMBIE_PAIL, ZOMBIE_DOOR, ZOMBIE_NEWSPAPER,
                 ZOMBIE_FLAG, ZOMBIE_RISE, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
                 LANTERN_SHINE, MOWERED_ZOMBIE_HEAD, MOWERED_ZOMBIE_ARM, MOWER_CLOUD,
-                MOWER_CLOUD_POWIE);
+                MOWER_CLOUD_POWIE, id("zzz_1"), id("zzz_2"), id("zzz_3"));
     }
 
     public static Identifier id(String path) {

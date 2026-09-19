@@ -19,6 +19,8 @@ public record FlipbookClip(
         OnEnd onEnd,
         String next,
         float transition,
+        float rate,
+        float referenceSpeed,
         List<AnimationCue.Sound> soundCues,
         List<AnimationCue.Particle> particleCues
 ) implements AnimationClip {
@@ -28,6 +30,8 @@ public record FlipbookClip(
         soundCues = List.copyOf(soundCues);
         particleCues = List.copyOf(particleCues);
         next = next == null ? "" : next;
+        rate = AnimationPlayback.sanitizeRate(rate);
+        referenceSpeed = Math.max(0F, referenceSpeed);
     }
 
     @Override

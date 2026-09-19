@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:grave_buster",
+  "kind": "plant",
+  "content": "pvzce:grave_buster",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/grave_buster"
+}

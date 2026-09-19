@@ -372,6 +372,50 @@ class WaveSystemTest {
     }
 
     /**
+     * Only the first two waves pace themselves by the player's kills; the third pours.
+     *
+     * <p>The pacing is for the opening, where the player is still building - and it stops there.
+     * A wave that kept waiting for each death would turn a five-zombie wave into five waits, and
+     * a level into a slog; this is the boundary, on one level, with the field left standing so
+     * nothing but the gate decides when the next zombie comes.
+     */
+    @Test
+    void theThirdWaveReleasesOnItsIntervalInsteadOfWaitingForKills() {
+        LevelDef def = gatedLevel(1F, List.of(
+                new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)), 300),
+                new WaveDef(WaveDef.WaveType.SMALL, 20, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)), 300),
+                new WaveDef(WaveDef.WaveType.SMALL, 30, 5, List.of(
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3)), 60)));
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+
+        // The first zombie arrives; nothing kills it, so the gate holds the second one on the
+        // next wave for twenty seconds and then lets go (the cap). Measured as a gap, not as an
+        // absolute tick: the cap and the wave's own delay both contribute, and which of them
+        // the arrival lands on is not what this test is about.
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        int afterFirstGate = tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2);
+        assertTrue(afterFirstGate >= 10 + WaveDef.DEFAULT_EARLY_HOLD_TICKS,
+                "wave 2 waited on the cap (" + afterFirstGate + "), not on the wave's interval");
+
+        // Wave 3's own zombies come out on its 60-tick interval, whether or not the field is
+        // still occupied - that is what "later waves do not wait" has to mean to be worth
+        // anything.
+        int third = tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 3);
+        int fourth = tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 4);
+        int fifth = tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 5);
+        // The interval plus the one-tick boundary every queue has: the spawn happens on the tick
+        // after the counter reaches zero.
+        assertEquals(61, fourth - third, "wave 3's second zombie, one interval after its first");
+        assertEquals(61, fifth - fourth, "and its third, one interval after that");
+        assertEquals(5, level.aliveZombieCount(),
+                "with all three of wave 3's zombies standing beside the two earlier ones -"
+                        + " nothing died, and nothing waited to be killed");
+    }
+
+    /**
      * The wait is capped, so a player who cannot kill the first zombie still gets a game.
      *
      * <p>Twenty seconds is the cap: the zombie is left standing, and the wave's own interval

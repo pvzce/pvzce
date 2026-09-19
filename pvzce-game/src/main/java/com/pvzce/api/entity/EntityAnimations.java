@@ -24,9 +24,48 @@ public final class EntityAnimations {
      * a potato mine that pops out of the ground over and over.
      */
     public static final String ARMED_LOOP = "armed_loop";
+    /**
+     * A hurt pose, kept for packs written against it.
+     *
+     * <p>The shipped zombies have no hurt animation and the server never publishes this: the
+     * feedback for taking a hit is the impact particle and the sound, and the legs keep
+     * walking, which is what the original does. A definition may still map this state to a
+     * clip of its own, and a clip named {@code hit} is still perfectly readable.
+     */
     public static final String HIT = "hit";
     public static final String ANGRY = "angry";
     public static final String DEATH = "death";
+    /**
+     * A death that leaves a charred body: the ash line, a fire hit.
+     *
+     * <p>A separate state rather than a flag inside {@link #DEATH} because the art is a
+     * different model - the original draws the burnt corpse from {@code Zombie_charred.reanim},
+     * which shares no bones with the zombie it used to be. The state name is the wire string and
+     * the clip name, so a definition opts in by mapping this state to the charred file
+     * ({@code "animations": {"death_burned": "pvzce:zombie/charred/zombie_charred"}}); a zombie
+     * whose art has no such clip falls back to its own {@code idle}, the same silent fallback
+     * every other unknown clip gets.
+     */
+    public static final String DEATH_BURNED = "death_burned";
+    /**
+     * The original's other two ways of falling over.
+     *
+     * <p>{@code Zombie.reanim} carries three death sequences and the game picks one at
+     * random when a zombie dies ({@code Zombie::PlayDeathAnim}), so a lane of dying zombies
+     * does not fall in unison. The third, {@code death_superlong}, is the drawn-out version a
+     * heavy body gets. All three are exported for every zombie that shares the master file;
+     * a zombie whose art has only one death simply does not define these names and the
+     * client falls back to {@code idle} exactly as it does for any other missing clip.
+     */
+    public static final String DEATH2 = "death2";
+    public static final String DEATH_SUPERLONG = "death_superlong";
+    /**
+     * Drowning: the original's fourth death sequence, played when a body goes under water.
+     *
+     * <p>A state rather than a flag because it is a whole different sequence, not a tint on
+     * the ordinary one. A zombie without the clip keeps the ordinary death.
+     */
+    public static final String DEATH_WATER = "death_water";
     public static final String FALL = "fall";
     public static final String FLY = "fly";
     public static final String DIG = "dig";

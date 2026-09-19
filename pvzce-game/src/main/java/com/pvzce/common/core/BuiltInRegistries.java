@@ -299,6 +299,7 @@ public final class BuiltInRegistries {
         registerRule(PvzceIds.RULE_CRATER_RECOVERY, new GameRuleType.IntRule(6000, 0, Integer.MAX_VALUE));
         registerRule(PvzceIds.RULE_SUN_VALUE, new GameRuleType.IntRule(
                 PvzceConstants.SUN_VALUE, 1, 10000));
+        registerRule(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE, new GameRuleType.FloatRule(0F, 0F, 1F));
         registerRule(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));

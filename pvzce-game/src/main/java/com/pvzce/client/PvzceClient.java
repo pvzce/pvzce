@@ -20,7 +20,6 @@ import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.SettingsScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
 import com.pvzce.common.PvzceIds;
-import com.pvzce.client.gui.screens.WorldSelectScreen;
 import com.pvzce.client.particle.ParticleEngine;
 import com.pvzce.client.renderer.Matrix4f;
 import com.pvzce.client.renderer.PvzceCamera;
@@ -200,6 +199,13 @@ public final class PvzceClient {
     private final int smokeClickPeriod = Integer.getInteger("pvzce.smokeClickPeriod", 12);
     private int smokeClicksSent;
     /**
+     * {@code -Dpvzce.traceInput=true}: what the synthetic input is aimed at.
+     *
+     * <p>Trace, not test: it is the only way to see where a {@code smokeClick} actually landed,
+     * short of a screenshot - and a click that misses is silent by construction.
+     */
+    private final boolean traceInput = Boolean.getBoolean("pvzce.traceInput");
+    /**
      * Commands to run once a level is up, separated by {@code |}.
      *
      * <p>For smoke runs that need to put something specific on the board - a drop with a
@@ -354,6 +360,8 @@ public final class PvzceClient {
             setCurrentWorld(System.getProperty("pvzce.smokeWorld", "world"));
             setScreenReplacing(new com.pvzce.client.gui.screens.LevelSelectScreen(this));
             connection.send(new com.pvzce.common.network.packet.RequestLevelListC2S(currentWorld));
+        } else if ("title".equals(smokeScreen) || "main".equals(smokeScreen)) {
+            setScreenReplacing(new TitleScreen(this));
         } else if ("inventory".equals(smokeScreen) || "backpack".equals(smokeScreen)) {
             setScreenReplacing(new com.pvzce.client.gui.screens.InventoryScreen(this));
         } else if ("award".equals(smokeScreen)) {
@@ -513,6 +521,14 @@ public final class PvzceClient {
                 double[] gui = smokeClickAt;
                 double rawX = gui[0] * window.width() / (double) Math.max(1, guiWidth());
                 double rawY = window.height() - gui[1] * window.height() / (double) Math.max(1, guiHeight());
+                if (traceInput) {
+                    System.out.println("[SMOKE] click gui=" + gui[0] + "," + gui[1]
+                            + " raw=" + rawX + "," + rawY
+                            + " window=" + window.width() + "x" + window.height()
+                            + " gui=" + guiWidth() + "x" + guiHeight()
+                            + " screen=" + (currentScreen() == null ? "none"
+                                    : currentScreen().getClass().getSimpleName()));
+                }
                 deliverRawClick(rawX, rawY, 0);
             }
             if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
@@ -1112,9 +1128,40 @@ public final class PvzceClient {
         return (window.height() - mouseY) * guiHeight() / (double) Math.max(1, window.height());
     }
 
+    /**
+     * The camera for the current window and level.
+     *
+     * <p>Built once per size rather than once per call. The render path asks for it around
+     * fifteen times a frame, and each answer used to be two {@code Matrix4f}s and a handful of
+     * records - allocation in the middle of the frame loop for a value that cannot change
+     * while the window and the board stay the same size.
+     *
+     * <p>Invalidated by {@link #beginWorldView} when a camera with a different shape arrives,
+     * which is what a resize produces, so the cache cannot outlive its inputs.
+     */
     public PvzceCamera camera() {
-        return new PvzceCamera(window.width(), window.height(), Math.max(1, level.width()), Math.max(1, level.height()));
+        int width = window.width();
+        int height = window.height();
+        int columns = Math.max(1, level.width());
+        int rows = Math.max(1, level.height());
+        PvzceCamera cached = this.cachedCamera;
+        if (cached == null || cachedWidth != width || cachedHeight != height
+                || cachedColumns != columns || cachedRows != rows) {
+            cached = new PvzceCamera(width, height, columns, rows);
+            this.cachedCamera = cached;
+            this.cachedWidth = width;
+            this.cachedHeight = height;
+            this.cachedColumns = columns;
+            this.cachedRows = rows;
+        }
+        return cached;
     }
+
+    private PvzceCamera cachedCamera;
+    private int cachedWidth = -1;
+    private int cachedHeight = -1;
+    private int cachedColumns = -1;
+    private int cachedRows = -1;
 
     /** Horizontal sprite correction so square world-space sprites match the board cell aspect. */
     public float spriteXScale() {
@@ -1380,6 +1427,14 @@ public final class PvzceClient {
             g *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_G;
             b *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_B;
         }
+        if (entity.charmed()) {
+            // A charmed zombie *and* a frozen one multiplies both, which reads as "cold and on
+            // my side" - the two states are independent and both are true, so the colour is the
+            // product rather than one of them winning.
+            r *= com.pvzce.client.renderer.EntityVisuals.CHARMED_TINT_R;
+            g *= com.pvzce.client.renderer.EntityVisuals.CHARMED_TINT_G;
+            b *= com.pvzce.client.renderer.EntityVisuals.CHARMED_TINT_B;
+        }
         float[] current = entityInk();
         entityInk.push(new float[]{clampInk(current[0] * r), clampInk(current[1] * g),
                 clampInk(current[2] * b), current[3]});
@@ -1530,8 +1585,15 @@ public final class PvzceClient {
         setScreenReplacing(new TitleScreen(this));
     }
 
+    /**
+     * The player picker, which is the title screen's own left column.
+     *
+     * <p>Kept as a named entry point because "back to the menu" is a thing several paths mean
+     * (leaving a level, a protocol mismatch, the level list's declared root) and they should
+     * not each have to know that the player list is drawn on the title screen.
+     */
     public void showWorldSelect() {
-        setScreenReplacing(new WorldSelectScreen(this));
+        showTitle();
     }
 
     /**
@@ -1662,6 +1724,19 @@ public final class PvzceClient {
     }
 
     /**
+     * Whether 关卡准备 has anything to ask for this level.
+     *
+     * <p>The level declares who may play it ({@code playable_teams}), and the server sends the
+     * verdict per team. One playable team is not a choice, so the screen is skipped: the entry
+     * flow goes straight to whatever comes next, exactly as if the player had clicked the only
+     * panel there was. A level that names none keeps the screen - it is a data error, and a
+     * visible menu is a better failure than silently starting as nobody.
+     */
+    public static boolean offersTeamChoice(LevelListS2C.LevelInfo info) {
+        return info.teams().stream().filter(LevelListS2C.TeamInfo::playable).count() != 1;
+    }
+
+    /**
      * The one decision for "play this level from a menu", shared by the level list and the
      * level setup screen.
      *
@@ -1670,11 +1745,21 @@ public final class PvzceClient {
      * must not be sent through the pre-game screens - the card bar and the team come from
      * the save, and asking the player to pick cards for a run that is about to be resumed is
      * what made the save prompt appear only <em>after</em> the seed chooser had been
-     * submitted. Everything else goes through 关卡准备 and then the seed chooser as before.
+     * submitted.
+     *
+     * <p>Everything else goes through as many pre-game screens as the <em>level</em> says it
+     * needs: 关卡准备 only when it offers more than one playable side (see
+     * {@link #offersTeamChoice}), and the seed chooser unless the level deals its own cards.
+     * This is the only place that ordering is written; the level list, the smoke hook and the
+     * editor's 测试 all arrive here.
      */
     public void enterLevelFromMenu(LevelListS2C.LevelInfo info) {
         if (info.hasRunningSave()) {
             requestLevel(info.id(), false);
+        } else if (offersTeamChoice(info)) {
+            // The level names more than one side, so which one to play is a real question and
+            // this is the screen that asks it. The screen forwards back here when answered.
+            openScreen(new com.pvzce.client.gui.screens.LevelSetupScreen(this, info));
         } else if (dealsItsOwnCards(info.id())) {
             // Nothing to choose: a conveyor level's cards are delivered by the level
             // itself, one at a time and for free, so a "choose your seeds" page would

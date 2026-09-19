@@ -64,6 +64,12 @@ import java.util.Optional;
  *                     It is not a drawing of the piece, so it is not part of {@code art}'s
  *                     damage-state family; what it is for is telling "the limb came with the
  *                     piece" from "the piece is gone and the zombie needs its arm back"
+ * <p>A limb the rip drew torn as well as whole - the zombie's outer arm - is <em>not</em> an
+ * equipment entry: the torn drawings ({@code outerarm_hand_2}, {@code outerarm_upper_2})
+ * belong to the super-long death sequence, so there is no walking-zombie art to switch to. The
+ * amputation shows as the arm that flies off ({@code pvzce:zombie_arm}) and the shoulder that
+ * is left; see {@code EquipmentArt#visibleBones}.
+ *
  * @param armBones     bones that are this piece's arm rather than the zombie's own. Exactly
  *                     one of the two is drawn: they are hidden while {@code host} is on
  *                     screen, and put back when it is not

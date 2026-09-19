@@ -12,5 +12,8 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/basic",
-  "texture": "pvzce:textures/entities/zombie/basic/basic_zombie"
+  "texture": "pvzce:textures/entities/zombie/basic/basic_zombie",
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
 }

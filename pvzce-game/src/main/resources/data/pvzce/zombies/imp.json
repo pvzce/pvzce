@@ -11,5 +11,8 @@
   },
   "animation_dir": "zombie/giant",
   "texture": "pvzce:textures/entities/zombie/giant/imp",
-  "drops_arm": false
+  "drops_arm": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
 }

@@ -199,36 +199,36 @@ class ScreenNavigationTest {
     /**
      * The level list states both of its destinations instead of guessing from the depth.
      *
-     * <p>Reachable two ways: drilled into from the world list (pop reveals it) and installed
-     * as the root after a level (nothing underneath, so the world list is the step back). The
-     * old {@code goBack()} used the same depth test, but as an <em>action</em>
-     * ({@code closeScreen()} or {@code showWorldSelect()}) rather than as a declared
-     * destination - and a pop with nothing underneath is exactly what did not work.
+     * <p>Reachable two ways: opened from the title screen (pop reveals it) and installed as the
+     * root after a level (nothing underneath, so the title screen is the step back). The old
+     * {@code goBack()} used the same depth test, but as an <em>action</em> ({@code closeScreen()}
+     * or {@code showWorldSelect()}) rather than as a declared destination - and a pop with
+     * nothing underneath is exactly what did not work.
      */
     @Test
     void theLevelListBackTargetFollowsHowItWasEntered() throws Exception {
         PvzceClient client = newClient();
 
         // Installed as the root, the way showLevelList() does it after a level ends.
-        WorldSelectScreen worldList = new WorldSelectScreen(client);
-        client.setScreenReplacing(worldList);
+        TitleScreen menu = new TitleScreen(client);
+        client.setScreenReplacing(menu);
         LevelSelectScreen listAsRoot = new LevelSelectScreen(client);
         client.setScreenReplacing(listAsRoot);
 
         client.navigateBack();
 
-        assertInstanceOf(WorldSelectScreen.class, client.currentScreen(),
-                "a level list with nothing underneath goes back to the world list");
+        assertInstanceOf(TitleScreen.class, client.currentScreen(),
+                "a level list with nothing underneath goes back to the player picker");
 
-        // Nested under the world list, the way the 进入 button does it.
-        client.setScreenReplacing(worldList);
+        // Nested under the title screen, the way clicking a name does it.
+        client.setScreenReplacing(menu);
         LevelSelectScreen nestedList = new LevelSelectScreen(client);
         client.openScreen(nestedList);
 
         client.navigateBack();
 
-        assertInstanceOf(WorldSelectScreen.class, client.currentScreen(),
-                "a nested level list pops back to the world list it was opened from");
+        assertInstanceOf(TitleScreen.class, client.currentScreen(),
+                "a nested level list pops back to the screen it was opened from");
         assertEquals(1, client.screenDepth(), "and the list is gone, not covered");
     }
 

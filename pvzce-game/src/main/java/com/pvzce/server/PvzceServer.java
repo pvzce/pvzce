@@ -399,7 +399,8 @@ public final class PvzceServer implements Runnable {
                         return;
                     }
                     List<LevelListS2C.TeamInfo> teams = def.teams().stream()
-                            .map(t -> new LevelListS2C.TeamInfo(t.id().toString(), t.name(), t.winCondition()))
+                            .map(t -> new LevelListS2C.TeamInfo(t.id().toString(), t.name(), t.winCondition(),
+                                    def.playableTeamDefs().contains(t)))
                             .toList();
                     LevelGrouping.Group group = groupOf(id);
                     LevelServer.SeedContext seeds = LevelServer.SeedContext.forProfile(def, profile);
@@ -1452,6 +1453,20 @@ public final class PvzceServer implements Runnable {
             } else if (packet instanceof UseToolC2S tool) {
                 if (current != null) {
                     current.useTool(bridge, tool.slotIndex(), tool.gridX(), tool.gridY());
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.UseGrantedToolC2S granted) {
+                // A tool the level hands over rather than a card the player holds. Which tool
+                // that is comes from the level's own block, found by id - the client names the
+                // tool it saw, and a client naming one the level does not grant is refused here.
+                if (current != null) {
+                    com.pvzce.api.content.ToolData data =
+                            com.pvzce.common.level.mechanic.ToolMechanic.declared(current.def()).stream()
+                                    .filter(block -> block.tool() != null && block.tool().equals(granted.tool()))
+                                    .findFirst()
+                                    .orElse(null);
+                    if (data != null) {
+                        current.useGrantedTool(bridge, data, granted.gridX(), granted.gridY());
+                    }
                 }
             } else if (packet instanceof CollectResourceC2S collect) {
                 if (current != null) {

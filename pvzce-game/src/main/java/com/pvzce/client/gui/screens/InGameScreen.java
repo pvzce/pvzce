@@ -40,6 +40,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final String SUN_CARD_ID = com.pvzce.common.PvzceIds.SUN.toString();
     /** The one tool card with its own chrome and its own pick-up sound. */
     private static final String SHOVEL_CARD_ID = "pvzce:shovel";
+    /**
+     * The glove, which is the one card that has to stay clickable while it recharges.
+     *
+     * <p>See {@link #gloveCard}: the glove is a two-click move and its cooldown starts on the
+     * first click, so refusing the card while it recharges refuses the second click too.
+     */
+    private static final String GLOVE_ID = "pvzce:glove";
     /** Coins get their own bank in the corner; they are not spendable in a level. */
     private static final Identifier COIN_ICON = Identifier.withDefaultNamespace("textures/resource/coin_gold");
     /** The original's money-bag bank; drawn at 128x31 natively. */
@@ -245,6 +252,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final long ANNOUNCEMENT_ONCE_NANOS = 90_000_000_000L;
 
     private int selectedCard = -1;
+    /**
+     * When each sleeping plant last breathed a Zzz, and which size is due next.
+     *
+     * <p>Per-entity rather than per-level: two mushrooms do not share a breath, and the map is
+     * tiny (only plants that are actually asleep ever get an entry). Entries are not cleared
+     * when a plant wakes - the id is never reused within a level, and a level's entity count is
+     * in the dozens, so the map is not worth the bookkeeping.
+     */
+    private final java.util.Map<Integer, Long> zzzNextNanos = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Integer> zzzStep = new java.util.HashMap<>();
     /**
      * How visible the placement ghost is.
      *
@@ -1109,6 +1126,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         tickReward();
         tickDefeat();
+        tickSleepZzz();
         // The bar ticks here rather than in render(): the click that picks a card is
         // dispatched before this frame's render, and a belt card has to be hit where the
         // player last saw it.
@@ -1202,6 +1220,84 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 widget.render(client);
             }
         }
+        renderDefaultToolCursor();
+    }
+
+    /**
+     * The "Zzz" a sleeping plant breathes out.
+     *
+     * <p>Client-side, and deliberately so: the client already knows everything this needs -
+     * which plants are asleep is the state the server published ({@code sleep}), and which
+     * plants *can* sleep is in the animation file it loaded. Sleeping is a continuous fact
+     * rather than an event, so emitting it from the server would mean a packet every time a
+     * mushroom breathes; here it is a wall-clock timer and no packets at all.
+     */
+    private void tickSleepZzz() {
+        if (!client.level().gameState().equals("running")) {
+            return;
+        }
+        long now = System.nanoTime();
+        for (ClientEntity entity : client.level().entities().values()) {
+            if (!com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())
+                    || !com.pvzce.api.entity.EntityAnimations.SLEEP.equals(entity.animation())) {
+                continue;
+            }
+            // Staggered by entity id so a row of sleeping mushrooms does not puff in lockstep:
+            // they are asleep, not a chorus line.
+            long due = zzzNextNanos.getOrDefault(entity.id(), 0L) + (entity.id() % 4) * ZZZ_STAGGER_NANOS;
+            if (now < due) {
+                continue;
+            }
+            zzzNextNanos.put(entity.id(), now);
+            // The three sizes in order, so one plant's breath is a spiral: a small z, then a
+            // bigger one further up, then the biggest, and back to the start.
+            int step = zzzStep.getOrDefault(entity.id(), 0);
+            zzzStep.put(entity.id(), (step + 1) % com.pvzce.common.PvzceParticles.SLEEP_ZZZ.size());
+            Identifier zzz = com.pvzce.common.PvzceParticles.SLEEP_ZZZ.get(step);
+            // Above the plant and a little to its left, which is where a mushroom's breath
+            // would be: the sprite itself then leans further left as it rises (see the
+            // particle's own angle).
+            client.particles().spawn(zzz.toString(),
+                    entity.cellX() - 0.18F, entity.cellY() + ZZZ_HEIGHT);
+        }
+    }
+
+    /** How often a sleeping plant breathes one Zzz, in nanoseconds. */
+    private static final long ZZZ_INTERVAL_NANOS = 620_000_000L;
+    /** How far apart two plants' first puffs are, spread over the interval. */
+    private static final long ZZZ_STAGGER_NANOS = 150_000_000L;
+    /** How high above its cell a plant's Zzz starts. */
+    private static final float ZZZ_HEIGHT = 0.55F;
+
+    /**
+     * The mallet under the pointer, in a level that makes a tool its click.
+     *
+     * <p>Whack-a-Zombie's cursor <em>is</em> the mallet in the original, and the gesture it
+     * describes is not "click this cell" but "hit this zombie": the hover tint says where the
+     * blow lands, and this says what the blow is. Drawn last, in GUI space, so it is over the
+     * HUD the way the system pointer is - a cursor that the card bar can cover is not a cursor.
+     *
+     * <p>Nothing is drawn while a card is selected, and nothing is drawn for a level with no
+     * default tool: this is the tool's own advertisement, not a new HUD element.
+     */
+    private void renderDefaultToolCursor() {
+        if (selectedCard >= 0 || !client.level().gameState().equals("running")) {
+            return;
+        }
+        com.pvzce.api.content.ToolData granted =
+                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
+        if (granted == null || granted.tool() == null) {
+            return;
+        }
+        Identifier icon = com.pvzce.client.gui.hud.cardbar.CardPainter.icon(
+                new SlotInfo(-1, granted.tool().toString(), "tool", SlotInfo.NO_PRICE, 0, 0,
+                        SlotInfo.UNLIMITED_USES, true));
+        float size = Math.max(24F, client.guiHeight() * 0.055F);
+        // Offset up-right of the pointer so the sprite's head sits where the system arrow's
+        // tip was: a mallet drawn centred on the cursor hides the cell it is about to hit.
+        float x = (float) client.guiMouseX(client.window().cursorX()) + size * 0.15F;
+        float y = (float) client.guiMouseY(client.window().cursorY()) - size * 0.9F;
+        client.drawTexture(icon, x, y, size, size, 0.95F, 1F, 1F, 1F, 1F);
     }
 
     private void renderWorld() {
@@ -1270,14 +1366,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             }
         }
 
-        // Stable back-to-front order. Plants are drawn before zombies so an
-        // eating zombie covers the plant. A cell's plants share one render layer
-        // and are ordered by spawn id, and the server places a plant above
-        // whatever it rests on (PlacementDef.layer + the #c:carrier tags), so the
-        // later-planted plant appears on top of its carrier without this loop
-        // needing to know what a carrier is.
+
+        // The mallet's aim, drawn on the ground before the entities: it marks a place on the
+        // lawn, so the zombie standing there has to be on top of it.
+        renderDefaultToolHover(camera);
+
+        // Stable back-to-front order, and it is a *total* order so nothing flickers:
+        // back rows first (y is depth on this board), then plants before zombies so an
+        // eating zombie covers the plant, then spawn id. A cell's plants share one render
+        // layer and the server places a plant above whatever it rests on
+        // (PlacementDef.layer + the #c:carrier tags), so the later-planted plant appears on
+        // top of its carrier without this loop needing to know what a carrier is.
         List<ClientEntity> renderEntities = new ArrayList<>(client.level().entities().values());
-        renderEntities.sort(Comparator.comparingInt(InGameScreen::renderOrder).thenComparingInt(ClientEntity::id));
+        renderEntities.sort(Comparator.comparingLong(InGameScreen::renderOrder));
         for (ClientEntity entity : renderEntities) {
             // Risers were already drawn, before the lawn. Drawing them again here would put
             // the buried half back on top of it.
@@ -1288,6 +1389,67 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         renderPlacementPreview();
         client.particles().render(client);
+    }
+
+    /**
+     * The cell a default tool would be swung at, and the tool itself, while nothing is in hand.
+     *
+     * <p>Whack-a-Zombie's mallet is the cursor, so the level owes the player two pieces of
+     * feedback that a card would have carried: which cell is about to be hit (the original's
+     * mallet lands on a cell, not on a point) and what the click is going to do. Drawn in world
+     * space beside the placement ghost, and only when there really is a default tool - a level
+     * without one must keep looking exactly as it did.
+     */
+    private void renderDefaultToolHover(PvzceCamera camera) {
+        if (selectedCard >= 0 || !client.level().gameState().equals("running")) {
+            return;
+        }
+        com.pvzce.api.content.ToolData granted =
+                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
+        if (granted == null || granted.tool() == null) {
+            return;
+        }
+        double cursorX = client.window().cursorX();
+        double cursorY = client.window().cursorY();
+        if (!camera.inBoard(cursorX, cursorY)) {
+            return;
+        }
+        // A disc around the pointer rather than a tinted cell: the mallet hits what is near the
+        // click (see LevelServer's hammer case), so the thing worth showing the player is the
+        // reach, not which square the cursor happens to be inside.
+        float x = camera.worldX(cursorX, cursorY);
+        float y = camera.worldY(cursorX, cursorY);
+        float reach = com.pvzce.client.mechanic.ClientMechanics.defaultToolRange(client.level());
+        if (reach <= 0F) {
+            int cellX = camera.cellX(cursorX, cursorY);
+            int cellY = camera.cellY(cursorX, cursorY);
+            client.drawSolid(cellX, cellY, 1F, 1F, 0.2F, 1F, 1F, 0.75F, 0.22F);
+            return;
+        }
+        drawAimDisc(x, y, reach);
+    }
+
+    /**
+     * A translucent disc of radius {@code reach} centred on a world point.
+     *
+     * <p>Bands rather than a circle primitive: there is no curved-fill call in this renderer,
+     * and a disc is the shape the player has to read at a glance. One quad per band, so the
+     * number of draw calls is a constant the caller chooses rather than a function of the radius.
+     */
+    private void drawAimDisc(float centerX, float centerY, float reach) {
+        int bands = 12;
+        float bandHeight = reach * 2F / bands;
+        for (int i = 0; i < bands; i++) {
+            float y = centerY - reach + i * bandHeight;
+            // The half-width of the disc at this band's centre.
+            float fromCenter = (i + 0.5F) * bandHeight - reach;
+            float half = (float) Math.sqrt(Math.max(0F, reach * reach - fromCenter * fromCenter));
+            if (half <= 0.01F) {
+                continue;
+            }
+            client.drawSolid(centerX - half, y, half * 2F, bandHeight * 1.02F, 0.2F,
+                    1F, 1F, 0.75F, 0.20F);
+        }
     }
 
     /**
@@ -1390,8 +1552,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         releasePlacementPreview();
     }
 
-    private static int renderOrder(ClientEntity entity) {
-        return com.pvzce.client.renderer.EntityVisuals.sortBucket(entity.kind(), entity.layer());
+    /**
+     * Draw order: back rows first, then kind, then spawn id. See
+     * {@link com.pvzce.client.renderer.EntityVisuals#renderOrder} for why the row leads.
+     */
+    private static long renderOrder(ClientEntity entity) {
+        return com.pvzce.client.renderer.EntityVisuals.renderOrder(
+                entity.kind(), entity.layer(), entity.gridY(), entity.id());
     }
 
     /** Namespace-preserving sprite id; shared with the seed chooser and editor. */
@@ -1457,11 +1624,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
         // No animation resource: show the first frame. The old _2.png toggle
         // is intentionally gone; content opts in through animation JSON.
-        // Same two factors the animation path uses (see AnimationManager#xScaleFor): the
+        // Same two factors the animation path uses (see AnimationManager#scalesFor): the
         // board's aspect correction for everything but a drop, and the definition's own
         // render_scale for everything, applied to both axes so it never changes the shape.
         boolean drop = entity.kind().equals(com.pvzce.api.entity.EntityKind.RESOURCE);
-        // Two factors, the same two the animation path uses (see AnimationManager#xScaleFor):
+        // Two factors, the same two the animation path uses (see AnimationManager#scalesFor):
         // the definition's own render_scale, and the entity's per-drop multiplier on top of
         // it - a small sun-shroom's sun is the same resource drawn smaller.
         float renderScale = com.pvzce.common.core.EntityArt.renderScale(entity.defId())
@@ -2185,7 +2352,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             if (button == 0) {
                 SlotInfo info = slotInfo(slot);
                 if (info != null && (info.kind().equals("plant") || info.kind().equals("tool"))) {
-                    if (!cardUsable(info)) {
+                    if (!cardUsable(info) && !gloveCard(info)) {
                         // Cooling down, too expensive, out of uses. The server would refuse
                         // the placement too, but by then the player has picked a cell and
                         // is waiting for something to happen; saying no at the click is
@@ -2259,6 +2426,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         if (selectedCard >= 0) {
             spendSelectedCard(cellX, cellY);
+            return;
+        }
+        // Nothing in hand: in a level that grants a default tool (Whack-a-Zombie's mallet) the
+        // click *is* the tool. It is not a selected card, so there is nothing to cancel
+        // afterwards - every click swings again until the player picks a seed packet up.
+        com.pvzce.api.content.ToolData granted =
+                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
+        if (granted != null && granted.tool() != null) {
+            client.connection().send(new com.pvzce.common.network.packet.UseGrantedToolC2S(
+                    granted.tool(), cellX, cellY));
         }
     }
 
@@ -2380,6 +2557,21 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
+     * True when this card is a glove, which stays clickable while it recharges.
+     *
+     * <p>The glove is a two-click move, and a card that has started one is usable
+     * <em>because</em> of that: the server answers its second click as the other half of the
+     * move it already charged for (see {@code LevelServer.useTool}). Greying it out on cooldown
+     * is what broke it - the cooldown starts the moment it picks a plant up, so the click that
+     * would have put the plant down was refused, and the player was left holding a plant they
+     * could not place. The server still refuses a glove click with nothing in hand while it
+     * recharges, so this is a click the player is allowed to make, not one that cannot fail.
+     */
+    private static boolean gloveCard(SlotInfo card) {
+        return card.kind().equals("tool") && GLOVE_ID.equals(card.defId()) && card.hasUsesLeft();
+    }
+
+    /**
      * Refuses a card that cannot be played: the original's buzzer, a shake, and the grey
      * box saying which of the three reasons it was.
      *
@@ -2448,14 +2640,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         if (selected.kind().equals("tool")) {
-            // The glove is a two-click move, so the card stays selected until the plant has
-            // been put down - the level says whether it is still carrying one, and the
-            // server answers the second click with the drop.
-            boolean glove = "pvzce:glove".equals(selected.defId());
+            // One click, one action, and then the card is put back - the glove included. It
+            // used to stay selected across its second click (lift, then drop), which read as
+            // an infinite cooldown: the glove is on cooldown the moment it picks something up,
+            // the bar greys a selected card that is not ready, and the second click was refused
+            // by cardUsable() with the buzzer. The server still answers a drop that follows a
+            // lift without charging the card again, so a two-click move still costs one use.
             client.connection().send(new UseToolC2S(selectedCard, cellX, cellY));
-            if (!glove) {
-                selectedCard = -1;
-            }
+            selectedCard = -1;
             return;
         }
         client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY));

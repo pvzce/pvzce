@@ -27,10 +27,23 @@ import com.pvzce.api.util.Identifier;
  *                     is wearing (the ash line, a lawn mower); {@code false} = the
  *                     zombie's own armour capabilities get first refusal, which is
  *                     what makes a cone cost two peas instead of one
+ * @param burns        {@code true} = a zombie this kills leaves a charred body, which is what
+ *                     the original's ash line does and what the {@code death_burned} clip is
+ *                     for. A flag on the type rather than a list of ids in the death code:
+ *                     "does this hit burn?" is a property of the hit, so a mod's own fire
+ *                     damage can answer it without a code change
  */
-public record DamageTypeDef(Identifier id, boolean ignoresArmor) {
+public record DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns) {
     public static final Codec<DamageTypeDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(DamageTypeDef::id),
-            Codec.BOOL.optionalFieldOf("ignores_armor", false).forGetter(DamageTypeDef::ignoresArmor)
+            Codec.BOOL.optionalFieldOf("ignores_armor", false).forGetter(DamageTypeDef::ignoresArmor),
+            // Written by the ash line; unwritten means "this hit leaves a body like any other",
+            // which is what every type did before the field existed.
+            Codec.BOOL.optionalFieldOf("burns", false).forGetter(DamageTypeDef::burns)
     ).apply(i, DamageTypeDef::new));
+
+    /** The common case: a hit that does not burn. */
+    public DamageTypeDef(Identifier id, boolean ignoresArmor) {
+        this(id, ignoresArmor, false);
+    }
 }

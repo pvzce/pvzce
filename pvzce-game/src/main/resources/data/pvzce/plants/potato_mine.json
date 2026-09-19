@@ -4,7 +4,7 @@
     "resources": {
       "pvzce:sun": 25
     },
-    "cooldown": 300
+    "cooldown": 1800
   },
   "health": 300,
   "capabilities": [
@@ -12,7 +12,8 @@
       "type": "pvzce:explosive",
       "trigger": "proximity",
       "fuse_ticks": 900,
-      "radius": 0.55,
+      "radius": 0.5,
+      "square": true,
       "damage": 1800,
       "trigger_range": 0.5
     }

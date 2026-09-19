@@ -15,7 +15,8 @@
       "type": "pvzce:explosive",
       "trigger": "timed",
       "fuse_ticks": 90,
-      "radius": 3.5,
+      "radius": 3.0,
+      "square": true,
       "damage": 1800
     }
   ],

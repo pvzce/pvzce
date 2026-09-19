@@ -27,5 +27,8 @@
       ],
       "host": "flaghand"
     }
-  ]
+  ],
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
 }

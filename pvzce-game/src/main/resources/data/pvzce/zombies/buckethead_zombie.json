@@ -30,5 +30,8 @@
       "piece": "pvzce:bucket",
       "drop_particle": "pvzce:zombie_pail"
     }
-  ]
+  ],
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
 }

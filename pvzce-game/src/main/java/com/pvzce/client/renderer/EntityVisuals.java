@@ -48,7 +48,7 @@ public final class EntityVisuals {
      * <em>and</em> height in cells: an 0.8-cell sun is a circle that covers four fifths of
      * a lawn square. It used to be applied to the width alone, which made the circle art
      * arrive as an ellipse 1.7x wider than tall; see
-     * {@code AnimationManager.xScaleFor} for the full story.
+     * {@code AnimationManager#scalesFor} for the full story.
      *
      * <p>0.8 cells: the sun is the one thing on the board the player has to click, so it
      * should read as a distinct object rather than a speck. This is the size a drop is
@@ -57,14 +57,31 @@ public final class EntityVisuals {
      */
     private static final Visuals DROP = new Visuals(0.38F, 0.8F, 0.8F, 0.4F, 0.38F, 0.35F, 30);
     /**
+     * The size, in cells, that a drop's own art is authored at.
+     *
+     * <p>A drop is drawn exactly as big as its model says (times
+     * {@code render_scale}), so the converter has to author the art at some agreed size or
+     * nothing lines up: {@code tools/reanim_to_pvzce_all.py} fits each drop's reanim to this
+     * box, and {@link com.pvzce.client.animation.AnimationManager} then applies nothing but
+     * {@code render_scale} on top. The two halves are one contract, which is why the number
+     * is stated once, here, and read by the tooling's own test.
+     */
+    public static final float AUTHORED_DROP_CELLS = 0.34F;
+    /**
      * Drops are drawn dimmer than their art.
      *
-     * <p>The sun's animation stacks several additive glow layers, and at the size above
-     * they clipped to flat white - the sun read as a bright blob with no shape to it, which
-     * is worse than small. Scaling the draw colour back keeps the shape readable; the alpha
-     * is untouched, so it is not "more transparent", just less blown out.
+     * <p>The sun's animation stacks several additive glow layers. Added, they clip to flat
+     * white - the sun reads as a bright blob with no shape to it, which is worse than small -
+     * and the two 117px and 77px halos are the ones doing the blowing out. Scaling the draw
+     * colour back keeps the 36px core readable through them; the alpha is untouched, so this
+     * is not "more transparent", just less blown out.
+     *
+     * <p>Half rather than the 0.72 it used to be: that value was chosen when the glow layers
+     * were drawn opaque and the alpha channel was still being dropped on the floor, so it was
+     * compensating for a bug rather than for the art. With the authored alpha (0.5-0.84) and
+     * additive blending in place, 0.72 left the sun washing the lawn out.
      */
-    public static final float DROP_TINT = 0.72F;
+    public static final float DROP_TINT = 0.5F;
     /** Underground zombies are drawn under the lawn rather than among the entities. */
     public static final int UNDERGROUND_SORT_BUCKET = -100;
 
@@ -83,6 +100,19 @@ public final class EntityVisuals {
     public static final float CHILLED_TINT_R = 0.62F;
     public static final float CHILLED_TINT_G = 0.88F;
     public static final float CHILLED_TINT_B = 1.45F;
+
+    /**
+     * The colour a charmed zombie is drawn in.
+     *
+     * <p>The original turns one purple and leaves its art alone, which is also the only
+     * affordable answer here: there is no second sprite set for a charmed Buckethead, and
+     * there should not be - "whose side is this" is a state, and a state belongs in a tint
+     * rather than in another copy of every model. Purple because it is what the original uses
+     * and because it is unmistakably not the frozen blue.
+     */
+    public static final float CHARMED_TINT_R = 1.35F;
+    public static final float CHARMED_TINT_G = 0.72F;
+    public static final float CHARMED_TINT_B = 1.30F;
 
     /**
      * How much of the night tint a plant or a zombie is allowed to cancel.
@@ -142,6 +172,58 @@ public final class EntityVisuals {
         }
         int bucket = of(kind).sortBucket();
         return bucket == Integer.MIN_VALUE ? 5 : bucket;
+    }
+
+    /**
+     * The single draw-order key for an entity: back rows first, then kind, then spawn order.
+     *
+     * <p>The lawn is drawn as 2D sprites with no depth test, so "in front" is entirely the
+     * order they are submitted in - and the order used to be kind alone, which means every
+     * plant on the board was painted before every zombie and a zombie in the front row drew
+     * <em>under</em> a plant four rows behind it. Row is the first key because it is what the
+     * projection means by depth: {@code y} is how far up the screen a cell sits, and the
+     * further up, the further away.
+     *
+     * <p>The kind bucket stays as the second key, because two entities in one cell still have
+     * a right answer: a zombie eating a plant covers it. Spawn id is last, so the order is
+     * total and identical between frames - a tie broken by iteration order would make sprites
+     * flicker against each other.
+     *
+     * <p>Underground entities sort before everything in their row rather than in a bucket of
+     * their own: a buried zombie is drawn under the lawn, and the lawn is in every row.
+     */
+    public static long renderOrder(String kind, int layer, int row, int id) {
+        // Back rows first, then kind, then spawn order - which is what this used to be, and it
+        // was wrong for the one kind of entity that is not *on* the lawn. A row is depth on this
+        // board, so leading with it means a sun falling in row 4 is painted after a peashooter
+        // standing in row 2 and therefore drawn on top of it - fine - but the same rule puts a
+        // sun falling in row 0 *under* a plant three rows nearer the player, and a drop the
+        // player has to click must never be hidden by the scenery.
+        //
+        // So the leading key is not the row but whether the entity belongs to the lawn at all:
+        // plants and zombies are placed in it and sort among themselves by row; a drop or a
+        // projectile is above it and sorts after all of them. Within a band the row still leads,
+        // because that is still what depth means.
+        //
+        // Bit budget: 1 band + 10 row + 10 bucket (it spans -100..30 today) + 32 id.
+        int band = isAboveTheLawn(kind) ? 1 : 0;
+        long bucket = sortBucket(kind, layer);
+        return ((long) band << 58)
+                | ((long) (row & 0x3FF) << 48)
+                | ((bucket + 512L & 0x3FF) << 38)
+                | (id & 0xFFFFFFFFL);
+    }
+
+    /**
+     * Whether this kind is drawn above the board rather than standing on it.
+     *
+     * <p>Drops and projectiles are already given the highest {@code baseZ} in the table for the
+     * same reason; this is that decision applied to the draw order, which is the one that
+     * actually decides what covers what - the z a vertex carries is not read by anything while
+     * depth testing is off.
+     */
+    private static boolean isAboveTheLawn(String kind) {
+        return EntityKind.RESOURCE.equals(kind) || EntityKind.PROJECTILE.equals(kind);
     }
 
     private EntityVisuals() {

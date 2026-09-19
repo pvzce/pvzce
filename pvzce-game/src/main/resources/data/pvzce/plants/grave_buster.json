@@ -1,0 +1,26 @@
+{
+  "id": "pvzce:grave_buster",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 75
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:grave_buster",
+      "chew_ticks": 240
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/plant/gravebusterchomp"
+  },
+  "placement": {
+    "layer": 1,
+    "count": 1,
+    "group": "under_plant"
+  },
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/grave_buster"
+}

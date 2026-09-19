@@ -57,15 +57,15 @@ public final class LevelSetupScreen extends Screen {
         if (zombieTeam == null && levelInfo.teams().size() > 1) {
             zombieTeam = levelInfo.teams().get(1);
         }
-        plantUnlocked = plantTeam != null;
-        // Seed selection currently only exists for the plant side; the zombie
-        // team remains visible but locked until it has its own card/play flow.
-        zombieUnlocked = false;
-        selectedTeam = plantTeam != null ? plantTeam.id() : levelInfo.winTeam();
-        if ((plantTeam == null || !plantTeam.id().equals(selectedTeam))
-                && (zombieTeam == null || !zombieTeam.id().equals(selectedTeam))) {
-            selectedTeam = plantTeam != null ? plantTeam.id() : (zombieTeam != null ? zombieTeam.id() : "");
-        }
+        plantUnlocked = plantTeam != null && plantTeam.playable();
+        // Who may be played is the level's own declaration, sent with the list as a verdict per
+        // team. This screen used to decide for itself that the zombie side was never playable,
+        // which made "this level is plants only" a fact about the build rather than about the
+        // level - and gave the author no way to say otherwise.
+        zombieUnlocked = zombieTeam != null && zombieTeam.playable();
+        // Default to a side that can actually be played, so a level whose only playable team is
+        // not the first one does not open with a padlocked panel selected.
+        selectedTeam = firstPlayableId();
 
         int guiW = client.guiWidth();
         int guiH = client.guiHeight();
@@ -110,6 +110,30 @@ public final class LevelSetupScreen extends Screen {
                 .orElse(null);
     }
 
+    /**
+     * The team to start on: the first one the level offers, then the win team, then nothing.
+     *
+     * <p>The panels are still drawn whichever way this lands - the point is that a level naming
+     * two playable sides opens on the first of them rather than on whichever one happens to be
+     * on the left.
+     */
+    private String firstPlayableId() {
+        for (LevelListS2C.TeamInfo team : levelInfo.teams()) {
+            if (team.playable()) {
+                return team.id();
+            }
+        }
+        return levelInfo.winTeam();
+    }
+
+    /**
+     * Starts the run.
+     *
+     * <p>Which panel is highlighted is the player's answer to "who do you want to be", and the
+     * server still plays the side its own rules pick today (only the plant side has a card bar),
+     * so the highlight is presentation for now and a real choice as soon as a second playable
+     * side exists.
+     */
     private void startGame() {
         if (plantTeam == null) {
             return;

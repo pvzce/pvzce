@@ -116,6 +116,42 @@ class EquipmentArtTest {
                 "a zombie that drops an arm always needs the bone override");
     }
 
+    @Test
+    void aZombieAtHalfHealthLosesItsOuterArm() {
+        // Half health costs an ordinary zombie its outer arm - the server emits the arm that
+        // flies off on exactly this condition (ZombieEntity#damageBody), and the client has to
+        // stop drawing the limb on the same two numbers or the arm hangs in the air beside the
+        // one that just landed on the lawn.
+        //
+        // There is deliberately nothing torn to put in its place: the rip's `outerarm_hand_2`
+        // and `outerarm_upper_2` are frames of the *super-long death* sequence, so a walking
+        // zombie has no torn drawing at all - see the note on EquipmentDef#armBones.
+        Set<String> healthy = visibleBonesAt("pvzce:basic_zombie", EntityAnimations.WALK, 200);
+        assertTrue(healthy.contains("outerarm_hand"), "a whole zombie draws its whole arm");
+        assertTrue(healthy.contains("outerarm_upper"), "and its whole sleeve");
+
+        Set<String> hurt = visibleBonesAt("pvzce:basic_zombie", EntityAnimations.WALK, 90);
+        assertFalse(hurt.contains("outerarm_hand"), "the arm is gone at half health: " + hurt);
+        assertFalse(hurt.contains("outerarm_upper"), "and so is the sleeve: " + hurt);
+        assertFalse(hurt.contains("outerarm_lower"), "and the forearm: " + hurt);
+        assertTrue(hurt.contains("innerarm_hand"),
+                "the other arm is untouched: " + hurt);
+    }
+
+    @Test
+    void anArmouredZombieKeepsItsArmUntilTheArmourIsGone() {
+        // The armour half of the same rule: a conehead with its cone on keeps both arms even at
+        // half health, because the server only pops the arm once nothing is left on its head -
+        // and the client reads the same two numbers to agree with it.
+        Set<String> armoured = visibleBonesAt("pvzce:conehead_zombie", EntityAnimations.WALK, 90, 370);
+        assertTrue(armoured.contains("outerarm_hand"),
+                "a conehead still wearing its cone keeps its arm: " + armoured);
+
+        Set<String> bare = visibleBonesAt("pvzce:conehead_zombie", EntityAnimations.WALK, 90, 0);
+        assertFalse(bare.contains("outerarm_hand"),
+                "once the cone is gone the arm goes too: " + bare);
+    }
+
     /** Every arm bone the flag zombie's equipment claims as its own. */
     private static List<String> armBones(String zombieId) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(Identifier.parse(zombieId));
@@ -137,7 +173,21 @@ class EquipmentArtTest {
      * and the death clip's dropped flag would look like a flag that is still there.
      */
     private static Set<String> visibleBones(String zombieId, String animation) {
-        ClientEntity entity = zombie(zombieId, animation);
+        return visibleBonesAt(zombieId, animation, 200);
+    }
+
+    /** As {@link #visibleBones}, for a zombie at a chosen health and armour value. */
+    private static Set<String> visibleBonesAt(String zombieId, String animation, int health) {
+        // NO_ARMOR rather than 0: an armour-driven entry reads 0 as "worn and broken", while
+        // NO_ARMOR is the client's marker for a zombie no server has told about armour (a
+        // preview entity), and the two take different branches.
+        return visibleBonesAt(zombieId, animation, health, com.pvzce.common.network.packet.EntitySpawnS2C.NO_ARMOR);
+    }
+
+    private static Set<String> visibleBonesAt(String zombieId, String animation, int health,
+                                             int armor) {
+        ClientEntity entity = new ClientEntity(1, "zombie", zombieId, 2.5F, 1.5F, health,
+                EntityLayers.GROUND, animation, 0F, "", armor);
         ControllerModel model = model(zombieId);
         BoneArt art = EquipmentArt.forEntity(entity, model);
         assertNotNull(art, zombieId + " must have a bone override to test");

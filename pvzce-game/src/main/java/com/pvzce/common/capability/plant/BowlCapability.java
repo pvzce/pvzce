@@ -177,7 +177,7 @@ public final class BowlCapability implements PlantCapability {
         }
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;
-        for (ZombieEntity zombie : level.zombiesInRow(plant.gridY())) {
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
             if (zombie.isRemoved() || !zombie.canBeHitByGround()) {
                 continue;
             }

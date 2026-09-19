@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import importlib.util
+import math
 import re
 import sys
 from dataclasses import dataclass, field
@@ -127,6 +128,18 @@ class EntityConfig:
     # translation into the extra's keys, which is rigid attachment in everything but
     # rotation.
     extra_bone_host: Optional[str] = None
+    # Image references whose part is blended additively: light rather than paint.
+    #
+    # The reanim format has no blend flag - PopCap's renderer decided it in code, per
+    # sprite - so the only place this knowledge can live is a table like this one. The
+    # original blends its glows this way and draws everything else source-over, and
+    # drawing a glow source-over is visibly wrong: a soft radial gradient becomes a flat
+    # opaque disc that hides what is underneath. That is why the coin's glow used to be
+    # excluded from the conversion entirely.
+    #
+    # A regex over the image reference, because a reanim names its glows by number
+    # (``IMAGE_REANIM_SUN2``/``SUN3``) and there is no other pattern to key on.
+    additive_images: Optional[str] = None
     # Extra sprites for one bone, as its damage states: ``{host bone: ((new bone, png), ...)}``.
     #
     # The original swaps a worn cone/bucket/flag for a more damaged drawing in code, so
@@ -138,6 +151,89 @@ class EntityConfig:
     damage_states: Dict[str, Tuple[Tuple[str, str], ...]] = field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# Playback rates and locomotion references
+# ---------------------------------------------------------------------------
+#
+# A reanim file carries one frame rate, but the original game then played individual
+# actions at speeds of its own. These are the numbers for the conversions that have one;
+# a clip that states neither plays at authoring speed, which is what every other clip in
+# the shipped set does today and is why leaving them out changes nothing.
+#
+#   * eat   - the original bites three times a second (180 ticks of mEatAnimDuration for
+#             a three-bite sequence) while anim_eat holds two bites in 40 frames, so the
+#             cycle runs 1.5x. At 1x a zombie chewed a plant to death long before its jaw
+#             finished a cycle.
+#   * death - the original plays its death sequences at 24-30 fps rather than the file's
+#             12: Zombie::PlayDeathAnim picks a random rate in that band. 2.5x puts the
+#             39-frame sequence at 1.3 s, the fast end of that band, which keeps the
+#             drawn death shorter than the 6 s corpse it leaves behind.
+#   * walk  - see ZOMBIE_WALK_REFERENCE_SPEED: the cycle duration is only meaningful
+#             relative to a ground speed, and the runtime does the division.
+ZOMBIE_EAT_RATE = 1.5
+ZOMBIE_DEATH_RATE = 2.5
+# What the zombie walk art assumes it is travelling at, in cells per second. The cycle is
+# 47 frames at 12fps drawn as one stride, and every zombie that shares this art walks at
+# 0.23 cells/s (the plain, flag and imp zombies) or 0.18 (the armoured ones). 0.23 is the
+# reference so the plain zombie plays at exactly 1x and the armoured ones slow to 0.78x
+# and stop sliding their feet.
+ZOMBIE_WALK_REFERENCE_SPEED = 0.23
+
+# All three of the original's death sequences exist in Zombie.reanim. Which one a zombie
+# plays is the server's choice (see EntityAnimations.DEATH2 / DEATH_SUPERLONG), so all
+# three are exported; waterdeath is the one for a body that drowns.
+ZOMBIE_DEATH_CLIPS: Dict[str, Dict[str, object]] = {
+    "death": {"mask": "anim_death", "loop": False, "on_end": "hold",
+              "transition": 0.05, "rate": ZOMBIE_DEATH_RATE},
+    "death2": {"mask": "anim_death2", "loop": False, "on_end": "hold",
+               "transition": 0.05, "rate": ZOMBIE_DEATH_RATE},
+    "death_superlong": {"mask": "anim_superlongdeath", "loop": False, "on_end": "hold",
+                        "transition": 0.05, "rate": ZOMBIE_DEATH_RATE},
+    "death_water": {"mask": "anim_waterdeath", "loop": False, "on_end": "hold",
+                    "transition": 0.05, "rate": ZOMBIE_DEATH_RATE},
+}
+
+
+def zombie_animations(*, walk: bool = True, angry: bool = False,
+                      eat_rate: float = ZOMBIE_EAT_RATE,
+                      all_deaths: bool = True) -> Dict[str, Dict[str, object]]:
+    """The clip set a zombie sharing Zombie.reanim gets.
+
+    Every zombie that wears this body gets the same locomotion, bite and death clips; the
+    original picks a death at random in code, and reproducing that needs all of them in
+    the file. The ``hit`` clip is deliberately absent: it is the zombie's *standing* pose
+    on a 1.25 s loop, and the server stopped publishing a hurt state (see
+    ZombieEntity.walkOrEat) because holding it froze a walking zombie for an eighth of a
+    second on every pea.
+    """
+    clips: Dict[str, Dict[str, object]] = {
+        "idle": {"mask": "anim_idle", "loop": True},
+    }
+    if walk:
+        clips["walk"] = {"mask": "anim_walk", "loop": True,
+                         "reference_speed": ZOMBIE_WALK_REFERENCE_SPEED}
+    clips["eat"] = {"mask": "anim_eat", "loop": True, "rate": eat_rate}
+    if angry:
+        clips["angry"] = {"mask": "anim_idle2", "loop": False, "on_end": "idle", "transition": 0.05}
+    # Only Zombie.reanim, the shared master file, carries all four death sequences. Every
+    # zombie with a reanim of its own has exactly one, so asking for the variants there is
+    # a hard error rather than a silent fallback - which is the right shape: a missing
+    # clip in the data is a content bug, and it should say so at generation time.
+    if all_deaths:
+        clips.update(ZOMBIE_DEATH_CLIPS)
+    else:
+        clips["death"] = ZOMBIE_DEATH_CLIPS["death"]
+    return clips
+
+
+# Bones the original hides in code rather than in the art.
+#
+# Zombie.reanim carries one tongue and one head of hair and shows them for the whole
+# export; Zombie::SetupReanimLayers hides them for the variants that must not have them.
+# A converter that only reads track visibility therefore gave every plain zombie a
+# permanently lolling tongue and every armoured one a head of hair under its helmet.
+ZOMBIE_NEVER_VISIBLE = ("tongue", "hair")
+
 ENTITY_CONFIGS: List[EntityConfig] = [
     # ------------------------------------------------------------------
     # Resource drops
@@ -147,27 +243,41 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="resource",
         reanim="Sun.reanim",
         target_box=(0.56, 0.56),
+        # The sun is three stacked quads: a 36px core at full alpha and two glows authored
+        # at 0.50-0.84. The glows are light, and the original adds them; drawn source-over
+        # they are flat discs that swallow the core, which is why the sun used to read as a
+        # bright blob with no shape. The core stays normal, so the sprite keeps an edge.
+        additive_images=r"SUN2|SUN3",
         animations={
             "idle": {"range": "all", "loop": True},
             "landed": {"range": "all", "loop": True},
         },
     ),
     # The coin and diamond reanims ship with refer/im5 rather than refer/anim, so
-    # these are generated with an explicit --input-dir. Their target boxes cover the
-    # glow sprite, which puts the coin face itself at roughly half the box.
+    # these are generated with an explicit --input-dir.
     #
     # Four denominations, because the original's are four different objects with four
     # different values (silver 10, gold 50, diamond 1000, money bag 250); a single
     # "coin" sprite could not tell the player which one they just picked up.
     #
-    # The glow and the diamond's shine are excluded on purpose. The original blends
-    # them additively; this renderer has no additive mode, so a soft radial gradient
-    # drawn as an ordinary quad becomes a large opaque disc that swallows the coin.
+    # The glow is drawn, and additively - which is what the original does with it and what
+    # the renderer could not do when this conversion was written, so the art was cut instead.
+    # It is still not part of the *model*: a glow quad is authored wider than the coin it
+    # belongs to (80px against 43), and since every bone in a controller model is sized by one
+    # shared factor and drawn as one sprite, a model that carries it makes the coin face
+    # authored at 54% of the number the box claims. The glow is a particle's job now; the coin
+    # model is the coin.
+    #
+    # Sizing is the coin's own sprite, fitted on width - all four denominations are drawn the
+    # same width on the lawn, which is the property a player reads ("that is a coin") and the
+    # reason the fit is not height-driven here: a coin face is wider than it is tall, so
+    # fitting the height would make every denomination a different width.
     EntityConfig(
         output="coin_silver",
         group="resource",
         reanim="Coin_silver.reanim",
-        target_box=(0.42, 0.42),
+        target_box=(0.34, 0.34),
+        fit_height_only=False,
         exclude_image_regex=r"COINGLOW",
         animations={
             "idle": {"range": "all", "loop": True},
@@ -178,7 +288,8 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="coin_gold",
         group="resource",
         reanim="Coin_gold.reanim",
-        target_box=(0.42, 0.42),
+        target_box=(0.34, 0.34),
+        fit_height_only=False,
         exclude_image_regex=r"COINGLOW",
         animations={
             "idle": {"range": "all", "loop": True},
@@ -189,8 +300,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="diamond",
         group="resource",
         reanim="Diamond.reanim",
-        target_box=(0.46, 0.46),
+        target_box=(0.34, 0.34),
+        fit_height_only=False,
         exclude_image_regex=r"DIAMOND_SHINE",
+        # The shine quad is as big as the gem's own drawing and is drawn around it, so
+        # measuring the model against it makes the gem smaller than the box it was fitted to
+        # (76% of it). Measuring the shine out is the same rule the armoured zombies use to
+        # keep a bucket from deciding how tall a zombie is - and unlike excluding additive
+        # parts in general, it is honest: the halo is still drawn at its own size, this only
+        # says which sprite the model is measured by.
         animations={
             "idle": {"range": "all", "loop": True},
             "landed": {"range": "all", "loop": True},
@@ -391,6 +509,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "on_end": "idle",
                 "transition": 0.05,
             },
+            # The bean coming apart, which is what a placement spends it on. It is the
+            # original's own `anim_crumble`; nothing else in the game plays it, because a
+            # coffee bean is never eaten - it is *used*.
+            "vanish": {
+                "mask": "anim_crumble",
+                "loop": False,
+                "on_end": "hold",
+                "transition": 0.05,
+            },
         },
     ),
     # ------------------------------------------------------------------
@@ -436,6 +563,55 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "transition": 0.1,
             },
             "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
+    # Fume-shroom is the same mushroom as the Doom-shroom and is authored in the big
+    # mushroom's box, so it stands a head taller than the small mushrooms - which is how
+    # the original draws it. Its spout is a separate sprite that the shooting mask slides
+    # out, hidden in the idle mask; rescuing permanently-hidden bones would leave the spout
+    # poking out of a resting mushroom, so only the sleeping face is hidden explicitly.
+    EntityConfig(
+        output="fume_shroom",
+        group="plant/attacker",
+        reanim="FumeShroom.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "shoot": {
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
+                "force_visible_hidden": True,
+                "force_visible_exclude_prefixes": ["sleep"],
+            },
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
+    # Hypno-shroom. Every bone in its reanim is visible in every frame of both masks - the
+    # two eyes simply swap sprites - so the sleeping face and the open eyes are drawn by the
+    # same bones and nothing has to be hidden or rescued: the masks are the whole difference.
+    EntityConfig(
+        output="hypno_shroom",
+        group="plant/special",
+        reanim="HypnoShroom.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
+    # Grave buster: the original's own two usable clips. `anim_land` is the drop onto the
+    # tombstone, `anim_idle` is the chewing, and the plant is removed by the server when the
+    # grave goes - there is no "finished" clip because the original never needed one.
+    EntityConfig(
+        output="grave_buster",
+        group="plant/special",
+        reanim="Gravebuster.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_land", "loop": False, "on_end": "chew", "transition": 0.05},
+            "chew": {"mask": "anim_idle", "loop": True, "transition": 0.1},
         },
     ),
     # ------------------------------------------------------------------
@@ -703,18 +879,8 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_BASE_EXCLUDE,
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "hit": {"mask": "anim_idle2", "loop": True, "transition": 0.05},
-            "death": {
-                "mask": "anim_death",
-                "loop": False,
-                "on_end": "hold",
-                "transition": 0.05,
-            },
-        },
+        force_hidden_bones=r"tongue|hair",
+        animations=zombie_animations(),
     ),
     EntityConfig(
         output="buckethead_zombie",
@@ -723,6 +889,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_BUCKET_EXCLUDE,
+        force_hidden_bones=r"tongue|hair",
         # The bucket sits above the head: measure the zombie, not its hat, or the body is
         # fitted to the bucket's height and ends up a size smaller than a bare zombie's.
         measure_exclude_regex=r"^bucket_",
@@ -730,19 +897,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "bucket_1": (("bucket_2", "Zombie_bucket2.png"),
                          ("bucket_3", "Zombie_bucket3.png")),
         },
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "hit": {"mask": "anim_idle2", "loop": True, "transition": 0.05},
-            "angry": {"mask": "anim_idle2", "loop": False, "on_end": "idle", "transition": 0.05},
-            "death": {
-                "mask": "anim_death",
-                "loop": False,
-                "on_end": "hold",
-                "transition": 0.05,
-            },
-        },
+        animations=zombie_animations(angry=True),
     ),
     EntityConfig(
         output="conehead_zombie",
@@ -751,24 +906,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_CONE_EXCLUDE,
+        force_hidden_bones=r"tongue|hair",
         measure_exclude_regex=r"^cone_",
         damage_states={
             "cone_1": (("cone_2", "Zombie_cone2.png"),
                        ("cone_3", "Zombie_cone3.png")),
         },
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "hit": {"mask": "anim_idle2", "loop": True, "transition": 0.05},
-            "angry": {"mask": "anim_idle2", "loop": False, "on_end": "idle", "transition": 0.05},
-            "death": {
-                "mask": "anim_death",
-                "loop": False,
-                "on_end": "hold",
-                "transition": 0.05,
-            },
-        },
+        animations=zombie_animations(angry=True),
     ),
     # The flag zombie is a plain zombie holding a flag; the hand is in the master file
     # and the pole comes from its own, so this is the one config with an extra reanim.
@@ -781,24 +925,14 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         exclude_image_regex=ZOMBIE_FLAG_EXCLUDE,
         extra_reanims=("Zombie_flagpole.reanim",),
         extra_bone_host="flaghand",
+        # The pole's own hand is *not* the tongue: only the shared body's spare parts go.
+        force_hidden_bones=r"tongue|hair",
         # The flag has two drawings in the rip (whole and tattered); the original swaps
         # them in code, so the tattered one is referenced by no track.
         damage_states={
             "zombie_flag_1": (("zombie_flag_3", "Zombie_flag3.png"),),
         },
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "hit": {"mask": "anim_idle2", "loop": True, "transition": 0.05},
-            "angry": {"mask": "anim_idle2", "loop": False, "on_end": "idle", "transition": 0.05},
-            "death": {
-                "mask": "anim_death",
-                "loop": False,
-                "on_end": "hold",
-                "transition": 0.05,
-            },
-        },
+        animations=zombie_animations(angry=True),
     ),
     EntityConfig(
         output="door_zombie",
@@ -807,24 +941,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         exclude_image_regex=ZOMBIE_DOOR_EXCLUDE,
+        force_hidden_bones=r"tongue|hair",
         measure_exclude_regex=r"^screendoor_",
         damage_states={
             "screendoor_1": (("screendoor_2", "Zombie_screendoor2.png"),
                              ("screendoor_3", "Zombie_screendoor3.png")),
         },
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "hit": {"mask": "anim_idle2", "loop": True, "transition": 0.05},
-            "angry": {"mask": "anim_idle2", "loop": False, "on_end": "idle", "transition": 0.05},
-            "death": {
-                "mask": "anim_death",
-                "loop": False,
-                "on_end": "hold",
-                "transition": 0.05,
-            },
-        },
+        animations=zombie_animations(angry=True),
     ),
     # ------------------------------------------------------------------
     # Dedicated zombie reanim files
@@ -836,17 +959,24 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
         measure_exclude_regex=r"^paper_",
+        # The newspaper zombie's own hair and its paper hairpiece are its silhouette, so
+        # only the shared body's tongue goes.
+        force_hidden_bones=r"tongue",
         damage_states={
             "paper_1": (("paper_2", "Zombie_paper_paper2.png"),
                         ("paper_3", "Zombie_paper_paper3.png")),
         },
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "hit": {"mask": "anim_gasp", "loop": False, "on_end": "idle", "transition": 0.05},
-            "angry": {"mask": "anim_gasp", "loop": False, "on_end": "idle", "transition": 0.05},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
+        # This zombie has a whole second gait and bite for the state where its paper is
+        # gone (anim_walk_nopaper / anim_eat_nopaper), which the original switches to in
+        # code. Both are exported and the server asks for them by name.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True,
+                     "reference_speed": ZOMBIE_WALK_REFERENCE_SPEED},
+            "walk_nopaper": {"mask": "anim_walk_nopaper", "loop": True,
+                             "reference_speed": ZOMBIE_WALK_REFERENCE_SPEED},
+            "eat_nopaper": {"mask": "anim_eat_nopaper", "loop": True, "rate": ZOMBIE_EAT_RATE},
+            "angry": {"mask": "anim_gasp", "loop": False, "on_end": "idle",
+                      "transition": 0.05},
         },
     ),
     EntityConfig(
@@ -861,14 +991,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         # exactly the two grounded ranges - so which clip is which is the file's own answer,
         # not a guess. Only the walk used to be exported, so the zombie jogged the
         # empty-handed clip while still carrying the pole.
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "run": {"mask": "anim_run", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
+        # The pole vaulter walks at 0.3 cells/s, faster than the 0.23 the shared walk art
+        # assumes - which is exactly why it has its own jogging clip, and why both of its
+        # ground clips name that speed instead of the shared constant.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "run": {"mask": "anim_run", "loop": True, "reference_speed": 0.3},
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.3},
             "jump": {"mask": "anim_jump", "loop": False, "on_end": "walk", "transition": 0.05},
-            "hit": {"mask": "anim_idle", "loop": True, "transition": 0.05},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
         },
     ),
     EntityConfig(
@@ -877,14 +1006,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_balloon.reanim",
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "fly": {"mask": "anim_swing", "loop": True, "transition": 0.1},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
+        # Both of this zombie's ways of moving are locomotion: it drifts at 0.47 cells/s
+        # with the balloon and at 0.23 on foot, so each clip names the speed it was drawn for.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "fly": {"mask": "anim_swing", "loop": True, "transition": 0.1,
+                    "reference_speed": 0.47},
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.23},
             "fall": {"mask": "anim_pop", "loop": False, "on_end": "walk", "transition": 0.05},
-            "hit": {"mask": "anim_idle", "loop": True, "transition": 0.05},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
         },
     ),
     EntityConfig(
@@ -893,14 +1021,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_digger.reanim",
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_eat", "loop": True},
-            "dig": {"mask": "anim_dig", "loop": True, "transition": 0.1},
-            "dig_exit": {"mask": "anim_landing", "loop": False, "on_end": "walk", "transition": 0.1},
-            "hit": {"mask": "anim_dizzy", "loop": False, "on_end": "idle", "transition": 0.05},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
+        # Travels at 0.3, tunnels at the same speed: one number for both of its gaits.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.3},
+            "dig": {"mask": "anim_dig", "loop": True, "transition": 0.1,
+                    "reference_speed": 0.3},
+            "dig_exit": {"mask": "anim_landing", "loop": False, "on_end": "walk",
+                         "transition": 0.1},
         },
     ),
     EntityConfig(
@@ -909,18 +1036,22 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_gargantuar.reanim",
         target_box=(1.10, 1.55),
         fit_height_only=False,
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_walk", "loop": True},
-            "eat": {"mask": "anim_smash", "loop": True},
+        # eHeavy: the smash cycle is the animation's own clock, which marks the beat the
+        # hammer lands on, so it is played as drawn rather than at the shared zombie eat
+        # rate. 1.4 cells/s is what the 4.08 s walk cycle is drawn for.
+        # Its bite is a smash, and there is no separate eat cycle to override - so the
+        # shared set is built and then the one clip this brute does not have is replaced.
+        animations=(zombie_animations(walk=False, eat_rate=1.0, all_deaths=False)
+                    | {
+                        "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.14},
+                        "eat": {"mask": "anim_smash", "loop": True, "rate": 1.0},
+                    }) | {
             "hammer": {
                 "mask": "anim_smash",
                 "loop": False,
                 "on_end": "idle",
                 "transition": 0.1,
             },
-            "hit": {"mask": "anim_idle", "loop": True, "transition": 0.05},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
         },
     ),
     EntityConfig(
@@ -929,12 +1060,11 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_boss.reanim",
         target_box=(1.40, 2.00),
         fit_height_only=False,
-        animations={
-            "idle": {"mask": "anim_idle", "loop": True},
-            "walk": {"mask": "anim_RV_1", "loop": True},
-            "eat": {"mask": "anim_stomp_1", "loop": True},
-            "hit": {"mask": "anim_idle", "loop": True, "transition": 0.05},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
+        # The RV's wheels turn in every frame of its clip, so the drive is a genuine
+        # locomotion clip: 3.17 s per cycle drawn for 0.15 cells/s.
+        animations=zombie_animations(walk=False, eat_rate=1.0, all_deaths=False) | {
+            "walk": {"mask": "anim_RV_1", "loop": True, "reference_speed": 0.15},
+            "eat": {"mask": "anim_stomp_1", "loop": True, "rate": 1.0},
         },
     ),
     # ------------------------------------------------------------------
@@ -980,14 +1110,55 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_imp.reanim",
         target_box=(0.45, 0.60),
         fit_height_only=False,
+        # No `hit`: the server stopped publishing a hurt state (see ZombieEntity.walkOrEat),
+        # and a clip nothing can ask for is a clip that will rot. The imp's idle *is* its
+        # walk - it has one gait - which is why the two names point at the same mask.
         animations={
             "idle": {"mask": "anim_walk", "loop": True},
             "walk": {"mask": "anim_walk", "loop": True},
             "eat": {"mask": "anim_eat", "loop": True},
             "thrown": {"mask": "anim_thrown", "loop": False, "on_end": "land", "transition": 0.05},
             "land": {"mask": "anim_land", "loop": False, "on_end": "walk", "transition": 0.05},
-            "hit": {"mask": "anim_walk", "loop": True, "transition": 0.05},
             "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "transition": 0.05},
+        },
+    ),
+    # ------------------------------------------------------------------
+    # The burnt corpse
+    #
+    # What the ash line leaves behind. This is not a clip on the zombie model: the original
+    # draws it from its own reanim, and the two share no bones - the charred body is a pile
+    # with a skull in it. So it is its own controller file, and a zombie definition reaches
+    # it through its per-state `animations` map:
+    #
+    #     "animations": { "death_burned": "pvzce:zombie/charred/zombie_charred" }
+    #
+    # The clip is named after the *state* (`death_burned`), not after the source mask, so
+    # the manager finds it by the name the server publishes. `anim_crumble` is the collapse
+    # and ends held: the corpse stays as the pile of ash the original leaves, which is what
+    # `on_end: hold` means everywhere else.
+    #
+    # One model for every zombie on purpose: the original uses the same charred sprite for a
+    # bare zombie and a Conehead, because whatever it was wearing is gone by then. The
+    # dedicated `Zombie_charred_*` files in the rip are the Gargantuar, the digger and the
+    # imp, which have their own bodies and are not covered by this.
+    # ------------------------------------------------------------------
+    EntityConfig(
+        output="zombie_charred",
+        group="zombie/charred",
+        reanim="Zombie_charred.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        animations={
+            "death_burned": {
+                "mask": "anim_crumble",
+                "loop": False,
+                "on_end": "hold",
+                "transition": 0.05,
+            },
+            # A zombie that is asked for its idle while it is a pile of ash (a save restored
+            # mid-death, a client that missed the transition) holds the pile rather than
+            # finding nothing at all.
+            "idle": {"mask": "anim_crumble", "range": [0, 0], "loop": True},
         },
     ),
 ]
@@ -1230,11 +1401,21 @@ def resolve_range(spec: Dict[str, object], tracks: Sequence[core.Track]) -> Tupl
         value = spec["range"]
         if value == "all":
             frame_count = max(len(track.frames) for track in tracks)
-            return 0, frame_count - 1
-        if isinstance(value, (list, tuple)) and len(value) == 2:
-            return int(value[0]), int(value[1])
-        raise SystemExit(f"Invalid range spec: {value!r}")
-    return mask_range(tracks, str(spec["mask"]))
+            start, end = 0, frame_count - 1
+        elif isinstance(value, (list, tuple)) and len(value) == 2:
+            start, end = int(value[0]), int(value[1])
+        else:
+            raise SystemExit(f"Invalid range spec: {value!r}")
+    else:
+        start, end = mask_range(tracks, str(spec["mask"]))
+    # trim_end exists because a mask range can end on a frame that repeats the one before it.
+    # That is a legitimate authoring choice for a one-shot (the pose is held) and a visible
+    # stall for a loop, and only the clip's author knows which this is - the length maths
+    # cannot tell a deliberate hold from a mistake.
+    trim = int(spec.get("trim_end", 0))
+    if trim > 0:
+        end = max(start, end - trim)
+    return start, end
 
 
 def excluded_from_rescue(name: str, prefixes: Sequence[str]) -> bool:
@@ -1273,6 +1454,8 @@ def build_animation(
     animation_bones: Dict[str, object] = {}
     force_visible = bool(spec.get("force_visible_hidden"))
     exclude_prefixes = tuple(str(value) for value in spec.get("force_visible_exclude_prefixes", ()))
+    # fullmatch, not search: a bone name is an identity, and "hide hair" must not also
+    # hide the newspaper zombie's `hairpiece`, which is the whole point of its silhouette.
     force_visible_re = re.compile(config.force_visible_bones, re.IGNORECASE) if config.force_visible_bones else None
     force_hidden_re = re.compile(config.force_hidden_bones, re.IGNORECASE) if config.force_hidden_bones else None
     # A per-clip "draw this bone whatever the source says". ``force_visible_hidden``
@@ -1307,11 +1490,11 @@ def build_animation(
             is_visible = bool(source.visibility[frame])
             if force_visible and permanently_hidden and not excluded_from_rescue(bone.name, exclude_prefixes):
                 is_visible = True
-            if force_visible_re is not None and force_visible_re.search(bone.name):
+            if force_visible_re is not None and force_visible_re.fullmatch(bone.name):
                 is_visible = True
             if clip_visible_re is not None and clip_visible_re.search(bone.name):
                 is_visible = True
-            if force_hidden_re is not None and force_hidden_re.search(bone.name):
+            if force_hidden_re is not None and force_hidden_re.fullmatch(bone.name):
                 is_visible = False
             if bone.hidden:
                 # A damage-state sprite is never drawn by a clip: the client picks one
@@ -1324,25 +1507,49 @@ def build_animation(
             return core.format_time((frame - start) / fps)
 
         weld = host_translation if (attached_bones and bone.name in attached_bones) else None
+        # The host's rest position, which is the pivot a welded bone swings around.
+        weld_pivot = weld(start) if weld is not None else None
 
         def translation_at(frame: int) -> List[float]:
             state_data = bone.states[frame]
             center_x, center_y = core.model_center_px(state_data, bone.asset, bbox)
             value = [center_x * scale, center_y * scale]
             if weld is not None:
-                # Rigid attachment: follow the host's movement, keep our own pose.
+                # The piece is carried by the host: its authored position plus however far the
+                # host has moved since the clip began.
+                #
+                # Translation only, and that is not a simplification - the authored translation
+                # of a held thing is *already* where it sits in the grip, so the vector from the
+                # host to the piece is the piece's own drawing and rotating it turns the piece a
+                # second time. Both earlier attempts did exactly that: rotating about the host
+                # (which swings a pole that is already at the fist) and rotating the piece's own
+                # near-zero offset (which swings nothing and lets the grip drift 0.16 cells).
+                # The host's *rotation* is not lost by this: the piece's own keys carry the same
+                # swing the host does, because the art draws them in the same frame sequence.
                 host_x, host_y = weld(frame)
-                rest_x, rest_y = weld(start)
+                rest_x, rest_y = weld_pivot
                 value[0] += host_x - rest_x
                 value[1] += host_y - rest_y
             return [core.round_float(value[0]), core.round_float(value[1])]
 
+
         def rotation_at(frame: int) -> List[float]:
+            # The piece's own drawn shear, untouched. It already carries the same swing the host
+            # does - the art was drawn as one animation - so tilting it by the host's delta
+            # rotates the pole twice about a pivot it is already positioned against.
             state_data = bone.states[frame]
             return [core.round_float(state_data.kx), core.round_float(state_data.ky), 0.0]
 
         def scale_at(frame: int) -> List[float]:
             state_data = bone.states[frame]
+            if weld is not None:
+                # The piece is held *in* the hand, so it is drawn at the hand's size rather than
+                # at whatever the source happened to draw it at. The flagpole is the case: the
+                # hand is authored at scale 0.80 and the pole and flag at 0.88-1.00, so a flag
+                # welded without its scale arrived a fifth larger than the fist gripping it.
+                host_scale = host_bone.states[frame]
+                return [core.round_float(state_data.sx * host_scale.sx),
+                        core.round_float(state_data.sy * host_scale.sy)]
             return [core.round_float(state_data.sx), core.round_float(state_data.sy)]
 
         def vector_keys(value_at) -> Dict[str, List[float]]:
@@ -1371,27 +1578,167 @@ def build_animation(
                 last_value = value
             return keys
 
-        animation_bones[bone.name] = {
+        def alpha_keys() -> Dict[str, float]:
+            """The track's alpha, but only when the art actually varies it.
+
+            Every reanim frame carries an alpha and almost every one of them is 1, so
+            emitting the channel unconditionally would add a constant block to all 2688
+            bone tracks in the shipped set to say nothing. A bone whose alpha never leaves
+            1 omits the channel, and the runtime's default (1) is already the answer.
+            """
+            values = [bone.states[frame].a for frame in range(start, end + 1)]
+            if all(abs(value - 1.0) <= 1e-6 for value in values):
+                return {}
+            keys: Dict[str, float] = {}
+            last: Optional[float] = None
+            for offset, frame in enumerate(range(start, end + 1)):
+                value = values[offset]
+                if last is None or abs(value - last) > 1e-6:
+                    keys[key(frame)] = core.round_float(value)
+                last = value
+            return keys
+
+        entry: Dict[str, object] = {
             "translation": vector_keys(translation_at),
             "rotation": vector_keys(rotation_at),
             "scale": vector_keys(scale_at),
             "visible": boolean_keys(),
         }
+        alpha = alpha_keys()
+        if alpha:
+            entry["alpha"] = alpha
+        animation_bones[bone.name] = entry
 
+    loop = bool(spec.get("loop", False))
     animation: Dict[str, object] = {
-        "animation_length": round(frame_count / fps, 10),
-        "loop": bool(spec.get("loop", False)),
+        "animation_length": round(max(1e-6, loop_frames(bones, start, end, loop)) / fps, 10),
+        "loop": loop,
     }
     if spec.get("on_end") is not None:
         animation["on_end"] = str(spec["on_end"])
     if spec.get("next") is not None:
         animation["next"] = str(spec["next"])
     animation["transition"] = float(spec.get("transition", 0.1))
+    rate = spec.get("rate")
+    if rate is not None and abs(float(rate) - 1.0) > 1e-9:
+        animation["rate"] = float(rate)
+    reference_speed = spec.get("reference_speed")
+    if reference_speed is not None and float(reference_speed) > 0.0:
+        animation["reference_speed"] = float(reference_speed)
     animation["bones"] = animation_bones
     animation["sound_effects"] = {}
     animation["particle_effects"] = {}
     animation["timeline"] = {}
     return animation
+
+
+def additive_regex(config: EntityConfig):
+    """The compiled additive_images pattern, or None."""
+    return re.compile(config.additive_images, re.IGNORECASE) if config.additive_images else None
+
+
+def additive_search(config: EntityConfig, image_ref: str):
+    """Whether this image reference is one of the additively blended sprites."""
+    pattern = additive_regex(config)
+    return pattern.search(image_ref) if pattern is not None else None
+
+
+def planar_step(a: core.FrameState, b: core.FrameState) -> float:
+    """How far a piece travels between two frames, ignoring alpha and image swaps."""
+    return math.hypot(a.x - b.x, a.y - b.y)
+
+
+def loop_frames(bones: Sequence[core.Bone], start: int, end: int, loop: bool) -> int:
+    """How many frames of travel one loop of this clip covers.
+
+    A looping clip has to come back to where it started, and reanim art says so in one of two
+    ways - which the data itself distinguishes, so this reads it rather than assuming:
+
+    * the run closes on itself: the seam from the last frame back to the first is an ordinary
+      step. The last frame is then where the cycle already ends, and counting it holds that
+      pose for one more frame interval. The sampler interpolates *between keys*, so a duration
+      that runs one frame past the last key is a visible stall - the zombie's walk stood still
+      for 83 ms on the spot once per cycle and the boss's death held a frozen corpse for a
+      quarter of a second.
+    * the run does not close: the last pose is somewhere else, and the seam jump is large
+      (the balloon's drift jumps 25.9 px against a 2.2 px typical step). The clip is then a
+      pass rather than a cycle, and cutting it a frame short would wrap before that pose is
+      reached at all - a backwards snap. Its full count is what the sampler can render without
+      a hold, because every frame including the last has a key of its own.
+
+    The test is "is the seam an ordinary step", not "are the first and last frames identical",
+    because a cycle can end on the *extreme* of a symmetric swing: the pea shooter's idle ends
+    0.1 px from where it starts against a 0.47 px typical step, and comparing poses for
+    equality would call that open and reintroduce the stall.
+
+    A one-shot clip takes the full count either way: its last frame is meant to be seen, and
+    `on_end` decides what happens after.
+
+    Conservative about short tracks: a bone whose source track is shorter than the clip (a
+    13-frame flagpole inside a 504-frame zombie) contributes nothing, because its own "last
+    frame" is not the clip's.
+    """
+    if not loop:
+        return end - start + 1
+    steps: List[float] = []
+    seam = 0.0
+    for bone in bones:
+        if end + 1 > len(bone.states) or start + 1 > len(bone.states):
+            continue
+        if bone.states[start].image is None:
+            continue
+        for frame in range(start, end):
+            steps.append(planar_step(bone.states[frame], bone.states[frame + 1]))
+        seam = max(seam, planar_step(bone.states[end], bone.states[start]))
+    if not steps:
+        return end - start
+    steps.sort()
+    median = steps[len(steps) // 2]
+    return end - start if seam <= max(median * 1.5, 1e-3) else end - start + 1
+
+
+def model_extent(bones: Sequence[core.Bone], frames: Iterable[int],
+                 exclude: Optional["re.Pattern[str]"] = None) -> Tuple[float, float]:
+    """The rectangle the model actually draws in, in source pixels, over the given frames.
+
+    Computed with the same transformations the runtime uses - each part is a quad centred on
+    its bone's origin, rotated by the source's own shear - because the number this feeds is
+    read back as the entity's visual size, and it has to describe the sprite as drawn. The
+    reanim bounding box it used to be derived from is a union of *rotated corner* positions
+    over every sprite and every frame of the whole file, which is a different (and larger)
+    rectangle: for the coin it was 80x80px where the drawn coin face is 43x40, so a drop's
+    stated size was bigger than the thing on the lawn and every sizing rule inherited it.
+
+    Measured over every frame of the reference clip rather than one pose, so a model whose
+    parts move apart during an idle does not report itself as smaller than it gets.
+    """
+    min_x = min_y = float("inf")
+    max_x = max_y = -float("inf")
+    for bone in bones:
+        if exclude is not None and exclude.search(bone.name):
+            continue
+        half_w = bone.asset.width * 0.5
+        half_h = bone.asset.height * 0.5
+        for frame in frames:
+            if frame >= len(bone.states):
+                continue
+            state = bone.states[frame]
+            if state.f < 0.0 or state.image is None:
+                continue
+            # The four corners of the drawn quad, which is what the sprite actually covers:
+            # the bone matrix is a shear, so the *axes* it produces are not the rectangle -
+            # a coin spinning about its vertical axis has a rotated x-axis pointing straight
+            # down at the halfway point, and a union of matrices would report the coin as twice
+            # as wide as it is while drawing it as a sliver.
+            for x, y in core.transform_corners(state, bone.asset.width, bone.asset.height):
+                # reanim pixel space -> model space: x right, y up.
+                min_x = min(min_x, x)
+                min_y = min(min_y, -y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, -y)
+    if not all(math.isfinite(value) for value in (min_x, min_y, max_x, max_y)):
+        return 0.0, 0.0
+    return max_x - min_x, max_y - min_y
 
 
 def build_controller_json(
@@ -1401,6 +1748,7 @@ def build_controller_json(
     fps: float,
     bbox: core.BBox,
     scale: float,
+    drawn: Tuple[float, float],
     attached_bones: Optional[set] = None,
 ) -> Dict[str, object]:
     model_bones: List[Dict[str, object]] = [
@@ -1410,25 +1758,27 @@ def build_controller_json(
             "pivot": [0.0, 0.0],
         }
     ]
+    additive = additive_regex(config)
     for index, bone in enumerate(bones):
+        part: Dict[str, object] = {
+            "texture": (f"{DEFAULT_NAMESPACE}:textures/entities/"
+                        f"{config.group}/{config.output}/{bone.name}"),
+            "uv": [0, 0, bone.asset.width, bone.asset.height],
+            "size": [
+                core.round_float(bone.asset.width * scale),
+                core.round_float(bone.asset.height * scale),
+            ],
+            "offset": [0.0, 0.0],
+            "z": index,
+        }
+        if additive is not None and additive.search(bone.asset.ref):
+            part["blend"] = "add"
         model_bones.append(
             {
                 "name": bone.name,
                 "parent": "root",
                 "pivot": [0.0, 0.0],
-                "parts": [
-                    {
-                        "texture": (f"{DEFAULT_NAMESPACE}:textures/entities/"
-                                    f"{config.group}/{config.output}/{bone.name}"),
-                        "uv": [0, 0, bone.asset.width, bone.asset.height],
-                        "size": [
-                            core.round_float(bone.asset.width * scale),
-                            core.round_float(bone.asset.height * scale),
-                        ],
-                        "offset": [0.0, 0.0],
-                        "z": index,
-                    }
-                ],
+                "parts": [part],
             }
         )
 
@@ -1441,8 +1791,8 @@ def build_controller_json(
         "type": "controller",
         "model": {
             "size": [
-                core.round_float(bbox.width * scale),
-                core.round_float(bbox.height * scale),
+                core.round_float(drawn[0] * scale),
+                core.round_float(drawn[1] * scale),
             ],
             "bones": model_bones,
         },
@@ -1474,10 +1824,12 @@ def process_entity(
         raise SystemExit(f"{config.output}: no renderable tracks survived filtering")
     bones = pieces_to_bones(pieces, input_path)
 
-    # The bounding box is the main reanim's, deliberately: the extras are authored in
-    # that same space, so measuring them too would scale the host sprite down to fit a
-    # flag that is supposed to stick out of it.
-    bbox = compute_bbox(measure_bones(bones, config), [reference_range(config, tracks)])
+    # The host's own art, kept before the extras are appended. The bounding box is the main
+    # reanim's and so is the extent below, deliberately: the extras are authored in that same
+    # space, so measuring them too would scale the host sprite down to fit a flag that is
+    # supposed to stick out of it. The extras are then drawn at the host's factor.
+    host_measure = measure_bones(bones, config)
+    bbox = compute_bbox(host_measure, [reference_range(config, tracks)])
     attached_bones: set = set()
 
     for extra_name in config.extra_reanims:
@@ -1494,22 +1846,43 @@ def process_entity(
         # frame_count is the main reanim's: core.build_render_pieces pads a shorter
         # track by repeating its last frame, which is how a 13-frame flag sway lives
         # inside a 504-frame zombie animation.
-        extra_pieces = core.build_render_pieces(extra_tracks, extra_assets, extra_path, frame_count)
+        # wrap_source: an extra reanim is its own short loop (the flagpole is 13 frames
+        # inside a 504-frame zombie), so it has to cycle through the host's length rather
+        # than stop at its own end.
+        extra_pieces = core.build_render_pieces(extra_tracks, extra_assets, extra_path, frame_count,
+                                                wrap_source=True)
         extra_bones = pieces_to_bones(extra_pieces, extra_path)
         attached_bones.update(bone.name for bone in extra_bones)
         bones.extend(extra_bones)
     # After the extras, so a damage state of an attached bone (the flag) is welded like
     # its host; before the scale, because the extras are invisible and must not move it.
     apply_damage_states(config, bones, attached_bones, input_dir)
+    # What the model *draws*, in source pixels, measured with the same affine the runtime uses
+    # (see model_extent). The fit works off this rather than the reanim bounding box because
+    # the number written into `model.size` - which the runtime reads back as the entity's
+    # visual size and which a drop's whole size story is built on - is this rectangle, and a
+    # fit that targets a different rectangle than the one it publishes lands the art at a size
+    # nobody asked for (fitted on width, the coins came out 0.339 wide instead of 0.34, because
+    # the bounding box the fit divided by was the larger one).
+    # Every frame the model can be posed in, so the published size is the room it needs rather
+    # than the room it happens to occupy at one instant of one clip.
+    size_start, size_end = reference_range(config, tracks)
+    # Same exclusions the model is measured by, for the same reason: a hat must not decide how
+    # tall the body is. Applying them to only one of the two rectangles is what made every
+    # armoured zombie 15% smaller than a plain one - the fit divided by the body's height while
+    # the published size was the hat's, so the fraction that came out was the hat's too.
+    measure_exclude = (re.compile(config.measure_exclude_regex, re.IGNORECASE)
+                       if config.measure_exclude_regex else None)
+    drawn = model_extent(host_measure, range(size_start, size_end + 1), measure_exclude)
     if config.fit_height_only:
-        scale = config.target_box[1] / max(1.0, bbox.height)
+        scale = config.target_box[1] / max(1.0, drawn[1])
     else:
         scale = min(
-            config.target_box[0] / max(1.0, bbox.width),
-            config.target_box[1] / max(1.0, bbox.height),
+            config.target_box[0] / max(1.0, drawn[0]),
+            config.target_box[1] / max(1.0, drawn[1]),
         )
 
-    controller = build_controller_json(config, bones, tracks, fps, bbox, scale, attached_bones)
+    controller = build_controller_json(config, bones, tracks, fps, bbox, scale, drawn, attached_bones)
 
     json_path = (resources_dir / "assets" / DEFAULT_NAMESPACE / "animations"
                  / config.group / f"{config.output}.json")

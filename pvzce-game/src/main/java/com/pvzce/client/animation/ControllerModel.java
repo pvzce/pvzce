@@ -96,7 +96,17 @@ public final class ControllerModel {
             float sizeY,
             float offsetX,
             float offsetY,
-            float z
+            float z,
+            BlendMode blend
     ) {
+        public Part {
+            blend = blend == null ? BlendMode.NORMAL : blend;
+        }
+
+        /** A part composited source-over, which is every part that declares no blend. */
+        public Part(Identifier texture, float u0, float v0, float u1, float v1,
+                    float sizeX, float sizeY, float offsetX, float offsetY, float z) {
+            this(texture, u0, v0, u1, v1, sizeX, sizeY, offsetX, offsetY, z, BlendMode.NORMAL);
+        }
     }
 }

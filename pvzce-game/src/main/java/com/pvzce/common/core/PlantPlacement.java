@@ -189,6 +189,12 @@ public final class PlantPlacement {
         if (is(def, PvzceTags.WATER_PLANT)) {
             return terrainTagged(terrain, PvzceTags.SCENE_WATER);
         }
+        if (is(def, PvzceTags.GRAVE_ONLY)) {
+            // Grave buster: the gravestone itself, and nowhere else. Checked before
+            // `#c:requires_ground` because a grave is also unplantable, so the general rules
+            // would refuse the one plant whose whole job is to stand on it.
+            return terrainTagged(terrain, PvzceTags.SCENE_GRAVE);
+        }
         if (is(def, PvzceTags.REQUIRES_GROUND)) {
             // Flower pot, potato mine: pushed into the ground itself. Never water,
             // never a plant, never a carrier - a mine belongs in the dirt.

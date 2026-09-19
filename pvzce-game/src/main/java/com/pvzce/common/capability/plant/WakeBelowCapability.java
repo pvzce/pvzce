@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.plant;
 
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.capability.PlantCapability;
@@ -27,19 +28,44 @@ import java.util.Optional;
  * <p>Stacking is the placement rule ({@code #c:plant_only}), not a check here.
  */
 public final class WakeBelowCapability implements PlantCapability {
+    /**
+     * How long the bean stays on the board being drawn while it crumbles, in ticks.
+     *
+     * <p>Matches {@code vanish} in its model ({@code coffee_bean.json},
+     * {@code animation_length} 1.25s at 60 tps). Written out rather than read from the file for
+     * the reason {@link PlantCapability.VanishAnimation} gives: the simulation does not read
+     * animation resources.
+     */
+    public static final int CRUMBLE_TICKS = 75;
+
     private final Optional<Identifier> sound;
     /** Played instead of {@code sound} when the plant below was really asleep and woke up. */
     private final Optional<Identifier> wakeSound;
+    /** The clip the bean plays as it is spent; empty = it simply disappears. */
+    private final Optional<String> vanishClip;
 
-    public WakeBelowCapability(Optional<Identifier> sound, Optional<Identifier> wakeSound) {
+    public WakeBelowCapability(Optional<Identifier> sound, Optional<Identifier> wakeSound,
+                               Optional<String> vanishClip) {
         this.sound = sound;
         this.wakeSound = wakeSound;
+        this.vanishClip = vanishClip == null ? Optional.empty() : vanishClip;
+    }
+
+    /** The common case: the bean's own {@code vanish} clip, as its model ships it. */
+    public WakeBelowCapability(Optional<Identifier> sound, Optional<Identifier> wakeSound) {
+        this(sound, wakeSound, Optional.of("vanish"));
     }
 
     public static final MapCodec<WakeBelowCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Identifier.CODEC.optionalFieldOf("sound").forGetter(WakeBelowCapability::sound),
-            Identifier.CODEC.optionalFieldOf("wake_sound").forGetter(WakeBelowCapability::wakeSound)
-    ).apply(i, WakeBelowCapability::new));
+            Identifier.CODEC.optionalFieldOf("wake_sound").forGetter(WakeBelowCapability::wakeSound),
+            // Empty string = "it just disappears", which is what a mod's own instant plant
+            // wants; an absent field keeps the built-in clip.
+            Codec.STRING.optionalFieldOf("vanish_clip", "vanish")
+                    .forGetter(capability -> capability.vanishClip.orElse(""))
+    ).apply(i, (sound, wakeSound, clip) ->
+            new WakeBelowCapability(sound, wakeSound,
+                    clip == null || clip.isBlank() ? Optional.empty() : Optional.of(clip))));
 
     public Optional<Identifier> sound() {
         return sound;
@@ -47,6 +73,11 @@ public final class WakeBelowCapability implements PlantCapability {
 
     public Optional<Identifier> wakeSound() {
         return wakeSound;
+    }
+
+    /** The clip the bean plays while it is spent; empty means it disappears outright. */
+    public Optional<String> vanishClip() {
+        return vanishClip;
     }
 
     @Override
@@ -57,6 +88,11 @@ public final class WakeBelowCapability implements PlantCapability {
     @Override
     public boolean consumesOnPlace() {
         return true;
+    }
+
+    @Override
+    public java.util.Optional<VanishAnimation> vanishAnimation() {
+        return vanishClip.map(clip -> new VanishAnimation(clip, CRUMBLE_TICKS));
     }
 
     @Override

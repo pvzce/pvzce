@@ -24,6 +24,13 @@ public abstract class Entity {
     protected float height;
     protected int health;
     protected String animation = EntityAnimations.IDLE;
+    /**
+     * Set when {@link #setAnimation} is given a new state; cleared by the sync publisher.
+     *
+     * <p>See {@link #setAnimation} for why a state change cannot wait for the next scheduled
+     * entity sync.
+     */
+    protected boolean animationDirty;
 
     /**
      * Cell bounds used by {@link #gridX()}/{@link #gridY()}. Defaults to the
@@ -102,8 +109,40 @@ public abstract class Entity {
         return animation;
     }
 
+    /**
+     * Sets the animation state, and remembers that the client has not heard about it yet.
+     *
+     * <p>The dirty flag is what keeps a state that lasts a single tick from being missed.
+     * Entity state is published every third tick - 20 times a second against a 60 Hz
+     * simulation - so a state set and cleared inside one tick has a one-in-three chance of
+     * landing on a sync tick, and two times out of three the client never learns the entity
+     * changed. That is exactly what happened to a shooter's shot: the plant idles for one
+     * tick between shots so a one-shot clip may restart, and the client usually never saw it,
+     * so the plant fired its pea with no animation at all. The level's sync pass now drains
+     * this flag and publishes at once instead of waiting for the third tick.
+     */
     public void setAnimation(String animation) {
-        this.animation = animation == null ? EntityAnimations.IDLE : animation;
+        String next = animation == null ? EntityAnimations.IDLE : animation;
+        if (!next.equals(this.animation)) {
+            this.animationDirty = true;
+        }
+        this.animation = next;
+    }
+
+    /**
+     * Whether {@link #setAnimation} has been given a new value since the last publish.
+     *
+     * <p>Cleared by the publisher rather than by {@link #setAnimation} itself: the entity does
+     * not know whether the packet made it out, and a state set twice in one tick still only
+     * needs one publish.
+     */
+    public boolean animationDirty() {
+        return animationDirty;
+    }
+
+    /** Clears {@link #animationDirty()} after a publish; see that method for the contract. */
+    public void clearAnimationDirty() {
+        this.animationDirty = false;
     }
 
     /** Adopts the owning level's size so grid derivation stays inside the board. */

@@ -8,7 +8,20 @@ import com.pvzce.client.gui.layout.GuiLayout;
 import com.pvzce.client.gui.mods.ModsScreen;
 import net.fabricmc.loader.api.FabricLoader;
 
-/** Main menu: start, mods, settings, quit. */
+/**
+ * Main menu: who is playing, and the four things the player can do from here.
+ *
+ * <p>Who is playing <em>is</em> the world list. A world directory is a player's save
+ * ({@code saves/<name>/}), so the original's "who are you?" screen and this project's world
+ * picker were always the same question asked in two places - which is why the answer used to
+ * take two screens to give: 开始游戏 opened a world list, and the world list opened the levels.
+ * The list lives on the title screen now, under its own prompt, and a click on a name is the
+ * whole selection: that player's levels open directly.
+ *
+ * <p>The name is both the save directory and what dialogue calls the player
+ * ({@code ${user_name}}), so it is worth showing after it has been picked - the header says who
+ * the game currently thinks is playing.
+ */
 public final class TitleScreen extends Screen {
     /** Place your image here: assets/pvzce/textures/gui/screen/title/title_logo.png */
     private static final Identifier TITLE_LOGO =
@@ -23,6 +36,11 @@ public final class TitleScreen extends Screen {
     private float titleScale;
     private float subtitleScale;
     private int buttonTop;
+    /** Where the player name is drawn; also the click target that opens the picker. */
+    private int nameX;
+    private int nameY;
+    private int nameWidth;
+    private int nameHeight;
 
     public TitleScreen(PvzceClient client) {
         super(client);
@@ -35,7 +53,12 @@ public final class TitleScreen extends Screen {
 
     @Override
     protected void init() {
-        client.music().ensureMenu("pvzce:music/crazy_dave");
+        if (client.music() != null) {
+            // Null in a headless test client, which has no audio device to open. The same guard
+            // the in-game screens carry, for the same reason: a menu that cannot play music is
+            // still a menu.
+            client.music().ensureMenu("pvzce:music/crazy_dave");
+        }
         int guiW = client.guiWidth();
         int guiH = client.guiHeight();
         int buttonWidth = Math.min(280, guiW - 24);
@@ -51,7 +74,7 @@ public final class TitleScreen extends Screen {
         buttonTop = blockTop;
         String[] labels = {"开始游戏", "模组列表", "设置", "退出"};
         Runnable[] actions = {
-                () -> client.openScreen(new WorldSelectScreen(client)),
+                this::enterCurrentPlayer,
                 () -> client.openScreen(new ModsScreen(client)),
                 () -> client.openScreen(new SettingsScreen(client)),
                 () -> client.window().requestClose()
@@ -69,6 +92,67 @@ public final class TitleScreen extends Screen {
         titleY = subtitleY + client.font().lineHeight(subtitleScale) + gap;
         float availableAbove = Math.max(20F, guiH - titleY - 4F);
         titleScale = Math.min(4.2F, Math.max(0.9F, availableAbove / 30F));
+
+        // Who is playing: a prompt with the name under it, in the top-left corner, and the whole
+        // board is the button that opens the picker. One widget rather than two - the label is
+        // text drawn by render(), because a button's label cannot wrap - so the click target is
+        // the box both lines sit in.
+        nameWidth = Math.min(220, Math.max(120, guiW / 3));
+        // Two lines and a little air, so the text block is centred in the box the button draws.
+        nameHeight = (int) client.font().lineHeight(PROMPT_SCALE)
+                + (int) client.font().lineHeight(NAME_SCALE) + 16;
+        nameX = 8;
+        nameY = Math.max(8, guiH - 8 - nameHeight);
+    }
+
+    /**
+     * The player board is clicked by the screen, not by a widget.
+     *
+     * <p>It is one button-shaped box with two lines of text on it, and both have to sit inside
+     * the box: a {@code Button} draws exactly one label, centred, and two labels drawn around it
+     * by hand end up outside it. So the sprite and the two lines are drawn here and the screen
+     * takes the click - {@code Screen.onMouseClicked} is the documented place for a screen's own
+     * click regions.
+     */
+    private boolean overPlayerBoard(double guiX, double guiY) {
+        return guiX >= nameX && guiX < nameX + nameWidth
+                && guiY >= nameY && guiY < nameY + nameHeight;
+    }
+
+    @Override
+    protected void onMouseClicked(double guiX, double guiY, int button) {
+        if (button == 0 && overPlayerBoard(guiX, guiY)) {
+            openPlayerPicker();
+        }
+    }
+
+    /**
+     * Opens the picker over the menu.
+     *
+     * <p>The dialog only switches who is playing; the board behind it redraws on the next frame,
+     * which is the feedback that the click did something. It deliberately does not open the level
+     * list - that is the 开始游戏 button's job, and two gestures that both navigate from here
+     * would make "change player" and "start playing" the same click.
+     */
+    private void openPlayerPicker() {
+        showDialog(PlayerPickerDialog.create(client, world -> client.setCurrentWorld(world)));
+    }
+
+    /**
+     * The 开始游戏 button: the player already chosen, or the picker if there is none.
+     *
+     * <p>Not "open the picker every time": the name is on screen, and asking again after every
+     * level would be asking a question the player has already answered. The name stays one click
+     * away on the player board when they do want to change it.
+     */
+    private void enterCurrentPlayer() {
+        String current = client.currentWorld();
+        if (current == null || current.isBlank()
+                || !client.gameDir().resolve("saves").resolve(current).toFile().isDirectory()) {
+            openPlayerPicker();
+            return;
+        }
+        client.openScreen(new LevelSelectScreen(client));
     }
 
     @Override
@@ -96,14 +180,55 @@ public final class TitleScreen extends Screen {
                     subtitleY, subtitleScale, 0.85F, 0.95F, 0.85F, 1F);
         }
 
+        renderPlayerBoard();
+
         String loaderVersion = FabricLoader.getInstance().getModContainer("fabricloader")
                 .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("?");
         String versionType = System.getProperty("pvzce.versionType", "release");
         String info = "PVZCE 1.0.0 · fabricloader " + loaderVersion + " · "
                 + FabricLoader.getInstance().getAllMods().size() + " mods · " + versionType;
-        client.font().draw(info, 8, 8, 0.7F, 0.7F, 0.75F, 0.7F, 1F);
+        client.font().draw(info, nameX + nameWidth + 8, 8, 0.7F, 0.7F, 0.75F, 0.7F, 1F);
         for (var widget : widgets) {
             widget.render(client);
         }
+    }
+
+    /** The wooden plate the player board is drawn on; the same one the menu buttons use. */
+    private static final Identifier PLAYER_BOARD =
+            Identifier.withDefaultNamespace("textures/gui/screen/seeds/seed_chooser_button");
+
+    /** The two lines' sizes, and the one place the block's height is derived from. */
+    private static final float PROMPT_SCALE = 1.15F;
+    private static final float NAME_SCALE = 0.95F;
+
+    /**
+     * The player board: a wooden plate with the question and the current name on it.
+     *
+     * <p>Not a widget. A {@link Button} draws exactly one label, centred, and this is two lines
+     * of different sizes that both have to sit inside the plate - so the plate is drawn here, the
+     * two lines are centred on it as a pair, and the screen takes the click
+     * ({@link #onMouseClicked}, the documented place for a screen's own click regions). The box
+     * is sized from the same two line heights, so the words cannot drift out of it.
+     */
+    private void renderPlayerBoard() {
+        client.drawTexture(PLAYER_BOARD, nameX, nameY, nameWidth, nameHeight, 0.05F, 1F, 1F, 1F, 1F);
+        if (overPlayerBoard(client.guiMouseX(client.window().cursorX()),
+                client.guiMouseY(client.window().cursorY()))) {
+            client.drawSolid(nameX, nameY, nameWidth, nameHeight, 0.06F, 1F, 1F, 1F, 0.14F);
+        }
+        float nameLine = client.font().lineHeight(NAME_SCALE);
+        float promptLine = client.font().lineHeight(PROMPT_SCALE);
+        float top = nameY + (nameHeight - nameLine - promptLine) / 2F;
+        // The name over the question: the question is the plate's caption, and the name is the
+        // answer the player is looking for.
+        client.font().draw(playerName(), nameX + 8, top, NAME_SCALE, 1F, 1F, 1F, 1F);
+        client.font().draw("谁要玩游戏？", nameX + 8, top + nameLine, PROMPT_SCALE,
+                1F, 0.95F, 0.6F, 1F);
+    }
+
+    /** The player this session would play as, as the board shows it. */
+    private String playerName() {
+        String current = client.currentWorld();
+        return current == null || current.isBlank() ? "（未选择）" : current;
     }
 }

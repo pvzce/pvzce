@@ -10,6 +10,7 @@ import com.pvzce.api.content.ResourceDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.SlotDef;
 import com.pvzce.api.content.TeamDef;
+import com.pvzce.api.content.ToolData;
 import com.pvzce.api.content.ToolDef;
 import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.ZombieDef;
@@ -29,6 +30,7 @@ import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.CardCooldown;
 import com.pvzce.common.level.DayNightCycle;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
@@ -232,7 +234,6 @@ public final class LevelServer implements LevelAccess {
      * The amount is more than any zombie has, so the value is documentation rather than a
      * number anyone should tune.
      */
-    private static final int HAMMER_TOOL_DAMAGE = 100_000;
 
     public LevelServer(LevelDef def) {
         this(def, def.slots());
@@ -618,12 +619,59 @@ public final class LevelServer implements LevelAccess {
                 .toList();
     }
 
+    @Override
+    public List<ZombieEntity> enemiesInRow(int row, Team team) {
+        return entities.stream()
+                .filter(e -> e instanceof ZombieEntity z && z.isAlive() && z.gridY() == row
+                        && isEnemyOf(z.team(), team))
+                .map(e -> (ZombieEntity) e)
+                .toList();
+    }
+
+    /**
+     * Whether one side may be hit by another.
+     *
+     * <p>"A different team", which is what makes a charmed zombie work without any code about
+     * charming: it moved to the plants' team, so every existing targeting rule - the shooters'
+     * row scan, a projectile's hit test, the area damage of a blast, the mallet - already treats
+     * the zombies beside it as its enemies and the plants as its friends. The alternative, a
+     * per-entity "hostile to" flag, would have had to be consulted at every one of those places.
+     *
+     * <p><strong>An unknown side filters nothing.</strong> A missing team on either end means
+     * "this hit is not a side-versus-side action" - a blast with no source, an entity spawned
+     * outside a level's team table - and it lands on whatever it covers, which is what every
+     * such call meant before this rule existed. Reading an absent side as "nobody's enemy" would
+     * instead make those hits silently stop working.
+     */
+    public static boolean isEnemyOf(Team other, Team self) {
+        if (other == null || self == null) {
+            return true;
+        }
+        return !other.id().equals(self.id());
+    }
+
     public int plantCount() {
         return (int) entities.stream().filter(e -> e instanceof PlantEntity p && !p.isRemoved()).count();
     }
 
     public long aliveZombieCount() {
         return entities.stream().filter(e -> e instanceof ZombieEntity z && z.isAlive()).count();
+    }
+
+    /**
+     * How many zombies are still on the other side.
+     *
+     * <p>What the win check asks, and the difference from {@link #aliveZombieCount} is the
+     * whole point: a charmed zombie walks toward the house on the plants' side, so a level
+     * whose last hostile zombie has died is won even while one of its own is still crossing
+     * the lawn. Counting them together would leave that level unwinnable until the charmed one
+     * happened to leave the board.
+     */
+    public long hostileZombieCount() {
+        Team plants = teams.get(PvzceIds.PLANT_TEAM);
+        return entities.stream()
+                .filter(e -> e instanceof ZombieEntity z && z.isAlive() && isEnemyOf(z.team(), plants))
+                .count();
     }
 
     public boolean inBounds(int x, int y) {
@@ -791,15 +839,44 @@ public final class LevelServer implements LevelAccess {
 
     @Override
     public void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius, int damage,
-                           Team sourceTeam) {
+                           Team sourceTeam, boolean square) {
         // No multiplier here: ZombieEntity.damage applies it once, at the one entry
         // point every hit goes through. A second copy made a rule that already means
         // "how hard plants hit" depend on which damage path happened to run.
+        //
+        // A square footprint measured in cells says "this many cells to either side", and a
+        // cell is one wide either way from wherever the blast was centred: the plant stands
+        // at the centre of its own cell, so its own cell spans 0.5 in every direction and
+        // the next one another 1.0. The half-cell term is what makes a radius of 1 reach the
+        // neighbouring cell's far edge (and stop there) instead of stopping half a cell
+        // short of the zombie standing in it.
+        float limit = square ? radius + 0.5F : radius;
         for (PvzceEntity entity : new ArrayList<>(entities)) {
             if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                 continue;
             }
-            if (Math.abs(zombie.cellX() - centerX) <= radius && Math.abs(zombie.cellY() - centerY) <= radius) {
+            // The source's enemies only. A blast is not a friendly-fire event: a charmed zombie
+            // standing next to the cherry bomb that went off under it is on the plants' side,
+            // and a melon landing on its own lane must not kill it.
+            if (!isEnemyOf(zombie.team(), sourceTeam)) {
+                continue;
+            }
+            if (Math.abs(zombie.cellX() - centerX) <= limit && Math.abs(zombie.cellY() - centerY) <= limit) {
+                zombie.damage(damage, type, this);
+            }
+        }
+    }
+
+    @Override
+    public void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam) {
+        for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
+                continue;
+            }
+            // The zombie's own row, not its position: a zombie straddling a row boundary is
+            // in one row or the other and the row it reports is the one it walks in. And the
+            // source's enemies only, for the same reason the area blast asks.
+            if (zombie.gridY() == row && isEnemyOf(zombie.team(), sourceTeam)) {
                 zombie.damage(damage, type, this);
             }
         }
@@ -1070,9 +1147,16 @@ public final class LevelServer implements LevelAccess {
             tickEntities(ResourceDropEntity.class, bridge);
 
             for (PvzceEntity entity : new ArrayList<>(entities)) {
-                if (entity.isRemoved()) {
-                    pendingRemove.add(entity);
+                if (!entity.isRemoved()) {
+                    continue;
                 }
+                // A plant being consumed stays until its clip is over: `isRemoved()` is what
+                // "out of the game" means everywhere else, and the drawing has one half-second
+                // to catch up with it (see PlantEntity.vanishing).
+                if (entity instanceof PlantEntity plant && plant.vanishing()) {
+                    continue;
+                }
+                pendingRemove.add(entity);
             }
             flushPending(bridge);
 
@@ -1083,12 +1167,23 @@ public final class LevelServer implements LevelAccess {
         checkEnd(bridge);
     }
 
-    /** Ticks one entity class in a stable order and streams the results. */
+    /**
+     * Ticks one entity class in a stable order and streams the results.
+     *
+     * <p>A removed plant is still ticked when it is playing its vanish clip, which is the one
+     * thing that outlives the removal flag: the flag means "out of the game", the clip means
+     * "and the drawing has not caught up yet", and something has to count the latter down.
+     * Everything else that is removed is skipped, exactly as before.
+     */
     private <T extends PvzceEntity> void tickEntities(Class<T> type, ServerBridge bridge) {
         for (PvzceEntity entity : new ArrayList<>(entities)) {
-            if (type.isInstance(entity)) {
-                type.cast(entity).tick(this);
+            if (!type.isInstance(entity)) {
+                continue;
             }
+            if (entity.isRemoved() && !(entity instanceof PlantEntity plant && plant.vanishing())) {
+                continue;
+            }
+            type.cast(entity).tick(this);
         }
         flushPending(bridge);
     }
@@ -1098,9 +1193,24 @@ public final class LevelServer implements LevelAccess {
             return;
         }
         cardSource.tick(this, bridge, tickCount);
-        if (entitySyncPending || tickCount % 3 == 0) {
+        // The third-tick cadence is a bandwidth budget, not a promise that a state change may
+        // wait: an animation set and cleared inside one tick was published only when the clock
+        // happened to be on a multiple of three. A shot is exactly that - see
+        // Entity#setAnimation - so a board on which anything moved state is published this
+        // tick, and one on which nothing did keeps the slow cadence.
+        boolean stateChanged = false;
+        for (PvzceEntity entity : entities) {
+            if (entity.animationDirty()) {
+                stateChanged = true;
+                break;
+            }
+        }
+        if (entitySyncPending || stateChanged || tickCount % 3 == 0) {
             entitySyncPending = false;
             for (PvzceEntity entity : entities) {
+                // Cleared for every entity, not only the ones that changed: the whole board
+                // just went out in this packet batch, so every pending state has been told.
+                entity.clearAnimationDirty();
                 bridge.send(entity.updatePacket());
             }
         }
@@ -1156,6 +1266,32 @@ public final class LevelServer implements LevelAccess {
         }
         if (--carryTimeoutTicks <= 0 || plantById(carriedPlantId) == null) {
             clearCarry();
+            // The move the glove started never finished, and it is over now: this is where its
+            // recharge belongs (see useToolInternal - a glove that is holding something has not
+            // been charged yet). Without this the card would be free forever after a mis-click.
+            chargeGloveForFinishedMove();
+        }
+    }
+
+    /**
+     * Starts the glove's recharge for a move that ended without a second click.
+     *
+     * <p>The abandoned-carry path is the one place a move can end without the player closing it,
+     * so the charge that was deferred on the lift has to be paid here instead. A no-op when the
+     * bar holds no glove, which is every level that was not given one.
+     */
+    private void chargeGloveForFinishedMove() {
+        if (plantPlayer == null) {
+            return;
+        }
+        for (Slot slot : plantPlayer.slots()) {
+            if (isGlove(slot)) {
+                slot.startCooldown(effectiveCooldownTicks(slot));
+                if (bridge != null) {
+                    bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+                }
+                return;
+            }
         }
     }
 
@@ -1533,27 +1669,93 @@ public final class LevelServer implements LevelAccess {
         if (weakest == null) {
             return;
         }
+        for (SceneGrid.Cell<SceneElementDef> cell : graveCells()) {
+            raiseZombieFromGrave(weakest, cell.x(), cell.y());
+        }
+    }
+
+    /**
+     * Raises one zombie out of the grave in a cell.
+     *
+     * <p>The one implementation of "a gravestone gives up its dead", shared by the last-wave
+     * opening every night level gets and by the {@code grave_spawner} mechanic's steady trickle:
+     * the climb, the arm, the dirt and the forced sync are one thing and must not be written
+     * twice. Returns the zombie, or {@code null} when the id names nothing registered.
+     */
+    public ZombieEntity raiseZombieFromGrave(Identifier zombieId, int x, int y) {
+        if (zombieId == null) {
+            return null;
+        }
+        float cellX = x + 0.5F;
+        // The zombie exists from this tick and climbs for a second: it is a state on
+        // the zombie rather than a delayed spawn, so the client can draw it *under*
+        // the lawn and raise it (and a save taken mid-climb resumes mid-climb).
+        ZombieEntity riser = spawnZombie(zombieId, zombieTeam(), cellX, y);
+        if (riser == null) {
+            return null;
+        }
+        riser.beginRise();
+        requestEntitySync();
+        // An arm out of the dirt, and the dirt itself, for the whole climb.
+        emitEffect(PvzceParticles.ZOMBIE_RISE.toString(), cellX, y + 0.5F, null);
+        emitEffect(PvzceParticles.DIRT_BIG.toString(), cellX, y + 0.5F, PvzceSounds.EFFECT_DIRT_RISE);
+        return riser;
+    }
+
+    /** Every cell on the board holding a gravestone, in x-then-y order. */
+    public List<SceneGrid.Cell<SceneElementDef>> graveCells() {
+        List<SceneGrid.Cell<SceneElementDef>> graves = new ArrayList<>();
         for (int x = 0; x < width(); x++) {
             for (int y = 0; y < height(); y++) {
                 SceneElementDef element = scene.get(x, y);
-                if (element == null || !PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) {
-                    continue;
+                if (element != null && PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) {
+                    graves.add(new SceneGrid.Cell<>(x, y, element));
                 }
-                float cellX = x + 0.5F;
-                // The zombie exists from this tick and climbs for a second: it is a state on
-                // the zombie rather than a delayed spawn, so the client can draw it *under*
-                // the lawn and raise it (and a save taken mid-climb resumes mid-climb).
-                ZombieEntity riser = spawnZombie(weakest, zombieTeam(), cellX, y);
-                if (riser != null) {
-                    riser.beginRise();
-                    requestEntitySync();
-                }
-                // An arm out of the dirt, and the dirt itself, for the whole climb.
-                emitEffect(PvzceParticles.ZOMBIE_RISE.toString(), cellX, y + 0.5F, null);
-                emitEffect(PvzceParticles.DIRT_BIG.toString(), cellX, y + 0.5F,
-                        PvzceSounds.EFFECT_DIRT_RISE);
             }
         }
+        return graves;
+    }
+
+    /** True when this cell holds a gravestone. */
+    public boolean isGrave(int x, int y) {
+        SceneElementDef element = sceneAt(x, y);
+        return element != null && PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass());
+    }
+
+    /**
+     * Replaces a gravestone with the grass it was standing on, and tells the client.
+     *
+     * <p>The grave buster's whole effect. Uniform grass rather than "the element that was
+     * underneath": the scene grid has no such memory, and every level that ships graves puts
+     * them on grass.
+     */
+    public boolean clearGrave(int x, int y) {
+        if (!isGrave(x, y)) {
+            return false;
+        }
+        setScene(x, y, PvzceIds.GRASS);
+        sendSceneCell(x, y);
+        return true;
+    }
+
+    /**
+     * Raises a gravestone in a cell, if the cell is free ground.
+     *
+     * <p>Used by the {@code grave_spawner} mechanic. Refused on a cell that already has a
+     * gravestone (nothing to do) or a plant (a tombstone may not be dropped on the player's
+     * lawn mid-level) - the caller picks another cell rather than this one being replaced.
+     */
+    public boolean placeGrave(Identifier graveElement, int x, int y) {
+        if (!inBounds(x, y) || sceneAt(x, y) == null || plantAt(x, y) != null) {
+            return false;
+        }
+        SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(graveElement);
+        if (element == null || !PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) {
+            return false;
+        }
+        scene.set(x, y, element);
+        sendSceneCell(x, y);
+        return true;
     }
 
     /**
@@ -1598,7 +1800,7 @@ public final class LevelServer implements LevelAccess {
                 && !waves.isEmpty()
                 && nextWaveIndex >= waves.size()
                 && pendingWaveSpawns.isEmpty()
-                && aliveZombieCount() == 0) {
+                && hostileZombieCount() == 0) {
             markEnd(teams.get(PvzceIds.PLANT_TEAM));
         }
 
@@ -1639,6 +1841,10 @@ public final class LevelServer implements LevelAccess {
         // this is where the level's reward will land.
         lastKillX = zombie.cellX();
         lastKillY = zombie.cellY();
+        // Sun first, and independently of the coin roll: a level that pays sun for kills wants
+        // it whether or not it also pays coins, and a `return` on the coin roll below would
+        // otherwise swallow every sun a level with no coin drops was owed.
+        dropZombieSun(zombie);
         LevelRewards rewards = def.rewards();
         if (!rewards.hasCoinDrops() || random.nextFloat() >= rewards.coinDropChance()) {
             return;
@@ -1654,6 +1860,27 @@ public final class LevelServer implements LevelAccess {
                 ? rewards.coinDropAmount()
                 : drop.defaultValue() * rewards.coinDropAmount();
         spawnResource(drop == null ? rewards.coinDrop() : drop.id(), worth,
+                zombie.cellX(), zombie.cellY(), plantTeam);
+    }
+
+    /**
+     * Rolls the level's "a dying zombie leaves a sun" chance and drops one where it fell.
+     *
+     * <p>The heal for a level with no sun economy of its own: 2-5's graves and its mallet mean
+     * the player never plants a producer, and without this the only sun in the level is the 50
+     * it starts with. The amount is {@code sun_value}, the same number the sky and a sunflower
+     * pay, so a dropped sun is worth what every other sun is worth.
+     */
+    private void dropZombieSun(ZombieEntity zombie) {
+        float chance = rules.getFloat(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE);
+        if (chance <= 0F || random.nextFloat() >= chance) {
+            return;
+        }
+        Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
+        if (plantTeam == null || BuiltInRegistries.RESOURCES.get(PvzceIds.SUN) == null) {
+            return;
+        }
+        spawnResource(PvzceIds.SUN, rules.getInt(PvzceIds.RULE_SUN_VALUE),
                 zombie.cellX(), zombie.cellY(), plantTeam);
     }
 
@@ -1802,6 +2029,52 @@ public final class LevelServer implements LevelAccess {
         return withBridge(bridge, () -> useToolInternal(bridge, slotIndex, x, y));
     }
 
+    /**
+     * Uses a tool the level grants rather than one the player holds, as its own action.
+     *
+     * <p>The {@code pvzce:tool} mechanic's default tool: Whack-a-Zombie's mallet, which is not a
+     * card - it takes no slot, prints no price and has no recharge bar, so there is nothing on
+     * the bar to charge and nothing to sync. What it shares with the card path is the part that
+     * matters: the same {@link #applyToolEffect}, so a hammer is a hammer whichever way it was
+     * picked up.
+     *
+     * <p>The price is the level's own number ({@link ToolMechanic#sunCost}) and is charged here,
+     * because a default tool has no card whose price the ordinary path would have collected.
+     */
+    public boolean useGrantedTool(ServerBridge bridge, ToolData granted, int x, int y) {
+        return withBridge(bridge, () -> useGrantedToolInternal(bridge, granted, x, y));
+    }
+
+    private boolean useGrantedToolInternal(ServerBridge bridge, ToolData granted, int x, int y) {
+        if (!gameState.equals(GameStateS2C.RUNNING) || !humanTeamId.equals(PvzceIds.PLANT_TEAM)
+                || plantPlayer == null || granted == null) {
+            return false;
+        }
+        ToolDef tool = ToolMechanic.defOf(granted);
+        if (tool == null) {
+            return false;
+        }
+        if (!inBounds(x, y)) {
+            return false;
+        }
+        int cost = ToolMechanic.sunCost(granted);
+        // The refusal comes before the effect, so a use the player cannot afford does not
+        // happen and then get taken back.
+        if (cost > 0 && plantPlayer.team().resourcesOf(PvzceIds.SUN) < cost) {
+            bridge.send(new ServerMessageS2C("阳光不足！"));
+            return false;
+        }
+        if (!applyToolEffect(tool, x, y)) {
+            return false;
+        }
+        if (cost > 0) {
+            plantPlayer.team().consume(PvzceIds.SUN, cost);
+            bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(), PvzceIds.SUN.toString(),
+                    plantPlayer.team().resourcesOf(PvzceIds.SUN)));
+        }
+        return true;
+    }
+
     private boolean useToolInternal(ServerBridge bridge, int slotIndex, int x, int y) {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return false;
@@ -1835,6 +2108,17 @@ public final class LevelServer implements LevelAccess {
         if (!inBounds(x, y)) {
             return false;
         }
+        // A tool whose definition prices a use (the hammer's 50 sun) charges it here, from the
+        // same definition the card bar prints its price from - so the number on the card and the
+        // number the server takes cannot drift. A refused effect still costs nothing, in either
+        // resource.
+        int cost = tool.useCost().amountOf(PvzceIds.SUN);
+        boolean payForUse = !finishingMove && cost > 0;
+        if (payForUse && plantPlayer.team().resourcesOf(PvzceIds.SUN) < cost) {
+            bridge.send(new ServerMessageS2C("阳光不足！"));
+            bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+            return false;
+        }
         if (!applyToolEffect(tool, x, y)) {
             // The click was understood and refused (an empty cell, a plant in the way).
             // Spending a use on it would cost the player a charge for nothing, and would
@@ -1842,12 +2126,31 @@ public final class LevelServer implements LevelAccess {
             bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
             return false;
         }
+        if (payForUse) {
+            plantPlayer.team().consume(PvzceIds.SUN, cost);
+            bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(), PvzceIds.SUN.toString(),
+                    plantPlayer.team().resourcesOf(PvzceIds.SUN)));
+        }
         if (!finishingMove) {
-            slot.startCooldown(effectiveCooldownTicks(slot));
             slot.consumeUse();
+            // A glove that is now holding a plant starts its recharge when the plant is put
+            // down, not when it is picked up. The move is not finished until then, and a card
+            // that recharges while its own second click is still owed is a card the player
+            // cannot tell the state of: the bar greys it out mid-move.
+            if (!awaitingDrop(slot)) {
+                slot.startCooldown(effectiveCooldownTicks(slot));
+            }
+        } else if (carriedPlantId < 0) {
+            // That was the drop: the move is over, so this is where its recharge belongs.
+            slot.startCooldown(effectiveCooldownTicks(slot));
         }
         bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
         return true;
+    }
+
+    /** True when this card has just started a move and is still holding the plant. */
+    private boolean awaitingDrop(Slot slot) {
+        return carriedPlantId >= 0 && isGlove(slot);
     }
 
     /**
@@ -1871,13 +2174,45 @@ public final class LevelServer implements LevelAccess {
             }
             case "pvzce:glove" -> movePlant(x, y);
             case "pvzce:hammer" -> {
-                for (ZombieEntity zombie : zombiesInRow(y)) {
-                    if (zombie.isAlive() && Math.abs(zombie.cellX() - (x + 0.5F)) < 0.8F) {
-                        zombie.damage(HAMMER_TOOL_DAMAGE, ZombieEntity.damageType(PvzceIds.DAMAGE_MOWER), this);
-                        emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
+                // What one swing is worth, and whether armour absorbs it, are the tool's own
+                // numbers (see ToolDef.damage / damage_type) - not this method's. They used to
+                // live here as a 100000-point `pvzce:mower` blow, which made the mallet a lawn
+                // mower: everything on the lawn died in one hit, and a Buckethead was worth no
+                // more than a bare zombie. The default is one normal zombie's health, and the
+                // shipped hammer declares `pvzce:impact` so a cone or a bucket still costs a
+                // swing of its own - which is what the original's two- and three-hit mallet
+                // means in a build where one blow lands on one layer.
+                //
+                // `false` when nothing was under it, so a swing at empty grass follows the same
+                // rule every other refused click does: no sun, no cooldown, no bang.
+                // Around the point that was clicked, in world cells - not "the zombies in the
+                // clicked cell". The player aims at a zombie; making them also land inside its
+                // cell is a second target they cannot see, and with 2-5's speed multiplier the
+                // one they aimed at has usually stepped out of it. `tool.range` is the reach.
+                float hitX = x + 0.5F;
+                float hitY = y + 0.5F;
+                float reach = tool.range();
+                boolean hitSomething = false;
+                for (PvzceEntity entity : new ArrayList<>(entities)) {
+                    if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
+                        continue;
                     }
+                    if (!isEnemyOf(zombie.team(), plantPlayer.team())) {
+                        continue;
+                    }
+                    // Measured in world cells on both axes, so a click between two rows reaches
+                    // whichever zombie is actually under the cursor.
+                    float dx = zombie.cellX() - hitX;
+                    float dy = zombie.cellY() - hitY;
+                    if (Math.abs(dy) > reach || Math.abs(dx) > reach * ZOMBIE_HALF_WIDTH_FACTOR) {
+                        continue;
+                    }
+                    zombie.damage(tool.damage(), toolTypeFor(tool), this);
+                    emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(),
+                            PvzceSounds.EFFECT_BONK);
+                    hitSomething = true;
                 }
-                yield true;
+                yield hitSomething;
             }
             // An effect this build does not implement: refused, so no use is spent.
             default -> false;
@@ -1984,6 +2319,28 @@ public final class LevelServer implements LevelAccess {
      * changes the cooldowns of the cards already in the player's hand, and the card bar's
      * recharge is drawn against the same number the charge used.
      */
+    /**
+     * How wide a zombie counts as, as a fraction of the swing's reach, on the x axis.
+     *
+     * <p>A zombie is drawn taller than it is wide - the art is a standing figure - so a circular
+     * reach around the cursor hits things above and below the aim that the player was not
+     * pointing at. Narrowing x keeps the hit box about as wide as a zombie looks.
+     */
+    private static final float ZOMBIE_HALF_WIDTH_FACTOR = 1.15F;
+
+    /**
+     * The damage type one swing of a tool lands as.
+     *
+     * <p>Resolved on this side because the answer is a registry lookup through
+     * {@link ZombieEntity#damageType}, which lives in the server layer; {@code ToolDef} stays a
+     * plain data record in {@code api} and only carries the id. An unregistered id falls back
+     * to {@code pvzce:projectile} for the same reason a projectile's does: a typo must not
+     * become a hit that ignores armour.
+     */
+    public com.pvzce.api.content.DamageTypeDef toolTypeFor(ToolDef tool) {
+        return ZombieEntity.damageType(tool.damageType());
+    }
+
     public int effectiveCooldownTicks(Slot slot) {
         if (slot == null) {
             return 0;

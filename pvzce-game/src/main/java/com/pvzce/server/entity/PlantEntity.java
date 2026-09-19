@@ -28,6 +28,18 @@ public class PlantEntity extends PvzceEntity {
     private final List<Instance> capabilities = new ArrayList<>();
     private int age;
 
+    /**
+     * Ticks left of the clip this plant plays while it is being consumed; zero when it is not.
+     *
+     * <p>A consumed plant is already out of the game ({@link #isRemoved()} is true and
+     * {@link #occupiesCell(PlantCapability)} answers false); this is the drawing catching up.
+     * It is a server counter rather than "let the client finish the clip", for the same reason
+     * every other timed state is: the server does not know how long a clip is and must not
+     * pretend to.
+     */
+    private int vanishTicks;
+
+
     public PlantEntity(PlantDef def, Team team, int gridX, int gridY) {
         super(def.id(), team, gridX + 0.5F, gridY + 0.5F, def.health());
         this.def = def;
@@ -44,6 +56,70 @@ public class PlantEntity extends PvzceEntity {
         return age;
     }
 
+    /**
+     * Consumes the plant, or starts its vanish clip.
+     *
+     * <p>The one door every "this plant is spent" path goes through (a placement that consumes
+     * it, a shovel, a zombie eating it to zero health), so a content author declares the clip
+     * once on a capability and every way of losing the plant shows it. A plant with no clip
+     * keeps the instant removal it has always had.
+     */
+    @Override
+    public void remove() {
+        if (removed) {
+            return;
+        }
+        removed = true;
+        java.util.Optional<PlantCapability.VanishAnimation> vanish = vanishAnimation();
+        if (vanish.isPresent()) {
+            // Out of the game already (`removed`), still on the board for the length of its
+            // clip. See `vanishing()` for the one question the two states differ on.
+            vanishTicks = vanish.get().ticks();
+            setAnimation(vanish.get().clip());
+        }
+    }
+
+    /** The vanish animation this plant's capabilities ask for, if any. */
+    private java.util.Optional<PlantCapability.VanishAnimation> vanishAnimation() {
+        for (Instance instance : capabilities) {
+            java.util.Optional<PlantCapability.VanishAnimation> vanish = instance.capability.vanishAnimation();
+            if (vanish.isPresent()) {
+                return vanish;
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * Advances a vanish clip, and reports that it is over.
+     *
+     * <p>Runs while the plant is {@code removed}: the removal flag is what "out of the game"
+     * means everywhere else, and this counter is the drawing catching up with it.
+     *
+     * @return true when the clip has finished and the plant may leave the entity list
+     */
+    private boolean tickVanish() {
+        if (vanishTicks <= 0) {
+            return true;
+        }
+        if (--vanishTicks > 0) {
+            return false;
+        }
+        vanishTicks = 0;
+        return true;
+    }
+
+    /**
+     * True while this plant is out of the game but still being drawn.
+     *
+     * <p>{@link #isRemoved()} is already true by then; this is the narrower question the
+     * level's removal pass and the entity sync ask, because a vanishing plant still has to
+     * reach the client and still has to be taken off the board once its clip ends.
+     */
+    public boolean vanishing() {
+        return removed && vanishTicks > 0;
+    }
+
     @Override
     public String entityKind() {
         return EntityKind.PLANT;
@@ -57,6 +133,7 @@ public class PlantEntity extends PvzceEntity {
     @Override
     public void tick(LevelServer level) {
         if (removed) {
+            tickVanish();
             return;
         }
         age++;
@@ -108,6 +185,28 @@ public class PlantEntity extends PvzceEntity {
         }
         damage(amount);
         return true;
+    }
+
+    /**
+     * Runs this plant's capabilities for one zombie bite, before any damage lands.
+     *
+     * <p>Asked in declaration order and stopped at the first {@code true}: a plant that reacts
+     * to being bitten has taken the bite, and two capabilities disagreeing about what a bite
+     * means is not a case worth inventing rules for. The zombie is passed in because the hook's
+     * whole point is <em>who</em> bit it.
+     *
+     * @return true when the bite was consumed (the biter was charmed) rather than being damage
+     */
+    public boolean onBittenBy(ZombieEntity zombie, LevelServer level) {
+        if (isRemoved()) {
+            return false;
+        }
+        for (Instance instance : capabilities) {
+            if (instance.capability.onBittenBy(this, zombie, level)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** True while a capability says nothing may hurt this plant (an armed bomb). */
@@ -167,6 +266,12 @@ public class PlantEntity extends PvzceEntity {
      * with a moving one cannot silently produce a plant that is half on the board.
      */
     public boolean occupiesCell() {
+        if (vanishing()) {
+            // A plant that has been consumed is not in its cell any more, whatever its
+            // capabilities would say: the clip is the drawing, not a second life. This is the
+            // same door the rolling bowling Wall-nut and a detonated bomb use.
+            return false;
+        }
         for (Instance instance : capabilities) {
             if (!instance.capability.occupiesCell(this)) {
                 return false;

@@ -122,7 +122,7 @@ public final class ShooterCapability implements PlantCapability {
                 if (row < 0 || row >= level.height()) {
                     continue;
                 }
-                boolean found = level.zombiesInRow(row).stream()
+                boolean found = level.enemiesInRow(row, plant.team()).stream()
                         .filter(z -> !z.isRemoved() && z.canBeHitByGround())
                         .anyMatch(z -> shot.covers(muzzleX, z.cellX()));
                 if (found) {

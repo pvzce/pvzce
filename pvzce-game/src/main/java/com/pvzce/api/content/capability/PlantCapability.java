@@ -92,9 +92,49 @@ public interface PlantCapability {
     /**
      * Whether placement of this plant is immediately consumed (coffee bean).
      * Such plants are removed right after {@link #onPlaced}.
+     *
+     * <p>Removed, but not necessarily at once: a consumed plant that declares a
+     * {@link #vanishAnimation} stays on the field for it first, which is how the coffee bean
+     * gets to crumble instead of blinking out of existence on the tick it was planted.
      */
     default boolean consumesOnPlace() {
         return false;
+    }
+
+    /**
+     * The animation this plant plays while it is being consumed, or empty for "no animation, it
+     * is simply gone".
+     *
+     * <p>The coffee bean's {@code crumble}: a plant that a placement spends has one moment to
+     * say what happened, and the original drew it as the bean shaking itself apart. A plant
+     * that leaves no art behind - a mushroom a zombie finished eating, anything the shovel
+     * takes - declares nothing and keeps the instant removal it always had.
+     *
+     * <p>While the clip plays the plant is <em>no longer in its cell</em>: {@code occupiesCell}
+     * answers false, so nothing waits for the drawing. Another plant may be placed on the same
+     * cell, a zombie walks over it, and the shovel cannot reach it. Gameplay is over the moment
+     * the plant is consumed; this is the animation catching up with it.
+     */
+    default java.util.Optional<VanishAnimation> vanishAnimation() {
+        return java.util.Optional.empty();
+    }
+
+    /**
+     * What a consumed plant plays, and for how long it stays on the board.
+     *
+     * @param clip  the animation clip to play; a name the plant's own art has to define
+     * @param ticks how long the plant stays before it is taken off the field.
+     *              <strong>Ticks, authored, not derived from the clip:</strong> the server does
+     *              not read animation files - that is the client's layer, and not depending on
+     *              it is what keeps a level simulable without a renderer. An author who wants
+     *              the whole clip reads its {@code animation_length} out of the model they just
+     *              wrote. If the two ever disagree the simulation is right and the art is cut
+     *              short, which is the safe direction to be wrong in.
+     */
+    record VanishAnimation(String clip, int ticks) {
+        public VanishAnimation {
+            ticks = Math.max(1, ticks);
+        }
     }
 
     /**
@@ -125,6 +165,24 @@ public interface PlantCapability {
      * fuse runs out and an ordinary plant is never immune at all.
      */
     default boolean invulnerable(PlantEntity plant) {
+        return false;
+    }
+
+    /**
+     * Called when a zombie bites this plant, before the damage lands.
+     *
+     * <p>The hypno-shroom's whole trigger. It is a hook rather than a scan of the lane because
+     * the original's rule is "the zombie that <em>eats</em> it", and that is a fact only the
+     * bite knows: which zombie, on which tick, and whether the plant is still there to be eaten.
+     *
+     * <p>Returning {@code false} means "nothing happened", and a plant whose capability says so
+     * is not consumed by the bite - a resting mushroom is still a mushroom the zombie has to
+     * chew through.
+     *
+     * @return true when the bite did something other than damage (it charmed the biter)
+     */
+    default boolean onBittenBy(PlantEntity plant, com.pvzce.server.entity.ZombieEntity zombie,
+                              LevelAccess level) {
         return false;
     }
 

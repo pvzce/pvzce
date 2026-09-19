@@ -85,6 +85,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "melon_pult": "plant/attacker",
     "winter_melon": "plant/attacker",
     "puff_shroom": "plant/attacker",
+    "fume_shroom": "plant/attacker",
     "sunflower": "plant/producer",
     "sun_shroom": "plant/producer",
     "marigold": "plant/producer",
@@ -97,6 +98,8 @@ ANIMATION_DIRS: Dict[str, str] = {
     "jalapeno": "plant/special",
     "doom_shroom": "plant/special",
     "squash": "plant/special",
+    "grave_buster": "plant/special",
+    "hypno_shroom": "plant/special",
     "hammer": "tool",
     "basic_zombie": "zombie/basic",
     "flag_zombie": "zombie/basic",
@@ -119,6 +122,8 @@ PLANT_ENTITIES = [
     "snow_pea", "repeater", "gatling_pea", "threepeater", "split_pea", "cactus",
     "cabbage_pult", "melon_pult", "winter_melon", "jalapeno", "doom_shroom", "squash",
     "puff_shroom", "sun_shroom",
+    # 2-2 and 2-3's unlocks, converted from the original's own reanims like the rest.
+    "fume_shroom", "grave_buster", "hypno_shroom",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

@@ -255,7 +255,33 @@ public abstract class Screen {
      * test that wants to prove a dialog receives a click should not have to create a GL
      * context to do it.
      */
+    /**
+     * This screen's widgets, in dispatch order.
+     *
+     * <p>Read-only and public for tests, which have to reach a control that has no accessor of
+     * its own (the player list on the title screen) to drive a real click through
+     * {@link #dispatchMouseClicked} rather than calling the screen's action directly.
+     */
+    public java.util.List<AbstractWidget> widgets() {
+        return java.util.List.copyOf(widgets);
+    }
+
     public void dispatchMouseClicked(double guiX, double guiY, int button) {
+        // Development diagnostic (`-Dpvzce.traceInput=true`): which widget a click landed on.
+        // A synthetic click that misses by one row is otherwise completely silent - the screen
+        // simply does nothing - and this is the only place that knows the geometry it was
+        // aimed at. See the smoke guide for the other trace switches.
+        if (Boolean.getBoolean("pvzce.traceInput")) {
+            StringBuilder where = new StringBuilder();
+            for (AbstractWidget widget : widgets) {
+                where.append(' ').append(widget.getClass().getSimpleName())
+                        .append('[').append(widget.x()).append(',').append(widget.y())
+                        .append(' ').append(widget.width()).append('x').append(widget.height())
+                        .append(widget.isMouseOver(guiX, guiY) ? " HIT" : "").append(']');
+            }
+            System.out.println("[INPUT] click " + guiX + "," + guiY + " on "
+                    + getClass().getSimpleName() + ":" + where);
+        }
         Dialog modal = modalDialog();
         if (modal != null) {
             if (!modal.mouseClicked(guiX, guiY, button)) {

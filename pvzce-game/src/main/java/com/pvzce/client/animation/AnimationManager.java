@@ -66,13 +66,25 @@ public final class AnimationManager {
         return level == null ? 0D : level.gameSeconds();
     }
 
-    /** Anchor for world entities; UI targets can override later. */
+    /**
+     * Anchor for world entities; UI targets can override later.
+     *
+     * <p>Reads the <em>drawn</em> position, not the server's. The mirror only publishes an
+     * entity every third tick (20 Hz) while the client draws 60 to 260 frames, so anchoring
+     * a skeleton to {@code cellX()} put the whole animated body on a 20 Hz staircase while
+     * its own shadow - which uses the interpolated position - slid smoothly underneath it.
+     * A walking zombie's feet visibly left its shadow twenty times a second, and a falling
+     * drop stepped down the screen in five-frame jumps. {@code cellX()} and {@code height()}
+     * remain the authoritative numbers everywhere else; this is a render position and only
+     * a render position, exactly like the sprite fallback and the shadow.
+     */
     public float[] anchor(Animatable target) {
         if (!(target instanceof ClientEntity entity)) {
             return new float[]{0F, 0F};
         }
         float lift = com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
-        return new float[]{entity.cellX(), entity.cellY() + entity.height() - lift};
+        return new float[]{entity.visualCellX(),
+                entity.visualCellY() + entity.visualHeight() - lift};
     }
 
     public float baseZ(Animatable target) {
@@ -210,6 +222,7 @@ public final class AnimationManager {
             if (playbacks.get(target) != playback) {
                 continue;
             }
+            playback.measureLocomotion(now);
             playback.update(now);
             if (playback.isStopped() && playbacks.get(target) == playback) {
                 playbacks.remove(target);
@@ -224,7 +237,7 @@ public final class AnimationManager {
             return false;
         }
         float[] anchor = anchor(entity);
-        float vs = visualScale(entity);
+        float[] scales = scalesFor(entity);
         // How this entity is lit: a drop is dimmed so its glow layers do not clip to white,
         // everything else wears the night lift and, if it is a slowed zombie, the frozen
         // tint. One push, one pop, both paths below.
@@ -237,7 +250,7 @@ public final class AnimationManager {
                 ? com.pvzce.client.renderer.EquipmentArt.forEntity(entity, controller.model())
                 : null;
         try {
-            playback.render(client, anchor[0], anchor[1], baseZ(entity), xScaleFor(entity, vs));
+            playback.render(client, anchor[0], anchor[1], baseZ(entity), scales[0], scales[1]);
         } finally {
             activeBoneArt = null;
             client.popEntityTint();
@@ -251,76 +264,42 @@ public final class AnimationManager {
     }
 
     /**
-     * The horizontal scale this entity's animation part geometry is drawn with.
+     * The two factors this entity's animation geometry is drawn with.
      *
-     * <p>Two factors, and only two:
+     * <p>{@code [0]} is horizontal and {@code [1]} is vertical, and they differ only by the
+     * board's own aspect correction: the projection maps a world cell to
+     * {@code unitY / unitX} screen pixels (1.25, the original's 80x100 cell), and plant,
+     * zombie and tool art is authored to be widened by it. So a sprite keeps its shape, and
+     * content size is one number applied to both axes - {@link EntityArt#renderScale} times
+     * the entity's own per-drop multiplier.
      *
-     * <ol>
-     *   <li>the board's own aspect correction - everything but a drop is drawn with it,
-     *       because the projection maps a world cell to {@code unitY / unitX} (1.25, the
-     *       original's 80x100 cell) and plant, zombie and tool art is authored to be
-     *       widened by that same factor. A drop is drawn <em>without</em> it because its
-     *       geometry already carries it: {@link #visualScale} fits a drop to one target
-     *       size in both axes, so applying the board factor on top stretched the sun and
-     *       the coins sideways - a circle authored in the art arrived as an ellipse 1.7x
-     *       wider than it was tall;</li>
-     *   <li>{@code render_scale} from the entity's own definition
-     *       ({@link EntityArt#renderScale}), which is the per-content size knob and is
-     *       applied to both axes so the shape is never changed by it.</li>
-     * </ol>
+     * <p>A drop used to be drawn without the board factor <em>and</em> with its art
+     * auto-fitted to {@code 0.8} cells on the width alone. That pair of exceptions is where
+     * every drop-sizing bug came from: the fit read the model's largest dimension, so a glow
+     * authored wider than the sprite it belongs to decided how big the sprite was - the coin's
+     * face ended up drawn at 54% of its own art - and the width-only application squashed
+     * whatever it produced. A drop is now sized exactly like everything else: what the art
+     * says, times {@code render_scale}.
      */
-    private float xScaleFor(ClientEntity entity, float visualScale) {
-        float board = EntityKind.RESOURCE.equals(entity.kind())
-                ? 1F
-                : client.spriteXScale();
-        return board * visualScale * renderScale(entity);
+    private float[] scalesFor(ClientEntity entity) {
+        boolean drop = EntityKind.RESOURCE.equals(entity.kind());
+        float board = drop ? 1F : client.spriteXScale();
+        float size = renderScale(entity);
+        // Two factors, and each belongs to exactly one axis:
+        //
+        //   * `size` is the content's own size and goes on *both*, or the shape changes with it
+        //     - which is how a sun with `render_scale: 2.2` arrived 2.2 times wider than it was
+        //     tall, a flat disc. This is the whole contract of render_scale: two axes, one
+        //     number, shape preserved;
+        //   * `board` (the 80x100 cell correction) goes on the horizontal axis alone, because
+        //     that is what it corrects. A drop skips it: its art is authored in cells and the
+        //     renderer draws cells.
+        return new float[]{board * size, size};
     }
 
     /** The definition's {@code render_scale}, or 1 for anything that declares none. */
     float renderScale(ClientEntity entity) {
         return EntityArt.renderScale(entity.defId()) * entity.renderScale();
-    }
-
-    /**
-     * How much bigger this entity should be drawn than its animation file says.
-     *
-     * <p>Without this, resizing a drop by editing {@link EntityVisuals} does nothing:
-     * anything with an animation is drawn from the sizes baked into that file, and
-     * {@code EntityVisuals} only applies to the sprite fallback. The sun's animation is
-     * 0.56 cells wide, which is what made it look like a speck no matter what the visual
-     * table said.
-     *
-     * <p>One factor, taken from the art's <em>larger</em> dimension, so the shape the art
-     * drew is the shape the lawn shows.
-     *
-     * <p><strong>It is applied to the horizontal axis only</strong> (see
-     * {@link #xScaleFor}), and an animated drop takes its <em>height</em> from the art as
-     * authored. That makes the contract for drop art: <em>a drop is drawn
-     * {@code 0.8 * render_scale} cells wide and as many cells tall as its model says</em>,
-     * so a drop that should be round has to be authored square at exactly that width. The
-     * coins are (see {@code animations/resource/coin_*.json}); before they were, setting
-     * {@code render_scale} made them narrower without making them smaller, and the height
-     * the player judged the size by never moved at all.
-     *
-     * <p>Capped at 3x so a badly scaled animation file cannot fill the lawn by accident.
-     */
-    private float visualScale(ClientEntity entity) {
-        // Drops only. A plant's or a zombie's animation is already authored at the size the
-        // creature is meant to be, and their entries in the visual table are about shadows
-        // and sort order; scaling them by the same rule made every zombie 12% bigger.
-        if (!EntityKind.RESOURCE.equals(entity.kind())) {
-            return 1F;
-        }
-        float[] size = visualSize(entity);
-        if (size == null) {
-            return 1F;
-        }
-        float largest = Math.max(size[0], size[1]);
-        if (largest <= 0.0001F) {
-            return 1F;
-        }
-        float target = EntityVisuals.of(entity.kind()).spriteWidth();
-        return Math.max(0.05F, Math.min(3F, target / largest));
     }
 
     void onPlaybackStopped(AnimationPlayback playback) {

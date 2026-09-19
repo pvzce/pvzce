@@ -40,6 +40,7 @@ import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.ReleaseMowerC2S;
+import com.pvzce.common.network.packet.UseGrantedToolC2S;
 import com.pvzce.common.network.packet.UseToolC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
 
@@ -81,7 +82,7 @@ public final class PvzcePackets {
     // carries whether a level was ever beaten (LevelInfo.cleared, which is what the row's
     // trophy reads), and the reward carries the resource a level handed over when it pays in
     // objects rather than in cards (LevelRewardS2C.rewardItem).
-    public static final int PROTOCOL_VERSION = 17;
+    public static final int PROTOCOL_VERSION = 18;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -104,6 +105,7 @@ public final class PvzcePackets {
     public static final int C2S_UNLOCK_LEVEL = 15;
     public static final int C2S_MOVE_PLANT = 16;
     public static final int C2S_RELEASE_MOWER = 17;
+    public static final int C2S_USE_GRANTED_TOOL = 18;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -162,6 +164,8 @@ public final class PvzcePackets {
                     MovePlantC2S::decode),
             def(C2S_RELEASE_MOWER, ConnectionDirection.SERVERBOUND, ReleaseMowerC2S.class,
                     ReleaseMowerC2S::decode),
+            def(C2S_USE_GRANTED_TOOL, ConnectionDirection.SERVERBOUND, UseGrantedToolC2S.class,
+                    UseGrantedToolC2S::decode),
 
             def(S2C_LEVEL_INIT, ConnectionDirection.CLIENTBOUND, LevelInitS2C.class, LevelInitS2C::decode),
             def(S2C_LEVEL_LIST, ConnectionDirection.CLIENTBOUND, LevelListS2C.class, LevelListS2C::decode),

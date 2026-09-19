@@ -17,5 +17,8 @@
     "death": "pvzce:sfx/zombie/limbs_pop"
   },
   "animation_dir": "zombie/underground",
-  "texture": "pvzce:textures/entities/zombie/underground/miner_zombie"
+  "texture": "pvzce:textures/entities/zombie/underground/miner_zombie",
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
 }

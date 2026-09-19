@@ -206,8 +206,9 @@ class DayAreaLevelsTest {
         assertEquals(List.of("yard/adventure/1_1", "yard/adventure/1_2", "yard/adventure/1_3",
                         "yard/adventure/1_4", "yard/adventure/1_5", "yard/adventure/1_6",
                         "yard/adventure/1_7", "yard/adventure/1_8", "yard/adventure/1_9",
-                        "yard/adventure/1_10", "yard/adventure/2_1"),
-                adventure, "the list reads as a numbered list: 1-10 before 2-1");
+                        "yard/adventure/1_10", "yard/adventure/2_1", "yard/adventure/2_2",
+                        "yard/adventure/2_3", "yard/adventure/2_4", "yard/adventure/2_5"),
+                adventure, "the list reads as a numbered list: 1-10 before 2-1, then 2-2 onwards");
     }
 
     /** The mushroom itself: free, short-ranged, and nocturnal. */

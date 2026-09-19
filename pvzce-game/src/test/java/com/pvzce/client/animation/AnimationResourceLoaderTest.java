@@ -121,7 +121,11 @@ class AnimationResourceLoaderTest {
         assertInstanceOf(ControllerFile.class, file);
         ControllerFile controller = (ControllerFile) file;
         assertEquals(16, controller.model().bones().size());
-        assertEquals(2.083333F, controller.clip("idle").orElseThrow().duration(), 0.001F);
+        // The idle loop is 24 frames of travel, not 25: its last frame is the frame *before*
+        // the jump back to the first, so counting the whole 25 made every loop hold its final
+        // pose for an extra frame (see the converter's duration_frames).
+        assertEquals(2.0F, controller.clip("idle").orElseThrow().duration(), 0.001F);
+        // A one-shot keeps its full count, because its last frame is meant to be seen.
         assertEquals(2.083333F, controller.clip("shoot").orElseThrow().duration(), 0.001F);
         assertEquals(AnimationClip.OnEnd.IDLE, controller.clip("shoot").orElseThrow().onEnd());
 
@@ -129,6 +133,97 @@ class AnimationResourceLoaderTest {
         assertTrue(shoot.samplePose(controller.model(), 0D).get("peashooter_stalk_bottom").visible());
         assertTrue(shoot.samplePose(controller.model(), 0D).get("peashooter_backleaf").visible());
         assertFalse(shoot.samplePose(controller.model(), 0D).get("peashooter_blink_1").visible());
+    }
+
+    /**
+     * Every generated loop is still moving when it ends.
+     *
+     * <p>That is the invariant a loop has to satisfy and the one that is invisible in the
+     * authored data: a clip whose duration overshoots its last key frame holds that pose before
+     * wrapping, so a walk stalls on the spot once per cycle and a death lies frozen for a
+     * quarter of a second. The frame values are right either way - only the length is wrong -
+     * so this samples the last slice of the clip and requires that it moved, and that the move
+     * is comparable to the clip's own typical slice rather than a jump.
+     */
+    @Test
+    void everyGeneratedLoopIsStillMovingAtItsEnd() throws Exception {
+        String[] entities = {
+                "pea_shooter", "sunflower", "wall_nut", "potato_mine", "chomper",
+                "basic_zombie", "conehead_zombie", "flag_zombie", "balloon_zombie",
+                "newspaper_zombie", "sun", "marigold"
+        };
+        int checked = 0;
+        for (String entity : entities) {
+            ControllerFile controller = (ControllerFile) parseClasspath(entity);
+            for (var entry : controller.clips().entrySet()) {
+                ControllerClip clip = entry.getValue();
+                if (!clip.loop() || clip.duration() <= 0.05F) {
+                    continue;
+                }
+                // Sampled around the middle of the clip's last frame. Measured at the very end
+                // of the clip the value is always the last key's - that is what interpolating a
+                // discrete authored frame means - so the question "did the length swallow a
+                // frame" is asked where that frame's own travel is visible.
+                float frame = clip.duration() / 10F;
+                var before = clip.samplePose(controller.model(), clip.duration() - frame);
+                var after = clip.samplePose(controller.model(), clip.duration() - frame * 0.5F);
+                float moved = 0F;
+                for (String bone : before.keySet()) {
+                    float[] a = before.get(bone).translation();
+                    float[] b = after.get(bone).translation();
+                    moved = Math.max(moved, (float) Math.hypot(b[0] - a[0], b[1] - a[1]));
+                }
+                assertTrue(moved > 1.0E-4F, entity + "/" + entry.getKey()
+                        + " is frozen over the back half of its last frame: its duration runs "
+                        + "past its last key frame");
+                assertTrue(moved < 0.25F, entity + "/" + entry.getKey()
+                        + " moves " + moved + " cells in half of its last frame, which is a "
+                        + "jump rather than a step");
+                checked++;
+            }
+        }
+        assertTrue(checked > 8, "the sample should cover several clips, was " + checked);
+    }
+
+    /**
+     * Every zombie that wears the same body is drawn at the same size.
+     *
+     * <p>This is not a trivial claim, and it is not a claim about the art: the armoured and
+     * flag zombies *are* the plain one plus a hat or a pole, so their bodies have to measure
+     * identically or a lane of mixed zombies is a row of visibly different creatures. It broke
+     * exactly that way - twice, for two different reasons - and both times the cause was a
+     * measurement that saw more than the body: first a hat deciding how tall the body was
+     * (the shared model was measured with the hat excluded while the fit used a rectangle that
+     * included it, so every armoured zombie came out 15% smaller), then a flagpole doing the
+     * same to the flag zombie (its body landed at 65%).
+     *
+     * <p>Asserted on a body part's size rather than on `model.size`, because `model.size` is
+     * legitimately bigger for a zombie holding something: the pole sticks out of the box on
+     * purpose. What must not move is the body.
+     */
+    @Test
+    void everyZombieWearingTheSameBodyIsDrawnAtTheSameSize() throws Exception {
+        float[] plain = bodyPartSize((ControllerFile) parseClasspath("basic_zombie"));
+        assertTrue(plain[0] > 0F && plain[1] > 0F, "the plain zombie needs a measurable body");
+        for (String zombie : new String[]{"conehead_zombie", "buckethead_zombie", "door_zombie",
+                "flag_zombie"}) {
+            float[] body = bodyPartSize((ControllerFile) parseClasspath(zombie));
+            assertEquals(plain[0], body[0], 0.001F, zombie + " body width");
+            assertEquals(plain[1], body[1], 0.001F,
+                    zombie + " body height: it wears the plain zombie's body, so it has to be"
+                            + " drawn at the plain zombie's size");
+        }
+    }
+
+    /** The size of the model's `body` part, which every shared-body zombie has. */
+    private static float[] bodyPartSize(ControllerFile file) {
+        for (ControllerModel.Bone bone : file.model().bones().values()) {
+            if (bone.name().equals("body") && !bone.parts().isEmpty()) {
+                ControllerModel.Part part = bone.parts().get(0);
+                return new float[]{part.sizeX(), part.sizeY()};
+            }
+        }
+        throw new AssertionError("this zombie has no `body` bone to measure");
     }
 
     @Test

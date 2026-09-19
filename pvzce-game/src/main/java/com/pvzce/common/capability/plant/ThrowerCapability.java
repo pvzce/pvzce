@@ -91,7 +91,7 @@ public final class ThrowerCapability implements PlantCapability {
             }
             return;
         }
-        ZombieEntity target = level.zombiesInRow(plant.gridY()).stream()
+        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team()).stream()
                 .filter(z -> !z.isRemoved() && z.cellX() > plant.cellX())
                 .sorted((a, b) -> Float.compare(a.cellX(), b.cellX()))
                 .findFirst()

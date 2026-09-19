@@ -231,9 +231,12 @@ final class MowerClientMechanic implements ClientMechanic {
                 }
                 // Anchored where a plant in this row stands: the converted art has the ground
                 // line at y=0, so the row's feet offset is the same one plants and zombies use.
+                // One size factor on both axes: the mower is not a drop, so the width also
+                // wears the board's aspect correction and the height does not.
                 playback.render(client, placement.x(),
                         row + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
-                        EntityVisuals.baseZ(EntityKind.PLANT), client.spriteXScale());
+                        EntityVisuals.baseZ(EntityKind.PLANT),
+                        client.spriteXScale(), 1F);
             }
         }
     }

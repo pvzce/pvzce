@@ -1,4 +1,5 @@
 {
   "id": "pvzce:ash",
-  "ignores_armor": true
+  "ignores_armor": true,
+  "burns": true
 }

@@ -69,6 +69,14 @@ public final class PvzceIds {
     public static final Identifier RULE_NIGHT_LENGTH = id("night_length");
     public static final Identifier RULE_SUN_SPAWN_CHANCE = id("sun_spawn_chance");
     public static final Identifier RULE_SUN_VALUE = id("sun_value");
+    /**
+     * How often a dying zombie leaves a sun behind, 0..1.
+     *
+     * <p>Separate from {@code sun_spawn_chance}, which is the sky: a level can have no sun fall
+     * from above and still pay for kills, which is exactly what a level with no sun producers
+     * and no sky needs. The original's Whack-a-Zombie is the case it exists for.
+     */
+    public static final Identifier RULE_ZOMBIE_SUN_DROP_CHANCE = id("zombie_sun_drop_chance");
     public static final Identifier RULE_CRATER_RECOVERY = id("crater_recovery");
     public static final Identifier RULE_ZOMBIE_DAMAGE_MULTIPLIER = id("zombie_damage_multiplier");
     public static final Identifier RULE_ZOMBIE_SPEED_MULTIPLIER = id("zombie_speed_multiplier");
@@ -140,6 +148,24 @@ public final class PvzceIds {
      * to change them (Wall-nut Bowling has none) declares the mechanic and lists its rows.
      */
     public static final Identifier MECHANIC_MOWER = id("mower");
+    /**
+     * A tool the level hands the player on its own terms.
+     *
+     * <p>Not a tool <em>card</em>: the block can reprice or re-time a tool, and it can make one
+     * the level's plain click ({@code "default": true}) - the original's mallet in
+     * Whack-a-Zombie, which is the cursor rather than a seed packet. It is not a card source, so
+     * a level declares it beside its deck.
+     */
+    public static final Identifier MECHANIC_TOOL = id("tool");
+    /**
+     * Graves that keep giving up their dead while the level runs.
+     *
+     * <p>Whack-a-Zombie's shape: the level's zombies come out of the gravestones, not off the
+     * road, and the graves a player smashes come back. Distinct from the
+     * {@code graves_spawn_night} rule, which is the other thing graves do - open once, at the
+     * last wave - and which every night level gets by default.
+     */
+    public static final Identifier MECHANIC_GRAVE_SPAWNER = id("grave_spawner");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

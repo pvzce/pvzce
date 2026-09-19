@@ -18,5 +18,8 @@
   "animation_dir": "zombie/special",
   "texture": "pvzce:textures/entities/zombie/special/balloon_zombie",
   "drops_arm": false,
-  "drops_head": false
+  "drops_head": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
 }

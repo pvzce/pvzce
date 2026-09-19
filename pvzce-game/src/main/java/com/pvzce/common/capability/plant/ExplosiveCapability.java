@@ -52,7 +52,16 @@ import java.util.Optional;
 public final class ExplosiveCapability implements PlantCapability {
     public enum Trigger {
         TIMED,
-        PROXIMITY
+        PROXIMITY,
+        /**
+         * Armed for the fuse, then takes its whole row.
+         *
+         * <p>The jalapeno. A row is not a radius: a square wide enough to reach the far end of
+         * a lawn also reaches the rows beside it, so the shape has to be stated as a row
+         * rather than approximated with a number - and a number that happens to fit a 9-wide
+         * board stops short of a 12-wide one.
+         */
+        ROW
     }
 
     public static final int DEFAULT_FUSE = 60;
@@ -84,6 +93,7 @@ public final class ExplosiveCapability implements PlantCapability {
     private final float radius;
     private final int damage;
     private final float triggerRange;
+    private final boolean square;
     private final Optional<Identifier> sound;
     private final Identifier damageType;
 
@@ -95,12 +105,13 @@ public final class ExplosiveCapability implements PlantCapability {
     private static final int LINGER_NONE = -1;
 
     public ExplosiveCapability(Trigger trigger, int fuseTicks, float radius, int damage, float triggerRange,
-                               Optional<Identifier> sound, Identifier damageType) {
+                               boolean square, Optional<Identifier> sound, Identifier damageType) {
         this.trigger = trigger;
         this.fuseTicks = Math.max(0, fuseTicks);
         this.radius = Math.max(0F, radius);
         this.damage = Math.max(0, damage);
         this.triggerRange = Math.max(0F, triggerRange);
+        this.square = square;
         this.sound = sound;
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         this.fuse = this.fuseTicks;
@@ -114,13 +125,26 @@ public final class ExplosiveCapability implements PlantCapability {
             Codec.FLOAT.optionalFieldOf("radius", 1F).forGetter(ExplosiveCapability::radius),
             Codec.INT.optionalFieldOf("damage", 1800).forGetter(ExplosiveCapability::damage),
             Codec.FLOAT.optionalFieldOf("trigger_range", 0.6F).forGetter(ExplosiveCapability::triggerRange),
+            // The original's ash line is authored in *cells*: a cherry bomb covers the nine
+            // around it, a potato mine only the one it is standing in. A square footprint is
+            // that statement; the radial alternative is for the hits that are really a
+            // distance and is what this capability did before the flag existed, so the
+            // default stays radial for any content that does not say.
+            Codec.BOOL.optionalFieldOf("square", false).forGetter(ExplosiveCapability::square),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(ExplosiveCapability::sound),
             Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
                     .forGetter(ExplosiveCapability::damageType)
     ).apply(i, ExplosiveCapability::new));
 
     private static Trigger parseTrigger(String name) {
-        return "proximity".equalsIgnoreCase(name) ? Trigger.PROXIMITY : Trigger.TIMED;
+        if (name == null) {
+            return Trigger.TIMED;
+        }
+        return switch (name.toLowerCase(java.util.Locale.ROOT)) {
+            case "proximity" -> Trigger.PROXIMITY;
+            case "row" -> Trigger.ROW;
+            default -> Trigger.TIMED;
+        };
     }
 
     public Trigger trigger() {
@@ -143,6 +167,11 @@ public final class ExplosiveCapability implements PlantCapability {
         return triggerRange;
     }
 
+    /** True when the blast covers a square block of cells rather than a radius. */
+    public boolean square() {
+        return square;
+    }
+
     public Optional<Identifier> sound() {
         return sound;
     }
@@ -159,7 +188,7 @@ public final class ExplosiveCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, sound, damageType);
+        return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, square, sound, damageType);
     }
 
     /**
@@ -211,16 +240,20 @@ public final class ExplosiveCapability implements PlantCapability {
                     // bomb for one made the animation manager fall back to `idle` on every
                     // request for the whole fuse (see AnimationManager.play).
                     : EntityAnimations.IDLE);
-            if (trigger == Trigger.TIMED && fuse == 0) {
+            if (trigger != Trigger.PROXIMITY && fuse == 0) {
                 detonate(plant, level);
             }
+            return;
+        }
+        if (trigger == Trigger.ROW) {
+            detonate(plant, level);
             return;
         }
         if (trigger == Trigger.TIMED) {
             detonate(plant, level);
             return;
         }
-        ZombieEntity target = level.zombiesInRow(plant.gridY()).stream()
+        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team()).stream()
                 .filter(z -> !z.isRemoved() && z.canBeHitByGround()
                         && Math.abs(z.cellX() - plant.cellX()) < triggerRange)
                 .findFirst()
@@ -237,19 +270,31 @@ public final class ExplosiveCapability implements PlantCapability {
     private void detonate(PlantEntity plant, LevelAccess level) {
         plant.setState(EntityAnimations.EXPLODE);
         // The blast has to cover whatever set it off. A proximity mine triggers on
-        // "a zombie is within trigger_range", so a mine whose radius is smaller than its
-        // trigger range detonates while the zombie is still outside the blast - which is
-        // exactly the potato mine's shipped data (radius 0.55, trigger_range 0.6) and made
-        // every detonation a guaranteed miss: a zombie walks 0.003 cells per tick, so the
-        // first tick inside the trigger zone leaves it at ~0.599, just past the 0.55 blast.
+        // "a zombie is within trigger_range", so a mine whose blast falls short of that
+        // range detonates while the zombie is still outside the damage - which is what the
+        // shipped potato mine did (radius 0.55, trigger_range 0.6) and made every detonation
+        // a guaranteed miss: a zombie walks 0.003 cells per tick, so the first tick inside
+        // the trigger zone left it at ~0.599, just past the 0.55 blast.
         // The two values are still authored separately (a mine may want a wider blast), but
         // the blast can never be narrower than the zone that armed it.
         float blastRadius = Math.max(MIN_RADIUS, radius);
         if (trigger == Trigger.PROXIMITY) {
-            blastRadius = Math.max(blastRadius, triggerRange);
+            // How far from the centre the blast actually reaches: a radial blast reaches
+            // `radius`, a square one reaches the far edge of the cell `radius` cells away
+            // (see LevelServer.damageArea). The zone that armed the mine has to fit inside
+            // that, or the zombie that set it off is standing outside the damage.
+            float reach = square ? blastRadius + 0.5F : blastRadius;
+            if (triggerRange > reach) {
+                blastRadius = square ? triggerRange - 0.5F : triggerRange;
+            }
         }
-        level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
-                blastRadius, damage, plant.team());
+        if (trigger == Trigger.ROW) {
+            // The whole row, which is a shape and not a distance - see LevelAccess.damageRow.
+            level.damageRow(ZombieEntity.damageType(damageType), plant.gridY(), damage, plant.team());
+        } else {
+            level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
+                    blastRadius, damage, plant.team(), square);
+        }
         level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));
         // The blast is over as far as the simulation is concerned, but the plant stays

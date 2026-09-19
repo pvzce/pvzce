@@ -74,6 +74,9 @@
     }
   ],
   "win_team": "pvzce:plant_team",
+  "playable_teams": [
+    "pvzce:plant_team"
+  ],
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": 360000,

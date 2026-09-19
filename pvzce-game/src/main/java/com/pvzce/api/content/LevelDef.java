@@ -38,7 +38,20 @@ public record LevelDef(
         LevelUnlock unlock,
         List<TypedMechanic> mechanics,
         LevelDialogue dialogue,
-        List<LevelHint> hints
+        List<LevelHint> hints,
+        /**
+         * Which of {@link #teams} a human may play, in the order they should be offered.
+         *
+         * <p>Empty means "all of them", which is what every level written before this field
+         * meant and what a level that does not care still means: declaring {@code teams} is
+         * already a statement about who is in the level, and a second list that had to repeat
+         * it would only be a way for the two to disagree. An id that names no declared team is
+         * dropped by {@link #playableTeamDefs()}.
+         *
+         * <p>This is the last component because it lives in {@link LevelTail}: the outer codec
+         * is already at DFU's field limit, and the tail is where late additions go.
+         */
+        List<Identifier> playableTeams
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
@@ -80,6 +93,7 @@ public record LevelDef(
         mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
         dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
         hints = hints == null ? List.of() : List.copyOf(hints);
+        playableTeams = playableTeams == null ? List.of() : List.copyOf(playableTeams);
     }
 
     /** True when this level declares its own slot count rather than following the backpack. */
@@ -117,7 +131,7 @@ public record LevelDef(
                 // No slot count in code means the same thing it means in JSON: follow the
                 // backpack. A caller that wants a specific bar passes one.
                 UNSET_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
-                List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of());
+                List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of(), List.of());
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -130,7 +144,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, List.of(),
-                LevelDialogue.EMPTY, List.of());
+                LevelDialogue.EMPTY, List.of(), List.of());
     }
 
     /**
@@ -148,7 +162,7 @@ public record LevelDef(
                     LevelRewards rewards, LevelUnlock unlock) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of());
+                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of(), List.of());
     }
 
     /**
@@ -168,7 +182,26 @@ public record LevelDef(
                     LevelDialogue dialogue) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of());
+                maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of(), List.of());
+    }
+
+    /**
+     * The whole record as it was before {@code playable_teams} existed.
+     *
+     * <p>Kept because every caller that spells out the record writes this argument list, and a
+     * level that says nothing about who plays it means what all of them meant: everyone may.
+     */
+    public LevelDef(Identifier id, String name, String description, int width, int height,
+                    Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
+                    Map<Identifier, JsonElement> rules, Map<Identifier, EnvValue> envVars,
+                    List<WaveDef> waves, float waveIntervalEndMultiplier, List<Identifier> slots,
+                    Map<Identifier, Boolean> unlockResources, int initialSun,
+                    LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
+                    LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
+                    LevelDialogue dialogue, List<LevelHint> hints) {
+        this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
+                waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
+                maxSeedSlots, rewards, unlock, mechanics, dialogue, hints, List.of());
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -198,17 +231,54 @@ public record LevelDef(
             new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                     waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
-                    tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints())));
+                    tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints(),
+                    tail.playableTeams())));
 
     public LevelTail tail() {
         return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics,
-                dialogue, hints);
+                dialogue, hints, playableTeams);
+    }
+
+    /**
+     * Which declared teams a human may play, in the order they should be offered.
+     *
+     * <p>An id that names no declared team is dropped here rather than at every call site: a
+     * typo in {@code playable_teams} has to close a side, not open one that is not in the
+     * level. Empty (the field unwritten) means every declared team, which is what levels
+     * written before this field meant.
+     */
+    public List<TeamDef> playableTeamDefs() {
+        if (playableTeams.isEmpty()) {
+            return teams;
+        }
+        List<TeamDef> pickable = new ArrayList<>();
+        for (Identifier id : playableTeams) {
+            for (TeamDef team : teams) {
+                if (team.id().equals(id)) {
+                    pickable.add(team);
+                    break;
+                }
+            }
+        }
+        return List.copyOf(pickable);
+    }
+
+    /**
+     * True when picking a side is a real question for this level.
+     *
+     * <p>One playable team means the preparation screen has nothing to ask, so the entry flow
+     * skips it - and a level that declares none at all keeps the screen, because a menu with
+     * no choice in it is a better failure than silently starting a level as nobody.
+     */
+    public boolean offersTeamChoice() {
+        return playableTeamDefs().size() != 1;
     }
 
     /** Grouped tail fields keep the outer codec inside DFU's 16-field limit. */
     public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
                             LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
-                            LevelDialogue dialogue, List<LevelHint> hints) {
+                            LevelDialogue dialogue, List<LevelHint> hints,
+                            List<Identifier> playableTeams) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -225,13 +295,18 @@ public record LevelDef(
                         LevelDialogue.CODEC.optionalFieldOf("dialogue", LevelDialogue.EMPTY)
                                 .forGetter(LevelTail::dialogue),
                         LevelHint.CODEC.listOf().optionalFieldOf("hints", List.of())
-                                .forGetter(LevelTail::hints)
+                                .forGetter(LevelTail::hints),
+                        // Unwritten = every declared team plays, which is what every level
+                        // written before this field meant.
+                        Identifier.CODEC.listOf().optionalFieldOf("playable_teams", List.of())
+                                .forGetter(LevelTail::playableTeams)
                 ).apply(i, LevelTail::new));
 
         public LevelTail {
             mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
             dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
             hints = hints == null ? List.of() : List.copyOf(hints);
+            playableTeams = playableTeams == null ? List.of() : List.copyOf(playableTeams);
         }
     }
 

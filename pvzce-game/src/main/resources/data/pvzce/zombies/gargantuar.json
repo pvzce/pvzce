@@ -22,5 +22,9 @@
   "animation_dir": "zombie/giant",
   "texture": "pvzce:textures/entities/zombie/giant/gargantuar",
   "drops_arm": false,
-  "drops_head": false
+  "drops_head": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred",
+    "death": "pvzce:zombie/giant/gargantuar"
+  }
 }

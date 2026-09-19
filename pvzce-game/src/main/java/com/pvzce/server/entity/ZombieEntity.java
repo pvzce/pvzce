@@ -1,5 +1,6 @@
 package com.pvzce.server.entity;
 
+import com.pvzce.api.content.AnimationBindings;
 import com.pvzce.api.content.DamageTypeDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ZombieDef;
@@ -47,6 +48,34 @@ public class ZombieEntity extends PvzceEntity {
      * shot simply vanished.
      */
     public static final int CORPSE_TICKS = 360;
+    /**
+     * The death sequences a zombie chooses between when it is killed.
+     *
+     * <p>The original picks one at random so that a lane of zombies does not fall over in
+     * unison, and its three sequences are all in the shared reanim. A zombie whose art has
+     * only an ordinary {@code death} asks for one of these names anyway and the client falls
+     * back to the clip it has - see {@code AnimationPlayback}'s silent-fallback rule - so a
+     * definition never has to declare which deaths its art carries.
+     *
+     * <p>The super-long sequence is left out of the random pool: it is a heavy body's death,
+     * not a variation on an ordinary one, and a definition that wants it points its
+     * {@code animations} map at the clip instead. The pool is a pair of *states*, not clip
+     * names - a definition that maps them both to the same clip simply gets that clip twice,
+     * which is the honest outcome for art that only drew one death.
+     */
+    private static final String[] RANDOM_DEATHS = {
+            EntityAnimations.DEATH, EntityAnimations.DEATH2,
+    };
+
+    /**
+     * How far in front a zombie can bite, in cells from centre to centre.
+     *
+     * <p>The same 0.55 the ground projectiles use to decide they have connected: a zombie's
+     * reach and a pea's are the same reach because they are the same question, and a charmed
+     * zombie that stopped a hair further away than a projectile would look like it was chewing
+     * air.
+     */
+    public static final float BITE_REACH = 0.55F;
 
     /**
      * How long a zombie's own rise out of a grave takes, in ticks.
@@ -239,7 +268,10 @@ public class ZombieEntity extends PvzceEntity {
         if (scene != null && PlantPlacement.terrainTagged(
                 PlantPlacement.Terrain.of(scene), PvzceTags.SCENE_WATER)) {
             remove();
-            setAnimation(EntityAnimations.DEATH);
+            // A body going under has its own sequence in the original - it does not fall
+            // over, it sinks - so the state says *how* it died rather than reusing the
+            // ordinary death. Art without the clip falls back to the death it does have.
+            setAnimation(EntityAnimations.DEATH_WATER);
             level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), cellX(), cellY(), PvzceSounds.ZOMBIE_SPLASH);
             // A body going under disturbs the surface, and this is the one place the
             // simulation decides that happened - so the ripple is raised here rather
@@ -266,19 +298,17 @@ public class ZombieEntity extends PvzceEntity {
         // other clip. The original has no hurt animation at all: the splat particle and the
         // impact sound are the feedback, and the legs keep walking. Armour hits are the same
         // story - `ArmorCapability` no longer reaches for a clip either.
+        if (isCharmed()) {
+            // A charmed zombie fights for the other side: it walks the lane looking for the
+            // zombies it used to belong to, and it does not touch the plants - not even the one
+            // it is standing on, which is what makes "the hypno-shroom's own cell is safe after
+            // the charm" true without a special case.
+            biteOrWalk(level, enemyZombieInFront(level));
+            return;
+        }
         PlantEntity plant = level.plantAt(gridX(), gridY());
         if (plant != null) {
-            setAnimation(EntityAnimations.EAT);
-            if (biteCooldown > 0) {
-                biteCooldown--;
-            } else {
-                int damage = Math.round(def.biteDamage()
-                        * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
-                plant.damageFrom(damage);
-                biteCooldown = def.biteIntervalTicks();
-                level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
-                        def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
-            }
+            bitePlant(level, plant);
             return;
         }
         setAnimation(walkState());
@@ -287,6 +317,111 @@ public class ZombieEntity extends PvzceEntity {
             biteCooldown--;
         }
         checkReachedLeft(level);
+    }
+
+    /**
+     * Whether this zombie is fighting for the side it was spawned against.
+     *
+     * <p>Read from the team rather than kept in a flag: the team <em>is</em> the fact, and a
+     * second copy of it is how "the client draws it charmed" and "the simulation treats it as
+     * charmed" would drift apart. See {@code CharmCapability} for what sets it.
+     */
+    @Override
+    public boolean charmed() {
+        return isCharmed();
+    }
+
+    public boolean isCharmed() {
+        return team() != null && !PvzceIds.ZOMBIE_TEAM.equals(team().id());
+    }
+
+    /**
+     * The enemy zombie this one is close enough to bite, or {@code null}.
+     *
+     * <p>Forward only, and by the same reach the shooters use, because that is the space a
+     * zombie's mouth occupies: it walks toward the house, so what it can bite is the thing in
+     * front of it. A charmed zombie walking right would be a different animation and a
+     * different problem, and nothing in the game produces one.
+     */
+    private ZombieEntity enemyZombieInFront(LevelServer level) {
+        for (ZombieEntity other : level.enemiesInRow(gridY(), team())) {
+            if (other.id() == id()) {
+                continue;
+            }
+            // The same layer rule the shooters use: a balloon zombie overhead and a miner
+            // underground are not in front of anybody's teeth.
+            if (!other.canBeHitByGround()) {
+                continue;
+            }
+            float delta = other.cellX() - cellX();
+            if (delta > -ZombieEntity.BITE_REACH && delta < ZombieEntity.BITE_REACH) {
+                return other;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Bites whatever is in front, or walks on.
+     *
+     * <p>The same shared cooldown and the same sounds as biting a plant: one bite timer per
+     * zombie, whichever side it is on. {@code target == null} is simply "nothing there", which
+     * is why this is one method rather than a branch at each call site.
+     */
+    private void biteOrWalk(LevelServer level, ZombieEntity target) {
+        if (target != null) {
+            setAnimation(EntityAnimations.EAT);
+            if (biteCooldown > 0) {
+                biteCooldown--;
+                return;
+            }
+            int damage = Math.round(def.biteDamage()
+                    * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
+            target.damage(damage, ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT), level);
+            biteCooldown = def.biteIntervalTicks();
+            level.emitEffect(PvzceParticles.CHOMP.toString(), target.cellX(), target.cellY(),
+                    def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
+            return;
+        }
+        setAnimation(walkState());
+        setCellX(cellX() - moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
+        if (biteCooldown > 0) {
+            biteCooldown--;
+        }
+        checkReachedLeft(level);
+    }
+
+    /**
+     * One bite of a plant, on the shared bite timer.
+     *
+     * <p>The plant gets the first word ({@code onBittenBy}), because one of them is not eaten by
+     * being chewed: the hypno-shroom turns the biter instead, and the bite that turned it does
+     * not also cost it health. A capability that answers true has taken the bite, and the chomp
+     * sound still plays - it was a bite, whatever came of it.
+     */
+    private void bitePlant(LevelServer level, PlantEntity plant) {
+        setAnimation(EntityAnimations.EAT);
+        if (biteCooldown > 0) {
+            biteCooldown--;
+            return;
+        }
+        biteCooldown = def.biteIntervalTicks();
+        if (plant.onBittenBy(this, level)) {
+            // The bite was consumed: a plant that answers true has done something *instead* of
+            // being eaten, and it is gone either way. The hypno-shroom is the case - the
+            // original's mushroom does not survive charming the zombie that ate it, and that is
+            // the price that makes "which zombie do I feed it to" a decision.
+            // The removal itself is flushed by the level at the end of its tick, which is where
+            // every other removal is applied - its entity list is being iterated while this
+            // runs, so taking the plant out of it here would be a concurrent modification.
+            plant.remove();
+        } else {
+            int damage = Math.round(def.biteDamage()
+                    * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
+            plant.damageFrom(damage);
+        }
+        level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
+                def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
     }
 
     /**
@@ -325,10 +460,19 @@ public class ZombieEntity extends PvzceEntity {
         return speed * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER);
     }
 
+    /**
+     * Reaching the house, for the zombies that are attacking it.
+     *
+     * <p>A charmed zombie walking off the left edge has reached its own side's house: it leaves
+     * the board and nothing else happens. Reporting it would end the level as a loss on the
+     * strength of a zombie the player has already turned - and "it walked into the house" is
+     * exactly what the original does with one, except that in the original it stops and stays
+     * there, which this level's win check already handles (a charmed zombie is not hostile).
+     */
     public void checkReachedLeft(LevelAccess level) {
         if (cellX() <= -0.4F) {
             leftCountdown++;
-            if (leftCountdown >= 60) {
+            if (leftCountdown >= 60 && !isCharmed()) {
                 level.zombieReachedLeft(this);
             }
         } else {
@@ -339,23 +483,34 @@ public class ZombieEntity extends PvzceEntity {
     /**
      * Projectile damage pipeline: capabilities get first refusal (armor), then a
      * flier is grounded, then the body takes the hit.
+     *
+     * <p>{@code projectile.damageType()} is what separates the fume-shroom from a pea. A shot
+     * normally asks the armour capabilities first ({@code onProjectileHit}, whose answer is
+     * which slot the layer meets), but a type that ignores armour skips them entirely - a spray
+     * that goes through a screen door does not get stopped by it and does not stop to break it
+     * either, exactly as it does not against a bucket. Which slot a <em>shot</em> meets is still
+     * the layer's answer; whether armour may absorb it at all is the type's, and it is the same
+     * answer the non-projectile entry point gives.
      */
     public void damage(ProjectileDef projectile, int amount, LevelAccess level) {
         if (!isAlive()) {
             return;
         }
         int dmg = scaled(amount, level);
-        // A shot is what a projectile layer means, so this is the one caller that
-        // passes the hit down to the armour capabilities itself: which slot it meets
-        // (a shield first, a hat instead of no shield at all) is a property of the
-        // shot, not of the damage type.
-        for (Instance instance : capabilities) {
-            if (instance.capability.onProjectileHit(this, projectile, dmg, level)) {
-                return;
+        DamageTypeDef type = projectile.damageType().map(ZombieEntity::damageType).orElse(null);
+        if (!ignoresArmor(type)) {
+            // A shot is what a projectile layer means, so this is the one caller that
+            // passes the hit down to the armour capabilities itself: which slot it meets
+            // (a shield first, a hat instead of no shield at all) is a property of the
+            // shot, not of the damage type.
+            for (Instance instance : capabilities) {
+                if (instance.capability.onProjectileHit(this, projectile, dmg, level)) {
+                    return;
+                }
             }
         }
         ground(level);
-        damageBody(dmg, level);
+        damageBody(dmg, level, burns(type));
         if (!removed) {
             Identifier hitSound = projectile.sounds().impact()
                     .orElse(def.sounds().hit().orElse(PvzceSounds.PROJECTILE_HIT));
@@ -403,7 +558,10 @@ public class ZombieEntity extends PvzceEntity {
                 }
             }
         }
-        damageBody(dmg, level);
+        // The type travels into the body hit because the *death* has to know what killed it: a
+        // blast from the ash line leaves a charred body and a pea does not, and the difference
+        // is the hit's own declaration rather than a list of ids here.
+        damageBody(dmg, level, burns(type));
     }
 
     /** The registered damage type for {@code id}, or the projectile fallback. */
@@ -422,6 +580,16 @@ public class ZombieEntity extends PvzceEntity {
 
     private static boolean ignoresArmor(DamageTypeDef type) {
         return type != null && type.ignoresArmor();
+    }
+
+    /**
+     * Whether a hit of this type leaves a charred body, for the death state.
+     *
+     * <p>A {@code null} type answers false, like {@code ignoresArmor}: an unknown or not-yet
+     * loaded registry must not turn an ordinary pea into a fireball.
+     */
+    private static boolean burns(DamageTypeDef type) {
+        return type != null && type.burns();
     }
 
     private static int scaled(int amount, LevelAccess level) {
@@ -448,6 +616,56 @@ public class ZombieEntity extends PvzceEntity {
      * make "which one did this call site mean" a question again.
      */
     public void damageBody(int amount, LevelAccess level) {
+        // Nothing that arrives here without a type burns: the callers are the ones that already
+        // know what their hit is (a bowling nut, a mower at full force).
+        damageBody(amount, level, false);
+    }
+
+    /**
+     * Which of the original's death sequences this body falls over with.
+     *
+     * <p>Random rather than fixed, because that is what makes a crowd read as a crowd: the
+     * original shuffles its sequences so two zombies killed by the same melon do not collapse
+     * in lockstep.
+     *
+     * <p>Two things a definition can say with the {@code animations} map it already has, and
+     * neither needs a new field:
+     *
+     * <ul>
+     *   <li>art with only one death must not be asked for the other, because a state a file
+     *       does not define falls back to {@code idle} on the client - a corpse standing about
+     *       instead of falling over. So the second variant is used only when the definition
+     *       maps <em>both</em> states onto the same file, which is exactly the statement "this
+     *       file was drawn with more than one death in it";</li>
+     *   <li>a body that should take its time going down pins its {@code death} state at the
+     *       long sequence ({@code "death": "pvzce:zombie/giant/gargantuar"} with that clip in
+     *       the file), which also silences the random pick - the second variant is no longer
+     *       mapped to the same file, so it is never chosen.</li>
+     * </ul>
+     *
+     * @param random the level's stream, so a replay of the same level picks the same deaths
+     */
+    private String pickDeathAnimation(java.util.Random random) {
+        String picked = RANDOM_DEATHS[random.nextInt(RANDOM_DEATHS.length)];
+        return EntityAnimations.DEATH2.equals(picked) && !hasDeathVariants()
+                ? EntityAnimations.DEATH
+                : picked;
+    }
+
+    /** True when this zombie's art was drawn with more than one death sequence in it. */
+    private boolean hasDeathVariants() {
+        AnimationBindings bindings = def.animations();
+        return bindings.resolve(EntityAnimations.DEATH)
+                .equals(bindings.resolve(EntityAnimations.DEATH2));
+    }
+
+    /**
+     * The body hit itself, with what kind of damage it was.
+     *
+     * @param burns true when this hit is fire or ash, so a kill leaves a charred body; see
+     *              {@link EntityAnimations#DEATH_BURNED}
+     */
+    public void damageBody(int amount, LevelAccess level, boolean burns) {
         if (!isAlive()) {
             return;
         }
@@ -470,7 +688,12 @@ public class ZombieEntity extends PvzceEntity {
             // world on this tick: the animation is the only thing that says what just
             // happened, and a despawn in the same breath never showed any of it.
             corpseTicks = CORPSE_TICKS;
-            setAnimation(EntityAnimations.DEATH);
+            // The burnt clip is a different model (the original's charred zombie), reached
+            // through the definition's own `animations` map. A zombie whose art has no such clip
+            // asks for it anyway and the animation manager falls back - which is the right
+            // failure, because the alternative is a fire death that silently looks like any
+            // other and nothing in the log to say why.
+            setAnimation(burns ? EntityAnimations.DEATH_BURNED : pickDeathAnimation(level.random()));
             // The head leaves the body as its own particle. The model keeps it hidden in the
             // death clip - that is how the original is authored - so this is the only thing
             // that puts one on the lawn, and the sprite's own motion is what makes it drop

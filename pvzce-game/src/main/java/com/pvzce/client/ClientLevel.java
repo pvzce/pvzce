@@ -95,6 +95,16 @@ public final class ClientLevel {
     private final java.util.Map<Identifier, Object> mechanicState = new java.util.HashMap<>();
     private final java.util.Map<Identifier, com.pvzce.api.content.mechanic.MechanicData> mechanics =
             new java.util.concurrent.ConcurrentHashMap<>();
+    /**
+     * Every decoded block, in the order the server sent them, duplicates included.
+     *
+     * <p>{@link #mechanics} cannot hold a mechanic a level declares twice - and one of them
+     * legitimately can be: {@code pvzce:tool} is written once per tool the level hands over. The
+     * map stays because the singular mechanics read better through it and their callers already
+     * ask that way; this list is the complete record.
+     */
+    private volatile java.util.List<com.pvzce.api.content.mechanic.TypedMechanic> mechanicsInOrder =
+            List.of();
     private volatile java.util.List<Identifier> mechanicOrder = List.of();
     private volatile String disconnectReason = "";
     private volatile AnimationManager animations;
@@ -162,6 +172,7 @@ public final class ClientLevel {
         mechanics.clear();
         mechanicState.clear();
         mechanicOrder = List.of();
+        mechanicsInOrder = List.of();
         gameState = "running";
         winTeam = "";
         disconnectReason = "";
@@ -350,6 +361,7 @@ public final class ClientLevel {
     private void applyMechanics(List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics) {
         mechanics.clear();
         List<Identifier> order = new java.util.ArrayList<>();
+        List<com.pvzce.api.content.mechanic.TypedMechanic> blocks = new java.util.ArrayList<>();
         for (var payload : levelMechanics) {
             var data = com.pvzce.common.level.mechanic.LevelMechanics
                     .decodeBlock(payload.type(), payload.block());
@@ -360,13 +372,34 @@ public final class ClientLevel {
             }
             mechanics.put(payload.type(), data.get());
             order.add(payload.type());
+            blocks.add(new com.pvzce.api.content.mechanic.TypedMechanic(payload.type(), data.get()));
         }
         mechanicOrder = List.copyOf(order);
+        mechanicsInOrder = List.copyOf(blocks);
     }
 
     /** The ids of this level's mechanics, in the order the level declares them. */
     public List<Identifier> mechanicIds() {
         return mechanicOrder;
+    }
+
+    /**
+     * Every decoded block of one mechanic, in declaration order.
+     *
+     * <p>A different question from {@link #mechanicData}: that one asks "the block of the mower
+     * mechanic", of which a level has at most one, while a mechanic like {@code pvzce:tool} is
+     * written several times - once per tool the level hands over. The map keeps the last of a
+     * repeated id, which is fine for the singular mechanics, so the list is kept beside it
+     * rather than replacing it.
+     */
+    public List<com.pvzce.api.content.mechanic.MechanicData> mechanicBlocks(Identifier mechanicId) {
+        List<com.pvzce.api.content.mechanic.MechanicData> blocks = new java.util.ArrayList<>();
+        for (var entry : mechanicsInOrder) {
+            if (entry.type().equals(mechanicId)) {
+                blocks.add(entry.value());
+            }
+        }
+        return List.copyOf(blocks);
     }
 
     /** True when this level declares that mechanic. */

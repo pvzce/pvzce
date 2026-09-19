@@ -14,6 +14,13 @@ import com.pvzce.api.content.SlotDef;
  * shovel's slot used to be drawn here and then covered by the seed packet the shared
  * painter draws for every card, which is why the one card that should not look like a seed
  * packet looked exactly like one.
+ *
+ * <p><strong>Every card is one size.</strong> The shovel's chrome is the original's
+ * {@code ShovelBank.png}, which is almost square, and drawing it at its own aspect ratio
+ * inside a packet-shaped card shrank the whole card - body and icon both - to about
+ * three-quarters height, so the tools stood a head shorter than the plants beside them in the
+ * same row. One card height for the whole bar is the rule; a tool that wants different art can
+ * have it, at the card's proportions.
  */
 public final class CardPainter {
     private static final String SHOVEL_ID = "pvzce:shovel";
@@ -31,7 +38,7 @@ public final class CardPainter {
                         icon, com.pvzce.client.gui.SeedCardRenderer.CardKind.fromJson(slot.kind()),
                         cost, dark, alpha, ready, slot.cooldownRatio(), selected, null, false);
         if (SHOVEL_ID.equals(slot.defId())) {
-            model = model.chrome(com.pvzce.client.gui.SeedCardRenderer.SHOVEL_SLOT_BACKGROUND, true);
+            model = model.chrome(com.pvzce.client.gui.SeedCardRenderer.SHOVEL_SLOT_BACKGROUND, false);
         }
         com.pvzce.client.gui.SeedCardRenderer.draw(client, model, x, y, width, height);
     }

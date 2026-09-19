@@ -6,6 +6,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.client.particle.ParticleEngine;
+import com.pvzce.api.entity.EntityLayers;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -187,4 +188,36 @@ class RenderMathRegressionTest {
                 "a burrowing zombie draws under the lawn regardless of kind");
         assertNull(new ParticleEngine().position(0), "an empty engine has no particles to report");
     }
+
+    /**
+     * What covers what, which is the only thing that decides it while depth testing is off.
+     *
+     * <p>Two rules, and the second one is a fix: back rows first so a nearer row is drawn over a
+     * further one, and a drop or a projectile above the whole board because it is not standing
+     * on it. The sun used to be sorted by row like everything else, so one falling behind a
+     * plant was painted under it - and a sun the player has to click cannot be hidden by a shrub.
+     */
+    @Test
+    void nearerRowsAreDrawnOverFurtherOnes() {
+        // Rows count up the screen, and the screen's y axis points up, so a *higher* row number
+        // is nearer the player and has to be painted over the ones behind it.
+        long back = EntityVisuals.renderOrder("zombie", EntityLayers.GROUND, 1, 1);
+        long front = EntityVisuals.renderOrder("zombie", EntityLayers.GROUND, 4, 1);
+        assertTrue(front > back, "row 4 is nearer the player than row 1 and draws after it");
+    }
+
+    @Test
+    void aDropIsDrawnOverTheWholeLawn() {
+        long plantBack = EntityVisuals.renderOrder("plant", EntityLayers.PLANT, 0, 99_999);
+        long plantFront = EntityVisuals.renderOrder("plant", EntityLayers.PLANT, 4, 99_999);
+        long zombieFront = EntityVisuals.renderOrder("zombie", EntityLayers.GROUND, 4, 99_999);
+        long sunBack = EntityVisuals.renderOrder("resource", EntityLayers.AIR, 0, 1);
+        long peaBack = EntityVisuals.renderOrder("projectile", EntityLayers.PROJECTILE, 0, 1);
+        assertTrue(sunBack > plantBack, "a drop beats a plant even in a further row");
+        assertTrue(sunBack > plantFront, "and one in a nearer row");
+        assertTrue(sunBack > zombieFront, "and a zombie");
+        assertTrue(peaBack > zombieFront, "a projectile is above the board too");
+        assertTrue(sunBack > peaBack, "and the drop table's order is kept between them");
+    }
+
 }

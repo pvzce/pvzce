@@ -1,0 +1,32 @@
+{
+  "id": "pvzce:fume_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 75
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:nocturnal"
+    },
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:fume",
+          "damage": 20,
+          "count": 1,
+          "range": 4.0
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/fume"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/fume_shroom"
+}

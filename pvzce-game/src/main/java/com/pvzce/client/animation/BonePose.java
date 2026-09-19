@@ -1,14 +1,30 @@
 package com.pvzce.client.animation;
 
 /** Sampled pose of a single controller bone. */
-public record BonePose(float[] translation, float[] rotation, float[] scale, boolean visible) {
+public record BonePose(float[] translation, float[] rotation, float[] scale, boolean visible, float alpha) {
     public static final BonePose IDENTITY = new BonePose(
-            new float[]{0F, 0F}, new float[]{0F, 0F, 0F}, new float[]{1F, 1F}, true);
+            new float[]{0F, 0F}, new float[]{0F, 0F, 0F}, new float[]{1F, 1F}, true, 1F);
 
     public BonePose {
         translation = translation == null ? new float[]{0F, 0F} : translation.clone();
         rotation = rotation == null ? new float[]{0F, 0F, 0F} : rotation.clone();
         scale = scale == null ? new float[]{1F, 1F} : scale.clone();
+        // Clamped rather than trusted: an authored alpha outside 0..1 is a data bug, and
+        // letting it through turns into a colour multiplier that inverts the sprite in the
+        // additive pass. 1 is the value every clip that never mentions alpha sees.
+        alpha = clampAlpha(alpha);
+    }
+
+    /** A pose with the default alpha, for callers that only have a transform to state. */
+    public BonePose(float[] translation, float[] rotation, float[] scale, boolean visible) {
+        this(translation, rotation, scale, visible, 1F);
+    }
+
+    private static float clampAlpha(float value) {
+        if (Float.isNaN(value)) {
+            return 1F;
+        }
+        return Math.max(0F, Math.min(1F, value));
     }
 
     public static BonePose lerp(BonePose a, BonePose b, float t) {
@@ -26,7 +42,8 @@ public record BonePose(float[] translation, float[] rotation, float[] scale, boo
                         lerp(a.rotation[2], b.rotation[2], t)
                 },
                 new float[]{lerp(a.scale[0], b.scale[0], t), lerp(a.scale[1], b.scale[1], t)},
-                t < 0.5F ? a.visible : b.visible);
+                t < 0.5F ? a.visible : b.visible,
+                lerp(a.alpha, b.alpha, t));
     }
 
     private static float lerp(float a, float b, float t) {

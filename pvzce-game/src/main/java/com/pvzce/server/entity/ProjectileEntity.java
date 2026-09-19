@@ -54,6 +54,23 @@ public class ProjectileEntity extends PvzceEntity {
      */
     private final float originX;
     private final float maxRange;
+    /**
+     * Zombies this shot has already damaged.
+     *
+     * <p>A piercing shot does not disappear on its first hit - that is what
+     * {@link com.pvzce.common.capability.projectile.PierceCapability} claims - so without this
+     * it damages whatever it is overlapping on <em>every</em> tick it overlaps it. A spray
+     * moving one cell per 25 ticks spends a dozen ticks inside a zombie, and each of them was
+     * another hit: a 20-damage fume spray killed a 200-health zombie in ten consecutive ticks
+     * and looked like an instant kill. "Pierces" means "passes through and hits the next one",
+     * not "hits this one again".
+     *
+     * <p>Ids rather than a single "last hit" because the shot is not guaranteed to leave a
+     * target before reaching the next: two zombies standing in each other's cells are both
+     * inside the hit radius, and a shot that only remembered the last one would damage the
+     * first over and over from the other side.
+     */
+    private final java.util.Set<Integer> hitIds = new java.util.HashSet<>();
 
     public ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
                             float cellX, float cellY, float startHeight) {
@@ -170,6 +187,7 @@ public class ProjectileEntity extends PvzceEntity {
         }
         if (!replacesDirectHit && hit != null) {
             hit.damage(def, damage, level);
+            hitIds.add(hit.id());
         }
         for (Instance instance : capabilities) {
             if (instance.capability.pierces() && hit != null) {
@@ -181,8 +199,12 @@ public class ProjectileEntity extends PvzceEntity {
 
     private ZombieEntity findTarget(LevelServer level) {
         boolean groundLayer = !def.isAirLayer();
-        for (ZombieEntity zombie : level.zombiesInRow(gridY())) {
+        for (ZombieEntity zombie : level.enemiesInRow(gridY(), team())) {
             if (zombie.isRemoved()) {
+                continue;
+            }
+            // A shot that has already landed on this one keeps flying - it does not land again.
+            if (hitIds.contains(zombie.id())) {
                 continue;
             }
             if (targetId >= 0) {

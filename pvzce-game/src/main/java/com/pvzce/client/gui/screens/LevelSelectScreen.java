@@ -672,15 +672,11 @@ public final class LevelSelectScreen extends Screen {
             }
             return;
         }
-        if (selected.hasRunningSave()) {
-            // A run is already there: it is loaded and asked about (继续/重开) with no
-            // pre-game screen at all. The team and the card bar come from the save, so
-            // 关卡准备 and the seed chooser have nothing to ask - going through them is what
-            // made the save prompt show up only after cards had been picked.
-            client.enterLevelFromMenu(selected);
-            return;
-        }
-        client.openScreen(new LevelSetupScreen(client, selected));
+        // Everything past "which level" is the one entry decision, including whether 关卡准备
+        // has anything to ask. The three cases used to be spelled out here as well, which is
+        // how the smoke hook and the editor's 测试 reached the seed chooser for a level that
+        // offers a team choice.
+        client.enterLevelFromMenu(selected);
     }
 
     /** The selected level, or {@code null}; selection lives in {@link #selectedLevelId}. */
@@ -874,7 +870,7 @@ public final class LevelSelectScreen extends Screen {
     public Navigation backTarget() {
         return client.screenDepth() > 1
                 ? Navigation.POP
-                : Navigation.replaceRoot(WorldSelectScreen::new);
+                : Navigation.replaceRoot(TitleScreen::new);
     }
 
     /** ESC goes to the same place the 返回 button does. */

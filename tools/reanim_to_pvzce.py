@@ -139,6 +139,7 @@ class FrameState:
     sx: float = 1.0
     sy: float = 1.0
     f: float = 0.0
+    a: float = 1.0
     image: Optional[str] = None
 
     @property
@@ -307,6 +308,13 @@ def load_reanim(path: Path) -> Tuple[float, List[Track]]:
             "sx": 1.0,
             "sy": 1.0,
             "f": 0.0,
+            # Alpha is inherited like every other field, so a track that states it once
+            # keeps it for the rest of its frames. Leaving it out of this dictionary is
+            # what used to drop the channel on the floor: the frame reader below only
+            # stores keys that already exist here, so `<a>` parsed cleanly and went
+            # nowhere, and every glow, fade-in and overlay in the source art arrived
+            # fully opaque.
+            "a": 1.0,
             "image": None,
         }
         frames: List[FrameState] = []
@@ -347,6 +355,7 @@ def load_reanim(path: Path) -> Tuple[float, List[Track]]:
                     sx=float(state["sx"]),
                     sy=float(state["sy"]),
                     f=float(state["f"]),
+                    a=float(state["a"]),
                     image=state["image"] if isinstance(state["image"], str) else None,
                 )
             )
@@ -566,8 +575,18 @@ def build_render_pieces(
     assets: Dict[str, ImageAsset],
     input_path: Path,
     frame_count: int,
+    wrap_source: bool = False,
 ) -> List[RenderPiece]:
-    """Create one piece per (render track, image) pair."""
+    """Create one piece per (render track, image) pair.
+
+    ``frame_count`` is the length of the animation being built, taken from its longest
+    track. A shorter track used to be padded with its own last frame repeated, which is
+    right for a file whose tracks simply end early and wrong for one that is a *loop*: the
+    flag zombie's pole is a 13-frame sway dropped into a 504-frame zombie animation, and
+    repeating its last frame froze the flag after the first tenth of a second. With
+    ``wrap_source`` the short track cycles instead of stopping, so its own last frame is
+    followed by its first - which is what the original does with it.
+    """
 
     pieces: List[RenderPiece] = []
     order = 0
@@ -604,6 +623,8 @@ def build_render_pieces(
             for frame_index in range(frame_count):
                 if frame_index < len(track.frames):
                     state = track.frames[frame_index]
+                elif track.frames and wrap_source:
+                    state = track.frames[frame_index % len(track.frames)]
                 elif track.frames:
                     state = track.frames[-1]
                 else:
@@ -879,6 +900,7 @@ def build_controller_json(
             rotation: Dict[str, List[float]] = {}
             scale: Dict[str, List[float]] = {}
             visible: Dict[str, bool] = {}
+            alpha: Dict[str, float] = {}
 
             for frame_index in range(start_frame, end_frame + 1):
                 key = format_time((frame_index - start_frame) / fps)
@@ -908,12 +930,14 @@ def build_controller_json(
                     if not source_visible and not bone.name.startswith(excluded):
                         is_visible = True
                 visible[key] = is_visible
+                alpha[key] = round_float(state.a)
 
             animation_bones[bone.name] = {
                 "translation": translation,
                 "rotation": rotation,
                 "scale": scale,
                 "visible": visible,
+                "alpha": alpha,
             }
 
         animation: Dict[str, object] = {

@@ -1,6 +1,7 @@
 package com.pvzce.client;
 
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
+import com.pvzce.client.gui.screens.LevelSetupScreen;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
@@ -134,6 +135,51 @@ class LevelEntryFlowTest {
                         .map(ContinueLevelC2S.class::cast)
                         .anyMatch(request -> request.levelId().equals("pvzce:level_1")),
                 "the abandoned run is loaded, and the question is asked over it");
+    }
+
+    /**
+     * A level that offers one side skips 关卡准备.
+     *
+     * <p>The choice the screen asks for is the level's to declare ({@code playable_teams}), and
+     * one playable team is not a choice: the entry flow goes straight on to the seed chooser,
+     * exactly as if the player had clicked the only panel there was. Every built-in level
+     * declares the plant side alone, so this is what a player actually sees.
+     */
+    @Test
+    void aLevelWithOnePlayableTeamSkipsTheTeamScreen() throws Exception {
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:level_1", "");
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
+                "one playable side is not a question, so nothing asks it");
+    }
+
+    /** Two playable sides do get the screen: that is the level saying the choice is real. */
+    @Test
+    void aLevelWithTwoPlayableTeamsAsksWhichOne() throws Exception {
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelPayload payload = new LevelPayload(9, 5,
+                List.of(new SeedOption("pvzce:pea_shooter", "plant", "pvzce:pea_shooter",
+                        "pvzce:textures/entities/pea_shooter", 100)),
+                6, List.of("pvzce:basic_zombie"),
+                List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")), List.of(), List.of());
+        LevelListS2C.LevelInfo info = LevelListS2C.LevelInfo.of("pvzce:level_1", "对战", "描述",
+                "pvzce:plant_team",
+                List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物方", "survive_waves", true),
+                        new LevelListS2C.TeamInfo("pvzce:zombie_team", "僵尸方", "plant_side_lost", true)),
+                "", "day", "pvzce:yard", "pvzce:adventure", false, payload,
+                LevelListS2C.UnlockInfo.OPEN);
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertInstanceOf(LevelSetupScreen.class, client.currentScreen(),
+                "two sides is a question the player has to answer");
     }
 
     /**

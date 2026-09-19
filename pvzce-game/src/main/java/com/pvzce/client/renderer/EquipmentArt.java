@@ -109,6 +109,19 @@ public final class EquipmentArt implements BoneArt {
 
     @Override
     public Set<String> visibleBones(ControllerModel model, Map<String, BonePose> poses) {
+        // `bones` is what the clip asked for. Everything below answers "what does the player
+        // actually see", and the two were conflated before: the arm loss used to edit `bones`
+        // directly, which meant an equipment entry for the torn arm could never fire - the
+        // entry asks "is the clip drawing this piece", and the answer had already been erased.
+        // The rules, in order:
+        //
+        //   1. an equipment entry decides its own family. If one is drawn, `tookOver` remembers
+        //      that some sprite speaks for this limb;
+        //   2. only if nothing did, and this zombie has lost its arm, does the arm come off.
+        //      That is what makes a definition *with* torn-arm art look torn, and one without
+        //      it look armless - rather than the reverse;
+        //   3. `hidden_bones` goes last so nothing above can resurrect a sprite the definition
+        //      called out.
         Set<String> visible = new HashSet<>();
         for (ControllerModel.Bone bone : model.renderOrder()) {
             BonePose pose = poses.getOrDefault(bone.name(), bone.restPose());
@@ -120,7 +133,8 @@ public final class EquipmentArt implements BoneArt {
             // Asked *before* the family is cleared: a frame that draws no member of it is a
             // frame the art deliberately leaves the equipment out of (the death clip drops
             // the cone with the head, the newspaper's gasp has no paper in it), and putting
-            // one back would undo that.
+            // one back would undo that. `present` is the drawings plus whatever the entry is a
+            // damage state of, so a torn limb follows the limb it belongs to.
             boolean drawnByClip = entry.bones().stream().anyMatch(visible::contains);
             // How this zombie holds what it is holding, if the piece brought its own limb.
             // The flag zombie's hand is a bone of the flag's own reanim rather than one of
@@ -150,6 +164,11 @@ public final class EquipmentArt implements BoneArt {
             }
         }
         if (plan.armLoss() && lostArm()) {
+            // Half health costs an ordinary zombie its outer arm, and the art has nothing to
+            // put in its place: the rip's torn drawings (`outerarm_hand_2`,
+            // `outerarm_upper_2`) belong to the super-long death sequence, not to a walking
+            // zombie. The feedback for the amputation is the arm that flies off - the server
+            // emits `pvzce:zombie_arm` on the same condition - which is what the original does.
             visible.removeAll(OUTER_ARM_BONES);
         }
         // Last, so nothing above can put one back: this is the definition saying "this sprite
@@ -251,6 +270,11 @@ public final class EquipmentArt implements BoneArt {
                 if (!equipment.isUsable()) {
                     continue;
                 }
+                // What this entry may draw: the bones named after `art`, and nothing else. A
+                // piece the rip names by part rather than by family - a limb, whose intact and
+                // torn drawings are `outerarm_upper` and `outerarm_upper2` - cannot be described
+                // this way at all, and none is: see `visibleBones` for what the arm does instead
+                // when a zombie loses it.
                 List<String> family = familyIn(model, equipment.art());
                 if (!family.isEmpty()) {
                     resolved.add(new Entry(equipment, family));

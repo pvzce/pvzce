@@ -204,5 +204,19 @@
   "pvzce.zombie": "Zombies",
   "pvzce.zombie_boss": "Zombie Boss",
   "pvzce.zombie_damage_multiplier": "Zombie Damage Multiplier",
-  "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier"
+  "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier",
+  "pvzce.fume_shroom": "Fume-shroom",
+  "pvzce.grave_buster": "Grave Buster",
+  "pvzce.mechanic.tool": "Level tool",
+  "pvzce.mechanic.tool.field.tool": "Tool",
+  "pvzce.mechanic.tool.field.default": "Used by an empty click",
+  "pvzce.mechanic.tool.field.cooldown": "Cooldown (ticks, -1 = the tool's own)",
+  "pvzce.mechanic.grave_spawner": "Grave spawner",
+  "pvzce.mechanic.grave_spawner.field.min_graves": "Graves kept standing",
+  "pvzce.mechanic.grave_spawner.field.initial_graves": "Graves at the start (-1 = as above)",
+  "pvzce.mechanic.grave_spawner.field.interval": "Rise interval (ticks)",
+  "pvzce.mechanic.grave_spawner.field.min_x": "First column",
+  "pvzce.mechanic.grave_spawner.field.max_x": "Last column (-1 = board edge)",
+  "pvzce.hypno_shroom": "Hypno-shroom",
+  "pvzce.zombie_sun_drop_chance": "Sun from a dying zombie"
 }

@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:hypno_shroom",
+  "kind": "plant",
+  "content": "pvzce:hypno_shroom",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/hypno_shroom"
+}

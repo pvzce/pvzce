@@ -79,8 +79,8 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 
 | 语义 | 方法 | 调用点 |
 |---|---|---|
-| 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect` / `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
-| 嵌套 | `openScreen` | `Title→WorldSelect`、`WorldSelect→LevelSelect`、`LevelSelect→LevelSetup`、`LevelSelect→Inventory`、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
+| 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect`（＝`showTitle`）/ `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
+| 嵌套 | `openScreen` | `Title→LevelSelect`（点玩家名 / 开始游戏）、`LevelSelect→LevelSetup`、`LevelSelect→Inventory`、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
 | 声明的目的地 | `Navigation.replaceRoot(...)` | `LevelSelectScreen.backTarget()`（无下层时）、`AwardScreen.backTarget()` |
 | 弹回 | `Navigation.POP`（默认） | 所有"返回/完成"按钮、`Screen.requestClose()` 默认实现、`Dialog` 的 ESC |
 
@@ -89,26 +89,22 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ```
                     ┌──────────────────────────────────────────────┐
                     │                 TitleScreen                  │
-                    │  开始游戏 / 模组列表 / 设置 / 退出            │
+                    │  左：谁要玩游戏？（玩家列表＝世界列表）        │
+                    │  右：开始游戏 / 模组列表 / 设置 / 退出         │
                     └───┬──────────────┬───────────────┬───────────┘
                  push   │              │ push          │ push
                         ▼              ▼               ▼
-              ┌──────────────┐  ┌────────────┐  ┌──────────────┐
-              │WorldSelect   │  │ ModsScreen │  │SettingsScreen│
-              │(世界列表)     │  └────────────┘  └───┬──────────┘
-              └───┬──────────┘                       │ push
-                  │ push                             ▼
-                  ▼                          ┌──────────────────┐
-       ┌────────────────────────┐            │ConfigScreen /    │
-       │  LevelSelectScreen     │            │VideoSettings     │
-       │  (关卡列表 + 背包按钮)  │            └──────────────────┘
-       └──┬──────────┬──────────┘
-          │ push     │ push                    ┌──────────────┐
-          ▼          ▼                         │InventoryScreen│
-   ┌────────────┐  ┌──────────────┐           └──────────────┘
-   │LevelSetup  │  │ EditorScreen │
-   │(关卡准备)   │  │ (编辑器)      │
-   └──┬─────────┘  └──────────────┘
+       ┌────────────────────────┐  ┌────────────┐  ┌──────────────┐
+       │  LevelSelectScreen     │  │ ModsScreen │  │SettingsScreen│
+       │  (关卡列表 + 背包按钮)  │  └────────────┘  └───┬──────────┘
+       └──┬──────────┬──────────┘                       │ push
+          │ push     │ push                    ┌────────▼─────────┐
+          ▼          ▼                         │ConfigScreen /    │
+   ┌────────────┐  ┌──────────────┐            │VideoSettings     │
+   │LevelSetup  │  │ EditorScreen │            └──────────────────┘
+   │(关卡准备)   │  │ (编辑器)      │            ┌──────────────┐
+   └──┬─────────┘  └──────────────┘            │InventoryScreen│
+      │                                          └──────────────┘
       │ 开始游戏 → enterLevelFromMenu
       ▼
    ┌──────────────────┐
@@ -133,24 +129,29 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 
 ### 4.1 决策只有一处，但入口有五个
 
-**唯一决策函数**：`PvzceClient.enterLevelFromMenu(info)`（`PvzceClient.java:1326`）
+**唯一决策函数**：`PvzceClient.enterLevelFromMenu(info)`
 
 ```java
 if (info.hasRunningSave())        requestLevel(id, false);        // ① 有存档：直接进，服务端弹框
-else if (dealsItsOwnCards(id))    requestFreshRunDirectly(id,false); // ② 传送带：直接进
-else                              openSeedSelection(info, false); // ③ 其余：选卡
+else if (offersTeamChoice(info))  openScreen(LevelSetupScreen);   // ② 关卡有两方以上可玩：先问阵营
+else if (dealsItsOwnCards(id))    requestFreshRunDirectly(id,false); // ③ 传送带：直接进
+else                              openSeedSelection(info, false); // ④ 其余：选卡
 ```
+
+**阵营是关卡声明的**（`LevelDef.playable_teams` → 每条 `TeamInfo.playable`），所以"要不要问"是关卡数据
+的回答而不是客户端的猜测：**只有一方可玩时 ② 整条分支不成立**，内置关卡因此从列表点进去就是选卡页/开局。
+判据 `PvzceClient.offersTeamChoice(info)` 是纯函数，写在这一处。
 
 | # | 入口 | 位置 | 走的路 |
 |---|---|---|---|
-| 1 | 关卡列表「继续游戏/下一步」 | `LevelSelectScreen.openSetup()`（`:595`） | 有存档 → `enterLevelFromMenu`；否则 `push(LevelSetupScreen)` |
-| 2 | 关卡准备「开始游戏」 | `LevelSetupScreen.startGame()`（`:113`） | 转发给 `enterLevelFromMenu`（同一决策，第二份调用） |
+| 1 | 关卡列表「继续游戏/下一步」 | `LevelSelectScreen.openSetup()` | 转发给 `enterLevelFromMenu`（与②③④同一决策） |
+| 2 | 关卡准备「开始游戏」 | `LevelSetupScreen.startGame()` | 转发给 `enterLevelFromMenu`（同一决策，第二份调用） |
 | 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（`onBack` 回到提示框）；取不到关卡信息时回落到 `RestartLevelC2S` |
-| 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()`（`:1577`） | `LeaveLevelC2S` → 清状态 → 传送带则直接重开，否则选卡（`onBack = showLevelList`） |
-| 5 | 编辑器「测试」 | `PvzceClient.testEditedLevel()`（`:1915`） | `/reload` → 等 `LevelListS2C` → 选卡（`setLevelList` 里续上） |
+| 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()` | `LeaveLevelC2S` → 清状态 → 传送带则直接重开，否则选卡（`onBack = showLevelList`） |
+| 5 | 编辑器「测试」 | `PvzceClient.testEditedLevel()` | `/reload` → 等 `LevelListS2C` → `enterLevelFromMenu`（`setLevelList` 里续上） |
 
-> 入口 1 和 2 都在判断"有没有存档"，是同一套规则的两份调用。这不是 bug（都转发到同一函数），
-> 但它是"想加一屏前置流程时不知道该往哪插"的直接原因 —— 见 §10。
+> 把关卡列表那一屏的分支收进 `enterLevelFromMenu` 是必要的，不只是整洁：入口 5 与冒烟钩子都直接
+> 调它，列表里那份判断它们走不到 —— 一个"有两方以上可玩"的关卡从编辑器进去会跳过阵营选择。
 
 ### 4.2 三个包，三套语义
 
@@ -235,7 +236,7 @@ LevelSelectScreen                PvzceClient                 PvzceServer        
 |---|---|---|---|
 | 暂停「继续游戏」 | `PauseDialog` 第 1 个按钮 | `close()` → `PauseGameC2S(false)` | 留在 `InGameScreen` |
 | 暂停「重新开始」 | `PauseDialog` 第 2 个按钮 | `LeaveLevelC2S` → `clearLevelClientState()` → 传送带直接重开，否则选卡 | `ChooseSeedsScreen`（`onBack = showLevelList`） |
-| 暂停「保存并退出」 | `PauseDialog` 第 3 个按钮 | `close()` → `leaveLevel()` = `LeaveLevelC2S` + 清状态 | `WorldSelectScreen` |
+| 暂停「保存并退出」 | `PauseDialog` 第 3 个按钮 | `close()` → `leaveLevel()` = `LeaveLevelC2S` + 清状态 | `TitleScreen`（玩家列表） |
 | 胜利 + 奖励 | `InGameScreen.showReward` → 点击领取 | 播胜利音乐 → `openAwardScreen()`（push） | `AwardScreen` |
 | 奖励页「继续」 | `AwardScreen` 按钮 / `requestClose()` | `finishLevelAndShowList()` | `LevelSelectScreen` |
 | 失败 | 点击任意处 | `finishLevelAndShowList()` | `LevelSelectScreen` |
@@ -363,7 +364,9 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 | 新覆盖层 | 继承 `Overlay` + 在 `PvzceClient` 给一个打开入口 | ✅ 现成（帧循环不用改） |
 | 屏内的确认框/输入框 | `Dialog` + `Screen.showDialog` | ✅ 现成 |
 | 需要"离开时释放"的东西 | 覆写 `Screen.onRemoved()` | ✅ 现成 |
-| 新前置流程（选难度、选阵营） | 仍要改 `enterLevelFromMenu` 的三分支 | ⚠️ 待做 |
+| 新前置流程（选难度、选阵营） | 仍要改 `enterLevelFromMenu` 的分支 | ⚠️ 待做（阵营已经是关卡数据驱动的：`LevelDef.playable_teams`） |
+| 玩家/世界切换 | 标题页的木牌 → `PlayerPickerDialog`（只切换，不开关卡列表） | ✅ 玩家列表就是世界列表 |
+| 关卡对话里的玩家名 | 台词里写 `${user_name}`，替换在 `DialogueOverlay.create` | ✅ 见 `当前项目架构.md` §6.2.2 |
 | 关卡自带的开场对话 | 关卡 JSON 的 `dialogue` 块，宿主是选卡页或游戏内 | ✅ 数据驱动 |
 | 新的"自供卡组"机制 | `common/level/mechanic` + `ClientMechanics` 路由 | ✅ 注册制 |
 | 新关卡分类页 | `level_theme` / `level_category` 注册表 + id 路径 | ✅ 数据驱动 |
@@ -382,7 +385,7 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
    `mouseClicked` 等方法在 `Screen` 里是 `final`，模态分发靠它们保证。
 2. **取最上层模态对话框 → `Screen.modalDialog()`**，不要自己倒序扫 `widgets`。
 3. **"进入这一关"的决策 → `PvzceClient.enterLevelFromMenu`**。
-   界面只负责"我选中了哪一关"，不要自己判断有没有存档、要不要选卡。
+   界面只负责"我选中了哪一关"，不要自己判断有没有存档、要不要选卡、要不要问阵营 —— 这三件事都在那一个函数里，界面里的第四份判断（编辑器测试、冒烟钩子）走不到它。
 4. **"有没有存档" 与 "通关了没有" 是两个字段**（`LevelInfo.runningSave` 与 `status`），不要合并。
 5. **进关卡只发一个包**：`ContinueLevelC2S` / `PlayLevelC2S` / `RestartLevelC2S` 三选一，
    不要混用，也不要再给它们加"这次算不算重开"的布尔。

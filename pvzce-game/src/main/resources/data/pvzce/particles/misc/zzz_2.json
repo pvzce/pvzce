@@ -1,0 +1,31 @@
+{
+  "id": "pvzce:zzz_2",
+  "look": {
+    "spin": 0.0,
+    "alpha_curve": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.22,
+        0.95
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 0.45,
+    "life": 1.6,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/misc/zzz_2"
+  },
+  "motion": {
+    "speed": 0.22,
+    "angle": 105.0,
+    "angle_spread": 18.0
+  },
+  "count": 1
+}

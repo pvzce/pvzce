@@ -24,7 +24,7 @@ public final class FlipbookPlayback extends AnimationPlayback {
 
     @Override
     public void render(PvzceClient client, float anchorX, float anchorY, float baseZ,
-                       float xScale) {
+                       float xScale, float yScale) {
         if (stopped) {
             return;
         }
@@ -33,19 +33,28 @@ public final class FlipbookPlayback extends AnimationPlayback {
         if (frame == null) {
             return;
         }
-        float scaleX = Math.max(0.0001F, xScale);
-        float width = flipbookFile.sizeX() * scaleX;
-        float height = flipbookFile.sizeY();
+        float width = flipbookFile.sizeX() * Math.max(0.0001F, xScale);
+        float height = flipbookFile.sizeY() * Math.max(0.0001F, yScale);
         float x = anchorX - width * flipbookFile.anchorX();
         float y = anchorY - height * flipbookFile.anchorY();
 
-        float blend = transitionBlend(now);
-        if (previousFrame != null && blend < 1F) {
-            client.drawTextureRegion(previousFrame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
-                    1F, 1F, 1F, 1F - blend);
+        // A cross-fade between two frames, which only makes sense when the clip asked for
+        // one: both frames are drawn translucent and their alphas sum to 1, so with no
+        // transition declared this would be the new frame at alpha 1 - and a needless second
+        // draw of the old one. The controller path has no equivalent and needs none: it
+        // interpolates the pose itself.
+        if (transitionDuration > 0F) {
+            float fade = transitionBlend(now);
+            if (previousFrame != null && fade < 1F) {
+                client.drawTextureRegion(previousFrame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
+                        1F, 1F, 1F, 1F - fade);
+            }
+            client.drawTextureRegion(frame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
+                    1F, 1F, 1F, fade);
+            return;
         }
         client.drawTextureRegion(frame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
-                1F, 1F, 1F, blend);
+                1F, 1F, 1F, 1F);
     }
 
     @Override

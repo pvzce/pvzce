@@ -105,6 +105,10 @@ class PacketProtocolTest {
                 new UnlockLevelC2S("pvzce:yard/adventure/1_2", "world"),
                 new MovePlantC2S(2, 3, 4),
                 new com.pvzce.common.network.packet.ReleaseMowerC2S(3),
+                // A tool the level grants rather than a card the player holds: the id is all it
+                // names, and the two coordinates follow it.
+                new com.pvzce.common.network.packet.UseGrantedToolC2S(
+                        Identifier.of("pvzce", "hammer"), 2, 4),
 
                 new LevelInitS2C("pvzce:level_1", slots, List.of("normal", "final"), payload,
                         "pvzce:zombie_team", "僵尸方", PvzcePackets.PROTOCOL_VERSION),

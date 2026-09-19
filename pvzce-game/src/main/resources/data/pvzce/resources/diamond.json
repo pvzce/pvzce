@@ -9,7 +9,7 @@
   "animation_dir": "resource",
   "texture": "pvzce:textures/entities/resource/diamond",
   "drop_motion": "rise",
-  "render_scale": 0.25,
+  "render_scale": 0.45,
   "pickup_sound": "pvzce:sfx/ui/diamond",
   "rise_height": 0.3,
   "rise_scatter": 0.25

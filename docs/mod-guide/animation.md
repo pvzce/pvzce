@@ -53,7 +53,7 @@ JSON 根节点写 `"type": "flipbook"` 或 `"type": "controller"`。
 
 - `frames`：Identifier 列表，省略 `.png`；`delay` 标量或 `delays` 数组，单位秒。
 - `size`：世界格；`anchor`：0..1，默认 `[0.5, 0.0]`（脚底中心）。
-- `loop`、`on_end: hold|idle|next`、`next`、`transition`（秒）。
+- `loop`、`on_end: hold|idle|next`、`next`、`transition`（秒）、`rate`、`reference_speed`。
 - `sound_effects` / `particle_effects` / `timeline` 见事件轨。
 
 ## 2D 控制器
@@ -102,11 +102,17 @@ JSON 根节点写 `"type": "flipbook"` 或 `"type": "controller"`。
 ```
 
 - 模型单位 = 世界格，x 右、y 上；根骨骼原点 = 脚底中心。
-- `parts[].uv` 用左上角像素矩形；`size` 用格；部件以 `offset` 为中心。
-- 关键帧通道：`translation` `[x,y,(z 忽略)]`、`rotation` `[x,y,z]` 度、`scale` `[x,y,(z 忽略)]`、`visible` bool。
+- `parts[].uv` 用左上角像素矩形；`size` 用格；部件以 `offset` 为中心；`blend` 可选 `normal`（缺省）或 `add`（发光/光晕，加法混合）。
+- 关键帧通道：`translation` `[x,y,(z 忽略)]`、`rotation` `[x,y,z]` 度、`scale` `[x,y,(z 忽略)]`、`visible` bool、`alpha` 数值 0..1。
 - `rotation` 的 x/y 映射 PvZ reanim 的 `kx/ky` 斜切，z 为平面旋转；这样可完整还原 reanim。
 - 关键帧值可以是数组，也可以是 `{"vector":[...],"easing":"linear|step|easeIn|easeOut|easeInOut"}`；缺省线性。
+- `alpha` 缺省 1；只在这个骨骼的透明度真的变化时才写，否则整个文件会多出一份"全是 1"的常量表。
 - `animation_length` 省略时取最大关键帧时间；`loop` / `on_end` / `next` / `transition` 同 flipbook。
+
+### 播放速率与位移
+
+- `rate`：本 clip 每秒推进多少"clip 秒"，缺省 1。原版一个 reanim 只有一种帧率，但**各个动作是按自己的速度播的**（僵尸死亡约 24–30 fps 于 12 fps 的导出、啃咬约 3 次/秒），所以死亡/啃咬这类没有位移信号的 clip 靠它。
+- `reference_speed`：本 clip 是**按多快的地面速度画的**，单位格/秒。只有行走/飞行这类"脚要踩住地"的 clip 需要：art 的循环长度本身就是一句关于速度的陈述，运行时用"实测位移 ÷ 这个数"调整播放速率，于是铁桶/路障走得比普通僵尸慢时不会滑步。静止时退回 1×。
 
 ## 事件轨
 
@@ -146,7 +152,17 @@ handle.setSpeed(1.5F);
 
 - `on_end: idle` 的内部切换不会改变 `requestedState`，下一帧重复调用 `playAnimation("shoot")` 不会覆盖。
 - 世界动画时间来自 `DebugInfoS2C` 外推的游戏秒（60 游戏 tick = 1 游戏秒）；暂停、单步、`/tick rate`、冲刺都会影响世界动画。
+- 实体位置用的是**绘制位置**（`ClientEntity.visualCellX/Y/Height`），不是包里的权威值：实体每 3 tick 才同步一次，直接拿包坐标画就是 20 Hz 的阶梯。
 - UI 目标后续接入同一 `Animatable` 接口，使用墙钟。
+
+### 循环的长度
+
+`animation_length` 由生成器按**接缝**判定，不要手写：
+
+- 末帧能接回首帧（接缝跳变量 ≈ 普通帧间步长）→ 循环是 `帧数 − 1` 帧。整段算进去会让采样器在末帧后多停一帧（走路每圈原地僵 83 ms、僵王死亡僵 250 ms）。
+- 末帧接不回首帧（接缝是个大跳）→ 循环是**整段帧数**，因为它是一段"经过"而不是闭环，砍掉末帧会倒退着闪一下。
+
+源数据里某个 mask 段**故意**以停住的姿势结尾时（土豆雷的 `anim_armed`），用 clip 配置的 `trim_end` 去掉那一帧，而不是让长度数学去猜。
 
 ## 已接入原版 reanim 的实体
 

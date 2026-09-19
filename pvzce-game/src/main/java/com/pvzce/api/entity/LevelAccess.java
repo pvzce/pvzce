@@ -44,6 +44,17 @@ public interface LevelAccess {
 
     List<ZombieEntity> zombiesInRow(int row);
 
+    /**
+     * The zombies in one row that belong to somebody else.
+     *
+     * <p>The targeting question every plant's attack asks, and the reason it is on the level
+     * rather than left to each caller: "who is an enemy" is a property of the <em>teams</em>,
+     * and a hypno-shroomed zombie is on the plants' side is not something a shooter can see
+     * from a zombie's id. A caller that wants every zombie in the row regardless of side (a
+     * count, a renderer, the level's own win check) keeps using {@link #zombiesInRow}.
+     */
+    List<ZombieEntity> enemiesInRow(int row, Team team);
+
     List<PlantEntity> plantsAt(int column, int row);
 
     /** The topmost plant in a cell (what zombies bite and the shovel removes first). */
@@ -103,8 +114,35 @@ public interface LevelAccess {
      * through a bucket" used to be a fact about the method name instead of about the
      * content.
      */
+    default void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY,
+                            float radius, int damage, Team sourceTeam) {
+        damageArea(type, centerX, centerY, radius, damage, sourceTeam, false);
+    }
+
+    /**
+     * The same hit, with a choice between a square footprint and a radial one.
+     *
+     * <p>{@code square} is how the original's ash line is authored: a cherry bomb covers the
+     * nine cells around it, so the footprint is a square measured in cells and a zombie
+     * straddling a cell edge is either inside it or not. A radial test on the same numbers
+     * leaves the diagonal cells' corners outside, which is a hole a zombie can stand in -
+     * visible in a 3x3 blast, where the four corners are exactly where the difference
+     * shows. Radial is kept for the hits that are really a distance (a boss slam, a melon
+     * splash), rather than a set of cells.
+     */
     void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius,
-                    int damage, Team sourceTeam);
+                    int damage, Team sourceTeam, boolean square);
+
+    /**
+     * Hits every zombie in one row, across the whole lawn.
+     *
+     * <p>The jalapeno's shape, and not expressible as a radius: a large enough square reaches
+     * the rows beside it (a blast of radius {@code height} covers a board of any width and
+     * takes its neighbours with it), while a radius that stops at the row's own edges stops
+     * short of a lawn wider than the number someone wrote down. "Every zombie in this row" is
+     * the fact, so it is the method.
+     */
+    void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam);
 
     void emitEffect(String particle, float x, float y, Identifier sound);
 

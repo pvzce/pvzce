@@ -9,13 +9,28 @@ import java.util.List;
 
 /** Level registry snapshot for the level select screen. */
 public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
-    public record TeamInfo(String id, String name, String winCondition) {
+    /**
+     * One side of a level, and whether a human may pick it.
+     *
+     * <p>{@code playable} is the level's own declaration, evaluated on the server and sent
+     * as a verdict like every other "is this available" answer: a level that can only be
+     * played as the plants says so, and the client's preparation screen skips itself when
+     * there is only one of these. Before this the client decided for itself that the zombie
+     * side was never playable, which is a fact about the build and not about the level.
+     */
+    public record TeamInfo(String id, String name, String winCondition, boolean playable) {
+        /** A team that can be picked; the three-argument form every already-written call uses. */
+        public TeamInfo(String id, String name, String winCondition) {
+            this(id, name, winCondition, true);
+        }
+
         public static final PacketStruct.Codec<TeamInfo> CODEC = PacketStruct.<TeamInfo>builder()
                 .field(TeamInfo::id, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .field(TeamInfo::name, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .field(TeamInfo::winCondition, PacketByteBuf::writeString, PacketByteBuf::readString)
+                .field(TeamInfo::playable, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
                 .build(values -> new TeamInfo((String) values.get(0), (String) values.get(1),
-                        (String) values.get(2)));
+                        (String) values.get(2), (Boolean) values.get(3)));
 
         public void encode(PacketByteBuf buf) {
             CODEC.encode(this, buf);

@@ -23,7 +23,15 @@ public abstract class PvzceEntity extends Entity {
     public static final int LAYER_PROJECTILE = EntityLayers.PROJECTILE;
     public static final int LAYER_AIR = EntityLayers.AIR;
 
-    protected final Team team;
+    /**
+     * Which side this entity is on.
+     *
+     * <p>Not final, because a zombie's side can change: the hypno-shroom charms one into
+     * fighting for the plants, and "whose side is this" then has to change on the entity the
+     * level already holds - removing and re-spawning it would break every reference to it (a
+     * projectile in flight, the opening wave that is waiting for it to die, its own position).
+     */
+    protected Team team;
     protected boolean removed;
 
     protected PvzceEntity(Identifier defId, Team team, float cellX, float cellY, int health) {
@@ -35,6 +43,17 @@ public abstract class PvzceEntity extends Entity {
 
     public Team team() {
         return team;
+    }
+
+    /**
+     * Moves this entity to another side.
+     *
+     * <p>The one thing a charm does. Nothing else is reset here - what a side change means for
+     * a given entity (a zombie's statuses, its speed boost, the animation it is playing) is the
+     * caller's business, because only the caller knows what it is changing.
+     */
+    public void setTeam(Team team) {
+        this.team = team;
     }
 
     public boolean isRemoved() {
@@ -62,7 +81,30 @@ public abstract class PvzceEntity extends Entity {
 
     public EntityUpdateS2C updatePacket() {
         return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(),
-                armor(), chilled());
+                armor(), chilled(), charmed(), teamIdForUpdate());
+    }
+
+    /**
+     * Whether this entity has been turned against its own side; zombies override it.
+     *
+     * <p>Only a zombie can be charmed, so the base answer is false and the flag is one boolean
+     * on the one update packet rather than a status list every entity would have to carry.
+     */
+    public boolean charmed() {
+        return false;
+    }
+
+    /**
+     * The side to publish in an update: the entity's own, and only while it is worth saying.
+     *
+     * <p>Streamed every tick rather than diffed against what was last sent. It is one short
+     * string on a packet that already carries twelve fields and goes out at 20 Hz for a handful
+     * of entities, and the alternative - the level remembering what it last told the client
+     * about each entity's side - is state that exists only to save a few bytes and can get out
+     * of step after a reconnect.
+     */
+    protected String teamIdForUpdate() {
+        return team == null ? EntityUpdateS2C.NO_TEAM : team.id().toString();
     }
 
     /**

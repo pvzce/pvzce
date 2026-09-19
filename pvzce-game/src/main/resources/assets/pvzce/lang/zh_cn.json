@@ -204,5 +204,19 @@
   "pvzce.zombie": "僵尸方",
   "pvzce.zombie_boss": "僵尸首领",
   "pvzce.zombie_damage_multiplier": "僵尸伤害倍率",
-  "pvzce.zombie_speed_multiplier": "僵尸速度倍率"
+  "pvzce.zombie_speed_multiplier": "僵尸速度倍率",
+  "pvzce.fume_shroom": "大喷菇",
+  "pvzce.grave_buster": "墓碑破坏者",
+  "pvzce.mechanic.tool": "关卡工具",
+  "pvzce.mechanic.tool.field.tool": "工具",
+  "pvzce.mechanic.tool.field.default": "默认点击使用",
+  "pvzce.mechanic.tool.field.cooldown": "冷却（tick，-1 沿用工具自身）",
+  "pvzce.mechanic.grave_spawner": "墓碑产怪",
+  "pvzce.mechanic.grave_spawner.field.min_graves": "维持墓碑数",
+  "pvzce.mechanic.grave_spawner.field.initial_graves": "开局墓碑数（-1 同上）",
+  "pvzce.mechanic.grave_spawner.field.interval": "出怪间隔（tick）",
+  "pvzce.mechanic.grave_spawner.field.min_x": "最小列",
+  "pvzce.mechanic.grave_spawner.field.max_x": "最大列（-1 到边缘）",
+  "pvzce.hypno_shroom": "魅惑菇",
+  "pvzce.zombie_sun_drop_chance": "僵尸掉落阳光概率"
 }

@@ -1,0 +1,240 @@
+package com.pvzce.common.level.mechanic;
+
+import com.mojang.serialization.MapCodec;
+import com.pvzce.api.content.GraveSpawnerData;
+import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.SceneElementDef;
+import com.pvzce.api.content.mechanic.FieldSpec;
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceIds;
+import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.level.SceneGrid;
+import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.server.level.LevelServer;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Graves that keep giving up their dead: the original's Whack-a-Zombie.
+ *
+ * <p>2-5 is the level this exists for. Its zombies do not walk in off the road - they climb out
+ * of the gravestones, one grave at a time, for as long as the level runs, and the graves a
+ * player smashes for breathing room come back. That is a different shape from every other night
+ * level, where the graves are scenery that opens once at the last wave, which is why it is a
+ * mechanic rather than another game rule.
+ *
+ * <p><strong>What it does not do</strong>: it raises no road zombies. A level using this still
+ * gets whatever its {@code waves} say, so a level that wants the graves to be the only way in
+ * writes an empty wave list and lets {@link #tick} do the work - and a level that wants both
+ * gets both.
+ *
+ * <p>The run state is the countdown and the grave counter, kept in a {@link Rig} the level owns
+ * (a mechanic instance is a shared registry entry, and two levels must not share one lawn's
+ * clock). Both go into the save, so a resumed run keeps its rhythm instead of restarting the
+ * interval.
+ */
+public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerData> {
+    /** The NBT key this mechanic's run state is written under. */
+    private static final String KEY_GRAVE_SPAWNER = "GraveSpawner";
+    /**
+     * How many graves may be raised in one tick.
+     *
+     * <p>Only reached by a blast that clears several at once (a cherry bomb over a cluster), and
+     * capped because each rise picks a random free cell: without the cap a boom over a full lawn
+     * turns into one very long tick. The rest go up on the ticks that follow.
+     */
+    private static final int MAX_RISES_PER_TICK = 2;
+    /**
+     * How many random cells one rise may try before giving up.
+     *
+     * <p>Bounded rather than "scan for a free cell": one cell in the region is as good as
+     * another, and walking the whole region on every rise is a per-tick cost the level pays for
+     * the rest of the run. Twelve rolls find somewhere on any lawn that is not already full.
+     */
+    private static final int PLACEMENT_ATTEMPTS = 12;
+
+    /** The original's four tombstone designs, cycled so a topped-up lawn is not four of a kind. */
+    private static final List<Identifier> GRAVE_ELEMENTS = List.of(
+            PvzceIds.id("grave"),
+            PvzceIds.id("grave_cross"),
+            PvzceIds.id("grave_slab"),
+            PvzceIds.id("grave_wide"));
+
+    @Override
+    public MapCodec<GraveSpawnerData> codec() {
+        return GraveSpawnerData.MAP_CODEC;
+    }
+
+    @Override
+    public List<String> validate(LevelDef def, GraveSpawnerData data) {
+        List<String> errors = new ArrayList<>(data.validate(def.width()));
+        for (Identifier zombie : data.zombies()) {
+            if (BuiltInRegistries.ZOMBIES.get(zombie) == null) {
+                errors.add("grave_spawner names unknown zombie '" + zombie
+                        + "': the graves would come up empty");
+            }
+        }
+        if (data.minGraves() > 0 && !hasGraveOnTheBoard(def)) {
+            errors.add("grave_spawner keeps " + data.minGraves()
+                    + " graves up but the level paints none, so the first one would appear"
+                    + " out of thin air mid-level");
+        }
+        return errors;
+    }
+
+    @Override
+    public List<FieldSpec> editorFields() {
+        return List.of(
+                FieldSpec.integer("min_graves", "pvzce.mechanic.grave_spawner.field.min_graves", 0, 81),
+                FieldSpec.integer("initial_graves", "pvzce.mechanic.grave_spawner.field.initial_graves",
+                        GraveSpawnerData.INITIAL_AS_MINIMUM, 81),
+                FieldSpec.integer("interval", "pvzce.mechanic.grave_spawner.field.interval", 1, 12000),
+                FieldSpec.integer("min_x", "pvzce.mechanic.grave_spawner.field.min_x", 0, 64),
+                FieldSpec.integer("max_x", "pvzce.mechanic.grave_spawner.field.max_x",
+                        GraveSpawnerData.MAX_X_UNSET, 64));
+    }
+
+    @Override
+    public void onLevelCreated(LevelServer level, GraveSpawnerData data) {
+        // Built eagerly so the save's countdown has somewhere to land and the opening board's
+        // own graves are counted before the first tick.
+        rig(level, data);
+    }
+
+    @Override
+    public void tick(LevelServer level, GraveSpawnerData data) {
+        Rig rig = rig(level, data);
+        // The opening board first: a level paints its own graves, and this raises whatever
+        // shortfall is left over before anything starts coming out of them. The target is the
+        // *initial* count until it has been reached, and the standing minimum forever after -
+        // so a block that opens with nine graves and settles at five does not spend the whole
+        // level putting the ninth one back.
+        int target = rig.raised < data.initialFor() ? data.initialFor() : data.minGraves();
+        keepGravesUp(level, data, rig, target);
+        if (data.zombies().isEmpty()) {
+            return;
+        }
+        if (--rig.ticksUntilRise > 0) {
+            return;
+        }
+        rig.ticksUntilRise = data.interval();
+        List<SceneGrid.Cell<SceneElementDef>> graves = level.graveCells();
+        if (graves.isEmpty()) {
+            return;
+        }
+        SceneGrid.Cell<SceneElementDef> chosen = graves.get(level.random().nextInt(graves.size()));
+        Identifier zombie = data.zombies().get(level.random().nextInt(data.zombies().size()));
+        level.raiseZombieFromGrave(zombie, chosen.x(), chosen.y());
+    }
+
+    @Override
+    public void collectSave(LevelServer level, GraveSpawnerData data, CompoundTag root) {
+        Rig rig = rig(level, data);
+        CompoundTag tag = new CompoundTag();
+        tag.putInt("TicksUntilRise", rig.ticksUntilRise);
+        tag.putInt("Raised", rig.raised);
+        tag.putInt("NextDesign", rig.nextDesign);
+        root.put(KEY_GRAVE_SPAWNER, tag);
+    }
+
+    @Override
+    public void applySave(LevelServer level, GraveSpawnerData data, CompoundTag root) {
+        Rig rig = rig(level, data);
+        CompoundTag tag = root.getCompound(KEY_GRAVE_SPAWNER);
+        // A save written before this mechanic existed has no block, and the rig then keeps the
+        // values it was built with - the same shape every other mechanic's applySave has.
+        if (tag == null) {
+            return;
+        }
+        rig.ticksUntilRise = Math.max(1, tag.getInt("TicksUntilRise"));
+        rig.raised = Math.max(0, tag.getInt("Raised"));
+        rig.nextDesign = Math.max(0, tag.getInt("NextDesign"));
+    }
+
+    // ------------------------------------------------------------------
+    // Run state and helpers
+    // ------------------------------------------------------------------
+
+    /**
+     * Tops the lawn back up to {@code target} graves.
+     *
+     * <p>Called every tick, because a grave can be smashed at any moment and the refill has to
+     * notice. In the common case it is one count against one number, which is why it is not
+     * event-driven: there is no event for "a grave is gone" - the shovel does not know what a
+     * grave is, and the grave buster removes the one it is standing on.
+     *
+     * @return true when at least one grave was raised
+     */
+    private static boolean keepGravesUp(LevelServer level, GraveSpawnerData data, Rig rig, int target) {
+        if (target <= 0) {
+            return false;
+        }
+        int present = level.graveCells().size();
+        if (present >= target) {
+            return false;
+        }
+        int wanted = Math.min(MAX_RISES_PER_TICK, target - present);
+        boolean raisedAny = false;
+        for (int i = 0; i < wanted; i++) {
+            if (placeOneGrave(level, data, rig)) {
+                raisedAny = true;
+            }
+        }
+        return raisedAny;
+    }
+
+    /** Picks a random free cell in the level's region and raises a gravestone in it. */
+    private static boolean placeOneGrave(LevelServer level, GraveSpawnerData data, Rig rig) {
+        int minX = data.minX();
+        int maxX = data.maxXFor(level.width());
+        int columns = maxX - minX + 1;
+        int rows = level.height();
+        if (columns <= 0 || rows <= 0) {
+            return false;
+        }
+        for (int attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
+            int x = minX + level.random().nextInt(columns);
+            int y = level.random().nextInt(rows);
+            if (level.isGrave(x, y)) {
+                // Already one there, so the count that sent us here was stale. Nothing to do:
+                // the next tick recounts.
+                return false;
+            }
+            Identifier element = GRAVE_ELEMENTS.get(rig.nextDesign % GRAVE_ELEMENTS.size());
+            if (level.placeGrave(element, x, y)) {
+                rig.nextDesign++;
+                rig.raised++;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when the level paints at least one gravestone of its own. */
+    private static boolean hasGraveOnTheBoard(LevelDef def) {
+        for (var entry : def.scene().entrySet()) {
+            SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(entry.getKey());
+            if (element != null && PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** This level's grave clock. */
+    private static Rig rig(LevelServer level, GraveSpawnerData data) {
+        return level.mechanicState(PvzceIds.MECHANIC_GRAVE_SPAWNER, () -> new Rig(data));
+    }
+
+    /** The countdown to the next rise, and how many graves this level has raised so far. */
+    private static final class Rig {
+        private int ticksUntilRise;
+        private int raised;
+        private int nextDesign;
+
+        private Rig(GraveSpawnerData data) {
+            this.ticksUntilRise = data.interval();
+        }
+    }
+}

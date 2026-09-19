@@ -147,6 +147,90 @@ class GloveMoveTest {
     }
 
     /**
+     * The reported bug, as an invariant: a move costs exactly one use and starts exactly one
+     * cooldown.
+     *
+     * <p>Two clicks are one move, so the drop half must not charge again - and the card must not
+     * be left unusable afterwards either. What the player saw was the second half of the rule
+     * failing on the client: the glove is on cooldown the moment it lifts something, the bar
+     * greys a selected card that is not ready, so the drop click was refused by the buzzer and
+     * the glove sat there looking like it had an infinite cooldown. The client no longer keeps
+     * the card selected across the two clicks, so this pins the half that lives on the server.
+     */
+    @Test
+    void oneMoveCostsOneUseAndOneCooldown() {
+        LevelServer server = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        PlantDef pea = BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter"));
+        server.spawnPlant(pea, server.team(PLANT_TEAM), 1, 1);
+
+        int glove = gloveSlot(server);
+        var slot = server.plantPlayer().slots().stream()
+                .filter(candidate -> candidate.index() == glove)
+                .findFirst().orElseThrow();
+        int usesBefore = slot.usesLeft();
+        assertEquals(0, slot.cooldownLeft(), "a fresh card is ready");
+
+        assertTrue(server.useTool(bridge, glove, 1, 1), "the lift");
+        assertEquals(usesBefore - 1, slot.usesLeft(), "the lift spends the use");
+        assertEquals(0, slot.cooldownLeft(),
+                "and does NOT start the recharge yet: the move is not finished, and a card that"
+                        + " recharges while its second click is still owed reads as jammed");
+
+        assertTrue(server.useTool(bridge, glove, 3, 2), "the drop");
+        assertEquals(usesBefore - 1, slot.usesLeft(), "the drop is the same move: no second use");
+        int cooldown = slot.cooldownLeft();
+        assertTrue(cooldown > 0, "the recharge belongs to the drop, which is where the move ends");
+
+        // The card is usable again once the recharge runs out, which is the half that has to be
+        // true for the bug not to come back: nothing may leave it stuck at "not ready".
+        for (int i = 0; i < cooldown + 1; i++) {
+            slot.tick();
+        }
+        assertTrue(slot.ready(), "the glove comes back");
+        assertTrue(slot.hasUsesLeft(), "and still has charges");
+    }
+
+    /** A move that is never finished still costs its recharge when the carry times out. */
+    @Test
+    void anAbandonedMoveLeavesTheGloveOnCooldown() {
+        LevelServer server = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        PlantDef pea = BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter"));
+        server.spawnPlant(pea, server.team(PLANT_TEAM), 1, 1);
+        int glove = gloveSlot(server);
+        var slot = server.plantPlayer().slots().stream()
+                .filter(candidate -> candidate.index() == glove)
+                .findFirst().orElseThrow();
+
+        assertTrue(server.useTool(bridge, glove, 1, 1), "the lift");
+        assertEquals(0, slot.cooldownLeft(), "the move is still open, so nothing is recharging");
+
+        for (int i = 0; i < LevelServer.CARRY_TIMEOUT_TICKS + 2; i++) {
+            server.tick(bridge);
+        }
+        assertTrue(slot.cooldownLeft() > 0,
+                "once the carry is abandoned the move is over, and the glove recharges");
+    }
+
+    /** A refused click costs nothing, so the card is exactly as ready as it was. */
+    @Test
+    void aRefusedClickCostsNoUseAndNoCooldown() {
+        LevelServer server = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        int glove = gloveSlot(server);
+        var slot = server.plantPlayer().slots().stream()
+                .filter(candidate -> candidate.index() == glove)
+                .findFirst().orElseThrow();
+        int usesBefore = slot.usesLeft();
+
+        assertFalse(server.useTool(bridge, glove, 2, 2), "there is no plant to lift");
+        assertEquals(usesBefore, slot.usesLeft(), "so no charge was spent");
+        assertEquals(0, slot.cooldownLeft(), "and no recharge was started");
+        assertTrue(slot.ready(), "the glove is still in hand, ready for the cell the player meant");
+    }
+
+    /**
      * An abandoned carry puts the plant back.
      *
      * <p>Nothing is removed while the glove is holding something, so letting the carry

@@ -88,6 +88,21 @@ tasks.register('extractLwjglNatives', Copy) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+// Forward the smoke-style properties into the test JVM as well, so a diagnostic that is
+// guarded by one (see AnimationPlayback's pvzce.traceLocomotion) can be switched on for a
+// test run without editing the build file - the same reason `run` has this block.
+tasks.named('test') {
+    // Diagnostics guarded by a property are useless if the forked JVM's stdout is swallowed;
+    // this is what makes `-Ppvzce.smoke=pvzce.traceLocomotion=true` readable.
+    testLogging.showStandardStreams = true
+    if (project.hasProperty('pvzce.smoke')) {
+        project.property('pvzce.smoke').toString().split('\\s+').findAll { !it.isBlank() }.each { entry ->
+            def parts = entry.split('=', 2)
+            systemProperty parts[0], parts.length > 1 ? parts[1] : 'true'
+        }
+    }
+}
+
 run {
     // Development mode: classes are on the classpath instead of inside one fat jar.
     dependsOn tasks.named('extractLwjglNatives')

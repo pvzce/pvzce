@@ -78,8 +78,9 @@ public final class AnimationResourceLoader {
         void accept(String name, JsonObject json);
     }
 
-    /** The clip fields both backends share: loop, on_end, next and transition. */
-    private record ClipHeader(boolean loop, AnimationClip.OnEnd onEnd, String next, float transition) {
+    /** The clip fields both backends share: loop, on_end, next, transition, rate, speed. */
+    private record ClipHeader(boolean loop, AnimationClip.OnEnd onEnd, String next, float transition,
+                              float rate, float referenceSpeed) {
     }
 
     private static ClipHeader clipHeader(JsonObject json) {
@@ -87,7 +88,11 @@ public final class AnimationResourceLoader {
                 bool(json, "loop", false),
                 AnimationClip.OnEnd.parse(string(json, "on_end", "hold")),
                 string(json, "next", ""),
-                Math.max(0F, number(json, "transition", 0F)));
+                Math.max(0F, number(json, "transition", 0F)),
+                // Not clamped here: the clip records clamp, so an out-of-range value that a
+                // test or a diagnostic reads is the sanitized one either way.
+                number(json, "rate", 1F),
+                Math.max(0F, number(json, "reference_speed", 0F)));
     }
 
     // ------------------------------------------------------------------
@@ -130,7 +135,7 @@ public final class AnimationResourceLoader {
 
         ClipHeader header = clipHeader(json);
         return new FlipbookClip(frames, delays, header.loop(), header.onEnd(), header.next(), header.transition(),
-                soundCues(json, source), particleCues(json, source));
+                header.rate(), header.referenceSpeed(), soundCues(json, source), particleCues(json, source));
     }
 
     // ------------------------------------------------------------------
@@ -182,7 +187,7 @@ public final class AnimationResourceLoader {
         float[] translation = vec2(transform, "translation", 0F, 0F);
         float[] rotation = vec3(transform, "rotation", 0F, 0F, 0F);
         float[] scale = vec2(transform, "scale", 1F, 1F);
-        return new BonePose(translation, rotation, scale, true);
+        return new BonePose(translation, rotation, scale, true, number(transform, "alpha", 1F));
     }
 
     private static List<ControllerModel.Part> parseParts(JsonObject boneJson, Identifier source) {
@@ -201,8 +206,9 @@ public final class AnimationResourceLoader {
             float[] size = vec2(part, "size", 1F, 1F);
             float[] offset = vec2(part, "offset", 0F, 0F);
             float z = number(part, "z", 0F);
+            BlendMode blend = BlendMode.parse(string(part, "blend", null));
             parts.add(new ControllerModel.Part(texture, uv[0], uv[1], uv[2], uv[3],
-                    size[0], size[1], offset[0], offset[1], z));
+                    size[0], size[1], offset[0], offset[1], z, blend));
         }
         return parts;
     }
@@ -221,8 +227,9 @@ public final class AnimationResourceLoader {
                 VectorTrack rotation = vectorTrack(boneJson, "rotation");
                 VectorTrack scale = vectorTrack(boneJson, "scale");
                 BooleanTrack visible = booleanTrack(boneJson, "visible");
-                tracks.put(entry.getKey(), new ControllerClip.BoneTracks(translation, rotation, scale, visible));
-                maxTime = Math.max(maxTime, maxTime(translation, rotation, scale, visible));
+                FloatTrack alpha = floatTrack(boneJson, "alpha");
+                tracks.put(entry.getKey(), new ControllerClip.BoneTracks(translation, rotation, scale, visible, alpha));
+                maxTime = Math.max(maxTime, maxTime(translation, rotation, scale, visible, alpha));
             }
         }
         float duration = number(json, "animation_length", maxTime);
@@ -231,12 +238,13 @@ public final class AnimationResourceLoader {
         }
         ClipHeader header = clipHeader(json);
         return new ControllerClip(duration, header.loop(), header.onEnd(), header.next(), header.transition(),
-                tracks, soundCues(json, source), particleCues(json, source));
+                header.rate(), header.referenceSpeed(), tracks, soundCues(json, source), particleCues(json, source));
     }
 
-    private static float maxTime(VectorTrack translation, VectorTrack rotation, VectorTrack scale, BooleanTrack visible) {
+    private static float maxTime(VectorTrack translation, VectorTrack rotation, VectorTrack scale,
+                                 BooleanTrack visible, FloatTrack alpha) {
         return Math.max(Math.max(translation.maxTime(), rotation.maxTime()),
-                Math.max(scale.maxTime(), visible.maxTime()));
+                Math.max(Math.max(scale.maxTime(), visible.maxTime()), alpha.maxTime()));
     }
 
     private static VectorTrack vectorTrack(JsonObject boneJson, String key) {
@@ -275,6 +283,30 @@ public final class AnimationResourceLoader {
             keys.add(new Keyframe<>(parseTime(entry.getKey()), entry.getValue().getAsBoolean(), Easing.STEP));
         }
         return new BooleanTrack(keys);
+    }
+
+    /**
+     * Reads a scalar channel, accepting either a bare number or the
+     * {@code {"value": v, "easing": e}} form that vector channels already allow.
+     */
+    private static FloatTrack floatTrack(JsonObject boneJson, String key) {
+        JsonObject channel = object(boneJson, key);
+        if (channel == null) {
+            return new FloatTrack(List.of());
+        }
+        List<Keyframe<Float>> keys = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : channel.entrySet()) {
+            float time = parseTime(entry.getKey());
+            JsonElement value = entry.getValue();
+            if (value.isJsonObject()) {
+                JsonObject object = value.getAsJsonObject();
+                float scalar = number(object, "value", 1F);
+                keys.add(new Keyframe<>(time, scalar, Easing.parse(string(object, "easing", "linear"))));
+            } else {
+                keys.add(new Keyframe<>(time, value.getAsFloat(), Easing.LINEAR));
+            }
+        }
+        return new FloatTrack(keys);
     }
 
     // ------------------------------------------------------------------

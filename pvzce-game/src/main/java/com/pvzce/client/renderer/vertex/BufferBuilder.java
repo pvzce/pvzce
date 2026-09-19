@@ -1,15 +1,10 @@
 package com.pvzce.client.renderer.vertex;
 
-import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL20;
-import org.lwjgl.opengl.GL30;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 
-/** Growable CPU-side vertex buffer; {@link #build()} uploads a VAO/VBO mesh. */
+/** Growable CPU-side vertex buffer; {@link Tesselator} uploads it. */
 public final class BufferBuilder implements VertexConsumer {
     private ByteBuffer bytes;
     private FloatBuffer floats;
@@ -76,27 +71,21 @@ public final class BufferBuilder implements VertexConsumer {
         return vertexCount;
     }
 
+    /** The vertex data, for the {@link Tesselator} to upload. */
+    public ByteBuffer bytes() {
+        return bytes;
+    }
+
+    /**
+     * Marks the geometry as finished and tells the tesselator it is waiting to be drawn.
+     *
+     * <p>No GL work happens here any more, which is why the method is kept at all: every
+     * caller writes {@code builder.build()} before drawing, and the only thing left to do at
+     * that point is the bookkeeping that catches a quad that is built and then dropped.
+     */
     public MeshData build() {
-        int vao = GL30.glGenVertexArrays();
-        GL30.glBindVertexArray(vao);
-
-        int vbo = GL15.glGenBuffers();
-        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
-        int size = vertexCount * format.vertexFloats() * Float.BYTES;
-        bytes.position(0);
-        bytes.limit(size);
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, bytes, GL15.GL_STATIC_DRAW);
-
-        int stride = format.vertexFloats() * Float.BYTES;
-        GL20.glEnableVertexAttribArray(0);
-        GL20.glVertexAttribPointer(0, 3, GL20.GL_FLOAT, false, stride, 0);
-        GL20.glEnableVertexAttribArray(1);
-        GL20.glVertexAttribPointer(1, 4, GL20.GL_FLOAT, false, stride, 3L * Float.BYTES);
-        GL20.glEnableVertexAttribArray(2);
-        GL20.glVertexAttribPointer(2, 2, GL20.GL_FLOAT, false, stride, 7L * Float.BYTES);
-
-        GL30.glBindVertexArray(0);
-        return new MeshData(vao, vbo, vertexCount);
+        Tesselator.INSTANCE.markBuilt(vertexCount);
+        return new MeshData(vertexCount);
     }
 
     public void reset() {
@@ -105,11 +94,16 @@ public final class BufferBuilder implements VertexConsumer {
         vertexCount = 0;
     }
 
-    public record MeshData(int vao, int vbo, int vertexCount) implements AutoCloseable {
+    /**
+     * What {@link #build()} returns.
+     *
+     * <p>It used to be a VAO/VBO pair that had to be closed, so every draw call created and
+     * deleted a pair of GPU objects; see {@link Tesselator} for what that cost. The only thing
+     * left to carry is the vertex count, and there is nothing to release.
+     */
+    public record MeshData(int vertexCount) implements AutoCloseable {
         @Override
         public void close() {
-            GL30.glDeleteVertexArrays(vao);
-            GL15.glDeleteBuffers(vbo);
         }
     }
 }

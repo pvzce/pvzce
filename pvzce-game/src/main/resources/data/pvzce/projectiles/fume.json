@@ -1,0 +1,19 @@
+{
+  "id": "pvzce:fume",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 2.4
+    },
+    {
+      "type": "pvzce:pierce"
+    }
+  ],
+  "damage_type": "pvzce:spray",
+  "sounds": {
+    "impact": "pvzce:sfx/plant/fume"
+  },
+  "texture": "pvzce:textures/entities/projectile/fume",
+  "render_scale": 1.6
+}

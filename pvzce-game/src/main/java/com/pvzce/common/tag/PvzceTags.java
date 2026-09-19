@@ -67,6 +67,15 @@ public final class PvzceTags {
     /** Aquatic terrain; only water plants may be placed on it. */
     public static final TagKey<SceneElementDef> SCENE_WATER =
             sceneElement("water");
+    /**
+     * Terrain that is a gravestone: the one thing a grave buster may be planted on.
+     *
+     * <p>Separate from {@link #SCENE_UNPLANTABLE}, which every grave is also in - that tag
+     * says "no ordinary plant here", and this one says "the grave buster, and only the grave
+     * buster". A tile may carry both, and the more specific rule is checked first.
+     */
+    public static final TagKey<SceneElementDef> SCENE_GRAVE =
+            sceneElement("grave");
 
     // ------------------------------------------------------------------
     // plant tags - what a plant is, and what it may be placed on
@@ -103,6 +112,17 @@ public final class PvzceTags {
      */
     public static final TagKey<PlantDef> PLANT_ONLY =
             plant("plant_only");
+    /**
+     * Plants that must be planted on a gravestone (grave buster).
+     *
+     * <p>See {@link #SCENE_GRAVE}. The rule is a tag pair rather than a capability check for
+     * the same reason {@code #c:water_plant} is: "where may this go" is answered by
+     * {@link com.pvzce.common.core.PlantPlacement} so that the server, the plant AI and any
+     * future hover feedback all get the same answer, instead of the plant being refused after
+     * the player has already spent the card.
+     */
+    public static final TagKey<PlantDef> GRAVE_ONLY =
+            plant("grave_only");
 
     // ------------------------------------------------------------------
     // String spellings, for `accepts` entries and diagnostics
@@ -116,6 +136,8 @@ public final class PvzceTags {
     public static final String REQUIRES_GROUND_REFERENCE = "#" + REQUIRES_GROUND.id();
     public static final String WATER_PLANT_REFERENCE = "#" + WATER_PLANT.id();
     public static final String PLANT_ONLY_REFERENCE = "#" + PLANT_ONLY.id();
+    public static final String GRAVE_REFERENCE = "#" + SCENE_GRAVE.id();
+    public static final String GRAVE_ONLY_REFERENCE = "#" + GRAVE_ONLY.id();
 
     /**
      * Every tag the built-in placement rules read. A pack that drops one of
@@ -123,8 +145,8 @@ public final class PvzceTags {
      * terrain, so the loader reports the missing ones instead.
      */
     public static final List<TagKey<?>> PLACEMENT_TAGS = List.of(
-            SCENE_PLANTABLE, SCENE_GROUND, SCENE_UNPLANTABLE, SCENE_WATER,
-            PLANTABLE, CARRIER, REQUIRES_GROUND, WATER_PLANT, PLANT_ONLY);
+            SCENE_PLANTABLE, SCENE_GROUND, SCENE_UNPLANTABLE, SCENE_WATER, SCENE_GRAVE,
+            PLANTABLE, CARRIER, REQUIRES_GROUND, WATER_PLANT, PLANT_ONLY, GRAVE_ONLY);
 
     /** Built-in example: plants that produce sun (sunflower, marigold). */
     public static final TagKey<PlantDef> SUN_PRODUCERS =

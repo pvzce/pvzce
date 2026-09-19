@@ -13,6 +13,14 @@ import com.pvzce.api.util.Identifier;
  */
 public final class PvzceSounds {
     public static final Identifier PLANT_SHOOT_PEA = id("sfx/plant/shoot_pea");
+    /**
+     * The hypno-shroom turning a zombie: the original's own "floop".
+     *
+     * <p>Named for the plant rather than for "charm" because the sound belongs to the mushroom,
+     * the way {@code PLANT_SQUASH_HMM} belongs to the squash - a mod's own charming plant would
+     * declare its own event instead of inheriting this one.
+     */
+    public static final Identifier PLANT_HYPNO_FLOOP = id("sfx/plant/floop");
     public static final Identifier PLANT_THROW = id("sfx/plant/throw");
     public static final Identifier PLANT_PLANT = id("sfx/plant/plant");
     /** A plant that grows into a bigger form (the sun-shroom). */

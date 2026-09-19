@@ -212,13 +212,52 @@ public final class DialogueOverlay extends Dialog {
                         line.character());
             }
             Identifier portrait = character == null ? null : character.portraitTexture(line.portrait());
-            frames.add(new Frame(character, portrait, line.text(), line.voice(),
+            if (portrait != null && !client.hasTexture(portrait)) {
+                // The named look is not in this pack. Fall back to the character's own portrait
+                // (the one named after them) rather than to nothing: a speaker who vanishes for
+                // one line reads as a bug, and the line is still the line. A character with
+                // neither is drawn as before - no portrait, and the validator says so.
+                Identifier fallback = character.portraitTexture(character.id().path());
+                if (fallback != null && client.hasTexture(fallback)) {
+                    LOGGER.warn("Unknown portrait '{}' for '{}': using '{}'",
+                            line.portrait(), character.id(), character.id().path());
+                    portrait = fallback;
+                }
+            }
+            frames.add(new Frame(character, portrait, substituteUserName(client, line.text()),
+                    line.voice(),
                     !line.side().isRight() && !line.side().isCenter(), line.side().isCenter(),
                     line.animation()));
         }
         DialogueOverlay overlay = new DialogueOverlay(client, frames, dialogue.enter(), dialogue.exit());
         overlay.onFinish = onFinish;
         return overlay;
+    }
+
+    /**
+     * The placeholder a script writes when the character is talking to the player.
+     *
+     * <p>{@code ${user_name}} is the name the player picked at the title screen, which is also
+     * the world they are playing in (see {@code TitleScreen}). It is substituted when the
+     * overlay is built rather than when the line is drawn, so one line has one final text: the
+     * typewriter, the wrapping and the "click to continue" hint all measure the same string, and
+     * a name that arrives later (a world change) cannot make a half-typed line change length
+     * under the player's eyes.
+     *
+     * <p>Written with the shell's spelling because that is what it is - a value spliced into a
+     * string the author wrote - and it is one more thing {@code LevelValidator} does not have to
+     * know about: an unknown placeholder is simply not one of these, so it is shown as typed and
+     * the author sees the literal text they wrote.
+     */
+    public static final String USER_NAME_PLACEHOLDER = "${user_name}";
+
+    /** Replaces {@link #USER_NAME_PLACEHOLDER} with the current player's name. */
+    static String substituteUserName(PvzceClient client, String text) {
+        if (text == null || !text.contains(USER_NAME_PLACEHOLDER)) {
+            return text;
+        }
+        String name = client == null ? null : client.currentWorld();
+        return text.replace(USER_NAME_PLACEHOLDER, name == null ? "" : name);
     }
 
     /** True while the player still has lines to click through. */

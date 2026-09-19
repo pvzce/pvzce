@@ -6,7 +6,9 @@ import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.capability.plant.BowlCapability;
+import com.pvzce.common.capability.plant.CharmCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
+import com.pvzce.common.capability.plant.GraveBusterCapability;
 import com.pvzce.common.capability.plant.MeleeCapability;
 import com.pvzce.common.capability.plant.NocturnalCapability;
 import com.pvzce.common.capability.plant.ProducerCapability;
@@ -32,6 +34,23 @@ public final class PlantCapabilities {
     public static final CapabilityType<ExplosiveCapability> EXPLOSIVE = type("explosive", ExplosiveCapability.CODEC);
     public static final CapabilityType<MeleeCapability> MELEE = type("melee", MeleeCapability.CODEC);
     public static final CapabilityType<WakeBelowCapability> WAKE_BELOW = type("wake_below", WakeBelowCapability.CODEC);
+    /**
+     * Eats the gravestone it was planted on.
+     *
+     * <p>Where it may be planted is not this capability's business: {@code #c:grave_only} in the
+     * placement rules refuses the card at any other cell, so the two halves of "clears graves"
+     * stay in the places that already own them.
+     */
+    public static final CapabilityType<GraveBusterCapability> GRAVE_BUSTER =
+            type("grave_buster", GraveBusterCapability.CODEC);
+    /**
+     * Turns the zombie that eats the plant onto the plant's own side.
+     *
+     * <p>The hypno-shroom. See {@link CharmCapability}: the effect is one team change, and every
+     * attack rule in the game already asks "is this an enemy".
+     */
+    public static final CapabilityType<CharmCapability> CHARM =
+            type("charm", CharmCapability.CODEC);
     public static final CapabilityType<BowlCapability> BOWL = type("bowl", BowlCapability.CODEC);
     public static final CapabilityType<NocturnalCapability> NOCTURNAL = type("nocturnal", NocturnalCapability.CODEC);
 
@@ -51,6 +70,8 @@ public final class PlantCapabilities {
         register(EXPLOSIVE, "explosive");
         register(MELEE, "melee");
         register(WAKE_BELOW, "wake_below");
+        register(GRAVE_BUSTER, "grave_buster");
+        register(CHARM, "charm");
         register(BOWL, "bowl");
         register(NOCTURNAL, "nocturnal");
     }

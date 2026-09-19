@@ -4,7 +4,7 @@
     "resources": {
       "pvzce:sun": 150
     },
-    "cooldown": 600
+    "cooldown": 3000
   },
   "health": 100,
   "capabilities": [
@@ -12,7 +12,8 @@
       "type": "pvzce:explosive",
       "trigger": "timed",
       "fuse_ticks": 60,
-      "radius": 1.5,
+      "radius": 1.0,
+      "square": true,
       "damage": 1800
     }
   ],

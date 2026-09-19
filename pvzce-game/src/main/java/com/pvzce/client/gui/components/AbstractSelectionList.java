@@ -29,6 +29,8 @@ public class AbstractSelectionList<E> extends AbstractWidget {
     private EntryRenderer<E> entryRenderer;
     private int selectedIndex = -1;
     private int scrollOffset;
+    /** What a click on a row does after it moves the selection; null for nothing. */
+    private java.util.function.Consumer<E> onRowClick;
 
     public AbstractSelectionList(int x, int y, int width, int height, int entryHeight, EntryRenderer<E> entryRenderer) {
         super(x, y, width, height);
@@ -46,6 +48,19 @@ public class AbstractSelectionList<E> extends AbstractWidget {
      */
     public void setEntryRenderer(EntryRenderer<E> entryRenderer) {
         this.entryRenderer = entryRenderer;
+    }
+
+    /**
+     * Runs after a click moves the selection onto a row.
+     *
+     * <p>For a list that has no separate confirm step - the title screen's player picker, where
+     * a name <em>is</em> the start button. The callback lives on the widget rather than on the
+     * screen because the widget consumes its clicks: the screen's own {@code onMouseClicked}
+     * hook only runs when no widget took the click, so "select, then let the screen decide" is
+     * not available to a list at all.
+     */
+    public void setOnRowClick(java.util.function.Consumer<E> onRowClick) {
+        this.onRowClick = onRowClick;
     }
 
     public void setEntries(List<E> entries) {
@@ -166,6 +181,9 @@ public class AbstractSelectionList<E> extends AbstractWidget {
             int index = indexAt(mouseX, guiY);
             if (index >= 0) {
                 selectedIndex = index;
+                if (onRowClick != null) {
+                    onRowClick.accept(entries.get(index));
+                }
             }
         }
         return true;

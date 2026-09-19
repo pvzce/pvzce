@@ -35,6 +35,7 @@ public final class ClientMechanics {
         register(new ConveyorClientMechanic());
         register(new PlacementZoneClientMechanic());
         register(new MowerClientMechanic());
+        register(new ToolClientMechanic());
     }
 
     public static void register(ClientMechanic mechanic) {
@@ -72,6 +73,35 @@ public final class ClientMechanics {
             }
         }
         return null;
+    }
+
+    /**
+     * The tool a click with no card in hand uses, or {@code null}.
+     *
+     * <p>Forwarded to the tool mechanic's own registration so the answer comes from the same
+     * place that read the level's blocks: the client must not re-derive "which tool is the
+     * default" from the payload, or a level whose blocks arrived in a different order would
+     * behave differently on the two sides.
+     */
+    public static com.pvzce.api.content.ToolData defaultTool(ClientLevel level) {
+        ClientMechanic mechanic = REGISTRY.get(com.pvzce.common.PvzceIds.MECHANIC_TOOL);
+        return mechanic instanceof ToolClientMechanic tools ? tools.defaultTool(level) : null;
+    }
+
+    /**
+     * How far the level's default tool reaches around the click, in cells; 0 = the clicked cell.
+     *
+     * <p>Read from the same tool definition the server swings with, so the aim indicator the
+     * player sees and the hit box the server applies cannot disagree.
+     */
+    public static float defaultToolRange(ClientLevel level) {
+        com.pvzce.api.content.ToolData data = defaultTool(level);
+        if (data == null || data.tool() == null) {
+            return 0F;
+        }
+        com.pvzce.api.content.ToolDef def =
+                com.pvzce.common.core.BuiltInRegistries.TOOLS.get(data.tool());
+        return def == null ? 0F : def.range();
     }
 
     /** World-space overlays for a level, in the order the level declares its mechanics. */

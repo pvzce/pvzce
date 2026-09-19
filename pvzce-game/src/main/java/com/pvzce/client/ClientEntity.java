@@ -18,11 +18,18 @@ import com.pvzce.common.network.packet.EntityUpdateS2C;
  * component; the kind and layer arrive from the spawn packet because layer is a
  * server decision (a zombie's layer changes while it digs or flies).
  */
-public final class ClientEntity extends Entity implements Animatable {
+public final class ClientEntity extends Entity implements com.pvzce.client.api.MovingTarget {
     private final String kind;
     private final int layer;
     /** Owning team id as sent by the server; drives per-team rendering and access checks. */
-    private final String teamId;
+    /**
+     * The team that owns this entity, or an empty string for team-less entities.
+     *
+     * <p>Not final because a zombie's side can change under it: a charmed zombie is moved to
+     * the plants' team, and the visual that says so is driven from here (see
+     * {@link #charmed()}).
+     */
+    private String teamId;
     /**
      * Remaining armour, or {@link EntitySpawnS2C#NO_ARMOR}.
      *
@@ -38,6 +45,15 @@ public final class ClientEntity extends Entity implements Animatable {
      * false for anything that is not a zombie.
      */
     private boolean chilled;
+    /**
+     * Whether the server has this zombie fighting for the side it was spawned against.
+     *
+     * <p>State, like the armour and the chill above it: the client draws the charmed look from
+     * it and cannot work it out from anything else it is sent, because "which side is this" is
+     * not something a position or an animation says. Always false for anything that is not a
+     * zombie.
+     */
+    private boolean charmed;
     /**
      * Draw-size multiplier on top of the definition's own {@code render_scale}.
      *
@@ -63,12 +79,20 @@ public final class ClientEntity extends Entity implements Animatable {
     public ClientEntity(int id, String kind, String defId, float cellX, float cellY, int health,
                         int layer, String animation, float height, String teamId, int armor,
                         boolean chilled, float renderScale) {
+        this(id, kind, defId, cellX, cellY, health, layer, animation, height, teamId, armor,
+                chilled, false, renderScale);
+    }
+
+    public ClientEntity(int id, String kind, String defId, float cellX, float cellY, int health,
+                        int layer, String animation, float height, String teamId, int armor,
+                        boolean chilled, boolean charmed, float renderScale) {
         super(id, Identifier.tryParse(defId), cellX, cellY, health);
         this.kind = kind;
         this.layer = layer;
         this.teamId = teamId == null ? "" : teamId;
         this.armor = armor;
         this.chilled = chilled;
+        this.charmed = charmed;
         this.renderScale = renderScale <= 0F ? EntitySpawnS2C.DEFAULT_SCALE : renderScale;
         setAnimation(animation);
         setHeight(height);
@@ -92,6 +116,18 @@ public final class ClientEntity extends Entity implements Animatable {
     }
 
     /**
+     * True when this zombie is fighting for the side it was spawned against.
+     *
+     * <p>The visual is a tint, so a charmed zombie is legible in a lane full of ordinary ones
+     * without a second sprite set - which is also what the original does (the zombie turns
+     * purple and keeps its own art).
+     */
+    public boolean charmed() {
+        return charmed;
+    }
+
+
+    /**
      * The per-entity draw-size multiplier.
      *
      * <p>Multiplied with {@code EntityArt.renderScale} (the definition's own number) by
@@ -101,7 +137,13 @@ public final class ClientEntity extends Entity implements Animatable {
         return renderScale;
     }
 
-    /** The team that owns this entity, or an empty string for team-less entities. */
+    /**
+     * The team that owns this entity, or an empty string for team-less entities.
+     *
+     * <p>A zombie's can change while it is on the board: a charmed one is moved to the plants'
+     * team by the server, and the update that says so is applied here. Nothing on the client
+     * simulates sides, so this is only ever read for what to draw.
+     */
     public String teamId() {
         return teamId;
     }
@@ -171,6 +213,18 @@ public final class ClientEntity extends Entity implements Animatable {
         return slide(renderCellX, cellX());
     }
 
+    /** {@inheritDoc} The pair {@link com.pvzce.client.api.MovingTarget} asks a playback for. */
+    @Override
+    public float drawnX() {
+        return visualCellX();
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public float drawnY() {
+        return visualCellY();
+    }
+
     /** The y to draw this entity at; same rule as {@link #visualCellX()}. */
     public float visualCellY() {
         return slide(renderCellY, cellY());
@@ -210,6 +264,12 @@ public final class ClientEntity extends Entity implements Animatable {
 
     public void update(float cellX, float cellY, int health, String animation, float height, int armor,
                        boolean chilled) {
+        update(cellX, cellY, health, animation, height, armor, chilled, false,
+                EntityUpdateS2C.NO_TEAM);
+    }
+
+    public void update(float cellX, float cellY, int health, String animation, float height, int armor,
+                       boolean chilled, boolean charmed, String teamId) {
         // Interpolation starts from where this entity is being *drawn*, not from where the
         // last packet put it: a packet delayed past one sync period would otherwise make the
         // entity jump backwards to the previous sample before sliding forward again.
@@ -225,12 +285,18 @@ public final class ClientEntity extends Entity implements Animatable {
         setHeight(height);
         this.armor = armor;
         this.chilled = chilled;
+        this.charmed = charmed;
+        // An empty id means "unchanged", so a level that has never charmed anything keeps
+        // sending the same string it did from the spawn packet without anything resetting it.
+        if (teamId != null && !teamId.isEmpty()) {
+            this.teamId = teamId;
+        }
     }
 
     /** Applies {@link EntityUpdateS2C} directly so the packet shape lives in one place. */
     public void apply(EntityUpdateS2C update) {
         update(update.cellX(), update.cellY(), update.health(), update.animation(), update.height(),
-                update.armor(), update.chilled());
+                update.armor(), update.chilled(), update.charmed(), update.teamId());
     }
 
     public void attachAnimationManager(AnimationManager manager) {

@@ -9,7 +9,7 @@
   "animation_dir": "resource",
   "texture": "pvzce:textures/entities/resource/coin_gold",
   "drop_motion": "rise",
-  "render_scale": 0.25,
+  "render_scale": 0.62,
   "pickup_sound": "pvzce:sfx/ui/coin",
   "rise_height": 0.3,
   "rise_scatter": 0.25

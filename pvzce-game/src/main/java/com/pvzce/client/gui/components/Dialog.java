@@ -42,11 +42,53 @@ public class Dialog extends AbstractWidget {
     private boolean closeOnEscape = true;
     private boolean renderBackdrop = true;
     private boolean showTitlePlate = true;
+    /** True when the title is drawn inside the frame rather than on the plate. */
+    private boolean inlineTitle;
     private boolean bigBottom;
+    /**
+     * How much of the frame's own border to draw, as a fraction.
+     *
+     * <p>The stone frame is authored at roughly 209 texture pixels of border for a 213-wide piece
+     * of art: on a small dialog that is most of the dialog, and a few rows of content inside it
+     * have nowhere to go. One is the frame as drawn, smaller values are the same carving at a
+     * thinner border - the slices keep their shape, so it reads as the same frame rather than as
+     * a different widget.
+     */
+    private float frameScale = 1F;
 
     public Dialog(int x, int y, int width, int height, String title) {
         super(x, y, width, height);
         this.title = title;
+    }
+
+    /** Draws the frame with {@code scale} of its native border thickness. See {@link #frameScale}. */
+    public Dialog frameScale(float frameScale) {
+        this.frameScale = Math.max(0.1F, Math.min(1F, frameScale));
+        return this;
+    }
+
+    /** The frame's border thickness after {@link #frameScale}, for a subclass's layout. */
+    public float frameInset() {
+        return Math.max(8F, NinePatch.DIALOG_TOP * frameScale);
+    }
+
+    /**
+     * Draws the title as text inside the frame instead of on the hanging wooden plate.
+     *
+     * <p>The plate is drawn over the frame's top border and is about 38 GUI units tall at the
+     * sizes this game runs at, so a dialog that fills its frame with content has no room left
+     * under it - the plate would be behind the first row. A plain title is smaller and stays
+     * inside, which is what a content-dense dialog wants.
+     */
+    public Dialog inlineTitle() {
+        this.showTitlePlate = false;
+        this.inlineTitle = true;
+        return this;
+    }
+
+    /** The title's size, for a subclass that has to leave room for it. */
+    public float titleScale() {
+        return titleScale;
     }
 
     public Dialog title(String title) {
@@ -171,6 +213,8 @@ public class Dialog extends AbstractWidget {
         renderFrame(client);
         if (showTitlePlate) {
             renderTitlePlate(client);
+        } else if (inlineTitle) {
+            renderInlineTitle(client);
         }
         for (AbstractWidget child : children) {
             child.render(client);
@@ -187,7 +231,8 @@ public class Dialog extends AbstractWidget {
                 CENTER_LEFT, CENTER, CENTER_RIGHT,
                 bottomLeft, bottom, bottomRight,
                 x, y, width, height, 0F,
-                NinePatch.DIALOG_LEFT, NinePatch.DIALOG_RIGHT, NinePatch.DIALOG_TOP, bottomHeight,
+                NinePatch.DIALOG_LEFT * frameScale, NinePatch.DIALOG_RIGHT * frameScale,
+                NinePatch.DIALOG_TOP * frameScale, bottomHeight * frameScale,
                 1F, 1F, 1F, 1F);
     }
 
@@ -212,6 +257,16 @@ public class Dialog extends AbstractWidget {
         float textX = x + (width - textWidth) / 2F;
         float textY = plateY + (plateHeight - client.font().lineHeight(titleScale)) / 2F;
         client.font().draw(title, textX, textY, titleScale, 1F, 1F, 1F, 1F);
+    }
+
+    /** The title as one line of text just under the frame's top border. */
+    private void renderInlineTitle(PvzceClient client) {
+        if (title == null || title.isEmpty()) {
+            return;
+        }
+        float textY = y + height - NinePatch.DIALOG_TOP * frameScale + 4F;
+        client.font().draw(title, x + NinePatch.DIALOG_LEFT * frameScale,
+                textY, titleScale, 1F, 0.95F, 0.6F, 1F);
     }
 
     @Override
