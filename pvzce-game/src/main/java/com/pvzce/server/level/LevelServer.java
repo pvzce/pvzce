@@ -36,6 +36,7 @@ import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.nbt.Tag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EffectEventS2C;
+import com.pvzce.common.network.packet.CarrySyncS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.PvzcePackets;
@@ -834,6 +835,45 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public void leaveCraters(float centerX, float centerY, float radius, boolean square) {
+        // The same footprint the blast itself used (see damageArea): a square measured in cells
+        // reaches half a cell further than its number says, which is what makes a radius of 1
+        // cover the neighbouring cells rather than stopping at their edge.
+        float limit = square ? radius + 0.5F : radius;
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                if (Math.abs(x + 0.5F - centerX) > limit || Math.abs(y + 0.5F - centerY) > limit) {
+                    continue;
+                }
+                if (!isBareGround(x, y)) {
+                    continue;
+                }
+                setScene(x, y, PvzceIds.CRATER);
+                // A hole that has just been made starts its recovery now rather than on the
+                // clock of whatever crater used to be in this cell.
+                craterTimers.remove(y * width() + x);
+                sendSceneCell(x, y);
+            }
+        }
+    }
+
+    /**
+     * True when a cell is bare ground a blast can leave a hole in.
+     *
+     * <p>Lawn and bare dirt only. A roof has its own crater art that this does not draw yet, and
+     * a pool would need the water variant, so carving those cells into a lawn crater would be a
+     * worse answer than leaving them alone.
+     */
+    private boolean isBareGround(int x, int y) {
+        SceneElementDef element = scene.get(x, y);
+        if (element == null) {
+            return false;
+        }
+        String surface = element.surfaceClass();
+        return PvzceIds.SURFACE_GRASS.equals(surface) || PvzceIds.SURFACE_GROUND.equals(surface);
+    }
+
+    @Override
     public void emitEffect(String particle, float x, float y, Identifier sound) {
         emitEffect(particle, x, y, sound, 1F, 1F);
     }
@@ -1186,7 +1226,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // own is sized by the backpack, and the payload is where the client learns which.
         return new LevelPayload(def.width(), def.height(), seeds.pool(), seeds.maxSeedSlots(),
                 def.previewZombieIds(), SceneCells.forLevel(def), seeds.lockedSlotIds(),
-                LevelMechanics.payloads(def));
+                LevelMechanics.payloads(def),
+                // The backdrop travels as its texture id rather than as a field the client
+                // looks up in its own copy of the level file: the board it draws has to be the
+                // one this server is running, even for a level that client has never seen.
+                def.background().map(Identifier::toString).orElse(""),
+                def.hiddenSceneElements(), def.disableShaders());
     }
 
     private void processMusicCues(ServerBridge bridge) {
@@ -1316,22 +1361,40 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
 
+    /**
+     * How long a crater spends filling back in, in ticks.
+     *
+     * <p>The last second of {@code crater_recovery}: the hole swaps to the original's own
+     * "filling in" art for that long, which is what makes the lawn coming back read as the
+     * ground settling rather than as a tile blinking out.
+     */
+    public static final int CRATER_FADE_TICKS = 60;
+
     private void tickScene() {
         int recovery = rules.getInt(PvzceIds.RULE_CRATER_RECOVERY);
+        // A recovery shorter than the fade would spend its whole life fading, so the fade is
+        // clamped to the recovery rather than allowed to outlast it.
+        int fadeFrom = Math.max(0, recovery - Math.min(CRATER_FADE_TICKS, recovery));
         for (int x = 0; x < width(); x++) {
             for (int y = 0; y < height(); y++) {
                 SceneElementDef element = scene.get(x, y);
                 if (element == null) {
                     continue;
                 }
-                if (PvzceIds.SURFACE_CRATER.equals(element.surfaceClass())) {
-                    int key = y * width() + x;
-                    int ticks = craterTimers.merge(key, 1, Integer::sum);
-                    if (ticks >= recovery) {
-                        craterTimers.remove(key);
-                        setScene(x, y, PvzceIds.GRASS);
-                        sendSceneCell(x, y);
-                    }
+                if (!PvzceIds.SURFACE_CRATER.equals(element.surfaceClass())) {
+                    continue;
+                }
+                int key = y * width() + x;
+                int ticks = craterTimers.merge(key, 1, Integer::sum);
+                if (ticks >= recovery) {
+                    craterTimers.remove(key);
+                    setScene(x, y, PvzceIds.GRASS);
+                    sendSceneCell(x, y);
+                } else if (ticks >= fadeFrom && PvzceIds.CRATER.equals(element.id())) {
+                    // The crater, not the fading crater: a cell that is already filling in has
+                    // nothing left to change to.
+                    setScene(x, y, PvzceIds.CRATER_FADING);
+                    sendSceneCell(x, y);
                 }
             }
         }
@@ -1384,10 +1447,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (riser == null) {
             return null;
         }
-        riser.beginRise();
+        // How long the climb takes is the level's business: a mini-game whose whole lawn opens
+        // at once wants it over with, and one that opens a stone at a time wants the beat.
+        riser.beginRise(rules.getInt(PvzceIds.RULE_ZOMBIE_RISE_TICKS));
         requestEntitySync();
-        // An arm out of the dirt, and the dirt itself, for the whole climb.
-        emitEffect(PvzceParticles.ZOMBIE_RISE.toString(), cellX, y + 0.5F, null);
+        // The dirt the grave gives up, for the whole climb. The arm that comes out with it is
+        // the client's: it is a drawing of the climb, timed by the height published above, so
+        // it cannot drift out of step with the body it belongs to.
         emitEffect(PvzceParticles.DIRT_BIG.toString(), cellX, y + 0.5F, PvzceSounds.EFFECT_DIRT_RISE);
         return riser;
     }
@@ -1445,6 +1511,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         scene.set(x, y, element);
         sendSceneCell(x, y);
+        // The dirt it pushes aside. The stone itself comes up out of the lawn on the client -
+        // a cell that changes during play is animated there (see `SceneRises`) - so this is
+        // the half of the event the simulation owns: the spray and the sound.
+        emitEffect(PvzceParticles.DIRT_BIG.toString(), x + 0.5F, y + 0.5F,
+                PvzceSounds.EFFECT_DIRT_RISE);
         return true;
     }
 
@@ -1715,8 +1786,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // and would wash the lawn in light. A resource that names no effect gets none -
             // the sound and the fly-to-bank animation are the feedback. The sound is per
             // resource for the same reason: currency rings, the sun chimes.
+            // At the drop's own position, height included: a sun is collected wherever it is
+            // - halfway down its fall, or a hand's width above the lawn after rising out of a
+            // sunflower - and a sparkle on the grass under it reads as a glow belonging to the
+            // lawn rather than to the sun.
             emitEffect(drop.def().pickupEffect().map(Identifier::toString).orElse(""),
-                    drop.cellX(), drop.cellY(), drop.def().pickupSound());
+                    drop.cellX(), drop.cellY() + Math.max(0F, drop.height()), drop.def().pickupSound());
             // The visual fly-to-bank animation is client-side only, but it still
             // needs the server-confirmed drop position and icon.
             bridge.send(new ResourceCollectS2C(drop.id(), drop.defId().toString(), drop.amount(),
@@ -1794,6 +1869,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         Slot slot = plantPlayer.slot(slotIndex);
+        if (carriedPlantId >= 0 && slot != null && !isGlove(slot)) {
+            abandonCarry();
+        }
         if (slot == null || slot.kind() != Slot.Kind.TOOL) {
             bridge.send(new ServerMessageS2C("不是工具卡。"));
             return false;
@@ -1858,6 +1936,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** True when this card has just started a move and is still holding the plant. */
     private boolean awaitingDrop(Slot slot) {
         return carriedPlantId >= 0 && isGlove(slot);
+    }
+
+    /**
+     * Forgets a carry that no longer makes sense.
+     *
+     * <p>Called when the player reaches for something else: picking a card, using another tool
+     * or leaving the level ends the move, and a carry that survived it would put the plant
+     * down somewhere the player was no longer thinking about.
+     */
+    private void abandonCarry() {
+        if (carriedPlantId >= 0) {
+            clearCarry();
+        }
     }
 
     /**
@@ -1980,6 +2071,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         carriedPlantId = plant.id();
         carryTimeoutTicks = CARRY_TIMEOUT_TICKS;
+        send(new CarrySyncS2C(plant.def().id().toString()));
         emitEffect(PvzceParticles.LANTERN_SHINE.toString(), x + 0.5F, y + 0.5F, PvzceSounds.UI_TAP);
         bridge.send(new ServerMessageS2C("已拿起 " + plant.def().id() + "，再点一次放下。"));
         return true;
@@ -1992,8 +2084,35 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     private void clearCarry() {
+        boolean wasCarrying = carriedPlantId >= 0;
         carriedPlantId = -1;
         carryTimeoutTicks = 0;
+        if (wasCarrying) {
+            // The client has to be told even here: a carry that expired (or whose plant was
+            // eaten) is one the cursor must stop drawing.
+            send(new CarrySyncS2C(""));
+            // The move is over one way or another, so the glove's recharge starts now. Without
+            // this an expired carry left the card ready *and* holding nothing, and the next
+            // click lifted a plant without ever paying for the one before it.
+            Slot slot = gloveSlot();
+            if (slot != null) {
+                slot.startCooldown(effectiveCooldownTicks(slot));
+                send(new SlotSyncS2C(toSlotInfo(slot)));
+            }
+        }
+    }
+
+    /** The glove among this level's cards, or {@code null} when the bar has none. */
+    private Slot gloveSlot() {
+        if (cardSource == null) {
+            return null;
+        }
+        for (Slot slot : cardSource.slots()) {
+            if (slot.kind() == Slot.Kind.TOOL && isGlove(slot)) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     /** The plant with this entity id, or {@code null}; the glove only ever moves plants. */

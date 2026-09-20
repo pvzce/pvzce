@@ -94,6 +94,7 @@ public final class ExplosiveCapability implements PlantCapability {
     private final int damage;
     private final float triggerRange;
     private final boolean square;
+    private final boolean leavesCrater;
     private final Optional<Identifier> sound;
     private final Identifier damageType;
 
@@ -105,13 +106,15 @@ public final class ExplosiveCapability implements PlantCapability {
     private static final int LINGER_NONE = -1;
 
     public ExplosiveCapability(Trigger trigger, int fuseTicks, float radius, int damage, float triggerRange,
-                               boolean square, Optional<Identifier> sound, Identifier damageType) {
+                               boolean square, boolean leavesCrater, Optional<Identifier> sound,
+                               Identifier damageType) {
         this.trigger = trigger;
         this.fuseTicks = Math.max(0, fuseTicks);
         this.radius = Math.max(0F, radius);
         this.damage = Math.max(0, damage);
         this.triggerRange = Math.max(0F, triggerRange);
         this.square = square;
+        this.leavesCrater = leavesCrater;
         this.sound = sound;
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         this.fuse = this.fuseTicks;
@@ -131,6 +134,10 @@ public final class ExplosiveCapability implements PlantCapability {
             // distance and is what this capability did before the flag existed, so the
             // default stays radial for any content that does not say.
             Codec.BOOL.optionalFieldOf("square", false).forGetter(ExplosiveCapability::square),
+            // Only the doom shroom leaves one; a cherry bomb's ash and a jalapeno's are not
+            // holes in the lawn, so this is opt-in content rather than a property of blasts.
+            Codec.BOOL.optionalFieldOf("leaves_crater", false)
+                    .forGetter(ExplosiveCapability::leavesCrater),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(ExplosiveCapability::sound),
             Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
                     .forGetter(ExplosiveCapability::damageType)
@@ -172,6 +179,11 @@ public final class ExplosiveCapability implements PlantCapability {
         return square;
     }
 
+    /** True when this plant's blast leaves its footprint as a crater. */
+    public boolean leavesCrater() {
+        return leavesCrater;
+    }
+
     public Optional<Identifier> sound() {
         return sound;
     }
@@ -188,7 +200,8 @@ public final class ExplosiveCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, square, sound, damageType);
+        return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, square,
+                leavesCrater, sound, damageType);
     }
 
     /**
@@ -294,6 +307,11 @@ public final class ExplosiveCapability implements PlantCapability {
         } else {
             level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
                     blastRadius, damage, plant.team(), square);
+        }
+        if (leavesCrater) {
+            // The hole the blast made, in the same footprint it just hit: the original's doom
+            // shroom is the one explosive that does not leave the lawn as it found it.
+            level.leaveCraters(plant.cellX(), plant.cellY(), blastRadius, square);
         }
         level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));

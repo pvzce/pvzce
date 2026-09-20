@@ -195,5 +195,7 @@
     {
       "trigger": "on_card_refused"
     }
-  ]
+  ],
+  "background": "pvzce:textures/gui/screen/level/background1unsodded",
+  "disable_shaders": true
 }

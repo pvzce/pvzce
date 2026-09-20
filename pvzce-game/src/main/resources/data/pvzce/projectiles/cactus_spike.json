@@ -10,5 +10,6 @@
   "sounds": {
     "impact": "pvzce:sfx/projectile/hit"
   },
-  "texture": "pvzce:textures/entities/projectile/butter"
+  "texture": "pvzce:textures/entities/projectile/butter",
+  "impact_particle": "pvzce:cactus_spike_splat"
 }

@@ -14,6 +14,7 @@ import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 
 /**
@@ -80,6 +81,9 @@ public final class TestLevels {
         private LevelDialogue dialogue;
         private List<LevelHint> hints;
         private List<Identifier> playableTeams;
+        private Optional<Identifier> background;
+        private List<String> hiddenSceneElements;
+        private boolean disableShaders;
 
         private Builder(LevelDef def) {
             this.id = def.id();
@@ -106,6 +110,9 @@ public final class TestLevels {
             this.dialogue = def.dialogue();
             this.hints = def.hints();
             this.playableTeams = def.playableTeams();
+            this.background = def.background();
+            this.hiddenSceneElements = def.hiddenSceneElements();
+            this.disableShaders = def.disableShaders();
         }
 
         public Builder id(Identifier value) {
@@ -208,11 +215,21 @@ public final class TestLevels {
             return this;
         }
 
+        public Builder background(Optional<Identifier> value) {
+            this.background = value;
+            return this;
+        }
+
+        public Builder hiddenSceneElements(List<String> value) {
+            this.hiddenSceneElements = value;
+            return this;
+        }
+
         public LevelDef build() {
             return new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules,
                     envVars, waves, waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     music, initialEntities, maxSeedSlots, rewards, unlock, mechanics, dialogue,
-                    hints, playableTeams);
+                    hints, playableTeams, background, hiddenSceneElements, disableShaders);
         }
     }
 }

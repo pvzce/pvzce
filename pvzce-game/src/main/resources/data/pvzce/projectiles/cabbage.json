@@ -15,5 +15,6 @@
   "sounds": {
     "impact": "pvzce:sfx/plant/kernelpult2"
   },
-  "texture": "pvzce:textures/entities/projectile/cabbage"
+  "texture": "pvzce:textures/entities/projectile/cabbage",
+  "impact_particle": "pvzce:cabbage_splat"
 }

@@ -51,7 +51,36 @@ public record LevelDef(
          * <p>This is the last component because it lives in {@link LevelTail}: the outer codec
          * is already at DFU's field limit, and the tail is where late additions go.
          */
-        List<Identifier> playableTeams
+        List<Identifier> playableTeams,
+        /**
+         * The backdrop this level is played on, or empty for the built-in yard.
+         *
+         * <p>A texture id rather than a name from a list: the original draws every stage -
+         * day, night, pool, fog, roof, the boss arena - on the same 1400x600 canvas with the
+         * board in the same place, so a backdrop is a picture and nothing else has to change
+         * with it. See {@code LevelStage} for the geometry that does <em>not</em> move.
+         */
+        Optional<Identifier> background,
+        /**
+         * Scene elements this level does not draw.
+         *
+         * <p>Each entry is either an element id ({@code pvzce:grass}) or a tag written with a
+         * leading {@code #} ({@code #pvzce:lawn}), and a cell holding a matching element is
+         * left unpainted - the backdrop shows through instead. It is for a level whose own
+         * backdrop already has the lawn in it: the terrain still has to be painted for the
+         * simulation (that is what decides where a plant may go), but drawing it as well
+         * would put a second lawn on top of the first.
+         */
+        List<String> hiddenSceneElements,
+        /**
+         * True when this level turns the shader effects off whatever the player's setting is.
+         *
+         * <p>Unwritten is false: a level follows the player's own {@code shaders_enabled}, which
+         * is what every level written before this field means. A level says {@code true} when
+         * its own look depends on not being re-lit - a stage whose backdrop is already painted
+         * for the light it wants, or a board whose readability is the point.
+         */
+        boolean disableShaders
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
@@ -85,6 +114,8 @@ public record LevelDef(
         dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
         hints = hints == null ? List.of() : List.copyOf(hints);
         playableTeams = playableTeams == null ? List.of() : List.copyOf(playableTeams);
+        background = background == null ? Optional.empty() : background;
+        hiddenSceneElements = hiddenSceneElements == null ? List.of() : List.copyOf(hiddenSceneElements);
     }
 
     /** True when this level declares its own slot count rather than following the backpack. */
@@ -122,7 +153,8 @@ public record LevelDef(
                 // No slot count in code means the same thing it means in JSON: follow the
                 // backpack. A caller that wants a specific bar passes one.
                 UNSET_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
-                List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of(), List.of());
+                List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of(), List.of(),
+                Optional.empty(), List.of(), false);
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -135,7 +167,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, List.of(),
-                LevelDialogue.EMPTY, List.of(), List.of());
+                LevelDialogue.EMPTY, List.of(), List.of(), Optional.empty(), List.of(), false);
     }
 
     /**
@@ -153,7 +185,8 @@ public record LevelDef(
                     LevelRewards rewards, LevelUnlock unlock) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of(), List.of());
+                maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of(), List.of(),
+                Optional.empty(), List.of(), false);
     }
 
     /**
@@ -173,7 +206,8 @@ public record LevelDef(
                     LevelDialogue dialogue) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of(), List.of());
+                maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of(), List.of(),
+                Optional.empty(), List.of(), false);
     }
 
     /**
@@ -192,7 +226,8 @@ public record LevelDef(
                     LevelDialogue dialogue, List<LevelHint> hints) {
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
-                maxSeedSlots, rewards, unlock, mechanics, dialogue, hints, List.of());
+                maxSeedSlots, rewards, unlock, mechanics, dialogue, hints, List.of(),
+                Optional.empty(), List.of(), false);
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -223,11 +258,12 @@ public record LevelDef(
                     waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
                     tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints(),
-                    tail.playableTeams())));
+                    tail.playableTeams(), tail.background(), tail.hiddenSceneElements(),
+                    tail.disableShaders())));
 
     public LevelTail tail() {
         return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics,
-                dialogue, hints, playableTeams);
+                dialogue, hints, playableTeams, background, hiddenSceneElements, disableShaders);
     }
 
     /**
@@ -269,7 +305,8 @@ public record LevelDef(
     public record LevelTail(LevelMusicDef music, List<InitialEntityDef> initialEntities, int maxSeedSlots,
                             LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
                             LevelDialogue dialogue, List<LevelHint> hints,
-                            List<Identifier> playableTeams) {
+                            List<Identifier> playableTeams, Optional<Identifier> background,
+                            List<String> hiddenSceneElements, boolean disableShaders) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -290,7 +327,12 @@ public record LevelDef(
                         // Unwritten = every declared team plays, which is what every level
                         // written before this field meant.
                         Identifier.CODEC.listOf().optionalFieldOf("playable_teams", List.of())
-                                .forGetter(LevelTail::playableTeams)
+                                .forGetter(LevelTail::playableTeams),
+                        Identifier.CODEC.optionalFieldOf("background").forGetter(LevelTail::background),
+                        Codec.STRING.listOf().optionalFieldOf("hidden_scene_elements", List.of())
+                                .forGetter(LevelTail::hiddenSceneElements),
+                        Codec.BOOL.optionalFieldOf("disable_shaders", false)
+                                .forGetter(LevelTail::disableShaders)
                 ).apply(i, LevelTail::new));
 
         public LevelTail {
@@ -298,6 +340,9 @@ public record LevelDef(
             dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
             hints = hints == null ? List.of() : List.copyOf(hints);
             playableTeams = playableTeams == null ? List.of() : List.copyOf(playableTeams);
+            background = background == null ? Optional.empty() : background;
+            hiddenSceneElements = hiddenSceneElements == null
+                    ? List.of() : List.copyOf(hiddenSceneElements);
         }
     }
 

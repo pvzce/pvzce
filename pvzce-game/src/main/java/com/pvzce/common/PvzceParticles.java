@@ -82,8 +82,6 @@ public final class PvzceParticles {
     public static final Identifier ZOMBIE_NEWSPAPER = id("zombie_newspaper");
     /** The flag zombie's flag, dropped. */
     public static final Identifier ZOMBIE_FLAG = id("zombie_flag");
-    /** A zombie rising out of the ground. */
-    public static final Identifier ZOMBIE_RISE = id("zombie_rise");
     /** A spadeful of dirt. */
     public static final Identifier DIRT_SMALL = id("dirt_clump");
     /** A larger dirt burst; the same clump sprite, spawned in a bigger burst. */
@@ -123,7 +121,7 @@ public final class PvzceParticles {
                 PUFF_SHROOM_MUZZLE, EXPLOSION_POW, EXPLOSION_POWIE, BLAST_MARK, DOOM,
                 POTATO_MINE_FLASH, POTATO_MINE_RISE, CHOMP, ZOMBIE_HEAD, ZOMBIE_ARM,
                 ZOMBIE_HELMET, ZOMBIE_TRAFFIC_CONE, ZOMBIE_PAIL, ZOMBIE_DOOR, ZOMBIE_NEWSPAPER,
-                ZOMBIE_FLAG, ZOMBIE_RISE, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
+                ZOMBIE_FLAG, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
                 LANTERN_SHINE, MOWERED_ZOMBIE_HEAD, MOWERED_ZOMBIE_ARM, MOWER_CLOUD,
                 MOWER_CLOUD_POWIE, id("zzz_1"), id("zzz_2"), id("zzz_3"));
     }

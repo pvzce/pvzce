@@ -3,6 +3,7 @@ package com.pvzce.client.animation;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.pvzce.api.content.AnimationBindings;
+import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.ClientLevel;
@@ -43,6 +44,13 @@ public final class AnimationManager {
     private final Set<Identifier> missing = ConcurrentHashMap.newKeySet();
     /** Files that exist but failed to parse; retried after {@link #invalidate()}. */
     private final Set<Identifier> broken = ConcurrentHashMap.newKeySet();
+    /**
+     * {@code file|state} pairs already reported as "this art has no such clip".
+     *
+     * <p>Set, not a counter: the render path asks for the same state every frame, and the
+     * report exists so a content bug is findable in the log rather than so it is loud.
+     */
+    private final Set<String> substitutedClipReports = ConcurrentHashMap.newKeySet();
     private final Map<Animatable, AnimationPlayback> playbacks = new IdentityHashMap<>();
     /**
      * The bone override for the render call in progress, if any.
@@ -93,32 +101,44 @@ public final class AnimationManager {
         return com.pvzce.client.renderer.EntityVisuals.baseZ(entity.kind());
     }
 
-    /** Unified playback entry point. Repeated states are idempotent. */
+    /**
+     * Unified playback entry point. Repeated states are idempotent.
+     *
+     * <p>A state is not always a clip: the death states are a family the art chooses from
+     * (see {@link AnimationVariants}), so the clip that ends up playing is what
+     * "is this already playing" has to be asked about.
+     */
     public AnimationHandle play(Animatable target, String state) {
         if (target == null || state == null || state.isBlank()) {
             return AnimationHandle.NONE;
         }
-        AnimationPlayback current = playbacks.get(target);
-        if (current != null && !current.isStopped() && isAlreadyPlaying(current, state)) {
-            return handle(target, current);
-        }
-
-        Optional<AnimationFile> file = fileFor(target, state);
-        if (file.isEmpty()) {
+        Identifier fileId = fileIdFor(target, state);
+        AnimationFile animationFile = fileId == null ? null : load(fileId).orElse(null);
+        if (animationFile == null) {
             stop(target);
             return AnimationHandle.NONE;
         }
-        AnimationFile animationFile = file.get();
-        AnimationClip clip = animationFile.clip(state).orElse(null);
-        String activeName = state;
-        if (clip == null) {
-            activeName = "idle";
-            clip = animationFile.clip("idle").orElse(null);
-        }
+        // Which clip this state actually plays: a member of the state's family, the state
+        // itself, or - for a state the art does not define - `idle`, which is the same
+        // substitution every unknown clip has always got.
+        String resolved = AnimationVariants.resolve(animationFile, state, variantSeed(target));
+        String activeName = resolved == null ? EntityAnimations.IDLE : resolved;
+        AnimationClip clip = animationFile.clip(activeName).orElse(null);
         if (clip == null) {
             LOGGER.warn("Animation {} has no '{}' or 'idle' clip for {}", animationFile.type(), state, target);
             stop(target);
             return AnimationHandle.NONE;
+        }
+        if (resolved == null) {
+            // The substitution is silent, but it is also a content bug, and it used to leave
+            // no trace at all: a newspaper zombie whose file has no `death2` stood about in
+            // `idle` for six seconds with nothing in the log to say why.
+            reportSubstitutedClip(fileId, state, target);
+        }
+        AnimationPlayback current = playbacks.get(target);
+        if (current != null && !current.isStopped()
+                && isAlreadyPlaying(current, state, activeName)) {
+            return handle(target, current);
         }
 
         AnimationPlayback previous = current != null && !current.isStopped() ? current : null;
@@ -126,6 +146,31 @@ public final class AnimationManager {
         AnimationPlayback playback = create(target, animationFile, clip, state, activeName, previous, now);
         playbacks.put(target, playback);
         return handle(target, playback);
+    }
+
+    /**
+     * A stable number per target, for choosing among a state's family of clips.
+     *
+     * <p>The entity's id, not a random roll: the id is allocated by the server in level
+     * order, so the same run of the same level deals out the same death sequences to the
+     * same bodies - which is what the server's own {@code level.random()} pick used to buy,
+     * and what a replay of a recorded level still needs.
+     */
+    private static long variantSeed(Animatable target) {
+        return target instanceof ClientEntity entity ? entity.id() : 0L;
+    }
+
+    /**
+     * Says once per (file, state) that a requested state was substituted.
+     *
+     * <p>Deduplicated because this is asked every frame by the render path; the point of
+     * the report is that a content bug becomes findable, not that it becomes loud.
+     */
+    private void reportSubstitutedClip(Identifier fileId, String state, Animatable target) {
+        if (substitutedClipReports.add(fileId + "|" + state)) {
+            LOGGER.warn("Animation {} has no '{}' clip for {}; playing 'idle' instead",
+                    fileId, state, target);
+        }
     }
 
     /**
@@ -140,12 +185,17 @@ public final class AnimationManager {
      * landing inside that one 16.7ms tick. Comparing against the active clip lets a
      * finished one-shot restart, while a looping clip that is already running is
      * still left alone.
+     *
+     * <p>{@code activeName} is the <em>resolved</em> clip rather than the state: a death
+     * request resolves to one member of its family, and comparing the state against that
+     * member would read as "not playing yet" on every frame and restart the corpse twenty
+     * times a second.
      */
-    private static boolean isAlreadyPlaying(AnimationPlayback current, String state) {
+    private static boolean isAlreadyPlaying(AnimationPlayback current, String state, String activeName) {
         if (!state.equals(current.requestedState())) {
             return false;
         }
-        if (!state.equals(current.activeName())) {
+        if (!activeName.equals(current.activeName())) {
             // It handed over to another clip (to idle, or to its `next`), so this state is
             // no longer on screen and asking for it again has to start it.
             return false;
@@ -408,24 +458,35 @@ public final class AnimationManager {
     }
 
     private Optional<AnimationFile> fileFor(Animatable target, String state) {
+        Identifier fileId = fileIdFor(target, state);
+        return fileId == null ? Optional.empty() : load(fileId);
+    }
+
+    /**
+     * The animation resource a state resolves to, or {@code null} for a target with none.
+     *
+     * <p>Separate from {@link #load} so a caller that has to name the resource - the
+     * "this art has no such clip" report is keyed by it - does not have to derive the path
+     * a second time.
+     */
+    private Identifier fileIdFor(Animatable target, String state) {
         if (target instanceof ArtTarget art) {
             // Not content, so there is no definition to ask: the target names its own file.
             // See ArtTarget - a level mechanic's prop has no registry entry to resolve.
-            return load(art.fileId());
+            return art.fileId();
         }
         if (!(target instanceof ClientEntity entity)) {
-            return Optional.empty();
+            return null;
         }
         Identifier defId = entity.defId();
         if (defId == null) {
-            return Optional.empty();
+            return null;
         }
         AnimationBindings bindings = bindings(entity.kind(), defId);
         // An override names a file directly; otherwise the entity's own file lives in
         // the directory its definition declares (or mirrors the id when it declares none).
-        Identifier fileId = bindings.resolve(state)
+        return bindings.resolve(state)
                 .orElseGet(() -> bindings.fileId(defId));
-        return load(fileId);
     }
 
     /**

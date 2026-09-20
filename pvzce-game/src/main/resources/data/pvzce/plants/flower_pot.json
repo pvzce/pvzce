@@ -14,5 +14,7 @@
   },
   "capabilities": [],
   "animation_dir": "plant/environment",
-  "texture": "pvzce:textures/entities/plant/environment/flower_pot"
+  "texture": "pvzce:textures/entities/plant/environment/flower_pot",
+  "render_scale": 0.85,
+  "order": 34
 }

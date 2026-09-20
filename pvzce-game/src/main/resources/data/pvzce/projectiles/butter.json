@@ -20,5 +20,6 @@
   "sounds": {
     "impact": "pvzce:sfx/plant/butter"
   },
-  "texture": "pvzce:textures/entities/projectile/butter"
+  "texture": "pvzce:textures/entities/projectile/butter",
+  "impact_particle": "pvzce:butter_splat"
 }

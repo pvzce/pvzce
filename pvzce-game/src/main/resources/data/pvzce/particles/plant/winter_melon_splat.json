@@ -1,0 +1,27 @@
+{
+  "id": "pvzce:winter_melon_splat",
+  "look": {
+    "spin": 0.0,
+    "spin_spread": 220.0,
+    "alpha_to": 0.0,
+    "scale": 0.264,
+    "life": 0.35,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "texture": "pvzce:textures/entities/projectile/melon"
+  },
+  "motion": {
+    "speed": 0.5,
+    "angle": 90.0,
+    "angle_spread": 360.0,
+    "gravity": 5.0,
+    "bounce": true
+  },
+  "count": 4,
+  "count_spread": 1
+}

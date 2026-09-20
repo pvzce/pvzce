@@ -52,6 +52,16 @@ public final class ClientLevel {
     private volatile int maxSeedSlots = 6;
     private volatile List<String> previewZombies = List.of();
     private volatile SceneGrid<String> scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
+    /** Cells whose element is out of place right now; see {@link SceneShifts}. */
+    private final SceneShifts sceneShifts = new SceneShifts();
+    /** The backdrop this level is played on, or {@code null} for the built-in yard. */
+    private volatile Identifier background;
+    /** Scene elements this level does not draw; see {@link SceneVisibility}. */
+    private volatile SceneVisibility sceneVisibility = SceneVisibility.NONE;
+    /** True when this level turns the shader effects off whatever the player's setting is. */
+    private volatile boolean shadersDisabled;
+    /** The plant a glove is holding, or empty; see {@code CarrySyncS2C}. */
+    private volatile String carriedPlant = "";
     private volatile String levelId = "";
     private volatile int width = 9;
     private volatile int height = 5;
@@ -118,13 +128,30 @@ public final class ClientLevel {
             (double) com.pvzce.common.PvzceConstants.TICKS_PER_SECOND / 1_000_000_000D;
 
     /**
+     * The same board with the built-in yard and nothing hidden.
+     *
+     * <p>For callers that predate a level having a look of its own; the board itself is the
+     * whole of what they describe.
+     */
+    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
+                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
+                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName,
+                     List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics) {
+        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies,
+                sceneCells, controlledTeamId, controlledTeamName, levelMechanics, null, List.of(),
+                false);
+    }
+
+    /**
      * Replaces the whole mirror with the server's full state. Every field the
      * server owns is written here; nothing is left over from the previous level.
      */
     public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
                      List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
                      List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName,
-                     List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics) {
+                     List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics,
+                     Identifier background, List<String> hiddenSceneElements,
+                     boolean shadersDisabled) {
         clearTransientState();
         this.seedPool = List.copyOf(seedPool);
         this.maxSeedSlots = Math.max(0, maxSeedSlots);
@@ -132,9 +159,14 @@ public final class ClientLevel {
         this.levelId = levelId;
         this.width = width;
         this.height = height;
+        this.background = background;
+        this.sceneVisibility = SceneVisibility.of(hiddenSceneElements);
+        this.shadersDisabled = shadersDisabled;
         applyMechanics(levelMechanics);
         this.scene = SceneGrid.create(width, height, PvzceIds.GRASS.toString());
-        applyScene(sceneCells);
+        // Written without the rise bookkeeping: a level's opening graves were always there.
+        writeSceneCells(sceneCells);
+        sceneShifts.clear();
         synchronized (this.slots) {
             this.slots.clear();
             this.slots.addAll(slots);
@@ -171,6 +203,11 @@ public final class ClientLevel {
         maxSeedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
         previewZombies = List.of();
         scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
+        sceneShifts.clear();
+        background = null;
+        sceneVisibility = SceneVisibility.NONE;
+        shadersDisabled = false;
+        carriedPlant = "";
         initialized = false;
         mechanics.clear();
         mechanicState.clear();
@@ -493,13 +530,103 @@ public final class ClientLevel {
         }
     }
 
+    /**
+     * Applies cell changes that happened <em>during play</em>.
+     *
+     * <p>The distinction from the opening board is what makes a tombstone that the
+     * {@code grave_spawner} raises come up out of the lawn: a cell that changes while the
+     * level runs can be animated, and one that was already painted when the level arrived
+     * cannot (see {@link SceneShifts}, and {@link #init} for the other half of the rule).
+     */
     public void applyScene(List<SceneSyncS2C.Cell> cells) {
         if (cells == null) {
             return;
         }
         for (SceneSyncS2C.Cell cell : cells) {
-            scene.set(cell.x(), cell.y(), cell.elementId());
+            String previous = scene.get(cell.x(), cell.y());
+            writeSceneCell(cell);
+            sceneShifts.cellChanged(cell.x(), cell.y(), previous, cell.elementId(), gameSeconds());
         }
+    }
+
+    /** Writes scene cells without asking whether any of them should animate. */
+    private void writeSceneCells(List<SceneSyncS2C.Cell> cells) {
+        if (cells == null) {
+            return;
+        }
+        for (SceneSyncS2C.Cell cell : cells) {
+            writeSceneCell(cell);
+        }
+    }
+
+    private void writeSceneCell(SceneSyncS2C.Cell cell) {
+        scene.set(cell.x(), cell.y(), cell.elementId());
+    }
+
+    /**
+     * The backdrop this level is played on, or {@code null} when it uses the built-in yard.
+     *
+     * <p>A texture id, and deliberately not a "theme": every stage the original draws - day,
+     * night, pool, fog, roof, the boss arena - is the same 1400x600 picture with the board in
+     * the same place, so a backdrop is a picture and nothing else moves with it.
+     */
+    public Identifier background() {
+        return background;
+    }
+
+    /** True when this level does not draw the given scene element; see {@link SceneVisibility}. */
+    public boolean hidesSceneElement(String elementId) {
+        return sceneVisibility.hides(elementId);
+    }
+
+    /** Which scene elements this level draws at all; see {@link SceneVisibility}. */
+    public SceneVisibility sceneVisibility() {
+        return sceneVisibility;
+    }
+
+    /**
+     * The plant a glove is holding, or empty.
+     *
+     * <p>The client's copy of a server decision, sent on every change: while it is set, the
+     * board draws that plant's art at the cursor instead of in a cell.
+     */
+    public String carriedPlant() {
+        return carriedPlant;
+    }
+
+    /** Applies the server's carry state; see {@code CarrySyncS2C}. */
+    public void setCarriedPlant(String plantId) {
+        carriedPlant = plantId == null ? "" : plantId;
+    }
+
+    /**
+     * True when this level asks for the shader effects to be off.
+     *
+     * <p>The level's word beats the player's setting in one direction only: a level that says
+     * {@code disable_shaders} runs without them even for a player who has them on, and a level
+     * that says nothing follows the player. See {@code PvzceClient.shadersEnabled}.
+     */
+    public boolean shadersDisabled() {
+        return shadersDisabled;
+    }
+
+    /**
+     * Cells whose element is out of place right now; see {@link SceneShifts}.
+     *
+     * <p>{@link #syncSceneShifts} has to have run for this frame before it is asked.
+     */
+    public SceneShifts sceneShifts() {
+        return sceneShifts;
+    }
+
+    /**
+     * Recomputes what is out of place on the board.
+     *
+     * <p>Called once per frame by the board rather than driven by packets: half of the answer is
+     * a clock and the other half is the state of the plants standing on graves.
+     */
+    public void syncSceneShifts() {
+        sceneShifts.sync(gameSeconds(), entities.values());
     }
 
     /** The scene element id in a cell; outside the board it reads as grass. */

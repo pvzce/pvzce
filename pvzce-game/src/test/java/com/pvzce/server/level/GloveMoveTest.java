@@ -10,6 +10,7 @@ import com.pvzce.api.content.TeamDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.Slot;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.tag.TestContent;
@@ -172,13 +173,17 @@ class GloveMoveTest {
         assertEquals(0, slot.cooldownLeft(), "a fresh card is ready");
 
         assertTrue(server.useTool(bridge, glove, 1, 1), "the lift");
-        assertEquals(usesBefore - 1, slot.usesLeft(), "the lift spends the use");
+        assertEquals(usesBefore, slot.usesLeft(),
+                "the glove is a tool the player always has, like the original's shovel: no"
+                        + " charges. It used to carry `uses: 3`, so the fourth move of a level"
+                        + " left the card greyed out for good - which reads as an endless"
+                        + " recharge rather than as an empty card");
         assertEquals(0, slot.cooldownLeft(),
                 "and does NOT start the recharge yet: the move is not finished, and a card that"
                         + " recharges while its second click is still owed reads as jammed");
 
         assertTrue(server.useTool(bridge, glove, 3, 2), "the drop");
-        assertEquals(usesBefore - 1, slot.usesLeft(), "the drop is the same move: no second use");
+        assertEquals(usesBefore, slot.usesLeft(), "the drop is the same move: no second use");
         int cooldown = slot.cooldownLeft();
         assertTrue(cooldown > 0, "the recharge belongs to the drop, which is where the move ends");
 
@@ -189,9 +194,14 @@ class GloveMoveTest {
         }
         assertTrue(slot.ready(), "the glove comes back");
         assertTrue(slot.hasUsesLeft(), "and still has charges");
+        // The glove never runs out: the recharge is the only thing that ever holds it, so a
+        // level's tenth move is as available as its first. It used to carry `uses: 3`, which
+        // greyed the card out for the rest of the level after three - reported by a player as
+        // an endless cooldown, because an empty card and a jammed one look the same.
+        assertEquals(Slot.UNLIMITED_USES,
+                BuiltInRegistries.TOOLS.get(PvzceIds.id("glove")).uses(),
+                "the glove is unlimited; its recharge is what paces it");
     }
-
-    /** A move that is never finished still costs its recharge when the carry times out. */
     @Test
     void anAbandonedMoveLeavesTheGloveOnCooldown() {
         LevelServer server = new LevelServer(level());

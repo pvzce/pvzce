@@ -189,9 +189,18 @@ ZOMBIE_DEATH_RATE = 2.5
 # and stop sliding their feet.
 ZOMBIE_WALK_REFERENCE_SPEED = 0.23
 
+# The whack-a-zombie mallet's swing, as a multiple of the reanim's 12fps. The whole blow is
+# nine frames, so at authoring speed it takes 0.75 s - three quarters of a second between the
+# click and the mallet coming back up, in the one level whose whole rhythm is "hit the next
+# zombie". 2.5 puts it at 0.3 s, which is where the original's swing reads: a fast strike and
+# a slightly slower recovery, both inside the same nine frames.
+HAMMER_SWING_RATE = 2.5
+
 # All three of the original's death sequences exist in Zombie.reanim. Which one a zombie
-# plays is the server's choice (see EntityAnimations.DEATH2 / DEATH_SUPERLONG), so all
-# three are exported; waterdeath is the one for a body that drowns.
+# plays is the client's choice among the clips the file has (see the client's
+# `AnimationVariants`), so all three are exported; waterdeath is the one for a body that
+# drowns, and death_superlong is only ever reached by a definition that pins its `death`
+# state at a file where that is the clip.
 ZOMBIE_DEATH_CLIPS: Dict[str, Dict[str, object]] = {
     "death": {"mask": "anim_death", "loop": False, "on_end": "hold",
               "transition": 0.05, "rate": ZOMBIE_DEATH_RATE},
@@ -1094,6 +1103,11 @@ ENTITY_CONFIGS: List[EntityConfig] = [
     # lifts back to where it started - so the swing is the whole range played once, and
     # the pose it is held in between swings is the last frame of it. The range's other
     # half (`anim_open_pot`) is the Zen Garden's pot-opening flourish and is not exported.
+    #
+    # `rate` is the original's own swing speed rather than the file's 12fps: the whole blow
+    # is over in a third of a second there, and at authoring speed the mallet hung in the air
+    # for three quarters of one, which reads as a swing through treacle in a level that asks
+    # the player to hit a zombie every second. See HAMMER_SWING_RATE.
     # ------------------------------------------------------------------
     EntityConfig(
         output="hammer",
@@ -1103,7 +1117,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_whack_zombie", "range": [8, 8], "loop": True},
             "attack": {"mask": "anim_whack_zombie", "loop": False, "on_end": "idle",
-                       "transition": 0.05},
+                       "transition": 0.05, "rate": HAMMER_SWING_RATE},
         },
     ),
     # ------------------------------------------------------------------

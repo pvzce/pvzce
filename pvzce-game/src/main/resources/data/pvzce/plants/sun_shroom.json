@@ -28,5 +28,7 @@
     }
   ],
   "animation_dir": "plant/producer",
-  "texture": "pvzce:textures/entities/plant/producer/sun_shroom"
+  "texture": "pvzce:textures/entities/plant/producer/sun_shroom",
+  "render_scale": 0.85,
+  "order": 10
 }

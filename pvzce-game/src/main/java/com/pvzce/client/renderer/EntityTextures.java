@@ -1,6 +1,9 @@
 package com.pvzce.client.renderer;
 
+import com.pvzce.api.content.SceneElementArt;
+import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.EntityArt;
 
 /**
@@ -53,11 +56,64 @@ public final class EntityTextures {
     }
 
     public static Identifier forScene(Identifier sceneId) {
-        return resolve(sceneId, SCENE_PREFIX);
+        return forScene(sceneId, false);
     }
 
     public static Identifier forScene(String sceneId) {
-        return forScene(Identifier.tryParse(sceneId));
+        return forScene(sceneId, false);
+    }
+
+    /**
+     * The same, in the variant the level's sky and the element's state call for.
+     *
+     * <p>A scene element may declare its own sprite, its size, and a variant per time of day -
+     * the original draws the doom shroom's crater twice, once for daylight and once for a lawn
+     * after dark. Which one is used is decided here rather than by the element, because the
+     * element does not know what time it is; an element that declares nothing falls through to
+     * the id-derived path, which is every element but the crater.
+     *
+     * @param night the level's own night test (see {@code ClientLevel.isNight})
+     */
+    public static Identifier forScene(Identifier sceneId, boolean night) {
+        if (sceneId == null) {
+            return Identifier.withDefaultNamespace(SCENE_PREFIX + "unknown");
+        }
+        SceneElementDef def = BuiltInRegistries.SCENE_ELEMENTS.get(sceneId);
+        if (def != null) {
+            Identifier declared = def.artOrDefault().textureFor(night).orElse(null);
+            if (declared != null) {
+                return declared;
+            }
+        }
+        return resolve(sceneId, SCENE_PREFIX);
+    }
+
+    public static Identifier forScene(String sceneId, boolean night) {
+        return forScene(Identifier.tryParse(sceneId), night);
+    }
+
+    /**
+     * The scene element this one is drawn on top of, or {@code null} when it fills its cell.
+     *
+     * <p>An element id rather than a texture: what is under a tombstone is the lawn, and the
+     * lawn is content - a pack may restyle it, and a level that hides it (see
+     * {@code LevelDef.hiddenSceneElements}) hides it under the tombstone too.
+     */
+    public static Identifier sceneUnderlay(String sceneId) {
+        SceneElementDef def = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.tryParse(sceneId));
+        return def == null ? null : def.artOrDefault().underlay().orElse(null);
+    }
+
+    /**
+     * How big a scene element is drawn, in cells, centred on its cell.
+     *
+     * <p>One cell for everything that declares no art of its own, which is what the board's
+     * placement highlight and the editor's hit test assume.
+     */
+    public static float[] sceneSize(String sceneId) {
+        SceneElementDef def = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.tryParse(sceneId));
+        SceneElementArt art = def == null ? SceneElementArt.NONE : def.artOrDefault();
+        return new float[]{art.width(), art.height()};
     }
 
     private static Identifier resolve(Identifier id, String prefix) {

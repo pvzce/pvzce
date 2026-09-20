@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.SceneVisibility;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.client.gui.components.AbstractWidget;
@@ -107,6 +108,10 @@ public final class ChooseSeedsScreen extends Screen {
     private static final long AUTO_START_NANOS = 2_100_000_000L;
 
     private final String levelId;
+    /** The backdrop this level will be played on, or {@code null} for the built-in yard. */
+    private final Identifier background;
+    /** Scene elements the level does not draw; the preview has to hide the same ones. */
+    private final SceneVisibility sceneVisibility;
     private final String levelName;
     private final List<SeedOption> options;
     private final int maxSeedSlots;
@@ -220,7 +225,8 @@ public final class ChooseSeedsScreen extends Screen {
                              List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
                              boolean restart) {
         this(client, levelId, levelName, options, maxSeedSlots, previewZombies,
-                levelWidth, levelHeight, sceneCells, initialSelection, restart, null);
+                levelWidth, levelHeight, sceneCells, initialSelection, restart, null, List.of(),
+                null, List.of());
     }
 
     public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
@@ -229,7 +235,8 @@ public final class ChooseSeedsScreen extends Screen {
                              List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
                              boolean restart, Runnable onBack) {
         this(client, levelId, levelName, options, maxSeedSlots, previewZombies, levelWidth,
-                levelHeight, sceneCells, initialSelection, restart, onBack, List.of());
+                levelHeight, sceneCells, initialSelection, restart, onBack, List.of(),
+                null, List.of());
     }
 
     /**
@@ -241,9 +248,12 @@ public final class ChooseSeedsScreen extends Screen {
                              List<SeedOption> options, int maxSeedSlots,
                              List<String> previewZombies, int levelWidth, int levelHeight,
                              List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
-                             boolean restart, Runnable onBack, List<String> lockedSlots) {
+                             boolean restart, Runnable onBack, List<String> lockedSlots,
+                             Identifier background, List<String> hiddenSceneElements) {
         super(client);
         this.levelId = levelId;
+        this.background = background;
+        this.sceneVisibility = SceneVisibility.of(hiddenSceneElements);
         this.levelName = levelName;
         this.options = List.copyOf(options);
         this.maxSeedSlots = Math.max(0, maxSeedSlots);
@@ -891,7 +901,8 @@ public final class ChooseSeedsScreen extends Screen {
         // glow is mapped into the board's own pixels.
         client.applyLevelLighting(levelId, board.x() + (stageX - stage.x()), board.y(),
                 board.cellWidth(), board.cellHeight());
-        client.drawTexture(LevelStage.BACKGROUND_TEXTURE, stageX, stage.y(),
+        client.drawTexture(background == null ? LevelStage.BACKGROUND_TEXTURE : background,
+                stageX, stage.y(),
                 stage.width(), stage.height(), -1F, 1F, 1F, 1F, 1F);
 
         drawSceneLawn(board, stageX);
@@ -930,7 +941,7 @@ public final class ChooseSeedsScreen extends Screen {
         client.clipping().push(boardX, board.y(), board.width(), board.height());
         try {
             SceneTileRenderer.renderBoard(client, levelWidth, levelHeight, this::sceneAt,
-                    boardX, board.y(), board.cellWidth(), board.cellHeight());
+                    boardX, board.y(), board.cellWidth(), board.cellHeight(), sceneVisibility);
         } finally {
             client.clipping().pop();
         }

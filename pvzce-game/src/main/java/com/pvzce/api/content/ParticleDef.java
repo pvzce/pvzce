@@ -67,6 +67,7 @@ public record ParticleDef(
      * @param lifetime        seconds the particle lives
      * @param scale           base size in world cells
      * @param scaleSpread     +/- random variation on {@code scale}
+     * @param aspect          how much wider than tall the drawn sprite is; 1 is a square
      * @param spin            degrees per second; 0 keeps the particle upright
      * @param spinSpread      +/- random variation on {@code spin}, so the pieces of one
      *                        burst do not tumble in lockstep
@@ -85,6 +86,7 @@ public record ParticleDef(
             float lifetime,
             float scale,
             float scaleSpread,
+            float aspect,
             float spin,
             float spinSpread,
             boolean randomSpin,
@@ -111,6 +113,10 @@ public record ParticleDef(
                 Codec.FLOAT.optionalFieldOf("life", DEFAULT_LIFETIME).forGetter(ParticleLook::lifetime),
                 Codec.FLOAT.optionalFieldOf("scale", DEFAULT_SCALE).forGetter(ParticleLook::scale),
                 Codec.FLOAT.optionalFieldOf("scale_spread", 0F).forGetter(ParticleLook::scaleSpread),
+                // A sprite is not always square, and the original never drew one into a square
+                // box: the arm it throws is 26x50 pixels. `scale` stays what it always was -
+                // the height, in cells - and this is the factor the width is drawn with.
+                Codec.FLOAT.optionalFieldOf("aspect", 1F).forGetter(ParticleLook::aspect),
                 Codec.FLOAT.optionalFieldOf("spin", 0F).forGetter(ParticleLook::spin),
                 Codec.FLOAT.optionalFieldOf("spin_spread", 0F).forGetter(ParticleLook::spinSpread),
                 Codec.BOOL.optionalFieldOf("random_spin", false).forGetter(ParticleLook::randomSpin),
@@ -136,10 +142,25 @@ public record ParticleDef(
         }
 
         public ParticleLook {
+            aspect = aspect <= 0F ? 1F : aspect;
             frames = List.copyOf(frames);
             alphaCurve = List.copyOf(alphaCurve);
             scaleCurve = List.copyOf(scaleCurve);
             color = color.size() >= 3 ? List.copyOf(color.subList(0, 3)) : List.of(1F, 1F, 1F);
+        }
+
+        /**
+         * How much wider than tall the sprite is drawn; 1 is a square.
+         *
+         * <p>The original never drew a particle into a box of the wrong shape: a thrown arm is
+         * 26x50 pixels and stays that shape on the lawn. This engine drew every particle as a
+         * square - which is right for the ~120 sprites that are square, and wrong for the
+         * pieces that come off a zombie: an arm came out 1.4 times too wide, and a screen door
+         * taller than it is wide came out squat. {@code scale} is still the height in cells;
+         * this is what the width is multiplied by.
+         */
+        public float aspect() {
+            return aspect;
         }
 
         /** The frame list when animated, otherwise the single texture. */

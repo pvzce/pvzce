@@ -261,10 +261,10 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
         }
 
         private void mow(LevelServer level, ZombieEntity zombie) {
-            level.emitEffect(PvzceParticles.MOWERED_ZOMBIE_HEAD.toString(),
-                    zombie.cellX(), zombie.cellY(), null);
-            level.emitEffect(PvzceParticles.MOWERED_ZOMBIE_ARM.toString(),
-                    zombie.cellX(), zombie.cellY(), null);
+            // The head and the arm are the *death's* to throw, not this method's: emitting them
+            // here as well as the ordinary drop gave every mowed zombie two heads. The mower
+            // says what it does with `pvzce:mower`'s `dismembers` flag, and the body answers it
+            // with its own pair (see ZombieEntity.damageBody).
             level.emitEffect(PvzceParticles.MOWER_CLOUD_POWIE.toString(),
                     zombie.cellX(), zombie.cellY(), null);
             // The `pvzce:mower` damage type destroys armour and body together, which

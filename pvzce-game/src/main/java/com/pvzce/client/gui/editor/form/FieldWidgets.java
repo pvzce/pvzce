@@ -2,8 +2,10 @@ package com.pvzce.client.gui.editor.form;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiText;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.EditBox;
@@ -11,6 +13,7 @@ import com.pvzce.client.gui.components.Slider;
 import com.pvzce.client.gui.editor.EditorContext;
 import com.pvzce.common.core.BuiltInRegistries;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,6 +62,70 @@ public final class FieldWidgets {
             public void writeTo(EditorContext context, String prefix) {
                 if (box != null) {
                     context.draft().setStringOrRemove(prefix + path, box.value().trim());
+                }
+            }
+        };
+    }
+
+    /**
+     * A list of strings, edited as one comma-separated line.
+     *
+     * <p>The shape the level file wants is an array, but an array editor in a form row is a
+     * widget nobody writes twice - and the entries here are short ids. Blank removes the key
+     * rather than writing an empty array, which is the same rule {@link #text} follows: "not
+     * set" and "set to nothing" must not be two states in the file.
+     */
+    public static FormField stringList(String path, String label, int maxLength) {
+        return new FormField() {
+            private EditBox box;
+
+            @Override
+            public String label() {
+                return label;
+            }
+
+            @Override
+            public String path() {
+                return path;
+            }
+
+            @Override
+            public void build(EditorContext context, FormLayout.Row row) {
+                EditorContext.Rect control = row.control();
+                box = context.own(new EditBox(control.x(), control.y(), control.width(),
+                        control.height(), maxLength, null));
+            }
+
+            @Override
+            public void readFrom(EditorContext context, String prefix) {
+                if (box == null) {
+                    return;
+                }
+                List<String> entries = new ArrayList<>();
+                for (JsonElement element : context.draft().getArray(prefix + path)) {
+                    if (element.isJsonPrimitive()) {
+                        entries.add(element.getAsString());
+                    }
+                }
+                box.setValue(String.join(", ", entries), false);
+            }
+
+            @Override
+            public void writeTo(EditorContext context, String prefix) {
+                if (box == null) {
+                    return;
+                }
+                List<JsonElement> entries = new ArrayList<>();
+                for (String entry : box.value().split(",")) {
+                    String trimmed = entry.trim();
+                    if (!trimmed.isEmpty()) {
+                        entries.add(new JsonPrimitive(trimmed));
+                    }
+                }
+                if (entries.isEmpty()) {
+                    context.draft().remove(prefix + path);
+                } else {
+                    context.draft().setArray(prefix + path, entries);
                 }
             }
         };
@@ -287,6 +354,7 @@ public final class FieldWidgets {
     public static FormField reference(String path, String label, String category) {
         return new FormField() {
             private EditBox box;
+            private PvzceClient client;
 
             @Override
             public String label() {
@@ -303,6 +371,7 @@ public final class FieldWidgets {
                 EditorContext.Rect control = row.control();
                 box = context.own(new EditBox(control.x(), control.y(), control.width(),
                         control.height(), 256, null));
+                client = context.client();
             }
 
             @Override
@@ -328,12 +397,20 @@ public final class FieldWidgets {
                 }
             }
 
+            private boolean clientHasTexture(Identifier id) {
+                // A texture lives in a resource pack, so only the client can answer - and the
+                // editor is the client. This is why the field types itself red here instead of
+                // leaving it to the level validator, which sees content and not pictures.
+                return client != null && client.hasTexture(id);
+            }
+
             private boolean resolves() {
                 Identifier id = Identifier.tryParse(box.value().trim());
                 if (id == null) {
                     return false;
                 }
                 return switch (category) {
+                    case "texture" -> clientHasTexture(id);
                     case "plant" -> BuiltInRegistries.PLANTS.containsKey(id);
                     case "zombie" -> BuiltInRegistries.ZOMBIES.containsKey(id);
                     case "slot" -> BuiltInRegistries.SLOT_TYPES.containsKey(id);

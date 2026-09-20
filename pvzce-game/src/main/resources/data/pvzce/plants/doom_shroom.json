@@ -17,12 +17,15 @@
       "fuse_ticks": 90,
       "radius": 3.0,
       "square": true,
-      "damage": 1800
+      "damage": 1800,
+      "leaves_crater": true
     }
   ],
   "sounds": {
     "explode": "pvzce:sfx/plant/doomshroom"
   },
   "animation_dir": "plant/special",
-  "texture": "pvzce:textures/entities/plant/special/doom_shroom"
+  "texture": "pvzce:textures/entities/plant/special/doom_shroom",
+  "render_scale": 0.85,
+  "order": 16
 }

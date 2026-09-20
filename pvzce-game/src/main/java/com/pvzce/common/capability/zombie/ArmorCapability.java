@@ -126,10 +126,11 @@ public final class ArmorCapability implements ZombieCapability {
         // no `armor_hit` still falls back to it, and then to the shield hit.
         Identifier armorSound = zombie.def().sounds().armorHit()
                 .orElse(projectile.sounds().impact().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
-        if (absorb(zombie, wanted, damage, level, armorSound)) {
+        String splash = projectile.impactParticle().map(Identifier::toString).orElse("");
+        if (absorb(zombie, wanted, damage, level, armorSound, splash)) {
             return true;
         }
-        return !lobbed && absorb(zombie, ArmorDef.TOP, damage, level, armorSound);
+        return !lobbed && absorb(zombie, ArmorDef.TOP, damage, level, armorSound, splash);
     }
 
     /**
@@ -145,12 +146,17 @@ public final class ArmorCapability implements ZombieCapability {
     @Override
     public boolean onImpact(ZombieEntity zombie, int damage, LevelAccess level) {
         Identifier sound = zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT);
-        return absorb(zombie, ArmorDef.FRONT, damage, level, sound)
-                || absorb(zombie, ArmorDef.TOP, damage, level, sound);
+        return absorb(zombie, ArmorDef.FRONT, damage, level, sound, "")
+                || absorb(zombie, ArmorDef.TOP, damage, level, sound, "");
     }
 
-    /** Resolves a hit against the first intact piece in {@code wanted}, or on the body. */
-    private boolean absorb(ZombieEntity zombie, String wanted, int damage, LevelAccess level, Identifier sound) {
+    /**
+     * Resolves a hit against the first intact piece in {@code wanted}, or on the body.
+     *
+     * @param splash the shot's own impact effect, or empty for a hit that is not a shot
+     */
+    private boolean absorb(ZombieEntity zombie, String wanted, int damage, LevelAccess level,
+                           Identifier sound, String splash) {
         Piece piece = pieces.stream()
                 .filter(p -> p.hp > 0 && wanted.equals(p.def.position()))
                 .findFirst()
@@ -184,6 +190,9 @@ public final class ArmorCapability implements ZombieCapability {
                     .flatMap(EquipmentDef::dropParticle)
                     .map(Identifier::toString)
                     .orElse("");
+        } else if (!splash.isEmpty()) {
+            // The shot came apart on the armour, which is what the player watched happen.
+            particle = splash;
         } else {
             particle = PvzceParticles.HIT_SPARK.toString();
         }

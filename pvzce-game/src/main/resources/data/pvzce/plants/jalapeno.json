@@ -21,5 +21,7 @@
     "explode": "pvzce:sfx/plant/jalapeno"
   },
   "animation_dir": "plant/special",
-  "texture": "pvzce:textures/entities/plant/special/jalapeno"
+  "texture": "pvzce:textures/entities/plant/special/jalapeno",
+  "render_scale": 0.85,
+  "order": 21
 }

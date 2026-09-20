@@ -57,6 +57,10 @@ public final class PvzceIds {
 
     public static final Identifier GRASS = id("grass");
     public static final Identifier GROUND = id("ground");
+    /** The hole a blast leaves in bare ground. */
+    public static final Identifier CRATER = id("crater");
+    /** The same hole while it is filling back in, for the end of its recovery. */
+    public static final Identifier CRATER_FADING = id("crater_fading");
 
     /**
      * The built-in liquid. A scene element opts into liquid rendering by naming a
@@ -110,6 +114,14 @@ public final class PvzceIds {
      * last wave is where the original puts it.
      */
     public static final Identifier RULE_GRAVES_SPAWN_NIGHT = id("graves_spawn_night");
+    /**
+     * How long a zombie takes to climb out of a grave, in ticks.
+     *
+     * <p>A rule rather than a constant because it is pacing: a level whose graves open one
+     * after another wants the climb to be a beat the player can see, and a level where the
+     * whole lawn erupts at once wants it over with.
+     */
+    public static final Identifier RULE_ZOMBIE_RISE_TICKS = id("zombie_rise_ticks");
 
     public static final Identifier ENV_PLANT_AI = id("plant_ai");
 

@@ -1,6 +1,5 @@
 package com.pvzce.server.entity;
 
-import com.pvzce.api.content.AnimationBindings;
 import com.pvzce.api.content.DamageTypeDef;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ZombieDef;
@@ -48,24 +47,6 @@ public class ZombieEntity extends PvzceEntity {
      * shot simply vanished.
      */
     public static final int CORPSE_TICKS = 360;
-    /**
-     * The death sequences a zombie chooses between when it is killed.
-     *
-     * <p>The original picks one at random so that a lane of zombies does not fall over in
-     * unison, and its three sequences are all in the shared reanim. A zombie whose art has
-     * only an ordinary {@code death} asks for one of these names anyway and the client falls
-     * back to the clip it has - see {@code AnimationPlayback}'s silent-fallback rule - so a
-     * definition never has to declare which deaths its art carries.
-     *
-     * <p>The super-long sequence is left out of the random pool: it is a heavy body's death,
-     * not a variation on an ordinary one, and a definition that wants it points its
-     * {@code animations} map at the clip instead. The pool is a pair of *states*, not clip
-     * names - a definition that maps them both to the same clip simply gets that clip twice,
-     * which is the honest outcome for art that only drew one death.
-     */
-    private static final String[] RANDOM_DEATHS = {
-            EntityAnimations.DEATH, EntityAnimations.DEATH2,
-    };
 
     /**
      * How far in front a zombie can bite, in cells from centre to centre.
@@ -78,15 +59,14 @@ public class ZombieEntity extends PvzceEntity {
     public static final float BITE_REACH = 0.55F;
 
     /**
-     * How long a zombie's own rise out of a grave takes, in ticks.
+     * The climb a level gets when its {@code pvzce:zombie_rise_ticks} rule is unwritten.
      *
-     * <p>One second of climbing, during which it neither walks nor bites and is drawn below
-     * the ground line (see {@code InGameScreen}, which paints risers before the scene so the
-     * lawn covers the part that is still underground).
+     * <p>One second of climbing, during which the zombie neither walks nor bites and is drawn
+     * below the lawn surface: the client uses the height this publishes - in
+     * {@link PvzceConstants#ZOMBIE_RISE_DEPTH_CELLS} units - to cut the buried part off at
+     * the row's ground line, so the body slides out rather than appearing on its feet.
      */
-    public static final int RISE_TICKS = 60;
-    /** How far below its cell a rising zombie starts, in cells. */
-    public static final float RISE_DEPTH = 0.55F;
+    public static final int RISE_TICKS = PvzceConstants.ZOMBIE_RISE_TICKS;
 
     private final ZombieDef def;
     private final List<Instance> capabilities = new ArrayList<>();
@@ -102,6 +82,8 @@ public class ZombieEntity extends PvzceEntity {
      * still underground.
      */
     private int riseTicks;
+    /** How long this zombie's climb lasts, in ticks: the level's rule, or {@link #RISE_TICKS}. */
+    private int riseTicksTotal = RISE_TICKS;
     /** Ticks left of this zombie's own death animation; 0 while it is alive. */
     private int corpseTicks;
     /** Balloon zombies fly until something pops the balloon. */
@@ -123,10 +105,10 @@ public class ZombieEntity extends PvzceEntity {
     /**
      * How many ticks this zombie still has to climb out of the ground, or zero.
      *
-     * <p>The client reads it to draw the zombie sinking into (or rising out of) the lawn:
-     * negative height alone would paint the part below the ground line *over* the tile
-     * underneath, so a riser is drawn before the scene instead. See {@link #RISE_DEPTH} for
-     * how far down it starts.
+     * <p>The client reads the height this drives to draw the zombie sinking into (or rising
+     * out of) the lawn: negative height alone would paint the part below the ground line
+     * *over* the tile underneath, so a riser is cut off at the ground line instead. See
+     * {@link PvzceConstants#ZOMBIE_RISE_DEPTH_CELLS} for how far down it starts.
      */
     public int riseTicks() {
         return riseTicks;
@@ -134,12 +116,26 @@ public class ZombieEntity extends PvzceEntity {
 
     /** How far through its climb this zombie is, 0 (buried) to 1 (standing). */
     public float riseProgress() {
-        return riseTicks <= 0 ? 1F : 1F - riseTicks / (float) RISE_TICKS;
+        return riseTicks <= 0 ? 1F : 1F - riseTicks / (float) riseTicksTotal;
     }
 
-    /** Sends this zombie up out of the ground: it spends {@link #RISE_TICKS} climbing. */
+    /**
+     * Sends this zombie up out of the ground: it spends {@link #RISE_TICKS} climbing.
+     *
+     * <p>The height is set here, not on the first tick, so that the spawn packet already
+     * describes a body that is underground. A client that is told "here is a zombie, at
+     * height zero" and only then "and it is buried" draws it standing for the three ticks the
+     * mirror spends sliding from one to the other - the pop this whole state exists to avoid.
+     */
     public void beginRise() {
-        riseTicks = RISE_TICKS;
+        beginRise(RISE_TICKS);
+    }
+
+    /** The same climb at a speed the level chose; see {@code pvzce:zombie_rise_ticks}. */
+    public void beginRise(int ticks) {
+        riseTicksTotal = Math.max(1, ticks);
+        riseTicks = riseTicksTotal;
+        setHeight(-PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS);
         setAnimation(EntityAnimations.IDLE);
     }
 
@@ -223,16 +219,17 @@ public class ZombieEntity extends PvzceEntity {
         }
         if (riseTicks > 0) {
             // Still climbing out of its grave. It does not walk, bite, drown or run its
-            // capabilities - it is not on the lawn yet - and the client draws it below the
-            // ground line for as long as this lasts (see `InGameScreen#renderRisingZombies`).
-            // Being *shot* while it climbs is allowed, exactly as in the original.
+            // capabilities - it is not on the lawn yet - and the client cuts it off at the
+            // row's ground line for as long as this lasts (see
+            // `InGameScreen#renderRisingZombies`). Being *shot* while it climbs is allowed,
+            // exactly as in the original.
             riseTicks--;
             setAnimation(EntityAnimations.IDLE);
             // Below the ground line while it climbs. Height is the entity's own "how high off
             // its cell" and already travels every sync, so the climb needs no new field - and
-            // the client draws everything with a negative height *before* the scene, which is
-            // what keeps the buried half behind the lawn instead of on top of the row below.
-            setHeight(-RISE_DEPTH * (1F - riseProgress()));
+            // the client reads it back as "how deep this body still is", which is how the
+            // buried part ends up behind the lawn instead of on top of the row below.
+            setHeight(-PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS * (1F - riseProgress()));
             tickStatuses();
             if (riseTicks <= 0) {
                 setHeight(0F);
@@ -270,7 +267,8 @@ public class ZombieEntity extends PvzceEntity {
             remove();
             // A body going under has its own sequence in the original - it does not fall
             // over, it sinks - so the state says *how* it died rather than reusing the
-            // ordinary death. Art without the clip falls back to the death it does have.
+            // ordinary death. Art without the clip plays the ordinary death instead: that
+            // is the client's fallback for the death family, not this side's business.
             setAnimation(EntityAnimations.DEATH_WATER);
             level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), cellX(), cellY(), PvzceSounds.ZOMBIE_SPLASH);
             // A body going under disturbs the surface, and this is the one place the
@@ -420,7 +418,10 @@ public class ZombieEntity extends PvzceEntity {
                     * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
             plant.damageFrom(damage);
         }
-        level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
+        // The bite is the sound and the plant losing health, and nothing else. It used to fire
+        // `pvzce:chomp` - the puff-shroom's eight big spore puffs - at the plant, which put a
+        // purple cloud on the lawn for every bite any zombie ever took.
+        level.emitEffect("", plant.cellX(), plant.cellY(),
                 def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
     }
 
@@ -514,7 +515,13 @@ public class ZombieEntity extends PvzceEntity {
         if (!removed) {
             Identifier hitSound = projectile.sounds().impact()
                     .orElse(def.sounds().hit().orElse(PvzceSounds.PROJECTILE_HIT));
-            level.emitEffect(PvzceParticles.HIT_SPARK.toString(), cellX(), cellY(), hitSound);
+            // The shot's own splash, not a generic spark. This used to fire `pvzce:starburst`
+            // - twenty-five golden stars meant for the star fruit and the award screen - on
+            // every single hit, which is why being shot at looked like being showered in sun.
+            // What the player reads at the point of impact is the thing they fired breaking,
+            // and a projectile that has not drawn a splat plays only its sound.
+            level.emitEffect(projectile.impactParticle().map(Identifier::toString).orElse(""),
+                    cellX(), cellY(), hitSound);
         }
     }
 
@@ -560,8 +567,9 @@ public class ZombieEntity extends PvzceEntity {
         }
         // The type travels into the body hit because the *death* has to know what killed it: a
         // blast from the ash line leaves a charred body and a pea does not, and the difference
-        // is the hit's own declaration rather than a list of ids here.
-        damageBody(dmg, level, burns(type));
+        // is the hit's own declaration rather than a list of ids here. `dismembers` rides along
+        // for the same reason - the mower is not the only thing that could throw a head.
+        damageBody(dmg, level, burns(type), type != null && type.dismembers());
     }
 
     /** The registered damage type for {@code id}, or the projectile fallback. */
@@ -622,50 +630,24 @@ public class ZombieEntity extends PvzceEntity {
     }
 
     /**
-     * Which of the original's death sequences this body falls over with.
-     *
-     * <p>Random rather than fixed, because that is what makes a crowd read as a crowd: the
-     * original shuffles its sequences so two zombies killed by the same melon do not collapse
-     * in lockstep.
-     *
-     * <p>Two things a definition can say with the {@code animations} map it already has, and
-     * neither needs a new field:
-     *
-     * <ul>
-     *   <li>art with only one death must not be asked for the other, because a state a file
-     *       does not define falls back to {@code idle} on the client - a corpse standing about
-     *       instead of falling over. So the second variant is used only when the definition
-     *       maps <em>both</em> states onto the same file, which is exactly the statement "this
-     *       file was drawn with more than one death in it";</li>
-     *   <li>a body that should take its time going down pins its {@code death} state at the
-     *       long sequence ({@code "death": "pvzce:zombie/giant/gargantuar"} with that clip in
-     *       the file), which also silences the random pick - the second variant is no longer
-     *       mapped to the same file, so it is never chosen.</li>
-     * </ul>
-     *
-     * @param random the level's stream, so a replay of the same level picks the same deaths
-     */
-    private String pickDeathAnimation(java.util.Random random) {
-        String picked = RANDOM_DEATHS[random.nextInt(RANDOM_DEATHS.length)];
-        return EntityAnimations.DEATH2.equals(picked) && !hasDeathVariants()
-                ? EntityAnimations.DEATH
-                : picked;
-    }
-
-    /** True when this zombie's art was drawn with more than one death sequence in it. */
-    private boolean hasDeathVariants() {
-        AnimationBindings bindings = def.animations();
-        return bindings.resolve(EntityAnimations.DEATH)
-                .equals(bindings.resolve(EntityAnimations.DEATH2));
-    }
-
-    /**
      * The body hit itself, with what kind of damage it was.
      *
      * @param burns true when this hit is fire or ash, so a kill leaves a charred body; see
      *              {@link EntityAnimations#DEATH_BURNED}
      */
     public void damageBody(int amount, LevelAccess level, boolean burns) {
+        damageBody(amount, level, burns, false);
+    }
+
+    /**
+     * The body hit itself, with what kind of damage it was.
+     *
+     * @param burns      true when this hit is fire or ash, so a kill leaves a charred body; see
+     *                   {@link EntityAnimations#DEATH_BURNED}
+     * @param dismembered true when the hit threw the head and arm off itself (the lawn mower),
+     *                   so the death must not throw a second pair
+     */
+    public void damageBody(int amount, LevelAccess level, boolean burns, boolean dismembered) {
         if (!isAlive()) {
             return;
         }
@@ -678,7 +660,10 @@ public class ZombieEntity extends PvzceEntity {
         // The loss is a *transition*, so it is read off the two health values rather than
         // kept in a flag: a restored save at 40% health is already armless and must not
         // pop a second arm.
-        if (def.dropsArm() && armorHealth() <= 0
+        // A hit that burns a body to ash does not also tear an arm off it: the charred model
+        // has no arms and no head to begin with, and the original's ash line leaves exactly
+        // that drawing behind. This is why the arm and the head below both ask `burns`.
+        if (!burns && !dismembered && def.dropsArm() && armorHealth() <= 0
                 && before * 2 > def.health() && health() * 2 <= def.health()) {
             level.emitEffect(PvzceParticles.ZOMBIE_ARM.toString(), cellX(), cellY(),
                     def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
@@ -689,19 +674,31 @@ public class ZombieEntity extends PvzceEntity {
             // happened, and a despawn in the same breath never showed any of it.
             corpseTicks = CORPSE_TICKS;
             // The burnt clip is a different model (the original's charred zombie), reached
-            // through the definition's own `animations` map. A zombie whose art has no such clip
-            // asks for it anyway and the animation manager falls back - which is the right
-            // failure, because the alternative is a fire death that silently looks like any
-            // other and nothing in the log to say why.
-            setAnimation(burns ? EntityAnimations.DEATH_BURNED : pickDeathAnimation(level.random()));
+            // through the definition's own `animations` map - a state the art does not define
+            // falls back to `idle` on the client, so a definition that opts into fire deaths
+            // has to map it at the charred file.
+            setAnimation(burns ? EntityAnimations.DEATH_BURNED : EntityAnimations.DEATH);
             // The head leaves the body as its own particle. The model keeps it hidden in the
             // death clip - that is how the original is authored - so this is the only thing
             // that puts one on the lawn, and the sprite's own motion is what makes it drop
             // where the zombie fell rather than fly off the board (see
             // data/pvzce/particles/zombie/zombie_head.json).
-            level.emitEffect(def.dropsHead() ? PvzceParticles.ZOMBIE_HEAD.toString() : "",
-                    cellX(), cellY(),
-                    def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
+            // Exactly one head per body. The lawn mower throws its own (a mowed zombie loses
+            // its head and arm *to the mower*, and `pvzce:mower` says so with `dismembers`),
+            // and a burnt body is drawn without one - both used to get a second head here.
+            if (!burns) {
+                Identifier deathSound = def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP);
+                String head = dismembered
+                        ? PvzceParticles.MOWERED_ZOMBIE_HEAD.toString()
+                        : def.dropsHead() ? PvzceParticles.ZOMBIE_HEAD.toString() : "";
+                level.emitEffect(head, cellX(), cellY(), deathSound);
+                if (dismembered) {
+                    // The mower takes the arm with it too, and the half-health pop above is
+                    // suppressed for this hit - otherwise a mowed zombie shed two arms.
+                    level.emitEffect(PvzceParticles.MOWERED_ZOMBIE_ARM.toString(),
+                            cellX(), cellY(), null);
+                }
+            }
             dropEquipment(level);
             for (Instance instance : capabilities) {
                 instance.capability.onDeath(this, level);

@@ -1,5 +1,8 @@
 {
   "id": "pvzce:grave_wide",
   "surface": "GRAVE",
-  "max_height": 0
+  "max_height": 0,
+  "art": {
+    "underlay": "pvzce:grass"
+  }
 }

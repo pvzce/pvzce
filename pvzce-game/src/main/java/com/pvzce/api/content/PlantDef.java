@@ -48,16 +48,28 @@ public record PlantDef(
          * <p>The client draws this content that many times bigger than its art declares,
          * in both axes so the shape is kept. Nothing the server simulates changes.
          */
-        float renderScale
+        float renderScale,
+        /**
+         * Where this plant sits in the order the bag and the seed chooser are read in.
+         *
+         * <p>The original's order is the one the player met the plants in - Peashooter first,
+         * Sunflower second, and so on down the almanac - so it is written down per plant
+         * rather than derived from anything. {@link #DEFAULT_ORDER} puts a plant that does not
+         * name one after all the ones that do.
+         */
+        int order
 ) {
     public static final int DEFAULT_HEALTH = 300;
+
+    /** The order of a plant that has not said where it belongs. */
+    public static final int DEFAULT_ORDER = 1000;
 
     /** A definition that does not care about presentation size: {@code render_scale} 1. */
     public PlantDef(Identifier id, ResourceCost cost, int health, PlacementDef placement,
                     List<TypedCapability<PlantCapability>> capabilities, Optional<Identifier> behavior,
                     PlantSounds sounds, AnimationBindings animations, Optional<Identifier> texture) {
         this(id, cost, health, placement, capabilities, behavior, sounds, animations, texture,
-                ContentDefs.DEFAULT_RENDER_SCALE);
+                ContentDefs.DEFAULT_RENDER_SCALE, DEFAULT_ORDER);
     }
 
     public static final Codec<PlantDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -70,7 +82,11 @@ public record PlantDef(
             PlantSounds.CODEC.optionalFieldOf("sounds", PlantSounds.EMPTY).forGetter(PlantDef::sounds),
             AnimationBindings.MAP_CODEC.forGetter(PlantDef::animations),
             Identifier.CODEC.optionalFieldOf("texture").forGetter(PlantDef::texture),
-            ContentDefs.RENDER_SCALE_CODEC.forGetter(PlantDef::renderScale)
+            ContentDefs.RENDER_SCALE_CODEC.forGetter(PlantDef::renderScale),
+            // Where this plant sits in the almanac order the bar and the bag are read in. Not
+            // derived from the id: the original's order is the order the player *met* the
+            // plants, and the alphabet knows nothing about that.
+            Codec.INT.optionalFieldOf("order", DEFAULT_ORDER).forGetter(PlantDef::order)
     ).apply(i, PlantDef::new));
 
     public PlantDef {

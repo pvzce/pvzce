@@ -15,5 +15,6 @@
     "impact": "pvzce:sfx/plant/fume"
   },
   "texture": "pvzce:textures/entities/projectile/fume",
-  "render_scale": 1.6
+  "render_scale": 1.6,
+  "impact_particle": "pvzce:fume_splat"
 }

@@ -33,17 +33,26 @@ import com.pvzce.api.util.Identifier;
  *                     "does this hit burn?" is a property of the hit, so a mod's own fire
  *                     damage can answer it without a code change
  */
-public record DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns) {
+public record DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns, boolean dismembers) {
     public static final Codec<DamageTypeDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(DamageTypeDef::id),
             Codec.BOOL.optionalFieldOf("ignores_armor", false).forGetter(DamageTypeDef::ignoresArmor),
             // Written by the ash line; unwritten means "this hit leaves a body like any other",
             // which is what every type did before the field existed.
-            Codec.BOOL.optionalFieldOf("burns", false).forGetter(DamageTypeDef::burns)
+            Codec.BOOL.optionalFieldOf("burns", false).forGetter(DamageTypeDef::burns),
+            // A hit that takes the head and arm off *itself* (the lawn mower throws both as
+            // it goes over), so the death must not throw a second pair.
+            Codec.BOOL.optionalFieldOf("dismembers", false).forGetter(DamageTypeDef::dismembers)
     ).apply(i, DamageTypeDef::new));
 
     /** The common case: a hit that does not burn. */
+    /** A plain hit: armour stops it, it leaves no charred body, it throws nothing of its own. */
     public DamageTypeDef(Identifier id, boolean ignoresArmor) {
-        this(id, ignoresArmor, false);
+        this(id, ignoresArmor, false, false);
+    }
+
+    /** A hit that burns but does not throw anything off by itself. */
+    public DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns) {
+        this(id, ignoresArmor, burns, false);
     }
 }

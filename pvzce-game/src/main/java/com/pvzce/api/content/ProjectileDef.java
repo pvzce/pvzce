@@ -45,7 +45,17 @@ public record ProjectileDef(
          * the original, and "armour does not absorb this" belongs on the hit rather than on a
          * fourth damage pipeline. Unset for every shot, since a pea is a pea.
          */
-        Optional<Identifier> damageType
+        Optional<Identifier> damageType,
+        /**
+         * What the shot leaves behind where it landed, or empty for a shot that leaves nothing.
+         *
+         * <p>Per projectile rather than one effect for "a hit": what a player reads at the point
+         * of impact is the thing they fired coming apart - a pea splashes green, a melon bursts
+         * - and the original draws a separate splat for each. A shot with no effect of its own
+         * plays only its impact sound, which is the honest answer for content that has not said
+         * what its splash looks like.
+         */
+        Optional<Identifier> impactParticle
 ) {
     /** A definition that does not care about presentation size: {@code render_scale} 1. */
     public ProjectileDef(Identifier id, String layer,
@@ -53,7 +63,7 @@ public record ProjectileDef(
                          Optional<Identifier> behavior, ProjectileSounds sounds,
                          AnimationBindings animations, Optional<Identifier> texture) {
         this(id, layer, capabilities, behavior, sounds, animations, texture,
-                ContentDefs.DEFAULT_RENDER_SCALE, Optional.empty());
+                ContentDefs.DEFAULT_RENDER_SCALE, Optional.empty(), Optional.empty());
     }
 
     /** Ground-layer shots are blocked by flying/underground zombies. */
@@ -70,12 +80,14 @@ public record ProjectileDef(
             AnimationBindings.MAP_CODEC.forGetter(ProjectileDef::animations),
             Identifier.CODEC.optionalFieldOf("texture").forGetter(ProjectileDef::texture),
             ContentDefs.RENDER_SCALE_CODEC.forGetter(ProjectileDef::renderScale),
-            Identifier.CODEC.optionalFieldOf("damage_type").forGetter(ProjectileDef::damageType)
+            Identifier.CODEC.optionalFieldOf("damage_type").forGetter(ProjectileDef::damageType),
+            Identifier.CODEC.optionalFieldOf("impact_particle").forGetter(ProjectileDef::impactParticle)
     ).apply(i, ProjectileDef::new));
 
     public ProjectileDef {
         capabilities = List.copyOf(capabilities);
         damageType = damageType == null ? Optional.empty() : damageType;
+        impactParticle = impactParticle == null ? Optional.empty() : impactParticle;
     }
 
     public boolean isAirLayer() {

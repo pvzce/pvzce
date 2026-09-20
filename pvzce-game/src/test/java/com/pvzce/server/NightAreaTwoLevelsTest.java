@@ -564,11 +564,12 @@ class NightAreaTwoLevelsTest {
         shot.damage(pea, 1800, level);
 
         assertEquals("death_burned", burned.animation(), "the ash line's kill is a burnt corpse");
-        // An ordinary kill picks one of the original's death sequences, so that a crowd does
-        // not fall over in unison; what the assertion is really about is that it is an ordinary
-        // one - not the charred model, and not a state the shared art does not carry.
-        assertTrue(java.util.Set.of("death", "death2").contains(shot.animation()),
-                "a pea's kill is an ordinary death, was: " + shot.animation());
+        // An ordinary kill publishes the one ordinary death state; which of the file's death
+        // sequences that state resolves to is the client's choice (`AnimationVariants`),
+        // because only the client can see which clips the art actually has. What this
+        // assertion is about is that a pea's kill is an ordinary death and not the charred
+        // model.
+        assertEquals("death", shot.animation(), "a pea's kill is an ordinary death, was: " + shot.animation());
         // Both are dead; only the clip differs, which is what the whole flag is about.
         assertEquals(0, level.aliveZombieCount());
     }

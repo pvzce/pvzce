@@ -323,5 +323,10 @@
         "side": "left"
       }
     ]
-  }
+  },
+  "background": "pvzce:textures/gui/screen/level/background1",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true
 }

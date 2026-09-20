@@ -192,6 +192,8 @@
 | initial_entities | InitialEntityDef[] | 编辑器预摆：kind/id/x/y |
 | dialogue | LevelDialogue? | 可选；关卡开始前的一段对话（见下） |
 | hints | LevelHint[] | 可选；底部灰色提示框的台词（见下） |
+| background | Identifier? | 可选；舞台贴图（如 `pvzce:textures/gui/screen/level/background2`）。不写 = 内置院子。原版每个舞台都是同一张 1400x600 的图、棋盘位置也一样，所以换背景只是换一张图 |
+| hidden_scene_elements | String[] | 可选；**不画出来的场景元素**，每项是元素 id（`pvzce:grass`）或 `#` 开头的标签（`#c:grave`）。命中的格子整个不画，露出背景图 —— 给"背景图里已经画好草坪"的关卡用。地形仍然要写在 `scene` 里（它决定哪里能种），只是不再画第二遍 |
 
 ### 时间与夜晚（`rules` 里的三条）
 
@@ -498,6 +500,35 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
 - `resources`：`id` / `default_value` / `collectible` / `icon` / `drop_anim` / `max_stack` / `collectible_without_card` / `tint`（可选，`[r, g, b]` 乘色，默认 `[0.5, 0.5, 0.5]`；阳光用暖黄 `[0.58, 0.50, 0.15]` 让两层叠加光晕不发白）
 - `slots`：`id` / `kind`(`plant`|`resource`|`tool`) / `content` / `cost` / `icon`（可选；缺省走 `EntityArt.sprite`，即定义的 `texture`，再回退 `textures/entities/<content>`）
+- `scene_elements`：`id` / `surface` / `max_height` / `liquid`（可选，走水面 shader）/ `art`（可选，见下）
+
+### 场景元素的美术（`art`）
+
+不写 `art` 就按约定来：贴图是 `textures/scene/<id 的 path>`，画满一格。原版那两件不合约定的东西写在 `art` 里：
+
+```jsonc
+{
+  "id": "pvzce:crater",
+  "surface": "CRATER",
+  "art": {
+    "texture": "pvzce:textures/scene/crater_day",        // 白天那版
+    "night_texture": "pvzce:textures/scene/crater_night",// 夜里那版（缺省回落白天）
+    "underlay": "pvzce:grass",                           // 画在哪个元素上面
+    "width": 1.125, "height": 0.7625                     // 单位是格，居中画
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| texture | Identifier? | 白天（或唯一）那版贴图 |
+| night_texture | Identifier? | 夜里的那版；关卡是夜就画它，缺失回落白天那版 |
+| underlay | Identifier? | **元素 id**，先画它再画自己。一格只存一个元素，所以"底下那层"必须写出来；写成元素而不是贴图，资源包换草坪时它跟着换，关卡 `hidden_scene_elements` 隐藏草坪时它也一起隐藏 |
+| width/height | float | 非一格的贴图按这个尺寸居中画（缺省 1×1）。原版弹坑是 90×61 像素，比一格宽、比一格矮，塞进一格会被压扁 |
+
+### 弹坑与毁灭菇
+
+`pvzce:explosive` 多一个可选字段 `leaves_crater`（默认 `false`，毁灭菇写 `true`）：爆炸把覆盖到的**裸地**格变成 `pvzce:crater`，footprint 与伤害用的是同一套算法；弹坑在 `pvzce:crater_recovery` 的最后一秒变成 `pvzce:crater_fading`（原版那张"正在填回去"的图），到点变回草坪。两者都在 `#c:unplantable` 里。
 
 ### 波次出怪间隔（`spawn_interval`）
 
@@ -537,6 +568,27 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
 「不写」与「写 0」是两件事，所以字段是可选的整数；想给一个自己写清楚节奏的关卡关掉它，就写 0。
 门控是**滚动**的：第 3 只等第 2 只，而不是等整波清空。
+
+### 命中特效（`impact_particle`）
+
+子弹打中僵尸（或打在护甲上）时放的效果。不写就只有命中音效 —— 这是"这件内容没说自己的splash长什么样"的诚实答案。
+
+```jsonc
+{ "id": "pvzce:pea", "texture": "pvzce:textures/entities/projectile/pea",
+  "impact_particle": "pvzce:pea_splat" }
+```
+
+内置的每一种子弹都有对应的一条（`pea_splat` / `snow_pea_splat` / `kernel_splat` / `melon_splat` / `winter_melon_splat` / `butter_splat` / `cabbage_splat` / `fume_splat` / `cactus_spike_splat`，小喷菇的孢子直接复用 `pvzce:puff_splat`）：原版为每种子弹各画了一张 splat，那批图不在本仓库里，所以这里用的是**子弹自己的精灵**散成几片 —— 玩家读到的是"我打出去的东西在落点散了"。
+
+### 粒子画多宽（`aspect`）
+
+`scale` 是**高度**（格）。精灵不是正方形时用 `aspect` 给宽度：`宽 = scale × aspect`。
+
+```jsonc
+"look": { "scale": 0.5, "aspect": 0.65, "texture": "pvzce:textures/particles/zombie/zombiearm" }
+```
+
+写成"世界的宽高比"而不是像素比：一格是 80×100 像素，所以 26×50 的手臂是 `(26/80) / (50/100) = 0.65`，画出来就是它在原版里的 0.325×0.5 格。不写就是 1（正方形，绝大多数粒子都是）。僵尸掉下来的零件都按**它在僵尸模型上的大小**写，见 `架构-客户端.md` §6.5.1。
 
 ### 粒子大小（`scale`）
 

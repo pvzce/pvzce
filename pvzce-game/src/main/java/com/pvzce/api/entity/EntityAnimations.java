@@ -48,22 +48,32 @@ public final class EntityAnimations {
      */
     public static final String DEATH_BURNED = "death_burned";
     /**
-     * The original's other two ways of falling over.
+     * The original's other way of falling over, as a clip name inside the same file.
      *
      * <p>{@code Zombie.reanim} carries three death sequences and the game picks one at
      * random when a zombie dies ({@code Zombie::PlayDeathAnim}), so a lane of dying zombies
-     * does not fall in unison. The third, {@code death_superlong}, is the drawn-out version a
-     * heavy body gets. All three are exported for every zombie that shares the master file;
-     * a zombie whose art has only one death simply does not define these names and the
-     * client falls back to {@code idle} exactly as it does for any other missing clip.
+     * does not fall in unison. Which one a body gets is the <em>client's</em> choice among
+     * the death clips its art actually defines: the server publishes {@link #DEATH} and
+     * nothing else, because only the client can see the file. A state the file does not
+     * define falls back to {@code idle} - a corpse standing about instead of falling over -
+     * so the pool is exactly the clips that are there.
      */
     public static final String DEATH2 = "death2";
+    /**
+     * The drawn-out death a heavy body gets.
+     *
+     * <p>Not part of the client's random pool: it is a different kind of death rather than a
+     * variation on an ordinary one, so a definition that wants it points its {@code death}
+     * state at the clip's own file ({@code "death": "pvzce:zombie/giant/gargantuar"}).
+     */
     public static final String DEATH_SUPERLONG = "death_superlong";
     /**
      * Drowning: the original's fourth death sequence, played when a body goes under water.
      *
      * <p>A state rather than a flag because it is a whole different sequence, not a tint on
-     * the ordinary one. A zombie without the clip keeps the ordinary death.
+     * the ordinary one. Art without the clip drowns with its ordinary death: the client
+     * treats this as a member of the death family, so a zombie whose file only drew
+     * {@code death} sinks with {@code death} instead of standing about in {@code idle}.
      */
     public static final String DEATH_WATER = "death_water";
     public static final String FALL = "fall";

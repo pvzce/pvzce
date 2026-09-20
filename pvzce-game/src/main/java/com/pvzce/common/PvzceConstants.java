@@ -20,6 +20,25 @@ public final class PvzceConstants {
     public static final int SUN_VALUE = 25;
     public static final float SUN_SPAWN_CHANCE = 0.001F;
     /**
+     * How long a zombie takes to climb out of a grave, in ticks, when a level does not say.
+     *
+     * <p>The default for the {@code pvzce:zombie_rise_ticks} rule. It lives here rather than
+     * beside the code that climbs because the rule registry is in {@code common/core} and the
+     * entity is not - and the number has to be readable by both.
+     */
+    public static final int ZOMBIE_RISE_TICKS = 60;
+    /**
+     * How far below its cell a zombie starts when it climbs out of a grave, in cells.
+     *
+     * <p>Shared rather than owned by the server because it is the unit the climb is
+     * <em>published</em> in: the server moves the riser's height from
+     * {@code -ZOMBIE_RISE_DEPTH_CELLS} to zero, and the client turns that number back into
+     * "how much of the body is still underground" to work out where the lawn surface has to
+     * cut it. Two copies of this number would put the cut at the wrong height, which shows up
+     * as a zombie that pops rather than rises.
+     */
+    public static final float ZOMBIE_RISE_DEPTH_CELLS = 1.15F;
+    /**
      * How many cards a fresh backpack holds, and the ceiling an upgrade may reach.
      *
      * <p>A level that does not declare {@code max_seed_slots} uses the backpack's number

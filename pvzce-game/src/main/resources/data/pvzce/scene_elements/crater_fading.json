@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:crater_fading",
+  "surface": "CRATER",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/crater_fade_day",
+    "night_texture": "pvzce:textures/scene/crater_fade_night",
+    "underlay": "pvzce:grass",
+    "width": 1.125,
+    "height": 0.7625
+  }
+}

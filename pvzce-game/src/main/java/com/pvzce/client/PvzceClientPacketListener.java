@@ -5,6 +5,7 @@ import com.pvzce.common.network.PacketListener;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.DebugInfoS2C;
+import com.pvzce.common.network.packet.CarrySyncS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
@@ -52,7 +53,9 @@ public final class PvzceClientPacketListener implements PacketListener {
             }
             level.init(init.levelId(), init.width(), init.height(), init.slots(), init.waveTypes(),
                     init.seedPool(), init.maxSeedSlots(), init.previewZombies(), init.sceneCells(),
-                    init.controlledTeamId(), init.controlledTeamName(), init.payload().mechanics());
+                    init.controlledTeamId(), init.controlledTeamName(), init.payload().mechanics(),
+                    init.background().orElse(null), init.hiddenSceneElements(),
+                    init.payload().shadersDisabled());
             client.onLevelInit();
         } else if (packet instanceof LevelListS2C list) {
             client.setLevelList(list.levels());
@@ -67,6 +70,8 @@ public final class PvzceClientPacketListener implements PacketListener {
             } else {
                 client.openEditor(editorLevel);
             }
+        } else if (packet instanceof CarrySyncS2C carry) {
+            level.setCarriedPlant(carry.plantId());
         } else if (packet instanceof SceneSyncS2C scene) {
             level.applyScene(scene.cells());
         } else if (packet instanceof EntitySpawnS2C spawn) {

@@ -20,12 +20,13 @@
         0.0
       ]
     ],
-    "scale": 0.8,
+    "scale": 0.5,
     "life": 0.5,
     "frames_per_second": 60.0,
     "loop": true,
     "texture": "pvzce:textures/particles/zombie/zombiearm",
-    "spin_spread": 90.0
+    "spin_spread": 90.0,
+    "aspect": 0.65
   },
   "motion": {
     "speed": 4.25,

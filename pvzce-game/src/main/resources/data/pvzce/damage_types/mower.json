@@ -1,4 +1,5 @@
 {
   "id": "pvzce:mower",
-  "ignores_armor": true
+  "ignores_armor": true,
+  "dismembers": true
 }

@@ -16,6 +16,11 @@ import java.util.Optional;
  * two listeners and both screens - and any one of those could be missed. One record, one
  * field list.
  *
+ * <p>Which backdrop the level is played on and which scene elements it does not draw travel
+ * here too, next to the scene grid they belong with: both are presentation, but a client that
+ * had to guess them from its own copy of the level file would draw a different board than the
+ * one the server is running.
+ *
  * <p>Mechanics travel as their own JSON blocks ({@link MechanicPayload}), encoded by the
  * mechanic's codec on the server and decoded by the same codec on the client. They used to
  * be three hand-written field groups here ({@code conveyor}, {@code beltCapacity} and the
@@ -25,13 +30,37 @@ import java.util.Optional;
  */
 public record LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
                            List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
-                           List<String> lockedSlots, List<MechanicPayload> mechanics) {
+                           List<String> lockedSlots, List<MechanicPayload> mechanics,
+                           String background, List<String> hiddenSceneElements,
+                           boolean shadersDisabled) {
     public LevelPayload {
         seedPool = List.copyOf(seedPool);
         previewZombies = List.copyOf(previewZombies);
         sceneCells = List.copyOf(sceneCells);
         lockedSlots = List.copyOf(lockedSlots);
         mechanics = List.copyOf(mechanics);
+        background = background == null ? "" : background;
+        hiddenSceneElements = List.copyOf(hiddenSceneElements);
+    }
+
+    /**
+     * The same board without a look of its own: the built-in yard, nothing hidden.
+     *
+     * <p>Kept because a board's look is the last thing most callers care about - every test
+     * fixture and every level written before backdrops existed means exactly this - and a
+     * fourteen-argument constructor repeated at each of them is how a field list gets copied
+     * into a dozen files (see the {@code LevelDef} clone helpers this project already removed).
+     */
+    public LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
+                        List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
+                        List<String> lockedSlots, List<MechanicPayload> mechanics) {
+        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, lockedSlots,
+                mechanics, "", List.of(), false);
+    }
+
+    /** The backdrop texture, or empty for the built-in yard. */
+    public Identifier backgroundId() {
+        return Identifier.tryParse(background);
     }
 
     /**
@@ -81,10 +110,14 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
             .list(LevelPayload::sceneCells, SceneSyncS2C.Cell::encode, SceneSyncS2C.Cell::decode)
             .stringList(LevelPayload::lockedSlots)
             .list(LevelPayload::mechanics, MechanicPayload::encode, MechanicPayload::decode)
+            .field(LevelPayload::background, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .stringList(LevelPayload::hiddenSceneElements)
+            .field(LevelPayload::shadersDisabled, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
             .build(values -> new LevelPayload((Integer) values.get(0), (Integer) values.get(1),
                     (List<SeedOption>) values.get(2), (Integer) values.get(3),
                     (List<String>) values.get(4), (List<SceneSyncS2C.Cell>) values.get(5),
-                    (List<String>) values.get(6), (List<MechanicPayload>) values.get(7)));
+                    (List<String>) values.get(6), (List<MechanicPayload>) values.get(7),
+                    (String) values.get(8), (List<String>) values.get(9), (Boolean) values.get(10)));
 
     public void encode(PacketByteBuf buf) {
         CODEC.encode(this, buf);

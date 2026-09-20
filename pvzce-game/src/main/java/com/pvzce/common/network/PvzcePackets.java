@@ -1,6 +1,7 @@
 package com.pvzce.common.network;
 
 import com.pvzce.common.network.packet.MechanicSyncS2C;
+import com.pvzce.common.network.packet.CarrySyncS2C;
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.CreateWorldC2S;
@@ -81,7 +82,7 @@ public final class PvzcePackets {
     // carries whether a level was ever beaten (LevelInfo.cleared, which is what the row's
     // trophy reads), and the reward carries the resource a level handed over when it pays in
     // objects rather than in cards (LevelRewardS2C.rewardItem).
-    public static final int PROTOCOL_VERSION = 18;
+    public static final int PROTOCOL_VERSION = 21;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -134,6 +135,7 @@ public final class PvzcePackets {
     public static final int S2C_PROFILE = S2C_BASE + 23;
     public static final int S2C_LEVEL_REWARD = S2C_BASE + 24;
     public static final int S2C_MECHANIC_SYNC = S2C_BASE + 25;
+    public static final int S2C_CARRY_SYNC = S2C_BASE + 26;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -177,6 +179,7 @@ public final class PvzcePackets {
             def(S2C_ENTITY_DESPAWN, ConnectionDirection.CLIENTBOUND, EntityDespawnS2C.class,
                     EntityDespawnS2C::decode),
             def(S2C_EFFECT_EVENT, ConnectionDirection.CLIENTBOUND, EffectEventS2C.class, EffectEventS2C::decode),
+            def(S2C_CARRY_SYNC, ConnectionDirection.CLIENTBOUND, CarrySyncS2C.class, CarrySyncS2C::decode),
             def(S2C_RESOURCE_COLLECT, ConnectionDirection.CLIENTBOUND, ResourceCollectS2C.class,
                     ResourceCollectS2C::decode),
             def(S2C_RESOURCE_DELTA, ConnectionDirection.CLIENTBOUND, ResourceDeltaS2C.class,

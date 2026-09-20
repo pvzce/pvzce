@@ -21,5 +21,7 @@
     "explode": "pvzce:sfx/plant/cherrybomb"
   },
   "animation_dir": "plant/special",
-  "texture": "pvzce:textures/entities/plant/special/cherry_bomb"
+  "texture": "pvzce:textures/entities/plant/special/cherry_bomb",
+  "render_scale": 0.85,
+  "order": 3
 }

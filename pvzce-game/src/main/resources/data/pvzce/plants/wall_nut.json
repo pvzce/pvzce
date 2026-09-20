@@ -9,5 +9,7 @@
   "health": 4000,
   "capabilities": [],
   "animation_dir": "plant/defense",
-  "texture": "pvzce:textures/entities/plant/defense/wall_nut"
+  "texture": "pvzce:textures/entities/plant/defense/wall_nut",
+  "render_scale": 0.85,
+  "order": 4
 }

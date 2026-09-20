@@ -26,5 +26,7 @@
     "shoot": "pvzce:sfx/plant/kernelpult"
   },
   "animation_dir": "plant/attacker",
-  "texture": "pvzce:textures/entities/plant/attacker/kernel_pult"
+  "texture": "pvzce:textures/entities/plant/attacker/kernel_pult",
+  "render_scale": 0.85,
+  "order": 35
 }

@@ -10,6 +10,8 @@ import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.common.core.SlotResolver;
+import com.pvzce.common.PvzceConstants;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.util.MathUtil;
 import com.pvzce.client.gui.components.Button;
@@ -24,6 +26,7 @@ import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
+import com.pvzce.api.content.SlotDef;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.UseToolC2S;
 import org.lwjgl.glfw.GLFW;
@@ -135,6 +138,49 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * scale is 1, so the model lands in the box at exactly the size the converter authored it.
      */
     private static final float CURSOR_HALF_CELLS = 0.25F;
+
+    /**
+     * The picture the board is played on: the level's own backdrop, or the built-in yard.
+     *
+     * <p>The level's declaration wins even when the texture is missing, so a level that names
+     * a pack's backdrop and is played without that pack shows the missing-texture checkerboard
+     * rather than a yard that is not the level's - the same loud failure every other missing
+     * texture gets.
+     */
+    private Identifier backdropTexture() {
+        Identifier declared = client.level().background();
+        return declared == null ? LevelStage.BACKGROUND_TEXTURE : declared;
+    }
+
+    /**
+     * The arm a zombie reaches out of its grave with, and its size in world cells.
+     *
+     * <p>The original's own sprite (26x50 px of an 80x100 cell), named here rather than in a
+     * particle definition because the thing it illustrates is a state of the zombie - see
+     * {@link #renderRisingZombies} - and an effect that runs on the wall clock would keep
+     * waving while a paused zombie hangs half out of the ground.
+     */
+    private static final Identifier RISE_ARM_TEXTURE =
+            Identifier.withDefaultNamespace("textures/particles/zombie/zombiearm");
+    // 26x50 pixels, i.e. 0.325 x 0.5 of an 80x100 cell: the same size the dropped arm is
+    // drawn at (`pvzce:zombie_arm`), because it is the same arm.
+    private static final float RISE_ARM_WIDTH_CELLS = 0.325F;
+    private static final float RISE_ARM_HEIGHT_CELLS = 0.5F;
+    /** The arm sprite's own pixel size, the unit {@code drawTextureQuad} takes its UVs in. */
+    private static final float RISE_ARM_SPRITE_WIDTH_PX = 26F;
+    private static final float RISE_ARM_SPRITE_HEIGHT_PX = 50F;
+    /**
+     * The arm's turn, and when it is fully out and starts going back under.
+     *
+     * <p>All three are fractions of the climb, and the first is also when the body starts:
+     * one second of climbing spends its first {@code 0.3} on a hand pushing up out of the
+     * dirt and the rest on the body following it, which is how the original stages a grave
+     * opening. The arm goes back under as the body passes it - it has to be gone by the time
+     * the climb ends, because this whole pass stops drawing the moment it does.
+     */
+    private static final float RISE_ARM_CLIMB = 0.3F;
+    private static final float RISE_ARM_OUT_CLIMB = 0.2F;
+    private static final float RISE_ARM_HOLD_CLIMB = 0.45F;
     /**
      * The "Ready... Set... Plant!" banner, timed from the original reanim rather than from
      * a constant: it is three words and lasts exactly as long as they do.
@@ -273,6 +319,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final long ANNOUNCEMENT_ONCE_NANOS = 90_000_000_000L;
 
     private int selectedCard = -1;
+    /**
+     * The slot whose click lifted the plant the client is now carrying, or -1.
+     *
+     * <p>The second click of a move is not "the selected card": a tool card is put back after
+     * each click, so by the time the player clicks the lawn to put the plant down nothing is
+     * selected any more - which is why the drop used to need the glove clicked again first.
+     * The move remembers the card it started from instead.
+     */
+    private int carrySlot = -1;
+    /** The carry state the last frame saw, so a *change* in it can be noticed; see syncCarry. */
+    private String lastCarried = "";
     /**
      * When each sleeping plant last breathed a Zzz, and which size is due next.
      *
@@ -1436,6 +1493,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     private void renderWorld() {
+        // What is out of place on the board right now, before anything reads it: the scene
+        // renderer asks per cell, and half the answer is a clock.
+        client.level().syncSceneShifts();
         PvzceCamera base = client.camera();
         // The only time this differs is the defeat move, which looks toward the house.
         PvzceCamera camera = base.panned(defeatPan);
@@ -1448,7 +1508,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // a camera that turns must slide it across the screen. Drawing it at the panned
         // rectangle - which is what "the viewport, in world coordinates" means - would pin
         // it to the screen and slide the lawn out from under it instead.
-        client.drawTexture(LevelStage.BACKGROUND_TEXTURE,
+        client.drawTexture(backdropTexture(),
                 base.worldLeft(), base.worldBottom(),
                 base.worldWidth(), base.worldHeight(),
                 -1F, 1F, 1F, 1F, 1F);
@@ -1469,14 +1529,22 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 Math.max(1, (int) Math.ceil(Math.abs(boardRight - boardLeft) + marginX * 2F)),
                 Math.max(1, (int) Math.ceil(Math.abs(boardTop - boardBottom) + marginY * 2F)));
         try {
-            // Zombies still climbing out of their graves go *under* the lawn, so they are
-            // drawn before it: a negative height alone would paint the buried half over the
-            // row below (see ZombieEntity#RISE_DEPTH). The clip is already in place.
-            renderRisingZombies();
             SceneTileRenderer.render(client, client.level().width(), client.level().height(),
                     (x, y) -> client.level().sceneAt(x, y),
                     camera.unitY() / Math.max(0.0001F, camera.unitX()),
-                    GRASS_VISUAL_MARGIN_CELLS);
+                    // The ring of grass outside the board exists to keep the edge tiles from
+                    // ending in a hard line. A level that hides its lawn has a backdrop under
+                    // it that continues on its own, so the ring would be a green frame around
+                    // a lawn the level deliberately does not draw.
+                    client.level().hidesSceneElement(PvzceIds.GRASS.toString())
+                            ? 0F : GRASS_VISUAL_MARGIN_CELLS,
+                    // A tombstone raised mid-level pushes up through the lawn instead of
+                    // appearing on it, and one being eaten sinks from the top down; see
+                    // SceneShifts.
+                    client.level().sceneShifts()::at,
+                    // The level's own backdrop may already contain some of the terrain, so the
+                    // elements it hides are not painted - see SceneVisibility.
+                    client.level().sceneVisibility());
         } finally {
             client.clipping().pop();
         }
@@ -1484,6 +1552,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         for (com.pvzce.client.mechanic.ClientMechanic.WorldOverlay overlay : worldOverlays()) {
             overlay.render(client, camera);
         }
+
+        // After the lawn, not before it: a riser is drawn at its standing position and cut
+        // off at its row's ground line (see renderRisingZombies), so nothing of it may end up
+        // behind the grass - and the part that is out has to be in front of it, like every
+        // other zombie.
+        renderRisingZombies(camera);
 
         if (selectedCard >= 0) {
             int hoverX = camera.cellX(client.window().cursorX(), client.window().cursorY());
@@ -1518,6 +1592,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             renderEntity(entity);
         }
         renderPlacementPreview();
+        renderCarriedPlant();
         client.particles().render(client);
     }
 
@@ -1535,6 +1610,101 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * neither) - which is why the hover tint underneath still carries the one rule the
      * client does know, the level's plantable area.
      */
+    /**
+     * The plant a glove is holding, drawn under the cursor.
+     *
+     * <p>The plant has been lifted off the board, so without this the player is carrying
+     * something invisible and the glove reads as "the click did nothing". Drawn at the cursor
+     * rather than on the hovered cell - which is where the card preview below draws - because
+     * what the player is holding is not yet anywhere: the cell under the pointer is where it
+     * would go, and the two are only the same thing once the cell is chosen.
+     */
+    private void renderCarriedPlant() {
+        syncCarry();
+        String carried = client.level().carriedPlant();
+        if (carried.isEmpty() || !client.level().gameState().equals("running")) {
+            return;
+        }
+        SlotInfo slot = carrySlot >= 0 ? slotInfo(carrySlot) : cardGranting(carried);
+        if (slot == null) {
+            return;
+        }
+        // The card bar's own icon lookup, so the thing in hand is the picture the player
+        // clicked: a plant's art is an animation and its definition names no single sprite, so
+        // resolving a path from the id answered the missing-texture tile.
+        Identifier art = com.pvzce.client.gui.hud.cardbar.CardPainter.icon(slot);
+        float size = Math.max(20F, client.guiHeight() * 0.09F);
+        float centerX = (float) client.guiMouseX(client.window().cursorX());
+        // Lifted clear of the pointer, so the art is beside the arrow rather than under it.
+        float centerY = (float) client.guiMouseY(client.window().cursorY()) + size * 0.35F;
+        client.beginOverlayWorldView(centerX - size / 2F, centerY - size / 2F, size, size,
+                -0.5F, 0.5F, -0.5F, 0.5F);
+        try {
+            client.drawTexture(art, -0.5F, -0.5F, 1F, 1F, 0.2F, 1F, 1F, 1F, 0.85F);
+        } finally {
+            client.beginGuiView();
+        }
+    }
+
+    /**
+     * Follows the server's carry state, and keeps the card in hand while it lasts.
+     *
+     * <p>Two things happen on a change and nowhere else. When the plant is lifted the card is
+     * <em>re-selected</em>: the player is holding something, the highlighted card is how they
+     * can see it, and a click on the lawn is then the second half of the move through exactly
+     * the same path as the first. When the carry ends the card is let go with it.
+     *
+     * <p>Cleared here rather than when the plant is drawn, which is what the first version of
+     * this did: the render path runs every frame, including the one right after the lift click
+     * and before the server has answered it, so the slot was forgotten before it was ever
+     * needed - and the drop needed the glove clicked again.
+     */
+    private void syncCarry() {
+        String carried = client.level().carriedPlant();
+        if (carried.equals(lastCarried)) {
+            return;
+        }
+        lastCarried = carried;
+        if (carried.isEmpty()) {
+            // The move finished (dropped, eaten or timed out): let the card go too. This is the
+            // path that catches a carry the player did not finish with a click of their own.
+            if (selectedCard == carrySlot) {
+                selectedCard = -1;
+            }
+            carrySlot = -1;
+        } else if (carrySlot >= 0) {
+            selectedCard = carrySlot;
+        }
+    }
+
+    /**
+     * The card that grants this content, for a carry the client did not start itself.
+     *
+     * <p>Normally the slot is remembered at the click that lifted the plant; this is the way
+     * back if that was lost (a save restored mid-move), and it asks the same resolver the bar
+     * draws from rather than guessing at a path.
+     */
+    private SlotInfo cardGranting(String contentId) {
+        Identifier wanted = Identifier.tryParse(contentId);
+        if (wanted == null) {
+            return null;
+        }
+        for (int index = 0; index < client.level().slots().size(); index++) {
+            SlotInfo info = slotInfo(index);
+            if (info == null) {
+                continue;
+            }
+            Identifier slotId = Identifier.tryParse(info.defId());
+            SlotDef def = slotId == null ? null
+                    : com.pvzce.common.core.BuiltInRegistries.SLOT_TYPES.get(slotId);
+            Identifier content = def == null ? null : def.content();
+            if (wanted.equals(content)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
     private void renderPlacementPreview() {
         if (selectedCard < 0 || !client.level().gameState().equals("running")) {
             return;
@@ -1639,28 +1809,151 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     /**
      * Whether this entity is still on its way up out of the ground.
      *
-     * <p>A zombie in that state is drawn below its cell (negative height, see
-     * {@code ZombieEntity#RISE_DEPTH}), which is the whole of what the client is told: the
-     * climb is a height animation, so no new field travels for it.
+     * <p>A zombie in that state carries a negative height (see
+     * {@code PvzceConstants#ZOMBIE_RISE_DEPTH_CELLS}), which is the whole of what the client
+     * is told: the climb is a height animation, so no new field travels for it.
      */
     private static boolean isRising(ClientEntity entity) {
         return entity.kind().equals(com.pvzce.api.entity.EntityKind.ZOMBIE) && entity.height() < 0F;
     }
 
     /**
-     * Paints every zombie that is still climbing out of a grave, behind the lawn.
+     * How much of a rising zombie is still underground, 1 (buried) to 0 (standing).
      *
-     * <p>Called before the scene tiles. It draws no shadow: a shadow under the grass would
-     * be the one part of a buried zombie the player could see, and the sun does not reach
-     * down there.
+     * <p>The client's own reading of the published height, in units of the one shared depth
+     * constant - see {@link PvzceConstants#ZOMBIE_RISE_DEPTH_CELLS}. Clamped because the
+     * interpolation between two syncs can overshoot either end.
      */
-    private void renderRisingZombies() {
+    private static float riseBuried(ClientEntity entity) {
+        return MathUtil.clamp01(-entity.visualHeight() / PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS);
+    }
+
+    /**
+     * How far the row's ground line has to sweep down to reveal a body of this art, in cells.
+     *
+     * <p>The model is drawn with its feet at {@code anchorLift} below the cell centre, so
+     * hiding all of it means starting the cut {@code height + gap} above the ground line -
+     * where the gap is what is left between the feet and the tile's bottom edge. Read from
+     * the art rather than assumed: a gargantuar rising out of a grave is twice as tall as an
+     * ordinary zombie, and a cut placed for the ordinary one would leave its head and
+     * shoulders standing in the dirt from the first frame.
+     */
+    private float riseRevealCells(ClientEntity entity) {
+        float[] size = client.animations() == null ? null : client.animations().visualSize(entity);
+        float height = size != null && size[1] > 0F
+                ? size[1]
+                : EntityVisuals.of(com.pvzce.api.entity.EntityKind.ZOMBIE).spriteHeight();
+        return height + (0.5F - EntityVisuals.anchorLift(com.pvzce.api.entity.EntityKind.ZOMBIE));
+    }
+
+    /**
+     * Paints every zombie that is still climbing out of a grave.
+     *
+     * <p>Each one is drawn at the position it will <em>stand</em> in and cut off at a line
+     * that sweeps down from above its head to the row's ground line as the climb proceeds.
+     * That is the same picture as sliding the art up out of the dirt - the buried part is the
+     * part under the line either way - and it is the version that needs no second copy of an
+     * entity's position: the height the server publishes is the climb's clock, and the ground
+     * line is where the row's tile ends.
+     *
+     * <p>The arm comes out first, the way the original stages it: a hand pushes up out of the
+     * dirt before the body does, then sinks back under it as the zombie's own arms rise with
+     * the rest of it. It is drawn from the same climb clock rather than as a particle so the
+     * two cannot drift apart - a paused level freezes both, and the arm is never left waving
+     * over a zombie that is already walking.
+     *
+     * <p>No shadow: a shadow under the grass would be the one part of a buried zombie the
+     * player could see, and the sun does not reach down there.
+     */
+    private void renderRisingZombies(PvzceCamera camera) {
         for (ClientEntity entity : client.level().entities().values()) {
-            if (isRising(entity)) {
-                entity.playAnimation(entity.animation());
+            if (!isRising(entity)) {
+                continue;
+            }
+            entity.playAnimation(entity.animation());
+            float climb = 1F - riseBuried(entity);
+            float groundY = entity.cellY() - 0.5F;
+            // The arm first, on its own cut: a hand's length of zombie is out while the body
+            // is still entirely under the lawn.
+            drawRiseArm(entity, camera, climb, groundY);
+            // Then the body, which does not start until the arm has had its turn.
+            float body = MathUtil.clamp01((climb - RISE_ARM_CLIMB) / (1F - RISE_ARM_CLIMB));
+            pushGroundClip(camera, groundY + (1F - body) * riseRevealCells(entity));
+            try {
                 drawEntityArt(entity);
+            } finally {
+                client.clipping().pop();
             }
         }
+    }
+
+    /**
+     * The hand a climbing zombie reaches out of its grave with.
+     *
+     * <p>Drawn at the position it ends in - standing on the ground line - and revealed from
+     * the top down by its own cut, exactly like the body. The art is upside down on purpose:
+     * {@code zombiearm} is the arm as it hangs off a walking zombie (sleeve up, hand down),
+     * and an arm coming out of the dirt reaches the other way.
+     */
+    private void drawRiseArm(ClientEntity entity, PvzceCamera camera, float climb, float groundY) {
+        float out = riseArmReveal(climb);
+        if (out <= 0.01F) {
+            return;
+        }
+        float left = entity.cellX() - RISE_ARM_WIDTH_CELLS / 2F;
+        float right = left + RISE_ARM_WIDTH_CELLS;
+        pushGroundClip(camera, groundY + (1F - out) * RISE_ARM_HEIGHT_CELLS);
+        try {
+            // The two v coordinates are swapped rather than the quad being rotated: the sprite
+            // is a rectangle drawn in world units, so turning it around would also have to
+            // undo the board's 80x100 cell aspect. Swapping v draws the art upside down, which
+            // is what a hand reaching out of the dirt is: `zombiearm` is the arm as it hangs
+            // off a walking zombie, sleeve up and hand down. UVs are in the sprite's own
+            // pixels - that is the unit this call takes, unlike drawTextureRegion.
+            client.drawTextureQuad(RISE_ARM_TEXTURE,
+                    left, groundY, right, groundY, right, groundY + RISE_ARM_HEIGHT_CELLS,
+                    left, groundY + RISE_ARM_HEIGHT_CELLS,
+                    0F, 0F, RISE_ARM_SPRITE_WIDTH_PX, 0F,
+                    RISE_ARM_SPRITE_WIDTH_PX, RISE_ARM_SPRITE_HEIGHT_PX,
+                    0F, RISE_ARM_SPRITE_HEIGHT_PX,
+                    EntityVisuals.baseZ(com.pvzce.api.entity.EntityKind.ZOMBIE), 1F, 1F, 1F, 1F);
+        } finally {
+            client.clipping().pop();
+        }
+    }
+
+    /**
+     * How much of the arm is out of the dirt at {@code climb} through the rise.
+     *
+     * <p>Up quickly, held while the body comes up past it, then pulled back under: an arm that
+     * stayed out until the last frame would vanish in one frame, because the climb ending is
+     * also the moment this whole pass stops drawing it.
+     */
+    private static float riseArmReveal(float climb) {
+        if (climb <= 0F) {
+            return 0F;
+        }
+        if (climb < RISE_ARM_OUT_CLIMB) {
+            return climb / RISE_ARM_OUT_CLIMB;
+        }
+        if (climb < RISE_ARM_HOLD_CLIMB) {
+            return 1F;
+        }
+        return Math.max(0F, 1F - (climb - RISE_ARM_HOLD_CLIMB) / (1F - RISE_ARM_HOLD_CLIMB));
+    }
+
+    /**
+     * Clips everything below a world height, for the rest of this frame's world draws.
+     *
+     * <p>The lawn is a plane and a rising zombie is under it, so the clip is a half-plane: the
+     * full width of the window, from the line up. Paired with a {@code pop()} by every caller,
+     * and the whole stack is dropped at the end of the frame anyway.
+     */
+    private void pushGroundClip(PvzceCamera camera, float worldY) {
+        int line = (int) Math.floor(camera.screenY(worldY));
+        client.clipping().pushPixels(0, line,
+                Math.max(1, client.window().width()),
+                Math.max(1, client.window().height() - line));
     }
 
     private void renderEntity(ClientEntity entity) {
@@ -1741,6 +2034,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * length and tint follow the interpolated sun/moon position.
      */
     private void drawShadow(PvzceClient client, ClientEntity entity, Identifier texture) {
+        // Where the sprite touches the ground: the same feet-to-anchor lift the animation path
+        // draws with, so the shadow starts under the feet. A fixed 0.46 - which is what this
+        // used to use - put the contact point a hand's width below the art, and on the flat
+        // tiled lawn that read as a soft smudge while on the original's painted lawn it reads
+        // as what it is: a second, grey object the plant is hovering above.
+        float contact = com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
         float[] visual = client.animations() == null ? null : client.animations().visualSize(entity);
         float spriteXScale = client.spriteXScale();
         // A definition can ask to be drawn bigger or smaller than its art, and a drop can
@@ -1756,8 +2055,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (entity.kind().equals("plant")) {
             float width = (visual == null ? 0.68F : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.76F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY - 0.46F,
-                    width * renderScale, height * renderScale, 0.34F);
+            client.drawEntityShadow(texture, drawX, drawY - contact,
+                    width * renderScale, height * renderScale, 0.4F);
         } else if (entity.kind().equals("zombie") && entity.layer() != -1) {
             float lift = Math.max(0F, drawHeight);
             float alpha = Math.max(0.14F, 0.34F - lift * 0.14F);
@@ -1765,7 +2064,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     ? Math.max(0.46F, 0.62F - lift * 0.06F)
                     : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.95F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY - 0.46F,
+            client.drawEntityShadow(texture, drawX, drawY - contact,
                     width * renderScale, height * renderScale, alpha);
         }
     }
@@ -2491,6 +2790,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             cancelSelection();
             return;
         }
+        // A plant in hand is a move in progress: the click puts it down, whichever card is
+        // selected now (none, usually). Checked before the selection because the drop is the
+        // other half of a click that already happened.
+        if (carrySlot >= 0) {
+            client.connection().send(new UseToolC2S(carrySlot, cellX, cellY));
+            // The move is over as far as the player is concerned; the card goes back with it.
+            // Left selected, the glove stayed lit after the drop and the next click lifted
+            // whatever the player clicked on.
+            selectedCard = -1;
+            return;
+        }
         if (selectedCard >= 0) {
             spendSelectedCard(cellX, cellY);
             return;
@@ -2710,6 +3020,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         if (selected.kind().equals("tool")) {
+            // Remembered for the drop; cleared when the carry ends (see syncCarrySlot).
+            carrySlot = selectedCard;
             // One click, one action, and then the card is put back - the glove included. It
             // used to stay selected across its second click (lift, then drop), which read as
             // an infinite cooldown: the glove is on cooldown the moment it picks something up,

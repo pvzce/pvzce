@@ -20,11 +20,12 @@
         0.0
       ]
     ],
-    "scale": 0.8,
+    "scale": 0.36,
     "life": 3.0,
     "frames_per_second": 60.0,
     "loop": true,
-    "texture": "pvzce:textures/particles/zombie/zombieballoonhead"
+    "texture": "pvzce:textures/particles/zombie/zombieballoonhead",
+    "aspect": 1.028
   },
   "motion": {
     "speed": 4.125,

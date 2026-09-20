@@ -255,27 +255,59 @@ public final class ParticleEngine {
         }
         float[] tint = look.colorArray();
         Identifier texture = frameTexture(look, progress);
-        float half = size / 2F;
+        // `size` is the height; the width is the sprite's own shape (see ParticleLook#aspect).
+        // Every particle used to be drawn in a square box, which stretched the pieces that come
+        // off a zombie - a 26x50 arm was drawn 1.4 times too wide.
+        float halfHeight = size / 2F;
+        float halfWidth = size * look.aspect() / 2F;
         float x = particle.x;
         float y = particle.y;
 
         if (particle.angle == 0F) {
-            client.drawTexture(texture, x - half, y - half, size, size, PARTICLE_Z,
+            client.drawTexture(texture, x - halfWidth, y - halfHeight, halfWidth * 2F, size, PARTICLE_Z,
                     tint[0], tint[1], tint[2], alpha);
             return;
         }
         // A rotated particle needs all four corners placed; the axis-aligned path
         // above stays because almost every particle is unrotated.
         double radians = Math.toRadians(particle.angle);
-        float cos = (float) Math.cos(radians) * half;
-        float sin = (float) Math.sin(radians) * half;
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
+        // The whole sprite, in the pixel unit drawTextureQuad takes its UVs in. Handing it
+        // the normalised 0..1 corners - which is what this call used to do - asked for a
+        // one-pixel box and stretched it over the quad, so every *tumbling* particle (the
+        // thrown heads and arms above all) came out as a thin streak of one colour instead
+        // of the sprite. Unrotated particles never hit this path, which is why it survived.
+        int[] sprite = spriteSize(client, texture);
+        // The four corners of a rectangle turned by `angle`, each axis scaled by its own half
+        // extent - the rotation is applied to the box, not to a square that was already wrong.
+        float cornerX = cos * halfWidth;
+        float cornerY = sin * halfWidth;
+        float edgeX = sin * halfHeight;
+        float edgeY = cos * halfHeight;
         client.drawTextureQuad(texture,
-                x - cos + sin, y - sin - cos,
-                x + cos + sin, y + sin - cos,
-                x + cos - sin, y + sin + cos,
-                x - cos - sin, y - sin + cos,
-                0F, 1F, 1F, 1F, 1F, 0F, 0F, 0F,
+                x - cornerX + edgeX, y - cornerY - edgeY,
+                x + cornerX + edgeX, y + cornerY - edgeY,
+                x + cornerX - edgeX, y + cornerY + edgeY,
+                x - cornerX - edgeX, y - cornerY + edgeY,
+                0F, 0F, sprite[0], 0F, sprite[0], sprite[1], 0F, sprite[1],
                 PARTICLE_Z, tint[0], tint[1], tint[2], alpha);
+    }
+
+    /**
+     * The sprite's pixel size, which a rotated quad has to name.
+     *
+     * <p>A texture that cannot be loaded answers 1x1: the draw below reports it and paints the
+     * placeholder, and this lookup is only after the numbers that placeholder is stretched to.
+     */
+    private int[] spriteSize(PvzceClient client, Identifier texture) {
+        try {
+            var sprite = client.textures().getOrLoad(texture);
+            return new int[]{Math.max(1, sprite.width()), Math.max(1, sprite.height())};
+        } catch (RuntimeException e) {
+            LOGGER.debug("Particle sprite {} has no size: {}", texture, e.getMessage());
+            return new int[]{1, 1};
+        }
     }
 
     /**

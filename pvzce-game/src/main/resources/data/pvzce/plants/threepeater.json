@@ -38,5 +38,7 @@
   "texture": "pvzce:textures/entities/plant/attacker/threepeater",
   "sounds": {
     "shoot": "pvzce:sfx/plant/shoot_pea"
-  }
+  },
+  "render_scale": 0.85,
+  "order": 19
 }

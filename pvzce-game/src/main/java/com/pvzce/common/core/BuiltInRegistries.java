@@ -287,6 +287,12 @@ public final class BuiltInRegistries {
                 PvzceIds.id("grave"), PvzceIds.SURFACE_GRAVE, 0F));
         registerStatic(SCENE_ELEMENTS, "pvzce:crater", new SceneElementDef(
                 PvzceIds.id("crater"), PvzceIds.SURFACE_CRATER, 0F));
+        // The same terrain, drawn as the hole filling back in: what a crater becomes for the
+        // last second of its recovery (see LevelServer.tickScene). A separate element rather
+        // than a flag on the client, because which art a cell has is terrain and the server
+        // is what decides terrain.
+        registerStatic(SCENE_ELEMENTS, "pvzce:crater_fading", new SceneElementDef(
+                PvzceIds.id("crater_fading"), PvzceIds.SURFACE_CRATER, 0F));
     }
 
     private static void registerGameRules() {
@@ -310,6 +316,8 @@ public final class BuiltInRegistries {
                 CardCooldown.DEFAULT_MULTIPLIER, 0F, 5F));
         registerRule(PvzceIds.id("max_players_per_team"), new GameRuleType.IntRule(8, 1, 64));
         registerRule(PvzceIds.RULE_GRAVES_SPAWN_NIGHT, new GameRuleType.BooleanRule(true));
+        registerRule(PvzceIds.RULE_ZOMBIE_RISE_TICKS, new GameRuleType.IntRule(
+                PvzceConstants.ZOMBIE_RISE_TICKS, 1, 600));
         registerRule(PvzceIds.id("level_pause_on_single_player"), new GameRuleType.BooleanRule(true));
     }
 

@@ -5,6 +5,7 @@ import com.google.gson.JsonPrimitive;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.PvzcePacket;
@@ -27,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Night graves open at the last wave.
  *
- * <p>The tombstones on a night lawn give up one zombie each when the final wave arrives - an
- * arm and a burst of dirt first, the zombie a second later - and the level's own
+ * <p>The tombstones on a night lawn give up one zombie each when the final wave arrives - a
+ * burst of dirt and an arm first, the zombie a second later - and the level's own
  * {@code graves_spawn_night} rule is what turns that off. What is pinned here is the counting:
  * one zombie per grave, none before the dirt settles, none at all when the rule says no or
  * when it is not night.
@@ -136,7 +137,8 @@ class GraveRiseTest {
 
         tick(level, bridge, ZombieEntity.RISE_TICKS / 2);
         assertTrue(riser.height() < 0F, "still climbing at the halfway mark");
-        assertTrue(riser.height() > -ZombieEntity.RISE_DEPTH, "and closer to the surface");
+        assertTrue(riser.height() > -PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS,
+                "and closer to the surface");
         assertEquals(buriedX, riser.cellX(), 0.0001F, "a climbing zombie does not walk");
 
         tick(level, bridge, ZombieEntity.RISE_TICKS);
@@ -157,6 +159,31 @@ class GraveRiseTest {
             }
         }
         return null;
+    }
+
+    /**
+     * The same farewell on 2-5, whose graves are raised by its own mechanic.
+     *
+     * <p>Whack-a-Zombie keeps a lawn full of tombstones and the last wave is meant to open
+     * <em>every one of them</em> - it is the level's whole climax. The count is the point: a
+     * farewell that only opens some of the stones is not the wave the level was designed
+     * around, and this level's graves are not painted once at load but kept up by
+     * {@code grave_spawner}, so "which cells hold a stone" is a different question here than
+     * it is on 2-1.
+     */
+    @Test
+    void everyStandingGraveOpensOnWhackAZombiesLastWave() {
+        LevelDef source = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/2_5"));
+        assertNotNull(source, "the shipped 2-5 must load");
+        LevelServer level = new LevelServer(withFinalWaveOnly(source));
+        CapturingBridge bridge = new CapturingBridge();
+        assertTrue(level.isNight(), "2-5 is a night level");
+
+        tick(level, bridge, 3);
+        long graves = level.graveCells().size();
+        long risen = graveZombies(level);
+        assertTrue(graves > 0, "the level ships tombstones");
+        assertEquals(graves, risen, "every stone gives up one zombie, and no stone gives two");
     }
 
     @Test

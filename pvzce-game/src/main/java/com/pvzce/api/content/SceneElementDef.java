@@ -25,29 +25,44 @@ import java.util.Optional;
  * this element instead of a flat texture. It is an id rather than an embedded
  * definition so the renderer's parameters stay out of the simulation's content:
  * two elements can share one liquid, and a resource pack can restyle a liquid
- * without redefining the element.
+ * without redefining the element. The one exception is {@link SceneElementArt},
+ * which is a sprite, its size, and its day/night variants - facts about this
+ * element and no other.
  */
 public record SceneElementDef(
         Identifier id,
         String surfaceClass,
         float maxHeight,
-        Optional<Identifier> liquid
+        Optional<Identifier> liquid,
+        Optional<SceneElementArt> art
 ) implements com.pvzce.api.entity.LevelAccess.SceneElementAccess {
     public static final Codec<SceneElementDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(SceneElementDef::id),
             Codec.STRING.fieldOf("surface").forGetter(SceneElementDef::surfaceClass),
             Codec.FLOAT.optionalFieldOf("max_height", 0F).forGetter(SceneElementDef::maxHeight),
-            Identifier.CODEC.optionalFieldOf("liquid").forGetter(SceneElementDef::liquid)
+            Identifier.CODEC.optionalFieldOf("liquid").forGetter(SceneElementDef::liquid),
+            SceneElementArt.CODEC.optionalFieldOf("art").forGetter(SceneElementDef::art)
     ).apply(i, SceneElementDef::new));
 
-    /** An element with no liquid surface; the common case for land tiles. */
+    /** An element with no liquid surface and no art of its own; the common case for land tiles. */
     public SceneElementDef(Identifier id, String surfaceClass, float maxHeight) {
-        this(id, surfaceClass, maxHeight, Optional.empty());
+        this(id, surfaceClass, maxHeight, Optional.empty(), Optional.empty());
+    }
+
+    /** An element with a liquid surface but no art of its own. */
+    public SceneElementDef(Identifier id, String surfaceClass, float maxHeight,
+                           Optional<Identifier> liquid) {
+        this(id, surfaceClass, maxHeight, liquid, Optional.empty());
     }
 
     /** True when this element is drawn by the liquid renderer. */
     public boolean isLiquid() {
         return liquid.isPresent();
+    }
+
+    /** How this element is drawn, or {@link SceneElementArt#NONE} when the convention decides. */
+    public SceneElementArt artOrDefault() {
+        return art.orElse(SceneElementArt.NONE);
     }
 
     /** Height at a cell coordinate; sloped roofs interpolate 0..maxHeight. */

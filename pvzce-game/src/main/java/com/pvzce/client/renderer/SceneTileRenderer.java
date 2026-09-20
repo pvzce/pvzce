@@ -2,6 +2,8 @@ package com.pvzce.client.renderer;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.SceneShifts;
+import com.pvzce.client.SceneVisibility;
 import com.pvzce.client.renderer.liquid.LiquidTextures;
 import com.pvzce.common.util.MathUtil;
 
@@ -30,9 +32,30 @@ import java.util.Map;
 public final class SceneTileRenderer {
     public static final int TILE_CELLS = 6;
 
+    /**
+     * The board's terrain, one cell at a time.
+     *
+     * <p>{@code null} means "draw nothing here" - a cell whose element the level hides - which
+     * is why this is not simply a texture lookup per cell.
+     */
     @FunctionalInterface
     public interface SceneSource {
         String sceneAt(int x, int y);
+    }
+
+    /**
+     * Where a cell's element is out of place right now, for the renderer.
+     *
+     * <p>Supplied by the caller rather than read from a level: the editor canvas and the seed
+     * chooser draw boards that nothing is happening to, and {@link #NONE} is what they pass.
+     */
+    @FunctionalInterface
+    public interface SceneShiftSource {
+        /** The shift at a cell, or {@code null} when the element is drawn in place. */
+        SceneShifts.Shift at(int x, int y);
+
+        /** For a board that is not moving. */
+        SceneShiftSource NONE = (x, y) -> null;
     }
 
     private SceneTileRenderer() {
@@ -40,12 +63,25 @@ public final class SceneTileRenderer {
 
     public static void render(PvzceClient client, int width, int height, SceneSource scene,
                               float xScale, float grassMargin) {
+        render(client, width, height, scene, xScale, grassMargin, SceneShiftSource.NONE,
+                SceneVisibility.NONE);
+    }
+
+    public static void render(PvzceClient client, int width, int height, SceneSource scene,
+                              float xScale, float grassMargin, SceneShiftSource shifts) {
+        render(client, width, height, scene, xScale, grassMargin, shifts, SceneVisibility.NONE);
+    }
+
+    public static void render(PvzceClient client, int width, int height, SceneSource scene,
+                              float xScale, float grassMargin, SceneShiftSource shifts,
+                              SceneVisibility visibility) {
         float scaleX = Math.max(0.0001F, xScale);
         float margin = Math.max(0F, grassMargin);
         if (margin > 0F) {
             renderGrassMargin(client, width, height, margin);
         }
-        Map<String, List<Cell>> layers = collectLayers(width, height, scene);
+        Map<String, List<Cell>> layers = collectLayers(width, height, scene, shifts, visibility);
+
         int blocksX = MathUtil.ceilDiv(Math.max(1, width), TILE_CELLS);
         int blocksY = MathUtil.ceilDiv(Math.max(1, height), TILE_CELLS);
 
@@ -58,7 +94,7 @@ public final class SceneTileRenderer {
                 continue;
             }
             boolean tiled = isTiled(sceneId);
-            Identifier texture = textureFor(sceneId);
+            Identifier texture = textureFor(client, sceneId);
 
             Map<Integer, List<Cell>> cellsByBlock = new LinkedHashMap<>();
             for (Cell cell : layer.getValue()) {
@@ -86,12 +122,55 @@ public final class SceneTileRenderer {
                                 0F, 1F, 1F, 1F, 1F);
                     } else if (cells != null) {
                         for (Cell cell : cells) {
-                            drawCell(client, sceneId, texture, cell.x(), cell.y());
+                            drawCell(client, sceneId, texture, cell.x(), cell.y(), visibility);
                         }
                     }
                 }
             }
         }
+        drawShiftedCells(client, width, height, scene, shifts);
+    }
+
+    /**
+     * Paints every element that is not in its cell, over the finished board.
+     *
+     * <p>Last, so a tombstone coming up through the tile it is replacing covers it - and the
+     * tile is still there underneath, which is what {@link #collectLayers} put down for it.
+     */
+    private static void drawShiftedCells(PvzceClient client, int width, int height,
+                                        SceneSource scene, SceneShiftSource shifts) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                SceneShifts.Shift shift = shifts.at(x, y);
+                if (shift != null) {
+                    drawShiftedCell(client, scene.sceneAt(x, y), x, y, shift.sink());
+                }
+            }
+        }
+    }
+
+    /**
+     * Draws one element that is out of its cell.
+     *
+     * <p>The tile's top slice, standing on the cell's bottom edge: that is the same picture as
+     * the whole tile drawn {@code sink} cells lower with everything under the lawn cut off, and
+     * it needs neither a clip rectangle nor the camera one would have to be built from. A
+     * tombstone coming up is a large {@code sink} shrinking to nothing; one being eaten from the
+     * top down is the same number growing.
+     */
+    private static void drawShiftedCell(PvzceClient client, String sceneId, int cellX, int cellY,
+                                        float sink) {
+        float shown = Math.max(0.01F, Math.min(1F, 1F - sink));
+        Identifier texture = textureFor(client, sceneId);
+        if (isTiled(sceneId)) {
+            float step = 1F / TILE_CELLS;
+            float v1 = (Math.floorMod(cellY, TILE_CELLS) + 1) * step;
+            client.drawTextureRegion(texture, 0F, v1 - shown * step, 1F, v1,
+                    cellX, cellY, 1F, shown, 0.05F, 1F, 1F, 1F, 1F);
+            return;
+        }
+        client.drawTextureRegion(texture, 0F, 1F - shown, 1F, 1F,
+                cellX, cellY, 1F, shown, 0.05F, 1F, 1F, 1F, 1F);
     }
 
     /**
@@ -126,6 +205,13 @@ public final class SceneTileRenderer {
      */
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight) {
+        renderBoard(client, width, height, scene, originX, originY, cellWidth, cellHeight,
+                SceneVisibility.NONE);
+    }
+
+    public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
+                                   float originX, float originY, float cellWidth, float cellHeight,
+                                   SceneVisibility visibility) {
         // Collected first, drawn after: a liquid body has to be batched as a whole,
         // and the flat tiles must go down before it so the water covers them. One
         // entry per liquid, so a board with two liquids keeps them separate.
@@ -133,13 +219,28 @@ public final class SceneTileRenderer {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 String sceneId = scene.sceneAt(x, y);
+                if (visibility.hides(sceneId)) {
+                    continue;
+                }
                 if (isLiquid(sceneId)) {
                     pending.computeIfAbsent(sceneId, ignored -> new ArrayList<>()).add(new Cell(x, y));
                     continue;
                 }
-                Identifier texture = textureFor(sceneId);
-                float drawX = originX + x * cellWidth;
-                float drawY = originY + y * cellHeight;
+                Identifier texture = textureFor(client, sceneId);
+                // The same size and underlay rules as the in-game board: a crater is a decal
+                // here too, and a preview that squashed one into its cell would be showing a
+                // board the player never gets.
+                float[] art = EntityTextures.sceneSize(sceneId);
+                float drawW = art[0] * cellWidth;
+                float drawH = art[1] * cellHeight;
+                float drawX = originX + (x + 0.5F) * cellWidth - drawW / 2F;
+                float drawY = originY + (y + 0.5F) * cellHeight - drawH / 2F;
+                Identifier underlay = EntityTextures.sceneUnderlay(sceneId);
+                if (underlay != null && !visibility.hides(underlay.toString())) {
+                    client.drawTexture(textureFor(client, underlay.toString()),
+                            originX + x * cellWidth, originY + y * cellHeight,
+                            cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
+                }
                 if (isTiled(sceneId)) {
                     // Same cell-filling rule as the in-game board, so the chooser's
                     // preview and the real lawn cannot disagree.
@@ -147,9 +248,10 @@ public final class SceneTileRenderer {
                     int ty = Math.floorMod(y, TILE_CELLS);
                     float step = 1F / TILE_CELLS;
                     client.drawTextureRegion(texture, tx * step, ty * step, (tx + 1) * step, (ty + 1) * step,
-                            drawX, drawY, cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
+                            originX + x * cellWidth, originY + y * cellHeight, cellWidth, cellHeight,
+                            0F, 1F, 1F, 1F, 1F);
                 } else {
-                    client.drawTexture(texture, drawX, drawY, cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
+                    client.drawTexture(texture, drawX, drawY, drawW, drawH, 0F, 1F, 1F, 1F, 1F);
                 }
             }
         }
@@ -171,7 +273,7 @@ public final class SceneTileRenderer {
 
     /** Paints a small grass ring outside the playable board so edge tiles/actors do not look cut off. */
     private static void renderGrassMargin(PvzceClient client, int width, int height, float margin) {
-        Identifier texture = textureFor("pvzce:grass");
+        Identifier texture = textureFor(client, "pvzce:grass");
         int minX = (int) Math.floor(-margin);
         int maxX = (int) Math.ceil(width + margin) - 1;
         int minY = (int) Math.floor(-margin);
@@ -181,24 +283,37 @@ public final class SceneTileRenderer {
                 if (x >= 0 && x < width && y >= 0 && y < height) {
                     continue;
                 }
-                drawCell(client, "pvzce:grass", texture, x, y);
+                drawCell(client, "pvzce:grass", texture, x, y, SceneVisibility.NONE);
             }
         }
     }
 
-    private static Map<String, List<Cell>> collectLayers(int width, int height, SceneSource scene) {
+    private static Map<String, List<Cell>> collectLayers(int width, int height, SceneSource scene,
+                                                        SceneShiftSource shifts,
+                                                        SceneVisibility visibility) {
         Map<String, List<Cell>> layers = new LinkedHashMap<>();
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                String sceneId = scene.sceneAt(x, y);
+                SceneShifts.Shift shift = shifts.at(x, y);
+                // A cell that is coming up out of the lawn contributes what it is *replacing*
+                // to this pass: the new element is painted over it by drawShiftedCells once
+                // the rest of the board is down.
+                String sceneId = shift != null ? shift.under() : scene.sceneAt(x, y);
+                if (visibility.hides(sceneId)) {
+                    // Hidden by the level: the backdrop is the picture in this cell. See
+                    // SceneVisibility - a level whose backdrop already has the lawn says so
+                    // with `hidden_scene_elements`.
+                    continue;
+                }
                 layers.computeIfAbsent(sceneId, ignored -> new ArrayList<>()).add(new Cell(x, y));
             }
         }
         return layers;
     }
 
-    private static void drawCell(PvzceClient client, String sceneId, Identifier texture, int x, int y) {
-        CellQuad quad = cellQuad(x, y);
+    private static void drawCell(PvzceClient client, String sceneId, Identifier texture, int x, int y,
+                                 SceneVisibility visibility) {
+        CellQuad quad = artQuad(sceneId, x, y);
         if (isTiled(sceneId)) {
             int tx = Math.floorMod(x, TILE_CELLS);
             int ty = Math.floorMod(y, TILE_CELLS);
@@ -206,10 +321,54 @@ public final class SceneTileRenderer {
             client.drawTextureRegion(texture, tx * step, ty * step, (tx + 1) * step, (ty + 1) * step,
                     quad.x(), quad.y(), quad.width(), quad.height(), 0.05F, 1F, 1F, 1F, 1F);
         } else {
+            drawUnderlay(client, sceneId, x, y, visibility);
             // Pre-6x6 elements: a full 1x1 texture still lives at textures/scene/<path>.
             client.drawTexture(texture, quad.x(), quad.y(), quad.width(), quad.height(),
                     0.05F, 1F, 1F, 1F, 1F);
         }
+    }
+
+    /**
+     * Draws the tile an element sits on, if it has one and the level draws it.
+     *
+     * <p>Skipping a hidden underlay is what keeps a hidden lawn hidden: a level that does not
+     * draw its grass does not want it back under every tombstone and crater either.
+     */
+    private static void drawUnderlay(PvzceClient client, String sceneId, int x, int y,
+                                     SceneVisibility visibility) {
+        Identifier underlay = EntityTextures.sceneUnderlay(sceneId);
+        if (underlay == null || visibility.hides(underlay.toString())) {
+            return;
+        }
+        String underlayId = underlay.toString();
+        Identifier texture = textureFor(client, underlayId);
+        CellQuad cell = cellQuad(x, y);
+        if (isTiled(underlayId)) {
+            int tx = Math.floorMod(x, TILE_CELLS);
+            int ty = Math.floorMod(y, TILE_CELLS);
+            float step = 1F / TILE_CELLS;
+            client.drawTextureRegion(texture, tx * step, ty * step, (tx + 1) * step, (ty + 1) * step,
+                    cell.x(), cell.y(), cell.width(), cell.height(), 0.04F, 1F, 1F, 1F, 1F);
+            return;
+        }
+        client.drawTexture(texture, cell.x(), cell.y(), cell.width(), cell.height(),
+                0.04F, 1F, 1F, 1F, 1F);
+    }
+
+    /**
+     * Where one scene element's art is drawn, in world cells.
+     *
+     * <p>One cell for everything drawn by the convention. An element that declares a size of
+     * its own is centred on its cell instead: the original's crater is a decal wider and
+     * shorter than a cell, and stretching it to the cell is exactly the distortion the art was
+     * made to avoid.
+     */
+    private static CellQuad artQuad(String sceneId, int x, int y) {
+        float[] size = EntityTextures.sceneSize(sceneId);
+        if (size[0] == 1F && size[1] == 1F) {
+            return cellQuad(x, y);
+        }
+        return new CellQuad(x + 0.5F - size[0] / 2F, y + 0.5F - size[1] / 2F, size[0], size[1]);
     }
 
     /**
@@ -256,8 +415,16 @@ public final class SceneTileRenderer {
         return com.pvzce.client.renderer.EntityTextures.forScene(sceneId);
     }
 
-    private static Identifier textureFor(String sceneId) {
-        return sceneTexture(sceneId);
+    /**
+     * The texture for a scene element, in the variant the level's sky calls for.
+     *
+     * <p>{@code client.level()} is the mirror, which is also what draws the board: the same
+     * clock that tints the lawn decides which crater art belongs on it. A board rendered
+     * outside a running level (the editor's canvas) has no night in it and gets the day art.
+     */
+    private static Identifier textureFor(PvzceClient client, String sceneId) {
+        return EntityTextures.forScene(sceneId,
+                client != null && client.level().isNightAt(client.level().smoothDayTicks()));
     }
 
     private record Cell(int x, int y) {

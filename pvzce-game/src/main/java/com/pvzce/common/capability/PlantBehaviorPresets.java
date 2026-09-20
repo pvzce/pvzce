@@ -56,10 +56,11 @@ public final class PlantBehaviorPresets {
                         1440, -1, Optional.empty()))));
         register("explosive", List.of(cap(PlantCapabilities.EXPLOSIVE,
                 new ExplosiveCapability(ExplosiveCapability.Trigger.TIMED, ExplosiveCapability.DEFAULT_FUSE,
-                        1F, 1800, 0.6F, false, Optional.empty(), ExplosiveCapability.DEFAULT_DAMAGE_TYPE))));
+                        1F, 1800, 0.6F, false, false, Optional.empty(),
+                        ExplosiveCapability.DEFAULT_DAMAGE_TYPE))));
         register("mine", List.of(cap(PlantCapabilities.EXPLOSIVE,
                 new ExplosiveCapability(ExplosiveCapability.Trigger.PROXIMITY, 900, 0.5F, 1800, 0.5F,
-                        true, Optional.empty(), ExplosiveCapability.DEFAULT_DAMAGE_TYPE))));
+                        true, false, Optional.empty(), ExplosiveCapability.DEFAULT_DAMAGE_TYPE))));
         register("melee", List.of(cap(PlantCapabilities.MELEE,
                 new MeleeCapability(MeleeCapability.DEFAULT_RANGE, 0, MeleeCapability.DEFAULT_CHEW_TICKS,
                         Optional.empty()))));

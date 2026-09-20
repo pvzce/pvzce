@@ -245,7 +245,12 @@ public final class WaveDirector {
         }
         if (firstAnnouncement && wave.type() == WaveDef.WaveType.FINAL) {
             emitAtBoardCentre(PvzceSounds.EFFECT_AWOOGA);
-            host.riseGraveZombies(wave);
+            // A final wave whose data asks for no banner has no earlier beat to open the graves
+            // on, so this is where they open; with a banner they already did (see
+            // announceWaveWarning), and doing it twice would give every stone two zombies.
+            if (Math.max(0, wave.warningTicks()) == 0) {
+                host.riseGraveZombies(wave);
+            }
         }
 
         nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
@@ -305,8 +310,20 @@ public final class WaveDirector {
      * event, so "first tick of the window" is the transition that fires it.
      */
     private void announceWaveWarning(int waveIndex) {
-        if (announcedWarnings.add(waveIndex)) {
-            emitAtBoardCentre(PvzceSounds.AMBIENT_HUGE_WAVE);
+        if (!announcedWarnings.add(waveIndex)) {
+            return;
+        }
+        emitAtBoardCentre(PvzceSounds.AMBIENT_HUGE_WAVE);
+        // The graves open with the banner, not with the wave.
+        //
+        // The last wave's banner is the whole point of the beat: the level tells the player
+        // that everything is coming, and the lawn erupting is what "everything" means. Firing
+        // it at the arrival instead put it a whole warning window later - six seconds on a
+        // level that asks for one - so the player read the banner, waited, and then the graves
+        // opened to an empty-looking pause. A final wave with no warning window still opens
+        // its graves on arrival (see triggerWave), because then the two are the same tick.
+        if (waves.get(waveIndex).type() == WaveDef.WaveType.FINAL) {
+            host.riseGraveZombies(waves.get(waveIndex));
         }
     }
 

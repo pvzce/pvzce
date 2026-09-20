@@ -144,6 +144,21 @@ public interface LevelAccess {
      */
     void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam);
 
+    /**
+     * Turns the ground a blast covered into craters.
+     *
+     * <p>What the original's doom shroom leaves behind: the lawn its blast covered stops being
+     * lawn - nothing may be planted there - until the level's own {@code crater_recovery} has
+     * run out. Only bare ground craters; water, roofs and anything already a hole are left
+     * alone.
+     *
+     * <p>The footprint is read exactly as {@link #damageArea} reads it, so the hole is where the
+     * damage was: a blast that covers seven cells across leaves seven cells of hole, and a
+     * smaller bomb leaves a smaller one. The two are the same shape because they are the same
+     * fact.
+     */
+    void leaveCraters(float centerX, float centerY, float radius, boolean square);
+
     void emitEffect(String particle, float x, float y, Identifier sound);
 
     /**

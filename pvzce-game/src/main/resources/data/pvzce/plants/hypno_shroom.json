@@ -21,5 +21,7 @@
     "explode": "pvzce:sfx/plant/floop"
   },
   "animation_dir": "plant/special",
-  "texture": "pvzce:textures/entities/plant/special/hypno_shroom"
+  "texture": "pvzce:textures/entities/plant/special/hypno_shroom",
+  "render_scale": 0.85,
+  "order": 13
 }

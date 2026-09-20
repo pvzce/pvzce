@@ -113,6 +113,17 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
     @Override
     public void tick(LevelServer level, GraveSpawnerData data) {
         Rig rig = rig(level, data);
+        // Once the level has announced its last wave the lawn stops gaining tombstones.
+        //
+        // That wave is the graves' farewell: every stone standing at that moment gives up one
+        // zombie (`LevelServer.riseGraveZombies`), and it happens exactly once. A stone raised
+        // after it is a stone that can never open - indistinguishable from the ones that did,
+        // so the player reads it as the farewell having skipped one - which is why the refill
+        // has to stop here rather than keep topping the lawn up for the rest of the level.
+        // The trickle of zombies stops for its own reason (see below); this is about the holes.
+        if (level.wavesReleased()) {
+            return;
+        }
         // The opening board first: a level paints its own graves, and this raises whatever
         // shortfall is left over before anything starts coming out of them. The target is the
         // *initial* count until it has been reached, and the standing target forever after -
@@ -129,11 +140,10 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         keepGravesUp(level, data, rig, target);
         // The graves stop giving up their dead once the level has sent its last wave. Without
         // this the field could never fall to zero - the level is won by clearing the board after
-        // the final wave - and a 90-tick rise clock makes that a race no player can win. The
-        // graves themselves keep coming back: what ends is the trickle of zombies, not the
-        // mechanic. A level with no waves at all (an endless sandbox) is unaffected, because
-        // "every wave released" is false while there are none to release.
-        if (data.zombies().isEmpty() || level.wavesReleased()) {
+        // the final wave - and a 90-tick rise clock makes that a race no player can win. A level
+        // with no waves at all (an endless sandbox) is unaffected, because "every wave released"
+        // is false while there are none to release.
+        if (data.zombies().isEmpty()) {
             return;
         }
         if (--rig.ticksUntilRise > 0) {

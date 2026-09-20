@@ -229,7 +229,7 @@ public final class PvzceClient {
         // the seed chooser's preview and the editor's canvas - never call
         // beginWorldView, and without this they would take the shader path even
         // when the player has turned shaders off.
-        RenderSystem.setShaderEffectsEnabled(config.shadersEnabled());
+        RenderSystem.setShaderEffectsEnabled(shadersEnabled());
         textures = new TextureManager(resources);
         font = new FontRenderer(textures, resources);
         sound = new SoundEngine(resources);
@@ -569,8 +569,8 @@ public final class PvzceClient {
         spriteXScale = camera.unitY() / Math.max(0.0001F, camera.unitX());
         RenderSystem.viewport(camera.viewportX(), camera.viewportY(), camera.viewportWidth(), camera.viewportHeight());
         RenderSystem.setProjectionMatrix(camera.projection());
-        RenderSystem.setShaderEffectsEnabled(config.shadersEnabled());
-        if (config.shadersEnabled()) {
+        RenderSystem.setShaderEffectsEnabled(shadersEnabled());
+        if (shadersEnabled()) {
             shaderEffectsActive = true;
             applyTimeOfDayShader();
             applyEntityLights();
@@ -1496,7 +1496,8 @@ public final class PvzceClient {
                                                   List<String> initialSelection, Runnable onBack) {
         return new ChooseSeedsScreen(this, info.id(), info.name(), info.seedPool(),
                 info.maxSeedSlots(), info.previewZombies(), info.width(), info.height(),
-                info.sceneCells(), initialSelection, onBack != null, onBack, lockedSlotsFor(info.id()));
+                info.sceneCells(), initialSelection, onBack != null, onBack, lockedSlotsFor(info.id()),
+                info.payload().backgroundId(), info.payload().hiddenSceneElements());
     }
 
     private LevelListS2C.LevelInfo findLevelInfo(String levelId) {
@@ -1854,6 +1855,19 @@ public final class PvzceClient {
 
     public PvzceClientConfig config() {
         return config;
+    }
+
+    /**
+     * Whether the shader effects run right now: the player's setting, unless the level vetoes it.
+     *
+     * <p>One gate for both halves, because "are the shaders on" decides the day/night tint, the
+     * entity lights and the water pass together - a level that turns them off has to turn all
+     * three off at once. The level can only ever say <em>off</em>: a player who has shaders
+     * disabled does not get them back by entering a level, and a level that says nothing about
+     * it follows whatever the player chose.
+     */
+    public boolean shadersEnabled() {
+        return config.shadersEnabled() && !level.shadersDisabled();
     }
 
     // ---------- video settings ----------

@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
@@ -7,6 +8,7 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.PvzcePackets;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Full level state: the board payload, the card bar, the wave meter and which team
@@ -57,6 +59,16 @@ public record LevelInitS2C(String levelId, List<SlotInfo> slots, List<String> wa
 
     public List<SceneSyncS2C.Cell> sceneCells() {
         return payload.sceneCells();
+    }
+
+    /** The backdrop texture this level is played on, or empty for the built-in yard. */
+    public Optional<Identifier> background() {
+        return Optional.ofNullable(payload.backgroundId());
+    }
+
+    /** Scene elements the level does not draw; see {@code LevelDef.hiddenSceneElements}. */
+    public List<String> hiddenSceneElements() {
+        return payload.hiddenSceneElements();
     }
 
     @Override

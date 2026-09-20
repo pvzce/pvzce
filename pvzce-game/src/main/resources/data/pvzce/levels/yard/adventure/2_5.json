@@ -82,8 +82,9 @@
     "pvzce:night_length": 360000,
     "pvzce:sun_spawn_chance": 0,
     "pvzce:graves_spawn_night": true,
-    "pvzce:zombie_speed_multiplier": 2.2,
-    "pvzce:zombie_sun_drop_chance": 0.03
+    "pvzce:zombie_speed_multiplier": 2.6,
+    "pvzce:zombie_sun_drop_chance": 0.05,
+    "pvzce:zombie_rise_ticks": 40
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
@@ -248,5 +249,10 @@
         "id": "pvzce:yard/adventure/2_4"
       }
     ]
-  }
+  },
+  "background": "pvzce:textures/gui/screen/level/background2",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true
 }

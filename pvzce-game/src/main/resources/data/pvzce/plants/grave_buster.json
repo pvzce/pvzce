@@ -22,5 +22,7 @@
     "group": "under_plant"
   },
   "animation_dir": "plant/special",
-  "texture": "pvzce:textures/entities/plant/special/grave_buster"
+  "texture": "pvzce:textures/entities/plant/special/grave_buster",
+  "render_scale": 0.85,
+  "order": 12
 }

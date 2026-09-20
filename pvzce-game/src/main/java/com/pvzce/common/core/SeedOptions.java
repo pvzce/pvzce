@@ -1,10 +1,12 @@
 package com.pvzce.common.core;
 
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.network.packet.SeedOption;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -46,12 +48,43 @@ public final class SeedOptions {
         return List.copyOf(result);
     }
 
-    /** Every card id the game can put in a bar: all slots, then tools and resources. */
+    /**
+     * Every card id the game can put in a bar: all slots, then tools and resources.
+     *
+     * <p>In <em>registration</em> order, which for a plant card is its almanac number: the bag
+     * and the chooser are read the way the original's are, where a plant's place in the list
+     * is when the player met it. It used to be {@code keySet().stream().sorted()}, so the
+     * Peashooter sat wherever the alphabet put it and the one plant everyone owns was never
+     * the first card in the bag.
+     */
     public static List<Identifier> allCards() {
-        List<Identifier> ids = new ArrayList<>();
-        BuiltInRegistries.SLOT_TYPES.keySet().stream().sorted().forEach(ids::add);
+        List<Identifier> ids = new ArrayList<>(BuiltInRegistries.SLOT_TYPES.keySet());
+        ids.sort(Comparator.comparingInt(SeedOptions::cardRank).thenComparing(Identifier::toString));
         return List.copyOf(ids);
     }
+
+    /**
+     * Where a card sorts: its plant's almanac number, or the slot's registration order.
+     *
+     * <p>The three kinds get their own band so a card list is never interleaved by accident -
+     * the bag shows one section per kind and reads each one in order.
+     */
+    private static int cardRank(Identifier cardId) {
+        SlotResolver.ResolvedCard card = SlotResolver.resolve(cardId).orElse(null);
+        if (card != null) {
+            PlantDef plant = card.kind() == Slot.Kind.PLANT
+                    ? BuiltInRegistries.PLANTS.get(card.content())
+                    : null;
+            if (plant != null) {
+                return plant.order();
+            }
+        }
+        com.pvzce.api.content.SlotDef slot = BuiltInRegistries.SLOT_TYPES.get(cardId);
+        return KIND_BAND + Math.max(0, BuiltInRegistries.SLOT_TYPES.getId(slot));
+    }
+
+    /** The band non-plant cards sort in, above every almanac number. */
+    private static final int KIND_BAND = 10_000;
 
     /**
      * The card ids a level's chooser may show this player: every owned card in

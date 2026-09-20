@@ -7,8 +7,10 @@ import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.util.MathUtil;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.level.LevelServer;
 
@@ -41,6 +43,17 @@ public final class GraveBusterCapability implements PlantCapability {
      * the melee line's own chew.
      */
     public static final int DEFAULT_CHEW_TICKS = 240;
+
+    /**
+     * How far the plant sinks into the stone it is eating, in cells.
+     *
+     * <p>The original eats a tombstone from the top down: the stone gets shorter from above
+     * while the plant works its way down it. Both halves of that are one number here - the
+     * plant's own height - because the height already travels every sync, and the client reads
+     * it back as "how far through the meal this is" to crop the tombstone (see
+     * {@code SceneShifts}). A second field would only be a second answer to the same question.
+     */
+    public static final float SINK_DEPTH_CELLS = 0.3F;
 
     private final int chewTicks;
     private final Optional<Identifier> sound;
@@ -104,15 +117,23 @@ public final class GraveBusterCapability implements PlantCapability {
             return;
         }
         plant.setState(EntityAnimations.CHEW);
+        // Down the stone as it goes: the plant's height is the meal's progress bar, published
+        // with everything else the entity syncs, and the client crops the tombstone from it.
+        plant.setHeight(-SINK_DEPTH_CELLS * sinkProgress());
         if (--remaining > 0) {
             return;
         }
         if (level instanceof LevelServer server && server.clearGrave(plant.gridX(), plant.gridY())) {
-            level.emitEffect(com.pvzce.common.PvzceParticles.DIRT_BIG.toString(),
+            level.emitEffect(PvzceParticles.DIRT_BIG.toString(),
                     plant.cellX(), plant.cellY(),
                     sound.orElseGet(() -> PvzceSounds.EFFECT_SHOVEL));
         }
         plant.remove();
+    }
+
+    /** How far through the stone this plant is, 0 (just started) to 1 (through to the lawn). */
+    private float sinkProgress() {
+        return MathUtil.clamp01(1F - remaining / (float) chewTicks);
     }
 
     @Override

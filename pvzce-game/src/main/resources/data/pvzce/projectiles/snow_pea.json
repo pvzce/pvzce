@@ -20,5 +20,6 @@
   "sounds": {
     "impact": "pvzce:sfx/plant/snow_pea_sparkles"
   },
-  "texture": "pvzce:textures/entities/projectile/frozen_pea"
+  "texture": "pvzce:textures/entities/projectile/frozen_pea",
+  "impact_particle": "pvzce:snow_pea_splat"
 }

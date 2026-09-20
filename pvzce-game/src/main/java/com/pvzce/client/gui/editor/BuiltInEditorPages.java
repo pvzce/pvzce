@@ -4,6 +4,7 @@ import com.pvzce.client.gui.editor.pages.CanvasPage;
 import com.pvzce.client.gui.editor.pages.CardsPage;
 import com.pvzce.client.gui.editor.pages.DialoguePage;
 import com.pvzce.client.gui.editor.pages.InfoPage;
+import com.pvzce.client.gui.editor.pages.LookPage;
 import com.pvzce.client.gui.editor.pages.MechanicPages;
 import com.pvzce.client.gui.editor.pages.MusicPage;
 import com.pvzce.client.gui.editor.pages.RulePage;
@@ -42,6 +43,7 @@ public final class BuiltInEditorPages {
         pages.add(new MusicPage());
         pages.add(new DialoguePage());
         pages.add(new UnlockPage());
+        pages.add(LookPage.create());
         pages.add(new InfoPage());
         pages.addAll(EditorPages.external());
         pages.removeIf(page -> !page.visibleFor(context));

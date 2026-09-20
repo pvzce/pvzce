@@ -366,5 +366,10 @@
         "id": "pvzce:yard/adventure/2_1"
       }
     ]
-  }
+  },
+  "background": "pvzce:textures/gui/screen/level/background2",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true
 }

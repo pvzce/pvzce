@@ -83,6 +83,14 @@ final class MowerClientMechanic implements ClientMechanic {
     }
 
     /**
+     * How much bigger than its converted art the mower is drawn.
+     *
+     * <p>The reanim was fitted into a 1.0 x 0.62 cell box, and at that size it read as a toy
+     * next to the zombie it is about to flatten; the original draws it noticeably chunkier.
+     */
+    private static final float MOWER_RENDER_SCALE = 1.2F;
+
+    /**
      * How close the cursor has to be to a parked mower, in cells.
      *
      * <p>Generous on purpose, and the same radius the resource drops use: the mower is a
@@ -236,7 +244,7 @@ final class MowerClientMechanic implements ClientMechanic {
                 playback.render(client, placement.x(),
                         row + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
                         EntityVisuals.baseZ(EntityKind.PLANT),
-                        client.spriteXScale(), 1F);
+                        client.spriteXScale() * MOWER_RENDER_SCALE, MOWER_RENDER_SCALE);
             }
         }
     }

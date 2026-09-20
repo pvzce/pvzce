@@ -18,5 +18,7 @@
     }
   ],
   "animation_dir": "plant/environment",
-  "texture": "pvzce:textures/entities/plant/environment/coffee_bean"
+  "texture": "pvzce:textures/entities/plant/environment/coffee_bean",
+  "render_scale": 0.85,
+  "order": 36
 }

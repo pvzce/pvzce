@@ -11,5 +11,6 @@
   "sounds": {
     "impact": "pvzce:sfx/plant/kernelpult2"
   },
-  "texture": "pvzce:textures/entities/projectile/kernel"
+  "texture": "pvzce:textures/entities/projectile/kernel",
+  "impact_particle": "pvzce:kernel_splat"
 }

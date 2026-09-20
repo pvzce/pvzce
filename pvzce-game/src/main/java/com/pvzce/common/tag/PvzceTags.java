@@ -137,6 +137,24 @@ public final class PvzceTags {
     public static final TagKey<PlantDef> SUN_PRODUCERS =
             TagKey.create(PvzceRegistries.PLANTS, Identifier.withDefaultNamespace("sun_producer"));
 
+    /**
+     * Scene elements that come up out of the ground when a level raises them mid-game.
+     *
+     * <p>The built-in gravestones are in it, and the client plays the push of dirt aside for
+     * whatever else is: the {@code grave_spawner} mechanic raises headstones one at a time,
+     * and a tombstone that blinks into place reads as a rendering glitch rather than as
+     * something climbing out of the lawn. A pack's own headstone joins by tagging it - which
+     * is also why this is a tag and not the {@code GRAVE} surface class: "this is a
+     * gravestone" and "this one is animated" are different statements, and a mod may want
+     * either without the other.
+     *
+     * <p>In the {@code pvzce} namespace rather than {@code c}: what a client is expected to
+     * do with an element is this game's convention, not one another game layer would agree on.
+     */
+    public static final TagKey<SceneElementDef> SCENE_RISES_FROM_GROUND =
+            TagKey.create(PvzceRegistries.SCENE_ELEMENTS,
+                    Identifier.withDefaultNamespace("rises_from_ground"));
+
     /** Scene elements, for terrain tag queries. */
     public static final RegistryTagView<SceneElementDef> SCENE_ELEMENTS = view(PvzceRegistries.SCENE_ELEMENTS);
     /** Plants, for the placement rules and for content queries. */
