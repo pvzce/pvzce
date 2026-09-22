@@ -119,7 +119,15 @@ public final class ArmorCapability implements ZombieCapability {
     @Override
     public boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage, LevelAccess level) {
         boolean lobbed = "air".equals(projectile.layer());
-        String wanted = lobbed ? ArmorDef.TOP : ArmorDef.FRONT;
+        // A spray goes through what is held in front and is still stopped by what is worn on the
+        // head: the fume-shroom's gas passes a screen door (that is the whole reason it is the
+        // answer to a Screen Door Zombie) but a cone, a bucket or a football helmet still takes
+        // the hit. Read from the shot's own damage type, so a pack can ship a spray of its own.
+        boolean piercesFront = projectile.damageType()
+                .map(ZombieEntity::damageType)
+                .map(com.pvzce.api.content.DamageTypeDef::ignoresFrontArmor)
+                .orElse(false);
+        String wanted = lobbed || piercesFront ? ArmorDef.TOP : ArmorDef.FRONT;
         // The armour's own sound first, not the shot's: a pea hitting a bucket is a metal
         // clank, and it was playing the same *splat* as a pea hitting a body because the
         // projectile's generic impact sound was preferred. A piece of content that declares
@@ -145,8 +153,15 @@ public final class ArmorCapability implements ZombieCapability {
      */
     @Override
     public boolean onImpact(ZombieEntity zombie, int damage, LevelAccess level) {
+        return onImpact(zombie, damage, level, null);
+    }
+
+    @Override
+    public boolean onImpact(ZombieEntity zombie, int damage, LevelAccess level,
+                            com.pvzce.api.content.DamageTypeDef type) {
         Identifier sound = zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT);
-        return absorb(zombie, ArmorDef.FRONT, damage, level, sound, "")
+        boolean piercesFront = type != null && type.ignoresFrontArmor();
+        return (!piercesFront && absorb(zombie, ArmorDef.FRONT, damage, level, sound, ""))
                 || absorb(zombie, ArmorDef.TOP, damage, level, sound, "");
     }
 

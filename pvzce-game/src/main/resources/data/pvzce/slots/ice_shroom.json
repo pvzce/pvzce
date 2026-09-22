@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:ice_shroom",
+  "kind": "plant",
+  "content": "pvzce:ice_shroom",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/ice_shroom"
+}

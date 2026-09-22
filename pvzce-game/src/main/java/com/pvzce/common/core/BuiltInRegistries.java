@@ -312,6 +312,10 @@ public final class BuiltInRegistries {
         registerRule(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
+        // 1 = the wave table as written. Bigger is faster: the gap between waves and the gap
+        // between the zombies inside one are both divided by it.
+        registerRule(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER,
+                new GameRuleType.FloatRule(1F, 0.1F, 20F));
         registerRule(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER, new GameRuleType.FloatRule(
                 CardCooldown.DEFAULT_MULTIPLIER, 0F, 5F));
         registerRule(PvzceIds.id("max_players_per_team"), new GameRuleType.IntRule(8, 1, 64));

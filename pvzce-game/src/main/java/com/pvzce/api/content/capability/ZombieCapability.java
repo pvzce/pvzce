@@ -93,6 +93,20 @@ public interface ZombieCapability {
         return false;
     }
 
+    /**
+     * As above, for a hit whose damage type the caller knows.
+     *
+     * <p>The type is what says whether a shield counts for this hit at all - see
+     * {@code DamageTypeDef.ignoresFrontArmor}, which is the fume-shroom's spray going through a
+     * screen door while a cone still stops it. Kept as a separate overload rather than a changed
+     * signature so an existing capability keeps compiling and keeps its behaviour: the default
+     * here is the three-argument answer.
+     */
+    default boolean onImpact(ZombieEntity zombie, int damage, LevelAccess level,
+                             com.pvzce.api.content.DamageTypeDef type) {
+        return onImpact(zombie, damage, level);
+    }
+
     /** Called once when the zombie's health reaches zero. */
     default void onDeath(ZombieEntity zombie, LevelAccess level) {
     }

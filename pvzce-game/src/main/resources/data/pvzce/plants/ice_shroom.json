@@ -1,0 +1,35 @@
+{
+  "id": "pvzce:ice_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 75
+    },
+    "cooldown": 3000
+  },
+  "health": 100,
+  "capabilities": [
+    {
+      "type": "pvzce:nocturnal"
+    },
+    {
+      "type": "pvzce:freeze_all",
+      "fuse_ticks": 45,
+      "damage": 20,
+      "freeze_ticks": 360,
+      "chill": {
+        "status": "slow",
+        "ticks": 960,
+        "magnitude": 0.5
+      },
+      "sound": "pvzce:sfx/effect/frozen",
+      "particle": "pvzce:ice_trap"
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/effect/frozen"
+  },
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/ice_shroom",
+  "render_scale": 0.85,
+  "order": 15
+}

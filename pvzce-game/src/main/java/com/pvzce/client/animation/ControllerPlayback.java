@@ -176,6 +176,17 @@ public final class ControllerPlayback extends AnimationPlayback {
                 tryy = anchorY + (tryy - anchorY) * scaleY;
                 tly = anchorY + (tly - anchorY) * scaleY;
 
+                // A mirrored entity (a charmed zombie) is drawn as the same quads reflected
+                // about the anchor: the corner positions flip, each corner keeps its own texture
+                // coordinate, and the winding reverses - which nothing minds, because face
+                // culling is off (see RenderSystem's init).
+                if (flipX) {
+                    blx = anchorX - (blx - anchorX);
+                    brx = anchorX - (brx - anchorX);
+                    trx = anchorX - (trx - anchorX);
+                    tlx = anchorX - (tlx - anchorX);
+                }
+
                 float z = baseZ + part.z() * 0.001F;
                 client.drawTextureQuad(part.texture(),
                         blx, bly, brx, bry, trx, tryy, tlx, tly,

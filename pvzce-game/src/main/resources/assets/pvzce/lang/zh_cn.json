@@ -232,5 +232,15 @@
   "pvzce.zombie_damage_multiplier": "僵尸伤害倍率",
   "pvzce.zombie_speed_multiplier": "僵尸速度倍率",
   "pvzce.zombie_sun_drop_chance": "僵尸掉落阳光概率",
-  "pvzce.zombie_sun_drop_count": "僵尸掉落阳光数（每只）"
+  "pvzce.zombie_sun_drop_count": "僵尸掉落阳光数（每只）",
+  "pvzce.scaredy_shroom": "胆小菇",
+  "pvzce.ice_shroom": "寒冰菇",
+  "pvzce.football_zombie": "橄榄球僵尸",
+  "pvzce.dancing_zombie": "跳舞僵尸",
+  "pvzce.backup_dancer": "伴舞僵尸",
+  "pvzce.mechanic.grave_field": "开局墓碑",
+  "pvzce.mechanic.grave_field.field.count": "墓碑数量",
+  "pvzce.mechanic.grave_field.field.min_x": "最小列",
+  "pvzce.mechanic.grave_field.field.max_x": "最大列",
+  "pvzce.zombie_spawn_speed_multiplier": "僵尸出怪速度倍率"
 }

@@ -1,0 +1,16 @@
+{
+  "id": "pvzce:backup_dancer",
+  "health": 200,
+  "move_speed": 0.18,
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/lowgroan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation_dir": "zombie/special",
+  "texture": "pvzce:textures/entities/zombie/special/backup_dancer",
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

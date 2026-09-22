@@ -484,7 +484,10 @@ public final class LevelValidator {
      * nothing in the game would say why.
      *
      * <p>Both the plant and projectile registries are walked because both declare one
-     * ({@code explosive} and {@code splash} respectively).
+     * ({@code explosive}, {@code freeze_all} and {@code cone} on plants, {@code splash} on
+     * projectiles). Each reports the fallback its own capability would actually take, rather
+     * than one shared sentence: "so it falls back to pvzce:projectile" was a lie for the ones
+     * whose fallback is the ash or the spray line.
      */
     public static List<String> validateDamageTypes() {
         List<String> errors = new ArrayList<>();
@@ -494,7 +497,20 @@ public final class LevelValidator {
                 if (entry.value() instanceof com.pvzce.common.capability.plant.ExplosiveCapability explosive
                         && BuiltInRegistries.DAMAGE_TYPES.get(explosive.damageType()) == null) {
                     errors.add("Plant '" + plant.id() + "' declares unknown damage type '"
-                            + explosive.damageType() + "', so its blast falls back to pvzce:projectile");
+                            + explosive.damageType() + "', so its blast falls back to "
+                            + com.pvzce.common.capability.plant.ExplosiveCapability.DEFAULT_DAMAGE_TYPE);
+                }
+                if (entry.value() instanceof com.pvzce.common.capability.plant.FreezeAllCapability freeze
+                        && BuiltInRegistries.DAMAGE_TYPES.get(freeze.damageType()) == null) {
+                    errors.add("Plant '" + plant.id() + "' declares unknown damage type '"
+                            + freeze.damageType() + "', so its freeze falls back to "
+                            + com.pvzce.common.capability.plant.FreezeAllCapability.DEFAULT_DAMAGE_TYPE);
+                }
+                if (entry.value() instanceof com.pvzce.common.capability.plant.ConeAttackCapability cone
+                        && BuiltInRegistries.DAMAGE_TYPES.get(cone.damageType()) == null) {
+                    errors.add("Plant '" + plant.id() + "' declares unknown damage type '"
+                            + cone.damageType() + "', so its cone falls back to "
+                            + com.pvzce.common.capability.plant.ConeAttackCapability.DEFAULT_DAMAGE_TYPE);
                 }
             }
         }
@@ -505,7 +521,8 @@ public final class LevelValidator {
                 if (entry.value() instanceof com.pvzce.common.capability.projectile.SplashImpactCapability splash
                         && BuiltInRegistries.DAMAGE_TYPES.get(splash.damageType()) == null) {
                     errors.add("Projectile '" + projectile.id() + "' declares unknown damage type '"
-                            + splash.damageType() + "', so its blast falls back to pvzce:projectile");
+                            + splash.damageType() + "', so its blast falls back to "
+                            + com.pvzce.common.capability.projectile.SplashImpactCapability.DEFAULT_DAMAGE_TYPE);
                 }
             }
         }

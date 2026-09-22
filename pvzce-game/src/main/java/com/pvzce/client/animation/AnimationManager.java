@@ -285,6 +285,18 @@ public final class AnimationManager {
         if (playback == null || playback.isStopped()) {
             return false;
         }
+        // Two per-frame facts the clip cannot know, both from the entity's synced state:
+        //
+        //   * a charmed zombie walks the other way, so its art is mirrored - otherwise it
+        //     strides backwards up the lane, facing the house it is leaving;
+        //   * a frozen zombie holds the pose it was in. The server already stops moving it;
+        //     this stops the walk cycle playing on the spot, which is the difference between
+        //     "frozen solid" and "walking without going anywhere".
+        playback.setFlipX(EntityKind.ZOMBIE.equals(entity.kind()) && entity.charmed());
+        // Dying is not walking: a frozen zombie that is killed plays its death, or the corpse
+        // would stand there until the freeze ran out.
+        playback.setPaused(EntityKind.ZOMBIE.equals(entity.kind()) && entity.frozen()
+                && entity.health() > 0);
         float[] anchor = anchor(entity);
         float[] scales = scalesFor(entity);
         // How this entity is lit: a drop wears its resource's own tint - dimmer than its art, so

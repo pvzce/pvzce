@@ -108,7 +108,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
       │ 开始游戏 → enterLevelFromMenu
       ▼
    ┌──────────────────┐
-   │ ChooseSeedsScreen│  （有存档 / 传送带关卡：跳过这一屏）
+   │ ChooseSeedsScreen│  （有存档：跳过这一屏；卡组没得选时是"仅预览"过场）
    │ (选卡)            │
    └──┬───────────────┘
       │ PlayLevelC2S → 服务端 LevelInitS2C
@@ -134,9 +134,13 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ```java
 if (info.hasRunningSave())        requestLevel(id, false);        // ① 有存档：直接进，服务端弹框
 else if (offersTeamChoice(info))  openScreen(LevelSetupScreen);   // ② 关卡有两方以上可玩：先问阵营
-else if (dealsItsOwnCards(id))    requestFreshRunDirectly(id,false); // ③ 传送带：直接进
-else                              openSeedSelection(info, false); // ④ 其余：选卡
+else                              openSeedSelection(info, false); // ③ 其余：选卡页
 ```
+
+**③ 里的"选卡页"有两种形态，由关卡决定**：有卡可选就是真正的选卡；卡组没得选（关卡的固定卡填满卡槽，
+或者这一关的卡由它自己发 —— 传送带）就是**仅预览过场**（`ChooseSeedsScreen.previewOnly`：不画面板、不画卡池、
+点击直接落到草坪上，播完开场对话后 2.1 秒自动开局）。**传送带关卡以前是直接进关的**：那样连"这一关会来哪些僵尸"
+都看不到 —— 关卡列表与选卡页之外没有第三处显示僵尸预览，所以它们现在也走这一屏（只是没得选）。
 
 **阵营是关卡声明的**（`LevelDef.playable_teams` → 每条 `TeamInfo.playable`），所以"要不要问"是关卡数据
 的回答而不是客户端的猜测：**只有一方可玩时 ② 整条分支不成立**，内置关卡因此从列表点进去就是选卡页/开局。
@@ -147,7 +151,7 @@ else                              openSeedSelection(info, false); // ④ 其余�
 | 1 | 关卡列表「继续游戏/下一步」 | `LevelSelectScreen.openSetup()` | 转发给 `enterLevelFromMenu`（与②③④同一决策） |
 | 2 | 关卡准备「开始游戏」 | `LevelSetupScreen.startGame()` | 转发给 `enterLevelFromMenu`（同一决策，第二份调用） |
 | 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（`onBack` 回到提示框）；取不到关卡信息时回落到 `RestartLevelC2S` |
-| 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()` | `LeaveLevelC2S` → 清状态 → 传送带则直接重开，否则选卡（`onBack = showLevelList`） |
+| 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()` | `LeaveLevelC2S` → 清状态 → 选卡页（`onBack = showLevelList`；没得选的关卡是仅预览过场，会自己开始） |
 | 5 | 编辑器「测试」 | `PvzceClient.testEditedLevel()` | `/reload` → 等 `LevelListS2C` → `enterLevelFromMenu`（`setLevelList` 里续上） |
 
 > 把关卡列表那一屏的分支收进 `enterLevelFromMenu` 是必要的，不只是整洁：入口 5 与冒烟钩子都直接
@@ -235,7 +239,7 @@ LevelSelectScreen                PvzceClient                 PvzceServer        
 | 出口 | 触发 | 动作 | 落到哪一屏 |
 |---|---|---|---|
 | 暂停「继续游戏」 | `PauseDialog` 第 1 个按钮 | `close()` → `PauseGameC2S(false)` | 留在 `InGameScreen` |
-| 暂停「重新开始」 | `PauseDialog` 第 2 个按钮 | `LeaveLevelC2S` → `clearLevelClientState()` → 传送带直接重开，否则选卡 | `ChooseSeedsScreen`（`onBack = showLevelList`） |
+| 暂停「重新开始」 | `PauseDialog` 第 2 个按钮 | `LeaveLevelC2S` → `clearLevelClientState()` → 选卡页（没得选的关卡是仅预览过场） | `ChooseSeedsScreen`（`onBack = showLevelList`） |
 | 暂停「保存并退出」 | `PauseDialog` 第 3 个按钮 | `close()` → `leaveLevel()` = `LeaveLevelC2S` + 清状态 | `TitleScreen`（玩家列表） |
 | 胜利 + 奖励 | `InGameScreen.showReward` → 点击领取 | 播胜利音乐 → `openAwardScreen()`（push） | `AwardScreen` |
 | 奖励页「继续」 | `AwardScreen` 按钮 / `requestClose()` | `finishLevelAndShowList()` | `LevelSelectScreen` |
@@ -391,8 +395,9 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
    不要混用，也不要再给它们加"这次算不算重开"的布尔。
 6. **丢本关客户端状态 → `clearLevelClientState()`**，不要各自清一半。
 7. **进入游戏的那一步在 `PvzceClient.onLevelInit`**，界面不要自己 `setScreenReplacing(InGameScreen)`。
-8. **关卡开场对话的宿主取决于这一局怎么进的**：走选卡的关卡在 `ChooseSeedsScreen` 播，
-   直接进关卡的（传送带）在 `InGameScreen` 播，由 `directDialogueLevelId` 跨往返携带这个决定。
+8. **关卡开场对话的宿主取决于这一局怎么进的**：从菜单进的关卡在 `ChooseSeedsScreen` 播（没得选的关卡
+   也在这一屏，只是面板不画），只有**绕过菜单**的那几条路（冒烟钩子、直接请求开局）才在
+   `InGameScreen` 播，由 `directDialogueLevelId` 跨往返携带这个决定。
 9. **背景 cover 适配 → `Screen.coverFit`**，按背景图像素写死的面板矩形要经它映射成点击区域。
 10. **离开一屏要去哪 → `Screen.backTarget()`**。不要读 `screenDepth()` 来推断，也不要覆写
     `requestClose()` 去调用别的屏的展示方法：`POP` 是默认，只有"客户端把这一屏当作流程根"时才

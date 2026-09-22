@@ -66,6 +66,11 @@ ZOMBIE_BOX = [0.70, 0.95]
 # grown form then comes out at its true relative size, because both are authored in one
 # reanim space (see sun_shroom).
 SMALL_PLANT_BOX = [0.38, 0.38]
+# The scaredy-shroom is a small mushroom but not a *tiny* one: its reanim is 71.3px tall against
+# the puff-shroom's 38, so fitting it to the small box drew it at half the size the original
+# gives it. Measured by the same rule as the rest (1px = 0.010175 cells at the sunflower
+# reference), which is what the number below is.
+SCAREDY_SHROOM_BOX = [0.530, 0.726]
 
 # Accessory image references inside the combined Zombie.reanim master file.
 # Basic/bucket/door zombies share the base body tracks; the accessory tracks
@@ -159,6 +164,16 @@ class EntityConfig:
     # member of the family from the zombie's synced state (see ``EquipmentDef``).
     # Authoring them invisible is what keeps every existing clip untouched.
     damage_states: Dict[str, Tuple[Tuple[str, str], ...]] = field(default_factory=dict)
+    # Bones renamed after they are derived from their sprite: ``{old: new}``.
+    #
+    # Needed where the original's *file names* do not spell a family the way the runtime
+    # looks one up. A worn piece is found by the client as ``<art>_1``, ``<art>_2``, ...,
+    # and the bucket's and cone's sprites are already numbered that way
+    # (``Zombie_bucket1.png``). The football helmet's intact drawing is not - it is
+    # ``helmet`` while its cracked drawings are ``helmet2``/``helmet3`` - so the intact one
+    # is renamed into the family here, which is the only place that knows it is the same
+    # piece of kit as the other two.
+    bone_renames: Dict[str, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +605,41 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
         },
     ),
+    # Scaredy-shroom: the same little mushroom as the puff-shroom, with the one thing that
+    # makes it a different plant - it ducks. The original files the duck as two masks: a
+    # 13-frame `anim_scared` that puts its head down and a 11-frame `anim_scaredidle` that
+    # holds it there, which is the same "entry then loop" pair the potato mine's arming is,
+    # so the two are exported as two clips and the *client* chains them (`on_end:
+    # hide_loop`). The server publishes only `hide`: it does not know how long a clip is,
+    # and a state it has to time is a state that would break the day someone re-exports
+    # the art.
+    #
+    # `anim_blink` (1..3) is drawn over the idle frames only and is not a clip of its own -
+    # the blink is already part of every mask's frame data, exactly as it is for the other
+    # mushrooms.
+    EntityConfig(
+        output="scaredy_shroom",
+        group="plant/attacker",
+        reanim="ScaredyShroom.reanim",
+        target_box=SCAREDY_SHROOM_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "shoot": {
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
+            },
+            "hide": {
+                "mask": "anim_scared",
+                "loop": False,
+                "on_end": "hide_loop",
+                "transition": 0.05,
+            },
+            "hide_loop": {"mask": "anim_scaredidle", "loop": True, "transition": 0.1},
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
     # Fume-shroom is the same mushroom as the Doom-shroom and is authored in the big
     # mushroom's box, so it stands a head taller than the small mushrooms - which is how
     # the original draws it. Its spout is a separate sprite that the shooting mask slides
@@ -620,6 +670,22 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="hypno_shroom",
         group="plant/special",
         reanim="HypnoShroom.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
+    # Ice-shroom. The original's reanim has no blast mask at all: the mushroom shivers
+    # (`anim_idle`, 4..20), then the *screen* freezes over - the effect is particles and a
+    # white flash over the whole board, not a clip on the plant - and the mushroom is gone.
+    # So the two clips here are the two poses it can be seen in, and the burst is drawn by
+    # the capability's particles. A missing `explode` clip is not an omission: there is
+    # nothing in the art to point one at.
+    EntityConfig(
+        output="ice_shroom",
+        group="plant/special",
+        reanim="IceShroom.reanim",
         target_box=PLANT_BOX,
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
@@ -977,6 +1043,38 @@ ENTITY_CONFIGS: List[EntityConfig] = [
     # ------------------------------------------------------------------
     # Dedicated zombie reanim files
     # ------------------------------------------------------------------
+    # The football zombie's helmet is the original's second piece of head armour, and its
+    # reanim ships the three drawings (`Zombie_football_helmet{,2,3}.png`) — only the first
+    # is referenced by a track, and the original swaps in the other two in code as the
+    # helmet wears, exactly like the bucket. So the helmet becomes a damage-state family
+    # (`zombie_football_helmet_1..3`) and the definition wears it through them.
+    #
+    # Its `zombie_football_upperbody2/3` tracks are *body* damage states (the jersey with
+    # the shoulder pad gone, then torn), which this project does not model for any zombie:
+    # limb loss is `drops_arm`/`drops_head` here and the body is drawn whole. They are
+    # dropped by track so the three bodies do not all draw at once.
+    EntityConfig(
+        output="football_zombie",
+        group="zombie/armored",
+        reanim="Zombie_football.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        # Every clip in this file is its own: the shared master's idle/eat/death masks are
+        # not in it, so the walk is declared with the speed it was drawn for (the football
+        # zombie is the fast one, 0.43 cells/s).
+        exclude_track_regex=r"zombie_football_upperbody[23]",
+        measure_exclude_regex=r"^helmet_1$",
+        bone_renames={"helmet": "helmet_1"},
+        damage_states={
+            "helmet_1": (
+                ("helmet_2", "Zombie_football_helmet2.png"),
+                ("helmet_3", "Zombie_football_helmet3.png"),
+            ),
+        },
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.43},
+        },
+    ),
     EntityConfig(
         output="newspaper_zombie",
         group="zombie/armored",
@@ -1053,6 +1151,54 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                     "reference_speed": 0.3},
             "dig_exit": {"mask": "anim_landing", "loop": False, "on_end": "walk",
                          "transition": 0.1},
+        },
+    ),
+    # The dancing zombie and its backup dancers. Two files, one behaviour: the dancer
+    # moonwalks in (`anim_moonwalk`, the original's fast entrance), raises his arms
+    # (`anim_armraise`) and calls the dancers, then dances forward at a fifth of the speed.
+    # The arm raise is exported as a one-shot that hands back to the walk, so the summon
+    # has a face, and the moonwalk is its own clip because it is a different gait at a
+    # different speed - the same pair of facts the pole vaulter's run/walk are.
+    #
+    # The art is `Zombie_disco.reanim`: that is the file the original draws its Dancing
+    # Zombie from (the afro, the sunglasses and the white suit), and it is the one that
+    # carries the moonwalk. `Zombie_Jackson.reanim` and `Zombie_dancer.reanim` in the rip
+    # are the same character in its other two outfits and are not used.
+    #
+    # The backup file is authored at a different rate from the master's (24fps against 12),
+    # which the converter reads per file - so the clip lengths are the originals' own and
+    # the only number stated here is the ground speed each walk was drawn for: the
+    # formation's 0.18 cells/s.
+    EntityConfig(
+        output="dancing_zombie",
+        group="zombie/special",
+        reanim="Zombie_disco.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        # No idle mask in this file either: one standing pose, and it is the walk.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "idle": {"mask": "anim_walk", "loop": True},
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.18},
+            "moonwalk": {"mask": "anim_moonwalk", "loop": True, "reference_speed": 0.67},
+            "armraise": {"mask": "anim_armraise", "loop": False, "on_end": "walk",
+                         "transition": 0.05},
+        },
+    ),
+    EntityConfig(
+        output="backup_dancer",
+        group="zombie/special",
+        reanim="Zombie_backup.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        # Its hair and earring tracks are visible in no frame of the file (the dancers wear
+        # the disco wigs their own sprites draw), so they are dropped rather than exported
+        # as bones nothing can show.
+        exclude_track_regex=r"^(anim_hair|anim_earing)$",
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "idle": {"mask": "anim_walk", "loop": True},
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.18},
+            "armraise": {"mask": "anim_armraise", "loop": False, "on_end": "walk",
+                         "transition": 0.05},
         },
     ),
     EntityConfig(
@@ -1311,6 +1457,25 @@ def pieces_to_bones(pieces: Sequence[core.RenderPiece], input_path: Path) -> Lis
             )
         )
     return bones
+
+
+def rename_declared_bones(bones: List[core.Bone], config: EntityConfig) -> None:
+    """Applies ``bone_renames`` in place; see that field for why it exists."""
+
+    for old, new in config.bone_renames.items():
+        target = next((bone for bone in bones if bone.name == old), None)
+        if target is None:
+            raise SystemExit(f"{config.output}: bone_renames names {old!r}, which is not in the model")
+        if any(bone.name == new for bone in bones):
+            raise SystemExit(f"{config.output}: bone_renames would duplicate {new!r}")
+        bones[bones.index(target)] = core.Bone(
+            name=new,
+            asset=target.asset,
+            states=target.states,
+            visibility=target.visibility,
+            order=target.order,
+            track_names=target.track_names,
+        )
 
 
 def measure_bones(bones: Sequence[core.Bone], config: EntityConfig) -> List[core.Bone]:
@@ -1867,6 +2032,9 @@ def process_entity(
     if not pieces:
         raise SystemExit(f"{config.output}: no renderable tracks survived filtering")
     bones = pieces_to_bones(pieces, input_path)
+    # Before everything that looks a bone up by name: the fit, the damage states and the
+    # controller all have to see the name the runtime will use.
+    rename_declared_bones(bones, config)
 
     # The host's own art, kept before the extras are appended. The bounding box is the main
     # reanim's and so is the extent below, deliberately: the extras are authored in that same

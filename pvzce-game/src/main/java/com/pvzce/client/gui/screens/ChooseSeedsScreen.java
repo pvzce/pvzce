@@ -226,7 +226,7 @@ public final class ChooseSeedsScreen extends Screen {
                              boolean restart) {
         this(client, levelId, levelName, options, maxSeedSlots, previewZombies,
                 levelWidth, levelHeight, sceneCells, initialSelection, restart, null, List.of(),
-                null, List.of());
+                null, List.of(), false);
     }
 
     public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
@@ -236,20 +236,27 @@ public final class ChooseSeedsScreen extends Screen {
                              boolean restart, Runnable onBack) {
         this(client, levelId, levelName, options, maxSeedSlots, previewZombies, levelWidth,
                 levelHeight, sceneCells, initialSelection, restart, onBack, List.of(),
-                null, List.of());
+                null, List.of(), false);
     }
 
     /**
      * @param lockedSlots slot ids the level fixes in the bar. They start selected and
      *                    cannot be removed; everything else the player may toggle, up to
      *                    {@code maxSeedSlots} slots in total.
+     * @param dealsItsOwnCards true when the level's own card source hands the cards out (a
+     *                    conveyor belt). Nothing here can be chosen, so the screen becomes the
+     *                    same pass-through a fixed deck gets: the lawn, the level's opening
+     *                    conversation and the zombies it will send, and then it starts itself.
+     *                    Belt levels used to skip this screen entirely - and with it the only
+     *                    place a level's zombie line-up is ever shown.
      */
     public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
                              List<SeedOption> options, int maxSeedSlots,
                              List<String> previewZombies, int levelWidth, int levelHeight,
                              List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
                              boolean restart, Runnable onBack, List<String> lockedSlots,
-                             Identifier background, List<String> hiddenSceneElements) {
+                             Identifier background, List<String> hiddenSceneElements,
+                             boolean dealsItsOwnCards) {
         super(client);
         this.levelId = levelId;
         this.background = background;
@@ -299,7 +306,9 @@ public final class ChooseSeedsScreen extends Screen {
                 }
             }
         }
-        this.previewOnly = hasNothingToChoose();
+        // A level that deals its own cards has as little to choose here as one whose deck is
+        // fixed: nothing the player picks would reach the bar.
+        this.previewOnly = dealsItsOwnCards || hasNothingToChoose();
     }
 
     private boolean containsOption(String slotId) {

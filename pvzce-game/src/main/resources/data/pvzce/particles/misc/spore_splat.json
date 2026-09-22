@@ -1,0 +1,31 @@
+{
+  "id": "pvzce:spore_splat",
+  "look": {
+    "texture": "pvzce:textures/particles/misc/puffshroom_puff1",
+    "spin": 0.0,
+    "alpha_from": 0.85,
+    "alpha_to": 0.0,
+    "scale": 0.2,
+    "scale_curve": [
+      [
+        0.0,
+        0.7
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "life": 0.2,
+    "frames_per_second": 60.0,
+    "loop": true
+  },
+  "motion": {
+    "speed": 0.05,
+    "angle": 90.0,
+    "angle_spread": 180.0,
+    "gravity": -0.01
+  },
+  "count": 3,
+  "count_spread": 1
+}

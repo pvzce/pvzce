@@ -85,6 +85,12 @@ class NightAreaLevelsTest {
     /**
      * The original's four gravestones block planting, and open once - at the last wave.
      *
+     * <p>Where they stand is the lawn's business rather than the file's: {@code grave_field}
+     * scatters them when the level is built, from the level's own random source, so the four
+     * cells are different from one run to the next (see {@code GraveFieldTest} for the
+     * mechanic itself). What this pins is that 2-1 gets four of them, that the lawn was not
+     * shortened to make room, and that they are still unplantable.
+     *
      * <p>{@code graves_spawn_night} is left at its default (on) because the rule now means
      * "this level's graves give up their dead at the final wave" rather than "roll for a
      * zombie every tick", which is what four graves would have done four seconds apart. The
@@ -93,19 +99,20 @@ class NightAreaLevelsTest {
     @Test
     void theGravestonesBlockPlantingAndOpenAtTheLastWave() {
         LevelDef def = level("2_1");
-        List<String> graves = new java.util.ArrayList<>();
-        def.scene().forEach((element, cells) -> {
-            if (element.path().startsWith("grave")) {
-                graves.addAll(cells);
-            }
-        });
-        assertEquals(4, graves.size(), "2-1 ships the original's four gravestones: " + graves);
-        assertEquals(4, def.scene().keySet().stream()
-                        .filter(id -> id.path().startsWith("grave")).count(),
-                "one of each design: the lawn shows a mix, not four copies");
+        assertEquals(4, com.pvzce.common.level.mechanic.LevelMechanics
+                        .dataOf(def, PvzceIds.MECHANIC_GRAVE_FIELD,
+                                com.pvzce.api.content.GraveFieldData.class)
+                        .orElseThrow(() -> new AssertionError("2-1 scatters no graves")).count(),
+                "2-1 ships the original's four gravestones");
+        assertEquals(9 * 5, countGrass(def),
+                "the whole lawn is painted: the graves are laid on top of it, not instead of it");
+
         LevelServer level = new LevelServer(def);
-        // The level declares nothing, so the engine's default applies - which is what "2-1's
-        // graves open at the last wave" is spelled as now.
+        List<String> graves = new java.util.ArrayList<>();
+        for (var cell : level.graveCells()) {
+            graves.add(cell.x() + "," + cell.y());
+        }
+        assertEquals(4, graves.size(), "four of them stand up when the level is built: " + graves);
         assertTrue(level.rules().getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT),
                 "2-1's graves open at the last wave");
         PlantDef pea = BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter"));
@@ -115,8 +122,14 @@ class NightAreaLevelsTest {
             int y = Integer.parseInt(parts[1]);
             assertFalse(level.canPlacePlant(pea, x, y), "a grave is not plantable: " + grave);
         }
-        assertTrue(level.canPlacePlant(pea, 0, 0), "the rest of the lawn is");
-        assertEquals(9 * 5 - 4, countGrass(def), "and nothing else is painted over");
+        // Four graves, four different cells, and every one of them in the far half of the lawn
+        // - which is where the original puts them and what `region` means.
+        assertEquals(4, new java.util.HashSet<>(graves).size(), "no cell holds two graves");
+        assertTrue(level.canPlacePlant(pea, 0, 0), "the rest of the lawn is plantable");
+        for (String grave : graves) {
+            assertTrue(Integer.parseInt(grave.split(",")[0]) >= 4,
+                    "a grave outside the far half: " + grave);
+        }
     }
 
     private static long countGrass(LevelDef def) {

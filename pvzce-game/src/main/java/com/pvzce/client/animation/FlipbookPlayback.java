@@ -37,6 +37,9 @@ public final class FlipbookPlayback extends AnimationPlayback {
         float height = flipbookFile.sizeY() * Math.max(0.0001F, yScale);
         float x = anchorX - width * flipbookFile.anchorX();
         float y = anchorY - height * flipbookFile.anchorY();
+        // Mirrored: the same rectangle with the texture's two sides swapped.
+        float u0 = flipX ? 1F : 0F;
+        float u1 = flipX ? 0F : 1F;
 
         // A cross-fade between two frames, which only makes sense when the clip asked for
         // one: both frames are drawn translucent and their alphas sum to 1, so with no
@@ -46,14 +49,14 @@ public final class FlipbookPlayback extends AnimationPlayback {
         if (transitionDuration > 0F) {
             float fade = transitionBlend(now);
             if (previousFrame != null && fade < 1F) {
-                client.drawTextureRegion(previousFrame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
+                client.drawTextureRegion(previousFrame, u0, 0F, u1, 1F, x, y, width, height, baseZ,
                         1F, 1F, 1F, 1F - fade);
             }
-            client.drawTextureRegion(frame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
+            client.drawTextureRegion(frame, u0, 0F, u1, 1F, x, y, width, height, baseZ,
                     1F, 1F, 1F, fade);
             return;
         }
-        client.drawTextureRegion(frame, 0F, 0F, 1F, 1F, x, y, width, height, baseZ,
+        client.drawTextureRegion(frame, u0, 0F, u1, 1F, x, y, width, height, baseZ,
                 1F, 1F, 1F, 1F);
     }
 

@@ -513,6 +513,51 @@ class CombatSystemsTest {
         assertEquals(flowerPot.cellX() + 0.06F, peaOnPot.cellX(), 0.001F);
     }
 
+    /**
+     * The Doom-shroom leaves one hole: the cell it was planted on.
+     *
+     * <p>Not the footprint of its blast. Reusing the blast radius turned a 7x7 explosion into a
+     * 7x7 crater, so the lawn around the mushroom was unplantable for the whole recovery - the
+     * original's doom shroom gives up the one tile it stood on, which is a cost the player chose
+     * when they planted it.
+     */
+    @Test
+    void theDoomShroomLeavesAHoleOnlyWhereItStood() {
+        // A night board: the doom shroom is a mushroom, and a sleeping plant's fuse never runs.
+        LevelDef night = com.pvzce.testutil.TestLevels.copy(demo)
+                .rules(Map.of(
+                        Identifier.withDefaultNamespace("day_length"),
+                        com.google.gson.JsonParser.parseString("0"),
+                        Identifier.withDefaultNamespace("night_length"),
+                        com.google.gson.JsonParser.parseString("360000")))
+                .waves(List.of())
+                .build();
+        LevelServer level = new LevelServer(night);
+        CapturingBridge bridge = bridge();
+        com.pvzce.api.content.PlantDef doom =
+                BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace("doom_shroom"));
+        assertNotNull(doom, "the doom shroom has to exist");
+        level.spawnPlant(doom, level.team(Identifier.withDefaultNamespace("plant_team")), 4, 2);
+        level.flushPending(bridge);
+
+        // Long enough for the fuse (90 ticks) plus a tick.
+        tick(level, bridge, 120);
+
+        for (int x = 0; x < level.width(); x++) {
+            for (int y = 0; y < level.height(); y++) {
+                boolean crater = "CRATER".equals(surface(level, x, y));
+                boolean ownCell = x == 4 && y == 2;
+                assertEquals(ownCell, crater, "crater at " + x + "," + y);
+            }
+        }
+    }
+
+    /** The surface class of a cell, or an empty string when the cell is not painted. */
+    private static String surface(LevelServer level, int x, int y) {
+        var element = level.sceneAt(x, y);
+        return element == null ? "" : element.surfaceClass();
+    }
+
     @Test
     void craterRecoversAccordingToRule() {
         LevelDef def = new com.pvzce.api.content.LevelDef(

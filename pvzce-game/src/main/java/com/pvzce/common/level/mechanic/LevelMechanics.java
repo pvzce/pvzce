@@ -49,6 +49,7 @@ public final class LevelMechanics {
     public static final MowerMechanic MOWER = new MowerMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
+    public static final GraveFieldMechanic GRAVE_FIELD = new GraveFieldMechanic();
 
     public static final Codec<TypedMechanic> CODEC = codec();
     public static final Codec<List<TypedMechanic>> LIST_CODEC = CODEC.listOf();
@@ -61,6 +62,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_MOWER, MOWER);
         register(PvzceIds.MECHANIC_TOOL, TOOL);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
+        register(PvzceIds.MECHANIC_GRAVE_FIELD, GRAVE_FIELD);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

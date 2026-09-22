@@ -87,6 +87,18 @@ public final class ExplosiveCapability implements PlantCapability {
      * holding a drawing on screen, not a second life.
      */
     public static final int LINGER_TICKS = 30;
+    /**
+     * How wide the hole an explosion leaves is, in cells: just the plant's own cell.
+     *
+     * <p>Half a cell, which is the same "radius 0.5 = this one cell" the potato mine's blast
+     * uses. The crater is <em>where the plant was</em>, not where its blast reached - the
+     * original's Doom-shroom leaves one sunken tile, the one it stood on, and reusing the blast
+     * radius turned a 7x7 explosion into a 7x7 hole: the lawn around the mushroom became
+     * unplantable for the whole recovery, which is neither what the original does nor a cost the
+     * player can play around (the point of the crater is that it is <em>one</em> cell you chose
+     * to give up).
+     */
+    public static final float CRATER_RADIUS = 0.5F;
 
     private final Trigger trigger;
     private final int fuseTicks;
@@ -309,9 +321,10 @@ public final class ExplosiveCapability implements PlantCapability {
                     blastRadius, damage, plant.team(), square);
         }
         if (leavesCrater) {
-            // The hole the blast made, in the same footprint it just hit: the original's doom
-            // shroom is the one explosive that does not leave the lawn as it found it.
-            level.leaveCraters(plant.cellX(), plant.cellY(), blastRadius, square);
+            // The hole the plant made, in its own cell - not the footprint of the blast. See
+            // CRATER_RADIUS: the doom shroom is the one explosive that does not leave the lawn
+            // as it found it, and it leaves *one* tile that way.
+            level.leaveCraters(plant.cellX(), plant.cellY(), CRATER_RADIUS, false);
         }
         level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));

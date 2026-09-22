@@ -327,7 +327,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * selected any more - which is why the drop used to need the glove clicked again first.
      * The move remembers the card it started from instead.
      */
-    private int carrySlot = -1;
+
     /** The carry state the last frame saw, so a *change* in it can be noticed; see syncCarry. */
     private String lastCarried = "";
     /**
@@ -1625,7 +1625,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (carried.isEmpty() || !client.level().gameState().equals("running")) {
             return;
         }
-        SlotInfo slot = carrySlot >= 0 ? slotInfo(carrySlot) : cardGranting(carried);
+        SlotInfo slot = cardGranting(carried);
         if (slot == null) {
             return;
         }
@@ -1668,13 +1668,39 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (carried.isEmpty()) {
             // The move finished (dropped, eaten or timed out): let the card go too. This is the
             // path that catches a carry the player did not finish with a click of their own.
-            if (selectedCard == carrySlot) {
+            if (isGloveSlot(selectedCard)) {
                 selectedCard = -1;
             }
-            carrySlot = -1;
-        } else if (carrySlot >= 0) {
-            selectedCard = carrySlot;
+            return;
         }
+        // A plant is in hand: keep its card lit. The card is the *glove's*, looked up in the bar
+        // rather than remembered from the click that lifted the plant - a remembered slot could
+        // only ever be right for a client that started the move, and the drop needs the same
+        // answer from a client that did not (a save resumed mid-move, a bar rebuilt by a
+        // resize) and from one whose memory had been let go.
+        SlotInfo glove = gloveInBar();
+        if (glove != null) {
+            selectedCard = glove.index();
+        }
+    }
+
+    /**
+     * The bar's glove card, or {@code null} when this level has none.
+     *
+     * <p>The slot every drop is sent with. Not the carried plant's own card: that one is a
+     * <em>plant</em> card, and the server answers a plant card on the tool path with "不是工具卡"
+     * - which is exactly what a drop sent with it looked like (the plant stayed in hand, and the
+     * player was told to select a tool).
+     */
+    private SlotInfo gloveInBar() {
+        int index = gloveSlotIn(client.level().slots());
+        return index < 0 ? null : slotInfo(index);
+    }
+
+    /** True when this slot index is the bar's glove card. */
+    private boolean isGloveSlot(int slotIndex) {
+        SlotInfo card = slotIndex < 0 ? null : slotInfo(slotIndex);
+        return card != null && card.kind().equals("tool") && GLOVE_ID.equals(card.defId());
     }
 
     /**
@@ -1968,7 +1994,30 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // can safely run every frame without restarting the current clip.
         entity.playAnimation(entity.animation());
         drawShadow(client, entity, entityTexture(entity));
+        // The ice goes under the art: it is around the zombie's feet, so the legs have to come
+        // down into it. Drawn every frame while the freeze lasts rather than spawned as a
+        // particle, because it lasts as long as the status does - a particle is a burst.
+        if ("zombie".equals(entity.kind()) && entity.frozen()) {
+            drawFrozenSpikes(entity);
+        }
         drawEntityArt(entity);
+    }
+
+    /**
+     * The ice a held zombie stands in.
+     *
+     * <p>At the ground contact point, the same one its shadow is centred on, so the spikes sit
+     * on the lawn rather than floating at whatever height the zombie's art happens to reach.
+     */
+    private void drawFrozenSpikes(ClientEntity entity) {
+        float contact = com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
+        float width = com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_WIDTH;
+        float height = com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_HEIGHT;
+        float drawX = entity.visualCellX();
+        float drawY = entity.visualCellY() - contact;
+        client.drawTexture(com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_TEXTURE,
+                drawX - width * 0.5F, drawY - height * 0.5F, width, height,
+                com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_Z, 1F, 1F, 1F, 0.95F);
     }
 
     /**
@@ -2019,8 +2068,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         } else {
             client.pushEntityLook(entity);
         }
+        // Mirroring, for the one entity state that faces the other way (a charmed zombie). The
+        // animated path does the same thing inside its own quads; this is the flat-sprite
+        // fallback a content pack without a controller file lands on.
+        boolean flip = "zombie".equals(entity.kind()) && entity.charmed();
+        float left = flip
+                ? drawX - (visuals.spriteWidth() - visuals.spriteOffsetX()) * xScale
+                : drawX - visuals.spriteOffsetX() * xScale;
         try {
-            client.drawTexture(texture, drawX - visuals.spriteOffsetX() * xScale,
+            client.drawTextureRegion(texture, flip ? 1F : 0F, 0F, flip ? 0F : 1F, 1F, left,
                     drawY - visuals.spriteOffsetY() * yScale + drawHeight,
                     visuals.spriteWidth() * xScale, visuals.spriteHeight() * yScale, visuals.baseZ(),
                     1, 1, 1, 1);
@@ -2793,12 +2849,22 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // A plant in hand is a move in progress: the click puts it down, whichever card is
         // selected now (none, usually). Checked before the selection because the drop is the
         // other half of a click that already happened.
-        if (carrySlot >= 0) {
-            client.connection().send(new UseToolC2S(carrySlot, cellX, cellY));
+        //
+        // "A plant is in hand" is the server's own state, and the card that sends the drop is
+        // looked up in the bar (the glove, the only tool that carries). Neither half of that is
+        // remembered locally: a remembered slot was only right for the client that started the
+        // move, and the fallback for when it was lost resolved the carried *plant's* card - which
+        // the server refuses as "不是工具卡", leaving the plant in hand with no way to put it
+        // down.
+        if (!client.level().carriedPlant().isEmpty()) {
+            SlotInfo glove = gloveInBar();
             // The move is over as far as the player is concerned; the card goes back with it.
             // Left selected, the glove stayed lit after the drop and the next click lifted
             // whatever the player clicked on.
             selectedCard = -1;
+            if (glove != null) {
+                client.connection().send(new UseToolC2S(glove.index(), cellX, cellY));
+            }
             return;
         }
         if (selectedCard >= 0) {
@@ -2952,6 +3018,27 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
+     * The index of the bar's glove card, or {@code -1} when it has none.
+     *
+     * <p>The one lookup behind both halves of a move: the lift and the drop are the same click
+     * sent with the same slot, and they are sent with the glove's rather than with a slot
+     * remembered from the other half. That distinction is the whole bug: the drop used to fall
+     * back to the card that grants the <em>carried plant</em> - a plant card - and the server
+     * refused it as "不是工具卡", leaving the plant in hand.
+     */
+    static int gloveSlotIn(List<SlotInfo> bar) {
+        if (bar == null) {
+            return -1;
+        }
+        for (SlotInfo card : bar) {
+            if (card != null && card.kind().equals("tool") && GLOVE_ID.equals(card.defId())) {
+                return card.index();
+            }
+        }
+        return -1;
+    }
+
+    /**
      * Refuses a card that cannot be played: the original's buzzer, a shake, and the grey
      * box saying which of the three reasons it was.
      *
@@ -3020,8 +3107,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         if (selected.kind().equals("tool")) {
-            // Remembered for the drop; cleared when the carry ends (see syncCarrySlot).
-            carrySlot = selectedCard;
             // One click, one action, and then the card is put back - the glove included. It
             // used to stay selected across its second click (lift, then drop), which read as
             // an infinite cooldown: the glove is on cooldown the moment it picks something up,

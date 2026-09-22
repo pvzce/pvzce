@@ -1,0 +1,29 @@
+{
+  "id": "pvzce:dancing_zombie",
+  "health": 500,
+  "move_speed": 0.18,
+  "capabilities": [
+    {
+      "type": "pvzce:summon_dancers",
+      "dancer": "pvzce:backup_dancer",
+      "count": 4,
+      "summon_at_x": 6.0,
+      "approach_speed": 0.67,
+      "summon_ticks": 48,
+      "resummon_ticks": 1200,
+      "sound": "pvzce:sfx/zombie/dancer"
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop",
+    "special": "pvzce:sfx/zombie/dancer"
+  },
+  "animation_dir": "zombie/special",
+  "texture": "pvzce:textures/entities/zombie/special/dancing_zombie",
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

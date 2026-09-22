@@ -1,0 +1,37 @@
+{
+  "id": "pvzce:football_zombie",
+  "health": 200,
+  "move_speed": 0.43,
+  "capabilities": [
+    {
+      "type": "pvzce:armor",
+      "post_armor_speed": -1,
+      "pieces": [
+        {
+          "id": "pvzce:football_helmet",
+          "durability": 1400,
+          "position": "top"
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "armor_hit": "pvzce:sfx/zombie/shieldhit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation_dir": "zombie/armored",
+  "texture": "pvzce:textures/entities/zombie/armored/football_zombie",
+  "equipment": [
+    {
+      "art": "helmet",
+      "piece": "pvzce:football_helmet",
+      "drop_particle": "pvzce:zombie_helmet"
+    }
+  ],
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

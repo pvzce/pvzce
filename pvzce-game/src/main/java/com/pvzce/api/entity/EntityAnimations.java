@@ -101,6 +101,33 @@ public final class EntityAnimations {
      * a sleeping mushroom looks exactly like a wide-awake one.
      */
     public static final String SLEEP = "sleep";
+    /**
+     * A plant that has ducked behind its own cap because something is close.
+     *
+     * <p>The scaredy-shroom. Like the potato mine's arming it is two clips - a one-shot that
+     * puts the head down and a loop that holds it there - and the model chains them itself
+     * ({@code on_end}), so this is the only state either side publishes.
+     */
+    public static final String HIDE = "hide";
+    /**
+     * A zombie's fast entrance gait: the dancing zombie's moonwalk.
+     *
+     * <p>A clip name and a wire string like every other state here. It is separate from
+     * {@link #WALK} because it is a <em>different</em> gait at a different speed - the
+     * original draws the moonwalk for the approach and the ordinary dance step once the
+     * dancers are out, which is the same pair of facts the pole vaulter's {@link #RUN} and
+     * {@code walk} are.
+     */
+    public static final String MOONWALK = "moonwalk";
+    /**
+     * The pose a zombie strikes to call its backup.
+     *
+     * <p>The dancing zombie's summon. A named state rather than a bare string because the
+     * clip it plays is part of the content contract: a definition whose art has no
+     * {@code armraise} clip silently falls back to {@code idle}, and this is the name it
+     * would be missing.
+     */
+    public static final String ARM_RAISE = "armraise";
 
     private EntityAnimations() {
     }

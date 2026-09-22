@@ -31,6 +31,7 @@
 | `pvzce:producer` | `resource`(必填) `amount`(25) `every`(必填) `first_delay`(-1=300) `sound`? | 周期产出资源掉落物 |
 | `pvzce:explosive` | `trigger`(`timed`\|`proximity`) `fuse_ticks`(60) `radius`(1.0) `damage`(1800) `trigger_range`(0.6) `sound`? `damage_type`(`pvzce:ash`) | 樱桃炸弹 / 土豆雷共用。**引信期间不可被伤害**（僵尸照咬，但咬不掉）；爆炸后植物会多留 30 tick 播完 `explode` |
 | `pvzce:melee` | `range`(0.7) `swallow_max_health`(0) `chew_ticks`(240) `sound`? | 吞噬弱僵尸后咀嚼消失 |
+| `pvzce:cone` | `interval`(90) `damage`(20) `range`(4.0) `damage_type`(`pvzce:spray`) `sound`? `first_delay`(0) `cloud_particle`(`pvzce:fume_cloud`) `cloud_count`(8) | **即时光锥，没有弹体**：同一 tick 命中正前方 `range` 格内的每一只僵尸（各一次），只覆盖自己那一行、且不打自己那格。大喷菇用它；`range` 从枪口量起，与射手同一个原点。画面由 `cloud_count` 个 `cloud_particle` 沿锥形**均匀铺开**：间距是 `range / cloud_count`，必须**小于一团云的宽度**（`pvzce:fume_cloud` 的 `look.scale`，现为 0.5 格）才连得起来，否则会画成一串断续的团（4 格配 3 个就是 1.33 格间距，正是"三个独立团"那个效果）。**把粒子调小就要把 `cloud_count` 调大。** `cloud_count: 0` 表示只要伤害不要画面 |
 | `pvzce:wake_below` | `sound`? `wake_sound`? | 唤醒下方睡觉的植物并消耗自身（咖啡豆）。对**醒着的**植物无事发生（豆子照样被消耗），`wake_sound` 只在真的叫醒时播 |
 | `pvzce:nocturnal` | 无 | 蘑菇：白天睡觉（不射击、不产出，播 `sleep` clip），入夜自动醒来；被咖啡豆唤醒后**永久**不睡。状态由关卡时钟推出，只有"被唤醒过"进存档 |
 
@@ -224,6 +225,7 @@
 | `pvzce:zombie_damage_multiplier` | `1` | 僵尸伤害倍率 |
 | `pvzce:zombie_speed_multiplier` | `1` | 僵尸移速倍率（1-5 用 `1.5`） |
 | `pvzce:plant_damage_multiplier` | `1` | 植物伤害倍率 |
+| `pvzce:zombie_spawn_speed_multiplier` | `1` | **僵尸出怪速度倍率**；`2.0` = 整条出怪时间线快一倍（波与波之间、一波之内逐个出怪，两个间隔都除以它；1-10 / 2-10 用 `2.0`）。与 `zombie_speed_multiplier`（已在场上的僵尸走多快）是两件事；每波自己的 `warning_ticks` 不缩放 |
 | `pvzce:seed_cooldown_multiplier` | `1` | **卡片冷却倍率**；`0.3333` = 本关所有卡片冷却只有平时的三分之一（睡眠剥夺用的就是它）。卡自己的冷却仍写在植物/工具定义里，关卡只做缩放 |
 
 ### 提示文本（hints）
@@ -373,7 +375,9 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 "mechanics": [
   // 传送带：卡组由关卡自己发，没有选卡界面、没有价格（1-5 坚果保龄球）
   { "type": "pvzce:conveyor", "interval_ticks": 150, "capacity": 6, "initial_cards": 2,
-    "cards": [ { "id": "pvzce:bowling_nut", "weight": 1 } ] },
+    "cards": [ { "id": "pvzce:bowling_nut", "weight": 1 },
+               // 可选：这张卡一共发几张（不写 = 不限）。2-10 的墓碑破坏者 = 13
+               { "id": "pvzce:grave_buster", "weight": 1, "max_count": 13 } ] },
   // 可种植区：只有这块草坪能种（红线画在它的边缘）
   { "type": "pvzce:placement_zone", "min_x": 0, "max_x": 3 },
   // 小推车：这一关哪些行有（见下）
@@ -384,13 +388,17 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
   // 会补的墓碑：僵尸从墓碑里冒出来（2-5 打地鼠）
   { "type": "pvzce:grave_spawner", "zombies": ["pvzce:basic_zombie"],
     "min_graves": 9, "initial_graves": 9, "graves_per_wave": 1,
-    "interval": 90, "min_x": 4, "max_x": 8 }
+    "interval": 90, "min_x": 4, "max_x": 8 },
+  // 开局墓碑：关卡建好时把墓碑随机撒在远半场（夜关的常态，每次开局位置都不同）
+  { "type": "pvzce:grave_field", "count": 7 }
 ]
 ```
 
 **关卡自带的工具（`pvzce:tool`）**：`tool` 是 `tools/<id>.json` 里的工具 id；`default: true` 表示手上没卡时点击就是用它（不占卡槽、不印价格、没有充能条）；`cooldown` / `cost` 是**这一关对这把工具的覆盖**，不写就沿用工具自己的数。工具自己的美术（卡片贴图 `texture` 与动画 `animation_dir`）写在工具定义里，动画文件里要有对应的 clip（木槌的 `idle` = 举起、`attack` = 挥下）。
 
 **会补的墓碑（`pvzce:grave_spawner`）**：`zombies` 是墓碑能冒出什么；`interval` 是两次冒怪之间隔多少 tick（从**随机一座**在场的墓碑里放一只）；`min_graves` 是维持的座数，`initial_graves` 是开局先补到多少（`-1` = 同 `min_graves`）；`graves_per_wave` 让**每来一波目标座数 +1**（2-5 用 1：9 座起步、第六波 15 座；不写就是恒定）；`min_x` / `max_x` 限定新墓碑出现的列。注意两件事：这一关的 `waves` 通常是**空壳**（`entries: []`，只用来算进度与收尾，僵尸全部来自墓碑），而**最后一波放完之后墓碑不再冒僵尸** —— 胜利判定要的是"场上没有僵尸"，每 1.5 秒冒一只的话这一关永远打不完。
+
+**开局墓碑（`pvzce:grave_field`）**：`count` 是开局撒几座；`min_x` / `max_x` 限定列范围（不写 `min_x` 时按 `region` 取**远离房子的那半场**，缺省 `0.5`）；`designs` 是要混搭的墓碑元素 id 列表（不写 = 内置四种轮流）。墓碑的位置**每次开局都不同**（用关卡自己的随机源），所以**不要**把它们写进 `scene`——`scene` 里写的是每次开局都一样的地形。它们站在草坪上、挡住种植，最后一波由 `pvzce:graves_spawn_night` 规则一次性开墓（`false` 就是纯障碍）。同一个关卡也可以再声明 `grave_spawner`（那就是 2-5：会补、还持续冒怪）。
 
 **小推车（`pvzce:mower`）——不写就是每行一辆。** 普通关卡的 JSON 里**不需要**任何声明：草坪本来就是每行一辆推车，僵尸走到房子前会触发它，它向右开过去碾掉该行地面上的僵尸，然后消失；那一行之后就是敞开的。想改的关卡才声明：
 
@@ -705,6 +713,12 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 | `#c:water` | 水面 | water |
 | `#c:unplantable` | 什么都不接受 | grave、crater |
 
+`data/pvzce/tags/zombie/`（僵尸是什么，超过它自己定义的那些）：
+
+| 标签 | 含义 | 内置成员 |
+|---|---|---|
+| `#pvzce:freeze_immune` | **冻不住**：寒冰菇的全屏冰冻对它们无效（照吃伤害与寒冷） | balloon_zombie、miner_zombie |
+
 `data/c/tags/plant/`（植物是什么、需要什么）：
 
 | 标签 | 含义 | 内置成员 |
@@ -764,6 +778,7 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 |---|---|---|---|
 | id | Identifier | 文件路径 | |
 | ignores_armor | bool | false | `true` = 直接打身体（灰烬类、小推车）；`false` = 僵尸的护甲能力先接（豌豆、保龄球） |
+| ignores_front_armor | bool | false | `true` = **正面那件**（纱门、报纸）不挡这一下，头上的（路障、铁桶、橄榄球面罩）照样吸走（大喷菇的喷雾） |
 
 内置五种：`pvzce:ash`（灰烬类爆炸，`ignores_armor`）、`pvzce:splash`（投手溅射，`ignores_armor`）、`pvzce:mower`（小推车与锤子，`ignores_armor`）、`pvzce:projectile`（普通子弹）、`pvzce:impact`（保龄球、巨人拳）。
 

@@ -9,10 +9,12 @@ import com.pvzce.api.content.ToolData;
 import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.capability.plant.ConeAttackCapability;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.network.PvzcePacket;
+import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
@@ -57,12 +59,21 @@ class NightAreaTwoLevelsTest {
 
     private static final class Bridge implements LevelServer.ServerBridge {
         final List<String> messages = new ArrayList<>();
+        /** Every presentation event the level sent, so a test can see what was drawn where. */
+        final List<EffectEventS2C> effects = new ArrayList<>();
 
         @Override
         public void send(PvzcePacket packet) {
             if (packet instanceof ServerMessageS2C message) {
                 messages.add(message.message());
+            } else if (packet instanceof EffectEventS2C effect) {
+                effects.add(effect);
             }
+        }
+
+        /** The effect events that used one particle definition, in the order they were sent. */
+        List<EffectEventS2C> effectsOf(String particle) {
+            return effects.stream().filter(e -> particle.equals(e.particle())).toList();
         }
 
         String last() {
@@ -229,10 +240,10 @@ class NightAreaTwoLevelsTest {
 
         // The card version of the same tool is a purchase: this is the level's own number
         // doing the work, not the tool's.
-        assertEquals(1800, BuiltInRegistries.TOOLS.get(PvzceIds.id("hammer")).cooldownTicks(),
-                "the hammer card's own recharge is the 30 seconds every other level charges");
-        assertEquals(50, BuiltInRegistries.TOOLS.get(PvzceIds.id("hammer"))
-                .useCost().amountOf(PvzceIds.SUN), "and it costs 50 sun");
+        assertEquals(1200, BuiltInRegistries.TOOLS.get(PvzceIds.id("hammer")).cooldownTicks(),
+                "the hammer card's own recharge is the 20 seconds every other level charges");
+        assertEquals(0, BuiltInRegistries.TOOLS.get(PvzceIds.id("hammer"))
+                .useCost().amountOf(PvzceIds.SUN), "and the mallet is free - it is a hammer");
     }
 
     /** Smashing a grave below the level's count makes a new one rise. */
@@ -578,32 +589,52 @@ class NightAreaTwoLevelsTest {
     // The fume shroom
     // ------------------------------------------------------------------
 
-    /** Its spray goes through armour, which is what the original's does to a screen door. */
+    /**
+     * Its spray goes through a <em>shield</em> and is stopped by a <em>hat</em>.
+     *
+     * <p>That pair is the whole point of the spray's damage type: the original's fume goes
+     * through the screen door (which is why it is the answer to a Screen Door Zombie) and is
+     * still absorbed by a cone, a bucket or a football helmet - the two are one boolean apart,
+     * and answering them with the same "ignores armour" meant a fume-shroom killed a buckethead
+     * as fast as it killed anything else.
+     *
+     * <p>It is asked of the damage type directly rather than through a shot, because the cloud
+     * the fume-shroom breathes is no longer a projectile: what routes a hit into a shield or a
+     * hat is the type it lands as, and the two entry points that read it (a shot through
+     * {@code ArmorCapability.onProjectileHit}, anything else through {@code onImpact}) have to
+     * answer the same way. That is what this pins.
+     */
     @Test
-    void theFumeSprayIgnoresArmour() {
-        ProjectileDef fume = BuiltInRegistries.PROJECTILES.get(PvzceIds.id("fume"));
-        assertNotNull(fume, "the fume-shroom's projectile has to exist");
-        assertEquals(java.util.Optional.of(PvzceIds.id("spray")), fume.damageType(),
-                "its hit is the spray line: armour does not stop it, and it is not fire");
-        assertEquals(false, com.pvzce.common.core.BuiltInRegistries.DAMAGE_TYPES
-                        .get(PvzceIds.id("spray")).burns(),
+    void theFumeSprayGoesThroughShieldsButNotHats() {
+        com.pvzce.api.content.DamageTypeDef spray = BuiltInRegistries.DAMAGE_TYPES.get(PvzceIds.DAMAGE_SPRAY);
+        assertNotNull(spray, "the spray line has to exist: it is what the fume-shroom lands as");
+        assertTrue(spray.ignoresFrontArmor(), "a screen door is not in the way of a gas");
+        assertFalse(spray.ignoresArmor(), "while a hat still is");
+        assertFalse(spray.burns(),
                 "a spray does not leave a charred body - the ash line does, and it is a"
                         + " separate type for exactly that reason");
-        assertTrue(fume.capability(com.pvzce.common.capability.projectile.PierceCapability.class).isPresent(),
-                "and it keeps going: one spray hits everything in its path");
 
         LevelServer level = running(level("2_3"));
         Bridge bridge = new Bridge();
         ZombieEntity buckethead = level.spawnZombie(PvzceIds.id("buckethead_zombie"),
                 level.team(ZOMBIE_TEAM), 4.5F, 0);
+        ZombieEntity door = level.spawnZombie(PvzceIds.id("door_zombie"),
+                level.team(ZOMBIE_TEAM), 6.5F, 1);
         level.flushPending(bridge);
         int armored = buckethead.armorHealth();
+        int doorArmor = door.armorHealth();
         assertTrue(armored > 0, "the bucket is on");
+        assertTrue(doorArmor > 0, "and so is the screen door");
 
-        buckethead.damage(fume, 20, level);
-        assertEquals(armored, buckethead.armorHealth(),
-                "the spray went past the bucket rather than into it");
-        assertEquals(180, buckethead.health(), "and the body took the hit instead");
+        buckethead.damage(20, spray, level);
+        assertEquals(armored - 20, buckethead.armorHealth(),
+                "the spray went into the bucket: a hat is still a hat");
+        assertEquals(200, buckethead.health(), "so the body is untouched");
+
+        door.damage(20, spray, level);
+        assertEquals(doorArmor, door.armorHealth(),
+                "while the screen door is not in the way of a gas at all");
+        assertEquals(180, door.health(), "so the body behind it took the hit");
     }
 
     /**
@@ -644,37 +675,143 @@ class NightAreaTwoLevelsTest {
     }
 
     /**
-     * One spray damages a zombie once, not once per tick it is inside it.
+     * One burst damages a zombie exactly once, and there is no projectile to linger in it.
      *
-     * <p>The reported bug: a spray "almost instant-killed everything". A piercing shot does not
-     * disappear on its first hit, and nothing remembered what it had already hit, so every tick
-     * the shot spent overlapping a zombie was another 20 damage - a 200-health zombie died in
-     * ten consecutive ticks, and the bucket was untouched because the spray ignores armour.
+     * <p>Two bugs lived here. The reported one: the spray was a piercing shot, and nothing
+     * remembered what it had already hit, so every tick it spent overlapping a zombie was
+     * another 20 damage - a 200-health zombie died in ten consecutive ticks and it looked like
+     * "the fume-shroom instantly kills everything". The structural one, which is why this test
+     * now counts per <em>volley</em> rather than per pass: a cloud is not a thing that travels.
+     * Modelled as a shot it needed {@code pvzce:pierce} and the shot's hit book-keeping to
+     * imitate an area of effect, and it read on screen as a long-range sniper rather than a
+     * plant breathing on its neighbours.
+     *
+     * <p>The tick count is exact, not a bound: the cooldown starts at 1, so the first breath is
+     * on tick 2 and the next on 92 and 182. Three volleys in 200 ticks, 20 into the bucket each
+     * time - the hat takes them, the body is untouched.
      */
     @Test
-    void oneSprayDamagesEachZombieOnce() {
+    void oneBurstDamagesEachZombieOnce() {
         LevelServer level = running(level("2_3"));
         Bridge bridge = new Bridge();
         PlantDef fume = BuiltInRegistries.PLANTS.get(PvzceIds.id("fume_shroom"));
+        assertNotNull(fume, "the fume-shroom has to exist");
+        ConeAttackCapability cone = fume.capabilities().stream()
+                .map(com.pvzce.api.content.capability.TypedCapability::value)
+                .filter(ConeAttackCapability.class::isInstance)
+                .map(ConeAttackCapability.class::cast)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(cone, "and it attacks through the cone capability, not a projectile");
+        assertEquals(PvzceIds.DAMAGE_SPRAY, cone.damageType(),
+                "its hit is the spray line: a shield does not stop it, and it is not fire");
+
         level.spawnPlant(fume, level.team(PLANT_TEAM), 1, 2);
         ZombieEntity bucket = level.spawnZombie(PvzceIds.id("buckethead_zombie"),
                 level.team(ZOMBIE_TEAM), 5.0F, 2);
         level.flushPending(bridge);
         int armor = bucket.armorHealth();
 
-        // Long enough for a spray to cross the zombie and leave: at 2.4 cells a second that is
-        // well under a second, and the fume fires every 1.5s - so at most one hit per volley.
-        int hits = 0;
-        int previous = bucket.health();
+        int volleys = 0;
+        int previous = bucket.armorHealth();
         for (int i = 0; i < 200 && bucket.isAlive(); i++) {
             level.tick(bridge);
-            if (bucket.health() != previous) {
-                hits++;
-                previous = bucket.health();
+            if (bucket.armorHealth() != previous) {
+                volleys++;
+                previous = bucket.armorHealth();
             }
         }
-        assertTrue(hits <= 2, "at most two volleys in 200 ticks, so at most two hits; got " + hits);
-        assertEquals(armor, bucket.armorHealth(), "and armour still does not stop it");
+        assertEquals(3, volleys,
+                "one hit per volley and nothing re-hitting in between; got " + volleys);
+        assertEquals(armor - 3 * 20, bucket.armorHealth(),
+                "and every one of them went into the bucket: the hat takes them, and no"
+                        + " tick in between costs the zombie anything");
+        assertEquals(200, bucket.health(), "so the body behind the bucket is untouched");
+    }
+
+    /**
+     * The gas is drawn as a <em>line</em> of clouds, not one puff on the mushroom's face.
+     *
+     * <p>The particle engine puts every particle of a definition exactly where the effect was
+     * spawned and only {@code motion} moves it afterwards, so a single emit is a blob at one
+     * point. The original never had that problem - its {@code FumeCloud} was the flying
+     * <em>projectile sprite</em>, which is what made the gas read as stretching down the lane -
+     * and once the damage became instant there was nothing left to fly. So the shape is drawn
+     * instead: {@code cloud_count} emitters spread across the cone, each drifting forward.
+     *
+     * <p>Also pins that the sound stays on one of them. Every emit carries a whole effect event,
+     * so a sound on each stop would play one breath three times over.
+     */
+    @Test
+    void theCloudIsDrawnAsALineWithOneSound() {
+        LevelServer level = running(level("2_3"));
+        Bridge bridge = new Bridge();
+        PlantDef fume = BuiltInRegistries.PLANTS.get(PvzceIds.id("fume_shroom"));
+        PlantEntity plant = level.spawnPlant(fume, level.team(PLANT_TEAM), 1, 2);
+        level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), 5.0F, 2);
+        level.flushPending(bridge);
+
+        // Two ticks: the first drops the cooldown to zero, the second is the breath.
+        level.tick(bridge);
+        level.tick(bridge);
+
+        List<EffectEventS2C> clouds = bridge.effectsOf(
+                ConeAttackCapability.DEFAULT_CLOUD_PARTICLE.toString());
+        assertEquals(ConeAttackCapability.DEFAULT_CLOUD_COUNT, clouds.size(),
+                "one cloud per stop along the cone; got " + clouds.size());
+        for (EffectEventS2C cloud : clouds) {
+            assertEquals(plant.cellY(), cloud.y(), 0.001F, "every cloud is in the plant's row");
+        }
+        assertTrue(clouds.get(0).x() < clouds.get(1).x() && clouds.get(1).x() < clouds.get(2).x(),
+                "and they march forwards: " + clouds.stream().map(EffectEventS2C::x).toList());
+        assertTrue(clouds.get(2).x() <= plant.cellX() + 4F,
+                "the last one still stops at the reach, was " + clouds.get(2).x());
+        long withSound = clouds.stream()
+                .filter(c -> c.sound() != null && !c.sound().isEmpty())
+                .count();
+        assertEquals(1, withSound, "exactly one cloud carries the sound, not one per stop");
+    }
+
+    /**
+     * The cloud reaches four cells and stops there, and only covers the cells in front.
+     *
+     * <p>The range is the plant's own reach and the same number on both sides of the question:
+     * a zombie inside it is worth breathing at, one outside it is left alone. Without the second
+     * half the fume-shroom would be a whole-lane attacker with a four-cell drawing.
+     *
+     * <p>The zombie on the plant's own cell is the case that made this a real bug rather than a
+     * formality. "In front" has to be read off the <em>cell</em>: the plant stands at 1.5 and its
+     * muzzle at 1.8, so a zombie that has walked onto the plant sits at 1.99 - further right than
+     * the muzzle, and comfortably inside four cells - and a plain "is it right of the muzzle"
+     * test had the mushroom breathing on the very zombie eating it. The original's fume never
+     * hits its own cell.
+     */
+    @Test
+    void theCloudReachesFourCellsForwardsAndNoFurther() {
+        LevelServer level = running(level("2_3"));
+        Bridge bridge = new Bridge();
+        PlantDef fume = BuiltInRegistries.PLANTS.get(PvzceIds.id("fume_shroom"));
+        level.spawnPlant(fume, level.team(PLANT_TEAM), 1, 2);
+        // Plant centre 1.5, muzzle 1.8: 3.2 is inside the four cells, 4.4 is past the end.
+        ZombieEntity inside = level.spawnZombie(PvzceIds.id("basic_zombie"),
+                level.team(ZOMBIE_TEAM), 5.0F, 2);
+        ZombieEntity beyond = level.spawnZombie(PvzceIds.id("basic_zombie"),
+                level.team(ZOMBIE_TEAM), 6.2F, 2);
+        // On the plant's own cell, which is where a fume-shroom's own attacker stands.
+        ZombieEntity onTop = level.spawnZombie(PvzceIds.id("basic_zombie"),
+                level.team(ZOMBIE_TEAM), 1.9F, 2);
+        level.flushPending(bridge);
+
+        // One volley is all this asks about, so the zombies do not walk into a different
+        // answer while it runs: a couple of ticks is well inside the plant's 90-tick cadence.
+        level.tick(bridge);
+        level.tick(bridge);
+
+        assertEquals(180, inside.health(), "inside the cone: the cloud reached it");
+        assertEquals(200, beyond.health(), "past the fourth cell: out of reach");
+        assertEquals(200, onTop.health(),
+                "and the zombie standing on the plant is not in front of it, however far right"
+                        + " of the muzzle its centre happens to be");
     }
 
     /** A spawner that promises graves a level does not paint is a data mistake, not a surprise. */

@@ -3,12 +3,19 @@
   "look": {
     "alpha_from": 0.9,
     "alpha_to": 0.9,
-    "scale": 0.7,
-    "life": 0.8333,
+    "scale": 0.5,
+    "scale_spread": 0.12,
+    "life": 0.5,
     "frames_per_second": 60.0,
     "loop": true,
     "texture": "pvzce:textures/particles/misc/puffshroom_puff1"
   },
-  "count": 20,
-  "count_spread": 20
+  "motion": {
+    "speed": 1.0,
+    "speed_spread": 0.4,
+    "angle": 0.0,
+    "angle_spread": 12.0
+  },
+  "count": 28,
+  "count_spread": 8
 }

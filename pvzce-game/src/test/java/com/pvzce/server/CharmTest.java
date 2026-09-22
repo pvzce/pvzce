@@ -179,12 +179,18 @@ class CharmTest {
         assertEquals(before, zombie.health(), "a cherry bomb on its own side does not hurt it");
     }
 
-    /** It fights: it walks at the zombie in front of it and bites it. */
+    /**
+     * It turns around and fights: it walks back up the lane and bites what is now in front.
+     *
+     * <p>"In front" follows the direction it walks - the original's hypnotised zombie turns
+     * around and goes after the horde - so the enemy stands <em>behind</em> where the zombie
+     * spawned, and the charmed one has to be facing that way to reach it.
+     */
     @Test
     void aCharmedZombieAttacksItsFormerSide() {
         LevelServer level = level();
         Bridge bridge = new Bridge();
-        ZombieEntity charmed = level.spawnZombie(BASIC_ZOMBIE, level.team(ZOMBIE_TEAM), 7.0F, 0);
+        ZombieEntity charmed = level.spawnZombie(BASIC_ZOMBIE, level.team(ZOMBIE_TEAM), 6.0F, 0);
         // Within bite reach from the start, and on purpose: a charmed zombie walks at the same
         // speed as the one it is chasing, so a gap between them is a gap it can never close.
         // "It bites what is in front of it" is the rule under test; "it can catch up" is not a
@@ -197,10 +203,9 @@ class CharmTest {
         tick(level, bridge, 120);
 
         assertTrue(enemy.health() < enemyHealth,
-                "the charmed zombie bit the one in front of it (was " + enemyHealth
+                "the charmed zombie bit the one it walked into (was " + enemyHealth
                         + ", now " + enemy.health() + ")");
-        // It walks toward the house like any zombie, so the walk keeps going between bites.
-        assertTrue(charmed.cellX() < 7.0F, "and it is still walking");
+        assertTrue(charmed.cellX() > 6.0F, "and it is walking back up the lane, not at the house");
     }
 
     /**
@@ -216,7 +221,9 @@ class CharmTest {
         Bridge bridge = new Bridge();
         PlantDef pea = BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter"));
         level.spawnPlant(pea, level.team(PLANT_TEAM), 4, 0);
-        ZombieEntity charmed = level.spawnZombie(BASIC_ZOMBIE, level.team(ZOMBIE_TEAM), 6.5F, 0);
+        // Left of the plant: a charmed zombie walks back up the lane, so the plant it would have
+        // to stop for has to be the one it passes on the way.
+        ZombieEntity charmed = level.spawnZombie(BASIC_ZOMBIE, level.team(ZOMBIE_TEAM), 3.5F, 0);
         level.flushPending(bridge);
         // The plant it will walk over, taken by identity so the assertion cannot accidentally
         // read a different one.
@@ -231,9 +238,32 @@ class CharmTest {
 
         assertEquals(health, plant.health(),
                 "a charmed zombie does not eat the plant it walks over");
-        assertTrue(charmed.cellX() < startX - 1.0F,
-                "it walked on instead of stopping to chew (from " + startX
+        assertTrue(charmed.cellX() > startX + 1.0F,
+                "it turned around and walked off instead of stopping to chew (from " + startX
                         + " to " + charmed.cellX() + ")");
+    }
+
+    /**
+     * A charmed zombie walks back up the lane and leaves by the far edge.
+     *
+     * <p>The other half of "it turned around": the horde's edge is the house on the left, and a
+     * charmed one is heading the other way - so it walks off the right of the board and is gone,
+     * rather than standing at the house for the rest of the level.
+     */
+    @Test
+    void aCharmedZombieLeavesByTheFarEdge() {
+        LevelServer level = level();
+        Bridge bridge = new Bridge();
+        ZombieEntity charmed = level.spawnZombie(BASIC_ZOMBIE, level.team(ZOMBIE_TEAM), 1.0F, 2);
+        level.flushPending(bridge);
+        charmed.setTeam(level.team(PLANT_TEAM));
+
+        // Nine columns at 0.23 cells a second: from column one to past the right edge is about
+        // 35 seconds, so this is the walk and not a shortcut.
+        tick(level, bridge, 2400);
+
+        assertTrue(charmed.isRemoved() || !level.entities().contains(charmed),
+                "it walked off the right edge, at " + charmed.cellX());
     }
 
     /** A charmed zombie is not what stands between the player and a win. */

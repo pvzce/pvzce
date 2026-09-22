@@ -37,14 +37,28 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
     public static final int MAX_CAPACITY = 12;
 
     /** One entry of the belt's pool: a card id (slot or plant) and its relative weight. */
-    public record BeltCard(Identifier card, int weight) {
+    public record BeltCard(Identifier card, int weight, int maxCount) {
+        /** {@code max_count} unwritten: this card may arrive as often as the belt draws it. */
+        public static final int UNLIMITED = -1;
+
         public static final Codec<BeltCard> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("id").forGetter(BeltCard::card),
-                Codec.INT.optionalFieldOf("weight", 1).forGetter(BeltCard::weight)
+                Codec.INT.optionalFieldOf("weight", 1).forGetter(BeltCard::weight),
+                // The original's "Max Count": a belt with thirteen graves on it hands out
+                // thirteen grave busters and then stops offering them, because there is
+                // nothing left for a fourteenth to do. The belt is where the counting
+                // happens, so the limit is enforced where the cards are drawn.
+                Codec.INT.optionalFieldOf("max_count", UNLIMITED).forGetter(BeltCard::maxCount)
         ).apply(i, BeltCard::new));
 
         public BeltCard {
             weight = Math.max(0, weight);
+            maxCount = maxCount < 0 ? UNLIMITED : maxCount;
+        }
+
+        /** True when one more of these may still be dealt after {@code dealt} copies. */
+        public boolean canDealMore(int dealt) {
+            return maxCount == UNLIMITED || dealt < maxCount;
         }
     }
 
@@ -90,18 +104,59 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
      * know how the pool was written.
      */
     public Identifier pick(Random random) {
-        int total = totalWeight();
+        return pick(random, card -> 0);
+    }
+
+    /**
+     * Draws one card id from the pool, weighted, skipping the cards that have run out.
+     *
+     * <p>{@code dealt} answers "how many of this card has the belt already delivered". A card
+     * at its {@code max_count} leaves the pool and the remaining weights renormalise over
+     * what is left, which is what the original's belt does when the last grave buster has
+     * been handed out: the bar keeps filling, with everything else.
+     *
+     * <p>Returns {@code null} when nothing can be dealt any more - every card is either
+     * weightless or exhausted - which the belt reads as "this belt is finished" rather than
+     * as a card.
+     */
+    public Identifier pick(Random random, java.util.function.ToIntFunction<Identifier> dealt) {
+        java.util.List<BeltCard> available = available(dealt);
+        int total = 0;
+        for (BeltCard card : available) {
+            total += card.weight();
+        }
         if (total <= 0) {
             return null;
         }
         int roll = random.nextInt(total);
-        for (BeltCard card : cards) {
+        for (BeltCard card : available) {
             roll -= card.weight();
             if (roll < 0) {
                 return card.card();
             }
         }
-        return cards.get(cards.size() - 1).card();
+        return available.get(available.size() - 1).card();
+    }
+
+    /** True when the pool still holds a card that has not run out. */
+    public boolean canDeal(java.util.function.ToIntFunction<Identifier> dealt) {
+        for (BeltCard card : cards) {
+            if (card.weight() > 0 && card.canDealMore(dealt.applyAsInt(card.card()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The cards that may still be dealt, in the order the pool lists them. */
+    private java.util.List<BeltCard> available(java.util.function.ToIntFunction<Identifier> dealt) {
+        java.util.List<BeltCard> available = new java.util.ArrayList<>();
+        for (BeltCard card : cards) {
+            if (card.weight() > 0 && card.canDealMore(dealt.applyAsInt(card.card()))) {
+                available.add(card);
+            }
+        }
+        return available;
     }
 
     /** One message per authoring problem, for {@code LevelValidator}. */
@@ -114,6 +169,15 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
         }
         if (initialCards <= 0 && !producesCards()) {
             errors.add("conveyor starts empty and can never produce a card");
+        }
+        for (BeltCard card : cards) {
+            // A card that may never be dealt is a line that reads as "this level offers a
+            // grave buster" and never does - the failure mode of a stray digit in max_count,
+            // which nothing else in the game would report.
+            if (card.maxCount() == 0) {
+                errors.add("conveyor card '" + card.card() + "' has max_count 0, so it would"
+                        + " never be dealt (leave max_count out for no limit)");
+            }
         }
         return errors;
     }

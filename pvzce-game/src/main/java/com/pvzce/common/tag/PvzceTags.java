@@ -2,6 +2,7 @@ package com.pvzce.common.tag;
 
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.SceneElementDef;
+import com.pvzce.api.content.ZombieDef;
 import com.pvzce.api.registry.Registry;
 import com.pvzce.api.registry.ResourceKey;
 import com.pvzce.api.tag.TagKey;
@@ -155,10 +156,32 @@ public final class PvzceTags {
             TagKey.create(PvzceRegistries.SCENE_ELEMENTS,
                     Identifier.withDefaultNamespace("rises_from_ground"));
 
+    // ------------------------------------------------------------------
+    // zombie tags - what a kind of zombie is, beyond its own definition
+    // ------------------------------------------------------------------
+
+    /**
+     * Zombies a freeze does not hold: the ice-shroom's list of things cold cannot stop.
+     *
+     * <p>The original exempts a balloon zombie in the air and a digger under the lawn from
+     * being <em>frozen</em> - it still deals them the damage and leaves them chilled - and
+     * which zombies those are is a statement about content rather than a branch the freeze
+     * should carry. A pack adds its own by tagging it, so a zombie whose art or behaviour
+     * makes it immune to cold never has to be named in code.
+     *
+     * <p>In the {@code pvzce} namespace: "cold cannot hold this one" is this game's rule, the
+     * same way {@link #SCENE_RISES_FROM_GROUND} is this game's convention.
+     */
+    public static final TagKey<ZombieDef> ZOMBIE_FREEZE_IMMUNE =
+            TagKey.create(PvzceRegistries.ZOMBIES,
+                    Identifier.withDefaultNamespace("freeze_immune"));
+
     /** Scene elements, for terrain tag queries. */
     public static final RegistryTagView<SceneElementDef> SCENE_ELEMENTS = view(PvzceRegistries.SCENE_ELEMENTS);
     /** Plants, for the placement rules and for content queries. */
     public static final RegistryTagView<PlantDef> PLANTS = view(PvzceRegistries.PLANTS);
+    /** Zombies, for the content queries that are about a kind of zombie rather than an entity. */
+    public static final RegistryTagView<ZombieDef> ZOMBIES = view(PvzceRegistries.ZOMBIES);
 
     private PvzceTags() {
     }

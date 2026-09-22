@@ -1,5 +1,6 @@
 {
   "id": "pvzce:spray",
-  "ignores_armor": true,
-  "burns": false
+  "ignores_armor": false,
+  "burns": false,
+  "ignores_front_armor": true
 }

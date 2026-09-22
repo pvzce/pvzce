@@ -45,15 +45,11 @@ import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
-import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.common.util.MathUtil;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.lwjgl.glfw.GLFW;
@@ -119,8 +115,6 @@ public final class PvzceClient {
     private volatile List<LevelTabsS2C.Tab> levelTabs = List.of();
     /** Coins and unlocks of the current world; menus only, the server is authoritative. */
     private final ClientProfile profile = new ClientProfile();
-    private final Map<String, List<String>> rememberedSeeds = new LinkedHashMap<>();
-    private Path seedSelectionFile;
     private long clientTick;
     private int lastWindowWidth;
     private int lastWindowHeight;
@@ -219,7 +213,6 @@ public final class PvzceClient {
             LOGGER.warn("[tags] {}", error);
         }
 
-        loadSeedSelections();
         window = new PvzceWindow("PVZ Community Edition", config);
         lastWindowWidth = window.width();
         lastWindowHeight = window.height();
@@ -1382,11 +1375,17 @@ public final class PvzceClient {
         connection.send(new UnlockLevelC2S(levelId, currentWorld));
     }
 
-    /** Starts a level with an explicit seed selection and remembers it for next time. */
+    /**
+     * Starts a level with the cards the player picked.
+     *
+     * <p>The pick is sent and then forgotten: the next time this level's chooser opens it opens
+     * empty, with only the level's own fixed cards pinned. Remembering the last bar per level
+     * meant a player who came back a week later had to clear a deck they no longer wanted before
+     * they could build the one they did - and the bar they picked for a level is not a property
+     * of the level.
+     */
     public void startLevelWithSeeds(String levelId, boolean restart, List<String> selectedSeeds) {
-        List<String> seeds = List.copyOf(selectedSeeds);
-        rememberSeedSelection(currentWorld, levelId, seeds);
-        connection.send(new PlayLevelC2S(levelId, currentWorld, restart, seeds));
+        connection.send(new PlayLevelC2S(levelId, currentWorld, restart, List.copyOf(selectedSeeds)));
     }
 
     /**
@@ -1397,7 +1396,7 @@ public final class PvzceClient {
      * target pops.
      */
     public void openSeedSelection(LevelListS2C.LevelInfo info, boolean restart) {
-        openSeedSelection(info, seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots()), null);
+        openSeedSelection(info, List.of(), null);
     }
 
     /**
@@ -1426,7 +1425,8 @@ public final class PvzceClient {
      *
      * <p>Everything else goes through as many pre-game screens as the <em>level</em> says it
      * needs: 关卡准备 only when it offers more than one playable side (see
-     * {@link #offersTeamChoice}), and the seed chooser unless the level deals its own cards.
+     * {@link #offersTeamChoice}), and then the seed chooser - which is a pass-through for a
+     * level with nothing to choose, whether its deck is fixed or it deals its own cards.
      * This is the only place that ordering is written; the level list, the smoke hook and the
      * editor's 测试 all arrive here.
      */
@@ -1437,12 +1437,10 @@ public final class PvzceClient {
             // The level names more than one side, so which one to play is a real question and
             // this is the screen that asks it. The screen forwards back here when answered.
             openScreen(new com.pvzce.client.gui.screens.LevelSetupScreen(this, info));
-        } else if (dealsItsOwnCards(info.id())) {
-            // Nothing to choose: a conveyor level's cards are delivered by the level
-            // itself, one at a time and for free, so a "choose your seeds" page would
-            // offer a deck the server is going to discard.
-            requestFreshRunDirectly(info.id(), false);
         } else {
+            // Including the levels that deal their own cards: the chooser is a pass-through
+            // for those (nothing to pick, nothing drawn), and it is where a level's lawn,
+            // opening conversation and zombie line-up are shown before it starts.
             openSeedSelection(info, false);
         }
     }
@@ -1497,7 +1495,10 @@ public final class PvzceClient {
         return new ChooseSeedsScreen(this, info.id(), info.name(), info.seedPool(),
                 info.maxSeedSlots(), info.previewZombies(), info.width(), info.height(),
                 info.sceneCells(), initialSelection, onBack != null, onBack, lockedSlotsFor(info.id()),
-                info.payload().backgroundId(), info.payload().hiddenSceneElements());
+                info.payload().backgroundId(), info.payload().hiddenSceneElements(),
+                // A conveyor level: nothing to choose, but still worth a look at the lawn, the
+                // conversation and the zombies - see ChooseSeedsScreen's pass-through.
+                dealsItsOwnCards(info.id()));
     }
 
     private LevelListS2C.LevelInfo findLevelInfo(String levelId) {
@@ -1510,18 +1511,6 @@ public final class PvzceClient {
     }
 
     /**
-     * True when this level's chooser would have nothing to offer.
-     *
-     * <p>Read from the level list's own snapshot - the pool the server sent and the level's
-     * own cards - so the answer matches the screen that would have been built from it. Used
-     * by the save prompt's restart, which skips a page whose only button would be "start".
-     */
-    public boolean hasNothingToChoose(LevelListS2C.LevelInfo info) {
-        return info != null && com.pvzce.common.core.SeedOptions.hasNothingToChoose(
-                info.seedPool(), info.maxSeedSlots(), lockedSlotsFor(info.id()));
-    }
-
-    /**
      * The save prompt's "重新开始" option: keep the loaded save untouched and
      * paused while the client shows seed selection. Submitting the new cards
      * sends {@code PlayLevelC2S(restart=true)}, which deletes the old save and
@@ -1530,17 +1519,18 @@ public final class PvzceClient {
      */
     public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
         LevelListS2C.LevelInfo info = findLevelInfo(prompt.levelId());
-        if (info == null || dealsItsOwnCards(prompt.levelId()) || hasNothingToChoose(info)) {
-            // No registry snapshot (for example a direct smoke request), nothing to choose
-            // because the level deals its own cards, or nothing to choose because the level
-            // pins every slot: fall back to the server-side restart, which is the same thing
-            // minus a page asking for a deck that is not the player's to pick.
+        if (info == null) {
+            // No registry snapshot (for example a direct smoke request): fall back to the
+            // server-side restart, which is the same thing minus the page. Levels whose cards
+            // are not the player's to pick (a fixed deck, a conveyor belt) go through the
+            // chooser as a pass-through instead - that page is also the level's preview.
             connection.send(new RestartLevelC2S(prompt.levelId(), prompt.worldName(), List.of()));
             return;
         }
-        List<String> initial = prompt.levelId().equals(level.levelId())
-                ? level.slots().stream().map(slot -> slot.defId()).toList()
-                : seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
+        // The chooser opens empty either way: the bar a run happens to be holding is not a
+        // choice the player made for the *next* run, and the level's own fixed cards are pinned
+        // by the chooser itself (see `lockedSlotsFor`).
+        List<String> initial = List.of();
         // The old run is still loaded (and frozen) behind the chooser, so its music
         // would otherwise keep playing under the chooser theme until the seed
         // selection finally replaced the level. Only the client stops here: the
@@ -1565,85 +1555,6 @@ public final class PvzceClient {
     private void silenceLevelMusic() {
         if (music != null) {
             music.leaveLevel();
-        }
-    }
-
-    private List<String> seedSelectionOrDefault(String levelId, List<SeedOption> pool, int maxSeedSlots) {
-        List<String> remembered = seedSelection(currentWorld, levelId);
-        if (remembered != null) {
-            return remembered;
-        }
-        int limit = Math.max(0, maxSeedSlots);
-        List<String> defaults = new ArrayList<>();
-        for (SeedOption option : pool) {
-            if (defaults.size() >= limit) {
-                break;
-            }
-            defaults.add(option.slotId());
-        }
-        return defaults;
-    }
-
-    /** Returns the remembered selection, or {@code null} when this world/level has never been played. */
-    public List<String> seedSelection(String world, String levelId) {
-        List<String> selection = rememberedSeeds.get(seedKey(world, levelId));
-        return selection == null ? null : List.copyOf(selection);
-    }
-
-    private void rememberSeedSelection(String world, String levelId, List<String> seeds) {
-        rememberedSeeds.put(seedKey(world, levelId), List.copyOf(seeds));
-        saveSeedSelections();
-    }
-
-    private static String seedKey(String world, String levelId) {
-        return (world == null ? "world" : world) + "|" + levelId;
-    }
-
-    private void loadSeedSelections() {
-        seedSelectionFile = gameDir.resolve("config/pvzce-seed-selections.json");
-        rememberedSeeds.clear();
-        if (!Files.isRegularFile(seedSelectionFile)) {
-            return;
-        }
-        try {
-            JsonElement parsed = JsonParser.parseString(Files.readString(seedSelectionFile));
-            if (!parsed.isJsonObject()) {
-                return;
-            }
-            for (Map.Entry<String, JsonElement> entry : parsed.getAsJsonObject().entrySet()) {
-                if (!entry.getValue().isJsonArray()) {
-                    continue;
-                }
-                List<String> seeds = new ArrayList<>();
-                for (JsonElement element : entry.getValue().getAsJsonArray()) {
-                    if (element.isJsonPrimitive()) {
-                        seeds.add(element.getAsString());
-                    }
-                }
-                rememberedSeeds.put(entry.getKey(), List.copyOf(seeds));
-            }
-        } catch (Throwable t) {
-            LOGGER.warn("Failed to read the seed selections", t);
-        }
-    }
-
-    private void saveSeedSelections() {
-        if (seedSelectionFile == null) {
-            return;
-        }
-        try {
-            Files.createDirectories(seedSelectionFile.getParent());
-            JsonObject root = new JsonObject();
-            for (Map.Entry<String, List<String>> entry : rememberedSeeds.entrySet()) {
-                JsonArray array = new JsonArray();
-                for (String seed : entry.getValue()) {
-                    array.add(seed);
-                }
-                root.add(entry.getKey(), array);
-            }
-            Files.writeString(seedSelectionFile, root.toString());
-        } catch (Throwable t) {
-            LOGGER.warn("Failed to write the seed selections", t);
         }
     }
 
@@ -1719,17 +1630,11 @@ public final class PvzceClient {
         }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
-        if (dealsItsOwnCards(levelId)) {
-            // A conveyor level restarts straight into a fresh belt: there are no cards to
-            // pick, so the chooser that normally sits between "closed" and "restarted" has
-            // nothing to ask. The init packet rebuilds the screen, as it does for any entry.
-            requestFreshRunDirectly(levelId, true);
-            return;
-        }
-        List<String> initial = seedSelectionOrDefault(info.id(), info.seedPool(), info.maxSeedSlots());
+        List<String> initial = List.of();
         // Installed as the root (the level was just closed, so nothing is underneath), which
         // is also what makes the chooser a restart: onBack non-null is the one thing that
-        // says "there is a state to come back to".
+        // says "there is a state to come back to". A conveyor level runs through it too, as a
+        // pass-through - that is where its zombie preview and opening conversation live.
         setScreenReplacing(createSeedSelection(info, initial, this::showLevelList));
     }
 
@@ -2045,13 +1950,9 @@ public final class PvzceClient {
             pendingTestLevelId = null;
             for (LevelListS2C.LevelInfo info : this.levelList) {
                 if (wanted.equals(info.id())) {
-                    if (dealsItsOwnCards(info.id())) {
-                        // A conveyor level hands out its own cards, so testing it means
-                        // starting it, not picking a deck for it.
-                        requestFreshRunDirectly(info.id(), true);
-                    } else {
-                        openSeedSelection(info, true);
-                    }
+                    // Belt levels come through here too: the chooser shows their preview and
+                    // starts itself, which is what "test this level" means for them as well.
+                    openSeedSelection(info, true);
                     break;
                 }
             }

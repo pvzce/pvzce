@@ -67,6 +67,16 @@ public final class WaveDirector {
 
         /** The final wave's farewell: every grave gives up one of this wave's zombies. */
         void riseGraveZombies(WaveDef wave);
+
+        /**
+         * How much faster than written this level's waves run; {@code 1} = exactly as written.
+         *
+         * <p>The level's {@code zombie_spawn_speed_multiplier} rule. Read at the two places a
+         * time is taken from the wave table (the gap between waves and the gap between the
+         * zombies inside one), so a level that speeds its spawns up cannot speed up one of them
+         * and forget the other.
+         */
+        float zombieSpawnSpeedMultiplier();
     }
 
     private final Host host;
@@ -133,7 +143,26 @@ public final class WaveDirector {
         endMultiplier = Math.max(0.05F, Math.min(10F, endMultiplier));
         float progress = total <= 1 ? 0F : waveIndex / (float) (total - 1);
         float multiplier = 1F + (endMultiplier - 1F) * progress;
-        return Math.max(1, Math.round(wave.delay() * multiplier));
+        return Math.max(1, Math.round(wave.delay() * multiplier / spawnSpeed()));
+    }
+
+    /**
+     * The level's spawn speed, as a positive factor to divide times by.
+     *
+     * <p>One read for both times taken from the wave table (see the host method), and defensive
+     * about the value even though the rule itself is clamped on the way in: a zero or a NaN here
+     * would make every wave arrive on tick one.
+     */
+    private float spawnSpeed() {
+        float speed = host.zombieSpawnSpeedMultiplier();
+        return Float.isFinite(speed) && speed > 0F ? speed : 1F;
+    }
+
+    /** A per-zombie interval at this level's spawn speed, never below the wave's own floor. */
+    private int effectiveSpawnInterval(WaveDef wave) {
+        // WaveDef.spawnInterval() already floors the authored number at 15 ticks; the floor is
+        // about "a wave is not one simultaneous dump", so it holds after scaling too.
+        return Math.max(15, Math.round(wave.spawnInterval() / spawnSpeed()));
     }
 
     /** One tick of the wave clock. Call it once per level tick, before the entities move. */
@@ -233,7 +262,8 @@ public final class WaveDirector {
 
         List<Identifier> zombies = expandEntries(wave.entries());
         Collections.shuffle(zombies, host.random());
-        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(), wave.spawnInterval(), holdTicks));
+        pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(),
+                effectiveSpawnInterval(wave), holdTicks));
 
         int announcedIndex = waveIndex;
         boolean firstAnnouncement = announcedWaves.add(announcedIndex);

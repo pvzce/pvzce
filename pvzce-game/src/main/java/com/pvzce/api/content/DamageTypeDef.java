@@ -32,8 +32,16 @@ import com.pvzce.api.util.Identifier;
  *                     for. A flag on the type rather than a list of ids in the death code:
  *                     "does this hit burn?" is a property of the hit, so a mod's own fire
  *                     damage can answer it without a code change
+ * @param ignoresFrontArmor {@code true} = a piece held <em>in front</em> of the zombie (a screen
+ *                     door, a newspaper) does not stop this hit, while what it wears on its head
+ *                     still does. The fume-shroom's spray is the case: the original's gas goes
+ *                     through a screen door and is still absorbed by a cone or a football helmet,
+ *                     which a single "armour" flag cannot say - the two are one boolean away from
+ *                     each other, and the difference is the whole reason the fume-shroom is the
+ *                     answer to a Screen Door Zombie and not to a Conehead.
  */
-public record DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns, boolean dismembers) {
+public record DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns, boolean dismembers,
+                            boolean ignoresFrontArmor) {
     public static final Codec<DamageTypeDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(DamageTypeDef::id),
             Codec.BOOL.optionalFieldOf("ignores_armor", false).forGetter(DamageTypeDef::ignoresArmor),
@@ -42,17 +50,25 @@ public record DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns, 
             Codec.BOOL.optionalFieldOf("burns", false).forGetter(DamageTypeDef::burns),
             // A hit that takes the head and arm off *itself* (the lawn mower throws both as
             // it goes over), so the death must not throw a second pair.
-            Codec.BOOL.optionalFieldOf("dismembers", false).forGetter(DamageTypeDef::dismembers)
+            Codec.BOOL.optionalFieldOf("dismembers", false).forGetter(DamageTypeDef::dismembers),
+            // Written by the fume-shroom's spray; unwritten means "a shield is a shield", which
+            // is what every type meant before the field existed.
+            Codec.BOOL.optionalFieldOf("ignores_front_armor", false)
+                    .forGetter(DamageTypeDef::ignoresFrontArmor)
     ).apply(i, DamageTypeDef::new));
 
-    /** The common case: a hit that does not burn. */
     /** A plain hit: armour stops it, it leaves no charred body, it throws nothing of its own. */
     public DamageTypeDef(Identifier id, boolean ignoresArmor) {
-        this(id, ignoresArmor, false, false);
+        this(id, ignoresArmor, false, false, false);
     }
 
     /** A hit that burns but does not throw anything off by itself. */
     public DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns) {
-        this(id, ignoresArmor, burns, false);
+        this(id, ignoresArmor, burns, false, false);
+    }
+
+    /** A hit that also takes a scrap of armour with it. */
+    public DamageTypeDef(Identifier id, boolean ignoresArmor, boolean burns, boolean dismembers) {
+        this(id, ignoresArmor, burns, dismembers, false);
     }
 }

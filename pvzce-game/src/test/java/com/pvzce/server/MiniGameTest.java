@@ -116,7 +116,7 @@ class MiniGameTest {
                 6, com.pvzce.api.content.LevelRewards.NONE, source.unlock(),
                 List.of(com.pvzce.api.content.mechanic.TypedMechanic.of(
                                 com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR,
-                                new LevelBelt(300, 6, 2, List.of(new LevelBelt.BeltCard(BOWLING_NUT, 1)))),
+                                new LevelBelt(300, 6, 2, List.of(new LevelBelt.BeltCard(BOWLING_NUT, 1, LevelBelt.BeltCard.UNLIMITED)))),
                         com.pvzce.api.content.mechanic.TypedMechanic.of(
                                 com.pvzce.common.PvzceIds.MECHANIC_PLACEMENT_ZONE,
                                 new PlacementZone(0, 3, 0, Integer.MAX_VALUE))),

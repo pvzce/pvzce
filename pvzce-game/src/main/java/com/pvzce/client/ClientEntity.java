@@ -54,6 +54,15 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
      */
     private boolean charmed;
     /**
+     * Whether the server has this zombie held solid (the ice-shroom's freeze).
+     *
+     * <p>State, like the two above it. The client needs it for two things the server cannot do
+     * from its side: it draws the ice under the zombie, and it stops the clip - a frozen zombie
+     * that kept walking its walk cycle on the spot would read as "stuck", not as "frozen".
+     * Always false for anything that is not a zombie.
+     */
+    private boolean frozen;
+    /**
      * Draw-size multiplier on top of the definition's own {@code render_scale}.
      *
      * <p>{@link EntitySpawnS2C#DEFAULT_SCALE} for everything whose size is content; a
@@ -92,6 +101,7 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
         this.armor = armor;
         this.chilled = chilled;
         this.charmed = charmed;
+        this.frozen = frozen;
         this.renderScale = renderScale <= 0F ? EntitySpawnS2C.DEFAULT_SCALE : renderScale;
         setAnimation(animation);
         setHeight(height);
@@ -123,6 +133,11 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
      */
     public boolean charmed() {
         return charmed;
+    }
+
+    /** True while the server has this zombie held solid; see {@link #frozen}. */
+    public boolean frozen() {
+        return frozen;
     }
 
 
@@ -269,6 +284,11 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
 
     public void update(float cellX, float cellY, int health, String animation, float height, int armor,
                        boolean chilled, boolean charmed, String teamId) {
+        update(cellX, cellY, health, animation, height, armor, chilled, charmed, false, teamId);
+    }
+
+    public void update(float cellX, float cellY, int health, String animation, float height, int armor,
+                       boolean chilled, boolean charmed, boolean frozen, String teamId) {
         // Interpolation starts from where this entity is being *drawn*, not from where the
         // last packet put it: a packet delayed past one sync period would otherwise make the
         // entity jump backwards to the previous sample before sliding forward again.
@@ -285,6 +305,7 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
         this.armor = armor;
         this.chilled = chilled;
         this.charmed = charmed;
+        this.frozen = frozen;
         // An empty id means "unchanged", so a level that has never charmed anything keeps
         // sending the same string it did from the spawn packet without anything resetting it.
         if (teamId != null && !teamId.isEmpty()) {
@@ -295,7 +316,8 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
     /** Applies {@link EntityUpdateS2C} directly so the packet shape lives in one place. */
     public void apply(EntityUpdateS2C update) {
         update(update.cellX(), update.cellY(), update.health(), update.animation(), update.height(),
-                update.armor(), update.chilled(), update.charmed(), update.teamId());
+                update.armor(), update.chilled(), update.charmed(), update.frozen(),
+                update.teamId());
     }
 
     public void attachAnimationManager(AnimationManager manager) {

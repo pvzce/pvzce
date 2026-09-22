@@ -376,7 +376,7 @@ class ServerMenuFlowTest {
             assertTrue(stoppedBeforeInit.contains(MusicEventS2C.TRACK_BACKGROUND),
                     "and so must its background track: " + stoppedBeforeInit);
 
-            // Resync of the running level: its music is current, so nothing may be stopped.
+            // Resync of the running level: its music carries on.
             //
             // Wait for the new instance to have ticked first. A level's opening music cue is
             // sent by `processMusicCues` on its first tick, which is *after* the init it was
@@ -387,8 +387,21 @@ class ServerMenuFlowTest {
             int beforeResync = server.packets().size();
             server.send(new ContinueLevelC2S("pvzce:yard/adventure/1_1", "musicworld"));
             awaitInitAfter(server, beforeResync);
-            assertFalse(tailHas(server.packets(), beforeResync, MusicEventS2C.class),
-                    "resyncing the running level must not touch its music");
+            List<MusicEventS2C> resyncMusic = server.packets()
+                    .subList(beforeResync, server.packets().size()).stream()
+                    .filter(MusicEventS2C.class::isInstance)
+                    .map(MusicEventS2C.class::cast)
+                    .toList();
+            assertTrue(resyncMusic.stream().noneMatch(MusicEventS2C::stop),
+                    "resyncing the running level stops nothing: " + resyncMusic);
+            // What it does send is the cue that is already playing - a full state has to say
+            // what the client should be hearing, or a client that joined after the cue (a
+            // resumed save, a second player) would sit in silence or play the wrong track.
+            // The client ignores a repeat of the track it has, so this is idempotent.
+            for (MusicEventS2C event : resyncMusic) {
+                assertEquals(MusicEventS2C.TRACK_BACKGROUND, event.track(),
+                        "the only thing the resync re-states is the track that is playing");
+            }
         }
     }
 

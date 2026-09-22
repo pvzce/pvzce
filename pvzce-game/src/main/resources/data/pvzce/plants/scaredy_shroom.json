@@ -1,0 +1,34 @@
+{
+  "id": "pvzce:scaredy_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:nocturnal"
+    },
+    {
+      "type": "pvzce:shooter",
+      "interval": 85,
+      "hide_within": 1.0,
+      "shots": [
+        {
+          "projectile": "pvzce:puff",
+          "damage": 20,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/puff"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/scaredy_shroom",
+  "render_scale": 0.85,
+  "order": 14
+}

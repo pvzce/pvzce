@@ -297,10 +297,10 @@ public class ZombieEntity extends PvzceEntity {
         // impact sound are the feedback, and the legs keep walking. Armour hits are the same
         // story - `ArmorCapability` no longer reaches for a clip either.
         if (isCharmed()) {
-            // A charmed zombie fights for the other side: it walks the lane looking for the
-            // zombies it used to belong to, and it does not touch the plants - not even the one
-            // it is standing on, which is what makes "the hypno-shroom's own cell is safe after
-            // the charm" true without a special case.
+            // A charmed zombie fights for the other side: it *turns around* and walks back up
+            // the lane looking for the zombies it used to belong to, and it does not touch the
+            // plants - not even the one it is standing on, which is what makes "the hypno-shroom's
+            // own cell is safe after the charm" true without a special case.
             biteOrWalk(level, enemyZombieInFront(level));
             return;
         }
@@ -310,11 +310,11 @@ public class ZombieEntity extends PvzceEntity {
             return;
         }
         setAnimation(walkState());
-        setCellX(cellX() - moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
+        setCellX(cellX() + walkDirection() * moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
         if (biteCooldown > 0) {
             biteCooldown--;
         }
-        checkReachedLeft(level);
+        checkReachedEdge(level);
     }
 
     /**
@@ -337,11 +337,12 @@ public class ZombieEntity extends PvzceEntity {
      * The enemy zombie this one is close enough to bite, or {@code null}.
      *
      * <p>Forward only, and by the same reach the shooters use, because that is the space a
-     * zombie's mouth occupies: it walks toward the house, so what it can bite is the thing in
-     * front of it. A charmed zombie walking right would be a different animation and a
-     * different problem, and nothing in the game produces one.
+     * zombie's mouth occupies: what it can bite is the thing it is walking into. "Forward" is
+     * the way it walks - toward the house for a zombie of the horde, back up the lane for one
+     * the hypno-shroom has turned - so the search looks on the side it is travelling towards.
      */
     private ZombieEntity enemyZombieInFront(LevelServer level) {
+        float facing = walkDirection();
         for (ZombieEntity other : level.enemiesInRow(gridY(), team())) {
             if (other.id() == id()) {
                 continue;
@@ -351,12 +352,25 @@ public class ZombieEntity extends PvzceEntity {
             if (!other.canBeHitByGround()) {
                 continue;
             }
-            float delta = other.cellX() - cellX();
+            float delta = (other.cellX() - cellX()) * facing;
             if (delta > -ZombieEntity.BITE_REACH && delta < ZombieEntity.BITE_REACH) {
                 return other;
             }
         }
         return null;
+    }
+
+    /**
+     * Which way this zombie is travelling: {@code -1} toward the house, {@code +1} back up the
+     * lane.
+     *
+     * <p>One answer for the whole entity, because "which way do I walk", "what is in front of me"
+     * and (on the client) "which way am I drawn" are the same fact. A charmed zombie is the only
+     * one that answers {@code +1}: the hypno-shroom turns it around, and everything else about it
+     * - its legs, its jaws, the edge it eventually leaves by - follows from that one number.
+     */
+    public float walkDirection() {
+        return isCharmed() ? 1F : -1F;
     }
 
     /**
@@ -376,17 +390,17 @@ public class ZombieEntity extends PvzceEntity {
             int damage = Math.round(def.biteDamage()
                     * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
             target.damage(damage, ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT), level);
-            biteCooldown = def.biteIntervalTicks();
+            biteCooldown = biteIntervalTicks();
             level.emitEffect(PvzceParticles.CHOMP.toString(), target.cellX(), target.cellY(),
                     def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
             return;
         }
         setAnimation(walkState());
-        setCellX(cellX() - moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
+        setCellX(cellX() + walkDirection() * moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
         if (biteCooldown > 0) {
             biteCooldown--;
         }
-        checkReachedLeft(level);
+        checkReachedEdge(level);
     }
 
     /**
@@ -403,7 +417,7 @@ public class ZombieEntity extends PvzceEntity {
             biteCooldown--;
             return;
         }
-        biteCooldown = def.biteIntervalTicks();
+        biteCooldown = biteIntervalTicks();
         if (plant.onBittenBy(this, level)) {
             // The bite was consumed: a plant that answers true has done something *instead* of
             // being eaten, and it is gone either way. The hypno-shroom is the case - the
@@ -444,6 +458,25 @@ public class ZombieEntity extends PvzceEntity {
         return EntityAnimations.WALK;
     }
 
+    /**
+     * How long this zombie waits between bites, once its statuses have had their say.
+     *
+     * <p>A chilled zombie bites at half rate as well as walking at half speed - the original's
+     * "cold" is one status that slows both, and a snow pea that only made zombies <em>walk</em>
+     * slower would leave its jaws on their own clock. Expressed as a longer interval rather
+     * than as a second timer: the countdown in {@code bitePlant} is the only bite clock there
+     * is, and it is already what "how often" means here.
+     */
+    private int biteIntervalTicks() {
+        int interval = def.biteIntervalTicks();
+        for (StatusInstance status : statuses) {
+            if (status.status == ZombieStatus.SLOW) {
+                interval = Math.round(interval / Math.max(0.05F, status.magnitude));
+            }
+        }
+        return Math.max(1, interval);
+    }
+
     /** Move speed after capability multipliers, the speed boost and statuses. */
     public float moveSpeed(LevelAccess level) {
         float speed = def.moveSpeed();
@@ -461,19 +494,29 @@ public class ZombieEntity extends PvzceEntity {
         return speed * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER);
     }
 
-    /**
-     * Reaching the house, for the zombies that are attacking it.
-     *
-     * <p>A charmed zombie walking off the left edge has reached its own side's house: it leaves
-     * the board and nothing else happens. Reporting it would end the level as a loss on the
-     * strength of a zombie the player has already turned - and "it walked into the house" is
-     * exactly what the original does with one, except that in the original it stops and stays
-     * there, which this level's win check already handles (a charmed zombie is not hostile).
-     */
+    /** Leaving the board by the edge this zombie walks towards; see {@link #checkReachedEdge}. */
     public void checkReachedLeft(LevelAccess level) {
+        checkReachedEdge(level);
+    }
+
+    /**
+     * Leaving the board, at whichever edge this zombie is walking towards.
+     *
+     * <p>A zombie of the horde that reaches the house (the left edge) loses the level for the
+     * plants. A charmed one is walking the other way and simply leaves by the other edge: it has
+     * done its job, and reporting it would end a level as a loss on the strength of a zombie the
+     * player already turned.
+     */
+    private void checkReachedEdge(LevelAccess level) {
+        if (walkDirection() > 0) {
+            if (cellX() >= level.width() + 0.4F) {
+                remove();
+            }
+            return;
+        }
         if (cellX() <= -0.4F) {
             leftCountdown++;
-            if (leftCountdown >= 60 && !isCharmed()) {
+            if (leftCountdown >= 60) {
                 level.zombieReachedLeft(this);
             }
         } else {
@@ -560,7 +603,7 @@ public class ZombieEntity extends PvzceEntity {
         int dmg = scaled(amount, level);
         if (!ignoresArmor(type)) {
             for (Instance instance : capabilities) {
-                if (instance.capability.onImpact(this, dmg, level)) {
+                if (instance.capability.onImpact(this, dmg, level, type)) {
                     return;
                 }
             }
@@ -792,6 +835,17 @@ public class ZombieEntity extends PvzceEntity {
             status.ticks--;
         }
         statuses.removeIf(status -> status.ticks <= 0);
+    }
+
+    /**
+     * Held solid: the ice-shroom's freeze, and the one thing the client draws ice for.
+     *
+     * <p>The same status {@link #walkOrEat} reads to stop the zombie walking; published so the
+     * client can stop the *animation* too, which the server cannot do from its side.
+     */
+    @Override
+    public boolean frozen() {
+        return isImmobilized();
     }
 
     private boolean isImmobilized() {

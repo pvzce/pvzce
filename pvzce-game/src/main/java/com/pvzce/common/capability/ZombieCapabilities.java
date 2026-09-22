@@ -12,6 +12,7 @@ import com.pvzce.common.capability.zombie.BossPhasesCapability;
 import com.pvzce.common.capability.zombie.DigCapability;
 import com.pvzce.common.capability.zombie.FlyCapability;
 import com.pvzce.common.capability.zombie.HammerCapability;
+import com.pvzce.common.capability.zombie.SummonDancersCapability;
 import com.pvzce.common.capability.zombie.VaultCapability;
 import com.pvzce.common.core.BuiltInRegistries;
 
@@ -25,6 +26,15 @@ public final class ZombieCapabilities {
     public static final CapabilityType<DigCapability> DIG = type("dig", DigCapability.CODEC);
     public static final CapabilityType<HammerCapability> HAMMER = type("hammer", HammerCapability.CODEC);
     public static final CapabilityType<BossPhasesCapability> BOSS_PHASES = type("boss_phases", BossPhasesCapability.CODEC);
+    /**
+     * Calls a crew of backup dancers and keeps the formation full.
+     *
+     * <p>The dancing zombie. It is a capability rather than a level mechanic because what it
+     * does is about the zombie: it walks, it stops, it calls, and from then on it is an
+     * ordinary zombie with four more bodies in its lanes.
+     */
+    public static final CapabilityType<SummonDancersCapability> SUMMON_DANCERS =
+            type("summon_dancers", SummonDancersCapability.CODEC);
 
     public static final Codec<TypedCapability<ZombieCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.ZOMBIE_CAPABILITIES, "zombie");
@@ -41,6 +51,7 @@ public final class ZombieCapabilities {
         register(DIG, "dig");
         register(HAMMER, "hammer");
         register(BOSS_PHASES, "boss_phases");
+        register(SUMMON_DANCERS, "summon_dancers");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

@@ -232,5 +232,15 @@
   "pvzce.zombie_damage_multiplier": "Zombie Damage Multiplier",
   "pvzce.zombie_speed_multiplier": "Zombie Speed Multiplier",
   "pvzce.zombie_sun_drop_chance": "Sun from a dying zombie",
-  "pvzce.zombie_sun_drop_count": "Suns per kill (drop rule)"
+  "pvzce.zombie_sun_drop_count": "Suns per kill (drop rule)",
+  "pvzce.scaredy_shroom": "Scaredy-shroom",
+  "pvzce.ice_shroom": "Ice-shroom",
+  "pvzce.football_zombie": "Football Zombie",
+  "pvzce.dancing_zombie": "Dancing Zombie",
+  "pvzce.backup_dancer": "Backup Dancer",
+  "pvzce.mechanic.grave_field": "Opening graves",
+  "pvzce.mechanic.grave_field.field.count": "Grave count",
+  "pvzce.mechanic.grave_field.field.min_x": "First column",
+  "pvzce.mechanic.grave_field.field.max_x": "Last column",
+  "pvzce.zombie_spawn_speed_multiplier": "Zombie spawn speed"
 }

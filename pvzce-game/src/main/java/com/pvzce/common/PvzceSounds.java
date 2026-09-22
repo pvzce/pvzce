@@ -40,6 +40,8 @@ public final class PvzceSounds {
     public static final Identifier ZOMBIE_BALLOON_POP = id("sfx/zombie/balloon_pop");
     public static final Identifier ZOMBIE_BOSS_BOULDER = id("sfx/zombie/bossboulderattack");
     public static final Identifier ZOMBIE_IMP = id("sfx/zombie/imp");
+    /** The dancing zombie's call: the original's own sting for the backup dancers. */
+    public static final Identifier ZOMBIE_DANCER = id("sfx/zombie/dancer");
 
     public static final Identifier EFFECT_EXPLOSION = id("sfx/effect/explosion");
     public static final Identifier EFFECT_BITE = id("sfx/effect/bite");
@@ -48,6 +50,8 @@ public final class PvzceSounds {
     public static final Identifier EFFECT_LAWNMOWER = id("sfx/effect/lawnmower");
     public static final Identifier EFFECT_DIRT_RISE = id("sfx/effect/dirt_rise");
     public static final Identifier EFFECT_BONK = id("sfx/effect/bonk");
+    /** The ice-shroom's freeze: the original's whole-lawn "frozen" sting. */
+    public static final Identifier EFFECT_FROZEN = id("sfx/effect/frozen");
 
     public static final Identifier AMBIENT_READY_SET_PLANT = id("sfx/ambient/readysetplant");
     public static final Identifier AMBIENT_HUGE_WAVE = id("sfx/ambient/hugewave");

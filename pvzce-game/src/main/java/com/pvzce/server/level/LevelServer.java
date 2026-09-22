@@ -139,6 +139,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private int tickCount;
     private int nextMusicCueIndex;
     /**
+     * The cue that is playing right now, or {@code null} when nothing is.
+     *
+     * <p>Kept so a client that joins or resumes in the middle of a run can be told what it
+     * missed: the cues are events, and an event that fired before this client was listening is
+     * one it never hears - without this, continuing a save played the client's default track
+     * (grasswalk) over a night level until the *next* cue happened to come round, which for a
+     * level whose only cue is at tick zero is never.
+     *
+     * <p>Restored by {@link #restore}, which replays the cue list up to the saved index rather
+     * than storing a second copy of it in the save.
+     */
+    private LevelDef.MusicCue currentMusicCue;
+    /**
      * Whether a due wave is being held back for an opening wave's field to clear, and for how
      * much longer. See {@link #openingWaveStillOnTheField()}.
      */
@@ -238,6 +251,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext) {
         this.def = def;
         this.seedContext = seedContext == null ? SeedContext.all(def) : seedContext;
+        // The rules first: the wave director reads one of them (`zombie_spawn_speed_multiplier`)
+        // while it works out its first wave's delay, and it is constructed with `this` as its
+        // host - so a rule read out of order is a null dereference in the constructor rather
+        // than a missing value somewhere later.
+        this.rules = new GameRules(def.rules());
         this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier());
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
@@ -250,7 +268,6 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         for (TeamDef teamDef : def.teams()) {
             teams.put(teamDef.id(), new Team(teamDef.id(), teamDef.name()));
         }
-        this.rules = new GameRules(def.rules());
         this.envVars = new LevelEnvVars(def.envVars());
 
         this.mechanics = LevelMechanics.effective(def);
@@ -1240,6 +1257,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 .toList();
         while (nextMusicCueIndex < cues.size() && tickCount >= cues.get(nextMusicCueIndex).atTick()) {
             LevelDef.MusicCue cue = cues.get(nextMusicCueIndex++);
+            // A cue with no event, or one that stops the track, leaves nothing playing.
+            currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
             bridge.send(new MusicEventS2C(
                     cue.track(),
                     cue.event().map(Identifier::toString).orElse(""),
@@ -1413,6 +1432,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * Bucketheads, and one of ordinary zombies gets ordinary ones. Nothing is added out of
      * thin air, and a wave with no entries at all opens nothing.
      */
+    @Override
+    public float zombieSpawnSpeedMultiplier() {
+        return rules().getFloat(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER);
+    }
+
     @Override
     public void riseGraveZombies(WaveDef wave) {
         if (!clock.isNight(rules) || !rules.getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT)) {
@@ -2210,6 +2234,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         bridge.send(new SceneSyncS2C(cells));
+        // What is playing, for a client that arrived after the cue did: a resumed run, or a
+        // second player joining. Sent after the init packet so the client has a level to attach
+        // the track to, and harmless when the track is the one it already started - the music
+        // controller ignores a start of the track that is already playing.
+        if (currentMusicCue != null) {
+            bridge.send(new MusicEventS2C(currentMusicCue.track(),
+                    currentMusicCue.event().map(Identifier::toString).orElse(""),
+                    currentMusicCue.loop(), false,
+                    Math.max(0F, Math.min(1F, currentMusicCue.volume())),
+                    Math.max(0F, currentMusicCue.fadeSeconds())));
+        }
         bridge.send(waveProgressPacket());
         bridge.send(timeOfDayPacket());
         if (plantTeam != null) {
@@ -2371,6 +2406,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         clock.setDayTicks(root.getLong("DayTicks"));
         waves.restore(root);
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
+        // Replayed rather than saved: the cue that is playing is "the last one that fired", which
+        // the index already says. Storing the cue itself would be a second copy of the level's
+        // own music block, and the two could disagree after a data pack edit.
+        currentMusicCue = null;
+        List<LevelDef.MusicCue> cues = def.music().cues().stream()
+                .sorted(Comparator.comparingInt(LevelDef.MusicCue::atTick))
+                .toList();
+        for (int i = 0; i < Math.min(nextMusicCueIndex, cues.size()); i++) {
+            LevelDef.MusicCue cue = cues.get(i);
+            currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
+        }
         restoreScene(root.getList("Scene"));
         restoreTeams(root.getCompound("Teams"));
         // Before restoreSlots: a self-dealt bar is a projection of the source, so the source

@@ -57,6 +57,8 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "winter_melon": ("idle", 0.0),
     "jalapeno": ("idle", 0.0),
     "doom_shroom": ("idle", 0.0),
+    "ice_shroom": ("idle", 0.0),
+    "scaredy_shroom": ("idle", 0.0),
     "squash": ("idle", 0.0),
     "puff_shroom": ("idle", 0.0),
     "sun_shroom": ("idle", 0.0),
@@ -86,6 +88,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "winter_melon": "plant/attacker",
     "puff_shroom": "plant/attacker",
     "fume_shroom": "plant/attacker",
+    "scaredy_shroom": "plant/attacker",
     "sunflower": "plant/producer",
     "sun_shroom": "plant/producer",
     "marigold": "plant/producer",
@@ -97,6 +100,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "potato_mine": "plant/special",
     "jalapeno": "plant/special",
     "doom_shroom": "plant/special",
+    "ice_shroom": "plant/special",
     "squash": "plant/special",
     "grave_buster": "plant/special",
     "hypno_shroom": "plant/special",
@@ -124,6 +128,8 @@ PLANT_ENTITIES = [
     "puff_shroom", "sun_shroom",
     # 2-2 and 2-3's unlocks, converted from the original's own reanims like the rest.
     "fume_shroom", "grave_buster", "hypno_shroom",
+    # The Night area's last two plants.
+    "scaredy_shroom", "ice_shroom",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

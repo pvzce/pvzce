@@ -72,7 +72,8 @@
   "rules": {
     "pvzce:day_length": 3600,
     "pvzce:night_length": 360000,
-    "pvzce:sun_spawn_chance": 0
+    "pvzce:sun_spawn_chance": 0,
+    "pvzce:zombie_spawn_speed_multiplier": 2.0
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,

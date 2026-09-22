@@ -51,21 +51,6 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
      * turns into one very long tick. The rest go up on the ticks that follow.
      */
     private static final int MAX_RISES_PER_TICK = 2;
-    /**
-     * How many random cells one rise may try before giving up.
-     *
-     * <p>Bounded rather than "scan for a free cell": one cell in the region is as good as
-     * another, and walking the whole region on every rise is a per-tick cost the level pays for
-     * the rest of the run. Twelve rolls find somewhere on any lawn that is not already full.
-     */
-    private static final int PLACEMENT_ATTEMPTS = 12;
-
-    /** The original's four tombstone designs, cycled so a topped-up lawn is not four of a kind. */
-    private static final List<Identifier> GRAVE_ELEMENTS = List.of(
-            PvzceIds.id("grave"),
-            PvzceIds.id("grave_cross"),
-            PvzceIds.id("grave_slab"),
-            PvzceIds.id("grave_wide"));
 
     @Override
     public MapCodec<GraveSpawnerData> codec() {
@@ -206,40 +191,13 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
             return false;
         }
         int wanted = Math.min(MAX_RISES_PER_TICK, target - present);
-        boolean raisedAny = false;
-        for (int i = 0; i < wanted; i++) {
-            if (placeOneGrave(level, data, rig)) {
-                raisedAny = true;
-            }
-        }
-        return raisedAny;
-    }
-
-    /** Picks a random free cell in the level's region and raises a gravestone in it. */
-    private static boolean placeOneGrave(LevelServer level, GraveSpawnerData data, Rig rig) {
-        int minX = data.minX();
-        int maxX = data.maxXFor(level.width());
-        int columns = maxX - minX + 1;
-        int rows = level.height();
-        if (columns <= 0 || rows <= 0) {
-            return false;
-        }
-        for (int attempt = 0; attempt < PLACEMENT_ATTEMPTS; attempt++) {
-            int x = minX + level.random().nextInt(columns);
-            int y = level.random().nextInt(rows);
-            if (level.isGrave(x, y)) {
-                // Already one there, so the count that sent us here was stale. Nothing to do:
-                // the next tick recounts.
-                return false;
-            }
-            Identifier element = GRAVE_ELEMENTS.get(rig.nextDesign % GRAVE_ELEMENTS.size());
-            if (level.placeGrave(element, x, y)) {
-                rig.nextDesign++;
-                rig.raised++;
-                return true;
-            }
-        }
-        return false;
+        // The scatter is shared with `grave_field`, which lays the opening board out: what a
+        // grave is, where it may stand and which design comes next are one implementation.
+        GraveScatter.Placement placed = GraveScatter.place(level, data.minX(),
+                data.maxXFor(level.width()), GraveScatter.DESIGNS, wanted, rig.nextDesign);
+        rig.nextDesign = placed.nextDesign();
+        rig.raised += placed.raised();
+        return placed.raised() > 0;
     }
 
     /** True when the level paints at least one gravestone of its own. */

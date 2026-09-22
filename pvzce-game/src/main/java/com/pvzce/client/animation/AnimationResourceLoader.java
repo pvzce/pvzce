@@ -5,11 +5,16 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.pvzce.api.util.Identifier;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Parses the self-developed animation JSON schema into immutable runtime
@@ -17,6 +22,10 @@ import java.util.Optional;
  * format testable with plain strings.
  */
 public final class AnimationResourceLoader {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Animation");
+    /** Reported {@code on_end} targets, so a broken file says so once per session. */
+    private static final Set<String> REPORTED_ON_END = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private AnimationResourceLoader() {
     }
 
@@ -83,16 +92,82 @@ public final class AnimationResourceLoader {
                               float rate, float referenceSpeed) {
     }
 
-    private static ClipHeader clipHeader(JsonObject json) {
+    private static ClipHeader clipHeader(JsonObject json, Set<String> clipNames,
+                                         Identifier source, String clipName) {
         return new ClipHeader(
                 bool(json, "loop", false),
-                AnimationClip.OnEnd.parse(string(json, "on_end", "hold")),
-                string(json, "next", ""),
+                onEnd(json, clipNames, source, clipName),
+                nextOf(json),
                 Math.max(0F, number(json, "transition", 0F)),
                 // Not clamped here: the clip records clamp, so an out-of-range value that a
                 // test or a diagnostic reads is the sanitized one either way.
                 number(json, "rate", 1F),
                 Math.max(0F, number(json, "reference_speed", 0F)));
+    }
+
+    /**
+     * What a clip does when it ends, including the {@code "on_end": "<clip>"} spelling.
+     *
+     * <p>Three ways to say "hand over to another clip" read the same way here: {@code idle} (the
+     * one clip every file has), {@code next} with the target in its own field, and the target's
+     * own name - which is how the art generator writes it ({@code on_end: hide_loop} for the
+     * scaredy-shroom's duck, {@code on_end: chew} for the grave buster's landing).
+     *
+     * <p>The last spelling used to be read as {@code hold}, silently: {@code OnEnd.parse} only
+     * knew the two keywords, so every clip written that way played once and then froze on its
+     * last frame. That is exactly what a ducked scaredy-shroom did - it ducked and never
+     * breathed again - and what a planted grave buster did instead of chewing. A name no clip in
+     * the file answers to is now reported rather than swallowed, because the symptom is
+     * "this animation stops" and it points at nothing.
+     */
+    private static AnimationClip.OnEnd onEnd(JsonObject json, Set<String> clipNames,
+                                             Identifier source, String clipName) {
+        String raw = string(json, "on_end", "hold");
+        if (raw == null || raw.isBlank()) {
+            return AnimationClip.OnEnd.HOLD;
+        }
+        String value = raw.trim();
+        String lower = value.toLowerCase(java.util.Locale.ROOT);
+        if ("next".equals(lower)) {
+            String target = nextOf(json);
+            if (target.isBlank() || !clipNames.contains(target)) {
+                reportOnce(source, clipName, value, "names no clip in this file");
+                return AnimationClip.OnEnd.HOLD;
+            }
+            return AnimationClip.OnEnd.NEXT;
+        }
+        if ("hold".equals(lower) || "idle".equals(lower)) {
+            return AnimationClip.OnEnd.parse(lower);
+        }
+        if (clipNames.contains(value)) {
+            return AnimationClip.OnEnd.NEXT;
+        }
+        reportOnce(source, clipName, value, "is not a clip in this file");
+        return AnimationClip.OnEnd.HOLD;
+    }
+
+    /** The clip a {@code next} hand-over goes to; a bare name in {@code on_end} means itself. */
+    private static String nextOf(JsonObject json) {
+        String next = string(json, "next", "");
+        if (next != null && !next.isBlank()) {
+            return next;
+        }
+        String raw = string(json, "on_end", "");
+        if (raw == null) {
+            return "";
+        }
+        String value = raw.trim();
+        String lower = value.toLowerCase(java.util.Locale.ROOT);
+        return "next".equals(lower) || "hold".equals(lower) || "idle".equals(lower) ? "" : value;
+    }
+
+    private static void reportOnce(Identifier source, String clipName, String value, String why) {
+        String key = source + "#" + clipName + "->" + value;
+        if (!REPORTED_ON_END.add(key)) {
+            return;
+        }
+        LOGGER.warn("{}: clip '{}' hands over to '{}', which {} - it will hold its last frame"
+                + " instead", source, clipName, value, why);
     }
 
     // ------------------------------------------------------------------
@@ -101,8 +176,9 @@ public final class AnimationResourceLoader {
 
     private static FlipbookFile parseFlipbook(JsonObject root, JsonObject animations, Identifier source) {
         Map<String, FlipbookClip> clips = new LinkedHashMap<>();
+        Set<String> clipNames = new HashSet<>(animations.keySet());
         forEachClip(animations, source,
-                (name, json) -> clips.put(name, parseFlipbookClip(name, json, source)));
+                (name, json) -> clips.put(name, parseFlipbookClip(name, json, source, clipNames)));
         float sizeX = number(root, "size", 0, 1F);
         float sizeY = number(root, "size", 1, 1F);
         float anchorX = number(root, "anchor", 0, 0.5F);
@@ -110,7 +186,8 @@ public final class AnimationResourceLoader {
         return new FlipbookFile(clips, sizeX, sizeY, anchorX, anchorY);
     }
 
-    private static FlipbookClip parseFlipbookClip(String name, JsonObject json, Identifier source) {
+    private static FlipbookClip parseFlipbookClip(String name, JsonObject json, Identifier source,
+                                                 Set<String> clipNames) {
         JsonArray framesArray = array(json, "frames");
         if (framesArray == null || framesArray.isEmpty()) {
             throw new IllegalArgumentException(source + ": flipbook animation '" + name + "' has no frames");
@@ -133,7 +210,7 @@ public final class AnimationResourceLoader {
             delays = new float[]{0.1F};
         }
 
-        ClipHeader header = clipHeader(json);
+        ClipHeader header = clipHeader(json, clipNames, source, name);
         return new FlipbookClip(frames, delays, header.loop(), header.onEnd(), header.next(), header.transition(),
                 header.rate(), header.referenceSpeed(), soundCues(json, source), particleCues(json, source));
     }
@@ -149,8 +226,9 @@ public final class AnimationResourceLoader {
         }
         ControllerModel model = parseModel(modelJson, source);
         Map<String, ControllerClip> clips = new LinkedHashMap<>();
+        Set<String> clipNames = new HashSet<>(animations.keySet());
         forEachClip(animations, source,
-                (name, json) -> clips.put(name, parseControllerClip(name, json, source)));
+                (name, json) -> clips.put(name, parseControllerClip(name, json, source, clipNames)));
         return new ControllerFile(model, clips);
     }
 
@@ -213,7 +291,8 @@ public final class AnimationResourceLoader {
         return parts;
     }
 
-    private static ControllerClip parseControllerClip(String name, JsonObject json, Identifier source) {
+    private static ControllerClip parseControllerClip(String name, JsonObject json, Identifier source,
+                                                     Set<String> clipNames) {
         JsonObject bonesJson = object(json, "bones");
         Map<String, ControllerClip.BoneTracks> tracks = new LinkedHashMap<>();
         float maxTime = 0F;
@@ -236,7 +315,7 @@ public final class AnimationResourceLoader {
         if (duration <= 0F && maxTime > 0F) {
             duration = maxTime;
         }
-        ClipHeader header = clipHeader(json);
+        ClipHeader header = clipHeader(json, clipNames, source, name);
         return new ControllerClip(duration, header.loop(), header.onEnd(), header.next(), header.transition(),
                 header.rate(), header.referenceSpeed(), tracks, soundCues(json, source), particleCues(json, source));
     }

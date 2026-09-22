@@ -82,7 +82,7 @@ public final class PvzcePackets {
     // carries whether a level was ever beaten (LevelInfo.cleared, which is what the row's
     // trophy reads), and the reward carries the resource a level handed over when it pays in
     // objects rather than in cards (LevelRewardS2C.rewardItem).
-    public static final int PROTOCOL_VERSION = 21;
+    public static final int PROTOCOL_VERSION = 22;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

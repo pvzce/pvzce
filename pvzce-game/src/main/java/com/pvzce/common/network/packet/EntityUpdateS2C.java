@@ -26,20 +26,26 @@ import com.pvzce.common.network.PvzcePacket;
  */
 public record EntityUpdateS2C(int entityId, float cellX, float cellY, int health, String animation,
                               float height, int armor, boolean chilled, boolean charmed,
-                              String teamId) implements PvzcePacket {
+                              boolean frozen, String teamId) implements PvzcePacket {
     /** {@code teamId} unwritten: this entity has not changed sides since the spawn packet. */
     public static final String NO_TEAM = "";
 
     /** The common case: an update that carries no side change and no charm. */
     public EntityUpdateS2C(int entityId, float cellX, float cellY, int health, String animation,
                            float height, int armor, boolean chilled) {
-        this(entityId, cellX, cellY, health, animation, height, armor, chilled, false, NO_TEAM);
+        this(entityId, cellX, cellY, health, animation, height, armor, chilled, false, false, NO_TEAM);
     }
 
     /** An update with the status flags but no side change. */
     public EntityUpdateS2C(int entityId, float cellX, float cellY, int health, String animation,
                            float height, int armor, boolean chilled, boolean charmed) {
-        this(entityId, cellX, cellY, health, animation, height, armor, chilled, charmed, NO_TEAM);
+        this(entityId, cellX, cellY, health, animation, height, armor, chilled, charmed, false, NO_TEAM);
+    }
+
+    /** An update with every status flag and no side change. */
+    public EntityUpdateS2C(int entityId, float cellX, float cellY, int health, String animation,
+                           float height, int armor, boolean chilled, boolean charmed, boolean frozen) {
+        this(entityId, cellX, cellY, health, animation, height, armor, chilled, charmed, frozen, NO_TEAM);
     }
 
     public EntityUpdateS2C {
@@ -62,8 +68,11 @@ public record EntityUpdateS2C(int entityId, float cellX, float cellY, int health
     .field(EntityUpdateS2C::armor, PacketByteBuf::writeInt, PacketByteBuf::readInt)
     .field(EntityUpdateS2C::chilled, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
     .field(EntityUpdateS2C::charmed, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+    // Held solid by the ice-shroom: the client stops the clip and draws the ice, neither of
+    // which it can work out from "slowed" (which only means the speed is scaled).
+    .field(EntityUpdateS2C::frozen, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
     .field(EntityUpdateS2C::teamId, PacketByteBuf::writeString, PacketByteBuf::readString)
-            .build(values -> new EntityUpdateS2C((Integer) values.get(0), (Float) values.get(1), (Float) values.get(2), (Integer) values.get(3), (String) values.get(4), (Float) values.get(5), (Integer) values.get(6), (Boolean) values.get(7), (Boolean) values.get(8), (String) values.get(9)));
+            .build(values -> new EntityUpdateS2C((Integer) values.get(0), (Float) values.get(1), (Float) values.get(2), (Integer) values.get(3), (String) values.get(4), (Float) values.get(5), (Integer) values.get(6), (Boolean) values.get(7), (Boolean) values.get(8), (Boolean) values.get(9), (String) values.get(10)));
 
     @Override
     public void encode(PacketByteBuf buf) {

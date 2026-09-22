@@ -26,6 +26,15 @@ public abstract class AnimationPlayback {
     protected double startGameSeconds;
     protected double previousSampleTime = -0.0001D;
     /**
+     * Whether the clip's clock is held still.
+     *
+     * <p>The ice-shroom's freeze: a zombie held by the cold keeps the pose it was in rather than
+     * walking its walk cycle on the spot. Set from the entity's synced state; the clock is not
+     * reset on release, so the clip carries on from the frame it was stopped on.
+     */
+    protected boolean paused;
+    private double pausedAt;
+    /**
      * The caller's own multiplier, from {@link #setSpeed}.
      *
      * <p>Kept apart from the clip's authored {@link AnimationClip#rate()} so a caller that
@@ -44,6 +53,16 @@ public abstract class AnimationPlayback {
     protected boolean finished;
     protected boolean stopped;
     protected boolean endApplied;
+    /**
+     * Whether this playback's art is mirrored about its anchor.
+     *
+     * <p>Set by the manager from the entity's own state - a charmed zombie walks the other way,
+     * so it has to face the other way - and read by both backends. A flag on the playback rather
+     * than a parameter of {@code render} because it is a property of *what is being drawn*, and
+     * because the two backends would otherwise both need the extra argument threaded through
+     * every caller for one entity state.
+     */
+    protected boolean flipX;
     private boolean firstEventUpdate = true;
 
     protected AnimationPlayback(AnimationManager manager, Animatable target, AnimationFile file,
@@ -90,6 +109,15 @@ public abstract class AnimationPlayback {
         return stopped;
     }
 
+    /** Mirrors this playback's art about its anchor; see {@link #flipX}. */
+    public final void setFlipX(boolean value) {
+        this.flipX = value;
+    }
+
+    public final boolean flipX() {
+        return flipX;
+    }
+
     public final boolean isFinished() {
         return finished;
     }
@@ -99,6 +127,26 @@ public abstract class AnimationPlayback {
             return finished ? 1F : 0F;
         }
         return Math.max(0F, Math.min(1F, (float) (localTime(manager.now()) / clip.duration())));
+    }
+
+    /** Freezes or resumes the clip's clock; see {@link #paused}. */
+    public final void setPaused(boolean value) {
+        if (paused == value) {
+            return;
+        }
+        double now = manager.now();
+        if (value) {
+            pausedAt = now;
+        } else {
+            // The clock resumes where it stopped: shift the anchor forward by however long the
+            // pause lasted, so the clip continues from the frame it was held on.
+            startGameSeconds += now - pausedAt;
+        }
+        paused = value;
+    }
+
+    public final boolean paused() {
+        return paused;
     }
 
     public final void restart() {
@@ -263,7 +311,7 @@ public abstract class AnimationPlayback {
     }
 
     protected final double localTime(double now) {
-        double t = (now - startGameSeconds) * effectiveSpeed();
+        double t = ((paused ? pausedAt : now) - startGameSeconds) * effectiveSpeed();
         return Math.max(0D, t);
     }
 

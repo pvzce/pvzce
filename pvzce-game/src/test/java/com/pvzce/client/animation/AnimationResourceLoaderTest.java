@@ -101,6 +101,45 @@ class AnimationResourceLoaderTest {
         assertEquals(0.0F, pose.translation()[1], 0.0001F);
     }
 
+    /**
+     * A clip can hand over to another clip by naming it, and one that names nothing is reported.
+     *
+     * <p>{@code "on_end": "hide_loop"} is how the art generator writes a hand-over (the
+     * scaredy-shroom ducks into its held pose, the grave buster lands and chews), and the loader
+     * used to read every name it did not recognise as {@code hold} - so both of those played once
+     * and then stood frozen on their last frame. The shipped files are the real assertion here:
+     * this parses them off the classpath rather than a hand-written sample.
+     */
+    @Test
+    void aClipNamedByOnEndIsTheClipThatPlaysNext() throws Exception {
+        ControllerFile scaredy = (ControllerFile) parseClasspath("scaredy_shroom");
+        ControllerClip hide = (ControllerClip) scaredy.clip("hide").orElseThrow();
+        assertEquals(AnimationClip.OnEnd.NEXT, hide.onEnd(), "the duck hands over to its loop");
+        assertEquals("hide_loop", hide.next());
+        assertFalse(hide.loop(), "and the hand-over itself is a one-shot");
+
+        ControllerFile graveBuster = (ControllerFile) parseClasspath("grave_buster");
+        ControllerClip landing = (ControllerClip) graveBuster.clip("idle").orElseThrow();
+        assertEquals(AnimationClip.OnEnd.NEXT, landing.onEnd(), "the landing hands over to the chew");
+        assertEquals("chew", landing.next());
+
+        // A name no clip answers to stays a hold - that is the safe reading of a broken file -
+        // and the loader says so out loud instead of swallowing it.
+        var sample = com.google.gson.JsonParser.parseString("""
+                {
+                  "type": "controller",
+                  "model": { "bones": [ { "name": "root" } ] },
+                  "animations": {
+                    "idle": { "loop": true, "bones": {} },
+                    "broken": { "loop": false, "on_end": "typo_clip", "bones": {} }
+                  }
+                }
+                """).getAsJsonObject();
+        ControllerFile parsed = (ControllerFile) AnimationResourceLoader.parse(sample,
+                Identifier.withDefaultNamespace("on_end_sample"));
+        assertEquals(AnimationClip.OnEnd.HOLD, parsed.clip("broken").orElseThrow().onEnd());
+    }
+
     @Test
     void zombieModelSizesDifferByEntity() throws Exception {
         ControllerFile basic = (ControllerFile) parseClasspath("basic_zombie");

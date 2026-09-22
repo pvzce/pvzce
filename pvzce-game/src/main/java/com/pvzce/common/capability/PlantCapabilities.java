@@ -7,7 +7,9 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.capability.plant.BowlCapability;
 import com.pvzce.common.capability.plant.CharmCapability;
+import com.pvzce.common.capability.plant.ConeAttackCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
+import com.pvzce.common.capability.plant.FreezeAllCapability;
 import com.pvzce.common.capability.plant.GraveBusterCapability;
 import com.pvzce.common.capability.plant.MeleeCapability;
 import com.pvzce.common.capability.plant.NocturnalCapability;
@@ -53,6 +55,25 @@ public final class PlantCapabilities {
             type("charm", CharmCapability.CODEC);
     public static final CapabilityType<BowlCapability> BOWL = type("bowl", BowlCapability.CODEC);
     public static final CapabilityType<NocturnalCapability> NOCTURNAL = type("nocturnal", NocturnalCapability.CODEC);
+    /**
+     * Freezes every zombie on the lawn once, then the plant is spent.
+     *
+     * <p>The ice-shroom. Not an {@code explosive} with a big radius: "the whole field" is a
+     * shape rather than a distance, and the effect is a status rather than a blast - the
+     * twenty damage is the least of what it does.
+     */
+    public static final CapabilityType<FreezeAllCapability> FREEZE_ALL =
+            type("freeze_all", FreezeAllCapability.CODEC);
+    /**
+     * A burst of area damage in front of the plant, with no projectile behind it.
+     *
+     * <p>The fume-shroom. Not a {@code shooter} with a short range: a cloud is a shape that
+     * appears across the whole cone at once, while a shot is a thing that travels to each
+     * zombie in turn. See {@link ConeAttackCapability} for what modelling it as a projectile
+     * cost, and why that needed {@code pvzce:pierce} plus per-shot hit book-keeping.
+     */
+    public static final CapabilityType<ConeAttackCapability> CONE =
+            type("cone", ConeAttackCapability.CODEC);
 
     public static final Codec<TypedCapability<PlantCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.PLANT_CAPABILITIES, "plant");
@@ -74,6 +95,8 @@ public final class PlantCapabilities {
         register(CHARM, "charm");
         register(BOWL, "bowl");
         register(NOCTURNAL, "nocturnal");
+        register(FREEZE_ALL, "freeze_all");
+        register(CONE, "cone");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

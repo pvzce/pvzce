@@ -30,15 +30,23 @@ public final class ShooterCapability implements PlantCapability {
     private final List<ProjectileRef> shots;
     private final Optional<Identifier> sound;
     private final int firstDelayTicks;
+    /** Cells within which an enemy makes this plant hide instead of firing; 0 = never. */
+    private final float hideWithin;
 
     private int cooldown;
 
     public ShooterCapability(int intervalTicks, List<ProjectileRef> shots, Optional<Identifier> sound,
                              int firstDelayTicks) {
+        this(intervalTicks, shots, sound, firstDelayTicks, 0F);
+    }
+
+    public ShooterCapability(int intervalTicks, List<ProjectileRef> shots, Optional<Identifier> sound,
+                             int firstDelayTicks, float hideWithin) {
         this.intervalTicks = Math.max(1, intervalTicks);
         this.shots = List.copyOf(shots);
         this.sound = sound;
         this.firstDelayTicks = Math.max(0, firstDelayTicks);
+        this.hideWithin = Math.max(0F, hideWithin);
         this.cooldown = Math.min(this.intervalTicks, this.firstDelayTicks == 0 ? 1 : this.firstDelayTicks);
     }
 
@@ -48,7 +56,9 @@ public final class ShooterCapability implements PlantCapability {
             ProjectileRef.CODEC.listOf().optionalFieldOf("shots", List.of()).forGetter(ShooterCapability::shots),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(ShooterCapability::sound),
             com.mojang.serialization.Codec.INT.optionalFieldOf("first_delay", 0)
-                    .forGetter(ShooterCapability::firstDelayTicks)
+                    .forGetter(ShooterCapability::firstDelayTicks),
+            com.mojang.serialization.Codec.FLOAT.optionalFieldOf("hide_within", 0F)
+                    .forGetter(ShooterCapability::hideWithin)
     ).apply(i, ShooterCapability::new));
 
     public int intervalTicks() {
@@ -67,13 +77,32 @@ public final class ShooterCapability implements PlantCapability {
         return firstDelayTicks;
     }
 
+    /**
+     * How close an enemy has to be before this plant ducks, in cells.
+     *
+     * <p>Zero - the default, and what every shooter written before this field means - is "it
+     * never ducks", which is every shooter but the scaredy-shroom.
+     */
+    public float hideWithin() {
+        return hideWithin;
+    }
+
     @Override
     public PlantCapability instantiate() {
-        return new ShooterCapability(intervalTicks, shots, sound, firstDelayTicks);
+        return new ShooterCapability(intervalTicks, shots, sound, firstDelayTicks, hideWithin);
     }
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
+        // A frightened shooter ducks first and does nothing else - the cooldown is not even
+        // ticked down, so a scaredy-shroom that comes back up fires immediately rather than
+        // finishing the pause it was in when the zombie arrived. That is the original's
+        // "stops shooting entirely while hidden", and it is why this is asked before the
+        // cooldown rather than as another reason not to fire.
+        if (hideWithin > 0F && somethingTooClose(plant, level)) {
+            plant.setState(EntityAnimations.HIDE);
+            return;
+        }
         if (cooldown > 0) {
             cooldown--;
             if (cooldown == 0) {
@@ -98,6 +127,36 @@ public final class ShooterCapability implements PlantCapability {
         level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
         cooldown = intervalTicks;
+    }
+
+    /**
+     * Whether something worth being afraid of is standing next to this plant.
+     *
+     * <p>The original's scaredy-shroom ducks when a zombie is anywhere in the 3x3 block of
+     * cells around it - its own lane and the two beside it, one cell either way - which is
+     * why this asks the rows rather than only its own. Zombies this plant would not shoot at
+     * (a charmed one, a balloon it cannot reach) do not frighten it either: the check is the
+     * same {@code canBeHitByGround} rule the firing search uses, so "what it shoots" and
+     * "what it hides from" cannot drift apart.
+     */
+    private boolean somethingTooClose(PlantEntity plant, LevelAccess level) {
+        for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
+            int row = plant.gridY() + rowOffset;
+            if (row < 0 || row >= level.height()) {
+                continue;
+            }
+            boolean found = level.enemiesInRow(row, plant.team()).stream()
+                    .filter(z -> !z.isRemoved() && z.canBeHitByGround())
+                    .anyMatch(z -> Math.abs(z.cellX() - plant.cellX()) <= hideWithin
+                            // A zombie standing in the plant's own cell has already arrived;
+                            // it is as close as close gets, and `cellX` alone would read it as
+                            // zero distance away in every plant that shares the column.
+                            || z.gridX() == plant.gridX() && z.gridY() == plant.gridY());
+            if (found) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

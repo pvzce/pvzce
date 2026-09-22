@@ -12,6 +12,7 @@
       "3,0",
       "4,0",
       "5,0",
+      "6,0",
       "7,0",
       "8,0",
       "0,1",
@@ -22,6 +23,7 @@
       "5,1",
       "6,1",
       "7,1",
+      "8,1",
       "0,2",
       "1,2",
       "2,2",
@@ -36,6 +38,7 @@
       "2,3",
       "3,3",
       "4,3",
+      "5,3",
       "6,3",
       "7,3",
       "8,3",
@@ -46,19 +49,8 @@
       "4,4",
       "5,4",
       "6,4",
+      "7,4",
       "8,4"
-    ],
-    "pvzce:grave": [
-      "6,0"
-    ],
-    "pvzce:grave_cross": [
-      "8,1"
-    ],
-    "pvzce:grave_slab": [
-      "5,3"
-    ],
-    "pvzce:grave_wide": [
-      "7,4"
     ]
   },
   "teams": [
@@ -323,5 +315,11 @@
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
-  "disable_shaders": true
+  "disable_shaders": true,
+  "mechanics": [
+    {
+      "type": "pvzce:grave_field",
+      "count": 4
+    }
+  ]
 }

@@ -12,16 +12,11 @@
       "type": "pvzce:nocturnal"
     },
     {
-      "type": "pvzce:shooter",
+      "type": "pvzce:cone",
       "interval": 90,
-      "shots": [
-        {
-          "projectile": "pvzce:fume",
-          "damage": 20,
-          "count": 1,
-          "range": 4.0
-        }
-      ]
+      "damage": 20,
+      "range": 4.0,
+      "damage_type": "pvzce:spray"
     }
   ],
   "sounds": {

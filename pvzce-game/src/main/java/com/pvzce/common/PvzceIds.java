@@ -95,6 +95,21 @@ public final class PvzceIds {
     public static final Identifier RULE_ZOMBIE_SPEED_MULTIPLIER = id("zombie_speed_multiplier");
     public static final Identifier RULE_PLANT_DAMAGE_MULTIPLIER = id("plant_damage_multiplier");
     /**
+     * How much faster than written this level's zombies arrive, as a multiplier on the rate.
+     *
+     * <p>Scales the level's whole spawn cadence - the gap between waves and the gap between
+     * the zombies inside one wave - so {@code 2.0} plays the same wave table at twice the
+     * speed: the same zombies, in half the time, with the relative pacing the author wrote.
+     * Distinct from {@link #RULE_ZOMBIE_SPEED_MULTIPLIER}, which is how fast a zombie that is
+     * already on the lawn walks; this one is how fast the next one shows up.
+     *
+     * <p>It exists for the levels whose pressure comes from somewhere else - a conveyor belt
+     * hands out cards at its own fixed rate, so "the belt gives you this much and the horde
+     * arrives this fast" is a knob the wave table alone cannot express without rewriting every
+     * delay in it.
+     */
+    public static final Identifier RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER = id("zombie_spawn_speed_multiplier");
+    /**
      * How long this level's cards take to recharge, as a multiple of the card's own cooldown.
      *
      * <p>The original's mini-games are where the card bar stops behaving like the adventure's:
@@ -138,6 +153,11 @@ public final class PvzceIds {
      * rule rather than the shooter's. {@code mower} is the lawn mower and the hammer
      * tool: it does not wear what it hits down, it removes it.
      *
+     * <p>{@code spray} is the fume-shroom's cloud, and the only type whose meaning is
+     * a <em>slot</em> rather than a yes/no about armour: it goes past what is held in
+     * front (a screen door, a newspaper) and is still absorbed by what is worn on the
+     * head, which is why {@code DamageTypeDef} needs both flags to describe it.
+     *
      * <p>The declarations live in {@code data/pvzce/damage_types/}; these ids exist
      * so code and data cannot drift, exactly as {@link PvzceSounds} does for sounds.
      */
@@ -145,6 +165,7 @@ public final class PvzceIds {
     public static final Identifier DAMAGE_IMPACT = id("impact");
     public static final Identifier DAMAGE_PROJECTILE = id("projectile");
     public static final Identifier DAMAGE_SPLASH = id("splash");
+    public static final Identifier DAMAGE_SPRAY = id("spray");
     public static final Identifier DAMAGE_MOWER = id("mower");
 
     /**
@@ -187,6 +208,17 @@ public final class PvzceIds {
      * last wave - and which every night level gets by default.
      */
     public static final Identifier MECHANIC_GRAVE_SPAWNER = id("grave_spawner");
+    /**
+     * Gravestones scattered over part of the lawn when the level starts.
+     *
+     * <p>The other half of the original's night lawns. Every night level from 2-1 on opens with
+     * tombstones standing in the half of the lawn furthest from the house, in a layout that is
+     * different every time; they block planting, and the {@code graves_spawn_night} rule opens
+     * whatever is still standing at the final wave. Where they stand is a property of the lawn
+     * rather than of the level file, which is why it is a mechanic and not a list of cells in
+     * {@code scene}: the file cannot say "seven of them, over there".
+     */
+    public static final Identifier MECHANIC_GRAVE_FIELD = id("grave_field");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

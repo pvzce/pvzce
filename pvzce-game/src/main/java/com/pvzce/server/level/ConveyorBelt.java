@@ -7,7 +7,9 @@ import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.Tag;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -34,6 +36,15 @@ public final class ConveyorBelt {
 
     private final LevelBelt def;
     private final List<Card> cards = new ArrayList<>();
+    /**
+     * How many of each card this belt has handed out, ever.
+     *
+     * <p>The count a card's {@code max_count} is measured against, and it counts
+     * <em>deliveries</em> rather than plants: the original's thirteen grave busters are
+     * thirteen cards the belt offered, whether or not the player used them. Spent and
+     * unspent cards both count, which is why this is not "what is on the belt".
+     */
+    private final Map<Identifier, Integer> dealt = new HashMap<>();
     private int nextId;
     private int ticksUntilNext;
     private boolean changed = true;
@@ -68,9 +79,14 @@ public final class ConveyorBelt {
         changed = false;
     }
 
+    /** True when the pool still holds a card this belt may deal. */
+    public boolean canProduce() {
+        return def.canDeal(card -> dealt.getOrDefault(card, 0));
+    }
+
     /** Advances the delivery clock by one server tick. */
     public void tick(Random random) {
-        if (isFull() || !def.producesCards()) {
+        if (isFull() || !canProduce()) {
             // A full belt is not "behind schedule": it resumes one interval after a card is
             // taken, rather than dumping the backlog it accumulated while full.
             ticksUntilNext = def.intervalTicks();
@@ -86,10 +102,11 @@ public final class ConveyorBelt {
     }
 
     private void produce(Random random) {
-        Identifier cardId = def.pick(random);
+        Identifier cardId = def.pick(random, card -> dealt.getOrDefault(card, 0));
         if (cardId == null) {
             return;
         }
+        dealt.merge(cardId, 1, Integer::sum);
         cards.add(new Card(nextId++, cardId));
         changed = true;
     }
@@ -134,14 +151,34 @@ public final class ConveyorBelt {
             list.add(cardTag);
         }
         tag.put("Cards", list);
+        // The delivery counts ride with the queue: a resumed run must not be handed a
+        // fourteenth grave buster because the tally was forgotten.
+        ListTag dealtList = new ListTag();
+        for (Map.Entry<Identifier, Integer> entry : dealt.entrySet()) {
+            CompoundTag countTag = new CompoundTag();
+            countTag.putString("card", entry.getKey().toString());
+            countTag.putInt("count", entry.getValue());
+            dealtList.add(countTag);
+        }
+        tag.put("Dealt", dealtList);
         return tag;
     }
 
     /** Restores a saved belt; unknown card ids are dropped rather than kept as blanks. */
     public void restore(CompoundTag tag) {
         cards.clear();
+        dealt.clear();
         nextId = Math.max(0, tag.getInt("NextId"));
         ticksUntilNext = Math.max(0, tag.getInt("TicksUntilNext"));
+        for (Tag element : tag.getList("Dealt").values()) {
+            if (!(element instanceof CompoundTag countTag)) {
+                continue;
+            }
+            Identifier cardId = Identifier.tryParse(countTag.getString("card"));
+            if (cardId != null) {
+                dealt.merge(cardId, Math.max(0, countTag.getInt("count")), Integer::sum);
+            }
+        }
         for (Tag element : tag.getList("Cards").values()) {
             if (!(element instanceof CompoundTag cardTag)) {
                 continue;

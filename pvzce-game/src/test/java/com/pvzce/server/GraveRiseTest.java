@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GraveRiseTest {
     private static final int ROWS = 5;
     private static final int COLUMNS = 9;
-    /** The four cells 2-1 paints tombstones on. */
+    /** The four graves 2-1's own lawn scatters when the level is built. */
     private static final int EXPECTED_GRAVES = 4;
 
     private static LevelDef nightBoard;
@@ -47,10 +47,15 @@ class GraveRiseTest {
         TestContent.loadBuiltInContentAndTags();
         LevelDef source = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/2_1"));
         assertNotNull(source, "the shipped 2-1 must load");
-        long graves = source.scene().keySet().stream()
-                .filter(id -> id.path().startsWith("grave"))
-                .mapToLong(id -> source.scene().get(id).size())
-                .sum();
+        // The level no longer paints its tombstones - the lawn scatters them when the level is
+        // built (see GraveFieldTest) - so what this test counts against is the number the
+        // mechanic asks for. What it is really pinning is that 2-1 has graves at all; the
+        // exact count is checked where the board is, in the same test that builds it.
+        int graves = com.pvzce.common.level.mechanic.LevelMechanics
+                .dataOf(source, PvzceIds.MECHANIC_GRAVE_FIELD,
+                        com.pvzce.api.content.GraveFieldData.class)
+                .map(com.pvzce.api.content.GraveFieldData::count)
+                .orElse(0);
         assertEquals(EXPECTED_GRAVES, graves, "the level this test counts against");
         nightBoard = withFinalWaveOnly(source);
     }

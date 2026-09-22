@@ -74,7 +74,7 @@ public abstract class PvzceEntity extends Entity {
 
     public EntityUpdateS2C updatePacket() {
         return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(),
-                armor(), chilled(), charmed(), teamIdForUpdate());
+                armor(), chilled(), charmed(), frozen(), teamIdForUpdate());
     }
 
     /**
@@ -108,6 +108,17 @@ public abstract class PvzceEntity extends Entity {
      * entity's other visible state rather than being guessed at from the animation.
      */
     public boolean chilled() {
+        return false;
+    }
+
+    /**
+     * Whether this entity is held solid right now (the ice-shroom's freeze).
+     *
+     * <p>Distinct from {@link #chilled()}, which is "moving slower": a frozen zombie does not
+     * move at all and its animation is stopped, and the client draws both from this flag. Only
+     * the zombie overrides it.
+     */
+    public boolean frozen() {
         return false;
     }
 

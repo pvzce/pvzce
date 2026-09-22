@@ -119,6 +119,27 @@ public final class EntityVisuals {
     public static final float CHARMED_TINT_B = 1.30F;
 
     /**
+     * The ice the lawn freezes a held zombie in.
+     *
+     * <p>The original's own {@code icetrap} drawing - the same one its freeze particles use -
+     * placed at the zombie's feet, so "this one cannot move" is visible from across the board
+     * and not only from the tint. The size is the art's own: 54x30 pixels against the 80x100
+     * pixel cell the original draws on, which is what makes it sit around a zombie rather than
+     * over the whole lawn square.
+     */
+    public static final com.pvzce.api.util.Identifier FROZEN_SPIKES_TEXTURE =
+            com.pvzce.api.util.Identifier.withDefaultNamespace("textures/entities/status/frozen_spikes");
+    public static final float FROZEN_SPIKES_WIDTH = 0.675F;
+    public static final float FROZEN_SPIKES_HEIGHT = 0.375F;
+    /**
+     * Where the ice is drawn, between the shadow (0.04) and the zombie itself (0.15).
+     *
+     * <p>Under the zombie on purpose: the spikes are around its feet, so its legs have to come
+     * down into them.
+     */
+    public static final float FROZEN_SPIKES_Z = 0.14F;
+
+    /**
      * How much of the night tint a plant or a zombie is allowed to cancel.
      *
      * <p>The scene tint is a multiply applied to everything the world shader draws, and it
