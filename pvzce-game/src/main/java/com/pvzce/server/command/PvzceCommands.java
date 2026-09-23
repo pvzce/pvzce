@@ -94,7 +94,8 @@ public final class PvzceCommands {
                     + " · /team list|join <team> · /resource give <team> <id> <amount>"
                     + " · /resource spawn <id> [x] [y] · /spawn <plant|zombie|projectile> <id> [x] [y]"
                     + " · /time query|set|add · /tick query|rate|reset|freeze|step|sprint|unfreeze"
-                    + " · /profile info|slots <n>|unlock <level>|unlockall"
+                    + " · /profile info|slots <n>|buffslots <n>|buffs <ids>|buff <id>"
+                    + "|unlock <level>|unlockall"
                     + " · /reload /save /stop /editor open <level>");
             return 1;
         }));
@@ -171,6 +172,24 @@ public final class PvzceCommands {
 
     private static RequiredArgumentBuilder<PvzceCommandSource, String> argString(String name) {
         return argument(name, StringArgumentType.greedyString());
+    }
+
+    /**
+     * Parses a whitespace-separated list of ids, keeping only the parts that parse.
+     *
+     * <p>Used by {@code /profile buffs <list>}, where a greedy string is the only way to take an
+     * arbitrary number of ids in one command. An unparsable word is dropped rather than failing
+     * the command: the answer the operator gets back is the list that was actually stored.
+     */
+    private static List<Identifier> buffIds(String raw) {
+        List<Identifier> ids = new java.util.ArrayList<>();
+        for (String part : raw == null ? new String[0] : raw.trim().split("\\s+")) {
+            Identifier id = Identifier.tryParse(part);
+            if (id != null) {
+                ids.add(id);
+            }
+        }
+        return List.copyOf(ids);
     }
 
     private static LiteralArgumentBuilder<PvzceCommandSource> lit(String name) {
@@ -264,12 +283,36 @@ public final class PvzceCommands {
                             + "，已解锁卡 " + snapshot.cards() + " 张"
                             + "，已购买关卡 " + snapshot.levels() + " 个"
                             + "，卡槽 " + snapshot.seedSlots()
+                            + "，增益槽 " + snapshot.buffSlots()
+                            + "，自动增益 " + snapshot.autoBuffs() + " 个"
                             + (snapshot.sandbox() ? "（沙盒：全部解锁）" : ""));
                     return 1;
                 }))
                 .then(lit("slots").then(argInteger("slots", 1,
                         com.pvzce.common.PvzceConstants.MAX_SEED_SLOTS).executes(ctx -> {
                     ctx.getSource().sendFeedback(server.grantSeedSlots(ctx.getArgument("slots", Integer.class)));
+                    return 1;
+                })))
+                .then(lit("buffslots").then(argInteger("slots", 1,
+                        com.pvzce.common.PvzceConstants.MAX_BUFF_SLOTS).executes(ctx -> {
+                    ctx.getSource().sendFeedback(server.grantBuffSlots(ctx.getArgument("slots", Integer.class)));
+                    return 1;
+                })))
+                // With no argument this clears the list, which is the only way to say "stop
+                // picking anything for me" without going through a level's chooser.
+                .then(lit("buffs").executes(ctx -> {
+                    ctx.getSource().sendFeedback(server.setAutoBuffs(List.of()));
+                    return 1;
+                }).then(argString("list").executes(ctx -> {
+                    // A greedy string, so a whole list is written in one command:
+                    // `/profile buffs pvzce:auto_collect pvzce:mushroom_range`.
+                    ctx.getSource().sendFeedback(server.setAutoBuffs(
+                            buffIds(ctx.getArgument("list", String.class))));
+                    return 1;
+                })))
+                .then(lit("buff").then(argIdentifier("buff", "level_buff").executes(ctx -> {
+                    ctx.getSource().sendFeedback(
+                            server.grantBuff(ctx.getArgument("buff", Identifier.class)));
                     return 1;
                 })))
                 .then(lit("unlock").then(argIdentifier("level", "level").executes(ctx -> {

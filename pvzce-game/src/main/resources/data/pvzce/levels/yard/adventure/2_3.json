@@ -353,5 +353,8 @@
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
-  "disable_shaders": true
+  "disable_shaders": true,
+  "buffs": [
+    "pvzce:player_choice"
+  ]
 }

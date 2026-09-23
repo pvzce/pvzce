@@ -87,12 +87,12 @@ public final class PlayerPickerDialog extends Dialog {
         int listBottom = boxY + rowH + gap;
         // Below the inline title, which is one line of text under the top border.
         int listTop = y + height - Math.round(frameInset() * 1.2F)
-                - (int) client.font().lineHeight(titleScale()) - 6;
+                - (int) client.fonts().button().lineHeight(titleScale()) - 6;
         int listHeight = Math.max(rowH * 2, listTop - listBottom);
 
         list = new AbstractSelectionList<>(x + pad, listBottom, fieldWidth, listHeight,
                 Math.max(20, rowH),
-                (screen, world, rowX, rowY) -> screen.font().draw(world, rowX, rowY + 4,
+                (screen, world, rowX, rowY) -> screen.fonts().body().draw(world, rowX, rowY + 4,
                         1F, 1F, 1F, 0.85F, 1F));
         addChild(list);
 

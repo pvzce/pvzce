@@ -939,6 +939,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * it draws for every other unresolved reference instead of nothing at all - the wallet
      * was credited either way.
      */
+    /**
+     * A buff's own sprite, or the shared missing-texture stand-in.
+     *
+     * <p>Asked of the buff registry rather than carried in the packet: the icon belongs to the
+     * buff, and the two sides load the same definition.
+     */
+    private Identifier buffIcon(String buffId) {
+        Identifier id = Identifier.tryParse(buffId);
+        com.pvzce.api.content.LevelBuff buff =
+                id == null ? null : com.pvzce.common.buff.LevelBuffs.get(id);
+        return buff == null || buff.icon().isEmpty() ? null : buff.icon().texture();
+    }
+
     private Identifier rewardItemIcon() {
         Identifier id = Identifier.tryParse(reward.rewardItem());
         com.pvzce.api.content.ResourceDef def = id == null
@@ -1045,6 +1058,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                             SeedCardRenderer.CardKind.PLANT,
                             card == null ? 0 : card.costSun())
                             .withBrightness(brightness),
+                    rect[0], rect[1], rect[2], rect[3]);
+        } else if (reward().hasUnlockedBuff()) {
+            // A buff is not a card and not an object: it is drawn in the seed packet's own
+            // chrome - the same frame the game uses for a card - because that is what "the
+            // level handed you something new" looks like on this lawn. Its icon is the buff's,
+            // and there is no price on it, which is what the BUFF kind means to the painter.
+            SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
+                            buffIcon(reward().unlockedBuff()),
+                            SeedCardRenderer.CardKind.BUFF, SlotInfo.NO_PRICE,
+                            brightness, 1F, true, 0F, false, null, false),
                     rect[0], rect[1], rect[2], rect[3]);
         } else if (reward().hasRewardItem()) {
             // A resource is an object, not a packet: drawn square inside the slot the drop is
@@ -2134,9 +2157,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             client.drawTexture(SUN_BANK, CardBarLayout.bankX(), bankY,
                     CardBarLayout.BANK_WIDTH, CardBarLayout.BANK_HEIGHT, 0.1F, 1F, 1F, 1F, 1F);
             String sunText = String.valueOf(client.level().sun());
-            client.font().draw(sunText,
+            client.fonts().body().draw(sunText,
                     CardBarLayout.bankX()
-                            + (CardBarLayout.BANK_WIDTH - client.font().width(sunText, 1F)) / 2F,
+                            + (CardBarLayout.BANK_WIDTH - client.fonts().body().width(sunText, 1F)) / 2F,
                     bankY + CardBarLayout.BANK_HEIGHT * 0.08F, 1F, 0.12F, 0.07F, 0.03F, 1F);
         }
         renderCoinBank();
@@ -2144,16 +2167,59 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         String team = client.level().controlledTeamName().isEmpty()
                 ? (client.level().controlledTeam().contains("zombie") ? "僵尸方" : "植物方")
                 : client.level().controlledTeamName();
-        client.font().draw("当前队伍：" + team, 16, 72, 0.8F, 0.85F, 0.85F, 0.9F, 1F);
+        client.fonts().body().draw("当前队伍：" + team, 16, 72, 0.8F, 0.85F, 0.85F, 0.9F, 1F);
 
         int y = 96;
         for (String message : client.level().messages()) {
-            client.font().draw(message, 16, y, 0.9F, 0.1F, 0.1F, 0.1F, 1F);
+            client.fonts().body().draw(message, 16, y, 0.9F, 0.1F, 0.1F, 0.1F, 1F);
             y += 22;
         }
 
+        // The level's own rules, in the corner the rest of the HUD leaves free: a buff changes
+        // how the board is played, and the player chose it several screens ago.
+        com.pvzce.client.gui.hud.BuffIconRow.render(client);
+        renderCardHover();
+
         renderWaveBar();
         renderWaveWarning();
+    }
+
+    /**
+     * Names the seed packet or tool under the cursor.
+     *
+     * <p>The card bar has always been pictures only. A player learns what a packet is by planting
+     * it, which is a fine way to learn and a poor way to choose; the name is already in the
+     * language file for the almanac, so this only had to be drawn. Only the bar is hovered - not
+     * the board, where the cursor belongs to the camera and a tip would follow every mouse move.
+     */
+    private void renderCardHover() {
+        if (draggingCard >= 0 || modalityBlocksHover()) {
+            return;
+        }
+        double guiX = client.guiMouseX(client.window().cursorX());
+        double guiY = client.guiMouseY(client.window().cursorY());
+        int index = cardBar().slotAt(guiX, guiY);
+        if (index < 0) {
+            return;
+        }
+        SlotInfo slot = slotInfo(index);
+        if (slot == null) {
+            return;
+        }
+        com.pvzce.client.gui.HoverTip.draw(client,
+                com.pvzce.client.gui.HoverTip.nameOf(slot.defId(), slot.kind()),
+                (float) guiX, (float) guiY, 1F);
+    }
+
+    /**
+     * True while something is on top of the board that a card tip would talk over.
+     *
+     * <p>The end-of-level overlay, the reward packet and the defeat banner all sit above the
+     * HUD, and a card name floating over them would be naming a card the player can no longer
+     * use - the level is over.
+     */
+    private boolean modalityBlocksHover() {
+        return !client.level().gameState().equals("running") || defeatNanos != 0L;
     }
 
     /**
@@ -2300,8 +2366,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // The art puts the money bag on the left, so the number goes to its right.
         String coins = String.valueOf(inLevelCoins());
         float textScale = COIN_BANK_HEIGHT / 40F;
-        client.font().draw(coins, bankX + COIN_BANK_WIDTH * 0.32F,
-                bankY + (COIN_BANK_HEIGHT - client.font().lineHeight(textScale)) / 2F,
+        client.fonts().body().draw(coins, bankX + COIN_BANK_WIDTH * 0.32F,
+                bankY + (COIN_BANK_HEIGHT - client.fonts().body().lineHeight(textScale)) / 2F,
                 textScale, 1F, 0.96F, 0.6F, alpha);
     }
 
@@ -2484,16 +2550,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // Capped so the line box stays inside the meter's band; the meter sits close to the
         // bottom edge, and a taller line would be clipped off-screen.
         float nameScale = Math.max(0.75F, Math.min(0.95F, 1.2F * (meterHeight / METER_NATIVE_HEIGHT)));
-        float nameWidth = client.font().width(name, nameScale);
+        float nameWidth = client.fonts().body().width(name, nameScale);
         float nameX = trackX - nameWidth - 8F;
         if (nameX < 4F) {
             return;
         }
-        float nameY = meterY + (meterHeight - client.font().lineHeight(nameScale)) / 2F + 4F;
+        float nameY = meterY + (meterHeight - client.fonts().body().lineHeight(nameScale)) / 2F + 4F;
         // Drawn twice: the meter sits on whatever the level's background art happens to be
         // there, and a drop shadow is what keeps a level name readable on a pale sidewalk.
-        client.font().draw(name, nameX + 1F, nameY - 1F, nameScale, 0.05F, 0.05F, 0.05F, 0.8F);
-        client.font().draw(name, nameX, nameY, nameScale, 1F, 0.96F, 0.72F, 1F);
+        client.fonts().body().draw(name, nameX + 1F, nameY - 1F, nameScale, 0.05F, 0.05F, 0.05F, 0.8F);
+        client.fonts().body().draw(name, nameX, nameY, nameScale, 1F, 0.96F, 0.72F, 1F);
     }
 
     /** A pole with a flag on it, standing on the track at one big wave's position. */
@@ -2549,18 +2615,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // Fitted to the window rather than to a fixed scale: the line is eleven full-width
         // glyphs, so a scale picked from the window height alone ran off both edges at
         // 16:9 - the message was wider than the screen it was warning about.
-        float unit = Math.max(1F, client.font().width(warning, 1F));
+        float unit = Math.max(1F, client.fonts().body().width(warning, 1F));
         float scale = Math.max(1.1F, Math.min(3.2F, client.guiWidth() * 0.86F / unit));
         // Grows while it stays up, so the message is never fully static; the shape of the
         // curve does not matter much, only that it never jumps.
         float textScale = scale * (1F + WAVE_WARNING_GROWTH * Math.min(1F, elapsed / 2.5F));
-        float x = (client.guiWidth() - client.font().width(warning, textScale)) / 2F;
+        float x = (client.guiWidth() - client.fonts().body().width(warning, textScale)) / 2F;
         float y = client.guiHeight() * 0.66F;
         // A black copy behind the red one, which is how the original's message stays legible
         // over grass: the UI font has no outline of its own.
         float shadow = Math.max(1.5F, textScale * 1.6F);
-        client.font().draw(warning, x + shadow, y + shadow, textScale, 0.05F, 0.02F, 0.02F, 0.75F * alpha);
-        client.font().draw(warning, x, y, textScale, 1F, 0.25F, 0.2F, alpha);
+        client.fonts().body().draw(warning, x + shadow, y + shadow, textScale, 0.05F, 0.02F, 0.02F, 0.75F * alpha);
+        client.fonts().body().draw(warning, x, y, textScale, 1F, 0.25F, 0.2F, alpha);
     }
 
     /** One piece of the parts sheet, by its pixel rectangle in the original art. */
@@ -2705,8 +2771,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             if (com.pvzce.client.gui.components.DefeatScreen.settled(seconds)) {
                 String hint = "点击任意处返回";
                 float hintScale = 1.2F;
-                client.font().draw(hint,
-                        (width - client.font().width(hint, hintScale)) / 2F,
+                client.fonts().body().draw(hint,
+                        (width - client.fonts().body().width(hint, hintScale)) / 2F,
                         height * 0.08F, hintScale, 1F, 1F, 1F, 1F);
             }
             return;
@@ -2715,11 +2781,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         boolean plantWin = client.level().winTeam().contains("plant");
         String text = plantWin ? "胜利！" : "失败！";
         float scale = 4F;
-        client.font().draw(text, (width - client.font().width(text, scale)) / 2F, height / 2F + 40, scale,
+        client.fonts().body().draw(text, (width - client.fonts().body().width(text, scale)) / 2F, height / 2F + 40, scale,
                 plantWin ? 1F : 0.9F, plantWin ? 0.85F : 0.1F, plantWin ? 0.1F : 0.1F, 1F);
         String sub = "点击任意处返回世界选择";
         float subScale = 1.2F;
-        client.font().draw(sub, (width - client.font().width(sub, subScale)) / 2F, height / 2F, subScale, 1, 1, 1, 1);
+        client.fonts().body().draw(sub, (width - client.fonts().body().width(sub, subScale)) / 2F, height / 2F, subScale, 1, 1, 1, 1);
     }
 
     @Override

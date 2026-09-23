@@ -106,8 +106,11 @@ public final class ParticleEngine {
         particle.def = def;
         particle.look = look;
         particle.motion = motion;
-        particle.x = x;
-        particle.y = y;
+        // The definition's own birth offset: one emit point, several sprites arranged around it.
+        // See ParticleMotion#offsetX - the doom-shroom's cloud is nine definitions that have to
+        // come out in a mushroom shape, and that shape belongs to the art, not to the blast.
+        particle.x = x + motion.offsetX();
+        particle.y = y + motion.offsetY();
         particle.age = 0F;
         particle.lifetime = Math.max(0.02F, look.lifetime());
         float speed = motion.speed() + spread(motion.speedSpread());
@@ -119,8 +122,10 @@ public final class ParticleEngine {
         // Relative, not absolute: a thrown cone or a zombie's arm is spawned in its own cell
         // and has to land on the lawn *under that cell*, whatever row that is. How far below
         // is the definition's own number, because the spawn point is not always the ground -
-        // a hat leaves the zombie's head (see ParticleMotion#groundOffset).
-        particle.groundY = motion.bounce() ? y - motion.groundOffset() : Float.NaN;
+        // a hat leaves the zombie's head (see ParticleMotion#groundOffset). Measured from where
+        // this particle was born rather than from the emit point, so an offset piece lands
+        // under itself.
+        particle.groundY = motion.bounce() ? particle.y - motion.groundOffset() : Float.NaN;
         particle.scale = Math.max(0.01F, look.scale() + spread(look.scaleSpread()));
         particle.angle = look.randomSpin() ? random.nextFloat() * 360F : 0F;
         // Rolled here with the rest of the birth state: the original's emitters name a

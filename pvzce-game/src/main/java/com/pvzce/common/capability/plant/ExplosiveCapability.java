@@ -42,11 +42,20 @@ import java.util.Optional;
  *       answers true from the moment it is placed until the blast, so zombies bite it
  *       (and a Gargantuar swings at it) for nothing, as in the original. Once the blast
  *       has happened the plant is gone and answers false again.</li>
- *   <li><b>It stays on the field for {@link #LINGER_TICKS} after detonating.</b> The
- *       blast is instantaneous on the server, but the client draws an {@code explode}
- *       clip that is longer than one tick, and entity state is only published every
- *       third tick - removing the plant in the same tick it went off meant the state
- *       was usually never sent at all and the client just saw it disappear.</li>
+ *   <li><b>It stays on the field after detonating</b>, for {@link #DEFAULT_LINGER_TICKS} ticks or
+ *       whatever {@code linger_ticks} the content asks for. The blast is instantaneous on the
+ *       server, but the client draws an {@code explode} clip that is longer than one tick, and
+ *       entity state is only published every third tick - removing the plant in the same tick it
+ *       went off meant the state was usually never sent at all and the client just saw it
+ *       disappear. The number is per plant because the clips are not the same length: a cherry
+ *       bomb's burst is about a second, the doom-shroom's growing cloud nearly three, and one
+ *       constant for both either cuts the long one off or holds a spent bomb on the lawn.</li>
+ *
+ *   <li><b>What the blast looks like is a list.</b> {@code particles} names the pieces of the
+ *       effect in the order they are emitted, at the plant's own cell; each piece places itself
+ *       with its own {@code offset_x}/{@code offset_y} (see {@code ParticleDef.ParticleMotion}).
+ *       One id is the common case - a flash - and several is a composition: the doom-shroom's
+ *       mushroom cloud is nine.</li>
  * </ul>
  */
 public final class ExplosiveCapability implements PlantCapability {
@@ -75,18 +84,30 @@ public final class ExplosiveCapability implements PlantCapability {
      */
     public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_ASH;
     /**
-     * How long the plant lingers on the field after its blast, in ticks.
+     * What a blast draws when the content does not say.
      *
-     * <p>Half a second: longer than every built-in {@code explode} clip and long enough
-     * that the state is published (the entity sync runs every third tick, and the state
-     * is published on the blast tick either way). Without it the plant was removed in
-     * the tick it detonated, so the client's only news of the explosion was a despawn.
+     * <p>The ash line's own flash, which is what every explosive in the game had before this
+     * list existed. A plant with a shape of its own - the doom-shroom's cloud - names its
+     * pieces instead.
+     */
+    public static final java.util.List<Identifier> DEFAULT_PARTICLES =
+            java.util.List.of(PvzceParticles.EXPLOSION_POW);
+
+    /**
+     * How long the plant lingers on the field after its blast, in ticks, when the content
+     * does not say.
+     *
+     * <p>Half a second: long enough that the state is published (the entity sync runs every
+     * third tick, and the state is published on the blast tick either way) and that a short
+     * burst is visible. A plant whose {@code explode} clip is longer than this has to name a
+     * bigger {@code linger_ticks} - see the class comment; the potato mine's five-tick burst is
+     * what this default was sized for.
      *
      * <p>The plant is <em>not</em> a plant while it lingers: {@link #occupiesCell} is
      * false, so zombies walk past it and the shovel cannot reach it. This is the server
      * holding a drawing on screen, not a second life.
      */
-    public static final int LINGER_TICKS = 30;
+    public static final int DEFAULT_LINGER_TICKS = 30;
     /**
      * How wide the hole an explosion leaves is, in cells: just the plant's own cell.
      *
@@ -109,6 +130,10 @@ public final class ExplosiveCapability implements PlantCapability {
     private final boolean leavesCrater;
     private final Optional<Identifier> sound;
     private final Identifier damageType;
+    /** The pieces of this blast's effect, emitted in order at the plant's cell. */
+    private final java.util.List<Identifier> particles;
+    /** How long the plant stays drawn after the blast, in ticks. */
+    private final int lingerTicks;
 
     private int fuse;
     /** Ticks left of the explosion drawing; {@link #LINGER_NONE} before the blast. */
@@ -120,6 +145,14 @@ public final class ExplosiveCapability implements PlantCapability {
     public ExplosiveCapability(Trigger trigger, int fuseTicks, float radius, int damage, float triggerRange,
                                boolean square, boolean leavesCrater, Optional<Identifier> sound,
                                Identifier damageType) {
+        this(trigger, fuseTicks, radius, damage, triggerRange, square, leavesCrater, sound,
+                damageType, DEFAULT_PARTICLES, DEFAULT_LINGER_TICKS);
+    }
+
+    public ExplosiveCapability(Trigger trigger, int fuseTicks, float radius, int damage, float triggerRange,
+                               boolean square, boolean leavesCrater, Optional<Identifier> sound,
+                               Identifier damageType, java.util.List<Identifier> particles,
+                               int lingerTicks) {
         this.trigger = trigger;
         this.fuseTicks = Math.max(0, fuseTicks);
         this.radius = Math.max(0F, radius);
@@ -129,6 +162,14 @@ public final class ExplosiveCapability implements PlantCapability {
         this.leavesCrater = leavesCrater;
         this.sound = sound;
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
+        // An empty list has to mean the default rather than "draw nothing": the codec reads a
+        // missing field as empty, and a blast that silently draws nothing is indistinguishable
+        // from a broken definition. Content that really wants no effect names a particle with
+        // no texture, which is a different statement.
+        this.particles = particles == null || particles.isEmpty()
+                ? DEFAULT_PARTICLES
+                : java.util.List.copyOf(particles);
+        this.lingerTicks = Math.max(1, lingerTicks);
         this.fuse = this.fuseTicks;
     }
 
@@ -152,7 +193,15 @@ public final class ExplosiveCapability implements PlantCapability {
                     .forGetter(ExplosiveCapability::leavesCrater),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(ExplosiveCapability::sound),
             Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
-                    .forGetter(ExplosiveCapability::damageType)
+                    .forGetter(ExplosiveCapability::damageType),
+            // What the blast draws, in emission order. One id is a flash; several are a
+            // composition that places itself (see the class comment).
+            Identifier.CODEC.listOf().optionalFieldOf("particles", DEFAULT_PARTICLES)
+                    .forGetter(ExplosiveCapability::particles),
+            // How long the plant stays on the field after the blast. Has to cover its own
+            // `explode` clip or the animation is cut off mid-gesture.
+            Codec.INT.optionalFieldOf("linger_ticks", DEFAULT_LINGER_TICKS)
+                    .forGetter(ExplosiveCapability::lingerTicks)
     ).apply(i, ExplosiveCapability::new));
 
     private static Trigger parseTrigger(String name) {
@@ -210,10 +259,20 @@ public final class ExplosiveCapability implements PlantCapability {
         return fuse;
     }
 
+    /** The effect this blast draws, in emission order. Never empty. */
+    public java.util.List<Identifier> particles() {
+        return particles;
+    }
+
+    /** Ticks the plant stays drawn after the blast, which has to cover its {@code explode} clip. */
+    public int lingerTicks() {
+        return lingerTicks;
+    }
+
     @Override
     public PlantCapability instantiate() {
         return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, square,
-                leavesCrater, sound, damageType);
+                leavesCrater, sound, damageType, particles, lingerTicks);
     }
 
     /**
@@ -326,16 +385,25 @@ public final class ExplosiveCapability implements PlantCapability {
             // as it found it, and it leaves *one* tile that way.
             level.leaveCraters(plant.cellX(), plant.cellY(), CRATER_RADIUS, false);
         }
-        level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), plant.cellX(), plant.cellY(),
-                sound.orElseGet(() -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION)));
-        // The blast is over as far as the simulation is concerned, but the plant stays
-        // for LINGER_TICKS so the client can actually draw what just happened. The state
-        // goes out on this tick rather than on whichever third tick comes next, so the
-        // clip starts when the blast does.
+        // The effect, piece by piece, from the plant's own cell: a composition is a list, and
+        // each piece is placed by its own birth offset (see ParticleMotion#offsetX). The sound
+        // rides on the first piece only - every emit carries the whole effect event, so asking
+        // for it at each stop would play one blast as many times as the cloud has parts.
+        Identifier blastSound = sound.orElseGet(
+                () -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION));
+        for (int i = 0; i < particles.size(); i++) {
+            level.emitEffect(particles.get(i).toString(), plant.cellX(), plant.cellY(),
+                    i == 0 ? blastSound : null);
+        }
+        // The blast is over as far as the simulation is concerned, but the plant stays for its
+        // own linger so the client can actually draw what just happened - which for the
+        // doom-shroom is a two-and-three-quarter-second cloud, not the half second a flash
+        // needs. The state goes out on this tick rather than on whichever third tick comes
+        // next, so the clip starts when the blast does.
         if (level instanceof LevelServer server) {
             server.requestEntitySync();
         }
-        linger = LINGER_TICKS;
+        linger = lingerTicks;
     }
 
     @Override

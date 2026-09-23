@@ -181,9 +181,9 @@ public final class HintBox {
         if (client == null || alpha <= 0F || text.isEmpty()) {
             return;
         }
-        float textWidth = client.font().width(text, TEXT_SCALE);
+        float textWidth = client.fonts().body().width(text, TEXT_SCALE);
         float boxWidth = textWidth + PAD_X * 2F;
-        float boxHeight = client.font().lineHeight(TEXT_SCALE) + PAD_Y * 2F;
+        float boxHeight = client.fonts().body().lineHeight(TEXT_SCALE) + PAD_Y * 2F;
         float x = (client.guiWidth() - boxWidth) / 2F;
         float y = BOTTOM_MARGIN;
 
@@ -195,7 +195,7 @@ public final class HintBox {
         roundedRect(x + 1F, y + 1F, boxWidth - 2F, boxHeight - 2F,
                 BACKGROUND_R, BACKGROUND_G, BACKGROUND_B, BACKGROUND_ALPHA * alpha);
 
-        client.font().draw(text, x + PAD_X, y + PAD_Y, TEXT_SCALE,
+        client.fonts().body().draw(text, x + PAD_X, y + PAD_Y, TEXT_SCALE,
                 TEXT_R, TEXT_G, TEXT_B, alpha);
     }
 

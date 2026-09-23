@@ -199,16 +199,16 @@ public final class UnlockPage implements EditorPage {
             return;
         }
         float labelScale = 0.78F;
-        context.client().font().draw("前置关卡（需先通关；逗号分隔，留空表示不限）",
+        context.client().fonts().body().draw("前置关卡（需先通关；逗号分隔，留空表示不限）",
                 unlockLevelsBox.x(), unlockLevelsBox.y() + unlockLevelsBox.height() + 5F,
                 labelScale, 0.9F, 0.9F, 0.9F, 1F);
-        context.client().font().draw("所需卡（需已解锁；同上）",
+        context.client().fonts().body().draw("所需卡（需已解锁；同上）",
                 unlockCardsBox.x(), unlockCardsBox.y() + unlockCardsBox.height() + 5F,
                 labelScale, 0.9F, 0.9F, 0.9F, 1F);
-        context.client().font().draw("金币解锁价（0 = 不可购买）",
+        context.client().fonts().body().draw("金币解锁价（0 = 不可购买）",
                 unlockCostBox.x(), unlockCostBox.y() + unlockCostBox.height() + 5F,
                 labelScale, 0.9F, 0.9F, 0.9F, 1F);
-        context.client().font().draw("隐藏关（未满足条件时不出现在列表里）",
+        context.client().fonts().body().draw("隐藏关（未满足条件时不出现在列表里）",
                 unlockHiddenButton.x(), unlockHiddenButton.y() + unlockHiddenButton.height() + 5F,
                 labelScale, 0.9F, 0.9F, 0.9F, 1F);
 
@@ -237,13 +237,13 @@ public final class UnlockPage implements EditorPage {
             drawTrimmed(context, "有问题：" + String.join("；", problems), rightX(), statusY, 0.72F,
                     1F, 0.5F, 0.4F);
         } else if (picked.isEmpty() && unlockCost <= 0 && !unlockHidden) {
-            context.client().font().draw("本关无条件：任何玩家都可以直接进入", rightX(), statusY, 0.72F,
+            context.client().fonts().body().draw("本关无条件：任何玩家都可以直接进入", rightX(), statusY, 0.72F,
                     0.7F, 0.9F, 0.7F, 1F);
         } else {
             String note = "条件生效：需解锁 " + picked.size() + " 项"
                     + (unlockCost > 0 ? "，或花 " + unlockCost + " 金币买下" : "")
                     + (unlockHidden ? "；未满足前不出现在列表里" : "");
-            context.client().font().draw(note, rightX(), statusY, 0.72F, 0.85F, 0.9F, 0.6F, 1F);
+            context.client().fonts().body().draw(note, rightX(), statusY, 0.72F, 0.85F, 0.9F, 0.6F, 1F);
         }
     }
 
@@ -262,13 +262,13 @@ public final class UnlockPage implements EditorPage {
                              float r, float g, float b) {
         String shown = text;
         float limit = Math.max(120F, context.client().guiWidth() / 2F - x - 20F);
-        while (shown.length() > 12 && context.client().font().width(shown, scale) > limit) {
+        while (shown.length() > 12 && context.client().fonts().body().width(shown, scale) > limit) {
             shown = shown.substring(0, shown.length() - 4);
         }
         if (!shown.equals(text)) {
             shown = shown + "…";
         }
-        context.client().font().draw(shown, x, y, scale, r, g, b, 1F);
+        context.client().fonts().body().draw(shown, x, y, scale, r, g, b, 1F);
     }
 
     /**

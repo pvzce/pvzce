@@ -1,14 +1,47 @@
 {
   "id": "pvzce:doom_doom_mushroom_left",
   "look": {
-    "spin": 15000.0,
+    "spin": 220.0,
+    "spin_spread": 60.0,
     "random_spin": true,
-    "alpha_to": 1.0,
-    "scale": 0.5,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.6,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 0.94,
+    "scale_curve": [
+      [
+        0.0,
+        0.8
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "aspect": 1.17,
     "life": 2.5,
     "frames_per_second": 60.0,
     "loop": true,
     "texture": "pvzce:textures/particles/explosion/doomshroom_explosion_top"
+  },
+  "motion": {
+    "speed": 0.25,
+    "speed_spread": 0.1,
+    "angle": 90.0,
+    "angle_spread": 40.0,
+    "offset_x": -1.125,
+    "offset_y": 1.5
   },
   "count": 2
 }

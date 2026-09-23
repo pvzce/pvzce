@@ -23,6 +23,27 @@ public final class SpriteRenderer {
     }
 
     /**
+     * The same draw without building a {@link Sprite} first.
+     *
+     * <p>For the text renderer, which draws one quad per glyph per frame: a HUD
+     * screen's worth of text is a few hundred glyphs, and a record allocation per
+     * glyph per frame is pure garbage. Callers that already have a texture region
+     * should still use {@link #textured}.
+     */
+    public static void texturedRegion(com.pvzce.client.renderer.texture.Texture texture,
+                                      float u0, float v0, float u1, float v1,
+                                      float x, float y, float width, float height, float z,
+                                      float r, float g, float b, float a) {
+        RenderSystem.setShadowMode(false);
+        RenderSystem.bindTexture(texture.glId());
+        RenderSystem.setTextured(true);
+        BufferBuilder builder = Tesselator.INSTANCE.begin();
+        quad(builder, x, y, x + width, y + height, z, u0, v0, u1, v1, r, g, b, a);
+        var mesh = builder.build();
+        Tesselator.INSTANCE.draw(mesh);
+    }
+
+    /**
      * Light-source projected shadow. The sprite is treated as a vertical
      * billboard standing on {@code groundY}; its four corners are projected
      * from {@code (lightX, lightY)} onto the ground plane, giving a trapezoid

@@ -81,9 +81,9 @@ public class Button extends AbstractWidget {
             if (active && hovered) {
                 client.drawSolid(x, y, width, height, 0.05F, 1F, 1F, 1F, 0.14F);
             }
-            float textWidth = client.font().width(label, scale);
-            client.font().draw(label, x + (width - textWidth) / 2F,
-                    y + (height - client.font().lineHeight(scale)) / 2F,
+            float textWidth = client.fonts().button().width(label, scale);
+            client.fonts().button().draw(label, x + (width - textWidth) / 2F,
+                    y + (height - client.fonts().button().lineHeight(scale)) / 2F,
                     scale, 1F, 1F, 1F, active ? 1F : 0.55F);
             return;
         }
@@ -99,8 +99,9 @@ public class Button extends AbstractWidget {
         NinePatch.drawThreeSlice(client, left, middle, right, x, y, width, height, 0F,
                 leftWidth, rightWidth, shade, shade, shade, active ? 1F : 0.85F);
 
-        float textWidth = client.font().width(label, scale);
-        client.font().draw(label, x + (width - textWidth) / 2F, y + (height - client.font().lineHeight(scale)) / 2F,
+        float textWidth = client.fonts().button().width(label, scale);
+        client.fonts().button().draw(label, x + (width - textWidth) / 2F,
+                y + (height - client.fonts().button().lineHeight(scale)) / 2F,
                 scale, 1F, 1F, 1F, active ? 1F : 0.6F);
     }
 

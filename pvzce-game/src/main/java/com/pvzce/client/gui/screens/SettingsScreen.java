@@ -25,7 +25,7 @@ public final class SettingsScreen extends Screen {
         int topY = guiH - titleReserve;
         int buttonTop = topY - gap;
         titleScale = Math.min(2.4F, Math.max(1.2F, guiH / 120F));
-        titleY = buttonTop + Math.round(client.font().lineHeight(titleScale) * 0.35F);
+        titleY = buttonTop + Math.round(client.fonts().button().lineHeight(titleScale) * 0.35F);
         int x = centerX(buttonWidth);
         String[] labels = {"音量设置", "视频设置", "完成"};
         Runnable[] actions = {
@@ -44,7 +44,7 @@ public final class SettingsScreen extends Screen {
         client.beginGuiView();
         renderBackground(0.08F, 0.1F, 0.12F);
         String title = "设置";
-        client.font().draw(title, (client.guiWidth() - client.font().width(title, titleScale)) / 2F,
+        client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, titleScale)) / 2F,
                 titleY, titleScale, 1, 1, 1, 1);
         for (var widget : widgets) {
             widget.render(client);

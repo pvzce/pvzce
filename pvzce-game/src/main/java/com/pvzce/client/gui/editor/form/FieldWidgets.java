@@ -379,7 +379,7 @@ public final class FieldWidgets {
                 if (box == null || box.value().isBlank() || resolves()) {
                     return;
                 }
-                context.client().font().draw("未知 " + category + " id", box.x(),
+                context.client().fonts().body().draw("未知 " + category + " id", box.x(),
                         box.y() + box.height() + 3F, 0.62F, 1F, 0.45F, 0.45F, 1F);
             }
 
@@ -468,7 +468,7 @@ public final class FieldWidgets {
                 for (String id : split(box.value())) {
                     Identifier parsed = Identifier.tryParse(id);
                     if (parsed == null || !resolves(category, parsed)) {
-                        context.client().font().draw("未知 " + category + " id：" + id, box.x(),
+                        context.client().fonts().body().draw("未知 " + category + " id：" + id, box.x(),
                                 box.y() + box.height() + 3F, 0.62F, 1F, 0.45F, 0.45F, 1F);
                         return;
                     }
@@ -587,7 +587,7 @@ public final class FieldWidgets {
 
         @Override
         public void render(EditorContext context, FormLayout.Row row) {
-            context.client().font().draw(note, row.control().x(),
+            context.client().fonts().body().draw(note, row.control().x(),
                     row.control().y() + row.control().height() / 2F - 4F, 0.66F, 1F, 0.8F, 0.4F, 1F);
         }
 

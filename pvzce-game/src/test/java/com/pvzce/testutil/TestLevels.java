@@ -84,6 +84,7 @@ public final class TestLevels {
         private Optional<Identifier> background;
         private List<String> hiddenSceneElements;
         private boolean disableShaders;
+        private LevelDef.LevelBuffPlan buffPlan = LevelDef.LevelBuffPlan.NONE;
 
         private Builder(LevelDef def) {
             this.id = def.id();
@@ -225,11 +226,16 @@ public final class TestLevels {
             return this;
         }
 
+        public Builder buffs(LevelDef.LevelBuffPlan value) {
+            this.buffPlan = value;
+            return this;
+        }
+
         public LevelDef build() {
             return new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules,
                     envVars, waves, waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     music, initialEntities, maxSeedSlots, rewards, unlock, mechanics, dialogue,
-                    hints, playableTeams, background, hiddenSceneElements, disableShaders);
+                    hints, playableTeams, background, hiddenSceneElements, disableShaders, buffPlan);
         }
     }
 }

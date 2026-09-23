@@ -253,10 +253,10 @@ public class Dialog extends AbstractWidget {
         }
         client.drawTexture(HEADER, plateX, plateY, plateWidth, plateHeight, 0.1F, 1F, 1F, 1F, 1F);
 
-        float textWidth = client.font().width(title, titleScale);
+        float textWidth = client.fonts().button().width(title, titleScale);
         float textX = x + (width - textWidth) / 2F;
-        float textY = plateY + (plateHeight - client.font().lineHeight(titleScale)) / 2F;
-        client.font().draw(title, textX, textY, titleScale, 1F, 1F, 1F, 1F);
+        float textY = plateY + (plateHeight - client.fonts().button().lineHeight(titleScale)) / 2F;
+        client.fonts().button().draw(title, textX, textY, titleScale, 1F, 1F, 1F, 1F);
     }
 
     /** The title as one line of text just under the frame's top border. */
@@ -265,7 +265,7 @@ public class Dialog extends AbstractWidget {
             return;
         }
         float textY = y + height - NinePatch.DIALOG_TOP * frameScale + 4F;
-        client.font().draw(title, x + NinePatch.DIALOG_LEFT * frameScale,
+        client.fonts().button().draw(title, x + NinePatch.DIALOG_LEFT * frameScale,
                 textY, titleScale, 1F, 0.95F, 0.6F, 1F);
     }
 

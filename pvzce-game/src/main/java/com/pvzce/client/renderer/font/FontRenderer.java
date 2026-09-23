@@ -1,236 +1,272 @@
 package com.pvzce.client.renderer.font;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.client.renderer.SpriteRenderer;
 import com.pvzce.client.renderer.sprite.Sprite;
-import com.pvzce.client.renderer.texture.Texture;
-import com.pvzce.client.renderer.texture.TextureManager;
 import com.pvzce.common.resource.PackResource;
 import com.pvzce.common.resource.PvzceResourceManager;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.IntSupplier;
 
 /**
- * Bitmap font: glyph atlas PNG + JSON bounds. Visual bounds are measured from
- * the atlas so proportional Latin glyphs neither overlap horizontally nor
- * wobble vertically; all glyphs share one Latin baseline. Atlas pixels are
- * converted to logical GUI pixels via {@link #atlasToGui}, so a high-resolution
- * baked atlas does not draw oversized text.
+ * The one text renderer: three typeface roles, rasterised from TTF at the pixel
+ * size the screen actually has.
+ *
+ * <p>Replaces the pre-baked bitmap atlas this project shipped with (a 16384x7168
+ * PNG holding 7131 glyphs, ~470MB of VRAM once a driver expands it). Glyphs now
+ * come from the fonts in {@code assets/pvzce/font/} through stb_truetype, packed
+ * on demand into 2048x2048 R8 atlas pages - a screenful of text costs one page,
+ * and the em size follows the window's GUI scale instead of being fixed at bake
+ * time, so text stays sharp at any window size or DPI.
+ *
+ * <h2>Roles</h2>
+ * The three roles are what call sites ask for; which face satisfies them is
+ * decided here, once:
+ * <ul>
+ *   <li>{@link #button()} - 站酷快乐体, for buttons, titles and dialogue;</li>
+ *   <li>{@link #body()} - 思源黑体, for hints, labels and everything else;</li>
+ *   <li>{@link #serif()} - 思源宋体, for long-form prose (the codex to come).</li>
+ * </ul>
+ *
+ * <h2>The y coordinate</h2>
+ * {@code y} is the <em>top of the line box</em>, exactly as it was for the old
+ * bitmap renderer: call sites pass the top of the box they laid out and this
+ * class derives the baseline from real font metrics. {@link #draw} returns the
+ * top of the next line, and {@link #drawLines} advances through a list, so
+ * stacking call sites do not repeat the arithmetic.
+ *
+ * <p>Not thread safe: everything here runs on the render thread.
  */
-public final class FontRenderer {
-    private static final Identifier FONT_TEXTURE = Identifier.withDefaultNamespace("font/ui");
-    private static final Identifier FONT_META = Identifier.withDefaultNamespace("font/ui.json");
+public final class FontRenderer implements AutoCloseable {
+    /** Files under {@code assets/pvzce/font/}, without the extension. */
+    private static final String DISPLAY_FILE = "zhanku";
+    private static final String SANS_FILE = "noto_sans_sc_regular";
+    private static final String SANS_MEDIUM_FILE = "noto_sans_sc_medium";
+    private static final String SERIF_FILE = "noto_serif_sc_regular";
 
     /**
-     * Largest logical line height (in GUI pixels) produced by a draw scale of
-     * 1. Glyph atlases are often baked much larger than the UI needs (the
-     * bundled atlas uses 128px cells) so they stay crisp when scaled up;
-     * {@link #atlasToGui} scales such atlases back down to this size while
-     * leaving smaller atlases untouched.
+     * Logical em size of the body role at scale 1, in GUI units.
+     *
+     * <p>Calibrated against the bitmap atlas this replaced, which drew a 98px font into
+     * 18-unit lines: its full-width "中" advanced 16.9 units and its ink was about 22
+     * units tall. 思源黑体's own "中" is 0.69em wide and 0.67em tall, so an em of 72
+     * units reproduces both - 16.5 units of advance and 21.7 of ink. Getting this wrong
+     * is not subtle: at the first attempt (em 20) a CJK glyph was 5 units tall and every
+     * label read as a solid black blob.
      */
-    private static final float BASE_LINE_HEIGHT = 18F;
+    private static final float BODY_EM = 72F;
+    /**
+     * The display face is larger, because 站酷快乐体's hanzi are drawn smaller on their em
+     * than 思源黑体's: at em 76 its ink is 15 units where the body face reaches 21.7, so
+     * the display role asks for more to land at the same optical size.
+     */
+    private static final float DISPLAY_EM = 90F;
+    /** Long-form serif text reads at the body size. */
+    private static final float SERIF_EM = 72F;
+    /**
+     * Below this many device pixels 站酷快乐体's strokes merge into a blob, so the
+     * display role quietly switches to 思源黑体: readability beats house style.
+     * 16 device pixels is roughly where the two stop being distinguishable.
+     */
+    private static final int DISPLAY_MIN_PIXELS = 16;
 
-    private record Glyph(char ch, int x, int y, int width, int height, int advance,
-                         int visualLeft, int visualTop, int visualRight, int visualBottom, int baseline) {
+
+    private static int GL30_TEXTURE_BINDING_2D() {
+        return org.lwjgl.opengl.GL11.GL_TEXTURE_BINDING_2D;
     }
 
-    private final Map<Character, Glyph> glyphs = new HashMap<>();
-    private final TextureManager textures;
-    /** Atlas-native line height in pixels, straight from {@code ui.json}. */
-    private int lineHeight = Math.round(BASE_LINE_HEIGHT);
-    /** Multiplier from atlas pixels to logical GUI pixels. */
-    private float atlasToGui = 1F;
+    private final FontFace displayFace;
+    private final FontFace sansFace;
+    private final FontFace sansMediumFace;
+    private final FontFace serifFace;
+    private final FontFamily display;
+    private final FontFamily body;
+    private final FontFamily bodyMedium;
+    private final FontFamily serif;
+    /** GUI scale in framebuffer pixels per GUI unit; text is rasterised at that density. */
+    private final IntSupplier guiScale;
 
-    public FontRenderer(TextureManager textures, PvzceResourceManager resources) {
-        this.textures = textures;
-        try {
-            var metaResource = resources.getAsset(FONT_META);
-            if (metaResource.isPresent()) {
-                loadMeta(metaResource.get());
-                measureVisualBounds(resources);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load font metadata", e);
-        }
-        atlasToGui = lineHeight > BASE_LINE_HEIGHT ? BASE_LINE_HEIGHT / lineHeight : 1F;
+    /**
+     * @param resources the pack stack to read the TTFs from
+     * @param guiScale  framebuffer pixels per GUI unit, read per draw so a window or
+     *                  scale change produces sharper glyphs instead of a stretched
+     *                  bitmap
+     */
+    public FontRenderer(PvzceResourceManager resources, IntSupplier guiScale) {
+        this.guiScale = guiScale;
+        displayFace = load(resources, DISPLAY_FILE);
+        sansFace = load(resources, SANS_FILE);
+        sansMediumFace = loadOptional(resources, SANS_MEDIUM_FILE);
+        serifFace = loadOptional(resources, SERIF_FILE);
+        // 站酷 first for the display role, 思源黑体 behind it for the hanzi it does
+        // not have (extension A) and for anything below its legible size.
+        display = new FontFamily("display", displayFace, List.of(sansFace), DISPLAY_EM,
+                DISPLAY_MIN_PIXELS);
+        body = new FontFamily("body", sansFace, List.of(), BODY_EM);
+        bodyMedium = new FontFamily("body_medium", sansMediumFace == null ? sansFace : sansMediumFace,
+                List.of(), BODY_EM);
+        serif = new FontFamily("serif", serifFace == null ? sansFace : serifFace,
+                List.of(sansFace), SERIF_EM);
     }
 
-    private void loadMeta(PackResource resource) {
-        JsonObject root = JsonParser.parseString(resource.readString()).getAsJsonObject();
-        lineHeight = root.has("line_height") ? root.get("line_height").getAsInt() : Math.round(BASE_LINE_HEIGHT);
-        JsonArray array = root.getAsJsonArray("glyphs");
-        for (JsonElement element : array) {
-            JsonObject glyph = element.getAsJsonObject();
-            String ch = glyph.get("char").getAsString();
-            glyphs.put(ch.charAt(0), new Glyph(ch.charAt(0),
-                    glyph.get("x").getAsInt(),
-                    glyph.get("y").getAsInt(),
-                    glyph.get("w").getAsInt(),
-                    glyph.get("h").getAsInt(),
-                    glyph.get("advance").getAsInt(),
-                    -1, -1, -1, -1, -1));
-        }
+    // ---------- roles ----------
+
+    /** Buttons, titles and dialogue: 站酷快乐体. */
+    public FontFamily button() {
+        return display;
     }
 
-    private void measureVisualBounds(PvzceResourceManager resources) throws IOException {
-        var textureResource = resources.getAsset(FONT_TEXTURE);
-        if (textureResource.isEmpty()) {
-            textureResource = resources.getResource("assets/" + FONT_TEXTURE.toPath() + ".png");
-        }
-        if (textureResource.isEmpty()) {
-            return;
-        }
-        BufferedImage image = ImageIO.read(new ByteArrayInputStream(textureResource.get().bytes()));
-        if (image == null) {
-            return;
-        }
-
-        long bottomSum = 0;
-        int latinCount = 0;
-        for (Glyph glyph : glyphs.values()) {
-            if (glyph.ch < 'A' || glyph.ch > 'Z') {
-                continue;
-            }
-            int bottom = findBottom(image, glyph);
-            if (bottom >= 0) {
-                bottomSum += bottom;
-                latinCount++;
-            }
-        }
-        int baseline = latinCount == 0 ? Math.round(image.getHeight() * 0.79F) : (int) Math.round(bottomSum / (double) latinCount) + 1;
-
-        for (Map.Entry<Character, Glyph> entry : glyphs.entrySet()) {
-            Glyph glyph = entry.getValue();
-            int left = -1;
-            int top = -1;
-            int right = -1;
-            int bottom = -1;
-            for (int py = 0; py < glyph.height; py++) {
-                for (int px = 0; px < glyph.width; px++) {
-                    int argb = image.getRGB(glyph.x + px, glyph.y + py);
-                    if (((argb >>> 24) & 0xFF) > 8) {
-                        if (top < 0) {
-                            top = py;
-                        }
-                        bottom = py;
-                        if (left < 0 || px < left) {
-                            left = px;
-                        }
-                        if (px > right) {
-                            right = px;
-                        }
-                    }
-                }
-            }
-            entry.setValue(new Glyph(glyph.ch, glyph.x, glyph.y, glyph.width, glyph.height, glyph.advance,
-                    left, top, right, bottom, baseline));
-        }
+    /** Hints, labels, numbers and every other short string: 思源黑体. */
+    public FontFamily body() {
+        return body;
     }
 
-    private static int findBottom(BufferedImage image, Glyph glyph) {
-        for (int py = glyph.height - 1; py >= 0; py--) {
-            for (int px = 0; px < glyph.width; px++) {
-                if (((image.getRGB(glyph.x + px, glyph.y + py) >>> 24) & 0xFF) > 8) {
-                    return py;
-                }
-            }
-        }
-        return -1;
+    /** A slightly heavier body face, for the one label that needs the emphasis. */
+    public FontFamily bodyMedium() {
+        return bodyMedium;
     }
 
+    /** Long-form prose: 思源宋体. */
+    public FontFamily serif() {
+        return serif;
+    }
+
+    // ---------- drawing ----------
+
+    /** Draws one line (or several, split on {@code \n}) and returns the next line's top. */
     public float draw(String text, float x, float y, float scale, float r, float g, float b, float a) {
-        float cursor = x;
-        float unit = scale * atlasToGui;
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            if (ch == '\n') {
-                y -= lineHeight * unit;
-                cursor = x;
-                continue;
-            }
-            Glyph glyph = glyphs.get(ch);
-            if (glyph == null) {
-                glyph = glyphs.get('?');
-            }
-            if (glyph != null) {
-                Texture texture = textures.getOrLoad(FONT_TEXTURE);
-                float inset;
-                float drawWidth;
-                float drawHeight;
-                float drawY;
-                float u0;
-                float v1;
-                float u1;
-                float v0;
-                if (glyph.visualLeft >= 0 && glyph.visualRight >= 0
-                        && glyph.visualTop >= 0 && glyph.visualBottom >= 0) {
-                    inset = glyph.visualLeft;
-                    drawWidth = Math.max(1, glyph.visualRight - glyph.visualLeft + 1);
-                    drawHeight = Math.max(1, glyph.visualBottom - glyph.visualTop + 1);
-                    drawY = y + (glyph.baseline - glyph.visualBottom) * unit;
-                    u0 = (glyph.x + inset) / (float) texture.width();
-                    v1 = 1F - (glyph.y + glyph.visualTop) / (float) texture.height();
-                    u1 = (glyph.x + inset + drawWidth) / (float) texture.width();
-                    v0 = 1F - (glyph.y + glyph.visualBottom + 1) / (float) texture.height();
-                } else {
-                    // Fallback for atlases without readable pixels: center-crop
-                    // fixed cells to the advance width.
-                    float cellWidth = glyph.width;
-                    drawWidth = cellWidth;
-                    inset = 0F;
-                    if (cellWidth > glyph.advance * 1.25F) {
-                        drawWidth = Math.max(1, Math.min(glyph.advance, cellWidth));
-                        inset = (cellWidth - drawWidth) / 2F;
-                    }
-                    drawHeight = glyph.height;
-                    drawY = y;
-                    u0 = (glyph.x + inset) / (float) texture.width();
-                    v1 = 1F - glyph.y / (float) texture.height();
-                    u1 = (glyph.x + inset + drawWidth) / (float) texture.width();
-                    v0 = 1F - (glyph.y + drawHeight) / (float) texture.height();
-                }
-                Sprite sprite = new Sprite(texture, u0, v0, u1, v1);
-                SpriteRenderer.textured(sprite, cursor, drawY, drawWidth * unit, drawHeight * unit, 0, r, g, b, a);
-                cursor += glyph.advance * unit;
-            } else {
-                cursor += 10 * scale;
-            }
+        return draw(text, x, y, scale, r, g, b, a, TextStyle.NONE);
+    }
+
+    /** Draws with an outline or drop shadow - see {@link TextStyle}. */
+    public float draw(String text, float x, float y, float scale, float r, float g, float b, float a,
+                      TextStyle style) {
+        return draw(body, text, x, y, scale, r, g, b, a, style);
+    }
+
+    /** Draws with an explicit role. */
+    public float draw(FontFamily family, String text, float x, float y, float scale,
+                      float r, float g, float b, float a, TextStyle style) {
+        if (text == null || text.isEmpty()) {
+            return y;
+        }
+        int size = devicePixelSize(family, scale);
+        return drawRun(family, text, x, y, scale, size, r, g, b, a, style);
+    }
+
+    /** Convenience: draw an already-wrapped list, one line per entry. */
+    public float drawLines(List<String> lines, float x, float y, float scale,
+                           float r, float g, float b, float a, TextStyle style) {
+        return drawLines(body, lines, x, y, scale, r, g, b, a, style);
+    }
+
+    /** Convenience: draw an already-wrapped list with an explicit role. */
+    public float drawLines(FontFamily family, List<String> lines, float x, float y, float scale,
+                           float r, float g, float b, float a, TextStyle style) {
+        float cursor = y;
+        for (String line : lines) {
+            cursor = draw(family, line, x, cursor, scale, r, g, b, a, style);
         }
         return cursor;
     }
 
-    public float width(String text, float scale) {
-        float width = 0;
-        float maxWidth = 0;
-        float unit = scale * atlasToGui;
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            if (ch == '\n') {
-                maxWidth = Math.max(maxWidth, width);
-                width = 0;
-                continue;
-            }
-            Glyph glyph = glyphs.get(ch);
-            width += glyph != null ? glyph.advance * unit : 10 * scale;
-        }
-        return Math.max(maxWidth, width);
+    /** Draws centred on {@code centerX} and returns the next line's top. */
+    public float drawCentered(String text, float centerX, float y, float scale,
+                              float r, float g, float b, float a) {
+        return drawCentered(body, text, centerX, y, scale, r, g, b, a, TextStyle.NONE);
     }
 
-    public int lineHeight(float scale) {
-        return Math.round(lineHeight * scale * atlasToGui);
+    /** Draws centred on {@code centerX} with an explicit role and style. */
+    public float drawCentered(FontFamily family, String text, float centerX, float y, float scale,
+                              float r, float g, float b, float a, TextStyle style) {
+        return draw(family, text, centerX - width(family, text, scale) / 2F, y, scale,
+                r, g, b, a, style);
+    }
+
+    /** Draws with the right edge at {@code rightX} and returns the next line's top. */
+    public float drawRight(FontFamily family, String text, float rightX, float y, float scale,
+                           float r, float g, float b, float a, TextStyle style) {
+        return draw(family, text, rightX - width(family, text, scale), y, scale, r, g, b, a, style);
+    }
+
+    // ---------- measuring ----------
+
+    /** Width of the widest line, in GUI units. */
+    public float width(String text, float scale) {
+        return width(body, text, scale);
+    }
+
+    /** Width of the widest line, in GUI units, for an explicit role. */
+    public float width(FontFamily family, String text, float scale) {
+        if (text == null || text.isEmpty()) {
+            return 0F;
+        }
+        int size = devicePixelSize(family, scale);
+        float toGui = 1F / Math.max(1, guiScale.getAsInt());
+        float widest = 0F;
+        float current = 0F;
+        int previous = -1;
+        for (int i = 0; i < text.length(); ) {
+            int codepoint = text.codePointAt(i);
+            i += Character.charCount(codepoint);
+            if (codepoint == '\n') {
+                widest = Math.max(widest, current);
+                current = 0F;
+                previous = -1;
+                continue;
+            }
+            if (previous >= 0) {
+                current += family.kern(previous, codepoint, size);
+            }
+            current += family.advance(codepoint, size);
+            previous = codepoint;
+        }
+        return Math.max(widest, current) * toGui;
     }
 
     /**
-     * Breaks text into lines that each fit {@code maxWidth}, honouring explicit newlines.
+     * Line height, in GUI units: what a stacked line advances by. Rounded to a whole
+     * unit, like the bitmap renderer's line height was.
+     */
+    public int lineHeight(float scale) {
+        return lineHeight(body, scale);
+    }
+
+    /** Line height for an explicit role, in GUI units. */
+    public int lineHeight(FontFamily family, float scale) {
+        int size = devicePixelSize(family, scale);
+        return Math.round((family.ascent(size) + family.descent(size))
+                / Math.max(1, guiScale.getAsInt()));
+    }
+
+    /** The baseline offset from the top of the line box, in GUI units. */
+    public float ascent(float scale) {
+        return ascent(body, scale);
+    }
+
+    /** The baseline offset for an explicit role, in GUI units. */
+    public float ascent(FontFamily family, float scale) {
+        int size = devicePixelSize(family, scale);
+        return family.baselineFromTop(size) / Math.max(1, guiScale.getAsInt());
+    }
+
+    // ---------- legacy helpers ----------
+
+    /**
+     * Alias of {@link #lineHeight(float)} kept for call sites that used the old
+     * renderer's name for it.
+     */
+    public int height(float scale) {
+        return lineHeight(scale);
+    }
+
+    /**
+     * Breaks text into lines that each fit {@code maxWidth}, honouring explicit
+     * newlines.
      *
      * <p>Breaks between characters rather than at spaces: this is a CJK UI, where a
      * sentence has no spaces to break at, and a Latin word that overflows is still
@@ -239,32 +275,201 @@ public final class FontRenderer {
      *
      * <p>Shared because two callers need the same answer to "what are the lines":
      * {@code ModsScreen} draws them into a band, and {@code DialogueOverlay} measures
-     * them to size a speech bubble. Measuring and drawing used to be one function, so
-     * anything that only wanted the lines had to write its own wrapper.
+     * them to size a speech bubble.
      */
-    public java.util.List<String> wrapLines(String text, float maxWidth, float scale) {
-        java.util.List<String> lines = new java.util.ArrayList<>();
+    public List<String> wrapLines(String text, float maxWidth, float scale) {
+        return wrapLines(body, text, maxWidth, scale);
+    }
+
+    /** Wrapping for an explicit role. */
+    public List<String> wrapLines(FontFamily family, String text, float maxWidth, float scale) {
+        List<String> lines = new ArrayList<>();
         if (text == null) {
             return lines;
         }
         StringBuilder line = new StringBuilder();
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            if (ch == '\n') {
+        for (int i = 0; i < text.length(); ) {
+            int codepoint = text.codePointAt(i);
+            i += Character.charCount(codepoint);
+            if (codepoint == '\n') {
                 lines.add(line.toString());
                 line.setLength(0);
                 continue;
             }
             int before = line.length();
-            line.append(ch);
-            if (before > 0 && width(line.toString(), scale) > maxWidth) {
+            line.appendCodePoint(codepoint);
+            if (before > 0 && width(family, line.toString(), scale) > maxWidth) {
                 line.setLength(before);
                 lines.add(line.toString());
                 line.setLength(0);
-                line.append(ch);
+                line.appendCodePoint(codepoint);
             }
         }
         lines.add(line.toString());
         return lines;
+    }
+
+    // ---------- lifecycle ----------
+
+    /**
+     * Drops every atlas page. For a resource reload: nothing else identifies the
+     * atlas to the pack stack, and a pack that swaps a TTF needs the old outlines
+     * gone. The next frame re-rasterises what it draws.
+     */
+    public void invalidate() {
+        displayFace.recycle();
+        sansFace.recycle();
+        if (sansMediumFace != null && sansMediumFace != sansFace) {
+            sansMediumFace.recycle();
+        }
+        if (serifFace != null && serifFace != sansFace) {
+            serifFace.recycle();
+        }
+    }
+
+    /**
+     * Writes every atlas page under {@code directory}. For {@code -Dpvzce.dumpFontAtlas}
+     * and for tests: a screenshot shows that text is wrong, this shows why.
+     */
+    public void dumpAtlases(java.nio.file.Path directory) {
+        displayFace.dumpAtlases(directory);
+        sansFace.dumpAtlases(directory);
+        if (sansMediumFace != null && sansMediumFace != sansFace) {
+            sansMediumFace.dumpAtlases(directory);
+        }
+        if (serifFace != null && serifFace != sansFace) {
+            serifFace.dumpAtlases(directory);
+        }
+    }
+
+    /** One line per face: pages, cached glyphs and covered codepoints. */
+    public String debugInfo() {
+        StringBuilder info = new StringBuilder();
+        info.append(display.debugName()).append('\n');
+        info.append(body.debugName()).append('\n');
+        if (sansMediumFace != null) {
+            info.append(sansMediumFace.debugName()).append('\n');
+        }
+        if (serifFace != null) {
+            info.append(serifFace.debugName()).append('\n');
+        }
+        return info.toString();
+    }
+
+    @Override
+    public void close() {
+        displayFace.close();
+        if (sansMediumFace != null && sansMediumFace != sansFace) {
+            sansMediumFace.close();
+        }
+        if (serifFace != null && serifFace != sansFace) {
+            serifFace.close();
+        }
+        sansFace.close();
+    }
+
+    // ---------- internals ----------
+
+    private int devicePixelSize(FontFamily family, float scale) {
+        float pixels = family.emSize() * scale * Math.max(1, guiScale.getAsInt());
+        return Math.max(1, Math.round(pixels));
+    }
+
+    /**
+     * Draws a run of text. Glyphs already in the atlas come back without touching
+     * the font; the first frame after a recycle rasterises on the fly, which is
+     * why a glyph the atlas could not take is simply skipped rather than rerouted.
+     */
+    private float drawRun(FontFamily family, String text, float x, float y, float scale,
+                          int size, float r, float g, float b, float a, TextStyle style) {
+        float toGui = 1F / Math.max(1, guiScale.getAsInt());
+        float lineAdvance = (family.ascent(size) + family.descent(size)) * toGui;
+        float startX = x;
+        float cursor = x;
+        float top = y;
+        boolean shadow = style.hasShadow() && a > 0F;
+        boolean outline = style.hasOutline() && style.outlineA() > 0F;
+
+        RenderSystem.setTextured(true);
+        for (int i = 0; i < text.length(); ) {
+            int codepoint = text.codePointAt(i);
+            i += Character.charCount(codepoint);
+            if (codepoint == '\n') {
+                cursor = startX;
+                top -= lineAdvance;
+                continue;
+            }
+            drawGlyph(family, codepoint, size, cursor, top, r, g, b, a, style, shadow, outline, toGui);
+            cursor += family.advance(codepoint, size) * toGui;
+        }
+        RenderSystem.setTextured(false);
+        RenderSystem.setTextEffects(false, 0F, 0F, 0F, 1F, 1F, 1F);
+        return top - lineAdvance;
+    }
+
+    private void drawGlyph(FontFamily family, int codepoint, int size, float x, float y,
+                           float r, float g, float b, float a, TextStyle style,
+                           boolean shadow, boolean outline, float toGui) {
+        GlyphRef glyph = family.glyph(codepoint, size);
+        if (glyph == null) {
+            return;
+        }
+        float baseline = y - family.ascent(size) * toGui;
+        float left = x + glyph.visualLeft() * toGui;
+        float bottom = baseline - glyph.visualBottom() * toGui;
+        float width = glyph.width() * toGui;
+        float height = glyph.height() * toGui;
+        renderGlyph(glyph, left, bottom, width, height, r, g, b, a, style, shadow, outline, toGui);
+    }
+
+    /** One glyph quad, with the shader effect uniforms set for it. */
+    private void renderGlyph(GlyphRef glyph, float x, float y, float width, float height,
+                             float r, float g, float b, float a, TextStyle style,
+                             boolean shadow, boolean outline, float toGui) {
+        if (shadow) {
+            RenderSystem.setTextEffects(true, 1F,
+                    style.shadowOffsetX() / toGui, style.shadowOffsetY() / toGui,
+                    style.shadowR(), style.shadowG(), style.shadowB());
+        } else if (outline) {
+            // The outline branch ignores the shadow colour: the shader only uses one
+            // of the two effects at a time, because a shadow under an outline is
+            // invisible anyway.
+            RenderSystem.setTextEffects(true, 2F,
+                    style.outlineThickness() / toGui, style.outlineThickness() / toGui,
+                    style.outlineR(), style.outlineG(), style.outlineB());
+        }
+        SpriteRenderer.texturedRegion(textureOf(glyph),
+                glyph.slot().u0(), glyph.slot().v0(), glyph.slot().u1(), glyph.slot().v1(),
+                x, y, width, height, 0F, r, g, b, a);
+        if (shadow || outline) {
+            RenderSystem.setTextEffects(false, 0F, 0F, 0F, 1F, 1F, 1F);
+        }
+    }
+
+    /** The atlas page as a {@link Sprite}-compatible texture handle. */
+    private static com.pvzce.client.renderer.texture.Texture textureOf(GlyphRef glyph) {
+        return glyph.slot().page().texture();
+    }
+
+    private static FontFace load(PvzceResourceManager resources, String file) {
+        FontFace face = loadOptional(resources, file);
+        if (face == null) {
+            throw new IllegalStateException("Missing bundled font assets/pvzce/font/" + file + ".ttf");
+        }
+        return face;
+    }
+
+    /** Loads a face, returning null when the pack stack does not have it. */
+    private static FontFace loadOptional(PvzceResourceManager resources, String file) {
+        try {
+            var resource = resources.getAsset(Identifier.withDefaultNamespace("font/" + file + ".ttf"));
+            if (resource.isEmpty()) {
+                return null;
+            }
+            PackResource font = resource.get();
+            return new FontFace(file, font.bytes());
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read bundled font " + file, e);
+        }
     }
 }

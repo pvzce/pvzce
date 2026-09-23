@@ -53,7 +53,7 @@ public final class ModsScreen extends Screen {
         int searchHeight = GuiLayout.fitHeight(height, 42, 1, titleReserve, 0);
         int searchY = height - titleReserve - 6 - searchHeight;
         titleScale = Math.min(1.8F, Math.max(1.0F, height / 140F));
-        titleY = (searchY + searchHeight) + Math.round(client.font().lineHeight(titleScale) * 0.35F);
+        titleY = (searchY + searchHeight) + Math.round(client.fonts().body().lineHeight(titleScale) * 0.35F);
 
         searchBox = new EditBox(LEFT_X + 8, searchY, Math.max(120, leftWidth - 130), searchHeight, 128, () -> {
         });
@@ -73,11 +73,11 @@ public final class ModsScreen extends Screen {
                         client.warnMissingTexture(Identifier.of("mod_icon", mod.id()));
                         client.drawSolid(x + indent, y + 8, 30, 30, 0, 0.35F, 0.35F, 0.4F, 1F);
                         String initial = mod.name().isEmpty() ? "?" : mod.name().substring(0, 1).toUpperCase();
-                        client.font().draw(initial, x + indent + 8, y + 10, 1F, 1F, 1F, 1F, 1F);
+                        client.fonts().body().draw(initial, x + indent + 8, y + 10, 1F, 1F, 1F, 1F, 1F);
                     }
-                    client.font().draw(mod.name(), x + indent + 36, y + 20, 1F, 1F, 1F, 1F, 1F);
+                    client.fonts().body().draw(mod.name(), x + indent + 36, y + 20, 1F, 1F, 1F, 1F, 1F);
                     String sub = mod.id() + " · v" + mod.version() + (mod.parentId() == null ? "" : " (子模组)");
-                    client.font().draw(sub, x + indent + 38, y + 2, 0.65F, 0.7F, 0.75F, 0.7F, 1F);
+                    client.fonts().body().draw(sub, x + indent + 38, y + 2, 0.65F, 0.7F, 0.75F, 0.7F, 1F);
                 });
         addWidget(modList);
         refreshFilter();
@@ -193,8 +193,8 @@ public final class ModsScreen extends Screen {
         client.beginGuiView();
         renderBackground(0.09F, 0.1F, 0.13F);
         String title = "模组列表";
-        client.font().draw(title, LEFT_X + 10, titleY, titleScale, 1, 1, 1, 1);
-        client.font().draw("已加载 " + ModMenu.mods().size() + " 个模组", LEFT_X + 180, titleY,
+        client.fonts().button().draw(title, LEFT_X + 10, titleY, titleScale, 1, 1, 1, 1);
+        client.fonts().body().draw("已加载 " + ModMenu.mods().size() + " 个模组", LEFT_X + 180, titleY,
                 0.8F, 0.7F, 0.75F, 0.7F, 1F);
 
         for (var widget : widgets) {
@@ -209,22 +209,22 @@ public final class ModsScreen extends Screen {
         }
         int titleReserve = Math.max(38, Math.min(58, client.guiHeight() / 5));
         int y = client.guiHeight() - titleReserve - 8;
-        client.font().draw(selected.name(), rightX, y, 1.6F, 1F, 1F, 1F, 1F);
+        client.fonts().body().draw(selected.name(), rightX, y, 1.6F, 1F, 1F, 1F, 1F);
         y -= 30;
-        client.font().draw(selected.id() + " · v" + selected.version(), rightX, y, 0.9F, 0.8F, 0.85F, 0.8F, 1F);
+        client.fonts().body().draw(selected.id() + " · v" + selected.version(), rightX, y, 0.9F, 0.8F, 0.85F, 0.8F, 1F);
         y -= 26;
         String authors = "作者: " + (selected.authors().isEmpty() ? "未知" : String.join(", ", selected.authors()));
-        client.font().draw(authors, rightX, y, 0.8F, 0.85F, 0.85F, 0.85F, 1F);
+        client.fonts().body().draw(authors, rightX, y, 0.8F, 0.85F, 0.85F, 0.85F, 1F);
         y -= 22;
         String license = "许可: " + (selected.license().isEmpty() ? "未知" : String.join(", ", selected.license()));
-        client.font().draw(license, rightX, y, 0.8F, 0.85F, 0.85F, 0.85F, 1F);
+        client.fonts().body().draw(license, rightX, y, 0.8F, 0.85F, 0.85F, 0.85F, 1F);
         y -= 28;
         int badgeX = rightX;
         for (String badge : selected.badges()) {
             String label = badgeLabel(badge);
-            float width = client.font().width(label, 0.7F) + 12;
+            float width = client.fonts().body().width(label, 0.7F) + 12;
             client.drawSolid(badgeX, y, width, 20, 0, 0.25F, 0.35F, 0.25F, 1F);
-            client.font().draw(label, badgeX + 6, y + 3, 0.7F, 1F, 1F, 1F, 1F);
+            client.fonts().body().draw(label, badgeX + 6, y + 3, 0.7F, 1F, 1F, 1F, 1F);
             badgeX += width + 6;
         }
         y -= 32;
@@ -245,21 +245,21 @@ public final class ModsScreen extends Screen {
         if (text == null || text.isEmpty()) {
             return;
         }
-        float lineHeight = client.font().lineHeight(scale) + 2;
+        float lineHeight = client.fonts().body().lineHeight(scale) + 2;
         StringBuilder line = new StringBuilder();
         float cursorY = y;
         boolean truncated = false;
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
             String candidate = line.toString() + ch;
-            boolean wrap = ch == '\n' || client.font().width(candidate, scale) > maxWidth;
+            boolean wrap = ch == '\n' || client.fonts().body().width(candidate, scale) > maxWidth;
             if (wrap) {
                 if (!line.isEmpty()) {
                     if (cursorY - lineHeight < minY) {
                         truncated = true;
                         break;
                     }
-                    client.font().draw(line.toString(), x, cursorY, scale, r, g, b, a);
+                    client.fonts().body().draw(line.toString(), x, cursorY, scale, r, g, b, a);
                     cursorY -= lineHeight;
                     line.setLength(0);
                 }
@@ -274,11 +274,11 @@ public final class ModsScreen extends Screen {
             if (cursorY - lineHeight < minY) {
                 truncated = true;
             } else {
-                client.font().draw(line.toString(), x, cursorY, scale, r, g, b, a);
+                client.fonts().body().draw(line.toString(), x, cursorY, scale, r, g, b, a);
             }
         }
         if (truncated && cursorY >= minY) {
-            client.font().draw("…", x, cursorY, scale, r, g, b, a);
+            client.fonts().body().draw("…", x, cursorY, scale, r, g, b, a);
         }
     }
 

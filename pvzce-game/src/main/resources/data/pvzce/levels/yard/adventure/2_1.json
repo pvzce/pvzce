@@ -321,5 +321,8 @@
       "type": "pvzce:grave_field",
       "count": 4
     }
+  ],
+  "buffs": [
+    "pvzce:player_choice"
   ]
 }

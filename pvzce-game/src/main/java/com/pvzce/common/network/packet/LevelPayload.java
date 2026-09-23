@@ -32,7 +32,8 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
                            List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
                            List<String> lockedSlots, List<MechanicPayload> mechanics,
                            String background, List<String> hiddenSceneElements,
-                           boolean shadersDisabled) {
+                           boolean shadersDisabled, List<SeedOption> buffPool, int maxBuffSlots,
+                           List<String> activeBuffs) {
     public LevelPayload {
         seedPool = List.copyOf(seedPool);
         previewZombies = List.copyOf(previewZombies);
@@ -41,6 +42,34 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
         mechanics = List.copyOf(mechanics);
         background = background == null ? "" : background;
         hiddenSceneElements = List.copyOf(hiddenSceneElements);
+        buffPool = List.copyOf(buffPool);
+        activeBuffs = List.copyOf(activeBuffs);
+    }
+
+    /**
+     * The board as it was before buffs existed: no buff page, no buff slots.
+     *
+     * <p>Kept because two thirds of the payload's callers are tests and fixtures describing a
+     * board, not a level's menu, and because "a level that never heard of buffs" is a real shape
+     * rather than a missing value.
+     */
+    public LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
+                        List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
+                        List<String> lockedSlots, List<MechanicPayload> mechanics,
+                        String background, List<String> hiddenSceneElements, boolean shadersDisabled) {
+        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, lockedSlots,
+                mechanics, background, hiddenSceneElements, shadersDisabled, List.of(), 0, List.of());
+    }
+
+    /** As above, before the running buff set travelled. */
+    public LevelPayload(int width, int height, List<SeedOption> seedPool, int maxSeedSlots,
+                        List<String> previewZombies, List<SceneSyncS2C.Cell> sceneCells,
+                        List<String> lockedSlots, List<MechanicPayload> mechanics,
+                        String background, List<String> hiddenSceneElements, boolean shadersDisabled,
+                        List<SeedOption> buffPool, int maxBuffSlots) {
+        this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, lockedSlots,
+                mechanics, background, hiddenSceneElements, shadersDisabled, buffPool, maxBuffSlots,
+                List.of());
     }
 
     /**
@@ -113,11 +142,23 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
             .field(LevelPayload::background, PacketByteBuf::writeString, PacketByteBuf::readString)
             .stringList(LevelPayload::hiddenSceneElements)
             .field(LevelPayload::shadersDisabled, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+            // The buff page's own two fields, right after the card page's: the two halves of
+            // the same chooser travel together, and a client that got one without the other
+            // would draw a tab it cannot fill.
+            .list(LevelPayload::buffPool, SeedOption::encode, SeedOption::decode)
+            .field(LevelPayload::maxBuffSlots, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            // The buffs this run is actually played with, locked and chosen already resolved.
+            // Server state rather than something the client derives: which buffs are on decides
+            // what the server does, and a client drawing icons from its own arithmetic could
+            // show a buff the simulation is not applying.
+            .stringList(LevelPayload::activeBuffs)
             .build(values -> new LevelPayload((Integer) values.get(0), (Integer) values.get(1),
                     (List<SeedOption>) values.get(2), (Integer) values.get(3),
                     (List<String>) values.get(4), (List<SceneSyncS2C.Cell>) values.get(5),
                     (List<String>) values.get(6), (List<MechanicPayload>) values.get(7),
-                    (String) values.get(8), (List<String>) values.get(9), (Boolean) values.get(10)));
+                    (String) values.get(8), (List<String>) values.get(9), (Boolean) values.get(10),
+                    (List<SeedOption>) values.get(11), (Integer) values.get(12),
+                    (List<String>) values.get(13)));
 
     public void encode(PacketByteBuf buf) {
         CODEC.encode(this, buf);

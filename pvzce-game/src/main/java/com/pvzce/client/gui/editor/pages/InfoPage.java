@@ -227,38 +227,38 @@ public final class InfoPage implements EditorPage {
         if (nameBox != null) {
             float labelScale = 0.75F;
             float left = context.content().x();
-            context.client().font().draw(GuiLang.raw("pvzce.editor.level_name", "关卡名称"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.level_name", "关卡名称"),
                     left, nameBox.y() + nameBox.height() + 6F, labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.level_desc", "关卡描述"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.level_desc", "关卡描述"),
                     left, descriptionBox.y() + descriptionBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.initial_sun", "初始阳光"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.initial_sun", "初始阳光"),
                     left, sunBox.y() + sunBox.height() + 6F, labelScale, 0.9F, 0.9F, 0.9F, 1F);
             float rewardLabelY = rewardUnlockBox.y() + rewardUnlockBox.height() + 6F;
-            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_unlock", "首通解锁卡（留空则不给卡）"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.reward_unlock", "首通解锁卡（留空则不给卡）"),
                     left, rewardLabelY, labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_repeat", "重复通关金币"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.reward_repeat", "重复通关金币"),
                     left, repeatCoinsBox.y() + repeatCoinsBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_chance", "僵尸掉币概率 0~1"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.reward_drop_chance", "僵尸掉币概率 0~1"),
                     coinDropChanceBox.x(), coinDropChanceBox.y() + coinDropChanceBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_amount", "每次掉币数量"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.reward_drop_amount", "每次掉币数量"),
                     coinDropAmountBox.x(), coinDropAmountBox.y() + coinDropAmountBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.reward_drop_coin", "掉哪种币"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.reward_drop_coin", "掉哪种币"),
                     coinDropBox.x(), coinDropBox.y() + coinDropBox.height() + 6F,
                     labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.readonly_id", "关卡 ID 创建后不可修改")
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.readonly_id", "关卡 ID 创建后不可修改")
                             + "：" + context.levelId(),
                     left, sunBox.y() - 22F, labelScale, 0.78F, 0.84F, 0.84F, 1F);
             // The group rows: picking another one and saving moves the level, which
             // renames its id - the one rename the info page is allowed to make.
-            context.client().font().draw(GuiLang.raw("pvzce.editor.theme", "主题"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.theme", "主题"),
                     left, groupThemeY + groupRowHeight + 4F, labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.category", "类别"),
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.category", "类别"),
                     left, groupCategoryY + groupRowHeight + 4F, labelScale, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw(GuiLang.raw("pvzce.editor.group_move_hint",
+            context.client().fonts().body().draw(GuiLang.raw("pvzce.editor.group_move_hint",
                             "换组并保存会重命名关卡 ID，并移动关卡文件与该关存档"),
                     left, groupCategoryY - 20F, 0.68F, 0.85F, 0.8F, 0.6F, 1F);
         }

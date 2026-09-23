@@ -38,6 +38,20 @@ final class SmokeDriver {
 
     private final int captureFrame = Integer.getInteger("pvzce.captureFrame", -1);
     private final String capturePath = System.getProperty("pvzce.capturePath");
+    /**
+     * Capture a run of frames rather than one: {@code captureFrame}, then every this many frames.
+     *
+     * <p>One frame is enough for a screen - a menu looks the same on every frame it exists - and
+     * not enough for anything that moves. A level's own clock is the server's, which runs at 60tps
+     * in its own thread while the client draws at the display's rate, so "the third frame after
+     * the blast" is not a number a person can work out in advance: it is 60 frames later on a
+     * 60 Hz display and 120 on a 120 Hz one. An effect that lasts half a second lands somewhere in
+     * a strip and nowhere in a guess. Files are written as {@code <capturePath>_<frame>.png} so
+     * the frames keep their order on disk.
+     *
+     * <p>0 - the default - keeps {@link #captureFrame} a single shot.
+     */
+    private final int captureEvery = Integer.getInteger("pvzce.captureEvery", 0);
     private final int smokeFrames = Integer.getInteger("pvzce.smokeFrames", 0);
     private final String smokeLevel = System.getProperty("pvzce.smokeLevel", "");
     private final boolean smokeLevelRestart = Boolean.parseBoolean(
@@ -374,10 +388,24 @@ final class SmokeDriver {
                     + screen.getClass().getSimpleName());
             return true;
         }
-        if (capturePath != null && clientTick == captureFrame) {
-            capture(capturePath);
+        if (capturePath != null && clientTick >= captureFrame && captureFrame >= 0) {
+            if (captureEvery <= 0) {
+                if (clientTick == captureFrame) {
+                    capture(capturePath);
+                }
+            } else if ((clientTick - captureFrame) % captureEvery == 0) {
+                capture(stripPath(capturePath, clientTick));
+            }
         }
         return false;
+    }
+
+    /** {@code /tmp/x.png} at frame 240 becomes {@code /tmp/x_240.png}. */
+    private static String stripPath(String path, long frame) {
+        int dot = path.lastIndexOf('.');
+        String stem = dot < 0 ? path : path.substring(0, dot);
+        String extension = dot < 0 ? "" : path.substring(dot);
+        return stem + "_" + frame + extension;
     }
 
     /**

@@ -24,6 +24,11 @@ import com.pvzce.common.network.PvzcePacket;
  * is empty unless this run unlocked something, and it is what decides between a
  * dropping seed packet and a money bag.
  *
+ * <p>{@code unlockedBuff} is the same idea one system over: a level whose first clear hands over
+ * a level buff reports which one, so the lawn and the award page can draw the buff rather than a
+ * money bag. It is checked <em>before</em> {@code rewardItem} and after {@code unlockedCard} - the
+ * frame holds one thing, and "a new rule you may switch on" is bigger news than "a diamond".
+ *
  * <p>{@code rewardItem} is the third shape of the same idea: a level that pays a
  * {@code resource} reward hands the player an object, not a sum, and the award page draws
  * that object in the frame. Its coin value is already inside {@code bonusCoins} - the wallet
@@ -32,8 +37,8 @@ import com.pvzce.common.network.PvzcePacket;
  * frame holds one thing, and the card wins.
  */
 public record LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins, int totalCoins,
-                             String unlockedCard, String rewardItem, int rewardItemAmount,
-                             float dropX, float dropY,
+                             String unlockedCard, String unlockedBuff, String rewardItem,
+                             int rewardItemAmount, float dropX, float dropY,
                              int mowers, int mowerCoins) implements PvzcePacket {
     public static final PacketStruct.Codec<LevelRewardS2C> CODEC = PacketStruct.<LevelRewardS2C>builder()
             .field(LevelRewardS2C::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
@@ -41,6 +46,10 @@ public record LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins,
             .field(LevelRewardS2C::bonusCoins, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(LevelRewardS2C::totalCoins, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(LevelRewardS2C::unlockedCard, PacketByteBuf::writeString, PacketByteBuf::readString)
+            // The level buff this run unlocked, if any. Its own field rather than a prefix on
+            // ``unlockedCard``: the two ids come from different registries, and a client that
+            // resolved one as the other would draw a card nobody was given.
+            .field(LevelRewardS2C::unlockedBuff, PacketByteBuf::writeString, PacketByteBuf::readString)
             // What the run was handed, when the level pays in objects rather than in cards:
             // the resource id the award page draws, and how many of it. Empty means the
             // reward is the money bag, which is every level that declares no resource entry.
@@ -58,14 +67,23 @@ public record LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins,
             .field(LevelRewardS2C::mowerCoins, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .build(values -> new LevelRewardS2C((String) values.get(0), (Integer) values.get(1),
                     (Integer) values.get(2), (Integer) values.get(3), (String) values.get(4),
-                    (String) values.get(5), (Integer) values.get(6),
-                    (Float) values.get(7), (Float) values.get(8), (Integer) values.get(9),
-                    (Integer) values.get(10)));
+                    (String) values.get(5), (String) values.get(6), (Integer) values.get(7),
+                    (Float) values.get(8), (Float) values.get(9), (Integer) values.get(10),
+                    (Integer) values.get(11)));
 
     /** The same payout landing on an explicit spot, with no mowers left over. */
     public LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins, int totalCoins,
                           String unlockedCard, float dropX, float dropY) {
-        this(levelId, collectedCoins, bonusCoins, totalCoins, unlockedCard, "", 0, dropX, dropY, 0, 0);
+        this(levelId, collectedCoins, bonusCoins, totalCoins, unlockedCard, "", "", 0,
+                dropX, dropY, 0, 0);
+    }
+
+    /** A payout with an item and mowers but no buff: the shape that existed before buffs. */
+    public LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins, int totalCoins,
+                          String unlockedCard, String rewardItem, int rewardItemAmount,
+                          float dropX, float dropY, int mowers, int mowerCoins) {
+        this(levelId, collectedCoins, bonusCoins, totalCoins, unlockedCard, "", rewardItem,
+                rewardItemAmount, dropX, dropY, mowers, mowerCoins);
     }
 
     /** The same payout landing on an explicit spot; used by tests and by the smoke keys. */
@@ -82,6 +100,11 @@ public record LevelRewardS2C(String levelId, int collectedCoins, int bonusCoins,
     /** True when the run unlocked a card, i.e. the award screen shows a seed packet. */
     public boolean hasUnlock() {
         return unlockedCard != null && !unlockedCard.isEmpty();
+    }
+
+    /** True when this run unlocked a level buff. */
+    public boolean hasUnlockedBuff() {
+        return unlockedBuff != null && !unlockedBuff.isEmpty();
     }
 
     /**

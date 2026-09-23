@@ -43,6 +43,40 @@ class RewardSettlementTest {
         return PlayerProfile.load(new CompoundTag());
     }
 
+    /**
+     * A {@code buff} entry hands over a level buff, once, on any clear.
+     *
+     * <p>Idempotent and paid on a repeat for the same reason a card unlock is: "first clear" is a
+     * file's existence, not "the reward was handed over", and a world that cleared 1-9 before the
+     * buff existed must still receive it.
+     */
+    @Test
+    void aBuffRewardIsPaidOnceOnAnyClear() {
+        Identifier range = PvzceIds.BUFF_MUSHROOM_RANGE;
+        LevelRewards rewards = new LevelRewards(List.of(LevelRewards.Reward.buff(range)),
+                List.of(LevelRewards.Reward.coins(100)), 0F, PvzceIds.COIN_SILVER, 1);
+        PlayerProfile profile = emptyProfile();
+
+        RewardSettlement.Outcome first = RewardSettlement.applyLevelRewards(LEVEL, rewards, true, profile);
+        assertEquals(range, first.unlockedBuff(), "the award page is told what was handed over");
+        assertTrue(profile.ownsBuff(range));
+
+        RewardSettlement.Outcome again = RewardSettlement.applyLevelRewards(LEVEL, rewards, false, profile);
+        assertNull(again.unlockedBuff(), "a second clear hands over nothing new");
+        assertEquals(100, again.bonus(), "and still pays the repeat stipend");
+    }
+
+    /** A buff entry naming something no build knows is skipped rather than granted. */
+    @Test
+    void anUnknownBuffRewardDoesNothing() {
+        Identifier missing = Identifier.withDefaultNamespace("not_a_buff");
+        LevelRewards rewards = new LevelRewards(List.of(LevelRewards.Reward.buff(missing)),
+                List.of(), 0F, PvzceIds.COIN_SILVER, 1);
+        PlayerProfile profile = emptyProfile();
+        assertNull(RewardSettlement.applyLevelRewards(LEVEL, rewards, true, profile).unlockedBuff());
+        assertFalse(profile.ownsBuff(missing));
+    }
+
     @Test
     void aFirstClearPaysTheLevelsCoinsAndARepeatPaysTheStipend() {
         LevelRewards rewards = new LevelRewards(List.of(LevelRewards.Reward.coins(500)),
@@ -64,7 +98,7 @@ class RewardSettlementTest {
 
         RewardSettlement.Outcome paid = RewardSettlement.applyLevelRewards(LEVEL, rewards, false, profile);
         assertEquals(GLOVE, paid.unlocked(), "a missing card is granted on any clear");
-        assertTrue(profile.owns(GLOVE));
+        assertTrue(profile.ownsCard(GLOVE));
 
         RewardSettlement.Outcome again = RewardSettlement.applyLevelRewards(LEVEL, rewards, false, profile);
         assertNull(again.unlocked(), "an owned card reports no grant the player cannot see");
@@ -104,7 +138,7 @@ class RewardSettlementTest {
                 List.of(), 0F, PvzceIds.COIN_SILVER, 1);
         PlayerProfile profile = emptyProfile();
 
-        assertTrue(profile.owns(STARTER), "the fixture must own the starter card to prove anything");
+        assertTrue(profile.ownsCard(STARTER), "the fixture must own the starter card to prove anything");
         RewardSettlement.Outcome paid = RewardSettlement.applyLevelRewards(LEVEL, rewards, true, profile);
         assertNull(paid.unlocked());
     }

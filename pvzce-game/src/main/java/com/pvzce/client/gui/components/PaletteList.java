@@ -152,10 +152,10 @@ public final class PaletteList extends AbstractSelectionList<PaletteList.Item> {
         // Vertically centre the text block in the row, whether it is one line or two.
         float nameY = subtitle
                 ? y + entryHeight / 2F + 1F
-                : y + (entryHeight - client.font().lineHeight(nameScale)) / 2F;
-        client.font().draw(name, textX, nameY, nameScale, 1F, 1F, 1F, 1F);
+                : y + (entryHeight - client.fonts().body().lineHeight(nameScale)) / 2F;
+        client.fonts().body().draw(name, textX, nameY, nameScale, 1F, 1F, 1F, 1F);
         if (subtitle) {
-            client.font().draw(item.subtitle(), textX, y + entryHeight / 2F - 11F, 0.68F,
+            client.fonts().body().draw(item.subtitle(), textX, y + entryHeight / 2F - 11F, 0.68F,
                     0.78F, 0.84F, 0.88F, 1F);
         }
     }

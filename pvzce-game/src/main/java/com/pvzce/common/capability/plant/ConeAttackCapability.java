@@ -73,14 +73,19 @@ public final class ConeAttackCapability implements PlantCapability {
      *
      * <p><strong>The count has to be large enough that the clouds touch, and it scales with how
      * big the cloud art is.</strong> The gap is {@code range / count}, and the cloud has to be
-     * wider than that or the result is a dotted line of separate puffs rather than a cloud: four
-     * cells at three stops was a 1.33-cell gap and read as three detached blobs. {@code
-     * pvzce:fume_cloud} draws about {@code 0.5} cells across, so eight stops (a 0.5-cell gap)
-     * is what overlaps into a continuous band - and because the size lives in the particle
-     * definition, shrinking that art means raising this number to match. A longer cone should
-     * likewise raise it rather than stretch the spacing.
+     * wider than that or the result is a dotted line of separate puffs rather than a cloud:
+     * {@code pvzce:fume_cloud} draws about {@code 0.125} cells across at its largest, so the
+     * 0.125-cell gap thirty-two stops leave is what overlaps the puffs into a continuous band.
+     * Because the size lives in the particle definition, resizing that art means re-deriving this
+     * number. A longer cone should likewise raise it rather than stretch the spacing.
+     *
+     * <p>The count went 8 -> 32 when the spore art was cut to a quarter of its size, and sixteen
+     * was tried first: at a 0.25-cell gap, quarter-cell puffs read as a dashed line of dots on the
+     * screenshot - each stop's dozen specks smear about 0.2 cells, which does not reach the next
+     * stop. Thirty-two (0.125-cell gap, ~900 particles of the engine's 1024) is what actually
+     * draws a cloud.
      */
-    public static final int DEFAULT_CLOUD_COUNT = 8;
+    public static final int DEFAULT_CLOUD_COUNT = 32;
 
     private final int intervalTicks;
     private final int damage;

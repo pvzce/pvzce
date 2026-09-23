@@ -1,11 +1,30 @@
 {
   "id": "pvzce:doom_doom_word",
   "look": {
-    "alpha_to": 1.0,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.7,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "scale": 2.0,
+    "aspect": 1.25,
     "life": 2.5,
     "frames_per_second": 60.0,
     "loop": true,
     "texture": "pvzce:textures/particles/explosion/doom"
+  },
+  "motion": {
+    "offset_x": 0.0,
+    "offset_y": 0.6
   },
   "count": 1
 }

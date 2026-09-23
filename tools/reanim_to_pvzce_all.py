@@ -211,6 +211,28 @@ ZOMBIE_WALK_REFERENCE_SPEED = 0.23
 # a slightly slower recovery, both inside the same nine frames.
 HAMMER_SWING_RATE = 2.5
 
+# Every plant's attack, as a multiple of the reanim's own 12fps. The shooting masks are
+# authored as one long cycle - 25 frames for a peashooter, 30 for the fume-shroom - which at
+# authoring speed is a 2.1 s throw and a 2.5 s breath: longer than the 1.5 s between volleys,
+# so the plant is still winding down when the next pea is due and the whole lane reads as
+# slow motion. The original plays these masks at twice the file's rate, which puts a shot at
+# about a second and leaves the pause between volleys visible - the pea leaves the muzzle at
+# the start of the throw, and what the player sees after it is the plant settling back.
+#
+# It is one number for the whole line (peas, mushrooms and pults) because it is one fact:
+# the art for all of them is drawn at the same 12fps and played at the same speed. A clip
+# that states its own rate still wins - this is only what the attack masks are given.
+SHOOT_ANIMATION_RATE = 2.0
+
+# The cherry bomb's puff-up, as a fraction of the reanim's 30fps. CherryBomb.reanim is
+# authored at 30fps and the converter trims its idle mask to the 12 frames that actually
+# move, which is a 0.4 s loop - and the fuse is 60 ticks, one second. At authoring speed the
+# bomb swells two and a half times over and then explodes in the middle of the third, which
+# is what "the cherry bomb's animation is wrong" was: 0.4 puts one puff-up exactly on the
+# fuse, so the plant swells once and goes off as it finishes. The explode mask is slowed by
+# the same factor - it is the same 27-frame track, and half of one gesture.
+CHERRY_BOMB_ANIMATION_RATE = 0.4
+
 # All three of the original's death sequences exist in Zombie.reanim. Which one a zombie
 # plays is the client's choice among the clips the file has (see the client's
 # `AnimationVariants`), so all three are exported; waterdeath is the one for a body that
@@ -372,12 +394,16 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="plant/special",
         reanim="CherryBomb.reanim",
         target_box=PLANT_BOX,
+        # Both clips at CHERRY_BOMB_ANIMATION_RATE: the idle so one puff-up fills the one-second
+        # fuse, the explode so the burst that follows keeps the same speed as the swell that
+        # led into it. See that constant for the arithmetic.
         animations={
-            "idle": {"mask": "anim_idle", "loop": True},
+            "idle": {"mask": "anim_idle", "loop": True, "rate": CHERRY_BOMB_ANIMATION_RATE},
             "explode": {
                 "mask": "anim_explode",
                 "loop": False,
                 "on_end": "hold",
+                "rate": CHERRY_BOMB_ANIMATION_RATE,
                 "transition": 0.05,
                 "force_visible_hidden": True,
             },
@@ -470,6 +496,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_full_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -576,6 +603,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_full_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -597,6 +625,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -625,6 +654,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -653,6 +683,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -727,6 +758,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_full_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -744,6 +776,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_full_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -765,6 +798,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "idle": {"mask": "anim_head_idle", "loop": True, "transition": 0.1,
                      "force_visible": r"(head|mouth|barrel|helmet|blink)"},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -788,6 +822,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting1",
                 "loop": False,
                 "on_end": "idle",
@@ -808,6 +843,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "idle": {"mask": "anim_head_idle", "loop": True, "transition": 0.1,
                      "force_visible": r"(head|mouth|blink|eyebrow)"},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -828,6 +864,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             # Cactus.reanim carries a separate raised-arms pair (anim_idlehigh /
             # anim_shootinghigh) for shooting at airborne zombies.
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -836,6 +873,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "force_visible_exclude_prefixes": ["blink"],
             },
             "shoot_high": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shootinghigh",
                 "loop": False,
                 "on_end": "idle",
@@ -856,6 +894,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -873,6 +912,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",
@@ -890,6 +930,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
                 "loop": False,
                 "on_end": "idle",

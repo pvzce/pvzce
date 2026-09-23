@@ -24,6 +24,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,7 +54,7 @@ class DayAreaLevelsTest {
     /**
      * The original's ladder, shifted by the one level this project gave the potato mine
      * earlier: 1-6 the snow pea, 1-7 the chomper, 1-8 the repeater - and 1-9, which in the
-     * original hands over nothing at all, pays the standard money bag.
+     * original hands over nothing at all, hands over the first level buff: 远距蘑菇.
      */
     @Test
     void theRewardLadderMatchesTheOriginal() {
@@ -61,9 +63,22 @@ class DayAreaLevelsTest {
         assertEquals("pvzce:repeater", firstUnlock(level("1_8")));
 
         LevelDef oneNine = level("1_9");
-        assertEquals(LevelRewards.DEFAULT, oneNine.rewards(),
-                "1-9 declares no rewards block: it pays the default money bag");
-        assertTrue(oneNine.rewards().firstClear().isEmpty(), "and unlocks nothing");
+        // A buff, not a card, so ``firstUnlock`` (which reads the card unlocks) is empty - and the
+        // repeat stipend and coin drops are the engine's defaults, declared explicitly because the
+        // block now exists.
+        assertTrue(oneNine.rewards().firstClear().stream().anyMatch(LevelRewards.Reward::isBuff),
+                "1-9 hands over the spore-range buff");
+        assertEquals("pvzce:mushroom_range",
+                oneNine.rewards().firstClear().stream().filter(LevelRewards.Reward::isBuff)
+                        .findFirst().orElseThrow().id().orElseThrow().toString());
+        assertThrows(AssertionError.class, () -> firstUnlock(oneNine),
+                "and it grants no card, which is what firstUnlock refuses to answer");
+        assertEquals(LevelRewards.DEFAULT.repeat(), oneNine.rewards().repeat(),
+                "the repeat stipend is the standard one");
+        assertEquals(LevelRewards.DEFAULT.firstClear().size(),
+                oneNine.rewards().firstClear().stream().filter(LevelRewards.Reward::isUnlock).count(),
+                "no card unlocks were added");
+        assertTrue(oneNine.rewards().hasCoinDrops(), "and zombies still drop coins");
 
         assertEquals("pvzce:puff_shroom", firstUnlock(level("1_10")),
                 "the finale hands over the mushroom the night levels are built around");

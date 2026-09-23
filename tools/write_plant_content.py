@@ -27,7 +27,16 @@ squash             50      one cell, 1800, proximity triggered
 
 Run from the repository root:
 
+    python3 tools/write_plant_content.py --dry-run
     python3 tools/write_plant_content.py
+
+**This script is a generator, not a syncer.** The shipped files under
+``data/pvzce/plants`` and ``data/pvzce/projectiles`` carry fields it does not know about -
+``render_scale`` and ``order`` on a plant, ``impact_particle`` and several hand-picked
+``texture`` ids on a projectile - because those were added by hand after the fact. Running
+it rewrites each of those files from the tables below and *drops* whatever is missing here,
+so treat a run as "regenerate these definitions from scratch" and diff the result. The
+``--dry-run`` flag is the safe way to see that diff.
 """
 
 from __future__ import annotations
@@ -71,9 +80,12 @@ PLANTS: Dict[str, Dict[str, object]] = {
         [{"projectile": f"{NS}:snow_pea", "damage": 20, "count": 1}],
         f"{NS}:sfx/plant/shoot_pea"),
     # Two peas per volley is the whole difference from a peashooter; no new capability.
+    # ``burst_delay`` is what makes the second pea a second object: born on the same tick at
+    # the same point, the two are perfectly coincident - one visible pea, one hit - which is
+    # what "the repeater is just a peashooter" was.
     "repeater": shooter_plant(
         "repeater", "plant/attacker", 200, 450, 90,
-        [{"projectile": f"{NS}:pea", "damage": 20, "count": 2}],
+        [{"projectile": f"{NS}:pea", "damage": 20, "count": 2, "burst_delay": 12}],
         f"{NS}:sfx/plant/shoot_pea"),
     # Three lanes at once: row_offset -1/0/+1, but the volley only fires when one of the
     # three actually holds a zombie, which is what ``rows`` on the first shot expresses.
@@ -96,7 +108,9 @@ PLANTS: Dict[str, Dict[str, object]] = {
         f"{NS}:sfx/plant/shoot_pea"),
     "gatling_pea": shooter_plant(
         "gatling_pea", "plant/attacker", 250, 450, 90,
-        [{"projectile": f"{NS}:pea", "damage": 20, "count": 4}],
+        # Four peas, same 0.2 s stagger as the repeater: the barrels are drawn as one gun, so
+        # what the player has to see is four shots rather than one thick one.
+        [{"projectile": f"{NS}:pea", "damage": 20, "count": 4, "burst_delay": 12}],
         f"{NS}:sfx/plant/shoot_pea"),
     "cactus": shooter_plant(
         "cactus", "plant/attacker", 125, 450, 90,
@@ -205,7 +219,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
         "id": f"{NS}:snow_pea",
         "layer": "ground",
         "capabilities": [
-            {"type": f"{NS}:linear", "speed": 2.0},
+            {"type": f"{NS}:linear", "speed": 4.0},
             {"type": f"{NS}:status", "effects": [
                 {"status": "slow", "ticks": 240, "magnitude": 0.5}]},
         ],
@@ -215,7 +229,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
     "cactus_spike": {
         "id": f"{NS}:cactus_spike",
         "layer": "ground",
-        "capabilities": [{"type": f"{NS}:linear", "speed": 2.4}],
+        "capabilities": [{"type": f"{NS}:linear", "speed": 4.8}],
         "sounds": {"impact": f"{NS}:sfx/projectile/hit"},
         "texture": f"{NS}:textures/entities/projectile/butter",
     },
@@ -224,7 +238,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
     "puff": {
         "id": f"{NS}:puff",
         "layer": "ground",
-        "capabilities": [{"type": f"{NS}:linear", "speed": 2.0}],
+        "capabilities": [{"type": f"{NS}:linear", "speed": 4.0}],
         "sounds": {"impact": f"{NS}:sfx/projectile/hit"},
         "texture": f"{NS}:textures/entities/projectile/puff",
     },
@@ -285,16 +299,19 @@ def slot_for(plant_id: str) -> Dict[str, object]:
     }
 
 
-def write_json(path: Path, data: Dict[str, object], changed: List[str]) -> None:
+def write_json(path: Path, data: Dict[str, object], changed: List[str],
+               dry_run: bool = False) -> None:
     text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if path.exists() and path.read_text(encoding="utf-8") == text:
         return
+    changed.append(str(path.relative_to(REPO_ROOT)))
+    if dry_run:
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    changed.append(str(path.relative_to(REPO_ROOT)))
 
 
-def update_lang(locale: str, changed: List[str]) -> None:
+def update_lang(locale: str, changed: List[str], dry_run: bool = False) -> None:
     path = LANG / f"{locale}.json"
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     for plant_id, names in NAMES.items():
@@ -306,8 +323,10 @@ def update_lang(locale: str, changed: List[str]) -> None:
     text = json.dumps(ordered, indent=2, ensure_ascii=False) + "\n"
     if path.exists() and path.read_text(encoding="utf-8") == text:
         return
-    path.write_text(text, encoding="utf-8")
     changed.append(str(path.relative_to(REPO_ROOT)))
+    if dry_run:
+        return
+    path.write_text(text, encoding="utf-8")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -318,12 +337,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     changed: List[str] = []
     for plant_id, definition in PLANTS.items():
-        write_json(DATA / "plants" / f"{plant_id}.json", definition, changed)
-        write_json(DATA / "slots" / f"{plant_id}.json", slot_for(plant_id), changed)
+        write_json(DATA / "plants" / f"{plant_id}.json", definition, changed, args.dry_run)
+        write_json(DATA / "slots" / f"{plant_id}.json", slot_for(plant_id), changed, args.dry_run)
     for projectile_id, definition in PROJECTILES.items():
-        write_json(DATA / "projectiles" / f"{projectile_id}.json", definition, changed)
+        write_json(DATA / "projectiles" / f"{projectile_id}.json", definition, changed,
+                   args.dry_run)
     for locale in ("en_us", "zh_cn"):
-        update_lang(locale, changed)
+        update_lang(locale, changed, args.dry_run)
 
     if args.dry_run:
         print(f"would write {len(changed)} file(s)")

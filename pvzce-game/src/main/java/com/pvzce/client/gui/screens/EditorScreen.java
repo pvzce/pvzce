@@ -407,14 +407,14 @@ public final class EditorScreen extends Screen {
         // Drawn to the right of the action buttons, not on top of them: the old title row and
         // the button row shared one line and overlapped at any window size.
         float headerX = paletteX + actionButtonSpan + 16F;
-        client.font().draw(header, headerX, actionY + actionH / 2F - 5F, headerScale, 1F, 1F, 1F, 1F);
+        client.fonts().body().draw(header, headerX, actionY + actionH / 2F - 5F, headerScale, 1F, 1F, 1F, 1F);
 
         boolean palettePage = currentPage != null && currentPage.hasPalette();
         if (palettePage) {
             drawPanel(paletteX, centerY, paletteW, centerH);
             // Inside the panel: the strip between the nav bar and the panel is already taken by
             // the page label, so a title drawn above it was clipped.
-            client.font().draw(GuiLang.raw("pvzce.editor.palette", "可放置内容"),
+            client.fonts().body().draw(GuiLang.raw("pvzce.editor.palette", "可放置内容"),
                     paletteX + 4, centerY + centerH - 14F, 0.68F, 0.85F, 0.9F, 0.95F, 1F);
             drawPanel(centerX, centerY, centerW, centerH);
             drawPanel(sideX, centerY, sideW, centerH);
@@ -434,7 +434,7 @@ public final class EditorScreen extends Screen {
         }
 
         if (!status.isEmpty() && System.nanoTime() < statusUntilNanos) {
-            client.font().draw(status, paletteX + 6, actionY + actionH + 24F, 0.8F, 0.7F, 1F, 0.7F, 1F);
+            client.fonts().body().draw(status, paletteX + 6, actionY + actionH + 24F, 0.8F, 0.7F, 1F, 0.7F, 1F);
         }
     }
 

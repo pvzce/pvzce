@@ -40,10 +40,10 @@ public final class DebugOverlay {
         lines.add("游戏时间: " + gameTime(level));
         lines.add("波次: " + waveLine(level));
 
-        float lineHeight = client.font().lineHeight(FONT_SCALE) + 2F;
+        float lineHeight = client.fonts().body().lineHeight(FONT_SCALE) + 2F;
         float maxWidth = 0F;
         for (String line : lines) {
-            maxWidth = Math.max(maxWidth, client.font().width(line, FONT_SCALE));
+            maxWidth = Math.max(maxWidth, client.fonts().body().width(line, FONT_SCALE));
         }
         float boxWidth = maxWidth + PADDING * 2F;
         float boxHeight = lines.size() * lineHeight + PADDING * 2F;
@@ -53,7 +53,7 @@ public final class DebugOverlay {
         client.drawSolid(boxX, boxY, boxWidth, boxHeight, 0.5F, 0F, 0F, 0F, 0.5F);
         float textY = boxY + boxHeight - PADDING - lineHeight;
         for (String line : lines) {
-            client.font().draw(line, boxX + PADDING, textY, FONT_SCALE, 1F, 1F, 1F, 1F);
+            client.fonts().body().draw(line, boxX + PADDING, textY, FONT_SCALE, 1F, 1F, 1F, 1F);
             textY -= lineHeight;
         }
     }

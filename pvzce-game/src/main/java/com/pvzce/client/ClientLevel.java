@@ -50,6 +50,13 @@ public final class ClientLevel {
 
     private volatile List<SeedOption> seedPool = List.of();
     private volatile int maxSeedSlots = 6;
+    /**
+     * The level buffs this run is played with, as the server resolved them.
+     *
+     * <p>Mirrored rather than derived: the buff set decides what the simulation does, so it is
+     * server state like the card bar is, and the HUD draws exactly the icons it was told to.
+     */
+    private volatile List<String> activeBuffs = List.of();
     private volatile List<String> previewZombies = List.of();
     private volatile SceneGrid<String> scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
     /** Cells whose element is out of place right now; see {@link SceneShifts}. */
@@ -152,9 +159,22 @@ public final class ClientLevel {
                      List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics,
                      Identifier background, List<String> hiddenSceneElements,
                      boolean shadersDisabled) {
+        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies,
+                sceneCells, controlledTeamId, controlledTeamName, levelMechanics, background,
+                hiddenSceneElements, shadersDisabled, List.of());
+    }
+
+    /** The whole mirror, including the level buffs this run was started with. */
+    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
+                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
+                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName,
+                     List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics,
+                     Identifier background, List<String> hiddenSceneElements,
+                     boolean shadersDisabled, List<String> activeBuffs) {
         clearTransientState();
         this.seedPool = List.copyOf(seedPool);
         this.maxSeedSlots = Math.max(0, maxSeedSlots);
+        this.activeBuffs = List.copyOf(activeBuffs == null ? List.of() : activeBuffs);
         this.previewZombies = List.copyOf(previewZombies);
         this.levelId = levelId;
         this.width = width;
@@ -249,6 +269,11 @@ public final class ClientLevel {
 
     public boolean initialized() {
         return initialized;
+    }
+
+    /** The buffs this run is played with, in the order the server resolved them. */
+    public List<String> activeBuffs() {
+        return activeBuffs;
     }
 
     public String levelId() {

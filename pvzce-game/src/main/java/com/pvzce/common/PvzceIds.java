@@ -220,6 +220,23 @@ public final class PvzceIds {
      */
     public static final Identifier MECHANIC_GRAVE_FIELD = id("grave_field");
 
+    /**
+     * Automatic pickup of sun and coins: no clicking.
+     *
+     * <p>The first {@link com.pvzce.api.content.LevelBuff}. Unlike the mechanics above it is the
+     * <em>player's</em> choice rather than the level's - it is switched on from the seed
+     * chooser's buff tab - but the level may still pin it, which is how a custom level says
+     * "this one is always on here".
+     */
+    public static final Identifier BUFF_AUTO_COLLECT = id("auto_collect");
+    /**
+     * Spore-shooting mushrooms reach 1.5x as far.
+     *
+     * <p>Only the id lives here; the factor is
+     * {@code BuiltInBuffs.MUSHROOM_RANGE_FACTOR}, because this table is names, not numbers.
+     */
+    public static final Identifier BUFF_MUSHROOM_RANGE = id("mushroom_range");
+
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";
     public static final String SURFACE_GROUND = "GROUND";

@@ -154,4 +154,55 @@ public final class SeedOptions {
                 resolved.slotId().toString(), resolved.kind().json(), resolved.content().toString(),
                 resolved.icon().map(Object::toString).orElse(""), resolved.costSun())));
     }
+
+    /**
+     * One level buff, in the shape the chooser and the payload already speak.
+     *
+     * <p>A buff is not a card, but it is offered the same way: an id, something to draw, and a
+     * name. Reusing {@link SeedOption} rather than inventing a second four-string record is what
+     * lets the buff page share the payload codec, the icon lookup and the hover tip with the card
+     * page - and the fields that mean nothing for a buff (price, kind) are stated as such
+     * ({@link #BUFF_KIND}, {@code NO_PRICE}) instead of being left empty for the reader to guess.
+     *
+     * <p>What each field means for a buff:
+     * <ul>
+     *   <li>{@code slotId} and {@code content} are the buff id - a buff has no card behind it.</li>
+     *   <li>{@code icon} is left empty on purpose: the sprite belongs to the buff, and the server
+     *       does not read the buff registry to fill a field it cannot check. The client resolves
+     *       it from the same definition it renders everything else from.</li>
+     *   <li>{@code costSun} is {@link com.pvzce.common.network.packet.SlotInfo#NO_PRICE}: a buff
+     *       is switched on, not bought.</li>
+     * </ul>
+     */
+    public static SeedOption buffOption(Identifier buff, boolean owned) {
+        return new SeedOption(buff.toString(), BUFF_KIND, buff.toString(), "",
+                owned ? NO_PRICE_FIELD : LOCKED_OPTION);
+    }
+
+    /** Every buff is offered, so the caller that does not know a backpack offers them all. */
+    public static SeedOption buffOption(Identifier buff) {
+        return buffOption(buff, true);
+    }
+
+    /**
+     * The marker a {@code SeedOption} carries when the player may see it but not take it.
+     *
+     * <p>The price field is reused rather than adding a field to the packet: for a card, "what
+     * does it cost" and "may I have it at all" are the same slot in the same card frame - a
+     * padlocked card is not for sale - and the value is impossible as a real price, so an old
+     * client that ignored it would draw a card with no price rather than a wrong one.
+     */
+    public static final int LOCKED_OPTION = -2;
+
+    /** {@code SlotInfo.NO_PRICE}, spelled here so this class does not import the packet layer. */
+    private static final int NO_PRICE_FIELD = -1;
+
+    /**
+     * The {@code kind} a buff option carries.
+     *
+     * <p>Its own value rather than {@code "plant"} or {@code "resource"}: the card painter uses
+     * the kind to decide what the footer says, and a buff is neither bought with sun nor collected
+     * off the lawn.
+     */
+    public static final String BUFF_KIND = "buff";
 }

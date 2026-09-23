@@ -92,8 +92,15 @@ class NightAreaSecondHalfTest {
                             PvzceIds.id(firstUnlock(level(name)).substring("pvzce:".length()))),
                     name + "'s unlock needs a card");
         }
-        assertEquals(LevelRewards.DEFAULT.firstClear(), level("2_9").rewards().firstClear(),
-                "the note is not an item: 2-9 pays the engine's default");
+        // 2-9 still gives no plant - the original's note is not an item - but it does hand over
+        // the second level buff, auto-pickup, so the player has it before the n-10 belt.
+        assertEquals(1, level("2_9").rewards().firstClear().size(),
+                "2-9 declares exactly one first-clear entry");
+        assertEquals("pvzce:auto_collect",
+                level("2_9").rewards().firstClear().get(0).id().orElseThrow().toString());
+        assertTrue(level("2_9").rewards().firstClear().get(0).isBuff(), "and it is a buff");
+        assertEquals(LevelRewards.DEFAULT.repeat(), level("2_9").rewards().repeat(),
+                "its repeat stipend is the standard one");
 
         // A chain, not a fan: each of the five needs the one before it.
         assertEquals("pvzce:yard/adventure/2_5", requires(level("2_6")));

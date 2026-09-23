@@ -18,7 +18,15 @@ public final class SeedCardRenderer {
     public enum CardKind {
         PLANT,
         TOOL,
-        RESOURCE;
+        RESOURCE,
+        /**
+         * A level buff, offered in the chooser's buff page.
+         *
+         * <p>Its own kind rather than "a plant with no price": a buff is switched on rather than
+         * bought, so its footer is blank, and saying so here is what keeps the painter from
+         * having to special-case a price of zero.
+         */
+        BUFF;
 
         public static CardKind fromJson(String kind) {
             if (kind == null) {
@@ -27,6 +35,7 @@ public final class SeedCardRenderer {
             return switch (kind.toLowerCase(java.util.Locale.ROOT)) {
                 case "resource" -> RESOURCE;
                 case "tool" -> TOOL;
+                case "buff" -> BUFF;
                 default -> PLANT;
             };
         }
@@ -152,16 +161,19 @@ public final class SeedCardRenderer {
                 iconWidth, iconHeight, 0.3F, brightness, brightness, brightness, alpha);
 
         // A conveyor card is handed to the player rather than bought, so it prints no
-        // price at all - "0" would read as a price that happened to be free.
-        String label = model.kind() == CardKind.RESOURCE
-                ? COLLECT_LABEL
-                : model.costSun() == com.pvzce.common.network.packet.SlotInfo.NO_PRICE
-                        ? ""
-                        : String.valueOf(Math.max(0, model.costSun()));
+        // price at all - "0" would read as a price that happened to be free. A buff is
+        // switched on rather than bought, so its footer is blank for the same reason.
+        String label = switch (model.kind()) {
+            case RESOURCE -> COLLECT_LABEL;
+            case BUFF -> "";
+            default -> model.costSun() == com.pvzce.common.network.packet.SlotInfo.NO_PRICE
+                    ? ""
+                    : String.valueOf(Math.max(0, model.costSun()));
+        };
         if (!label.isEmpty()) {
             float labelScale = Math.max(0.4F, Math.min(0.78F, width / 90F));
             float ink = 0.03F + 0.20F * brightness;
-            client.font().draw(label, x + (width - client.font().width(label, labelScale)) / 2F,
+            client.fonts().body().draw(label, x + (width - client.fonts().body().width(label, labelScale)) / 2F,
                     y + height * LABEL_BOTTOM, labelScale, ink, ink * 0.62F, ink * 0.22F, alpha);
         }
 

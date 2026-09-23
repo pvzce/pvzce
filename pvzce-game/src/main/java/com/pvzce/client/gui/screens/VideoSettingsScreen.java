@@ -40,7 +40,7 @@ public final class VideoSettingsScreen extends Screen {
         int topY = guiH - titleReserve;
         int y = topY - gap - rowHeight;
         titleScale = Math.min(1.7F, Math.max(1.0F, guiH / 150F));
-        titleY = (y + rowHeight) + Math.round(client.font().lineHeight(titleScale) * 0.35F);
+        titleY = (y + rowHeight) + Math.round(client.fonts().button().lineHeight(titleScale) * 0.35F);
 
         // Framerate: MC-style 10..260 slider, 260 renders as "unlimited".
         fpsSlider = new Slider(x, y, fullWidth, rowHeight,
@@ -208,10 +208,10 @@ public final class VideoSettingsScreen extends Screen {
         client.beginGuiView();
         renderBackground(0.08F, 0.1F, 0.12F);
         String title = "视频设置";
-        client.font().draw(title, (client.guiWidth() - client.font().width(title, titleScale)) / 2F,
+        client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, titleScale)) / 2F,
                 titleY, titleScale, 1, 1, 1, 1);
         if (fpsSlider != null) {
-            client.font().draw(fpsLabel(), 16, fpsSlider.y() + fpsSlider.height() + 2, 0.8F,
+            client.fonts().body().draw(fpsLabel(), 16, fpsSlider.y() + fpsSlider.height() + 2, 0.8F,
                     0.9F, 0.9F, 0.9F, 1F);
         }
         for (var widget : widgets) {

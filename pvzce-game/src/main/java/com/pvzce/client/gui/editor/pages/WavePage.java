@@ -168,17 +168,17 @@ public final class WavePage implements EditorPage {
         int rowH = waveList == null ? 30 : waveList.entryHeight();
         int tableW = waveList == null ? 200 : waveList.width();
         float[] colour = WaveEditorModel.typeColour(wave.type);
-        renderClient.font().draw(String.valueOf(index + 1), x, y + rowH / 2F + 1F, 0.8F,
+        renderClient.fonts().body().draw(String.valueOf(index + 1), x, y + rowH / 2F + 1F, 0.8F,
                 colour[0], colour[1], colour[2], 1F);
-        renderClient.font().draw(WaveEditorModel.typeName(wave.type), x + tableW * WAVE_COLUMNS[1],
+        renderClient.fonts().body().draw(WaveEditorModel.typeName(wave.type), x + tableW * WAVE_COLUMNS[1],
                 y + rowH / 2F + 1F, 0.78F, colour[0], colour[1], colour[2], 1F);
-        renderClient.font().draw("间隔 " + wave.delay, x + tableW * WAVE_COLUMNS[2],
+        renderClient.fonts().body().draw("间隔 " + wave.delay, x + tableW * WAVE_COLUMNS[2],
                 y + rowH / 2F + 1F, 0.72F, 0.9F, 0.9F, 0.9F, 1F);
-        renderClient.font().draw(wave.spawnInterval > 0 ? "出怪 " + wave.spawnInterval : "出怪 默认",
+        renderClient.fonts().body().draw(wave.spawnInterval > 0 ? "出怪 " + wave.spawnInterval : "出怪 默认",
                 x + tableW * WAVE_COLUMNS[3], y + rowH / 2F + 1F, 0.72F, 0.9F, 0.9F, 0.9F, 1F);
-        renderClient.font().draw(wave.summary(), x + tableW * WAVE_COLUMNS[4],
+        renderClient.fonts().body().draw(wave.summary(), x + tableW * WAVE_COLUMNS[4],
                 y + rowH / 2F + 3F, 0.7F, 0.95F, 0.95F, 0.95F, 1F);
-        renderClient.font().draw("共 " + wave.total() + " 只", x + tableW * WAVE_COLUMNS[4],
+        renderClient.fonts().body().draw("共 " + wave.total() + " 只", x + tableW * WAVE_COLUMNS[4],
                 y + rowH / 2F - 11F, 0.62F, 0.7F, 0.78F, 0.8F, 1F);
     }
 
@@ -192,27 +192,27 @@ public final class WavePage implements EditorPage {
         // inside it - they used to be drawn over the first table rows.
         EditorContext.Rect area = context.fullContent();
         float summaryY = area.y() + area.height() + 4F;
-        context.client().font().draw("波次 " + waveConfig.waves.size()
+        context.client().fonts().body().draw("波次 " + waveConfig.waves.size()
                         + "　僵尸总数 " + total
                         + "　末波倍率 " + GuiText.formatFloat(waveConfig.intervalEndMultiplier),
                 area.x() + 4, summaryY, 0.74F, 1F, 1F, 1F, 1F);
         if (waveConfig.waves.isEmpty()) {
-            context.client().font().draw("还没有波次：点「自动填充」生成骨架，或「新增波次」逐条添加",
+            context.client().fonts().body().draw("还没有波次：点「自动填充」生成骨架，或「新增波次」逐条添加",
                     area.x() + 4, area.y() + area.height() / 2F, 0.85F, 1F, 0.85F, 0.5F, 1F);
         }
         if (waveDelayBox != null) {
-            context.client().font().draw("间隔 tick", waveDelayBox.x(),
+            context.client().fonts().body().draw("间隔 tick", waveDelayBox.x(),
                     waveDelayBox.y() + waveDelayBox.height() + 3F, 0.68F, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw("预警 tick", waveWarningBox.x(),
+            context.client().fonts().body().draw("预警 tick", waveWarningBox.x(),
                     waveWarningBox.y() + waveWarningBox.height() + 3F, 0.68F, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw("出怪间隔 tick（空 = 默认）", waveIntervalBox.x(),
+            context.client().fonts().body().draw("出怪间隔 tick（空 = 默认）", waveIntervalBox.x(),
                     waveIntervalBox.y() + waveIntervalBox.height() + 3F,
                     0.68F, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw("组成（选中后用右侧数量框改）", waveEntryList.x(),
+            context.client().fonts().body().draw("组成（选中后用右侧数量框改）", waveEntryList.x(),
                     waveEntryList.y() + waveEntryList.height() + 4F, 0.7F, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw("可选僵尸", waveZombieList.x(),
+            context.client().fonts().body().draw("可选僵尸", waveZombieList.x(),
                     waveZombieList.y() + waveZombieList.height() + 4F, 0.7F, 0.9F, 0.9F, 0.9F, 1F);
-            context.client().font().draw("数量", waveCountBox.x(),
+            context.client().fonts().body().draw("数量", waveCountBox.x(),
                     waveCountBox.y() + waveCountBox.height() + 3F, 0.68F, 0.9F, 0.9F, 0.9F, 1F);
         }
     }

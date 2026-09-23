@@ -54,6 +54,7 @@ public final class ChooseSeedsScreen extends Screen {
     private static final String KIND_RESOURCE = kindName(SeedCardRenderer.CardKind.RESOURCE);
     private static final String KIND_PLANT = kindName(SeedCardRenderer.CardKind.PLANT);
     private static final String KIND_TOOL = kindName(SeedCardRenderer.CardKind.TOOL);
+    private static final String KIND_BUFF = com.pvzce.common.core.SeedOptions.BUFF_KIND;
 
     private static String kindName(SeedCardRenderer.CardKind kind) {
         return kind.name().toLowerCase(java.util.Locale.ROOT);
@@ -153,6 +154,32 @@ public final class ChooseSeedsScreen extends Screen {
      * have been built from.
      */
     private final boolean previewOnly;
+    /**
+     * The level buffs the player may switch on, and the level's own buffs.
+     *
+     * <p>Separate from {@link #options} because a buff is not a card and the two pages are never
+     * on screen together - but they are drawn by the same painter and laid out by the same code,
+     * which is why this is a second option list rather than a second screen.
+     */
+    private final List<SeedOption> buffOptions;
+    private final int maxBuffSlots;
+    private final Set<String> lockedBuffs = new LinkedHashSet<>();
+    /**
+     * Buffs the player may see but not switch on yet.
+     *
+     * <p>Read off the pool the server sent (see {@code SeedOptions.LOCKED_OPTION}) rather than
+     * recomputed from the local profile: the pool is the server's answer to "what may this player
+     * have", and a second answer here could only disagree with it. A padlocked buff is worth
+     * showing - it is the same "there is something here you have not earned" a locked card says -
+     * and {@code toggleBuff} refuses it.
+     */
+    private final Set<String> lockedBuffOptions = new LinkedHashSet<>();
+    private final List<String> selectedBuffs = new ArrayList<>();
+    /** 0 = the card page, 1 = the buff page. A level with no buffs never leaves 0. */
+    private int page;
+    /** The tab buttons' rectangles, filled in by {@link #updateLayout()} and read by clicks. */
+    private final float[][] tabRects = {new float[4], new float[4]};
+    private boolean tabsVisible;
     private float panelX;
     private float panelY;
     private float panelW;
@@ -240,6 +267,24 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     /**
+     * The whole screen, before the buff page existed.
+     *
+     * <p>Kept for the tests and callers that describe a board rather than a menu: a level with no
+     * buffs offers none, which is exactly what every level did before this page existed.
+     */
+    public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
+                             List<SeedOption> options, int maxSeedSlots,
+                             List<String> previewZombies, int levelWidth, int levelHeight,
+                             List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
+                             boolean restart, Runnable onBack, List<String> lockedSlots,
+                             Identifier background, List<String> hiddenSceneElements,
+                             boolean dealsItsOwnCards) {
+        this(client, levelId, levelName, options, maxSeedSlots, previewZombies, levelWidth,
+                levelHeight, sceneCells, initialSelection, restart, onBack, lockedSlots,
+                background, hiddenSceneElements, dealsItsOwnCards, List.of(), 0, List.of(), null);
+    }
+
+    /**
      * @param lockedSlots slot ids the level fixes in the bar. They start selected and
      *                    cannot be removed; everything else the player may toggle, up to
      *                    {@code maxSeedSlots} slots in total.
@@ -249,6 +294,17 @@ public final class ChooseSeedsScreen extends Screen {
      *                    conversation and the zombies it will send, and then it starts itself.
      *                    Belt levels used to skip this screen entirely - and with it the only
      *                    place a level's zombie line-up is ever shown.
+     * @param buffOptions the level buffs this level offers, as the server resolved them. Empty
+     *                    for a level that does not offer any, which is what makes the buff page
+     *                    appear only where a level opted in.
+     * @param maxBuffSlots the resolved buff count ({@code LevelDef.effectiveMaxBuffSlots}), the
+     *                    same number the server will accept - never recomputed here.
+     * @param lockedBuffs the level's own buffs: on from the start and not removable, drawn with
+     *                    the same padlock a fixed card gets.
+     * @param initialBuffs what the buff page starts with - a resumed run's own list, otherwise
+     *                    the world's auto list. {@code null} is not the same as empty: it means
+     *                    "nobody ever chose", which is also what an empty list means here, so the
+     *                    two collapse safely at this end.
      */
     public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
                              List<SeedOption> options, int maxSeedSlots,
@@ -256,7 +312,8 @@ public final class ChooseSeedsScreen extends Screen {
                              List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
                              boolean restart, Runnable onBack, List<String> lockedSlots,
                              Identifier background, List<String> hiddenSceneElements,
-                             boolean dealsItsOwnCards) {
+                             boolean dealsItsOwnCards, List<SeedOption> buffOptions,
+                             int maxBuffSlots, List<String> lockedBuffs, List<String> initialBuffs) {
         super(client);
         this.levelId = levelId;
         this.background = background;
@@ -308,7 +365,53 @@ public final class ChooseSeedsScreen extends Screen {
         }
         // A level that deals its own cards has as little to choose here as one whose deck is
         // fixed: nothing the player picks would reach the bar.
-        this.previewOnly = dealsItsOwnCards || hasNothingToChoose();
+        this.buffOptions = List.copyOf(buffOptions == null ? List.of() : buffOptions);
+        this.maxBuffSlots = Math.max(0, maxBuffSlots);
+        for (SeedOption option : this.buffOptions) {
+            if (option.costSun() == com.pvzce.common.core.SeedOptions.LOCKED_OPTION) {
+                lockedBuffOptions.add(option.slotId());
+            }
+        }
+        // The level's own buffs first and always, exactly as its own cards are pinned: a buff the
+        // level hands out is part of the level, not a suggestion the player may decline.
+        if (lockedBuffs != null) {
+            for (String locked : lockedBuffs) {
+                if (locked != null && containsBuffOption(locked)) {
+                    this.lockedBuffs.add(locked);
+                    if (selectedBuffs.size() < this.maxBuffSlots) {
+                        selectedBuffs.add(locked);
+                    }
+                }
+            }
+        }
+        if (initialBuffs != null) {
+            Set<String> seen = new LinkedHashSet<>(selectedBuffs);
+            for (String buff : initialBuffs) {
+                if (selectedBuffs.size() >= this.maxBuffSlots) {
+                    break;
+                }
+                if (seen.add(buff) && containsBuffOption(buff) && !lockedBuffs.contains(buff)
+                        && !lockedBuffOptions.contains(buff)) {
+                    selectedBuffs.add(buff);
+                }
+            }
+        }
+        // A level that deals its own cards has as little to choose here as one whose deck is
+        // fixed - but "nothing to choose" is now a statement about *both* pages: a level that
+        // fixes its whole deck and still offers buffs is a real screen the player has to be able
+        // to use, and auto-starting past it would silently drop their buffs.
+        this.previewOnly = dealsItsOwnCards
+                || (hasNothingToChoose() && !offersBuffChoice()
+                        && selectedBuffs.isEmpty() && lockedBuffs.isEmpty());
+    }
+
+    private boolean containsBuffOption(String buffId) {
+        for (SeedOption option : buffOptions) {
+            if (option.slotId().equals(buffId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean containsOption(String slotId) {
@@ -318,6 +421,59 @@ public final class ChooseSeedsScreen extends Screen {
             }
         }
         return false;
+    }
+
+    /**
+     * True when the buff page exists for this level.
+     *
+     * <p>Two conditions, and both matter: the level has to offer buffs at all (it listed
+     * {@code pvzce:player_choice} - see {@code LevelDef.LevelBuffPlan}), and there has to be
+     * something left to offer once its own fixed buffs are taken out.
+     */
+    private boolean offersBuffChoice() {
+        return maxBuffSlots > 0 && buffOptions.size() > lockedBuffs.size();
+    }
+
+    /** The page the player is looking at: 0 is the card page, 1 the buff page. */
+    private boolean onBuffPage() {
+        return page == 1 && offersBuffChoice();
+    }
+
+    /**
+     * The list the current page draws from.
+     *
+     * <p>One layout and one painter serve both pages, because the two pages are the same object
+     * seen twice: a pool of things to pick, and a row of what has been picked. Only the list, the
+     * caption and what "清空" clears differ.
+     */
+    private List<SeedOption> pageOptions() {
+        return onBuffPage() ? buffOptions : options;
+    }
+
+    private List<String> pageSelection() {
+        return onBuffPage() ? selectedBuffs : selectedOrder;
+    }
+
+    private int pageCapacity() {
+        return onBuffPage() ? maxBuffSlots : maxSeedSlots;
+    }
+
+    private boolean isPageLocked(String id) {
+        return onBuffPage() ? lockedBuffs.contains(id) : isLocked(id);
+    }
+
+    private void setPage(int next) {
+        int clamped = Math.max(0, Math.min(1, next));
+        if (clamped == page) {
+            return;
+        }
+        page = clamped;
+        // Flights belong to the page they started on; letting them cross pages would fly a card
+        // into a row that is not showing it.
+        flights.clear();
+        gridScroll = 0F;
+        updateLayout();
+        playSound(SOUND_TAP, 1F, 1F);
     }
 
     @Override
@@ -373,7 +529,7 @@ public final class ChooseSeedsScreen extends Screen {
         sectionGap = cardGap * 1.7F;
 
         // Chosen seeds share the pool's card size and sit just above the panel.
-        topSlots = Math.max(0, maxSeedSlots);
+        topSlots = Math.max(0, pageCapacity());
         float topRowWidth = topSlots <= 0 ? 0F : topSlots * (cardW + cardGap) - cardGap;
         float topRowScale = topRowWidth > 0F
                 ? Math.min(1F, (guiW - margin * 2F) / topRowWidth) : 1F;
@@ -446,7 +602,7 @@ public final class ChooseSeedsScreen extends Screen {
         float topBarH = PANEL_BAR_NATIVE * panelScale;
         titleScale = Math.min(MathUtil.clamp(guiH / 240F, 0.66F, 1.30F),
                 Math.max(0.25F, topBarH * 0.78F / 18F));
-        float titleLineH = client.font().lineHeight(titleScale);
+        float titleLineH = client.fonts().body().lineHeight(titleScale);
         titleY = panelTop - topBarH + (topBarH - titleLineH) / 2F;
         // Text has to clear the gold ornament tiled into the bar's left end.
         titleInset = Math.max(panelPad, PANEL_ORNAMENT_RIGHT * panelScale + 8F);
@@ -483,6 +639,71 @@ public final class ChooseSeedsScreen extends Screen {
 
         topBarX = innerLeft;
         topBarY = panelTop + topRowGap;
+
+        layoutTabs(panelTop, topBarH, panelScale);
+    }
+
+    /**
+     * Places the two page tabs on the frame's title bar.
+     *
+     * <p>Centred on the bar, and only when there is room for them: the title sits on the left and
+     * the counter on the right, so a narrow panel would have the three overlapping. When they do
+     * not fit, the tabs move up to the strip above the frame - the panel is what shrinks, and the
+     * page switch is the one control that must never become unreachable. A level with no buff page
+     * gets no tabs at all rather than one disabled tab.
+     */
+    private void layoutTabs(float panelTop, float topBarH, float panelScale) {
+        tabsVisible = offersBuffChoice();
+        for (float[] rect : tabRects) {
+            java.util.Arrays.fill(rect, 0F);
+        }
+        if (!tabsVisible) {
+            return;
+        }
+        float tabH = MathUtil.clamp(topBarH * 0.62F, 14F, 30F);
+        float tabW = MathUtil.clamp(panelW * 0.21F, 52F, 116F);
+        float gap = Math.max(2F, panelScale * 6F);
+        float total = tabW * 2F + gap;
+        float x = panelX + (panelW - total) / 2F;
+        float y = panelTop - topBarH + (topBarH - tabH) / 2F;
+        // The title's own inset is the left edge it starts at, so the tabs may use everything
+        // to the right of it - and the counter needs about a third of the bar.
+        float titleEnd = panelX + titleInset + 60F * titleScale;
+        float counterStart = panelX + panelW - titleInset - 80F
+                * MathUtil.clamp(panelW / 360F, 0.58F, 0.9F);
+        if (x < titleEnd || x + total > counterStart) {
+            y = panelTop + Math.max(2F, topBarH * 0.12F);
+        }
+        tabRects[0][0] = x;
+        tabRects[0][1] = y;
+        tabRects[0][2] = tabW;
+        tabRects[0][3] = tabH;
+        tabRects[1][0] = x + tabW + gap;
+        tabRects[1][1] = y;
+        tabRects[1][2] = tabW;
+        tabRects[1][3] = tabH;
+    }
+
+    /** Draws the two page tabs; the active one is lit. */
+    private void drawTabs(float shift, float alpha) {
+        if (!tabsVisible) {
+            return;
+        }
+        String[] labels = {"种子卡槽", "关卡增益"};
+        for (int i = 0; i < 2; i++) {
+            float[] rect = tabRects[i];
+            boolean active = page == i;
+            client.drawSolid(rect[0] + shift, rect[1], rect[2], rect[3], 0.5F,
+                    active ? 0.92F : 0.42F, active ? 0.80F : 0.36F, active ? 0.44F : 0.20F,
+                    (active ? 0.96F : 0.78F) * alpha);
+            float scale = MathUtil.clamp(rect[3] / 22F, 0.5F, 0.86F);
+            String label = labels[i];
+            client.fonts().body().draw(label,
+                    rect[0] + shift + (rect[2] - client.fonts().body().width(label, scale)) / 2F,
+                    rect[1] + (rect[3] - client.fonts().body().lineHeight(scale)) / 2F,
+                    scale, active ? 0.10F : 0.88F, active ? 0.08F : 0.84F,
+                    active ? 0.04F : 0.70F, alpha);
+        }
     }
 
     /**
@@ -492,9 +713,10 @@ public final class ChooseSeedsScreen extends Screen {
      * Inside a block the level's own slot order is preserved.
      */
     private List<CardSection> buildSections() {
+        List<SeedOption> pool = pageOptions();
         List<CardSection> result = new ArrayList<>();
-        for (int i = 0; i < options.size(); i++) {
-            String kind = options.get(i).kind();
+        for (int i = 0; i < pool.size(); i++) {
+            String kind = pool.get(i).kind();
             String normalized = kind == null ? "" : kind;
             CardSection target = null;
             for (CardSection section : result) {
@@ -542,7 +764,10 @@ public final class ChooseSeedsScreen extends Screen {
         if (KIND_TOOL.equals(kind)) {
             return 2;
         }
-        return 3;
+        if (KIND_BUFF.equals(kind)) {
+            return 3;
+        }
+        return 4;
     }
 
     /**
@@ -551,9 +776,21 @@ public final class ChooseSeedsScreen extends Screen {
      * the in-level card bar so the two never disagree.
      */
     private List<String> orderedSelection() {
-        List<String> ordered = new ArrayList<>(selectedOrder.size());
-        for (int rank = 0; rank <= 3; rank++) {
-            for (String slotId : selectedOrder) {
+        return orderedSelection(pageSelection());
+    }
+
+    /**
+     * The given selection in display order: resources first, then plants, then tools, each group
+     * keeping the order the player clicked them in.
+     *
+     * <p>Takes the list rather than reading a field so both pages share it - the buff page's row
+     * is ordered by the same rule (a buff's kind ranks last, so a level that offered both would
+     * still read cards first).
+     */
+    private List<String> orderedSelection(List<String> selection) {
+        List<String> ordered = new ArrayList<>(selection.size());
+        for (int rank = 0; rank <= 4; rank++) {
+            for (String slotId : selection) {
                 SeedOption option = optionById(slotId);
                 String kind = option == null ? "" : option.kind();
                 if (barRank(kind) == rank) {
@@ -603,14 +840,58 @@ public final class ChooseSeedsScreen extends Screen {
         }
     }
 
+    /**
+     * Empties the page the player is looking at.
+     *
+     * <p>Per page rather than both at once: the button sits under whichever list is on screen,
+     * and a player who clears their cards has not asked to lose the buffs they chose on the other
+     * tab. The level's own cards and buffs are never cleared - they are part of the level.
+     */
     private void clearSelection() {
-        // "Clear" means "drop my choices", not "drop the level's fixed cards".
-        if (selectedOrder.size() <= lockedSlots.size()) {
+        if (onBuffPage()) {
+            if (selectedBuffs.size() <= lockedBuffs.size()) {
+                return;
+            }
+            selectedBuffs.removeIf(id -> !lockedBuffs.contains(id));
+        } else {
+            if (selectedOrder.size() <= lockedSlots.size()) {
+                return;
+            }
+            selectedOrder.removeIf(id -> !isLocked(id));
+        }
+        flights.removeIf(flight -> !isPageLocked(flight.option.slotId()));
+        playSound(SOUND_TAP, 1F, 1F);
+    }
+
+    /** Adds or removes one buff, with the same rules a card follows. */
+    private void toggleBuff(SeedOption option) {
+        String id = option.slotId();
+        if (lockedBuffs.contains(id) || lockedBuffOptions.contains(id)) {
+            // A fixed buff cannot be switched off, and one the player has not been given cannot
+            // be switched on. Both answer with the same tap rather than a reason, which is what
+            // a fixed card already does.
+            playSound(SOUND_TAP, 1F, 1F);
             return;
         }
-        selectedOrder.removeIf(id -> !isLocked(id));
-        flights.removeIf(flight -> !isLocked(flight.option.slotId()));
-        playSound(SOUND_TAP, 1F, 1F);
+        if (selectedBuffs.contains(id)) {
+            selectedBuffs.remove(id);
+            flights.removeIf(flight -> flight.option.slotId().equals(id));
+            playSound(SOUND_TAP, 1F, 1F);
+            return;
+        }
+        if (selectedBuffs.size() >= maxBuffSlots) {
+            playSound(SOUND_TAP, 1F, 1F);
+            return;
+        }
+        List<SeedOption> pool = pageOptions();
+        int index = pool.indexOf(option);
+        if (index < 0) {
+            return;
+        }
+        selectedBuffs.add(id);
+        float[] from = cardCenter(index);
+        flights.add(new Flight(option, from[0], from[1]));
+        playSound(SOUND_SEEDLIFT, 1F, 1F);
     }
 
     private boolean isLocked(String slotId) {
@@ -639,7 +920,11 @@ public final class ChooseSeedsScreen extends Screen {
             return;
         }
         startSent = true;
-        client.startLevelWithSeeds(levelId, restart, new ArrayList<>(selectedOrder));
+        // The card row in bar order and the buff row in its own order: the server re-sorts
+        // nothing, and both lists become what the run starts with (and, for buffs, what this
+        // world pre-selects next time).
+        client.startLevelWithSeedsAndBuffs(levelId, restart, new ArrayList<>(orderedSelection(selectedOrder)),
+                new ArrayList<>(selectedBuffs));
     }
 
     /**
@@ -654,6 +939,10 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     private void toggleOption(SeedOption option) {
+        if (onBuffPage()) {
+            toggleBuff(option);
+            return;
+        }
         String id = option.slotId();
         if (isLocked(id)) {
             // Already in the bar and staying there; clicking it is a no-op, not a remove.
@@ -804,6 +1093,19 @@ public final class ChooseSeedsScreen extends Screen {
             return;
         }
 
+        // The tabs first: they sit on the frame, above everything the page draws.
+        if (tabsVisible) {
+            float shift = panelCurrentX() - panelX;
+            for (int i = 0; i < 2; i++) {
+                float[] rect = tabRects[i];
+                if (guiX >= rect[0] + shift && guiX <= rect[0] + shift + rect[2]
+                        && guiY >= rect[1] && guiY <= rect[1] + rect[3]) {
+                    setPage(i);
+                    return;
+                }
+            }
+        }
+
         // The chosen-seed row floats above the panel and removes on click.
         if (topSlots > 0 && guiY >= topBarY && guiY <= topBarY + topCardH) {
             float shift = panelCurrentX() - panelX;
@@ -832,11 +1134,64 @@ public final class ChooseSeedsScreen extends Screen {
         }
         int index = optionAt(guiX, guiY);
         if (index >= 0) {
-            toggleOption(options.get(index));
+            toggleOption(pageOptions().get(index));
         }
     }
 
-    /** Index into {@link #options} of the pool card under the cursor, or -1. */
+    /**
+     * Names the pool card or buff under the cursor.
+     *
+     * <p>The chooser showed pictures and nothing else: a player who did not already know what
+     * {@code scaredy_shroom} looked like had no way to find out before spending a slot on it.
+     * Skipped while the panel is still arriving and while the pointer is over the chosen row -
+     * that row's entries are already picked, so the tip would be answering a question nobody
+     * asked.
+     */
+    private void drawPoolHover(float alpha) {
+        if (previewOnly || alpha < 0.92F || dialogueActive()) {
+            return;
+        }
+        double mouseX = client.guiMouseX(client.window().cursorX());
+        double mouseY = client.guiMouseY(client.window().cursorY());
+        if (mouseY >= topBarY && mouseY <= topBarY + topCardH) {
+            return;
+        }
+        int index = optionAt(mouseX, mouseY);
+        if (index < 0) {
+            return;
+        }
+        SeedOption option = pageOptions().get(index);
+        com.pvzce.client.gui.HoverTip.draw(client,
+                com.pvzce.client.gui.HoverTip.nameOf(option.slotId(), option.kind()),
+                (float) mouseX, (float) mouseY, alpha);
+    }
+
+    /**
+     * Names the page tab under the cursor, so a two-word label needs no guessing.
+     *
+     * <p>Drawn last of all and only while the panel is fully in: it is a tooltip on a control
+     * that is already labelled, and it must not sit under a flying card.
+     */
+    private void drawTabHover(float currentPanelX, float alpha) {
+        if (!tabsVisible || panelProgress() < 0.92F) {
+            return;
+        }
+        float shift = currentPanelX - panelX;
+        double guiX = client.guiMouseX(client.window().cursorX());
+        double guiY = client.guiMouseY(client.window().cursorY());
+        String[] hints = {"选择这一局带的卡片", "选择这一局的关卡增益"};
+        for (int i = 0; i < 2; i++) {
+            float[] rect = tabRects[i];
+            if (guiX < rect[0] + shift || guiX > rect[0] + shift + rect[2]
+                    || guiY < rect[1] || guiY > rect[1] + rect[3]) {
+                continue;
+            }
+            com.pvzce.client.gui.HoverTip.draw(client, hints[i], (float) guiX, (float) guiY, alpha);
+            return;
+        }
+    }
+
+    /** Index into the current page's pool of the card under the cursor, or -1. */
     private int optionAt(double guiX, double guiY) {
         float shift = panelCurrentX() - panelX;
         float localX = (float) guiX - gridX - shift;
@@ -929,6 +1284,13 @@ public final class ChooseSeedsScreen extends Screen {
                 float shift = currentPanelX - panelX;
                 drawTopBar(shift, panelProgress);
                 drawFlights(shift);
+                // Last of the panel's own furniture so a card flying into the chosen row cannot
+                // cover the control that switches pages.
+                drawTabs(shift, panelProgress);
+            }
+            if (panelProgress > 0.55F) {
+                drawPoolHover(panelProgress);
+                drawTabHover(currentPanelX, panelProgress);
             }
         }
 
@@ -1007,7 +1369,7 @@ public final class ChooseSeedsScreen extends Screen {
         for (int i = 0; i < count; i++) {
             float cellY = worldBottom + offsetY + i * spacing;
             float labelY = previewY + ((cellY - worldBottom) / worldHeight) * previewH;
-            client.font().draw(shortId(previewEntities.get(i).defIdString()), previewX + 4F, labelY,
+            client.fonts().body().draw(shortId(previewEntities.get(i).defIdString()), previewX + 4F, labelY,
                     labelScale, 1F, 1F, 1F, alpha);
         }
     }
@@ -1056,28 +1418,33 @@ public final class ChooseSeedsScreen extends Screen {
                 PANEL_BORDER, PANEL_BORDER, PANEL_BORDER, PANEL_BORDER,
                 panelScale, 1F, 1F, 1F, alpha);
 
-        String title = "选择你的种子";
-        client.font().draw(title, currentPanelX + titleInset, titleY,
+        boolean buffPage = onBuffPage();
+        String title = buffPage ? "关卡增益" : "选择你的种子";
+        client.fonts().button().draw(title, currentPanelX + titleInset, titleY,
                 titleScale, 1F, 0.95F, 0.8F, alpha);
 
         // Fixed cards count towards the total, so the hint names them: otherwise the
-        // player sees "3/6" on a fresh screen and cannot tell why.
-        String counter = lockedSlots.isEmpty()
-                ? "已选 " + selectedOrder.size() + "/" + maxSeedSlots
-                : "已选 " + selectedOrder.size() + "/" + maxSeedSlots
-                        + "（锁定 " + lockedSlots.size() + "）";
+        // player sees "3/6" on a fresh screen and cannot tell why. The buff page counts the
+        // same way, for the same reason: a level may hand out buffs the player never picked.
+        Set<String> locked = buffPage ? lockedBuffs : lockedSlots;
+        int chosen = buffPage ? selectedBuffs.size() : selectedOrder.size();
+        int capacity = buffPage ? maxBuffSlots : maxSeedSlots;
+        String counter = locked.isEmpty()
+                ? "已选 " + chosen + "/" + capacity
+                : "已选 " + chosen + "/" + capacity
+                        + "（锁定 " + locked.size() + "）";
         float counterScale = MathUtil.clamp(panelW / 360F, 0.58F, 0.9F);
-        client.font().draw(counter,
-                currentPanelX + panelW - titleInset - client.font().width(counter, counterScale),
+        client.fonts().body().draw(counter,
+                currentPanelX + panelW - titleInset - client.fonts().body().width(counter, counterScale),
                 titleY, counterScale, 1F, 0.95F, 0.62F, alpha);
 
         // A level that fixes its whole deck starts itself; saying so (rather than
         // showing a button nobody has to press) is what keeps the auto-start from
         // reading as the screen closing on its own.
-        if (hasNothingToChoose()) {
+        if (hasNothingToChoose() && !buffPage) {
             String hint = "本关卡组固定，即将开始";
             float hintScale = MathUtil.clamp(panelW / 420F, 0.5F, 0.72F);
-            client.font().draw(hint, currentPanelX + titleInset, titleY - client.font().lineHeight(hintScale) - 2F,
+            client.fonts().body().draw(hint, currentPanelX + titleInset, titleY - client.fonts().body().lineHeight(hintScale) - 2F,
                     hintScale, 1F, 0.88F, 0.5F, alpha);
         }
 
@@ -1085,14 +1452,14 @@ public final class ChooseSeedsScreen extends Screen {
             float levelScale = MathUtil.clamp(panelW / 420F, 0.5F, 0.75F);
             float available = startButtonX - (clearButtonX + clearButtonW) - 8F;
             if (available >= 24F) {
-                float width = client.font().width(levelName, levelScale);
+                float width = client.fonts().body().width(levelName, levelScale);
                 if (width > available) {
                     levelScale *= available / Math.max(1F, width);
-                    width = client.font().width(levelName, levelScale);
+                    width = client.fonts().body().width(levelName, levelScale);
                 }
-                client.font().draw(levelName,
+                client.fonts().body().draw(levelName,
                         (clearButtonX + clearButtonW + startButtonX) / 2F + shift - width / 2F,
-                        startButtonY + (startButtonH - client.font().lineHeight(levelScale)) / 2F,
+                        startButtonY + (startButtonH - client.fonts().body().lineHeight(levelScale)) / 2F,
                         levelScale, 0.9F, 0.82F, 0.62F, alpha);
             }
         }
@@ -1110,6 +1477,8 @@ public final class ChooseSeedsScreen extends Screen {
         client.clipping().push(currentPanelX + panelPad, gridViewBottom,
                 panelW - panelPad * 2F, gridViewTop - gridViewBottom);
         try {
+            List<SeedOption> pool = pageOptions();
+            List<String> chosenIds = pageSelection();
             for (CardSection section : sections) {
                 for (int row = 0; row < section.rows; row++) {
                     for (int column = 0; column < columns; column++) {
@@ -1117,10 +1486,10 @@ public final class ChooseSeedsScreen extends Screen {
                         if (slot >= section.indices.size()) {
                             break;
                         }
-                        SeedOption option = options.get(section.indices.get(slot));
+                        SeedOption option = pool.get(section.indices.get(slot));
                         float x = gridX + shift + column * (cardW + cardGap);
                         float y = section.top - cardH - row * (cardH + cardGap);
-                        boolean chosen = selectedOrder.contains(option.slotId());
+                        boolean chosen = chosenIds.contains(option.slotId());
                         drawCard(option, x, y, cardW, cardH, chosen, alpha);
                     }
                 }
@@ -1219,6 +1588,11 @@ public final class ChooseSeedsScreen extends Screen {
                 return option;
             }
         }
+        for (SeedOption option : buffOptions) {
+            if (option.slotId().equals(slotId)) {
+                return option;
+            }
+        }
         return null;
     }
 
@@ -1235,13 +1609,36 @@ public final class ChooseSeedsScreen extends Screen {
             return;
         }
         SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
-                        Identifier.tryParse(option.icon()),
+                        iconFor(option),
                         SeedCardRenderer.CardKind.fromJson(option.kind()),
                         option.costSun(), brightness, alpha, true, 0F, false, null, false),
                 x, y, width, height);
-        if (isLocked(option.slotId())) {
+        if (isPageLocked(option.slotId()) || lockedBuffOptions.contains(option.slotId())) {
             drawLockBadge(x, y, width, height, alpha);
         }
+    }
+
+    /**
+     * The sprite a pool entry draws: the option's own icon, or the buff's.
+     *
+     * <p>A buff's icon is deliberately not in the payload - the sprite belongs to the buff and
+     * the server would be echoing data it does not otherwise use. The client has the same
+     * definition the buff's behaviour comes from, so it asks that. A buff nobody registered
+     * falls through to the missing-texture tile rather than to a blank card, which is the same
+     * thing an unknown card icon does.
+     */
+    private Identifier iconFor(SeedOption option) {
+        Identifier icon = Identifier.tryParse(option.icon());
+        if (icon != null) {
+            return icon;
+        }
+        Identifier buffId = Identifier.tryParse(option.slotId());
+        com.pvzce.api.content.LevelBuff buff =
+                buffId == null ? null : com.pvzce.common.buff.LevelBuffs.get(buffId);
+        if (buff == null || buff.icon().isEmpty()) {
+            return null;
+        }
+        return buff.icon().texture();
     }
 
     /**

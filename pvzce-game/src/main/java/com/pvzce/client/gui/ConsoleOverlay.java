@@ -312,7 +312,7 @@ public final class ConsoleOverlay extends Overlay {
     private int suggestionWidth() {
         int width = 0;
         for (SuggestionsS2C.Suggestion suggestion : suggestions) {
-            width = Math.max(width, Math.round(client.font().width(suggestion.text(), 0.8F)));
+            width = Math.max(width, Math.round(client.fonts().body().width(suggestion.text(), 0.8F)));
         }
         return width;
     }
@@ -344,7 +344,7 @@ public final class ConsoleOverlay extends Overlay {
                 continue;
             }
             float alpha = Math.max(0.25F, 1F - shown * 0.08F);
-            client.font().draw(messages.get(i), 8, y, 0.85F, 0.9F, 0.9F, 0.9F, alpha);
+            client.fonts().body().draw(messages.get(i), 8, y, 0.85F, 0.9F, 0.9F, 0.9F, alpha);
             y += 22;
             shown++;
         }
@@ -380,7 +380,7 @@ public final class ConsoleOverlay extends Overlay {
             boolean selected = index == current;
             client.drawSolid(rectX, rowY, rectW, SUGGESTION_LINE_HEIGHT, 0.1F,
                     selected ? 0.25F : 0.05F, selected ? 0.25F : 0.05F, selected ? 0.25F : 0.05F, 0.88F);
-            client.font().draw(suggestion.text(), rectX + 2, rowY + 4, 0.8F,
+            client.fonts().body().draw(suggestion.text(), rectX + 2, rowY + 4, 0.8F,
                     selected ? 1F : 0.75F, selected ? 1F : 0.75F, selected ? 1F : 0.75F, 1F);
         }
     }

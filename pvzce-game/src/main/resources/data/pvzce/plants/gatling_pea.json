@@ -15,7 +15,8 @@
         {
           "projectile": "pvzce:pea",
           "damage": 20,
-          "count": 4
+          "count": 4,
+          "burst_delay": 12
         }
       ]
     }

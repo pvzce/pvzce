@@ -14,7 +14,8 @@
       "fuse_ticks": 60,
       "radius": 1.0,
       "square": true,
-      "damage": 1800
+      "damage": 1800,
+      "linger_ticks": 65
     }
   ],
   "sounds": {

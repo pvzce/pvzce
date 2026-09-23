@@ -43,6 +43,15 @@ public final class PlayerProfile {
      * A purchase is permanent, which is the whole point of paying for it.
      */
     private final Set<Identifier> unlockedLevels = new LinkedHashSet<>();
+    /**
+     * The level buffs this backpack has been given, by the levels that hand them out.
+     *
+     * <p>A third set rather than a corner of {@link #unlocked}: a card id and a buff id can look
+     * alike ({@code pvzce:sunflower} against {@code pvzce:auto_collect}), and a level that meant to
+     * hand over a plant must not quietly hand over a rule instead. Nothing here is about
+     * progression through the level list - it is "which rules may I switch on".
+     */
+    private final Set<Identifier> unlockedBuffs = new LinkedHashSet<>();
     private int coins;
     /**
      * How many cards the player's bar holds when a level does not say.
@@ -52,6 +61,21 @@ public final class PlayerProfile {
      * reward goes through one clamp.
      */
     private int seedSlots = PvzceConstants.DEFAULT_SEED_SLOTS;
+    /**
+     * How many level buffs this backpack may switch on, when a level does not say.
+     *
+     * <p>Separate from {@link #seedSlots} because the two are separate choices: a level may hand
+     * out eight cards and no buffs, or two cards and five buffs.
+     */
+    private int buffSlots = PvzceConstants.DEFAULT_BUFF_SLOTS;
+    /**
+     * The buffs this world switches on by itself, in the order the player last chose them.
+     *
+     * <p>One list per world rather than one per level - see {@link #autoBuffs()}. Stored as
+     * ids, not as a bitmask over the registry: a mod's buff that is not loaded today must
+     * survive a save/load round trip.
+     */
+    private final List<Identifier> autoBuffs = new java.util.ArrayList<>();
     private boolean unlockAll;
 
     private PlayerProfile() {
@@ -128,6 +152,60 @@ public final class PlayerProfile {
         return seedSlots - before;
     }
 
+    /** How many level buffs this backpack may switch on when a level declares no count. */
+    public int buffSlots() {
+        return buffSlots;
+    }
+
+    public void setBuffSlots(int slots) {
+        buffSlots = Math.max(1, Math.min(PvzceConstants.MAX_BUFF_SLOTS, slots));
+    }
+
+    /** The buff twin of {@link #addSeedSlots}; nothing calls it yet either. */
+    public int addBuffSlots(int extra) {
+        if (extra <= 0) {
+            return 0;
+        }
+        int before = buffSlots;
+        setBuffSlots(buffSlots + extra);
+        return buffSlots - before;
+    }
+
+    /**
+     * The buffs this world switches on by itself, in the order they were last chosen.
+     *
+     * <p>World-scoped and deliberately not per level: a player who wants automatic pickup wants
+     * it everywhere, and re-ticking the same box on twenty levels is not a choice, it is
+     * paperwork. The list is rewritten to whatever the last run actually started with (see
+     * {@code PvzceServer.createLevel}), so it always means "the buffs I last went in with".
+     */
+    public List<Identifier> autoBuffs() {
+        return List.copyOf(autoBuffs);
+    }
+
+    public List<String> autoBuffIds() {
+        return autoBuffs.stream().map(Identifier::toString).toList();
+    }
+
+    /**
+     * Replaces the auto list, dropping unparsable entries and keeping the order given.
+     *
+     * <p>An empty list is a legal value - "stop picking anything for me" - and is not the same
+     * as "no preference". Nothing here filters by what is registered: a buff may be added by a
+     * mod that is not loaded today, and forgetting it because it could not be resolved would
+     * make the setting depend on the mod list.
+     */
+    public void setAutoBuffs(List<Identifier> buffs) {
+        autoBuffs.clear();
+        if (buffs != null) {
+            for (Identifier buff : buffs) {
+                if (buff != null) {
+                    autoBuffs.add(buff);
+                }
+            }
+        }
+    }
+
     /** True when every card is unlocked by the sandbox flag rather than by name. */
     public boolean unlocksEverything() {
         return unlockAll;
@@ -176,14 +254,45 @@ public final class PlayerProfile {
     }
 
     /** True when the player may put this card in a bar; the rule is {@link SlotResolver#owns}. */
-    public boolean owns(Identifier card) {
+    public boolean ownsCard(Identifier card) {
         return SlotResolver.owns(unlocked, unlockAll, card);
+    }
+
+    /** The buffs levels have handed this player. */
+    public Set<Identifier> unlockedBuffs() {
+        return Collections.unmodifiableSet(unlockedBuffs);
+    }
+
+    public List<String> unlockedBuffIds() {
+        return unlockedBuffs.stream().map(Identifier::toString).toList();
+    }
+
+    /**
+     * True when the player may switch this buff on.
+     *
+     * <p>A sandbox world owns every buff, present and future, exactly as it owns every card - the
+     * same flag answers both. A buff nobody hands out (a mod's, before that mod's level is
+     * cleared) is simply not owned, which is the point of the gate.
+     */
+    public boolean ownsBuff(Identifier buff) {
+        return buff != null && (unlockAll || unlockedBuffs.contains(buff));
+    }
+
+    /**
+     * Records a granted buff; returns true when this changed the profile.
+     *
+     * <p>Idempotent, which is what lets a reward be paid on any clear rather than only on the
+     * first one (see {@code RewardSettlement}).
+     */
+    public boolean unlockBuff(Identifier buff) {
+        return buff != null && unlockedBuffs.add(buff);
     }
 
     public CompoundTag save() {
         CompoundTag root = new CompoundTag();
         root.putInt("Coins", coins);
         root.putInt("SeedSlots", seedSlots);
+        root.putInt("BuffSlots", buffSlots);
         // Stored numerically: CompoundTag has no boolean getter, and its numeric
         // getters are deliberately cross-type lenient.
         root.putByte(KEY_UNLOCK_ALL, (byte) (unlockAll ? 1 : 0));
@@ -199,6 +308,19 @@ public final class PlayerProfile {
             levels.add(new StringTag(id.toString()));
         }
         root.put("UnlockedLevels", levels);
+        // Its own key again: the three sets are three different bags, and reading a buff as a
+        // card (or the other way round) is the failure this separation exists to prevent.
+        ListTag buffs = new ListTag();
+        for (Identifier id : unlockedBuffs) {
+            buffs.add(new StringTag(id.toString()));
+        }
+        root.put("UnlockedBuffs", buffs);
+        // Its own key, and a list of ids rather than a count: see ``autoBuffs``.
+        ListTag auto = new ListTag();
+        for (Identifier id : autoBuffs) {
+            auto.add(new StringTag(id.toString()));
+        }
+        root.put("AutoBuffs", auto);
         return root;
     }
 
@@ -218,6 +340,26 @@ public final class PlayerProfile {
         // the default: the field is what an ordinary level reads to size the player's bar.
         profile.setSeedSlots(root.contains("SeedSlots")
                 ? root.getInt("SeedSlots") : PvzceConstants.DEFAULT_SEED_SLOTS);
+        // Same rule for buff slots: a record written before buffs existed means the default,
+        // not zero, because zero would hand every old world a buff bar with no room in it.
+        profile.setBuffSlots(root.contains("BuffSlots")
+                ? root.getInt("BuffSlots") : PvzceConstants.DEFAULT_BUFF_SLOTS);
+        for (Tag entry : root.getList("UnlockedBuffs").values()) {
+            if (entry instanceof StringTag text) {
+                Identifier id = Identifier.tryParse(text.value());
+                if (id != null) {
+                    profile.unlockedBuffs.add(id);
+                }
+            }
+        }
+        for (Tag entry : root.getList("AutoBuffs").values()) {
+            if (entry instanceof StringTag text) {
+                Identifier id = Identifier.tryParse(text.value());
+                if (id != null) {
+                    profile.autoBuffs.add(id);
+                }
+            }
+        }
         for (Tag entry : root.getList("Unlocked").values()) {
             if (entry instanceof StringTag text) {
                 Identifier id = Identifier.tryParse(text.value());

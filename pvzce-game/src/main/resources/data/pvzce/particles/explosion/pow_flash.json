@@ -1,0 +1,30 @@
+{
+  "id": "pvzce:pow_flash",
+  "look": {
+    "alpha_from": 0.85,
+    "alpha_to": 0.0,
+    "scale": 2.2,
+    "scale_curve": [
+      [
+        0.0,
+        0.6
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "aspect": 1.25,
+    "color": [
+      1.0,
+      0.95,
+      0.75
+    ],
+    "life": 0.16,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "texture": "pvzce:textures/particles/explosion/whitepixel"
+  },
+  "additive": true,
+  "count": 1
+}

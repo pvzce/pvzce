@@ -378,4 +378,93 @@ class AnimationResourceLoaderTest {
         assertEquals(AnimationFile.AnimationType.CONTROLLER, file.type());
         assertFalse(file.clip("missing").isPresent());
     }
+
+    /**
+     * An ash-line plant has to stay on the field at least as long as its own blast takes to draw.
+     *
+     * <p>The blast is instantaneous on the server and the {@code explode} clip is not: the plant
+     * is removed when its {@code linger_ticks} run out, and a linger shorter than the clip cuts
+     * the animation off mid-gesture. Thirty ticks was long enough for the plants it was chosen
+     * for and far too short for the rest - the doom-shroom's growing cloud is two and three
+     * quarter seconds, so it was drawn for a fifth of itself and then vanished.
+     *
+     * <p>Both numbers are read from where they live: the clip from the art file (its length
+     * divided by its own playback rate) and the linger from the plant definition's capability.
+     * A content author who lengthens a clip or slows it down gets told here rather than in a
+     * screenshot.
+     */
+    @Test
+    void everyAshPlantStaysLongEnoughToDrawItsBlast() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        for (String plant : new String[]{"cherry_bomb", "jalapeno", "doom_shroom", "potato_mine",
+                "squash"}) {
+            var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
+                    Identifier.withDefaultNamespace(plant));
+            assertNotNull(def, plant + " has to exist");
+            var explosive = def.capabilities().stream()
+                    .map(com.pvzce.api.content.capability.TypedCapability::value)
+                    .filter(com.pvzce.common.capability.plant.ExplosiveCapability.class::isInstance)
+                    .map(com.pvzce.common.capability.plant.ExplosiveCapability.class::cast)
+                    .findFirst()
+                    .orElse(null);
+            assertNotNull(explosive, plant + " is an ash-line plant and has to carry the capability");
+
+            ControllerClip explode = (ControllerClip) parseClasspath(plant).clip("explode")
+                    .orElseThrow();
+            // Clip seconds per world second: a slowed clip is on screen for longer, and the
+            // linger is in ticks at 60tps.
+            float screenSeconds = explode.duration() / explode.rate();
+            int needed = (int) Math.ceil(screenSeconds * 60F);
+            assertTrue(explosive.lingerTicks() >= needed,
+                    plant + "'s explode clip needs " + needed + " ticks on screen but the plant"
+                            + " is removed after " + explosive.lingerTicks() + ", so the blast is"
+                            + " cut off before it finishes");
+        }
+    }
+
+    /**
+     * The ash line's blast draws the particles it names, and every one of them exists.
+     *
+     * <p>A missing particle draws nothing and says so once per second from the client, which is a
+     * symptom with no address; a blast that is a composition of nine is nine chances to typo one.
+     * The doom-shroom's cloud pieces are additionally required to be placed around the blast
+     * rather than on top of each other - that placement is the whole reason they are a list.
+     */
+    @Test
+    void theBlastsNameParticlesThatExistAndArePlaced() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        for (String plant : new String[]{"cherry_bomb", "doom_shroom"}) {
+            var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
+                    Identifier.withDefaultNamespace(plant));
+            var explosive = def.capabilities().stream()
+                    .map(com.pvzce.api.content.capability.TypedCapability::value)
+                    .filter(com.pvzce.common.capability.plant.ExplosiveCapability.class::isInstance)
+                    .map(com.pvzce.common.capability.plant.ExplosiveCapability.class::cast)
+                    .findFirst()
+                    .orElseThrow();
+            assertTrue(explosive.particles().size() > 1,
+                    plant + " has an explosion of its own rather than the default flash");
+            for (Identifier particle : explosive.particles()) {
+                var particleDef = com.pvzce.common.core.BuiltInRegistries.PARTICLES.get(particle);
+                assertNotNull(particleDef, plant + " names " + particle + ", which has no definition");
+            }
+        }
+
+        var doom = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
+                Identifier.withDefaultNamespace("doom_shroom"));
+        var cloud = doom.capabilities().stream()
+                .map(com.pvzce.api.content.capability.TypedCapability::value)
+                .filter(com.pvzce.common.capability.plant.ExplosiveCapability.class::isInstance)
+                .map(com.pvzce.common.capability.plant.ExplosiveCapability.class::cast)
+                .findFirst()
+                .orElseThrow();
+        long placed = cloud.particles().stream()
+                .map(com.pvzce.common.core.BuiltInRegistries.PARTICLES::get)
+                .filter(java.util.Objects::nonNull)
+                .filter(def -> def.motion().offsetX() != 0F || def.motion().offsetY() != 0F)
+                .count();
+        assertTrue(placed >= 5,
+                "the doom-shroom's cloud is a mushroom shape, which only works if its pieces are"
+                        + " born at different points; only " + placed + " of them are");
+    }
 }

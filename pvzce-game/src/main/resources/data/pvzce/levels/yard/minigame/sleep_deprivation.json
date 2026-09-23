@@ -288,5 +288,8 @@
         "side": "left"
       }
     ]
-  }
+  },
+  "buffs": [
+    "pvzce:mushroom_range"
+  ]
 }

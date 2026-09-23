@@ -13,6 +13,7 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.common.PvzceParticles;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +35,23 @@ public final class ShooterCapability implements PlantCapability {
     private final float hideWithin;
 
     private int cooldown;
+    /**
+     * Projectiles of a volley that are still on their way out, with the ticks left before each.
+     *
+     * <p>Only a shot with a {@code burst_delay} has any: a single-pea plant spawns its one
+     * projectile on the firing tick and never reads this list. The repeater's second pea and the
+     * gatling pea's other three live here between "the plant fired" and "the pea exists", which is
+     * what makes them separate objects on the lawn instead of one coincident stack.
+     *
+     * <p>Not part of {@link #save}: a burst is a fifth of a second long, and a save taken inside
+     * that window loses at most the tail of one volley - against the alternative of teaching the
+     * save format about a queue whose entries name a content definition.
+     */
+    private final List<PendingShot> pendingShots = new ArrayList<>();
+
+    /** One projectile of a volley that has been ordered but not yet born. */
+    private record PendingShot(ProjectileRef shot, float muzzleX, float row, int ticksLeft) {
+    }
 
     public ShooterCapability(int intervalTicks, List<ProjectileRef> shots, Optional<Identifier> sound,
                              int firstDelayTicks) {
@@ -94,6 +112,10 @@ public final class ShooterCapability implements PlantCapability {
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
+        // The tail of a volley leaves even if the plant ducks or starts its next cooldown in the
+        // meantime: those projectiles were fired, and a repeater's second pea appearing only if
+        // its plant kept facing the right way would be a shot the player is owed and does not get.
+        firePendingShots(plant, level);
         // A frightened shooter ducks first and does nothing else - the cooldown is not even
         // ticked down, so a scaredy-shroom that comes back up fires immediately rather than
         // finishing the pause it was in when the zombie arrived. That is the original's
@@ -120,13 +142,53 @@ public final class ShooterCapability implements PlantCapability {
             // from its other edge instead of appearing inside it.
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
             float row = plant.cellY() + shot.rowOffset();
-            for (int i = 0; i < shot.count(); i++) {
+            if (shot.burstDelay() <= 0) {
+                // One tick, one volley: the shape every single-pea plant and the threepeater
+                // already had, and the one a multi-row volley has to keep - its projectiles
+                // belong to different lanes, so they are not a burst at all.
+                for (int i = 0; i < shot.count(); i++) {
+                    level.spawnProjectile(shot, muzzleX, row, plant);
+                }
+                continue;
+            }
+            // A burst: the first pea leaves now, the rest on their own ticks. This is the
+            // repeater - see ProjectileRef#burstDelay for why firing them together is the same
+            // as firing one.
+            if (shot.count() > 0) {
                 level.spawnProjectile(shot, muzzleX, row, plant);
+            }
+            for (int i = 1; i < shot.count(); i++) {
+                pendingShots.add(new PendingShot(shot, muzzleX, row, i * shot.burstDelay()));
             }
         }
         level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
         cooldown = intervalTicks;
+    }
+
+    /**
+     * Births the projectiles of an unfinished volley whose tick has come.
+     *
+     * <p>The muzzle and the row were resolved when the plant fired rather than being read again
+     * here: a pea that has left the barrel does not follow the plant, and a repeat of the aiming
+     * arithmetic would be a second answer to "where does this shot come from".
+     */
+    private void firePendingShots(PlantEntity plant, LevelAccess level) {
+        if (pendingShots.isEmpty()) {
+            return;
+        }
+        // Reverse order so removing an entry does not shift the ones still to come.
+        for (int i = pendingShots.size() - 1; i >= 0; i--) {
+            PendingShot pending = pendingShots.get(i);
+            int ticksLeft = pending.ticksLeft() - 1;
+            if (ticksLeft > 0) {
+                pendingShots.set(i, new PendingShot(pending.shot(), pending.muzzleX(), pending.row(),
+                        ticksLeft));
+                continue;
+            }
+            pendingShots.remove(i);
+            level.spawnProjectile(pending.shot(), pending.muzzleX(), pending.row(), plant);
+        }
     }
 
     /**
@@ -170,10 +232,15 @@ public final class ShooterCapability implements PlantCapability {
      * <p>{@code range} is the same number the shot itself expires at, measured from the same
      * place the projectile is born (the muzzle), so a short-ranged plant (Puff-shroom)
      * neither wastes spores on a zombie it cannot reach nor holds fire while one is walking
-     * into its range.
+     * into its range. It is read through {@link PlantShots#scaled}, so a run rule that lengthens
+     * the shot lengthens the reach that decides when to fire it - one number, both halves.
      */
     private boolean hasTarget(PlantEntity plant, LevelAccess level) {
-        for (ProjectileRef shot : shots) {
+        for (ProjectileRef raw : shots) {
+            // Aimed with the scaled shot, not the definition's own number: the projectile is born
+            // scaled (see LevelServer.spawnProjectile), and a plant that decided with the unscaled
+            // range would never fire at the zombies its shots can now reach.
+            ProjectileRef shot = PlantShots.scaled(raw, plant, level);
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
             for (int rowOffset : shot.coveredRowOffsets()) {
                 int row = plant.gridY() + rowOffset;

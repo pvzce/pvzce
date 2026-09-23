@@ -18,7 +18,20 @@
       "radius": 3.0,
       "square": true,
       "damage": 1800,
-      "leaves_crater": true
+      "leaves_crater": true,
+      "particles": [
+        "pvzce:doom",
+        "pvzce:doom_doom_mushroom_under_cap",
+        "pvzce:doom_doom_mushroom_middle_center",
+        "pvzce:doom_doom_mushroom_center_left",
+        "pvzce:doom_doom_mushroom_center_right",
+        "pvzce:doom_doom_mushroom_left",
+        "pvzce:doom_doom_mushroom_right",
+        "pvzce:doom_doom_mushroom_top_center",
+        "pvzce:doom_doom_word",
+        "pvzce:doom_doom_flash"
+      ],
+      "linger_ticks": 165
     }
   ],
   "sounds": {

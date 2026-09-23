@@ -63,6 +63,19 @@ public interface LevelAccess {
     /** Read-only view of the scene element in a cell; {@code null} when out of bounds. */
     SceneElementAccess sceneAt(int column, int row);
 
+    /**
+     * How much further a shot from this plant flies because of the run's rules; 1 when nothing
+     * applies.
+     *
+     * <p>On the level's interface rather than looked up by the capability, because the answer is
+     * the level's (which buffs are on) and the capability has nothing to look it up with. The
+     * shooters scale the {@link ProjectileRef} they <em>aim</em> with through this, which is what
+     * keeps "is a zombie worth firing at" and "will the shot reach it" the same number.
+     */
+    default float sporeRangeMultiplier(PlantEntity plant) {
+        return 1F;
+    }
+
     void spawnProjectile(ProjectileRef ref, float x, float y, PlantEntity source);
 
     void spawnArcProjectile(ProjectileRef ref, float x, float y, PlantEntity source, ZombieEntity target);

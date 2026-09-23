@@ -99,8 +99,8 @@ public final class SeedCardBar implements CardBar {
         }
 
         if (cardMaxScroll > 0) {
-            client.font().draw("<", viewportX + 2, viewportY + cardHeight / 2F - 8, 1F, 1F, 1F, 1F, 1F);
-            client.font().draw(">", viewportX + viewportWidth - 12,
+            client.fonts().body().draw("<", viewportX + 2, viewportY + cardHeight / 2F - 8, 1F, 1F, 1F, 1F, 1F);
+            client.fonts().body().draw(">", viewportX + viewportWidth - 12,
                     viewportY + cardHeight / 2F - 8, 1F, 1F, 1F, 1F, 1F);
         }
     }

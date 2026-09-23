@@ -101,17 +101,17 @@ public final class ConfigScreen extends Screen {
             layoutRows();
         }
         float scale = Math.min(1.8F, client.guiHeight() / 120F);
-        client.font().draw(title, (client.guiWidth() - client.font().width(title, scale)) / 2F,
-                client.guiHeight() - client.font().lineHeight(scale) - 4, scale, 1, 1, 1, 1);
+        client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, scale)) / 2F,
+                client.guiHeight() - client.fonts().body().lineHeight(scale) - 4, scale, 1, 1, 1, 1);
         int x = centerX(contentWidth());
         for (Row row : rows) {
             if (row.header()) {
-                client.font().draw(row.category().id(), x + 10, row.y() + 14, 0.9F, 0.6F, 0.8F, 0.6F, 1F);
+                client.fonts().body().draw(row.category().id(), x + 10, row.y() + 14, 0.9F, 0.6F, 0.8F, 0.6F, 1F);
                 continue;
             }
-            client.font().draw(row.entry().label(), x + 10, row.y() + 10, 0.9F, 0.9F, 0.9F, 0.9F, 1F);
+            client.fonts().body().draw(row.entry().label(), x + 10, row.y() + 10, 0.9F, 0.9F, 0.9F, 0.9F, 1F);
             if (row.entry() instanceof FloatConfigEntry floatEntry) {
-                client.font().draw(GuiText.formatPercent(floatEntry.value()),
+                client.fonts().body().draw(GuiText.formatPercent(floatEntry.value()),
                         x + Math.max(320, client.guiWidth() - 90), row.y() + 10, 0.8F, 0.7F, 0.8F, 0.9F, 1F);
             }
         }

@@ -75,7 +75,7 @@ public final class SeedSelection {
      */
     public static List<Identifier> sanitize(LevelDef def, List<Identifier> requested,
                                             PlayerProfile profile) {
-        List<Identifier> pool = SeedOptions.cardPool(def, profile == null ? null : profile::owns);
+        List<Identifier> pool = SeedOptions.cardPool(def, profile == null ? null : profile::ownsCard);
         // The same resolved bar size the client was shown, so "the cards this method accepts"
         // cannot be a longer or shorter row than "the cards the chooser offered".
         LevelDef.SeedPlan plan = def.seedPlan(pool, effectiveSlots(def, profile));
@@ -111,7 +111,7 @@ public final class SeedSelection {
      * the bar is unaffected.
      */
     public static List<Identifier> defaultFor(LevelDef def, PlayerProfile profile) {
-        return def.defaultSeedSelection(SeedOptions.cardPool(def, profile == null ? null : profile::owns),
+        return def.defaultSeedSelection(SeedOptions.cardPool(def, profile == null ? null : profile::ownsCard),
                 effectiveSlots(def, profile));
     }
 

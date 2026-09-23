@@ -419,33 +419,33 @@ public final class LevelCreateDialog extends Dialog {
         }
         int pad = 20;
         float labelScale = 0.72F;
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.level_name", "关卡名称"),
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.level_name", "关卡名称"),
                 x + pad, nameBox.y() + nameBox.height() + 4F, labelScale, 1F, 1F, 1F, 1F);
 
         int[] size = selectedSize();
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.board_size", "棋盘尺寸") + "：" + size[0] + " × " + size[1],
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.board_size", "棋盘尺寸") + "：" + size[0] + " × " + size[1],
                 x + pad, sizeSlider.y() + sizeSlider.height() + 4F, labelScale, 1F, 1F, 1F, 1F);
 
         float pathLabelY = namePathBox.y() + namePathBox.height() + 4F;
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.level_file", "关卡 ID"),
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.level_file", "关卡 ID"),
                 x + pad, pathLabelY, labelScale, 1F, 1F, 1F, 1F);
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.namespace", "命名空间"),
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.namespace", "命名空间"),
                 namespaceBox.x(), pathLabelY, labelScale, 1F, 1F, 1F, 1F);
         Identifier id = resolvedId();
         if (id != null) {
-            renderClient.font().draw(id.toString(), x + pad + 76, pathLabelY, 0.62F,
+            renderClient.fonts().body().draw(id.toString(), x + pad + 76, pathLabelY, 0.62F,
                     0.8F, 0.9F, 0.8F, 1F);
         }
 
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.theme", "主题"),
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.theme", "主题"),
                 x + pad, themeRowY + groupHeight + 3F, labelScale, 1F, 1F, 1F, 1F);
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.category", "类别"),
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.category", "类别"),
                 x + pad, categoryRowY + groupHeight + 3F, labelScale, 1F, 1F, 1F, 1F);
-        renderClient.font().draw(GuiLang.raw("pvzce.editor.group_hint", "新关卡会放进该分类目录"),
+        renderClient.fonts().body().draw(GuiLang.raw("pvzce.editor.group_hint", "新关卡会放进该分类目录"),
                 x + pad + 90, categoryRowY + groupHeight + 3F, 0.6F, 0.75F, 0.8F, 0.8F, 1F);
 
         if (!error.isEmpty()) {
-            renderClient.font().draw(error, x + pad, categoryRowY + groupHeight + 20F,
+            renderClient.fonts().body().draw(error, x + pad, categoryRowY + groupHeight + 20F,
                     0.72F, 1F, 0.55F, 0.55F, 1F);
         }
     }

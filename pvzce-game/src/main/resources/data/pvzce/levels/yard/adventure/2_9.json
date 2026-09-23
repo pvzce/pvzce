@@ -321,5 +321,25 @@
   "disable_shaders": true,
   "unlock_resources": {
     "pvzce:sun": true
+  },
+  "buffs": [
+    "pvzce:player_choice"
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "buff",
+        "id": "pvzce:auto_collect"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 100
+      }
+    ],
+    "coin_drop_chance": 0.25,
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_amount": 1
   }
 }

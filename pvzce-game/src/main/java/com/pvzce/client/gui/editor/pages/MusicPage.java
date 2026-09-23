@@ -137,7 +137,7 @@ public final class MusicPage implements EditorPage {
         int eventsBottom = y + pad + rowH + 6;
         musicEventList = context.own(new AbstractSelectionList<String>(detailX, eventsBottom, detailW,
                 Math.max(50, eventsTop - eventsBottom), MathUtil.clamp(rowH - 2, 24, 32),
-                (renderClient, event, rx, ry) -> renderClient.font().draw(event, rx, ry + 4,
+                (renderClient, event, rx, ry) -> renderClient.fonts().body().draw(event, rx, ry + 4,
                         0.68F, 0.9F, 0.95F, 0.9F, 1F)));
         musicEventList.setEntries(musicEventOptions());
 
@@ -148,21 +148,21 @@ public final class MusicPage implements EditorPage {
     public void render(EditorContext context) {
         EditorContext.Rect area = context.fullContent();
         PvzceClient renderClient = context.client();
-        renderClient.font().draw("提示音 " + musicConfig.cues.size() + " 条　"
+        renderClient.fonts().body().draw("提示音 " + musicConfig.cues.size() + " 条　"
                         + "每条按 tick 触发，可选轨道 background / battle / menu / stinger",
                 area.x() + 4, area.y() + area.height() + 4F, 0.74F, 1F, 1F, 1F, 1F);
         // Field labels in the gaps the fields leave; without them three bare
         // numbers in a row say nothing about which is which.
         if (musicTickBox != null) {
-            renderClient.font().draw("tick　　/　音量　/　淡入秒", musicTickBox.x(),
+            renderClient.fonts().body().draw("tick　　/　音量　/　淡入秒", musicTickBox.x(),
                     musicTickBox.y() + musicTickBox.height() + 3F, 0.68F, 0.9F, 0.9F, 0.9F, 1F);
-            renderClient.font().draw("事件（点选即应用）", musicEventList.x(),
+            renderClient.fonts().body().draw("事件（点选即应用）", musicEventList.x(),
                     musicEventList.y() + musicEventList.height() + 4F, 0.7F, 0.9F, 0.9F, 0.9F, 1F);
-            renderClient.font().draw("时间线（tick / 轨道 / 事件）", area.x() + 4,
+            renderClient.fonts().body().draw("时间线（tick / 轨道 / 事件）", area.x() + 4,
                     musicCueList.y() + musicCueList.height() + 4F, 0.7F, 0.9F, 0.9F, 0.9F, 1F);
         }
         if (musicConfig.cues.isEmpty()) {
-            renderClient.font().draw("时间线为空：这个关卡不会播放任何音乐",
+            renderClient.fonts().body().draw("时间线为空：这个关卡不会播放任何音乐",
                     area.x() + 4, area.y() + area.height() / 2F, 0.85F, 1F, 0.85F, 0.5F, 1F);
         }
     }
@@ -202,8 +202,8 @@ public final class MusicPage implements EditorPage {
         int rowH = musicCueList == null ? 30 : musicCueList.entryHeight();
         String event = cue.event == null || cue.event.isEmpty() ? MusicEditorModel.STOP_LABEL : cue.event;
         String head = "tick " + cue.atTick + "　" + cue.track;
-        renderClient.font().draw(head, x, y + rowH / 2F + 1F, 0.76F, 1F, 1F, 1F, 1F);
-        renderClient.font().draw(GuiText.shortId(event), x, y + rowH / 2F - 12F, 0.66F,
+        renderClient.fonts().body().draw(head, x, y + rowH / 2F + 1F, 0.76F, 1F, 1F, 1F, 1F);
+        renderClient.fonts().body().draw(GuiText.shortId(event), x, y + rowH / 2F - 12F, 0.66F,
                 cue.stop ? 0.95F : 0.8F, cue.stop ? 0.7F : 0.85F, 0.7F, 1F);
     }
 

@@ -3,8 +3,8 @@
   "look": {
     "alpha_from": 0.9,
     "alpha_to": 0.9,
-    "scale": 0.5,
-    "scale_spread": 0.12,
+    "scale": 0.125,
+    "scale_spread": 0.03,
     "life": 0.5,
     "frames_per_second": 60.0,
     "loop": true,

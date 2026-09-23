@@ -231,7 +231,27 @@ public record ParticleDef(
              * skittered there. The emitter's own number (the original's {@code GroundConstraint})
              * is the right one, so it travels.
              */
-            float groundOffset
+            float groundOffset,
+            /**
+             * Where this particle is born, in cells, relative to the point the effect was
+             * emitted at. Zero for a particle that appears exactly where it was asked for.
+             *
+             * <p>One definition describes one sprite, and some effects are several sprites
+             * arranged around a centre: the doom-shroom's blast is a stem, seven pieces of cap
+             * and a word, each of which the original places with its own {@code SystemPosition}.
+             * Without a birth offset the only way to draw that shape is to emit each piece from
+             * the capability at a hard-coded coordinate, which puts the art's layout in the
+             * code that causes the explosion rather than in the definitions the art already
+             * lives in. With it, an effect that is a composition is still just a list of
+             * particle ids - see {@code pvzce:explosive}'s {@code particles}.
+             *
+             * <p>{@code +y} is up, like every other vertical in this project, and the sprite is
+             * still centred on the offset point (the engine draws particles centred). A
+             * {@code bounce} particle's ground line is measured from where it was born, so an
+             * offset piece still lands under itself.
+             */
+            float offsetX,
+            float offsetY
     ) {
         /**
          * What one bounce does to horizontal speed when a definition says nothing.
@@ -262,7 +282,7 @@ public record ParticleDef(
 
         public static final ParticleMotion STILL =
                 new ParticleMotion(0F, 0F, 90F, 0F, 0F, 0F, false, DEFAULT_GROUND_FRICTION,
-                        DEFAULT_GROUND_OFFSET);
+                        DEFAULT_GROUND_OFFSET, 0F, 0F);
 
         public static final MapCodec<ParticleMotion> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
                 Codec.FLOAT.optionalFieldOf("speed", 0F).forGetter(ParticleMotion::speed),
@@ -275,7 +295,9 @@ public record ParticleDef(
                 Codec.floatRange(0F, 1F).optionalFieldOf("ground_friction", DEFAULT_GROUND_FRICTION)
                         .forGetter(ParticleMotion::groundFriction),
                 Codec.FLOAT.optionalFieldOf("ground_offset", DEFAULT_GROUND_OFFSET)
-                        .forGetter(ParticleMotion::groundOffset)
+                        .forGetter(ParticleMotion::groundOffset),
+                Codec.FLOAT.optionalFieldOf("offset_x", 0F).forGetter(ParticleMotion::offsetX),
+                Codec.FLOAT.optionalFieldOf("offset_y", 0F).forGetter(ParticleMotion::offsetY)
         ).apply(i, ParticleMotion::new));
     }
 

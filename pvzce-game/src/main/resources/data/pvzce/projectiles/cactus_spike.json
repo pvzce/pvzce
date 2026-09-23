@@ -4,7 +4,7 @@
   "capabilities": [
     {
       "type": "pvzce:linear",
-      "speed": 2.4
+      "speed": 4.8
     }
   ],
   "sounds": {

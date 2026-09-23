@@ -197,22 +197,22 @@ public final class CardsPage implements EditorPage {
         int slots = Math.max(levelCards, declared);
         int free = Math.max(0, slots - levelCards);
         float summaryY = area.y() + area.height() + 4F;
-        renderClient.font().draw("总卡槽 " + slots
+        renderClient.fonts().body().draw("总卡槽 " + slots
                         + (followsBackpack ? "（跟随背包）" : "")
                         + "　关卡固定 " + levelCards
                         + "　玩家可选 " + free, area.x() + 2, summaryY, 0.74F, 1F, 1F, 1F, 1F);
         if (free == 0) {
             // On the summary line, not above the column labels: the note and the
             // column title landed on the same pixels.
-            renderClient.font().draw("（关卡卡槽已占满总卡槽：玩家拿到固定卡组，没有可选内容）",
-                    area.x() + 2 + renderClient.font().width(
+            renderClient.fonts().body().draw("（关卡卡槽已占满总卡槽：玩家拿到固定卡组，没有可选内容）",
+                    area.x() + 2 + renderClient.fonts().body().width(
                             "总卡槽 " + slots + "　关卡固定 " + levelCards
                                     + "　玩家可选 " + free, 0.74F) + 10F,
                     summaryY, 0.72F, 1F, 0.85F, 0.45F, 1F);
         }
-        renderClient.font().draw("关卡卡槽（顺序即游戏内卡槽顺序）", area.x() + 2, labelY, 0.7F,
+        renderClient.fonts().body().draw("关卡卡槽（顺序即游戏内卡槽顺序）", area.x() + 2, labelY, 0.7F,
                 1F, 0.9F, 0.6F, 1F);
-        renderClient.font().draw("全部卡（按类别）", area.x() + colW + 12, labelY, 0.7F,
+        renderClient.fonts().body().draw("全部卡（按类别）", area.x() + colW + 12, labelY, 0.7F,
                 0.9F, 0.9F, 0.9F, 1F);
     }
 
@@ -287,7 +287,7 @@ public final class CardsPage implements EditorPage {
         if (row.isHeader()) {
             SpriteRenderer.solid(x - 6, y, Math.max(10, availableList.width() - 10), rowH, 0.05F,
                     0.22F, 0.28F, 0.34F, 0.9F);
-            renderClient.font().draw(row.header(), x - 2, y + rowH / 2F + 1F, 0.78F, 1F, 0.95F, 0.75F, 1F);
+            renderClient.fonts().body().draw(row.header(), x - 2, y + rowH / 2F + 1F, 0.78F, 1F, 0.95F, 0.75F, 1F);
             return;
         }
         renderCardRow(renderClient, row.cardId(), x, y, true);
@@ -305,13 +305,13 @@ public final class CardsPage implements EditorPage {
                     0.1F, 1F, 1F, 1F, 1F);
         }
         float textX = x + iconSize + 6;
-        renderClient.font().draw(GuiLang.name(parsed), textX, y + rowH / 2F + 1F, 0.78F, 1F, 1F, 1F, 1F);
-        renderClient.font().draw(GuiText.shortId(id), textX, y + rowH / 2F - 12F, 0.6F, 0.6F, 0.65F, 0.7F, 1F);
+        renderClient.fonts().body().draw(GuiLang.name(parsed), textX, y + rowH / 2F + 1F, 0.78F, 1F, 1F, 1F, 1F);
+        renderClient.fonts().body().draw(GuiText.shortId(id), textX, y + rowH / 2F - 12F, 0.6F, 0.6F, 0.65F, 0.7F, 1F);
         if (inAvailable && cardPoolConfig.pool.contains(id)) {
             String marker = "已选";
             float scale = 0.6F;
-            float markerW = renderClient.font().width(marker, scale);
-            renderClient.font().draw(marker, x + Math.max(0F, list.width() - markerW - 10F),
+            float markerW = renderClient.fonts().body().width(marker, scale);
+            renderClient.fonts().body().draw(marker, x + Math.max(0F, list.width() - markerW - 10F),
                     y + rowH - 12F, scale, 0.95F, 0.85F, 0.5F, 1F);
         }
     }

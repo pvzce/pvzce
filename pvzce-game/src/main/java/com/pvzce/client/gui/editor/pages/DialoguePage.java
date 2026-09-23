@@ -114,7 +114,7 @@ public final class DialoguePage implements EditorPage {
         int listH = Math.max(60, listTop - (y + rowH + pad + 20));
         dialogueLineList = context.own(new AbstractSelectionList<DialogueEditorModel.LineModel>(
                 x, y + rowH + pad + 20, listW, listH, MathUtil.clamp(listH / 7, 28, 42),
-                (renderClient, line, rx, ry) -> renderClient.font().draw(
+                (renderClient, line, rx, ry) -> renderClient.fonts().body().draw(
                         line.summary(Math.max(0, dialogueConfig.lines.indexOf(line)),
                                 dialogueSpeakerName(line.character)),
                         rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F)));
@@ -162,8 +162,8 @@ public final class DialoguePage implements EditorPage {
                 halfW, listBlockH, MathUtil.clamp(listBlockH / 6, 26, 36), (renderClient, id, rx, ry) -> {
             var character = BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
             String label = character == null ? id.toString() : character.displayName();
-            renderClient.font().draw(label, rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F);
-            renderClient.font().draw(GuiText.shortId(id), rx, ry - 10, 0.62F, 0.75F, 0.8F, 0.8F, 1F);
+            renderClient.fonts().body().draw(label, rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F);
+            renderClient.fonts().body().draw(GuiText.shortId(id), rx, ry - 10, 0.62F, 0.75F, 0.8F, 0.8F, 1F);
         }));
         dialogueCharacterList.setEntries(new ArrayList<>(
                 BuiltInRegistries.DIALOGUE_CHARACTERS.keySet().stream().sorted().toList()));
@@ -171,7 +171,7 @@ public final class DialoguePage implements EditorPage {
         dialoguePortraitList = context.own(new AbstractSelectionList<String>(
                 detailX + halfW + gap, listsBottom, detailW - halfW - gap, listBlockH,
                 MathUtil.clamp(listBlockH / 6, 26, 36), (renderClient, portrait, rx, ry) ->
-                renderClient.font().draw(portrait, rx, ry + 4, 0.72F, 0.9F, 1F, 0.9F, 1F)));
+                renderClient.fonts().body().draw(portrait, rx, ry + 4, 0.72F, 0.9F, 1F, 0.9F, 1F)));
         dialoguePortraitList.setEntries(List.of());
 
         refreshDialogueDetail(context);
@@ -181,29 +181,29 @@ public final class DialoguePage implements EditorPage {
     public void render(EditorContext context) {
         EditorContext.Rect area = context.fullContent();
         PvzceClient renderClient = context.client();
-        renderClient.font().draw("对话 " + dialogueConfig.lines.size()
+        renderClient.fonts().body().draw("对话 " + dialogueConfig.lines.size()
                         + " 条　关卡开始时播放：点击推进，ESC 跳过整段",
                 area.x() + 4, area.y() + area.height() + 4F, 0.74F, 1F, 1F, 1F, 1F);
         if (dialogueTextBox != null) {
             float labelScale = 0.68F;
-            renderClient.font().draw("台词", dialogueTextBox.x(),
+            renderClient.fonts().body().draw("台词", dialogueTextBox.x(),
                     dialogueTextBox.y() + dialogueTextBox.height() + 4F, labelScale,
                     1F, 0.9F, 0.6F, 1F);
-            renderClient.font().draw("语音（sound event id，可留空）", dialogueVoiceBox.x(),
+            renderClient.fonts().body().draw("语音（sound event id，可留空）", dialogueVoiceBox.x(),
                     dialogueVoiceBox.y() + dialogueVoiceBox.height() + 4F, labelScale,
                     0.9F, 0.9F, 0.9F, 1F);
-            renderClient.font().draw("台词行（顺序即播放顺序）", area.x() + 4,
+            renderClient.fonts().body().draw("台词行（顺序即播放顺序）", area.x() + 4,
                     dialogueLineList.y() + dialogueLineList.height() + 4F, 0.7F,
                     1F, 0.9F, 0.6F, 1F);
-            renderClient.font().draw("角色", dialogueCharacterList.x(),
+            renderClient.fonts().body().draw("角色", dialogueCharacterList.x(),
                     dialogueCharacterList.y() + dialogueCharacterList.height() + 4F,
                     0.7F, 1F, 0.9F, 0.6F, 1F);
-            renderClient.font().draw("立绘（该角色目录下的 PNG）", dialoguePortraitList.x(),
+            renderClient.fonts().body().draw("立绘（该角色目录下的 PNG）", dialoguePortraitList.x(),
                     dialoguePortraitList.y() + dialoguePortraitList.height() + 4F,
                     0.7F, 1F, 0.9F, 0.6F, 1F);
         }
         if (dialogueConfig.lines.isEmpty()) {
-            renderClient.font().draw("这一关没有开场对话：点「新增台词」开始写",
+            renderClient.fonts().body().draw("这一关没有开场对话：点「新增台词」开始写",
                     area.x() + 4, area.y() + area.height() / 2F, 0.85F, 1F, 0.85F, 0.5F, 1F);
         }
     }

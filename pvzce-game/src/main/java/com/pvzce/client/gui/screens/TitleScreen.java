@@ -90,7 +90,7 @@ public final class TitleScreen extends Screen {
         // never above the window edge.
         subtitleScale = Math.min(1.2F, Math.max(0.8F, guiH / 240F));
         subtitleY = blockTop + gap;
-        titleY = subtitleY + client.font().lineHeight(subtitleScale) + gap;
+        titleY = subtitleY + client.fonts().body().lineHeight(subtitleScale) + gap;
         float availableAbove = Math.max(20F, guiH - titleY - 4F);
         titleScale = Math.min(4.2F, Math.max(0.9F, availableAbove / 30F));
 
@@ -100,8 +100,8 @@ public final class TitleScreen extends Screen {
         // the box both lines sit in.
         nameWidth = Math.min(220, Math.max(120, guiW / 3));
         // Two lines and a little air, so the text block is centred in the box the button draws.
-        nameHeight = (int) client.font().lineHeight(PROMPT_SCALE)
-                + (int) client.font().lineHeight(NAME_SCALE) + 16;
+        nameHeight = (int) client.fonts().body().lineHeight(PROMPT_SCALE)
+                + (int) client.fonts().body().lineHeight(NAME_SCALE) + 16;
         nameX = 8;
         nameY = Math.max(8, guiH - 8 - nameHeight);
     }
@@ -174,10 +174,10 @@ public final class TitleScreen extends Screen {
             client.drawTexture(TITLE_LOGO, logoX, logoY, logoWidth, logoHeight, 0.1F, 1F, 1F, 1F, 1F);
         } else {
             String title = "PVZ 社区版";
-            client.font().draw(title, (guiW - client.font().width(title, titleScale)) / 2F,
+            client.fonts().button().draw(title, (guiW - client.fonts().button().width(title, titleScale)) / 2F,
                     titleY, titleScale, 1F, 0.92F, 0.35F, 1F);
             String subtitle = "植物大战僵尸 · 社区版";
-            client.font().draw(subtitle, (guiW - client.font().width(subtitle, subtitleScale)) / 2F,
+            client.fonts().body().draw(subtitle, (guiW - client.fonts().body().width(subtitle, subtitleScale)) / 2F,
                     subtitleY, subtitleScale, 0.85F, 0.95F, 0.85F, 1F);
         }
 
@@ -188,7 +188,7 @@ public final class TitleScreen extends Screen {
         String versionType = System.getProperty("pvzce.versionType", "release");
         String info = "PVZCE 1.0.0 · fabricloader " + loaderVersion + " · "
                 + FabricLoader.getInstance().getAllMods().size() + " mods · " + versionType;
-        client.font().draw(info, nameX + nameWidth + 8, 8, 0.7F, 0.7F, 0.75F, 0.7F, 1F);
+        client.fonts().body().draw(info, nameX + nameWidth + 8, 8, 0.7F, 0.7F, 0.75F, 0.7F, 1F);
         for (var widget : widgets) {
             widget.render(client);
         }
@@ -217,13 +217,13 @@ public final class TitleScreen extends Screen {
                 client.guiMouseY(client.window().cursorY()))) {
             client.drawSolid(nameX, nameY, nameWidth, nameHeight, 0.06F, 1F, 1F, 1F, 0.14F);
         }
-        float nameLine = client.font().lineHeight(NAME_SCALE);
-        float promptLine = client.font().lineHeight(PROMPT_SCALE);
+        float nameLine = client.fonts().body().lineHeight(NAME_SCALE);
+        float promptLine = client.fonts().body().lineHeight(PROMPT_SCALE);
         float top = nameY + (nameHeight - nameLine - promptLine) / 2F;
         // The name over the question: the question is the plate's caption, and the name is the
         // answer the player is looking for.
-        client.font().draw(playerName(), nameX + 8, top, NAME_SCALE, 1F, 1F, 1F, 1F);
-        client.font().draw("谁要玩游戏？", nameX + 8, top + nameLine, PROMPT_SCALE,
+        client.fonts().body().draw(playerName(), nameX + 8, top, NAME_SCALE, 1F, 1F, 1F, 1F);
+        client.fonts().body().draw("谁要玩游戏？", nameX + 8, top + nameLine, PROMPT_SCALE,
                 1F, 0.95F, 0.6F, 1F);
     }
 

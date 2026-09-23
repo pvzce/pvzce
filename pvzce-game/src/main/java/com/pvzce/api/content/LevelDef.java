@@ -80,7 +80,15 @@ public record LevelDef(
          * its own look depends on not being re-lit - a stage whose backdrop is already painted
          * for the light it wants, or a board whose readability is the point.
          */
-        boolean disableShaders
+        boolean disableShaders,
+        /**
+         * The level buffs this level fixes, and how many it may run with in total.
+         *
+         * <p>Lives here rather than in {@link LevelTail} directly so a level's buff block is one
+         * compact value in JSON ({@code "buffs": [...]} beside {@code "max_buff_slots": n}) while
+         * the tail struct stays two fields short of DFU's limit.
+         */
+        LevelBuffPlan buffPlan
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
@@ -116,6 +124,7 @@ public record LevelDef(
         playableTeams = playableTeams == null ? List.of() : List.copyOf(playableTeams);
         background = background == null ? Optional.empty() : background;
         hiddenSceneElements = hiddenSceneElements == null ? List.of() : List.copyOf(hiddenSceneElements);
+        buffPlan = buffPlan == null ? LevelBuffPlan.NONE : buffPlan;
     }
 
     /** True when this level declares its own slot count rather than following the backpack. */
@@ -141,6 +150,21 @@ public record LevelDef(
         return !dialogue.isEmpty();
     }
 
+    /**
+     * The buff count this level gets for a backpack holding {@code profileBuffSlots} buffs.
+     *
+     * <p>The buff twin of {@link #effectiveMaxSeedSlots}, and the same rule: a level that named
+     * a number keeps it, a level that named none borrows the player's.
+     */
+    public int effectiveMaxBuffSlots(int profileBuffSlots) {
+        return buffPlan.effectiveMaxBuffSlots(profileBuffSlots);
+    }
+
+    /** True when this level lets its player pick buffs of their own. */
+    public boolean offersBuffChoice() {
+        return buffPlan.offersPlayerChoice();
+    }
+
     /** Backwards-compatible constructor for callers/tests written before seed selection existed. */
     public LevelDef(Identifier id, String name, String description, int width, int height,
                     Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
@@ -154,7 +178,7 @@ public record LevelDef(
                 // backpack. A caller that wants a specific bar passes one.
                 UNSET_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
                 List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of(), List.of(),
-                Optional.empty(), List.of(), false);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -167,7 +191,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, List.of(),
-                LevelDialogue.EMPTY, List.of(), List.of(), Optional.empty(), List.of(), false);
+                LevelDialogue.EMPTY, List.of(), List.of(), Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
     }
 
     /**
@@ -186,7 +210,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of(), List.of(),
-                Optional.empty(), List.of(), false);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
     }
 
     /**
@@ -207,7 +231,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of(), List.of(),
-                Optional.empty(), List.of(), false);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
     }
 
     /**
@@ -227,7 +251,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, rewards, unlock, mechanics, dialogue, hints, List.of(),
-                Optional.empty(), List.of(), false);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -259,11 +283,12 @@ public record LevelDef(
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
                     tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints(),
                     tail.playableTeams(), tail.background(), tail.hiddenSceneElements(),
-                    tail.disableShaders())));
+                    tail.disableShaders(), tail.buffPlan())));
 
     public LevelTail tail() {
         return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics,
-                dialogue, hints, playableTeams, background, hiddenSceneElements, disableShaders);
+                dialogue, hints, playableTeams, background, hiddenSceneElements, disableShaders,
+                buffPlan);
     }
 
     /**
@@ -306,7 +331,8 @@ public record LevelDef(
                             LevelRewards rewards, LevelUnlock unlock, List<TypedMechanic> mechanics,
                             LevelDialogue dialogue, List<LevelHint> hints,
                             List<Identifier> playableTeams, Optional<Identifier> background,
-                            List<String> hiddenSceneElements, boolean disableShaders) {
+                            List<String> hiddenSceneElements, boolean disableShaders,
+                            LevelBuffPlan buffPlan) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -332,7 +358,11 @@ public record LevelDef(
                         Codec.STRING.listOf().optionalFieldOf("hidden_scene_elements", List.of())
                                 .forGetter(LevelTail::hiddenSceneElements),
                         Codec.BOOL.optionalFieldOf("disable_shaders", false)
-                                .forGetter(LevelTail::disableShaders)
+                                .forGetter(LevelTail::disableShaders),
+                        // Written flat on purpose: a level's buff block is two ordinary fields
+                        // beside ``slots`` and ``max_seed_slots``, not a nested object that only
+                        // looks like one. See {@link LevelBuffPlan}.
+                        RecordCodecBuilder.of(LevelTail::buffPlan, LevelBuffPlan.mapCodec())
                 ).apply(i, LevelTail::new));
 
         public LevelTail {
@@ -343,6 +373,108 @@ public record LevelDef(
             background = background == null ? Optional.empty() : background;
             hiddenSceneElements = hiddenSceneElements == null
                     ? List.of() : List.copyOf(hiddenSceneElements);
+            buffPlan = buffPlan == null ? LevelBuffPlan.NONE : buffPlan;
+        }
+    }
+
+    /**
+     * A level's buff contract: which buffs it hands out, and how many may be on at once.
+     *
+     * <p>The twin of {@link SeedPlan}, with the same two halves:
+     *
+     * <ul>
+     *   <li>{@code buffs} are the level's own - they are switched on whether or not the player
+     *       has ever seen them, and the player cannot switch them off. That is the same rule the
+     *       level's fixed cards follow ({@code LevelDef.slots}), and for the same reason: a level
+     *       that pins something is describing itself, not making a suggestion.</li>
+     *   <li>{@code max_buff_slots} is how many buffs the bar holds in total. Unwritten means the
+     *       level follows the player's backpack, exactly like {@code max_seed_slots} - see
+     *       {@link #UNSET_MAX_BUFF_SLOTS}.</li>
+     * </ul>
+     *
+     * <p>So {@code "buffs": ["pvzce:auto_collect"], "max_buff_slots": 3} - two flat fields, and a
+     * level that only wants to switch one buff on writes one line and says nothing about counts.
+     *
+     * <p>That is also why this record has no codec of its own: the two fields are decoded by
+     * {@code LevelTail}, one beside the other, exactly as they are written in the file.
+     */
+    public record LevelBuffPlan(List<Identifier> buffs, int maxBuffSlots) {
+        /**
+         * {@code max_buff_slots} left unwritten: the level follows the player's backpack.
+         *
+         * <p>The same sentinel and the same reasoning as {@link #UNSET_MAX_SEED_SLOTS}: writing a
+         * number is a statement about this level, writing nothing is a statement about the
+         * player, and a literal default here would silently cap an upgraded backpack.
+         */
+        public static final int UNSET_MAX_BUFF_SLOTS = -1;
+
+        /** A level that says nothing about buffs: none fixed, none offered. */
+        public static final LevelBuffPlan NONE = new LevelBuffPlan(List.of(), UNSET_MAX_BUFF_SLOTS);
+
+        /**
+         * The marker a level writes to say "and my player may pick some of their own".
+         *
+         * <p>Without it there would be no way to tell "a level written before buffs existed" from
+         * "a level that deliberately runs with none", and every existing level would grow a buff
+         * page offering a choice its author never made. A level opts in by listing this sentinel
+         * among its {@code buffs}; it is dropped when the plan is resolved (see
+         * {@code LevelBuffSelection}), so it never becomes an active buff and never needs an icon.
+         */
+        public static final Identifier PLAYER_CHOICE = Identifier.withDefaultNamespace("player_choice");
+
+        /**
+         * The two flat fields, as one optional group for {@code LevelTail}.
+         *
+         * <p>A {@code MapCodec} over the pair rather than over this record: the fields belong to
+         * the level file, not to a nested object, so writing {@code "buffs": {...}} would be a
+         * shape no author asked for. Both are optional and both default to {@link #NONE}.
+         */
+        public static com.mojang.serialization.MapCodec<LevelBuffPlan> mapCodec() {
+            return RecordCodecBuilder.mapCodec(i -> i.group(
+                    Identifier.CODEC.listOf().optionalFieldOf("buffs", List.of())
+                            .forGetter(LevelBuffPlan::buffs),
+                    Codec.INT.optionalFieldOf("max_buff_slots", UNSET_MAX_BUFF_SLOTS)
+                            .forGetter(LevelBuffPlan::maxBuffSlots)
+            ).apply(i, LevelBuffPlan::new));
+        }
+
+        public LevelBuffPlan {
+            buffs = buffs == null ? List.of() : List.copyOf(buffs);
+            maxBuffSlots = maxBuffSlots < 0 ? UNSET_MAX_BUFF_SLOTS : Math.max(maxBuffSlots, buffs.size());
+        }
+
+        /** True when the level offers its player a choice at all. */
+        public boolean offersPlayerChoice() {
+            return buffs.contains(PLAYER_CHOICE);
+        }
+
+        /** True when this level declares its own count rather than following the backpack. */
+        public boolean declaresMaxBuffSlots() {
+            return maxBuffSlots >= 0;
+        }
+
+        /**
+         * The buff count this level actually gets for a player whose backpack holds
+         * {@code profileSlots} buffs.
+         *
+         * <p>The one implementation, called by the payload the chooser is built from
+         * ({@code SeedContext}) and by the server's sanitising pass, so the two can never
+         * disagree about how many buffs fit.
+         */
+        public int effectiveMaxBuffSlots(int profileSlots) {
+            int slots = declaresMaxBuffSlots() ? maxBuffSlots : Math.max(1, profileSlots);
+            return Math.max(slots, fixedBuffs().size());
+        }
+
+        /** The level's own buffs, with the {@link #PLAYER_CHOICE} sentinel taken out. */
+        public List<Identifier> fixedBuffs() {
+            List<Identifier> fixed = new ArrayList<>(buffs.size());
+            for (Identifier buff : buffs) {
+                if (buff != null && !PLAYER_CHOICE.equals(buff) && !fixed.contains(buff)) {
+                    fixed.add(buff);
+                }
+            }
+            return List.copyOf(fixed);
         }
     }
 

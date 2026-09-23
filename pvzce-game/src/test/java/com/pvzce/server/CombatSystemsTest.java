@@ -9,6 +9,7 @@ import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.server.entity.PlantEntity;
+import com.pvzce.server.entity.ProjectileEntity;
 import com.pvzce.server.entity.ResourceDropEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.gamerule.GameRules;
@@ -113,6 +114,63 @@ class CombatSystemsTest {
         spawn(level, bridge, "basic_zombie", 8.5F, 0);
         tick(level, bridge, 2_000);
         assertTrue(level.zombiesInRow(0).stream().allMatch(ZombieEntity::isRemoved), "peashooter should kill a basic zombie");
+    }
+
+    /**
+     * A burst volley puts its peas on the lawn one at a time, not one on top of another.
+     *
+     * <p>The reported bug: a repeater looked exactly like a peashooter. Its definition has always
+     * said {@code count 2}, and the capability has always spawned two peas - but on the same tick
+     * from the same point, so they were the same object twice: one sprite on screen, one zombie
+     * hit, double damage that reads as a single pea. {@code burst_delay} is the fix and this is
+     * what it has to keep true: the second pea exists, and it is behind the first one.
+     *
+     * <p>The gap is asserted rather than the tick number because it is the thing the player sees:
+     * twelve ticks at the pea's four cells a second is four fifths of a cell, which is what makes
+     * a volley read as a volley.
+     */
+    @Test
+    void aBurstVolleyLeavesOnePeaAtATime() {
+        assertBurstSpacing("repeater", 2);
+        assertBurstSpacing("gatling_pea", 4);
+    }
+
+    private static void assertBurstSpacing(String plantId, int count) {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        com.pvzce.api.content.PlantDef def = BuiltInRegistries.PLANTS.get(
+                Identifier.withDefaultNamespace(plantId));
+        assertNotNull(def, plantId + " has to exist");
+        level.spawnPlant(def, level.team(Identifier.withDefaultNamespace("plant_team")), 1, 0);
+        level.flushPending(bridge);
+        spawn(level, bridge, "basic_zombie", 8.5F, 0);
+
+        // The firing tick: one pea in the air, the rest still in the barrel.
+        tick(level, bridge, 2);
+        assertEquals(1, liveProjectiles(level).size(),
+                plantId + " should have exactly one pea in the air on the tick it fires");
+
+        // Twelve ticks per pea: by the last one the whole volley is out and none has reached
+        // the zombie yet, so every pea of the burst is on the board at once.
+        tick(level, bridge, 12 * (count - 1));
+        List<Float> xs = liveProjectiles(level).stream()
+                .map(ProjectileEntity::cellX)
+                .sorted()
+                .toList();
+        assertEquals(count, xs.size(), plantId + " should have its whole volley in the air");
+        for (int i = 1; i < xs.size(); i++) {
+            assertTrue(xs.get(i) - xs.get(i - 1) > 0.5F,
+                    plantId + "'s peas have to be separate objects, not a stack: "
+                            + xs);
+        }
+    }
+
+    private static List<ProjectileEntity> liveProjectiles(LevelServer level) {
+        return level.entities().stream()
+                .filter(ProjectileEntity.class::isInstance)
+                .map(ProjectileEntity.class::cast)
+                .filter(projectile -> !projectile.isRemoved())
+                .toList();
     }
 
     @Test
@@ -334,10 +392,11 @@ class CombatSystemsTest {
         // the same question as "is it dead".
         assertTrue(zombie.isDying(), "potato mine should kill the zombie in its cell");
         // The mine answers the same way now: the blast is instant, but the plant stays on
-        // the field for its explode clip (see ExplosiveCapability.LINGER_TICKS), so "has
-        // it gone off" is `occupiesCell` rather than `isRemoved`.
+        // the field for its explode clip (see ExplosiveCapability.DEFAULT_LINGER_TICKS), so
+        // "has it gone off" is `occupiesCell` rather than `isRemoved`.
         assertFalse(mine.occupiesCell(), "an armed potato mine must stop being the plant in its cell");
-        tick(level, bridge, com.pvzce.common.capability.plant.ExplosiveCapability.LINGER_TICKS);
+        tick(level, bridge,
+                com.pvzce.common.capability.plant.ExplosiveCapability.DEFAULT_LINGER_TICKS);
         assertTrue(mine.isRemoved(), "the explosion drawing has to leave the field by itself");
     }
 

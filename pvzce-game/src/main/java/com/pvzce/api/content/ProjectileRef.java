@@ -21,11 +21,23 @@ import com.pvzce.api.util.Identifier;
  * the plant may fire and when the projectile dies - because a shot that outranges its
  * own plant's reach, or a plant that fires at something its spore can never touch, are
  * both bugs of the same kind. Puff-shroom is the plant this exists for.
+ *
+ * <p>{@code burst_delay} is how many ticks apart the {@code count} projectiles of one volley
+ * leave the muzzle. It is what makes a repeater a repeater: born on the same tick at the same
+ * point, its two peas are perfectly coincident - the second one draws nothing, lands on the
+ * same zombie in the same tick, and the plant reads as a peashooter that happens to deal
+ * double damage. The original staggers them, and now so does this: {@code count 2,
+ * burst_delay 12} is the repeater, {@code count 4, burst_delay 12} the gatling pea. Zero -
+ * the default, and what every single-shot plant means - keeps the volley on the firing tick.
  */
 public record ProjectileRef(Identifier projectile, int damage, int count,
-                            int rowOffset, boolean backward, int rows, float range) {
+                            int rowOffset, boolean backward, int rows, float range,
+                            int burstDelay) {
     /** The original's straight shot: this row, forwards, no range limit. */
     public static final float UNLIMITED_RANGE = 0F;
+
+    /** A volley whose projectiles all leave together, which is every shot but a repeater's. */
+    public static final int NO_BURST_DELAY = 0;
 
     public static final Codec<ProjectileRef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("projectile").forGetter(ProjectileRef::projectile),
@@ -38,22 +50,33 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
             // How many rows either side to look for targets in.
             Codec.INT.optionalFieldOf("rows", 0).forGetter(ProjectileRef::rows),
             // How far the shot flies before it expires; 0 = the whole board.
-            Codec.FLOAT.optionalFieldOf("range", UNLIMITED_RANGE).forGetter(ProjectileRef::range)
+            Codec.FLOAT.optionalFieldOf("range", UNLIMITED_RANGE).forGetter(ProjectileRef::range),
+            // Ticks between the projectiles of one volley; 0 = all on the firing tick.
+            Codec.INT.optionalFieldOf("burst_delay", NO_BURST_DELAY)
+                    .forGetter(ProjectileRef::burstDelay)
     ).apply(i, ProjectileRef::new));
 
     public ProjectileRef {
         range = Math.max(0F, range);
+        burstDelay = Math.max(0, burstDelay);
     }
 
     /** The plain straight shot: this row, forwards, one projectile. */
     public ProjectileRef(Identifier projectile, int damage, int count) {
-        this(projectile, damage, count, 0, false, 0, UNLIMITED_RANGE);
+        this(projectile, damage, count, 0, false, 0, UNLIMITED_RANGE, NO_BURST_DELAY);
     }
 
     /** A row-covering shot with no range limit (threepeater, split pea). */
     public ProjectileRef(Identifier projectile, int damage, int count,
                          int rowOffset, boolean backward, int rows) {
-        this(projectile, damage, count, rowOffset, backward, rows, UNLIMITED_RANGE);
+        this(projectile, damage, count, rowOffset, backward, rows, UNLIMITED_RANGE,
+                NO_BURST_DELAY);
+    }
+
+    /** A ranged shot whose volley leaves together - every shot written before bursts existed. */
+    public ProjectileRef(Identifier projectile, int damage, int count,
+                         int rowOffset, boolean backward, int rows, float range) {
+        this(projectile, damage, count, rowOffset, backward, rows, range, NO_BURST_DELAY);
     }
 
     /** {@code +1} down the lawn toward the zombies, {@code -1} back toward the house. */
@@ -64,6 +87,21 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
     /** True when this shot has no range limit and therefore covers the whole board. */
     public boolean hasUnlimitedRange() {
         return range <= 0F;
+    }
+
+    /**
+     * The same shot with its range multiplied - how a level buff makes a mushroom reach further.
+     *
+     * <p>An unlimited range stays unlimited: "the whole board" times anything is still the whole
+     * board. A multiplier of 1 returns {@code this} unchanged, so the overwhelmingly common case
+     * allocates nothing - which is why the caller compares against 1 rather than always copying.
+     */
+    public ProjectileRef scaledRange(float multiplier) {
+        if (multiplier == 1F || hasUnlimitedRange()) {
+            return this;
+        }
+        return new ProjectileRef(projectile, damage, count, rowOffset, backward, rows,
+                Math.max(0F, range * multiplier), burstDelay);
     }
 
     /**

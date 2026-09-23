@@ -303,7 +303,7 @@ public final class CanvasPage implements EditorPage {
         // The tab's own hint, under the side panel's buttons; it was the canvas arm of the
         // screen's page-label switch.
         EditorContext.Rect side = context.side();
-        context.client().font().draw(view == View.TERRAIN
+        context.client().fonts().body().draw(view == View.TERRAIN
                         ? GuiLang.raw("pvzce.editor.tip.terrain", "左键涂格，右键恢复草地")
                         : GuiLang.raw("pvzce.editor.tip.entity", "左键放置，右键移除"),
                 side.x() + 4, side.y() + side.height() - 10F, 0.7F, 0.85F, 0.9F, 0.9F, 1F);

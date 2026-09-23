@@ -116,7 +116,7 @@ public final class InventoryScreen extends Screen {
             if (card == null) {
                 continue;
             }
-            Entry entry = new Entry(cardId, card, client.profile().owns(cardId));
+            Entry entry = new Entry(cardId, card, client.profile().ownsCard(cardId));
             flat.add(entry);
             switch (card.kind()) {
                 case RESOURCE -> resources.add(entry);
@@ -165,7 +165,7 @@ public final class InventoryScreen extends Screen {
                 owned++;
             }
         }
-        float headerHeight = client.font().lineHeight(1.1F) + 12F;
+        float headerHeight = client.fonts().body().lineHeight(1.1F) + 12F;
         headers.add(new Header(GuiLang.raw(key, fallback), owned + " / " + entries.size(), top));
         float gridTop = top - headerHeight;
         float innerLeft = panelX + panelPad;
@@ -206,8 +206,8 @@ public final class InventoryScreen extends Screen {
 
         String title = GuiLang.raw("pvzce.inventory.title", "背包");
         float titleScale = Math.min(2.2F, guiH / 95F);
-        client.font().draw(title, (guiW - client.font().width(title, titleScale)) / 2F,
-                guiH - client.font().lineHeight(titleScale) - 6, titleScale, 1F, 0.94F, 0.4F, 1F);
+        client.fonts().button().draw(title, (guiW - client.fonts().button().width(title, titleScale)) / 2F,
+                guiH - client.fonts().button().lineHeight(titleScale) - 6, titleScale, 1F, 0.94F, 0.4F, 1F);
         drawCoinCounter();
 
         float contentTop = panelY + panelH - panelPad - scrollOffset;
@@ -215,10 +215,10 @@ public final class InventoryScreen extends Screen {
                 panelW - panelPad * 2F, panelH - panelPad * 1.5F);
         try {
             for (Header header : headers) {
-                float y = contentTop + header.y() - client.font().lineHeight(1.1F) - 4F;
-                client.font().draw(header.text(), panelX + panelPad, y, 1.1F, 1F, 0.9F, 0.6F, 1F);
-                client.font().draw(header.note(),
-                        panelX + panelW - panelPad - client.font().width(header.note(), 0.8F),
+                float y = contentTop + header.y() - client.fonts().body().lineHeight(1.1F) - 4F;
+                client.fonts().body().draw(header.text(), panelX + panelPad, y, 1.1F, 1F, 0.9F, 0.6F, 1F);
+                client.fonts().body().draw(header.note(),
+                        panelX + panelW - panelPad - client.fonts().body().width(header.note(), 0.8F),
                         y + 2F, 0.8F, 0.8F, 0.84F, 0.8F, 1F);
             }
             for (Placed spot : placed) {
@@ -291,8 +291,8 @@ public final class InventoryScreen extends Screen {
                     .replace("{1}", String.valueOf(flat.size()));
         }
         float band = panelY - bottomBand;
-        client.font().draw(text, (client.guiWidth() - client.font().width(text, 1F)) / 2F,
-                band + (bottomBand - client.font().lineHeight(1F)) / 2F, 1F, 0.92F, 0.92F, 0.92F, 1F);
+        client.fonts().body().draw(text, (client.guiWidth() - client.fonts().body().width(text, 1F)) / 2F,
+                band + (bottomBand - client.fonts().body().lineHeight(1F)) / 2F, 1F, 0.92F, 0.92F, 0.92F, 1F);
     }
 
     /** Wallet readout, drawn the same way the level select draws it. */
@@ -303,17 +303,17 @@ public final class InventoryScreen extends Screen {
         float y = client.guiHeight() - iconSize - 8F;
         client.drawTexture(icon, x, y, iconSize, iconSize, 0.35F, 1F, 1F, 1F, 1F);
         String coins = String.valueOf(client.profile().coins());
-        client.font().draw(coins, x - client.font().width(coins, 1F) - 6F,
-                y + (iconSize - client.font().lineHeight(1F)) / 2F, 1F, 1F, 0.95F, 0.5F, 1F);
+        client.fonts().body().draw(coins, x - client.fonts().body().width(coins, 1F) - 6F,
+                y + (iconSize - client.fonts().body().lineHeight(1F)) / 2F, 1F, 1F, 0.95F, 0.5F, 1F);
 
         // The backpack's card-slot count, on the same corner: it is the number a level
         // that declares no max_seed_slots sizes the player's bar from, so this page is
         // where a player looks to find out how many cards they will get to bring.
         String slots = GuiLang.raw("pvzce.inventory.slots", "卡槽 {0}")
                 .replace("{0}", String.valueOf(client.profile().seedSlots()));
-        client.font().draw(slots,
-                x + iconSize - client.font().width(slots, 1F),
-                y - client.font().lineHeight(1F) - 6F, 1F, 0.85F, 0.95F, 0.85F, 1F);
+        client.fonts().body().draw(slots,
+                x + iconSize - client.fonts().body().width(slots, 1F),
+                y - client.fonts().body().lineHeight(1F) - 6F, 1F, 0.85F, 0.95F, 0.85F, 1F);
     }
 
     @Override

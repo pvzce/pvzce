@@ -70,6 +70,18 @@ public final class PvzceRegistries {
             LEVEL_MECHANICS = key("level_mechanic");
 
     /**
+     * Registered level buffs, keyed by the id a level's {@code "buffs"} list may name and the
+     * id the seed chooser's buff page offers.
+     *
+     * <p>Code-registered for exactly the same reason {@link #LEVEL_MECHANICS} is: a buff is
+     * behaviour (a range multiplier, a collection rule), and there is no JSON block for one to
+     * decode - the only data about a buff is which buff it is. The built-ins live in
+     * {@code common.buff.BuiltInBuffs}.
+     */
+    public static final ResourceKey<Registry<com.pvzce.api.content.LevelBuff>>
+            LEVEL_BUFFS = key("level_buff");
+
+    /**
      * Every data-driven registry, keyed by the name the command layer uses.
      *
      * <p>The command layer used to keep three more hand-typed copies of this list
@@ -105,6 +117,7 @@ public final class PvzceRegistries {
         map.put("zombie_capability", ZOMBIE_CAPABILITIES);
         map.put("projectile_capability", PROJECTILE_CAPABILITIES);
         map.put("level_mechanic", LEVEL_MECHANICS);
+        map.put("level_buff", LEVEL_BUFFS);
         return java.util.Map.copyOf(map);
     }
 
@@ -131,7 +144,8 @@ public final class PvzceRegistries {
                 java.util.Map.entry("plant_capabilities", "plant_capability"),
                 java.util.Map.entry("zombie_capabilities", "zombie_capability"),
                 java.util.Map.entry("projectile_capabilities", "projectile_capability"),
-                java.util.Map.entry("level_mechanics", "level_mechanic"));
+                java.util.Map.entry("level_mechanics", "level_mechanic"),
+                java.util.Map.entry("level_buffs", "level_buff"));
     }
 
     /** Resolves a user-supplied category name (with aliases) to its canonical id. */

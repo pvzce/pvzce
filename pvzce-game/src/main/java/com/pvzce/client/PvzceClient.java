@@ -26,7 +26,7 @@ import com.pvzce.client.renderer.ShaderProgram;
 import com.pvzce.client.renderer.TextureUv;
 import com.pvzce.client.renderer.TimeOfDayLighting;
 import com.pvzce.client.renderer.SpriteRenderer;
-import com.pvzce.client.renderer.font.FontRenderer;
+import com.pvzce.client.renderer.font.Fonts;
 import com.pvzce.client.renderer.sprite.Sprite;
 import com.pvzce.client.renderer.texture.TextureManager;
 import com.pvzce.client.sound.PvzceMusicController;
@@ -74,7 +74,7 @@ public final class PvzceClient {
     private PvzceWindow window;
     private PvzceResourceManager resources;
     private TextureManager textures;
-    private FontRenderer font;
+    private Fonts fonts;
     private SoundEngine sound;
     private PvzceMusicController music;
     private AnimationManager animations;
@@ -132,6 +132,8 @@ public final class PvzceClient {
     private boolean leftMouseWasDown;
     private char suppressNextChar;
     private boolean debugOverlayEnabled;
+    /** Set from {@code pvzce.dumpFontAtlas}: where to write the glyph atlases, once. */
+    private java.nio.file.Path dumpFontAtlasTo;
     private boolean savePromptOpen;
     private LevelSavePromptS2C deferredSavePrompt;
     /**
@@ -179,6 +181,10 @@ public final class PvzceClient {
         // running the render loop. `load` writes the file out when there is none, so this
         // also means a constructed client always has a config directory.
         this.config = PvzceClientConfig.load(gameDir);
+        String dumpAtlas = System.getProperty("pvzce.dumpFontAtlas");
+        if (dumpAtlas != null && !dumpAtlas.isBlank()) {
+            this.dumpFontAtlasTo = java.nio.file.Path.of(dumpAtlas);
+        }
         // The remembered player, from the same file: who is playing is a fact about this game
         // directory, not about this process, so it survives a restart.
         this.currentWorld = config.lastWorld();
@@ -198,6 +204,12 @@ public final class PvzceClient {
         // stays invisible for the rest of the session.
         if (animations != null) {
             animations.invalidate();
+        }
+        // A pack can replace a bundled TTF. Glyphs are rasterised from the file and
+        // cached, so a reload has to drop them or the old outlines stay on screen for
+        // the rest of the session.
+        if (fonts != null) {
+            fonts.invalidate();
         }
         // Same reason as the animations above: which scene elements are liquid is
         // cached by id, so a reload that changes a definition has to drop the cache
@@ -224,7 +236,11 @@ public final class PvzceClient {
         // when the player has turned shaders off.
         RenderSystem.setShaderEffectsEnabled(shadersEnabled());
         textures = new TextureManager(resources);
-        font = new FontRenderer(textures, resources);
+        // The text renderer reads the GUI scale per draw rather than once at startup:
+        // glyphs are rasterised at the window's actual pixel density, so resizing the
+        // window or changing the GUI scale re-rasterises sharp text instead of
+        // stretching a glyph atlas that was baked at one size.
+        fonts = new Fonts(resources, this::guiScale);
         sound = new SoundEngine(resources);
         sound.setMasterVolume(config.masterVolume());
         sound.setMusicVolume(config.musicVolume());
@@ -303,6 +319,9 @@ public final class PvzceClient {
             }
             if (key == GLFW.GLFW_KEY_F3) {
                 debugOverlayEnabled = !debugOverlayEnabled;
+                if (debugOverlayEnabled && fonts != null) {
+                    LOGGER.info("[fonts]\n{}", fonts.debugInfo());
+                }
                 continue;
             }
             // An open overlay owns the keyboard, console shortcuts included: the console
@@ -527,6 +546,14 @@ public final class PvzceClient {
         if (debugOverlayEnabled) {
             beginGuiView();
             DebugOverlay.render(this);
+        }
+        // One-shot atlas dump: the glyph atlas is uploaded from memory rather than
+        // decoded from a PNG, so when text renders wrong there is otherwise no file to
+        // look at. `-Dpvzce.dumpFontAtlas=<dir>` writes it after the first drawn frame.
+        if (dumpFontAtlasTo != null) {
+            fonts.dumpAtlases(dumpFontAtlasTo);
+            LOGGER.info("[fonts] atlases written to {}", dumpFontAtlasTo);
+            dumpFontAtlasTo = null;
         }
         // Safety net: every push has a matching pop, but a crash mid-draw must not
         // leave the scissor test enabled for the rest of the session.
@@ -1385,7 +1412,21 @@ public final class PvzceClient {
      * of the level.
      */
     public void startLevelWithSeeds(String levelId, boolean restart, List<String> selectedSeeds) {
-        connection.send(new PlayLevelC2S(levelId, currentWorld, restart, List.copyOf(selectedSeeds)));
+        startLevelWithSeedsAndBuffs(levelId, restart, selectedSeeds, List.of());
+    }
+
+    /**
+     * As above, plus the level buffs the chooser had switched on.
+     *
+     * <p>Both halves travel in one packet because they are one decision made on one screen, and
+     * because the buff list doubles as what the world remembers: whatever a run starts with is
+     * what the next run pre-selects. No separate "save my preferences" step exists, so there is
+     * no way for the stored list and the last run to disagree.
+     */
+    public void startLevelWithSeedsAndBuffs(String levelId, boolean restart,
+                                            List<String> selectedSeeds, List<String> selectedBuffs) {
+        connection.send(new PlayLevelC2S(levelId, currentWorld, restart,
+                List.copyOf(selectedSeeds), List.copyOf(selectedBuffs)));
     }
 
     /**
@@ -1466,7 +1507,31 @@ public final class PvzceClient {
      */
     public void openSeedSelection(LevelListS2C.LevelInfo info,
                                   List<String> initialSelection, Runnable onBack) {
-        openScreen(createSeedSelection(info, initialSelection, onBack));
+        openScreen(createSeedSelection(info, initialSelection, null, onBack));
+    }
+
+    /** As above, with the buffs a resumed run was saved with (see the save prompt's restart). */
+    public void openSeedSelection(LevelListS2C.LevelInfo info,
+                                  List<String> initialSelection, List<String> initialBuffs,
+                                  Runnable onBack) {
+        openScreen(createSeedSelection(info, initialSelection, initialBuffs, onBack));
+    }
+
+    /**
+     * The buffs the chooser should start with when nobody has chosen anything yet: a resumed
+     * run's own list when there is one, otherwise the world's auto list.
+     *
+     * <p>The order matters and mirrors the server: a save that already answered the question is
+     * not asked again. The auto list is filtered down to what this level actually offers when the
+     * screen is built, so a stale id neither shows up nor takes a slot.
+     */
+    private List<String> autoBuffSelectionFor(String levelId, List<String> savedBuffs) {
+        if (savedBuffs != null) {
+            return savedBuffs;
+        }
+        // The world's list, in the order the server has it. Capped rather than trimmed here:
+        // the screen knows the resolved count and drops whatever does not fit.
+        return profile.autoBuffIds();
     }
 
     /**
@@ -1483,6 +1548,23 @@ public final class PvzceClient {
     }
 
     /**
+     * The buffs this level hands out whether or not the player asked for them.
+     *
+     * <p>Read from the local level definition, exactly like {@link #lockedSlotsFor} and for the
+     * same reason: the client loads the same data packs, and the answer only decides what the
+     * screen draws. The server resolves its own copy again when the level starts, so a client
+     * that lied about this could not switch a locked buff off.
+     */
+    public List<String> lockedBuffsFor(String levelId) {
+        Identifier id = Identifier.tryParse(levelId);
+        LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
+        if (def == null) {
+            return List.of();
+        }
+        return def.buffPlan().fixedBuffs().stream().map(Identifier::toString).toList();
+    }
+
+    /**
      * Builds the seed chooser for a level; the only place its arguments are assembled.
      *
      * <p>Whether this is a restart is derived from the back behaviour rather than passed
@@ -1491,14 +1573,17 @@ public final class PvzceClient {
      * to return to), and stating one fact twice is how the two drift.
      */
     private ChooseSeedsScreen createSeedSelection(LevelListS2C.LevelInfo info,
-                                                  List<String> initialSelection, Runnable onBack) {
+                                                  List<String> initialSelection, List<String> initialBuffs,
+                                                  Runnable onBack) {
         return new ChooseSeedsScreen(this, info.id(), info.name(), info.seedPool(),
                 info.maxSeedSlots(), info.previewZombies(), info.width(), info.height(),
                 info.sceneCells(), initialSelection, onBack != null, onBack, lockedSlotsFor(info.id()),
                 info.payload().backgroundId(), info.payload().hiddenSceneElements(),
                 // A conveyor level: nothing to choose, but still worth a look at the lawn, the
                 // conversation and the zombies - see ChooseSeedsScreen's pass-through.
-                dealsItsOwnCards(info.id()));
+                dealsItsOwnCards(info.id()),
+                info.payload().buffPool(), info.payload().maxBuffSlots(),
+                lockedBuffsFor(info.id()), autoBuffSelectionFor(info.id(), initialBuffs));
     }
 
     private LevelListS2C.LevelInfo findLevelInfo(String levelId) {
@@ -1531,13 +1616,19 @@ public final class PvzceClient {
         // choice the player made for the *next* run, and the level's own fixed cards are pinned
         // by the chooser itself (see `lockedSlotsFor`).
         List<String> initial = List.of();
+        // Unlike the card bar, the buff list IS carried over: a run's buffs are the world's
+        // standing preference, and the same file is where the last answer was written. The save
+        // is read from disk rather than asked for, exactly like the level's dialogue is - the
+        // server is deliberately not told to leave, and it has not sent this list anywhere.
+        // ``null`` (an old save with no buff record) falls through to the world's auto list.
+        List<String> initialBuffsFinal = savedBuffs(prompt.levelId(), prompt.worldName());
         // The old run is still loaded (and frozen) behind the chooser, so its music
         // would otherwise keep playing under the chooser theme until the seed
         // selection finally replaced the level. Only the client stops here: the
         // server is deliberately not told to leave, because backing out returns to
         // the save prompt over the same instance.
         silenceLevelMusic();
-        openSeedSelection(info, initial, () -> {
+        openSeedSelection(info, initial, initialBuffsFinal, () -> {
             // Back to the frozen run the chooser is covering, so the prompt can be asked
             // again over it.
             popScreen();
@@ -1549,6 +1640,36 @@ public final class PvzceClient {
             }
             showLevelSavePrompt(prompt);
         });
+    }
+
+    /**
+     * The buffs a run on disk was started with, or {@code null} when that save has no record.
+     *
+     * <p>Read through the same file format the server writes, which is why the reader for it
+     * lives in {@code LevelBuffSelection}: one file, one shape, and this is only a client that
+     * happens to have the file on its own disk (single player is one process with two halves).
+     */
+    private List<String> savedBuffs(String levelId, String worldName) {
+        Identifier id = Identifier.tryParse(levelId);
+        if (id == null) {
+            return null;
+        }
+        Path worldDir = com.pvzce.common.util.WorldPaths.worldDir(
+                gameDir, com.pvzce.common.util.WorldPaths.sanitize(worldName));
+        Path saveFile = com.pvzce.common.util.LevelKey.levelDir(worldDir, id).resolve("level.dat");
+        if (!java.nio.file.Files.isRegularFile(saveFile)) {
+            return null;
+        }
+        try {
+            java.util.List<Identifier> ids =
+                    com.pvzce.server.LevelBuffSelection.readSavedTag(
+                            com.pvzce.common.nbt.NbtIo.readCompressed(saveFile));
+            return ids == null ? null : ids.stream().map(Identifier::toString).toList();
+        } catch (Throwable t) {
+            // An unreadable save is the server's problem to report; here it just means "no
+            // remembered buffs", which falls back to the world's auto list.
+            return null;
+        }
     }
 
     /** Stops the level tracks locally, without telling the server to close the level. */
@@ -1635,7 +1756,9 @@ public final class PvzceClient {
         // is also what makes the chooser a restart: onBack non-null is the one thing that
         // says "there is a state to come back to". A conveyor level runs through it too, as a
         // pass-through - that is where its zombie preview and opening conversation live.
-        setScreenReplacing(createSeedSelection(info, initial, this::showLevelList));
+        // No buff list to carry over either: this is a fresh run of a level the player has just
+        // left, so the world's auto list is the answer, and the chooser applies it itself.
+        setScreenReplacing(createSeedSelection(info, initial, null, this::showLevelList));
     }
 
     /**
@@ -1681,8 +1804,14 @@ public final class PvzceClient {
         return textures;
     }
 
-    public FontRenderer font() {
-        return font;
+    /**
+     * The three font roles, plus the atlases behind them. Text is drawn through a
+     * role ({@code fonts().body()}), never through a whole-renderer call: the role is
+     * what says "this string is a button", and the renderer decides which typeface
+     * and pixel size that means.
+     */
+    public Fonts fonts() {
+        return fonts;
     }
 
     public SoundEngine sound() {
@@ -1922,6 +2051,12 @@ public final class PvzceClient {
     /** As above, with the backpack's card-slot count the server reports. */
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots) {
         profile.apply(coins, unlocked, unlockAll, seedSlots);
+    }
+
+    /** As above, with the buff half of the backpack: its slot count and the world's auto list. */
+    public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
+                           int buffSlots, List<String> autoBuffs) {
+        profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs);
     }
 
     /**

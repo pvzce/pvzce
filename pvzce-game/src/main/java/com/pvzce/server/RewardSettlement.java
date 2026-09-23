@@ -38,7 +38,7 @@ final class RewardSettlement {
      *                    show coins flying without recomputing a price
      */
     record Payout(int collected, int bonus, int mowers, int mowerCoins,
-                  Identifier unlocked, Identifier item, int itemAmount) {
+                  Identifier unlocked, Identifier unlockedBuff, Identifier item, int itemAmount) {
         /** Coins the wallet is given: what the run picked up, plus the bonus. */
         int totalCoins() {
             return collected + bonus;
@@ -59,19 +59,21 @@ final class RewardSettlement {
         int collected = collectedCoins(current);
         Outcome outcome = plantWin
                 ? applyLevelRewards(id, current.def().rewards(), firstClear, profile)
-                : new Outcome(0, null, null, 0);
+                : new Outcome(0, null, null, null, 0);
         int mowers = plantWin ? current.readyMowerCount() : 0;
         int mowerCoins = mowers * mowerCoinValue();
         profile.grantCoins(collected + outcome.bonus() + mowerCoins);
         return new Payout(collected, outcome.bonus() + mowerCoins, mowers, mowerCoins,
-                outcome.unlocked(), outcome.item(), outcome.itemAmount());
+                outcome.unlocked(), outcome.unlockedBuff(), outcome.item(), outcome.itemAmount());
     }
 
     /**
-     * What one payout granted: the coin bonus, the first card it unlocked, and the first resource
-     * it paid out (with how many), which the award page draws instead of cash.
+     * What one payout granted: the coin bonus, the first card it unlocked, the first buff it
+     * unlocked, and the first resource it paid out (with how many). All three of the last are
+     * "what the award page draws instead of cash", and the page takes the first one that is set.
      */
-    record Outcome(int bonus, Identifier unlocked, Identifier item, int itemAmount) {
+    record Outcome(int bonus, Identifier unlocked, Identifier unlockedBuff, Identifier item,
+                   int itemAmount) {
     }
 
     /**
@@ -103,14 +105,37 @@ final class RewardSettlement {
                                      PlayerProfile profile) {
         int bonus = 0;
         Identifier unlocked = null;
+        Identifier unlockedBuff = null;
         Identifier rewardItem = null;
         int rewardItemAmount = 0;
+        // Buffs first, and from the *first clear* block only, for the same reason cards are: a
+        // rule the player may switch on is news, while repeat coins are a stipend.
+        for (LevelRewards.Reward reward : rewards.firstClear()) {
+            if (!reward.isBuff() || reward.id().isEmpty()) {
+                continue;
+            }
+            Identifier buff = reward.id().get();
+            if (profile.ownsBuff(buff)) {
+                // Already given - a replay, or a sandbox world where every buff is open. The
+                // grant is idempotent anyway; skipping keeps "was anything new handed over"
+                // honest, which is what the award page draws.
+                continue;
+            }
+            if (!com.pvzce.common.buff.LevelBuffs.isRegistered(buff)) {
+                LOGGER.warn("Level {} rewards '{}' as a buff, but no such buff is registered."
+                        + " The reward does nothing.", id, buff);
+                continue;
+            }
+            if (profile.unlockBuff(buff) && unlockedBuff == null) {
+                unlockedBuff = buff;
+            }
+        }
         for (LevelRewards.Reward reward : rewards.firstClear()) {
             if (!reward.isUnlock() || reward.id().isEmpty()) {
                 continue;
             }
             Identifier card = reward.id().get();
-            if (profile.owns(card)) {
+            if (profile.ownsCard(card)) {
                 // Already in the backpack - an ordinary replay of a level whose unlock was
                 // paid long ago, or a sandbox world where everything is open. Nothing to do;
                 // ``unlock`` is a set add and would report a grant the player cannot see.
@@ -142,7 +167,7 @@ final class RewardSettlement {
                 }
             }
         }
-        return new Outcome(bonus, unlocked, rewardItem, rewardItemAmount);
+        return new Outcome(bonus, unlocked, unlockedBuff, rewardItem, rewardItemAmount);
     }
 
     /**

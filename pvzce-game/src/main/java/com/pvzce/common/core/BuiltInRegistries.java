@@ -96,6 +96,14 @@ public final class BuiltInRegistries {
      */
     public static final Registry<com.pvzce.common.level.mechanic.LevelMechanic<?>> LEVEL_MECHANICS =
             ACCESS.newRegistry(PvzceRegistries.LEVEL_MECHANICS);
+    /**
+     * Level buffs: the opt-in modifiers a player switches on from the seed chooser's buff tab.
+     *
+     * <p>Code-registered like the mechanics above, and for the same reason - see
+     * {@link com.pvzce.common.buff.LevelBuffs}.
+     */
+    public static final Registry<com.pvzce.api.content.LevelBuff> LEVEL_BUFFS =
+            ACCESS.newRegistry(PvzceRegistries.LEVEL_BUFFS);
 
     private static volatile boolean bootstrapped;
 
@@ -113,6 +121,7 @@ public final class BuiltInRegistries {
         com.pvzce.api.content.ZombieBehaviorPresets.bootstrap();
         com.pvzce.api.content.ProjectileBehaviorPresets.bootstrap();
         com.pvzce.common.level.mechanic.LevelMechanics.bootstrap();
+        com.pvzce.common.buff.LevelBuffs.bootstrap();
 
         registerPlants();
         registerZombies();

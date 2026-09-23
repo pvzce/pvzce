@@ -63,6 +63,21 @@ public abstract class AnimationPlayback {
      * every caller for one entity state.
      */
     protected boolean flipX;
+    /**
+     * Whether the active clip is one the requested state itself handed over to.
+     *
+     * <p>A clip may name another clip as its ending ({@code on_end: hide_loop}): the duck puts the
+     * head down and the file then holds the crying pose, which is one state drawn by two clips.
+     * While that second clip is on screen the requested state is still the thing being played, so
+     * a re-request of it - the client asks for the entity's state on every frame - must not be
+     * read as "this state is over, start it again". Without this the scaredy-shroom restarted its
+     * duck the moment the cry took over, and the cry never appeared at all.
+     *
+     * <p>Deliberately not set for an {@code on_end: idle} hand-over: that one means the action
+     * finished and the art went back to resting, so the next request for the action is a new
+     * shot (or a new death) and has to replay it.
+     */
+    protected boolean chained;
     private boolean firstEventUpdate = true;
 
     protected AnimationPlayback(AnimationManager manager, Animatable target, AnimationFile file,
@@ -116,6 +131,16 @@ public abstract class AnimationPlayback {
 
     public final boolean flipX() {
         return flipX;
+    }
+
+    /** Whether this clip was reached by an authored hand-over from the requested state. */
+    public final boolean isChained() {
+        return chained;
+    }
+
+    /** Sets {@link #chained}; only the manager's own clip hand-over calls this. */
+    final void setChained(boolean value) {
+        this.chained = value;
     }
 
     public final boolean isFinished() {
@@ -290,7 +315,10 @@ public abstract class AnimationPlayback {
                 if ("idle".equals(activeName) || file.clip("idle").isEmpty()) {
                     finished = true;
                 } else {
-                    AnimationPlayback switched = manager.switchClip(target, "idle", requestedState, now);
+                    // Not a chain: the action is over and the art is resting again, so the next
+                    // request for it is a new shot. See AnimationPlayback#chained.
+                    AnimationPlayback switched = manager.switchClip(target, "idle", requestedState, now,
+                            false);
                     if (switched == null) {
                         finished = true;
                     }
@@ -301,7 +329,9 @@ public abstract class AnimationPlayback {
                 if (next.isBlank() || next.equals(activeName) || file.clip(next).isEmpty()) {
                     finished = true;
                 } else {
-                    AnimationPlayback switched = manager.switchClip(target, next, requestedState, now);
+                    // An authored continuation of the same state; see AnimationPlayback#chained.
+                    AnimationPlayback switched = manager.switchClip(target, next, requestedState, now,
+                            true);
                     if (switched == null) {
                         finished = true;
                     }

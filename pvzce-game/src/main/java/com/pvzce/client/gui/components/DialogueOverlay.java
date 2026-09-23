@@ -510,7 +510,7 @@ public final class DialogueOverlay extends Dialog {
         // Capped below what a tall window would ask for: the bubble is a caption, not a
         // headline, and at 1.5 it read as one.
         float textScale = Math.max(0.85F, Math.min(1.35F, guiH / 300F));
-        float lineHeight = client.font().lineHeight(textScale);
+        float lineHeight = client.fonts().button().lineHeight(textScale);
 
         Portrait portrait = animatedPortrait(frame, guiW, guiH, now);
         Bubble bubble = bubbleBox(client, frame, portrait, guiW, guiH, textScale, lineHeight);
@@ -538,8 +538,8 @@ public final class DialogueOverlay extends Dialog {
         float cursor = bubble.y() + bubble.height() - bubble.textTop();
         if (!bubble.name().isEmpty()) {
             float nameScale = textScale * NAME_SCALE;
-            cursor -= client.font().lineHeight(nameScale) + 4F;
-            client.font().draw(bubble.name(), textX, cursor + 4F, nameScale,
+            cursor -= client.fonts().button().lineHeight(nameScale) + 4F;
+            client.fonts().button().draw(bubble.name(), textX, cursor + 4F, nameScale,
                     NAME_COLOR_R, NAME_COLOR_G, NAME_COLOR_B, 1F);
         }
         // The bubble is laid out from the whole line and only draws the part that has
@@ -550,7 +550,7 @@ public final class DialogueOverlay extends Dialog {
             cursor -= lineHeight;
             String shown = typedPrefix(line, drawn, revealed);
             if (!shown.isEmpty()) {
-                client.font().draw(shown, textX, cursor, textScale,
+                client.fonts().button().draw(shown, textX, cursor, textScale,
                         TEXT_COLOR_R, TEXT_COLOR_G, TEXT_COLOR_B, 1F);
             }
             drawn += line.length();
@@ -564,8 +564,8 @@ public final class DialogueOverlay extends Dialog {
         // else would be a lie.
         if (revealed >= visibleLength(frame.text())) {
             float hintScale = textScale * HINT_SCALE;
-            float hintWidth = client.font().width(bubble.hint(), hintScale);
-            client.font().draw(bubble.hint(),
+            float hintWidth = client.fonts().body().width(bubble.hint(), hintScale);
+            client.fonts().body().draw(bubble.hint(),
                     bubble.x() + bubble.width() - bubble.textLeft() - hintWidth,
                     bubble.y() + bubble.textBottom() + 2F,
                     hintScale, HINT_COLOR_R, HINT_COLOR_G, HINT_COLOR_B, 1F);
@@ -729,17 +729,17 @@ public final class DialogueOverlay extends Dialog {
         float textTop = TEXT_INSET_TOP * scale;
         float textBottom = TEXT_INSET_BOTTOM * scale;
 
-        List<String> lines = avoidOrphans(client.font().wrapLines(frame.text(),
+        List<String> lines = avoidOrphans(client.fonts().button().wrapLines(frame.text(),
                 Math.max(24F, maxWidth - textLeft - textRight), textScale));
         String name = frame.name();
         float nameHeight = name.isEmpty() ? 0F
-                : client.font().lineHeight(textScale * NAME_SCALE) + 4F;
+                : client.fonts().button().lineHeight(textScale * NAME_SCALE) + 4F;
         String hint = GuiLang.raw(HINT_KEY, HINT_FALLBACK);
-        float hintHeight = client.font().lineHeight(textScale * HINT_SCALE) + 3F;
+        float hintHeight = client.fonts().body().lineHeight(textScale * HINT_SCALE) + 3F;
 
         float widest = 0F;
         for (String line : lines) {
-            widest = Math.max(widest, client.font().width(line, textScale));
+            widest = Math.max(widest, client.fonts().button().width(line, textScale));
         }
         float width = Math.max(guiW * BUBBLE_MIN_WIDTH_RATIO,
                 Math.min(maxWidth, widest + textLeft + textRight));

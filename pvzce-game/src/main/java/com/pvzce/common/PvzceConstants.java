@@ -48,6 +48,17 @@ public final class PvzceConstants {
      */
     public static final int DEFAULT_SEED_SLOTS = 8;
     public static final int MAX_SEED_SLOTS = 12;
+    /**
+     * How many level buffs a fresh backpack may switch on at once, and the ceiling.
+     *
+     * <p>Exactly the same arrangement as {@link #DEFAULT_SEED_SLOTS}, one system over: a level
+     * that does not declare {@code buffs.max_slots} is sized by the backpack's number (see
+     * {@code LevelDef.effectiveMaxBuffSlots}). The two are separate counts because they are
+     * separate choices - a level may hand out eight cards and no buffs, or two cards and five
+     * buffs.
+     */
+    public static final int DEFAULT_BUFF_SLOTS = 5;
+    public static final int MAX_BUFF_SLOTS = 12;
     /** The wallet has no ceiling; the only bound that matters is the 32-bit field it lives in. */
     public static final int COIN_LIMIT = Integer.MAX_VALUE;
 

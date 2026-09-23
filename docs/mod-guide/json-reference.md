@@ -26,12 +26,12 @@
 
 | type | 字段 | 说明 |
 |---|---|---|
-| `pvzce:shooter` | `interval`(90) `shots`[] `sound`? `first_delay`(0) | 直线射击；`shots` 元素为 `{projectile, damage, count, row_offset, backward, rows, range}`（`range` 是这一发能飞几格，0 = 不限，小喷菇用 3） |
+| `pvzce:shooter` | `interval`(90) `shots`[] `sound`? `first_delay`(0) | 直线射击；`shots` 元素为 `{projectile, damage, count, row_offset, backward, rows, range, burst_delay}`（`range` 是这一发能飞几格，0 = 不限，小喷菇用 3；`burst_delay` 是一轮齐射里颗与颗之间隔多少 tick，0 = 全部同一 tick 出膛，双发射手/机枪射手写 12） |
 | `pvzce:thrower` | `interval`(90) `shots`[] `butter_chance`(0) `butter_projectile`(`pvzce:butter`) `sound`? `first_delay`(0) | 抛物线投掷，按概率换成黄油弹 |
 | `pvzce:producer` | `resource`(必填) `amount`(25) `every`(必填) `first_delay`(-1=300) `sound`? | 周期产出资源掉落物 |
-| `pvzce:explosive` | `trigger`(`timed`\|`proximity`) `fuse_ticks`(60) `radius`(1.0) `damage`(1800) `trigger_range`(0.6) `sound`? `damage_type`(`pvzce:ash`) | 樱桃炸弹 / 土豆雷共用。**引信期间不可被伤害**（僵尸照咬，但咬不掉）；爆炸后植物会多留 30 tick 播完 `explode` |
+| `pvzce:explosive` | `trigger`(`timed`\|`proximity`\|`row`) `fuse_ticks`(60) `radius`(1.0) `damage`(1800) `trigger_range`(0.6) `square`(false) `leaves_crater`(false) `sound`? `damage_type`(`pvzce:ash`) `particles`[] `linger_ticks`(30) | 樱桃炸弹 / 土豆雷共用。**引信期间不可被伤害**（僵尸照咬，但咬不掉）；爆炸后植物多留 `linger_ticks` 播完 `explode` —— 这个数**至少要覆盖自己那条 `explode` clip 在屏幕上的时长**（clip 秒数 ÷ `rate` × 60），否则爆炸动画被半路删掉（毁灭菇 2.75 秒的蘑菇云就是这样被砍成 0.5 秒的）。`particles` 是这次爆炸的**组成**：按顺序发在植物自己那一格，每条自带出生偏移（见粒子的 `offset_x` / `offset_y`），缺省 `["pvzce:pow"]` |
 | `pvzce:melee` | `range`(0.7) `swallow_max_health`(0) `chew_ticks`(240) `sound`? | 吞噬弱僵尸后咀嚼消失 |
-| `pvzce:cone` | `interval`(90) `damage`(20) `range`(4.0) `damage_type`(`pvzce:spray`) `sound`? `first_delay`(0) `cloud_particle`(`pvzce:fume_cloud`) `cloud_count`(8) | **即时光锥，没有弹体**：同一 tick 命中正前方 `range` 格内的每一只僵尸（各一次），只覆盖自己那一行、且不打自己那格。大喷菇用它；`range` 从枪口量起，与射手同一个原点。画面由 `cloud_count` 个 `cloud_particle` 沿锥形**均匀铺开**：间距是 `range / cloud_count`，必须**小于一团云的宽度**（`pvzce:fume_cloud` 的 `look.scale`，现为 0.5 格）才连得起来，否则会画成一串断续的团（4 格配 3 个就是 1.33 格间距，正是"三个独立团"那个效果）。**把粒子调小就要把 `cloud_count` 调大。** `cloud_count: 0` 表示只要伤害不要画面 |
+| `pvzce:cone` | `interval`(90) `damage`(20) `range`(4.0) `damage_type`(`pvzce:spray`) `sound`? `first_delay`(0) `cloud_particle`(`pvzce:fume_cloud`) `cloud_count`(32) | **即时光锥，没有弹体**：同一 tick 命中正前方 `range` 格内的每一只僵尸（各一次），只覆盖自己那一行、且不打自己那格。大喷菇用它；`range` 从枪口量起，与射手同一个原点。画面由 `cloud_count` 个 `cloud_particle` 沿锥形**均匀铺开**：间距是 `range / cloud_count`，必须**小于一团云的宽度**（`pvzce:fume_cloud` 的 `look.scale`，现为 0.125 格）才连得起来，否则会画成一串断续的点（4 格配 16 个 = 0.25 格间距，实测就是一条虚线）。**把粒子调小就要把 `cloud_count` 调大。** `cloud_count: 0` 表示只要伤害不要画面 |
 | `pvzce:wake_below` | `sound`? `wake_sound`? | 唤醒下方睡觉的植物并消耗自身（咖啡豆）。对**醒着的**植物无事发生（豆子照样被消耗），`wake_sound` 只在真的叫醒时播 |
 | `pvzce:nocturnal` | 无 | 蘑菇：白天睡觉（不射击、不产出，播 `sleep` clip），入夜自动醒来；被咖啡豆唤醒后**永久**不睡。状态由关卡时钟推出，只有"被唤醒过"进存档 |
 
@@ -608,22 +608,39 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 （`ZombieHead.png` 64×61，而僵尸模型里的头贴图只有 53×48）。照抄会让一颗头盖住半块草坪，
 所以本项目的 `pvzce:zombie_head` 用 0.4、`pvzce:zombie_arm` 用 0.33。
 
+### 粒子从哪里出生（`offset_x` / `offset_y`）
+
+一次效果触发只给**一个点**，而 `pvzce:explosive.particles` 里的每一条定义都可以相对那个点错开出生，
+单位是世界格（`+y` 向上），缺省 0：
+
+```jsonc
+// 毁灭菇那片"左菌盖"：出生在触发点左边 1.125 格、上方 1.5 格
+"motion": { "offset_x": -1.125, "offset_y": 1.5 }
+```
+
+原版用 `EmitterOffset*` / `SystemField.SystemPosition` 摆出一朵蘑菇云（菌柄在中间、七块菌盖围上去），
+转换器把这两个字段丢掉了，于是"一块美术摆在哪儿"在数据里无处表达——只能写死在触发爆炸的那段代码里。
+有了它，**一个由多块美术组成的效果仍然只是一串粒子 id**。`bounce` 的落地线是相对**出生点**算的，
+所以被偏移过的碎片照样落在自己那一格上。
+
 ### 粒子的大小变化（`scale_curve`）
 
 `scale_curve` 是**一条随时间变化的尺寸表**（`[[进度, 世界格], …]`，进度 0~1），画出来的边长是
 `scale × scale_curve(进度)`：
 
 ```jsonc
-// 原版 Pow.xml 的 ParticleScale 是 `.2 .5,7`：从 0.2 格长到 0.5 格
-"scale": 0.2,
-"scale_curve": [[0.0, 0.2], [1.0, 0.5]]
+// 灰烬类那个爆炸闪光：0.6 格出现，0.35 的寿命里长到 2.5 格，之后保持
+// （`scale` 是它长到头的大小，表里写的是相对它的倍率）
+"scale": 2.5,
+"scale_curve": [[0.0, 0.24], [0.35, 1.0], [1.0, 1.0]]
 ```
 
 原版把「范围」和「曲线」写在同一串数字里（`[.7 .9]`、`.5,60 0`、`.2 .5,7`），
 所以**转换器只认得清无歧义的那些**：`[a b]` 与开头的 `a b` 会变成一条从 a 到 b 的直线，
 带时间或曲线类型的（`,7`、`,60 0`、`EaseIn`）一律保持常数尺寸。
-要让某个效果真的膨胀/收缩，就在定义里写一张显式的表——灰烬类那个爆炸闪光（`pvzce:pow`）
-就是手写的，因为原版那条写着 `,7`，转换器读不出它的时间轴。
+要让某个效果真的膨胀/收缩，就在定义里写一张显式的表——灰烬类的爆炸闪光与橙色云（`pvzce:pow` / `pvzce:powie`）
+都是手写的：`pow` 那条原版写着 `,7`，转换器读不出它的时间轴；`powie` 则是被 `range_of()` 读成了 `scale: 0`
+（`ParticleScale .5,60 0` 里的三个数字取最小最大值），**从转换出来那天起就没画出来过**。
 
 ### 粒子的地面摩擦（`ground_friction`）
 

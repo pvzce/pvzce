@@ -51,14 +51,14 @@ public final class LevelSaveDialog extends Dialog {
         int linesY = y + height - 34;
         float scale = 0.9F;
         String title = "关卡：" + prompt.levelName();
-        client.font().draw(title, x + 24, linesY, 1F, 1F, 0.95F, 0.75F, 1F);
+        client.fonts().button().draw(title, x + 24, linesY, 1F, 1F, 0.95F, 0.75F, 1F);
 
         int seconds = Math.max(0, prompt.tickCount()) / com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
         String progress = String.format(Locale.ROOT, "已有存档：进行中 · 第 %d tick（约 %d 分 %d 秒）",
                 prompt.tickCount(), seconds / 60, seconds % 60);
-        client.font().draw(progress, x + 24, linesY - 24, scale, 0.9F, 0.9F, 0.9F, 1F);
+        client.fonts().body().draw(progress, x + 24, linesY - 24, scale, 0.9F, 0.9F, 0.9F, 1F);
 
         String plants = "植物：" + prompt.plantCount() + " 棵    阳光：" + prompt.sun();
-        client.font().draw(plants, x + 24, linesY - 46, scale, 0.9F, 0.9F, 0.9F, 1F);
+        client.fonts().body().draw(plants, x + 24, linesY - 46, scale, 0.9F, 0.9F, 0.9F, 1F);
     }
 }

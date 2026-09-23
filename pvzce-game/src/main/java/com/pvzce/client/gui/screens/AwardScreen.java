@@ -80,6 +80,9 @@ public final class AwardScreen extends Screen {
     private final Identifier rewardItemIcon;
     private final String rewardItemName;
     private final int rewardItemAmount;
+    /** The buff this run unlocked, when it unlocked one; null for every other payout. */
+    private final Identifier buffIcon;
+    private final String buffName;
     private final long startNanos = System.nanoTime();
     private final List<Sprinkled> coins = new ArrayList<>();
     private final Random random = new Random();
@@ -102,9 +105,14 @@ public final class AwardScreen extends Screen {
         this.unlockedIcon = card == null ? null : card.icon().orElse(null);
         this.unlockedCost = card == null ? 0 : card.costSun();
         this.unlockedName = reward.hasUnlock() ? GuiLang.name(reward.unlockedCard()) : "";
-        // The frame holds one thing, and a card is the bigger news: asked in the same order
-        // the drop on the lawn asks it, so the two cannot disagree about what was paid.
-        boolean item = !reward.hasUnlock() && reward.hasRewardItem();
+        // A buff takes the frame after a card and before an object, in the same order the drop on
+        // the lawn asks it, so the two cannot disagree about what was paid. It is drawn in the
+        // seed packet's chrome with its own icon - what the level handed over is a new rule, and
+        // the page says so the same way it says "a new card".
+        boolean buff = !reward.hasUnlock() && reward.hasUnlockedBuff();
+        this.buffIcon = buff ? buffIcon(reward.unlockedBuff()) : null;
+        this.buffName = buff ? GuiLang.name(reward.unlockedBuff()) : "";
+        boolean item = !reward.hasUnlock() && !buff && reward.hasRewardItem();
         Identifier itemId = item ? Identifier.tryParse(reward.rewardItem()) : null;
         com.pvzce.api.content.ResourceDef itemDef = itemId == null
                 ? null : com.pvzce.common.core.BuiltInRegistries.RESOURCES.get(itemId);
@@ -125,6 +133,19 @@ public final class AwardScreen extends Screen {
     /** True when the frame shows an object the level handed over instead of coins. */
     private boolean showsItem() {
         return rewardItemIcon != null;
+    }
+
+    /** True when the frame shows a level buff this run unlocked. */
+    private boolean showsBuff() {
+        return buffIcon != null || !buffName.isEmpty();
+    }
+
+    /** A buff's own sprite, or {@code null} when the buff is unknown or has no art yet. */
+    private static Identifier buffIcon(String buffId) {
+        Identifier id = Identifier.tryParse(buffId);
+        com.pvzce.api.content.LevelBuff buff =
+                id == null ? null : com.pvzce.common.buff.LevelBuffs.get(id);
+        return buff == null || buff.icon().isEmpty() ? null : buff.icon().texture();
     }
 
     @Override
@@ -173,15 +194,20 @@ public final class AwardScreen extends Screen {
         // was written for - is cropped away entirely.
         String title = GuiLang.raw("pvzce.award.title_win", "关卡完成！");
         float titleScale = Math.max(1.4F, Math.min(2.6F, guiH / 90F));
-        float titleWidth = client.font().width(title, titleScale);
-        client.drawSolid((guiW - titleWidth) / 2F - 28F, guiH - client.font().lineHeight(titleScale) - 22F,
-                titleWidth + 56F, client.font().lineHeight(titleScale) + 18F,
+        float titleWidth = client.fonts().button().width(title, titleScale);
+        client.drawSolid((guiW - titleWidth) / 2F - 28F, guiH - client.fonts().button().lineHeight(titleScale) - 22F,
+                titleWidth + 56F, client.fonts().button().lineHeight(titleScale) + 18F,
                 0.35F, 0.12F, 0.07F, 0.03F, 0.66F);
-        client.font().draw(title, (guiW - titleWidth) / 2F, guiH - client.font().lineHeight(titleScale) - 14F,
+        client.fonts().button().draw(title, (guiW - titleWidth) / 2F, guiH - client.fonts().button().lineHeight(titleScale) - 14F,
                 titleScale, 1F, 0.94F, 0.55F, 1F);
 
         if (showsCard()) {
             renderDroppingCard(fit, guiW, guiH, fade);
+        } else if (showsBuff()) {
+            // A new rule falls into the frame on the same beat as a card, drawn in the same
+            // packet chrome: what the level handed over is "something new for your collection",
+            // and the money bag would say the opposite.
+            renderDroppingBuff(fit, fade);
         } else if (showsItem()) {
             // The level paid in objects: the object falls into the frame, on the same beat
             // and from the same place as the card. No coin shower - what the wallet gained is
@@ -332,6 +358,14 @@ public final class AwardScreen extends Screen {
             y = drawCentered(GuiLang.raw("pvzce.award.new_card", "获得新植物！"),
                     centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
             y = drawCentered(unlockedName, centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
+        } else if (showsBuff()) {
+            // Its own wording, because "获得新植物！" over a buff would be a lie - and the coin
+            // lines below still state what the wallet gained, since it gained nothing here.
+            y = drawCentered(GuiLang.raw("pvzce.award.new_buff", "获得关卡增益！"),
+                    centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
+            y = drawCentered(buffName, centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
+            y = drawCentered(GuiLang.raw("pvzce.award.buff_hint", "选卡时可以带上它"),
+                    centerX, y - 2F, scale * 0.82F, 0.42F, 0.3F, 0.12F);
         } else if (showsItem()) {
             // The object by name and count, so the receipt says what the frame is showing -
             // and the coin lines below still state what it was worth, because the wallet is
@@ -355,6 +389,30 @@ public final class AwardScreen extends Screen {
     }
 
     /**
+     * The new buff falls into the frame and settles, exactly like the card.
+     *
+     * <p>Same beat, same place, different chrome content: the page should read as "you got
+     * something", and animating it differently would only make the player wonder why.
+     */
+    private void renderDroppingBuff(CoverFit fit, float fade) {
+        float elapsed = (System.nanoTime() - startNanos) / (float) DROP_NANOS;
+        float progress = MathUtil.easeOutCubic(Math.max(0F, Math.min(1F, elapsed)));
+        // The same packet size and resting place as a new card: the frame holds one thing, and
+        // "you got something new" should look the same whichever system it came from.
+        float cardHeight = (WINDOW_BOTTOM - WINDOW_TOP) * 0.85F;
+        float size = fit.scale() * (cardHeight * 100F / 140F);
+        float centerX = fit.mapX((WINDOW_LEFT + WINDOW_RIGHT) / 2F);
+        float settledY = fit.mapY(WINDOW_BOTTOM - 12F, ART_HEIGHT);
+        float fromY = fit.mapY(-160F, ART_HEIGHT);
+        float y = MathUtil.lerp(fromY, settledY, progress);
+        SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
+                        buffIcon, SeedCardRenderer.CardKind.BUFF,
+                        com.pvzce.common.network.packet.SlotInfo.NO_PRICE,
+                        1F, fade, true, 0F, false, null, false),
+                centerX - size / 2F, y, size, cardHeight * fit.scale());
+    }
+
+    /**
      * Draws one centred line and returns the y for the next one.
      *
      * <p>Always fully opaque: the page's fade is applied as a wash over the finished frame
@@ -363,8 +421,8 @@ public final class AwardScreen extends Screen {
      * wrong moment.
      */
     private float drawCentered(String text, float centerX, float y, float scale, float r, float g, float b) {
-        client.font().draw(text, centerX - client.font().width(text, scale) / 2F, y, scale, r, g, b, 1F);
-        return y - client.font().lineHeight(scale) - 2F;
+        client.fonts().body().draw(text, centerX - client.fonts().body().width(text, scale) / 2F, y, scale, r, g, b, 1F);
+        return y - client.fonts().body().lineHeight(scale) - 2F;
     }
 
     /** How many coins the award page says were earned, for the debug overlay. */

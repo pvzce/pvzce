@@ -21,12 +21,21 @@ import java.util.List;
  * so it is discarded.
  *
  * <p>An empty {@code selectedSeeds} means the player intentionally starts with no cards, which
- * is different from "no selection was sent" - that case is {@link ContinueLevelC2S}.
+ * is different from "no selection was sent" - that case is {@link ContinueLevelC2S}. The same
+ * holds for {@code selectedBuffs}, with one case on top: because the chooser always opens its
+ * buff page with the world's auto list already applied, an empty buff list really is "none this
+ * time" - and it is also what becomes the world's new auto list.
  */
 public record PlayLevelC2S(String levelId, String worldName, boolean restart,
-                           List<String> selectedSeeds) implements PvzcePacket {
+                           List<String> selectedSeeds, List<String> selectedBuffs) implements PvzcePacket {
     public PlayLevelC2S {
         selectedSeeds = List.copyOf(selectedSeeds);
+        selectedBuffs = List.copyOf(selectedBuffs);
+    }
+
+    /** A request from a caller that has no buff selection to send. */
+    public PlayLevelC2S(String levelId, String worldName, boolean restart, List<String> selectedSeeds) {
+        this(levelId, worldName, restart, selectedSeeds, List.of());
     }
 
     @Override
@@ -39,7 +48,8 @@ public record PlayLevelC2S(String levelId, String worldName, boolean restart,
     .field(PlayLevelC2S::worldName, PacketByteBuf::writeString, PacketByteBuf::readString)
     .field(PlayLevelC2S::restart, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
     .stringList(PlayLevelC2S::selectedSeeds)
-            .build(values -> new PlayLevelC2S((String) values.get(0), (String) values.get(1), (Boolean) values.get(2), (List<String>) values.get(3)));
+    .stringList(PlayLevelC2S::selectedBuffs)
+            .build(values -> new PlayLevelC2S((String) values.get(0), (String) values.get(1), (Boolean) values.get(2), (List<String>) values.get(3), (List<String>) values.get(4)));
 
     @Override
     public void encode(PacketByteBuf buf) {

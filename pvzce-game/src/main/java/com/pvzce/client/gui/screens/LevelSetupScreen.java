@@ -183,23 +183,23 @@ public final class LevelSetupScreen extends Screen {
 
         String title = "关卡准备";
         float scale = Math.min(2.2F, guiH / 100F);
-        client.font().draw(title, (guiW - client.font().width(title, scale)) / 2F,
-                guiH - client.font().lineHeight(scale) - 6, scale, 1F, 1F, 1F, 1F);
+        client.fonts().button().draw(title, (guiW - client.fonts().button().width(title, scale)) / 2F,
+                guiH - client.fonts().button().lineHeight(scale) - 6, scale, 1F, 1F, 1F, 1F);
 
         String name = levelInfo.name() + " · " + levelInfo.id();
         float nameScale = 0.95F;
-        client.font().draw(name, (guiW - client.font().width(name, nameScale)) / 2F,
+        client.fonts().body().draw(name, (guiW - client.fonts().body().width(name, nameScale)) / 2F,
                 stripTop - 18, nameScale, 1F, 0.95F, 0.6F, 1F);
         if (!levelInfo.description().isEmpty()) {
             float descScale = 0.7F;
-            client.font().draw(levelInfo.description(),
-                    (guiW - client.font().width(levelInfo.description(), descScale)) / 2F,
+            client.fonts().body().draw(levelInfo.description(),
+                    (guiW - client.fonts().body().width(levelInfo.description(), descScale)) / 2F,
                     stripTop - 34, descScale, 0.8F, 0.85F, 0.8F, 1F);
         }
         String status = statusLabel(levelInfo.status());
         if (!status.isEmpty()) {
             float statusScale = 0.75F;
-            client.font().draw(status, (guiW - client.font().width(status, statusScale)) / 2F,
+            client.fonts().body().draw(status, (guiW - client.fonts().body().width(status, statusScale)) / 2F,
                     stripTop - 50, statusScale, 1F, 0.9F, 0.5F, 1F);
         }
 
@@ -225,8 +225,8 @@ public final class LevelSetupScreen extends Screen {
         client.drawSolid(x, y, width, stripHeight, 0.25F, 0F, 0F, 0F, 0.55F);
         String label = team.name() + (unlocked ? "" : "（未解锁）");
         float labelScale = Math.min(1.2F, Math.max(0.7F, width / 220F));
-        client.font().draw(label, x + (width - client.font().width(label, labelScale)) / 2F,
-                y + (stripHeight - client.font().lineHeight(labelScale)) / 2F,
+        client.fonts().body().draw(label, x + (width - client.fonts().body().width(label, labelScale)) / 2F,
+                y + (stripHeight - client.fonts().body().lineHeight(labelScale)) / 2F,
                 labelScale, 1F, 1F, 1F, 1F);
 
         if (!unlocked) {

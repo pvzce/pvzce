@@ -175,14 +175,42 @@ public final class LevelValidator {
     }
 
     /**
+     * Reports a buff block that names something nobody can act on.
+     *
+     * <p>Two ways to get this wrong, and both are silent at runtime: a buff id that is not
+     * registered (a typo, or a mod that is not loaded) would sit in {@code def.buffs()} doing
+     * nothing, and a {@code max_buff_slots} of zero would leave a level that offers
+     * {@code pvzce:player_choice} with a page the player can never put anything on.
+     *
+     * <p>{@code pvzce:player_choice} is exempt from the id check, because it is the marker that
+     * <em>means</em> "offer the player a choice" and is deliberately not a registered buff.
+     */
+    public static List<String> validateBuffs(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        if (def.buffPlan() == null) {
+            return errors;
+        }
+        for (Identifier buff : def.buffPlan().fixedBuffs()) {
+            if (com.pvzce.common.buff.LevelBuffs.get(buff) == null) {
+                errors.add("buffs names unknown level buff '" + buff
+                        + "', so it is never switched on");
+            }
+        }
+        if (def.buffPlan().declaresMaxBuffSlots() && def.buffPlan().maxBuffSlots() <= 0) {
+            errors.add("max_buff_slots is " + def.buffPlan().maxBuffSlots()
+                    + ", so no buff can ever be switched on here");
+        }
+        return errors;
+    }
+
+    /**
      * Reports dialogue art that no loaded pack provides.
      *
      * <p>Separate from {@link #validateDialogue} because it needs the resource manager, and
      * the level's own constructor has no business reading packs. Called once per reload by
      * the server, which is where an author looks for "why is my character invisible".
      */
-    public static List<String> validateDialogueAssets(LevelDef def,
-                                                      com.pvzce.common.resource.PvzceResourceManager resources) {
+    public static List<String> validateDialogueAssets(LevelDef def,                                                      com.pvzce.common.resource.PvzceResourceManager resources) {
         List<String> errors = new ArrayList<>();
         if (def.dialogue() == null || resources == null) {
             return errors;
@@ -297,6 +325,16 @@ public final class LevelValidator {
                 } else if (SlotResolver.resolve(card).isEmpty()) {
                     errors.add("rewards." + block + ": unknown card '" + card
                             + "': no slot, plant, tool or resource with that id");
+                }
+            } else if (reward.isBuff()) {
+                Identifier buff = reward.id().orElse(null);
+                if (buff == null) {
+                    errors.add("rewards." + block + ": a buff entry needs an \"id\"");
+                } else if (!com.pvzce.common.buff.LevelBuffs.isRegistered(buff)) {
+                    // The entry would decode and be skipped at payout time, so the symptom is
+                    // "the first clear handed over nothing", which points at nothing.
+                    errors.add("rewards." + block + ": unknown level buff '" + buff
+                            + "', so nothing would be unlocked");
                 }
             } else if (reward.isCoins()) {
                 if (reward.amount() <= 0) {

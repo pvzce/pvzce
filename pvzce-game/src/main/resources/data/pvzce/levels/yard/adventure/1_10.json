@@ -470,5 +470,8 @@
   "background": "pvzce:textures/gui/screen/level/background1",
   "hidden_scene_elements": [
     "pvzce:grass"
+  ],
+  "buffs": [
+    "pvzce:auto_collect"
   ]
 }

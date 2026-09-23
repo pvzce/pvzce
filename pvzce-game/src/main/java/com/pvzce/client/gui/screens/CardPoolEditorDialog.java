@@ -105,7 +105,7 @@ public final class CardPoolEditorDialog extends Dialog {
 
         poolList = new AbstractSelectionList<>(leftX, bottom + 80, columnWidth, listHeight, 24,
                 (renderClient, id, lx, ly) ->
-                        renderClient.font().draw(id, lx, ly + 4, 0.72F, 1F, 1F, 1F, 1F));
+                        renderClient.fonts().body().draw(id, lx, ly + 4, 0.72F, 1F, 1F, 1F, 1F));
         poolList.setEntries(config.pool);
         addChild(poolList);
 
@@ -120,7 +120,7 @@ public final class CardPoolEditorDialog extends Dialog {
 
         availableList = new AbstractSelectionList<>(rightX, bottom + 80, columnWidth, listHeight, 24,
                 (renderClient, id, lx, ly) ->
-                        renderClient.font().draw(id, lx, ly + 4, 0.72F, 0.9F, 0.95F, 0.9F, 1F));
+                        renderClient.fonts().body().draw(id, lx, ly + 4, 0.72F, 0.9F, 0.95F, 0.9F, 1F));
         availableList.setEntries(config.available);
         addChild(availableList);
         addChild(new Button(rightX, bottom + 2, Math.max(60, columnWidth / 2), 26, "添加选中",
@@ -152,7 +152,7 @@ public final class CardPoolEditorDialog extends Dialog {
     }
 
     private static void drawLabel(PvzceClient client, String text, float x, float y) {
-        client.font().draw(text, x, y, 0.75F, 1F, 1F, 1F, 1F);
+        client.fonts().body().draw(text, x, y, 0.75F, 1F, 1F, 1F, 1F);
     }
 
     private void commitFields() {

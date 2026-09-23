@@ -14,7 +14,13 @@
       "fuse_ticks": 60,
       "radius": 1.0,
       "square": true,
-      "damage": 1800
+      "damage": 1800,
+      "particles": [
+        "pvzce:powie",
+        "pvzce:pow",
+        "pvzce:pow_flash"
+      ],
+      "linger_ticks": 70
     }
   ],
   "sounds": {

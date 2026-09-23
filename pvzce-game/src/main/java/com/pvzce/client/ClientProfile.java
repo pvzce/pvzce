@@ -21,6 +21,16 @@ public final class ClientProfile {
     private final Set<Identifier> unlocked = new LinkedHashSet<>();
     private int coins;
     private int seedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
+    private int buffSlots = com.pvzce.common.PvzceConstants.DEFAULT_BUFF_SLOTS;
+    /**
+     * The buffs this world switches on by itself, in the order the server last stored them.
+     *
+     * <p>Read-only here for the same reason everything else in this class is: the chooser shows
+     * them pre-selected, and what the player does with that goes back through the server by
+     * starting a level - there is no "save preferences" packet, because a run's buffs are the
+     * preference.
+     */
+    private final List<Identifier> autoBuffs = new java.util.ArrayList<>();
     private boolean unlockAll;
 
     /** Applies a server snapshot; unparsable ids are dropped rather than kept as junk. */
@@ -30,9 +40,26 @@ public final class ClientProfile {
 
     /** Applies a server snapshot including the backpack's card-slot count. */
     public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots) {
+        apply(coins, unlockedIds, unlockAll, seedSlots,
+                com.pvzce.common.PvzceConstants.DEFAULT_BUFF_SLOTS, List.of());
+    }
+
+    /** Applies a server snapshot including the buff half of the backpack. */
+    public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots,
+                      int buffSlots, List<String> autoBuffIds) {
         this.coins = Math.max(0, coins);
         this.unlockAll = unlockAll;
         this.seedSlots = Math.max(1, seedSlots);
+        this.buffSlots = Math.max(1, buffSlots);
+        autoBuffs.clear();
+        if (autoBuffIds != null) {
+            for (String raw : autoBuffIds) {
+                Identifier id = Identifier.tryParse(raw);
+                if (id != null) {
+                    autoBuffs.add(id);
+                }
+            }
+        }
         unlocked.clear();
         if (unlockedIds != null) {
             for (String raw : unlockedIds) {
@@ -63,6 +90,26 @@ public final class ClientProfile {
         return seedSlots;
     }
 
+    /**
+     * How many level buffs this backpack may switch on.
+     *
+     * <p>The number the chooser sizes its buff row against when the level declares no
+     * {@code max_buff_slots}; the level's own count still wins, and it arrives already resolved
+     * in the payload.
+     */
+    public int buffSlots() {
+        return buffSlots;
+    }
+
+    /** The world's auto-enabled buffs, in the order the server has them. */
+    public List<Identifier> autoBuffs() {
+        return List.copyOf(autoBuffs);
+    }
+
+    public List<String> autoBuffIds() {
+        return autoBuffs.stream().map(Identifier::toString).toList();
+    }
+
     public boolean unlockAll() {
         return unlockAll;
     }
@@ -73,7 +120,7 @@ public final class ClientProfile {
     }
 
     /** True when this card is available to the player; the rule is {@link SlotResolver#owns}. */
-    public boolean owns(Identifier card) {
+    public boolean ownsCard(Identifier card) {
         return SlotResolver.owns(unlocked, unlockAll, card);
     }
 }

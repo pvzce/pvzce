@@ -120,6 +120,24 @@ public final class RenderSystem {
         shader.setShadowColor(r, g, b, a);
     }
 
+    /**
+     * Per-glyph text outline or drop shadow. {@code mode} is 1 for a drop shadow and
+     * 2 for an outline; anything else turns the effect off.
+     *
+     * <p>The offsets are in atlas texels rather than GUI units because {@code uv} is
+     * interpolated per fragment: one texel of offset is one device pixel of effect
+     * however the glyph quad was scaled, so the outline keeps a constant visual
+     * weight at every text scale.
+     */
+    public static void setTextEffects(boolean enabled, float mode, float offsetX, float offsetY,
+                                      float r, float g, float b) {
+        if (!enabled || mode <= 0F) {
+            shader.setTextEffect(false, false, 0F, 0F, 1F, 1F, 1F);
+            return;
+        }
+        shader.setTextEffect(true, mode >= 2F, offsetX, offsetY, r, g, b);
+    }
+
     public static void setTimeOfDay(float tintR, float tintG, float tintB, float tintLift,
                                     float sunX, float sunY, float sunRadius,
                                     float sunR, float sunG, float sunB, float sunStrength) {

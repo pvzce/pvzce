@@ -359,5 +359,25 @@
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
-  "disable_shaders": true
+  "disable_shaders": true,
+  "buffs": [
+    "pvzce:player_choice"
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "buff",
+        "id": "pvzce:mushroom_range"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 100
+      }
+    ],
+    "coin_drop_chance": 0.25,
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_amount": 1
+  }
 }

@@ -94,7 +94,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     private final LevelDef def;
     private final SceneGrid<SceneElementDef> scene;
-    private final SeedContext seedContext;
+    /**
+     * The card and buff pools the client was shown, resolved once by the server.
+     *
+     * <p>Not final because the run's own buff list is written back into it once the level has
+     * resolved it (see the constructor): the same record answers "what may be chosen" and "what
+     * was chosen", which is what lets {@link #payloadFor} describe both.
+     */
+    private SeedContext seedContext;
     private final Map<Identifier, Team> teams = new HashMap<>();
     private final List<PvzceEntity> entities = new ArrayList<>();
     private final List<PvzceEntity> pendingAdd = new ArrayList<>();
@@ -132,6 +139,28 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * built).
      */
     private final List<TypedMechanic> mechanics;
+    /**
+     * The level buffs this run is actually played with, with locked, pickable and saved lists
+     * already resolved into the one answer.
+     *
+     * <p>Resolved once, at construction, and then treated as read-only until
+     * {@link #restore} replaces it from the save: every consumer asks
+     * {@link #activeBuffs()} rather than re-resolving the definition, so "which buffs are on"
+     * has exactly one answer per level instance.
+     */
+    private List<com.pvzce.api.content.LevelBuff> activeBuffs = List.of();
+    /**
+     * Ticks each resource drop has been waiting for the auto-pickup buff, keyed by entity id.
+     *
+     * <p>A buff that collected drops on the tick they spawned would make them invisible - the
+     * spawn packet and the despawn packet would be in the same batch, so the sun a sunflower just
+     * produced would simply never appear. The delay is the whole point: the player sees it land,
+     * and then it is picked up.
+     *
+     * <p>Keyed by id rather than held on the drop, and pruned every tick, so a drop that is
+     * clicked, eaten or despawned takes its timer with it.
+     */
+    private final Map<Integer, Integer> autoCollectTimers = new HashMap<>();
     /** Per-mechanic run state; see {@link #mechanicState}. */
     private final Map<Identifier, Object> mechanicState = new HashMap<>();
     private ServerBridge bridge;
@@ -249,8 +278,28 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * {@link SeedSelection#sanitize} accepts cannot drift apart.
      */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext) {
+        this(def, selectedSlots, seedContext, null);
+    }
+
+    /**
+     * Creates a level with the chooser pool the client will be shown, and the buffs the player
+     * chose before it started.
+     *
+     * @param selectedBuffs the buffs the client asked for, or {@code null} when nobody chose -
+     *                      which means the world's auto list decides (see
+     *                      {@code LevelBuffSelection.plan})
+     */
+    public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                       List<Identifier> selectedBuffs) {
         this.def = def;
         this.seedContext = seedContext == null ? SeedContext.all(def) : seedContext;
+        this.activeBuffs = com.pvzce.server.LevelBuffSelection.resolve(
+                com.pvzce.server.LevelBuffSelection.plan(def, this.seedContext.buffSlots(),
+                        selectedBuffs, this.seedContext.autoBuffs(), this.seedContext.ownsBuff()));
+        // Written back rather than re-resolved by the payload: "what this run plays with" is one
+        // answer, and the packet that tells the client has to be that same answer.
+        this.seedContext = this.seedContext.withActiveBuffs(
+                com.pvzce.server.LevelBuffSelection.resolveIds(this.activeBuffs));
         // The rules first: the wave director reads one of them (`zombie_spawn_speed_multiplier`)
         // while it works out its first wave's delay, and it is constructed with `this` as its
         // host - so a rule read out of order is a null dereference in the constructor rather
@@ -327,6 +376,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         problems.addAll(LevelValidator.validateInitialEntities(def));
         problems.addAll(LevelValidator.validateDialogue(def));
         problems.addAll(LevelValidator.validateHints(def));
+        problems.addAll(LevelValidator.validateBuffs(def));
         if (!problems.isEmpty()) {
             LOGGER.warn("Level {} has {} problem(s):", def.id(), problems.size());
             for (String problem : problems) {
@@ -685,22 +735,40 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public void spawnProjectile(ProjectileRef ref, float x, float y, PlantEntity source) {
-        ProjectileDef projectileDef = BuiltInRegistries.PROJECTILES.get(ref.projectile());
+        ProjectileRef shot = scaledShot(ref, source);
+        ProjectileDef projectileDef = BuiltInRegistries.PROJECTILES.get(shot.projectile());
         if (projectileDef == null) {
             return;
         }
-        addEntity(new ProjectileEntity(projectileDef, ref, source.team(), x, y, source.height()));
+        addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height()));
     }
 
     @Override
     public void spawnArcProjectile(ProjectileRef ref, float x, float y, PlantEntity source, ZombieEntity target) {
-        ProjectileDef projectileDef = BuiltInRegistries.PROJECTILES.get(ref.projectile());
+        ProjectileRef shot = scaledShot(ref, source);
+        ProjectileDef projectileDef = BuiltInRegistries.PROJECTILES.get(shot.projectile());
         if (projectileDef == null) {
             return;
         }
         SceneElementDef base = sceneAt(target.gridX(), target.gridY());
         target.setHeight(base == null ? 0F : base.heightAt(target.cellX(), width()));
-        addEntity(new ProjectileEntity(projectileDef, ref, source.team(), x, y, source.height(), target));
+        addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height(), target));
+    }
+
+    /**
+     * The shot a plant actually fires, after the level's buffs have had their say.
+     *
+     * <p>Applied here, at the one place a projectile is born, rather than inside the plant's
+     * shooting capability: the capability and the projectile both read
+     * {@link ProjectileRef#range}, so scaling it once on the way in is what keeps "the plant
+     * thinks a zombie is in range" and "the shot reaches it" the same statement. A multiplier on
+     * an unlimited range is still unlimited - the whole board cannot get longer - which is why
+     * this only rewrites finite ranges and otherwise hands back the original reference.
+     */
+    private ProjectileRef scaledShot(ProjectileRef ref, PlantEntity source) {
+        // The same helper the shooters aim with - see PlantShots.scaled. Two implementations of
+        // this rule is what let the aiming half keep reading the unscaled number.
+        return com.pvzce.common.capability.plant.PlantShots.scaled(ref, source, this);
     }
 
     @Override
@@ -1049,10 +1117,30 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * record is built where the profile is known, and both the packet and the seed plan
      * read it back from the one place.
      */
-    public record SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots) {
+    public record SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots,
+                              List<SeedOption> buffPool, int maxBuffSlots, int buffSlots,
+                              List<Identifier> autoBuffs, List<Identifier> activeBuffs,
+                              java.util.function.Predicate<Identifier> ownsBuff) {
         public SeedContext {
             pool = List.copyOf(pool);
             lockedSlotIds = List.copyOf(lockedSlotIds);
+            buffPool = List.copyOf(buffPool);
+            autoBuffs = List.copyOf(autoBuffs);
+            activeBuffs = List.copyOf(activeBuffs);
+            // ``null`` means "everything is owned", which is what a caller with no backpack wants.
+            ownsBuff = ownsBuff == null ? buff -> true : ownsBuff;
+        }
+
+        /** The card half alone; a context built before buffs existed has none of them. */
+        public SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots) {
+            this(pool, lockedSlotIds, maxSeedSlots, List.of(), 0,
+                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null);
+        }
+
+        /** The same context with the run's buffs filled in, after the caller resolved them. */
+        public SeedContext withActiveBuffs(List<Identifier> buffs) {
+            return new SeedContext(pool, lockedSlotIds, maxSeedSlots, buffPool, maxBuffSlots,
+                    buffSlots, autoBuffs, buffs, ownsBuff);
         }
 
         /**
@@ -1064,16 +1152,26 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
          */
         public static SeedContext all(LevelDef def) {
             return new SeedContext(SeedOptions.forLevel(def), SeedOptions.lockedSlotIds(def),
-                    def.effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS));
+                    def.effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS),
+                    com.pvzce.server.LevelBuffSelection.chooserPool(def),
+                    def.effectiveMaxBuffSlots(PvzceConstants.DEFAULT_BUFF_SLOTS),
+                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null);
         }
 
         /** The pool a player with this backpack may actually pick from. */
         public static SeedContext forProfile(LevelDef def, com.pvzce.server.PlayerProfile profile) {
             java.util.function.Predicate<Identifier> owns =
-                    profile == null ? null : profile::owns;
+                    profile == null ? null : profile::ownsCard;
+            java.util.function.Predicate<Identifier> buffOwns =
+                    profile == null ? null : profile::ownsBuff;
             int slots = def.effectiveMaxSeedSlots(profile == null
                     ? PvzceConstants.DEFAULT_SEED_SLOTS : profile.seedSlots());
-            return new SeedContext(SeedOptions.forLevel(def, owns), SeedOptions.lockedSlotIds(def), slots);
+            int buffSlots = profile == null
+                    ? PvzceConstants.DEFAULT_BUFF_SLOTS : profile.buffSlots();
+            return new SeedContext(SeedOptions.forLevel(def, owns), SeedOptions.lockedSlotIds(def),
+                    slots, com.pvzce.server.LevelBuffSelection.chooserPool(def, buffOwns),
+                    def.effectiveMaxBuffSlots(buffSlots), buffSlots,
+                    profile == null ? List.of() : profile.autoBuffs(), List.of(), buffOwns);
         }
     }
 
@@ -1154,6 +1252,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             tickEntities(ZombieEntity.class, bridge);
             tickEntities(ProjectileEntity.class, bridge);
             tickEntities(ResourceDropEntity.class, bridge);
+            tickAutoCollect();
 
             for (PvzceEntity entity : new ArrayList<>(entities)) {
                 if (!entity.isRemoved()) {
@@ -1230,6 +1329,77 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return cardSource;
     }
 
+    /** The buffs this run is played with, locked and chosen already resolved. */
+    public List<com.pvzce.api.content.LevelBuff> activeBuffs() {
+        return activeBuffs;
+    }
+
+    /**
+     * How much longer a shot from this plant flies, or 1 when nothing applies.
+     *
+     * <p>Asked per shot rather than baked into the plant at planting time, so the answer is the
+     * same on the tick the buff is switched on as it is for a plant that has been standing there
+     * for a minute - and so the plant's targeting search and the projectile's expiry, which are
+     * the same number in {@link com.pvzce.api.content.ProjectileRef#range}, cannot be told two
+     * different things.
+     */
+    public float sporeRangeMultiplier(PlantEntity plant) {
+        if (activeBuffs.isEmpty() || plant == null) {
+            return 1F;
+        }
+        if (!com.pvzce.common.buff.LevelBuffs.isSporeShooter(plant.def())) {
+            return 1F;
+        }
+        return com.pvzce.common.buff.LevelBuffs.sporeRangeMultiplier(activeBuffs);
+    }
+
+    /**
+     * Picks up resource drops on their own when a buff says so.
+     *
+     * <p>Runs after the drop entities have ticked, so a drop that is still falling has already
+     * moved and its collect animation starts from where the player last saw it.
+     */
+    private void tickAutoCollect() {
+        if (activeBuffs.isEmpty() || !com.pvzce.common.buff.LevelBuffs.autoCollects(activeBuffs)) {
+            if (!autoCollectTimers.isEmpty()) {
+                autoCollectTimers.clear();
+            }
+            return;
+        }
+        // One pass collects, the other prunes, and the pruning set is filled by the first: a
+        // drop that is gone takes its timer with it, so the map is exactly the drops still
+        // waiting rather than a growing list of everything that ever spawned.
+        java.util.Set<Integer> gone = new java.util.HashSet<>();
+        for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (!(entity instanceof ResourceDropEntity drop)) {
+                continue;
+            }
+            if (drop.isRemoved() || drop.collected()) {
+                gone.add(drop.id());
+                continue;
+            }
+            boolean ripe = autoCollectTimers.computeIfAbsent(drop.id(), id -> tickCount)
+                    + AUTO_COLLECT_DELAY_TICKS <= tickCount;
+            if (ripe) {
+                // The drop is not removed here - the collect path marks it and the next
+                // flushPending takes it off the field - so the id stays out of ``gone``.
+                collectResourceInternal(bridge, drop.id(), true, true);
+            }
+        }
+        if (!gone.isEmpty()) {
+            autoCollectTimers.keySet().removeAll(gone);
+        }
+    }
+
+    /**
+     * How long a drop lies there before the auto-pickup buff takes it.
+     *
+     * <p>A quarter of a second: long enough that the spawn packet and the collect packet are not
+     * in the same frame - which would make the sun a sunflower just produced never appear at all -
+     * and short enough that it still reads as "picked up", not "left lying around".
+     */
+    public static final int AUTO_COLLECT_DELAY_TICKS = 15;
+
     /**
      * The board description a client is given, for the level list and for the level init.
      *
@@ -1248,7 +1418,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // looks up in its own copy of the level file: the board it draws has to be the
                 // one this server is running, even for a level that client has never seen.
                 def.background().map(Identifier::toString).orElse(""),
-                def.hiddenSceneElements(), def.disableShaders());
+                def.hiddenSceneElements(), def.disableShaders(),
+                // The buffs the chooser may offer and the resolved cap, resolved here for the
+                // same reason the card pool is: the client is told what it may pick rather than
+                // working it out from its own copy of the level file.
+                seeds.buffPool(), seeds.maxBuffSlots(),
+                seeds.activeBuffs().stream().map(Identifier::toString).toList());
     }
 
     private void processMusicCues(ServerBridge bridge) {
@@ -1779,10 +1954,23 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public boolean collectResource(ServerBridge bridge, int entityId) {
-        return withBridge(bridge, () -> collectResourceInternal(bridge, entityId));
+        return withBridge(bridge, () -> collectResourceInternal(bridge, entityId, false, false));
     }
 
-    private boolean collectResourceInternal(ServerBridge bridge, int entityId) {
+    /**
+     * Collects one drop for the plant player.
+     *
+     * <p>The two flags are what the auto-pickup buff needed. {@code silent} drops the chat line:
+     * one "&lt;+25 阳光&gt;" per pickup is exactly right when the player clicked it and is spam
+     * when a buff is picking up ten a second. {@code auto} keeps the level's collection rules -
+     * {@code collectible}, the resource being unlocked here, and the matching card being in the
+     * bar - but <em>does not answer</em> when they refuse: a buff that announced "没有对应资源卡"
+     * every second would bury the board it is trying to help with. The sound, the sparkle and the
+     * fly-to-bank animation are unchanged, because those are what tell the player their sun
+     * arrived.
+     */
+    private boolean collectResourceInternal(ServerBridge bridge, int entityId, boolean silent,
+                                            boolean auto) {
         if (!gameState.equals(GameStateS2C.RUNNING) || !humanTeamId.equals(PvzceIds.PLANT_TEAM) || plantPlayer == null) {
             return false;
         }
@@ -1795,11 +1983,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
             if (!drop.def().collectibleWithoutCard()) {
                 if (!plantPlayer.team().canCollect(drop.defId())) {
-                    bridge.send(new ServerMessageS2C("该资源在本关未解锁。"));
+                    if (!auto) {
+                        bridge.send(new ServerMessageS2C("该资源在本关未解锁。"));
+                    }
                     return false;
                 }
                 if (!plantPlayer.hasResourceCard(drop.defId())) {
-                    bridge.send(new ServerMessageS2C("没有对应资源卡，无法收集。"));
+                    if (!auto) {
+                        bridge.send(new ServerMessageS2C("没有对应资源卡，无法收集。"));
+                    }
                     return false;
                 }
             }
@@ -1825,7 +2017,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(), drop.defId().toString(),
                     plantPlayer.team().resourcesOf(drop.defId())));
             String label = drop.defId().path().equals("sun") ? "阳光" : drop.defId().toString();
-            bridge.send(new ServerMessageS2C("+" + drop.amount() + " " + label));
+            if (!silent) {
+                bridge.send(new ServerMessageS2C("+" + drop.amount() + " " + label));
+            }
             return true;
         }
         return false;
@@ -2311,6 +2505,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // longer writes a second copy of the same data or a per-team side file.
         root.put("Teams", saveTeams());
         root.put("Slots", saveSlots());
+        // The buffs this run is played with, by id, so continuing a save continues the same
+        // rules. Written through the selection class because it is also what reads them back;
+        // the two halves of one file format do not get to live in two places.
+        com.pvzce.server.LevelBuffSelection.writeSaved(root, com.pvzce.server.LevelBuffSelection
+                .resolveIds(activeBuffs));
         root.put("Scene", saveScene());
         if (cardSource != null) {
             cardSource.save(root);
@@ -2403,6 +2602,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         clearEntitiesForRestore();
         tickCount = Math.max(0, root.getInt("Tick"));
+        // Before anything else that a buff could change: a restored run plays by the rules it
+        // was saved under, not by whatever the caller resolved a moment ago. A save that
+        // predates buffs has no list, and then the caller's resolution stands.
+        List<Identifier> savedBuffs = com.pvzce.server.LevelBuffSelection.readSavedTag(root);
+        if (savedBuffs != null) {
+            activeBuffs = com.pvzce.server.LevelBuffSelection.resolve(savedBuffs);
+        }
+        autoCollectTimers.clear();
         clock.setDayTicks(root.getLong("DayTicks"));
         waves.restore(root);
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));

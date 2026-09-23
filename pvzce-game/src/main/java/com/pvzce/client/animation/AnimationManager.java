@@ -190,10 +190,19 @@ public final class AnimationManager {
      * request resolves to one member of its family, and comparing the state against that
      * member would read as "not playing yet" on every frame and restart the corpse twenty
      * times a second.
+     *
+     * <p>A clip the state handed over to ({@code on_end: hide_loop}) is still that state's
+     * picture, so it counts as playing however it was reached - see
+     * {@link AnimationPlayback#isChained()}. This is what lets a two-clip action be one
+     * server state: the duck ends by handing over to the cry, and the cry is asked for by
+     * the same {@code "hide"} the duck was.
      */
     private static boolean isAlreadyPlaying(AnimationPlayback current, String state, String activeName) {
         if (!state.equals(current.requestedState())) {
             return false;
+        }
+        if (current.isChained()) {
+            return true;
         }
         if (!activeName.equals(current.activeName())) {
             // It handed over to another clip (to idle, or to its `next`), so this state is
@@ -226,7 +235,8 @@ public final class AnimationManager {
     }
 
     /** Internal on_end / next transition; preserves the requested state. */
-    AnimationPlayback switchClip(Animatable target, String activeName, String requestedState, double now) {
+    AnimationPlayback switchClip(Animatable target, String activeName, String requestedState, double now,
+                                 boolean chained) {
         AnimationPlayback current = playbacks.get(target);
         if (current == null || current.isStopped()) {
             return null;
@@ -236,6 +246,7 @@ public final class AnimationManager {
             return null;
         }
         AnimationPlayback playback = create(target, current.file(), clip.get(), requestedState, activeName, current, now);
+        playback.setChained(chained);
         playbacks.put(target, playback);
         return playback;
     }

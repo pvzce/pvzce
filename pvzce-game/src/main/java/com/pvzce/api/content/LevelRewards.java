@@ -76,6 +76,14 @@ public record LevelRewards(
      * of the resource {@code id}. An unknown type is not an error the codec can see, so
      * {@link com.pvzce.server.level.LevelValidator} reports it.
      *
+     * <p>{@code buff} hands over a level buff: {@code id} names one from
+     * {@code PvzceRegistries.LEVEL_BUFFS}, and the player may then switch it on in any level that
+     * offers a choice. It is a separate type rather than an {@code unlock} because the two are
+     * different bags - a card id and a buff id can look alike, and a level that meant to hand over
+     * a plant must not quietly hand over a rule instead. Like {@code unlock} it is idempotent and
+     * is paid on <em>any</em> clear that finds the buff still missing, so a world that cleared the
+     * level before the reward existed still gets it.
+     *
      * <p>{@code resource} is the third shape because a wallet can only hold one kind of
      * thing: a level that hands over a diamond hands over a coin worth 1000, and the two
      * halves are not interchangeable - "1000 coins" is a number, "a diamond" is an object
@@ -87,6 +95,7 @@ public record LevelRewards(
         public static final String TYPE_UNLOCK = "unlock";
         public static final String TYPE_COINS = "coins";
         public static final String TYPE_RESOURCE = "resource";
+        public static final String TYPE_BUFF = "buff";
 
         public static final Codec<Reward> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Codec.STRING.fieldOf("type").forGetter(Reward::type),
@@ -107,6 +116,11 @@ public record LevelRewards(
             return new Reward(TYPE_RESOURCE, Optional.of(id), amount);
         }
 
+        /** One level buff the player may now switch on. */
+        public static Reward buff(Identifier id) {
+            return new Reward(TYPE_BUFF, Optional.of(id), 0);
+        }
+
         public boolean isUnlock() {
             return TYPE_UNLOCK.equals(type);
         }
@@ -119,9 +133,13 @@ public record LevelRewards(
             return TYPE_RESOURCE.equals(type);
         }
 
+        public boolean isBuff() {
+            return TYPE_BUFF.equals(type);
+        }
+
         /** True when this entry names something the codec could not carry out. */
         public boolean isMalformed() {
-            if (isUnlock()) {
+            if (isUnlock() || isBuff()) {
                 return id.isEmpty();
             }
             if (isCoins()) {

@@ -73,12 +73,12 @@ public final class FormLayout {
     }
 
     public void drawHeading(PvzceClient client, Row row) {
-        client.font().draw(row.label(), row.bounds().x() + 2, row.bounds().y() + rowHeight / 2F - 5F,
+        client.fonts().body().draw(row.label(), row.bounds().x() + 2, row.bounds().y() + rowHeight / 2F - 5F,
                 0.82F, 1F, 1F, 1F, 1F);
     }
 
     public void drawLabel(PvzceClient client, Row row) {
-        client.font().draw(row.label(), row.bounds().x() + 2, row.bounds().y() + rowHeight / 2F - 4F,
+        client.fonts().body().draw(row.label(), row.bounds().x() + 2, row.bounds().y() + rowHeight / 2F - 4F,
                 0.72F, 0.88F, 0.92F, 0.96F, 1F);
     }
 

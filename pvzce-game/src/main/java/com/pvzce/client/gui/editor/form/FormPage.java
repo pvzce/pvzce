@@ -146,7 +146,7 @@ public final class FormPage implements EditorPage {
             fields.get(i).render(context, row);
         }
         if (!layout.fits(fields.size())) {
-            context.client().font().draw(
+            context.client().fonts().body().draw(
                     "字段比面板多：把窗口调大，或减少这一关的字段",
                     context.fullContent().x() + 6, context.fullContent().y() + 2F, 0.68F,
                     1F, 0.8F, 0.4F, 1F);

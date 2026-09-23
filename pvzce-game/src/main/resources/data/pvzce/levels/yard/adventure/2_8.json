@@ -295,5 +295,8 @@
     "coin_drop": "pvzce:coin_silver",
     "coin_drop_chance": 0.25,
     "coin_drop_amount": 1
-  }
+  },
+  "buffs": [
+    "pvzce:player_choice"
+  ]
 }

@@ -718,22 +718,22 @@ public final class LevelSelectScreen extends Screen {
         renderBackground(0.1F, 0.2F, 0.12F);
         String title = GuiLang.raw("pvzce.level_select", "选择关卡");
         float scale = Math.min(2.2F, client.guiHeight() / 100F);
-        client.font().draw(title, (client.guiWidth() - client.font().width(title, scale)) / 2F,
-                client.guiHeight() - client.font().lineHeight(scale) - 8, scale, 1F, 1F, 1F, 1F);
+        client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, scale)) / 2F,
+                client.guiHeight() - client.fonts().body().lineHeight(scale) - 8, scale, 1F, 1F, 1F, 1F);
         drawCoinCounter();
 
         // The theme column's own label, so the column reads as themes and not as an
         // unlabelled stripe of buttons.
         if (openTab != null) {
             String themeName = LevelPage.label(openTab.themeId(), UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT);
-            client.font().draw(themeName, themeColumnX, themeTop + 4, 0.8F, 0.85F, 0.9F, 0.75F, 1F);
+            client.fonts().body().draw(themeName, themeColumnX, themeTop + 4, 0.8F, 0.85F, 0.9F, 0.75F, 1F);
         }
 
         if (rows.isEmpty()) {
             String empty = levels.isEmpty()
                     ? GuiLang.raw("pvzce.loading", "载入中…")
                     : GuiLang.raw("pvzce.level_empty_page", "这个分类下还没有关卡");
-            client.font().draw(empty, (client.guiWidth() - client.font().width(empty, 1F)) / 2F,
+            client.fonts().body().draw(empty, (client.guiWidth() - client.fonts().body().width(empty, 1F)) / 2F,
                     (gridRenderTop + gridRenderBottom) / 2F, 1F, 0.9F, 0.9F, 0.9F, 1F);
         } else {
             renderRows();
@@ -788,7 +788,7 @@ public final class LevelSelectScreen extends Screen {
             float availableWidth = Math.max(30F, cardX + gridWidth - reservedRight - textX);
             String name = level.name().isEmpty() ? level.id() : level.name();
             float nameScale = 1.1F;
-            while (nameScale > 0.55F && client.font().width(name, nameScale) > availableWidth) {
+            while (nameScale > 0.55F && client.fonts().body().width(name, nameScale) > availableWidth) {
                 nameScale -= 0.05F;
             }
             // A locked row says what is missing instead of "未通关": the condition is the
@@ -797,20 +797,20 @@ public final class LevelSelectScreen extends Screen {
             if (locked && level.unlock().cost() > 0) {
                 status = status + "，或 " + level.unlock().cost() + " 金币";
             }
-            float nameY = cardY + rowHeight / 2F - client.font().lineHeight(nameScale) / 2F;
+            float nameY = cardY + rowHeight / 2F - client.fonts().body().lineHeight(nameScale) / 2F;
             if (!status.isEmpty()) {
                 nameY += 6F;
             }
-            client.font().draw(name, textX, nameY, nameScale,
+            client.fonts().body().draw(name, textX, nameY, nameScale,
                     locked ? 0.65F : 1F, locked ? 0.65F : 1F, locked ? 0.6F : 1F, 1F);
             if (!status.isEmpty()) {
-                client.font().draw(status, textX, cardY + rowHeight / 2F - 14F,
+                client.fonts().body().draw(status, textX, cardY + rowHeight / 2F - 14F,
                         0.7F, 1F, locked ? 0.6F : 0.9F, locked ? 0.4F : 0.5F, 1F);
             }
             if (selected) {
                 String id = level.id();
                 float idScale = 0.6F;
-                client.font().draw(id, cardX + gridWidth - reservedRight - client.font().width(id, idScale),
+                client.fonts().body().draw(id, cardX + gridWidth - reservedRight - client.fonts().body().width(id, idScale),
                         cardY + 5F, idScale, 0.7F, 0.72F, 0.65F, 1F);
             }
             if (trophyHeight > 0F) {
@@ -824,7 +824,7 @@ public final class LevelSelectScreen extends Screen {
         drawArrow(false, nextArrowX, nextArrowY, paging.hasNext(), nextHover);
 
         String pageText = paging.pageNumber() + "/" + paging.pageCount();
-        client.font().draw(pageText, (client.guiWidth() - client.font().width(pageText, 0.9F)) / 2F,
+        client.fonts().body().draw(pageText, (client.guiWidth() - client.fonts().body().width(pageText, 0.9F)) / 2F,
                 themeBottom - 18, 0.9F, 1F, 1F, 1F, 1F);
     }
 
@@ -937,8 +937,8 @@ public final class LevelSelectScreen extends Screen {
         float y = client.guiHeight() - iconSize - 8F;
         client.drawTexture(icon, x, y, iconSize, iconSize, 0.35F, 1F, 1F, 1F, 1F);
         String coins = String.valueOf(client.profile().coins());
-        client.font().draw(coins, x - client.font().width(coins, 1F) - 6F,
-                y + (iconSize - client.font().lineHeight(1F)) / 2F, 1F, 1F, 0.95F, 0.5F, 1F);
+        client.fonts().body().draw(coins, x - client.fonts().body().width(coins, 1F) - 6F,
+                y + (iconSize - client.fonts().body().lineHeight(1F)) / 2F, 1F, 1F, 0.95F, 0.5F, 1F);
     }
 
 }

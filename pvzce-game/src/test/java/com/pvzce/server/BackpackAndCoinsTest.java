@@ -62,10 +62,10 @@ class BackpackAndCoinsTest {
     @Test
     void aFreshProfileOwnsTheStarterPlantAndToolAndNothingElse() {
         PlayerProfile profile = PlayerProfile.starter();
-        assertTrue(profile.owns(PvzceIds.STARTER_PLANT), "the first level's only plant must be owned");
-        assertTrue(profile.owns(PvzceIds.STARTER_TOOL), "the shovel exists so a mistake can be undone");
-        assertFalse(profile.owns(id("sunflower")), "sunflower is earned by finishing 1-1");
-        assertFalse(profile.owns(id("wall_nut")));
+        assertTrue(profile.ownsCard(PvzceIds.STARTER_PLANT), "the first level's only plant must be owned");
+        assertTrue(profile.ownsCard(PvzceIds.STARTER_TOOL), "the shovel exists so a mistake can be undone");
+        assertFalse(profile.ownsCard(id("sunflower")), "sunflower is earned by finishing 1-1");
+        assertFalse(profile.ownsCard(id("wall_nut")));
         assertEquals(0, profile.coins());
     }
 
@@ -74,7 +74,7 @@ class BackpackAndCoinsTest {
         PlayerProfile profile = PlayerProfile.starter();
         // A level without its sun card cannot be played at all, so the backpack has
         // no say over resources - and an unknown id is not "locked" either.
-        assertTrue(profile.owns(PvzceIds.SUN));
+        assertTrue(profile.ownsCard(PvzceIds.SUN));
         assertFalse(SlotResolver.requiresUnlock(PvzceIds.SUN));
         assertTrue(SlotResolver.requiresUnlock(id("wall_nut")));
     }
@@ -88,9 +88,9 @@ class BackpackAndCoinsTest {
         PlayerProfile loaded = PlayerProfile.load(profile.save());
 
         assertEquals(275, loaded.coins());
-        assertTrue(loaded.owns(id("sunflower")));
-        assertTrue(loaded.owns(PvzceIds.STARTER_PLANT));
-        assertFalse(loaded.owns(id("chomper")));
+        assertTrue(loaded.ownsCard(id("sunflower")));
+        assertTrue(loaded.ownsCard(PvzceIds.STARTER_PLANT));
+        assertFalse(loaded.ownsCard(id("chomper")));
         assertFalse(loaded.unlocksEverything());
     }
 
@@ -117,8 +117,8 @@ class BackpackAndCoinsTest {
         PlayerProfile profile = PlayerProfile.unlockEverything();
         // The flag is the point: content added later is unlocked too, instead of the
         // world silently missing it because the list was frozen when it was created.
-        assertTrue(profile.owns(id("some_future_plant")));
-        assertTrue(profile.owns(id("wall_nut")));
+        assertTrue(profile.ownsCard(id("some_future_plant")));
+        assertTrue(profile.ownsCard(id("wall_nut")));
         assertTrue(PlayerProfile.load(profile.save()).unlocksEverything());
     }
 
@@ -170,9 +170,9 @@ class BackpackAndCoinsTest {
 
     @Test
     void aMissingOrEmptyRecordFallsBackToTheStarterProfile() {
-        assertTrue(PlayerProfile.load(new CompoundTag()).owns(PvzceIds.STARTER_PLANT),
+        assertTrue(PlayerProfile.load(new CompoundTag()).ownsCard(PvzceIds.STARTER_PLANT),
                 "a world that predates profiles must still be playable");
-        assertTrue(PlayerProfile.load(null).owns(PvzceIds.STARTER_TOOL));
+        assertTrue(PlayerProfile.load(null).ownsCard(PvzceIds.STARTER_TOOL));
     }
 
     @Test
@@ -327,7 +327,7 @@ class BackpackAndCoinsTest {
 
             Path profileFile = gameDir.resolve("saves/" + WORLD + "/profile.dat");
             harness.waitForFile(profileFile, 5_000);
-            assertTrue(PlayerProfile.load(NbtIo.readCompressed(profileFile)).owns(id("sunflower")),
+            assertTrue(PlayerProfile.load(NbtIo.readCompressed(profileFile)).ownsCard(id("sunflower")),
                     "the unlock must be on disk, not only in memory");
 
             // Replay: the card is already owned, so the level pays its coin stipend.
@@ -441,8 +441,17 @@ class BackpackAndCoinsTest {
             harness.awaitPacket(LevelInitS2C.class, 5_000);
 
             harness.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 5 2"));
-            EntitySpawnS2C spawned = harness.awaitPacket(EntitySpawnS2C.class, 5_000);
-            assertEquals("zombie", spawned.entityKind(), "the summoned zombie must reach the client");
+            // Waited for as *a zombie*, not as "whatever EntitySpawnS2C came last": a level with a
+            // sky drops sun on its own, and `awaitPacket` hands back the latest packet of a type -
+            // so this used to assert against a sun whenever one happened to fall inside the window.
+            harness.waitFor(packet -> packet instanceof EntitySpawnS2C spawn
+                            && "zombie".equals(spawn.entityKind()), 5_000,
+                    "the summoned zombie never reached the client");
+            EntitySpawnS2C spawned = harness.packets().stream()
+                    .filter(EntitySpawnS2C.class::isInstance)
+                    .map(EntitySpawnS2C.class::cast)
+                    .filter(spawn -> "zombie".equals(spawn.entityKind()))
+                    .findFirst().orElseThrow();
             harness.server().level().damageArea(ZombieEntity.damageType(PvzceIds.DAMAGE_ASH),
                     5.5F, 2.5F, 2F, 5_000, null);
             // The death is observed, not the counter: a dying zombie keeps its corpse on the

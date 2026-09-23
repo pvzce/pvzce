@@ -384,7 +384,7 @@ public final class PvzceServer implements Runnable {
         PlayerProfile profile = worlds.profileFor(safeWorld);
         Set<Identifier> cleared = clearedLevels(safeWorld);
         LevelUnlocks.Context unlockContext = new LevelUnlocks.Context(cleared,
-                profile.unlockedLevels(), profile::owns, profile.coins(), profile.unlocksEverything());
+                profile.unlockedLevels(), profile::ownsCard, profile.coins(), profile.unlocksEverything());
         List<LevelListS2C.LevelInfo> levels = new ArrayList<>();
         BuiltInRegistries.LEVELS.keySet().stream()
                 // Natural order, so 1-10 comes after 1-9 instead of after 1-1.
@@ -479,7 +479,7 @@ public final class PvzceServer implements Runnable {
      */
     private LevelUnlocks.Context unlockContext(String worldName, PlayerProfile profile) {
         return new LevelUnlocks.Context(clearedLevels(worldName),
-                profile.unlockedLevels(), profile::owns, profile.coins(), profile.unlocksEverything());
+                profile.unlockedLevels(), profile::ownsCard, profile.coins(), profile.unlocksEverything());
     }
 
     /**
@@ -514,7 +514,7 @@ public final class PvzceServer implements Runnable {
      * that changed between two of the calls.
      */
     public record ProfileSnapshot(String world, int coins, int cards, int levels, boolean sandbox,
-                                  int seedSlots) {
+                                  int seedSlots, int buffSlots, int autoBuffs) {
     }
 
     /**
@@ -529,7 +529,8 @@ public final class PvzceServer implements Runnable {
         PlayerProfile snapshot = worlds.profileFor(world);
         return new ProfileSnapshot(WorldPaths.sanitize(world), snapshot.coins(),
                 snapshot.unlockedIds().size(), snapshot.unlockedLevelIds().size(),
-                snapshot.unlocksEverything(), snapshot.seedSlots());
+                snapshot.unlocksEverything(), snapshot.seedSlots(), snapshot.buffSlots(),
+                snapshot.autoBuffs().size());
     }
 
     /**
@@ -548,6 +549,65 @@ public final class PvzceServer implements Runnable {
         connection.send(profilePacket(profile));
         return "世界 " + safeWorld + " 的卡槽数现在是 " + profile.seedSlots()
                 + "（关卡自己声明了 max_seed_slots 时以关卡为准）";
+    }
+
+    /**
+     * Sets the backpack's buff-slot count.
+     *
+     * <p>The buff twin of {@link #grantSeedSlots}, reached by {@code /profile buffslots <n>}:
+     * the count a level uses when it declares no {@code max_buff_slots} of its own.
+     */
+    public String grantBuffSlots(int slots) {
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
+        profile.setBuffSlots(slots);
+        worlds.saveProfile(safeWorld, profile);
+        refreshLevelList();
+        connection.send(profilePacket(profile));
+        return "世界 " + safeWorld + " 的增益槽现在是 " + profile.buffSlots()
+                + "（关卡自己声明了 max_buff_slots 时以关卡为准）";
+    }
+
+    /**
+     * Replaces this world's auto-enabled buff list.
+     *
+     * <p>Reached by {@code /profile buffs <id...>}, and by {@code /profile buffs} with nothing
+     * after it, which clears the list. It writes the same field the chooser writes when a run
+     * starts, so a smoke run or a level under test can be set up without clicking through a
+     * screen first.
+     */
+    public String setAutoBuffs(List<Identifier> buffs) {
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
+        profile.setAutoBuffs(buffs);
+        worlds.saveProfile(safeWorld, profile);
+        refreshLevelList();
+        connection.send(profilePacket(profile));
+        return profile.autoBuffs().isEmpty()
+                ? "世界 " + safeWorld + " 的自动启用增益已清空"
+                : "世界 " + safeWorld + " 的自动启用增益：" + profile.autoBuffIds();
+    }
+
+    /**
+     * Hands this world a level buff without making it clear the level that gives it.
+     *
+     * <p>Reached by {@code /profile buff <id>}. The same door the reward from 1-9 / 2-9 opens -
+     * {@link PlayerProfile#unlockBuff} is the other half - so a smoke run or a level under test can
+     * have the unlocked pool without a full playthrough.
+     */
+    public String grantBuff(Identifier buff) {
+        if (buff == null || !com.pvzce.common.buff.LevelBuffs.isRegistered(buff)) {
+            return "未找到增益 " + buff;
+        }
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
+        boolean granted = profile.unlockBuff(buff);
+        worlds.saveProfile(safeWorld, profile);
+        refreshLevelList();
+        connection.send(profilePacket(profile));
+        return granted
+                ? "世界 " + safeWorld + " 已获得增益 " + buff
+                : "世界 " + safeWorld + " 早就有增益 " + buff + " 了";
     }
 
     /**
@@ -595,10 +655,11 @@ public final class PvzceServer implements Runnable {
         return currentWorld != null ? currentWorld : "world";
     }
 
-    /** The wallet, card slots and unlocks, in the one shape the client understands. */
+    /** The wallet, card slots, buff slots and unlocks, in the one shape the client understands. */
     private static ProfileS2C profilePacket(PlayerProfile profile) {
         return new ProfileS2C(profile.coins(), profile.unlockedIds(), profile.unlocksEverything(),
-                profile.unlockedLevelIds(), profile.seedSlots());
+                profile.unlockedLevelIds(), profile.seedSlots(), profile.buffSlots(),
+                profile.autoBuffIds());
     }
 
     /**
@@ -730,6 +791,16 @@ public final class PvzceServer implements Runnable {
      */
     private void createLevel(String levelId, String worldName, LevelIntent intent,
                              List<Identifier> requestedSeeds) {
+        createLevel(levelId, worldName, intent, requestedSeeds, null);
+    }
+
+    /**
+     * @param requestedBuffs the buffs the client's chooser had switched on, or {@code null} for
+     *                       every entry point that has no chooser behind it - in which case the
+     *                       world's auto list decides (see {@code LevelBuffSelection.plan})
+     */
+    private void createLevel(String levelId, String worldName, LevelIntent intent,
+                             List<Identifier> requestedSeeds, List<Identifier> requestedBuffs) {
         Identifier id = Identifier.parse(levelId);
         LevelDef def = BuiltInRegistries.LEVELS.get(id);
         if (def == null) {
@@ -792,8 +863,26 @@ public final class PvzceServer implements Runnable {
         boolean selfDealt = com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
         List<Identifier> seeds = SeedSelection.plan(def, profile, requestedSeeds, saveDir, loadSave,
                 selfDealt);
+        // Resolved here rather than in the level, because "continue a save" and "the player's
+        // world-wide auto list" are both things a level instance cannot know. The list is then
+        // remembered as the world's new auto list - see below.
+        List<Identifier> buffs = LevelBuffSelection.planForRun(def, profile.buffSlots(),
+                requestedBuffs, profile.autoBuffs(), saveDir, loadSave, profile::ownsBuff);
 
-        LevelServer newLevel = new LevelServer(def, seeds, LevelServer.SeedContext.forProfile(def, profile));
+        LevelServer newLevel = new LevelServer(def, seeds,
+                LevelServer.SeedContext.forProfile(def, profile), buffs);
+        // "The buffs I last went in with." Written from the resolved list, so a buff the level
+        // refused never becomes a preference and a buff the level pinned joins it for the levels
+        // that leave the choice open. Skipped while a save is being loaded: that run's buffs were
+        // chosen in an earlier session and are not a fresh statement about what the player wants.
+        if (!loadSave) {
+            LevelBuffSelection.rememberAutoBuffs(profile, buffs);
+            // Told to the client right away rather than left for the next menu: this list is what
+            // the *next* chooser pre-selects, and a client that only learns it after the level
+            // list happens to refresh would open the next buff page empty. Same reason every other
+            // profile change sends the packet.
+            connection.send(profilePacket(profile));
+        }
         // Entering/restarting a level always starts at the normal 60tps speed.
         tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE);
 
@@ -967,6 +1056,7 @@ public final class PvzceServer implements Runnable {
         connection.send(new LevelRewardS2C(id.toString(), payout.collected(), payout.bonus(),
                 profile.coins(),
                 payout.unlocked() == null ? "" : payout.unlocked().toString(),
+                payout.unlockedBuff() == null ? "" : payout.unlockedBuff().toString(),
                 payout.item() == null ? "" : payout.item().toString(), payout.itemAmount(),
                 current.lastKillX(), current.lastKillY(), payout.mowers(), payout.mowerCoins()));
         connection.send(profilePacket(profile));
@@ -1013,7 +1103,8 @@ public final class PvzceServer implements Runnable {
                 // like any other entry with a save. From the save prompt's 重新开始
                 // (restart=true) the player has already turned that save down.
                 LevelIntent intent = play.restart() ? LevelIntent.PLAY_OVER_SAVE : LevelIntent.PLAY;
-                createLevel(play.levelId(), play.worldName(), intent, seedIds(play.selectedSeeds()));
+                createLevel(play.levelId(), play.worldName(), intent, seedIds(play.selectedSeeds()),
+                        seedIds(play.selectedBuffs()));
             } else if (packet instanceof RequestLevelListC2S request) {
                 lastRequestedWorld = request.worldName();
                 sendLevelList(request.worldName());

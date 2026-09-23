@@ -46,10 +46,10 @@ public class EditBox extends AbstractWidget {
             SpriteRenderer.solid(x, y, width, 2, 0, focused ? 0.9F : 0.4F, focused ? 0.9F : 0.4F,
                     focused ? 0.5F : 0.4F, 1F);
         }
-        client.font().draw(value, x + 6, y + (height - client.font().lineHeight(0.9F)) / 2F, 0.9F,
+        client.fonts().body().draw(value, x + 6, y + (height - client.fonts().body().lineHeight(0.9F)) / 2F, 0.9F,
                 1F, 1F, 1F, 1F);
         if (focused && (System.nanoTime() / 500_000_000L) % 2 == 0) {
-            float cursorX = x + 6 + client.font().width(value, 0.9F);
+            float cursorX = x + 6 + client.fonts().body().width(value, 0.9F);
             SpriteRenderer.solid(cursorX, y + 8, 2, height - 16, 0, 1F, 1F, 1F, 0.9F);
         }
     }
