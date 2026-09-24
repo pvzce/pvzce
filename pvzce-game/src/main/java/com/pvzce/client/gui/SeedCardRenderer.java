@@ -171,9 +171,13 @@ public final class SeedCardRenderer {
                     : String.valueOf(Math.max(0, model.costSun()));
         };
         if (!label.isEmpty()) {
+            // The packet's footer is the game's own numeral face, the same one the sun bank
+            // counts in - the original prints both in one face, and at this size the display
+            // face's sturdier strokes are what stay legible over the packet art.
             float labelScale = Math.max(0.4F, Math.min(0.78F, width / 90F));
             float ink = 0.03F + 0.20F * brightness;
-            client.fonts().body().draw(label, x + (width - client.fonts().body().width(label, labelScale)) / 2F,
+            client.fonts().button().draw(label,
+                    x + (width - client.fonts().button().width(label, labelScale)) / 2F,
                     y + height * LABEL_BOTTOM, labelScale, ink, ink * 0.62F, ink * 0.22F, alpha);
         }
 

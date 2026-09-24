@@ -33,11 +33,16 @@ import java.util.function.IntSupplier;
  * </ul>
  *
  * <h2>The y coordinate</h2>
- * {@code y} is the <em>top of the line box</em>, exactly as it was for the old
- * bitmap renderer: call sites pass the top of the box they laid out and this
- * class derives the baseline from real font metrics. {@link #draw} returns the
- * top of the next line, and {@link #drawLines} advances through a list, so
- * stacking call sites do not repeat the arithmetic.
+ * {@code y} is the <em>baseline</em> the line sits on, exactly as it was for the old
+ * bitmap renderer: every layout in this project was spaced against that anchor, so a
+ * label centred in a box, a plate sized around a line and a block of stacked lines all
+ * keep meaning what they meant. The old renderer anchored there by construction - it
+ * placed the ink's bottom edge at {@code y + (baselineRow - inkBottomRow)}, which is
+ * {@code y} itself once the overshoot below the baseline is accounted for - and the TTF
+ * rewrite kept every call site's arithmetic, so this class has to keep that meaning.
+ * {@link #draw} returns the next line's baseline and {@link #drawLines} advances through
+ * a list, so stacking call sites do not repeat the arithmetic; {@link #ascent} is how
+ * far a line reaches above that baseline, which is what a caller needs to centre one.
  *
  * <p>Not thread safe: everything here runs on the render thread.
  */
@@ -51,33 +56,60 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Logical em size of the body role at scale 1, in GUI units.
      *
-     * <p>Calibrated against the bitmap atlas this replaced, which drew a 98px font into
-     * 18-unit lines: its full-width "中" advanced 16.9 units and its ink was about 22
-     * units tall. 思源黑体's own "中" is 0.69em wide and 0.67em tall, so an em of 72
-     * units reproduces both - 16.5 units of advance and 21.7 of ink. Getting this wrong
-     * is not subtle: at the first attempt (em 20) a CJK glyph was 5 units tall and every
-     * label read as a solid black blob.
+     * <p>Calibrated against the bitmap atlas this replaced, which drew a 98px font
+     * into 18-unit lines: its em was 98 x 18/128 = 13.8 GUI units and a full-width
+     * hanzi carried 94px of ink, i.e. 13.2 units - and every layout in this project is
+     * spaced against those numbers. The bundled body face draws a hanzi at 0.919 of
+     * its em, so an em of 14 reproduces the ink height (12.9 units) almost exactly.
+     *
+     * <p>What it does not reproduce is the old line box: that was 18 units, while this
+     * face's own typographic line is exactly 1.0em, so {@code lineHeight(1)} is 14 now
+     * and stacked lines sit closer together than they used to. Getting this wrong is
+     * not subtle - at 72 (the first TTF attempt) a hanzi was 66 units tall and every
+     * label drew as a solid block the size of its button.
      */
-    private static final float BODY_EM = 72F;
+    static final float BODY_EM = 14F;
     /**
-     * The display face is larger, because 站酷快乐体's hanzi are drawn smaller on their em
-     * than 思源黑体's: at em 76 its ink is 15 units where the body face reaches 21.7, so
-     * the display role asks for more to land at the same optical size.
+     * The display face asks for a larger em than the body face, because its hanzi are
+     * drawn smaller on the em (0.808 against 0.919): 1.14 is what makes the two roles
+     * *optically* the same size rather than numerically the same size. At the same em
+     * the display face would look about an eighth smaller than the body face beside it.
      */
-    private static final float DISPLAY_EM = 90F;
-    /** Long-form serif text reads at the body size. */
-    private static final float SERIF_EM = 72F;
+    static final float DISPLAY_EM = BODY_EM * 1.14F;
+    /** The serif face's hanzi are 0.916 of its em, so long-form prose reads at the body size. */
+    static final float SERIF_EM = BODY_EM;
     /**
      * Below this many device pixels 站酷快乐体's strokes merge into a blob, so the
      * display role quietly switches to 思源黑体: readability beats house style.
      * 16 device pixels is roughly where the two stop being distinguishable.
      */
     private static final int DISPLAY_MIN_PIXELS = 16;
-
-
-    private static int GL30_TEXTURE_BINDING_2D() {
-        return org.lwjgl.opengl.GL11.GL_TEXTURE_BINDING_2D;
-    }
+    /**
+     * One atlas texel, in texture coordinates.
+     *
+     * <p>A glyph is rasterised at exactly the size it is drawn at, so a texel is one
+     * device pixel - which is what lets an effect's offset be turned from GUI units
+     * into a sampling distance. The shader's offsets are uv deltas, not pixels: handing
+     * it raw device pixels samples the far side of the page rather than the next texel.
+     */
+    private static final float TEXEL = 1F / GlyphPage.SIZE;
+    /**
+     * How far a shadow or an outline may sample, in device pixels.
+     *
+     * <p>The atlas gutter, because that is all the room a glyph has that is guaranteed
+     * to be transparent: a halo that reads further finds the glyph packed next door and
+     * paints a ghost of it. At a GUI scale above {@code GUTTER} this caps the effect
+     * below the offset that was asked for, which is the right trade - a thinner halo
+     * beats a neighbour's strokes appearing around this one.
+     */
+    private static final float MAX_EFFECT_PIXELS = GlyphPage.GUTTER;
+    /**
+     * How far a bold glyph is grown, in device pixels.
+     *
+     * <p>One is the smallest amount that reads as bold and the most a stroke can gain without
+     * closing the counters of a hanzi at the sizes the UI asks for.
+     */
+    private static final float BOLD_PIXELS = 1F;
 
     private final FontFace displayFace;
     private final FontFace sansFace;
@@ -137,7 +169,7 @@ public final class FontRenderer implements AutoCloseable {
 
     // ---------- drawing ----------
 
-    /** Draws one line (or several, split on {@code \n}) and returns the next line's top. */
+    /** Draws one line (or several, split on {@code \n}) and returns the next line's baseline. */
     public float draw(String text, float x, float y, float scale, float r, float g, float b, float a) {
         return draw(text, x, y, scale, r, g, b, a, TextStyle.NONE);
     }
@@ -174,7 +206,7 @@ public final class FontRenderer implements AutoCloseable {
         return cursor;
     }
 
-    /** Draws centred on {@code centerX} and returns the next line's top. */
+    /** Draws centred on {@code centerX} and returns the next line's baseline. */
     public float drawCentered(String text, float centerX, float y, float scale,
                               float r, float g, float b, float a) {
         return drawCentered(body, text, centerX, y, scale, r, g, b, a, TextStyle.NONE);
@@ -187,7 +219,7 @@ public final class FontRenderer implements AutoCloseable {
                 r, g, b, a, style);
     }
 
-    /** Draws with the right edge at {@code rightX} and returns the next line's top. */
+    /** Draws with the right edge at {@code rightX} and returns the next line's baseline. */
     public float drawRight(FontFamily family, String text, float rightX, float y, float scale,
                            float r, float g, float b, float a, TextStyle style) {
         return draw(family, text, rightX - width(family, text, scale), y, scale, r, g, b, a, style);
@@ -229,8 +261,9 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Line height, in GUI units: what a stacked line advances by. Rounded to a whole
-     * unit, like the bitmap renderer's line height was.
+     * The baseline step between stacked lines, in GUI units: the distance from one line's
+     * baseline to the next one's, which is what a caller stacking text advances by.
+     * Rounded to a whole unit, like the bitmap renderer's line height was.
      */
     public int lineHeight(float scale) {
         return lineHeight(body, scale);
@@ -243,15 +276,21 @@ public final class FontRenderer implements AutoCloseable {
                 / Math.max(1, guiScale.getAsInt()));
     }
 
-    /** The baseline offset from the top of the line box, in GUI units. */
+    /**
+     * How far a line reaches above its baseline, in GUI units.
+     *
+     * <p>The counterpart of the {@code y} a draw takes: the top of a line whose baseline is
+     * {@code y} is {@code y + ascent}, so a caller centring one line in a box of its own
+     * uses this and {@link #lineHeight} together.
+     */
     public float ascent(float scale) {
         return ascent(body, scale);
     }
 
-    /** The baseline offset for an explicit role, in GUI units. */
+    /** The ascent above the baseline for an explicit role, in GUI units. */
     public float ascent(FontFamily family, float scale) {
         int size = devicePixelSize(family, scale);
-        return family.baselineFromTop(size) / Math.max(1, guiScale.getAsInt());
+        return family.ascent(size) / Math.max(1, guiScale.getAsInt());
     }
 
     // ---------- legacy helpers ----------
@@ -414,41 +453,67 @@ public final class FontRenderer implements AutoCloseable {
         if (glyph == null) {
             return;
         }
-        float baseline = y - family.ascent(size) * toGui;
-        float left = x + glyph.visualLeft() * toGui;
-        float bottom = baseline - glyph.visualBottom() * toGui;
-        float width = glyph.width() * toGui;
-        float height = glyph.height() * toGui;
-        renderGlyph(glyph, left, bottom, width, height, r, g, b, a, style, shadow, outline, toGui);
+        // `y` is the baseline itself - see the class comment. Deriving one from the font's
+        // ascent instead (as "the top of the line box") would drop every line in the game by
+        // one ascent, which is a whole line's worth of drift for the 240-odd call sites that
+        // centre text in a box.
+        renderGlyph(textureOf(glyph), GlyphQuad.of(glyph, x, y, toGui),
+                r, g, b, a, style, shadow, outline, toGui);
     }
 
-    /** One glyph quad, with the shader effect uniforms set for it. */
-    private void renderGlyph(GlyphRef glyph, float x, float y, float width, float height,
+    /** One glyph quad, drawn once per layer it needs: halo, bold core, or just the fill. */
+    private void renderGlyph(com.pvzce.client.renderer.texture.Texture texture, GlyphQuad quad,
                              float r, float g, float b, float a, TextStyle style,
                              boolean shadow, boolean outline, float toGui) {
+        boolean effected = shadow || outline;
         if (shadow) {
             RenderSystem.setTextEffects(true, 1F,
-                    style.shadowOffsetX() / toGui, style.shadowOffsetY() / toGui,
+                    effectOffset(style.shadowOffsetX() / toGui), effectOffset(style.shadowOffsetY() / toGui),
                     style.shadowR(), style.shadowG(), style.shadowB());
+            drawQuad(texture, quad, r, g, b, a);
         } else if (outline) {
             // The outline branch ignores the shadow colour: the shader only uses one
             // of the two effects at a time, because a shadow under an outline is
             // invisible anyway.
-            RenderSystem.setTextEffects(true, 2F,
-                    style.outlineThickness() / toGui, style.outlineThickness() / toGui,
+            float thickness = effectOffset(style.outlineThickness() / toGui);
+            RenderSystem.setTextEffects(true, 2F, thickness, thickness,
                     style.outlineR(), style.outlineG(), style.outlineB());
+            drawQuad(texture, quad, r, g, b, a);
         }
-        SpriteRenderer.texturedRegion(textureOf(glyph),
-                glyph.slot().u0(), glyph.slot().v0(), glyph.slot().u1(), glyph.slot().v1(),
-                x, y, width, height, 0F, r, g, b, a);
-        if (shadow || outline) {
+        // The core, last so it sits over the inside of its own halo. Bold makes this pass the
+        // glyph *dilated* in the ink colour rather than a plain fill: the shader's outline branch
+        // samples one texel out in all four directions and paints that as ink, which thickens
+        // every stroke by the same amount on every side. A translated second copy - the usual
+        // faux bold - was the first attempt here and reads as two glyphs printed over each other,
+        // because at these stroke widths a shift is a shift, not a thickening.
+        RenderSystem.setTextEffects(style.hasBold(), 2F, BOLD_PIXELS * TEXEL, BOLD_PIXELS * TEXEL,
+                r, g, b);
+        drawQuad(texture, quad, r, g, b, a);
+        if (effected || style.hasBold()) {
             RenderSystem.setTextEffects(false, 0F, 0F, 0F, 1F, 1F, 1F);
         }
+    }
+
+    /** One textured glyph quad, in GUI units, at the layer the effect uniforms describe. */
+    private static void drawQuad(com.pvzce.client.renderer.texture.Texture texture, GlyphQuad quad,
+                                 float r, float g, float b, float a) {
+        SpriteRenderer.texturedRegion(texture, quad.u0(), quad.v0(), quad.u1(), quad.v1(),
+                quad.left(), quad.bottom(), quad.width(), quad.height(), 0F, r, g, b, a);
     }
 
     /** The atlas page as a {@link Sprite}-compatible texture handle. */
     private static com.pvzce.client.renderer.texture.Texture textureOf(GlyphRef glyph) {
         return glyph.slot().page().texture();
+    }
+
+    /**
+     * A device-pixel effect offset as the uv delta the shader samples at, capped at
+     * {@link #MAX_EFFECT_PIXELS}. Signed, because a shadow's direction is the sign of
+     * its offset.
+     */
+    private static float effectOffset(float devicePixels) {
+        float capped = Math.max(-MAX_EFFECT_PIXELS, Math.min(MAX_EFFECT_PIXELS, devicePixels));
+        return capped * TEXEL;
     }
 
     private static FontFace load(PvzceResourceManager resources, String file) {
@@ -471,5 +536,44 @@ public final class FontRenderer implements AutoCloseable {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read bundled font " + file, e);
         }
+    }
+}
+
+/**
+ * Where one glyph goes, in GUI units, and which texels of the atlas it shows.
+ *
+ * <p>Split out of the draw loop as pure geometry: "does a glyph land on the baseline
+ * its metrics asked for, and does it show the ink the right way up" is then a
+ * question a test can ask without a GL context, by sampling an atlas with these UVs.
+ * {@link FontRenderer} is the only caller.
+ *
+ * @param left   left edge of the ink, from the pen origin (already scaled)
+ * @param bottom y of the ink's bottom edge, in the caller's space (y grows upwards, so
+ *               this is usually below the baseline's y - see {@link #of})
+ * @param u0     atlas coordinate of the ink's left edge
+ * @param v0     atlas coordinate of the ink's bottom edge
+ * @param u1     atlas coordinate of the ink's right edge
+ * @param v1     atlas coordinate of the ink's top edge
+ */
+record GlyphQuad(float left, float bottom, float width, float height,
+                 float u0, float v0, float u1, float v1) {
+
+    /**
+     * @param penX    where the pen is, in GUI units
+     * @param anchorY the y a caller passed to the renderer: the line's baseline, which is
+     *                what the ink is placed against (see the class comment)
+     * @param toGui   GUI units per device pixel, for the glyph's device-pixel metrics
+     */
+    static GlyphQuad of(GlyphRef glyph, float penX, float anchorY, float toGui) {
+        return new GlyphQuad(
+                penX + glyph.visualLeft() * toGui,
+                // visualBottom is a signed offset from the baseline in the same up-positive
+                // sense as the GUI's y: zero for a glyph that sits on the baseline, negative
+                // for ink that hangs below it. So the ink's bottom edge is the baseline plus
+                // that offset, and a comma ends up under the line instead of through it.
+                anchorY + glyph.visualBottom() * toGui,
+                glyph.width() * toGui,
+                glyph.height() * toGui,
+                glyph.slot().u0(), glyph.slot().v0(), glyph.slot().u1(), glyph.slot().v1());
     }
 }

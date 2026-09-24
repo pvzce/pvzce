@@ -75,6 +75,12 @@ public final class PvzceClient {
     private PvzceResourceManager resources;
     private TextureManager textures;
     private Fonts fonts;
+    /**
+     * The last frame, kept small for a screen that wants the view it was opened over as a blurred
+     * backdrop - see {@link com.pvzce.client.renderer.BlurredBackdrop}.
+     */
+    private final com.pvzce.client.renderer.BlurredBackdrop blurredBackdrop =
+            new com.pvzce.client.renderer.BlurredBackdrop();
     private SoundEngine sound;
     private PvzceMusicController music;
     private AnimationManager animations;
@@ -299,6 +305,7 @@ public final class PvzceClient {
             sound.close();
         }
         textures.close();
+        blurredBackdrop.close();
         window.close();
     }
 
@@ -1214,7 +1221,17 @@ public final class PvzceClient {
 
     /** Nests a screen on top of the current one; the screen below stays alive. */
     public void openScreen(Screen screen) {
+        if (screen == null || screen.blurredBackdrop()) {
+            // Captured here, not at draw time: the back buffer still holds the frame the player is
+            // looking at right now, and the incoming screen is about to paint over it.
+            blurredBackdrop.capture(window.width(), window.height());
+        }
         screens.push(screen);
+    }
+
+    /** The blurred frame a screen was opened over; see {@link com.pvzce.client.renderer.BlurredBackdrop}. */
+    public com.pvzce.client.renderer.BlurredBackdrop backdrop() {
+        return blurredBackdrop;
     }
 
     /**

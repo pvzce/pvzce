@@ -124,10 +124,11 @@ public final class RenderSystem {
      * Per-glyph text outline or drop shadow. {@code mode} is 1 for a drop shadow and
      * 2 for an outline; anything else turns the effect off.
      *
-     * <p>The offsets are in atlas texels rather than GUI units because {@code uv} is
-     * interpolated per fragment: one texel of offset is one device pixel of effect
-     * however the glyph quad was scaled, so the outline keeps a constant visual
-     * weight at every text scale.
+     * <p>The offsets are uv deltas, so they do not depend on how the glyph quad was
+     * scaled: one texel of offset is one device pixel of effect at every text size.
+     * {@code FontRenderer} converts its GUI-unit offsets into that space and caps them
+     * at the atlas gutter, beyond which the sample would land on the glyph packed next
+     * door.
      */
     public static void setTextEffects(boolean enabled, float mode, float offsetX, float offsetY,
                                       float r, float g, float b) {

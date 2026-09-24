@@ -15,8 +15,9 @@ import java.util.List;
  * @param slot         atlas page and texel rectangle
  * @param advance      pen movement, device pixels
  * @param visualLeft   left edge of the ink relative to the pen origin
- * @param visualTop    top of the ink, above the baseline (positive up)
- * @param visualBottom bottom of the ink, below the baseline (positive down)
+ * @param visualTop    top of the ink, above the baseline
+ * @param visualBottom bottom of the ink: 0 on the baseline, negative below it
+ *                     (a signed offset in the up-positive sense; see {@link Glyph})
  */
 record GlyphRef(FontFace face, GlyphPage.Slot slot, float advance, float visualLeft,
                 float visualTop, float visualBottom) {
@@ -148,7 +149,8 @@ final class FontFamily {
     }
 
     /**
-     * Baseline-to-top of a line, in device pixels.
+     * Baseline-to-top of a line, in device pixels: how far the line box reaches above the
+     * baseline every draw anchors on.
      *
      * <p>Always from the primary face, even when the size is below
      * {@link #minimumPrimaryPixels}: the fallback swaps one legible face for
@@ -158,26 +160,9 @@ final class FontFamily {
         return primary.ascent(devicePixelSize);
     }
 
-    /** Baseline-to-bottom of a line, in device pixels. */
+    /** Baseline-to-bottom of a line, in device pixels: the descent below the anchor. */
     float descent(int devicePixelSize) {
         return primary.descent(devicePixelSize);
-    }
-
-    /**
-     * The distance from the top of a line box to its baseline, in device pixels:
-     * the font's ascent.
-     *
-     * <p>Call sites hand the renderer the top of the box they want text in, exactly
-     * as they did for the bitmap font this replaced, so {@code draw}'s y is the top
-     * of the line and the baseline is derived here instead of being spelled out at
-     * 260 call sites. Ascent above plus descent below is the line height, so a box
-     * that is {@code lineHeight(scale)} tall holds exactly one line with the ink
-     * between its edges - no leading, because the bundled faces publish typographic
-     * metrics of 880/-120 per em and nothing is gained by adding space the font did
-     * not ask for.
-     */
-    float baselineFromTop(int devicePixelSize) {
-        return ascent(devicePixelSize);
     }
 
     /** Frees this role's atlas pages, keeping the loaded font. */

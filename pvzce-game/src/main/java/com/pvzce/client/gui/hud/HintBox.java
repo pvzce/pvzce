@@ -50,9 +50,15 @@ public final class HintBox {
     private static final float BORDER_G = 0.55F;
     private static final float BORDER_B = 0.52F;
     private static final float BORDER_ALPHA = 0.55F;
-    private static final float TEXT_R = 0.97F;
-    private static final float TEXT_G = 0.97F;
-    private static final float TEXT_B = 0.88F;
+    /**
+     * The line's colour: the original's golden-orange hint lettering, which is what makes a
+     * hint read as the game talking rather than as another label. Kept bright enough to hold
+     * up against the sunlit lawn, and against the night lawn it is the only warm thing on
+     * screen - which is exactly how the original's own hint bar behaves.
+     */
+    private static final float TEXT_R = 1.0F;
+    private static final float TEXT_G = 0.651F;
+    private static final float TEXT_B = 0.149F;
 
     /** How long the box takes to appear and to leave, in seconds. */
     private static final float FADE_SECONDS = 0.18F;

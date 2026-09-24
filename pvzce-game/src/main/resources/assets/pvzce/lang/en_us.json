@@ -1,4 +1,9 @@
 {
+  "pvzce.announce.final_wave": "FINAL WAVE",
+  "pvzce.announce.huge_wave": "A huge wave of zombies is approaching!",
+  "pvzce.announce.plant": "Plant!",
+  "pvzce.announce.ready": "Ready...",
+  "pvzce.announce.set": "Set...",
   "pvzce.auto_collect": "Auto Pickup",
   "pvzce.award.buff_hint": "pick it before a run",
   "pvzce.award.coins": "Coins +{0}",

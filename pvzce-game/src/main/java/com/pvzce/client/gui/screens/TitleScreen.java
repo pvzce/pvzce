@@ -83,7 +83,7 @@ public final class TitleScreen extends Screen {
         int x = centerX(buttonWidth);
         for (int i = 0; i < labels.length; i++) {
             int y = blockTop - buttonHeight - i * (buttonHeight + gap);
-            addWidget(new Button(x, y, buttonWidth, buttonHeight, labels[i], actions[i]).scale(1.1F));
+            addWidget(new Button(x, y, buttonWidth, buttonHeight, labels[i], actions[i]));
         }
 
         // Title and subtitle sit in the space left above the button block,

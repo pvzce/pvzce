@@ -16,7 +16,18 @@ public final class SettingsScreen extends Screen {
 
     @Override
     protected void init() {
-        client.music().ensureMenu("pvzce:music/crazy_dave");
+        // A menu theme only when no level is loaded. The controller keeps four independent tracks,
+        // so a menu request made from inside a level does not replace the level's music - it plays
+        // *with* it, which is what "open the settings from the pause menu" used to sound like.
+        // Opened over a level this page now leaves that level's music alone (the level is paused,
+        // not over, and the pause dialog does not silence it either).
+        //
+        // `initialized` rather than a null check: the client's level mirror is one long-lived
+        // object (`new ClientLevel()` at construction), so it is never null - it is reset empty
+        // when a level is left.
+        if (client.music() != null && !client.level().initialized()) {
+            client.music().ensureMenu("pvzce:music/crazy_dave");
+        }
         int guiH = client.guiHeight();
         int buttonWidth = Math.min(320, client.guiWidth() - 24);
         int titleReserve = Math.max(40, Math.min(72, guiH / 4));
@@ -35,14 +46,23 @@ public final class SettingsScreen extends Screen {
         };
         for (int i = 0; i < labels.length; i++) {
             int y = buttonTop - buttonHeight - i * (buttonHeight + gap);
-            addWidget(new Button(x, y, buttonWidth, buttonHeight, labels[i], actions[i]).scale(1.1F));
+            addWidget(new Button(x, y, buttonWidth, buttonHeight, labels[i], actions[i]));
         }
+    }
+
+    @Override
+    public boolean blurredBackdrop() {
+        return true;
     }
 
     @Override
     public void render() {
         client.beginGuiView();
-        renderBackground(0.08F, 0.1F, 0.12F);
+        // The frame this page was opened over, blurred: a settings page is a page *over* whatever
+        // the player was doing, and the menu art behind it has nothing to do with that.
+        if (!renderBlurredBackdrop(0.10F, 0.11F, 0.14F, 0.62F)) {
+            renderBackground(0.08F, 0.1F, 0.12F);
+        }
         String title = "设置";
         client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, titleScale)) / 2F,
                 titleY, titleScale, 1, 1, 1, 1);

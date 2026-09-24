@@ -526,16 +526,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     protected void init() {
         int width = client.guiWidth();
         int height = client.guiHeight();
+        // Pause is the rightmost thing on the bar and the tallest; the speed button sits to its
+        // left, matching its height so the pair reads as one row, and narrower because "1x" is two
+        // glyphs where "暂停" is two hanzi wide.
         int pauseWidth = Math.min(154, width / 3);
         int pauseHeight = Math.min(56, height / 5);
-        int speedWidth = Math.min(72, Math.max(52, width / 8));
-        int speedHeight = Math.min(36, Math.max(24, height / 12));
-        int speedX = width - speedWidth - 12;
-        speedButton = new Button(speedX, height - pauseHeight - 12 + (pauseHeight - speedHeight) / 2,
-                speedWidth, speedHeight, speedLabel(), this::cycleSpeed);
-        int pauseX = Math.max(12, speedX - pauseWidth - 8);
+        int speedWidth = Math.min(64, Math.max(44, width / 10));
+        int pauseX = Math.max(12, width - pauseWidth - 12);
         pauseButton = new Button(pauseX, height - pauseHeight - 12,
                 pauseWidth, pauseHeight, "暂停", this::openPause);
+        int speedX = Math.max(12, pauseX - speedWidth - 8);
+        speedButton = new Button(speedX, height - pauseHeight - 12,
+                speedWidth, pauseHeight, speedLabel(), this::cycleSpeed);
         addWidget(speedButton);
         addWidget(pauseButton);
         pauseDialog = PauseDialog.create(client);
@@ -2157,9 +2159,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             client.drawTexture(SUN_BANK, CardBarLayout.bankX(), bankY,
                     CardBarLayout.BANK_WIDTH, CardBarLayout.BANK_HEIGHT, 0.1F, 1F, 1F, 1F, 1F);
             String sunText = String.valueOf(client.level().sun());
-            client.fonts().body().draw(sunText,
+            // The count is drawn in the display face, like the rest of the game's numbers in
+            // this HUD: the sun bank is the original's own piece of chrome, and its digits are
+            // what a player reads at a glance while planting.
+            client.fonts().button().draw(sunText,
                     CardBarLayout.bankX()
-                            + (CardBarLayout.BANK_WIDTH - client.fonts().body().width(sunText, 1F)) / 2F,
+                            + (CardBarLayout.BANK_WIDTH - client.fonts().button().width(sunText, 1F)) / 2F,
                     bankY + CardBarLayout.BANK_HEIGHT * 0.08F, 1F, 0.12F, 0.07F, 0.03F, 1F);
         }
         renderCoinBank();
@@ -2319,7 +2324,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     public float rightBound() {
-        return (pauseButton != null ? pauseButton.x() : client.guiWidth() - 12) - 8F;
+        // The left edge of the *pair* of HUD buttons, not of the pause button: the speed button
+        // sits immediately to its left now, so a bar that ran up to the pause button's edge would
+        // run under the speed button.
+        int leftmost = speedButton != null ? speedButton.x()
+                : pauseButton != null ? pauseButton.x() : client.guiWidth() - 12;
+        return leftmost - 8F;
     }
 
     @Override
@@ -2611,7 +2621,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             }
             alpha = 1F - sinceEnd / WAVE_WARNING_FADE_SECONDS;
         }
-        String warning = "一大波僵尸正在接近！";
+        // The huge-wave warning is text like every other line, and reads its words from the lang
+        // pack: it used to be a hardcoded string that no locale or resource pack could reach.
+        String warning = com.pvzce.client.gui.GuiLang.raw("pvzce.announce.huge_wave", "一大波僵尸即将来袭");
         // Fitted to the window rather than to a fixed scale: the line is eleven full-width
         // glyphs, so a scale picked from the window height alone ran off both edges at
         // 16:9 - the message was wider than the screen it was warning about.

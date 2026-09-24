@@ -3,6 +3,8 @@ package com.pvzce.client.sound;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.network.packet.MusicEventS2C;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Locale;
 
@@ -15,6 +17,7 @@ import java.util.Locale;
  * explicitly changed; one-shot tracks return to silence when they finish.</p>
  */
 public final class PvzceMusicController {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Music");
     /**
      * The track names are the wire values the server sends ({@link MusicEventS2C}), spelled
      * the same way in level data - one list of them instead of three copies.
@@ -105,6 +108,7 @@ public final class PvzceMusicController {
         int track = trackIndex(trackName);
         if (stop || event == null || event.isEmpty()) {
             stopCue(trackName, Math.max(0F, fadeSeconds));
+            trace(trackName, "(stop)");
             return;
         }
         TrackState state = tracks[track];
@@ -127,6 +131,24 @@ public final class PvzceMusicController {
         }
         sound.playOnMusicSource(incomingSource, event, safeFade > 0F && state.currentSource >= 0 ? 0F : safeVolume, loop);
         state.beginFade(incomingSource, event, loop, safeVolume, safeFade, now());
+        trace(trackName, event);
+    }
+
+    /**
+     * One line per track change, with what every track is playing.
+     *
+     * <p>For {@code -Dpvzce.traceMusic}: the four tracks are independent, so "two songs at once" is
+     * a thing that happens without anything failing - a screen that asks for a menu theme while a
+     * level is running gets both. That is invisible in a screenshot and only audible to whoever is
+     * at the machine, which is what this line is for. Same family as {@code pvzce.traceSounds}.
+     */
+    private void trace(String trackName, String event) {
+        if (!Boolean.getBoolean("pvzce.traceMusic")) {
+            return;
+        }
+        LOGGER.info("music trace: {} = {} | menu={}, background={}, battle={}, stinger={}",
+                trackName, event, currentEvent(TRACK_MENU), currentEvent(TRACK_BACKGROUND),
+                currentEvent(TRACK_BATTLE), currentEvent(TRACK_STINGER));
     }
 
     /** Stops a track; an in-progress fade completes before the new cue starts. */

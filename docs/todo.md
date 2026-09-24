@@ -70,3 +70,23 @@
 奖励解锁），需要一个新的包与一处 `LevelServer.activeBuffs` 的写入口 ——
 现在那个字段只在构造与 `restore` 时被写，`sporeRangeMultiplier` 每发射一次都重读，
 所以"中途改了立刻生效"这半边已经成立。
+
+## 5. 旧的烘焙字体图集还躺在资源里
+
+`assets/pvzce/font/ui.png`（16384×7168 RGBA，18MB）与 `ui.json`（7131 个字形）现在**没有任何代码读**：
+文字已经在运行时从 TTF 光栅化（见 `架构-客户端.md` 的字体一节），`tools/generate_font_atlas.py` 也只服务于这两个文件。
+留着它们的唯一作用是当"旧观感的对照物"——em 标定就是拿它的 98px 字 / 18 单位行算出来的。真要清掉时是三个文件的删除
+（`ui.png`、`ui.json`、那个生成脚本），failsafe 是 `FontRenderer` 已经在缺字体时抛 `Missing bundled font assets/pvzce/font/<file>.ttf`，
+不会静默回落到图集；对照数字届时抄进常量注释即可（现在也抄了）。
+
+## 6. 逐字号的字形缓存没有淘汰，只有"整页重来"
+
+`FontFace` 的字形缓存以 `(码点, 设备像素尺寸)` 为键，页面满了（4 页）就 `recycle()` 全部丢掉重光栅。
+一屏文字装不满一页，所以现状够用；但"同一个面以很多不同字号画很多不同的字"（编辑器里缩放预览、mod 自己传 scale）
+会让缓存反复重建。要做的话是 LRU + 页内空洞回收，而不是加页数 —— 加页数只是把问题推后，显存却是实打实的。
+
+## 7. 横幅用的四张原版贴图已经没人引用
+
+`assets/pvzce/textures/gui/hud/announce/{ready,set,plant,final_wave}.png`：开场三拍与最终波现在是**文本**
+（`BannerAnimation` 走 `assets/pvzce/lang` 的 `pvzce.announce.*`，见 `架构-客户端.md`），这四张图只剩"原版长什么样"的
+参照价值。真要清掉时是四个文件的删除，没有代码引用；`zombies_won.png` 在同一个目录里但**仍在用**（失败画面），别一起删。

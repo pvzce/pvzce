@@ -45,7 +45,7 @@ public final class ShaderProgram implements Closeable {
             uniform int uShadowMode;              // 1 = projected entity shadow pass
             uniform vec4 uShadowColor;            // shadow tint (rgb) + opacity
             uniform int uTextEffect;              // 0 = none, 1 = drop shadow, 2 = outline
-            uniform vec2 uTextOffset;             // shadow offset / outline thickness, in texels
+            uniform vec2 uTextOffset;             // shadow offset / outline thickness, in uv
             uniform vec3 uTextEffectColor;
             in vec4 vColor;
             in vec2 vUV;
@@ -62,15 +62,18 @@ public final class ShaderProgram implements Closeable {
                 }
                 if (uTextEffect != 0) {
                     // Text effects work on the glyph's coverage, not its colour: the
-                    // atlas is single channel, so the ink is the alpha of the sample.
-                    // One fragment shader pass beats the old approach of drawing the
-                    // whole string again per effect, which smeared CJK strokes together
-                    // as soon as the copies were offset by a whole pixel.
-                    float ink = tex.r * vColor.a;
+                    // atlas holds white ink whose alpha is the glyph's coverage, so a
+                    // sample's alpha is how much of the glyph is here. (The ordinary
+                    // branch below reads the same channel, which is what keeps a plain
+                    // glyph and an outlined one the same shape.) One fragment shader
+                    // pass beats the old approach of drawing the whole string again per
+                    // effect, which smeared CJK strokes together as soon as the copies
+                    // were offset by a whole pixel.
+                    float ink = tex.a * vColor.a;
                     if (uTextEffect == 1) {
                         // Shadow behind a clean glyph: the offset sample only fills in
                         // where the glyph itself has no ink.
-                        float behind = texture(uTexture, vUV - uTextOffset).r * vColor.a;
+                        float behind = texture(uTexture, vUV - uTextOffset).a * vColor.a;
                         float shadowAlpha = max(behind - ink, 0.0);
                         vec3 shadowPremul = uTextEffectColor * shadowAlpha;
                         vec3 inkPremul = vColor.rgb * ink;
@@ -83,10 +86,10 @@ public final class ShaderProgram implements Closeable {
                     // Outline: the halo is the sample's coverage minus the glyph's own,
                     // so the strokes keep their shape instead of fattening, and the
                     // result is identical for Latin and CJK.
-                    float around = texture(uTexture, vUV + vec2(uTextOffset.x, 0.0)).r;
-                    around = max(around, texture(uTexture, vUV - vec2(uTextOffset.x, 0.0)).r);
-                    around = max(around, texture(uTexture, vUV + vec2(0.0, uTextOffset.y)).r);
-                    around = max(around, texture(uTexture, vUV - vec2(0.0, uTextOffset.y)).r);
+                    float around = texture(uTexture, vUV + vec2(uTextOffset.x, 0.0)).a;
+                    around = max(around, texture(uTexture, vUV - vec2(uTextOffset.x, 0.0)).a);
+                    around = max(around, texture(uTexture, vUV + vec2(0.0, uTextOffset.y)).a);
+                    around = max(around, texture(uTexture, vUV - vec2(0.0, uTextOffset.y)).a);
                     float halo = max(around * vColor.a - ink, 0.0);
                     vec3 premul = uTextEffectColor * halo + vColor.rgb * ink;
                     float alpha = halo + ink * (1.0 - halo);
@@ -193,9 +196,11 @@ public final class ShaderProgram implements Closeable {
     }
 
     /**
-     * Per-glyph text effect, in atlas texels. Disabled by default; the text renderer turns
-     * it on for one glyph at a time and off again, so a sprite drawn in between is
-     * unaffected.
+     * Per-glyph text effect, with both offsets in texture coordinates (one glyph texel
+     * is {@code 1/2048}, and a texel is a device pixel because a glyph is rasterised at
+     * the size it is drawn at - the text renderer does that conversion and caps the
+     * distance at the atlas gutter). Disabled by default; the text renderer turns it on
+     * for one glyph at a time and off again, so a sprite drawn in between is unaffected.
      *
      * @param outline false = drop shadow, true = outline
      * @param offsetX shadow's x offset / the outline's horizontal thickness

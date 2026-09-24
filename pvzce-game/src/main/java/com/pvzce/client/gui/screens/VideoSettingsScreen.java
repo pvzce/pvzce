@@ -204,9 +204,18 @@ public final class VideoSettingsScreen extends Screen {
     }
 
     @Override
+    public boolean blurredBackdrop() {
+        return true;
+    }
+
+    @Override
     public void render() {
         client.beginGuiView();
-        renderBackground(0.08F, 0.1F, 0.12F);
+        // The frame this page was opened over, blurred: a settings page is a page *over* whatever
+        // the player was doing, and the menu art behind it has nothing to do with that.
+        if (!renderBlurredBackdrop(0.10F, 0.11F, 0.14F, 0.62F)) {
+            renderBackground(0.08F, 0.1F, 0.12F);
+        }
         String title = "视频设置";
         client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, titleScale)) / 2F,
                 titleY, titleScale, 1, 1, 1, 1);

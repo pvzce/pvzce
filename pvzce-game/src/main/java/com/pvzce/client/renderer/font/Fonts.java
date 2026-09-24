@@ -18,11 +18,13 @@ import java.util.function.IntSupplier;
  * }</pre>
  *
  * <h2>Coordinates</h2>
- * {@code y} is the top of the line box, exactly as it was for the bitmap renderer
- * this replaced, so existing layouts keep meaning what they meant. Every draw
- * method returns the top of the <em>next</em> line, so a caller that stacks text
- * does not repeat that arithmetic. {@link FontRole#lineHeight(float)} is the step
- * between lines and {@link FontRole#ascent(float)} the baseline offset from the top.
+ * {@code y} is the <em>baseline</em> the line sits on, exactly as it was for the bitmap
+ * renderer this replaced - every layout here was spaced against that anchor, so a label
+ * centred in a box and a plate sized around a line keep meaning what they meant. A line
+ * reaches {@link FontRole#ascent(float)} above its baseline, and {@link
+ * FontRole#lineHeight(float)} is the step from one baseline to the next. Every draw
+ * method returns the <em>next</em> line's baseline, so a caller that stacks text does not
+ * repeat that arithmetic.
  */
 public final class Fonts implements AutoCloseable {
     private final FontRenderer renderer;
@@ -105,7 +107,7 @@ public final class Fonts implements AutoCloseable {
 
         // ---------- drawing ----------
 
-        /** Draws one line (or several, split on {@code \n}) and returns the next line's top. */
+        /** Draws one line (or several, split on {@code \n}) and returns the next line's baseline. */
         public float draw(String text, float x, float y, float scale, float r, float g, float b, float a) {
             return renderer.draw(family, text, x, y, scale, r, g, b, a, TextStyle.NONE);
         }
@@ -116,7 +118,7 @@ public final class Fonts implements AutoCloseable {
             return renderer.draw(family, text, x, y, scale, r, g, b, a, style);
         }
 
-        /** Draws centred on {@code centerX} and returns the next line's top. */
+        /** Draws centred on {@code centerX} and returns the next line's baseline. */
         public float drawCentered(String text, float centerX, float y, float scale,
                                   float r, float g, float b, float a) {
             return renderer.drawCentered(family, text, centerX, y, scale, r, g, b, a, TextStyle.NONE);
@@ -128,13 +130,13 @@ public final class Fonts implements AutoCloseable {
             return renderer.drawCentered(family, text, centerX, y, scale, r, g, b, a, style);
         }
 
-        /** Draws with the right edge at {@code rightX} and returns the next line's top. */
+        /** Draws with the right edge at {@code rightX} and returns the next line's baseline. */
         public float drawRight(String text, float rightX, float y, float scale,
                                float r, float g, float b, float a) {
             return renderer.drawRight(family, text, rightX, y, scale, r, g, b, a, TextStyle.NONE);
         }
 
-        /** Draws already-broken lines, one per entry, and returns the next line's top. */
+        /** Draws already-broken lines, one per entry, and returns the next line's baseline. */
         public float drawLines(List<String> lines, float x, float y, float scale,
                                float r, float g, float b, float a) {
             return renderer.drawLines(family, lines, x, y, scale, r, g, b, a, TextStyle.NONE);
@@ -147,7 +149,7 @@ public final class Fonts implements AutoCloseable {
         }
 
         /**
-         * Wraps to {@code maxWidth}, draws the result and returns the next line's top.
+         * Wraps to {@code maxWidth}, draws the result and returns the next line's baseline.
          * The one call for long prose: the same wrap that {@link #wrapLines} does,
          * so a bubble that measured its lines draws exactly those lines.
          */
@@ -170,12 +172,12 @@ public final class Fonts implements AutoCloseable {
             return renderer.width(family, text, scale);
         }
 
-        /** Line height in GUI units: the step between stacked lines. */
+        /** The step between stacked baselines, in GUI units. */
         public int lineHeight(float scale) {
             return renderer.lineHeight(family, scale);
         }
 
-        /** Baseline offset from the top of the line box, in GUI units. */
+        /** How far a line reaches above its baseline, in GUI units. */
         public float ascent(float scale) {
             return renderer.ascent(family, scale);
         }

@@ -15,10 +15,13 @@ import java.util.Map;
  *
  * <p>Everything here speaks <em>font units at the requested pixel size</em>: a
  * glyph is rasterised on demand into an 8-bit alpha bitmap, and the metrics are
- * whatever stb_truetype reports scaled to that size. Sizes are device pixels
- * (framebuffer pixels), not GUI pixels - the caller decides how many device
- * pixels a line of text is worth, and this class answers "what does that look
- * like" for one glyph at a time.
+ * whatever stb_truetype reports scaled to that size. That size is the em box -
+ * outlines, advances and kerning all scale by {@code pixelSize / unitsPerEm}, so
+ * "font size 40" means the same thing for every face and matches the ascent and
+ * descent a line is laid out with. Sizes are device pixels (framebuffer pixels),
+ * not GUI pixels - the caller decides how many device pixels a line of text is
+ * worth, and this class answers "what does that look like" for one glyph at a
+ * time.
  *
  * <p>Not thread safe: glyph rasterisation touches the font's internal state, and
  * the whole renderer is single-threaded.
@@ -69,14 +72,20 @@ final class TtfFace implements AutoCloseable {
      *
      * <p>Never closed: a face is a session-long resource, and the process-wide cache
      * is what keeps {@code stbtt_InitFont} from being called again.
+     *
+     * <p>The cache key is the file name without its extension: the game names the
+     * asset itself and asks for {@code zhanku}, while a test is just as likely to ask
+     * for {@code zhanku.ttf}, and both have to land on the same instance - loading one
+     * font twice in a process is the one thing this cache exists to prevent.
      */
     static synchronized TtfFace of(String name, byte[] bytes) {
-        TtfFace existing = LOADED.get(name);
+        String key = name.endsWith(".ttf") ? name.substring(0, name.length() - 4) : name;
+        TtfFace existing = LOADED.get(key);
         if (existing != null) {
             return existing;
         }
-        TtfFace created = new TtfFace(name, bytes);
-        LOADED.put(name, created);
+        TtfFace created = new TtfFace(key, bytes);
+        LOADED.put(key, created);
         return created;
     }
 
@@ -164,8 +173,23 @@ final class TtfFace implements AutoCloseable {
             IntBuffer advanceWidth = stack.mallocInt(1);
             IntBuffer leftSideBearing = stack.mallocInt(1);
             STBTruetype.stbtt_GetGlyphHMetrics(info, glyph, advanceWidth, leftSideBearing);
-            return advanceWidth.get(0) * STBTruetype.stbtt_ScaleForPixelHeight(info, pixelSize);
+            return advanceWidth.get(0) * scaleFor(pixelSize);
         }
+    }
+
+    /**
+     * Font units to pixels at {@code pixelSize}: the em is exactly that many pixels.
+     *
+     * <p>Not {@code stbtt_ScaleForPixelHeight}, which scales the font's <em>hhea</em>
+     * line box to the requested size - 1160/-288, i.e. 1.448em, for every Noto face
+     * bundled here - so the same call would give the body face glyphs 1.448x smaller
+     * than the display face's at the same size, while {@link #ascent} and
+     * {@link #descent} below (which come from OS/2 and are what every caller lays text
+     * out with) describe a line of exactly one em. One requested size has to mean one
+     * thing for the metrics and the outlines together, and that thing is the em box.
+     */
+    private float scaleFor(float pixelSize) {
+        return pixelSize / unitsPerEm;
     }
 
     /** Baseline-to-top of a line, in pixels at {@code pixelSize}. */
@@ -201,11 +225,10 @@ final class TtfFace implements AutoCloseable {
         if (glyph == 0) {
             return null;
         }
-        // stb's "scale for pixel height" is exactly 1/unitsPerEm in the fixed-point
-        // domain, i.e. the em box is `pixelSize` tall. Hinting is on: at the sizes the
-        // UI uses (16-40 device pixels) it is the difference between crisp and mushy
-        // CJK strokes.
-        float scale = STBTruetype.stbtt_ScaleForPixelHeight(info, pixelSize);
+        // The em is `pixelSize` tall, so the glyph comes out at the size the layout
+        // asked for (see scaleFor). Hinting is on: at the sizes the UI uses (16-40
+        // device pixels) it is the difference between crisp and mushy CJK strokes.
+        float scale = scaleFor(pixelSize);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer advanceWidth = stack.mallocInt(1);
             IntBuffer leftSideBearing = stack.mallocInt(1);
@@ -244,8 +267,7 @@ final class TtfFace implements AutoCloseable {
         if (left == 0 || right == 0) {
             return 0F;
         }
-        return STBTruetype.stbtt_GetGlyphKernAdvance(info, left, right)
-                * STBTruetype.stbtt_ScaleForPixelHeight(info, pixelSize);
+        return STBTruetype.stbtt_GetGlyphKernAdvance(info, left, right) * scaleFor(pixelSize);
     }
 
     /**

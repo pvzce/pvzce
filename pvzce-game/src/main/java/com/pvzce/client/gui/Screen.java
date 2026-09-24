@@ -109,6 +109,28 @@ public abstract class Screen {
         return null;
     }
 
+    /**
+     * True when this screen wants the frame it was opened over, blurred, behind it.
+     *
+     * <p>For screens that are a page *over* something the player was looking at - the settings
+     * pages are the ones that exist today. It is off by default because most screens are a place of
+     * their own with their own background, and a screen that asks for it but was never opened over
+     * anything (the first screen of a session) falls back to {@link #renderBackground}.
+     */
+    public boolean blurredBackdrop() {
+        return false;
+    }
+
+    /**
+     * Draws the blurred frame this screen was opened over, with a flat tint over it, and answers
+     * whether there was one. The tint matters: a blurred game view is still busy enough to fight
+     * text. Callers fall back to {@link #renderBackground} when this returns false.
+     */
+    protected boolean renderBlurredBackdrop(float tintR, float tintG, float tintB, float tintA) {
+        return client.backdrop().render(client.guiWidth(), client.guiHeight(),
+                tintR, tintG, tintB, tintA);
+    }
+
     /** When true, {@link #renderBackground} scales the image to cover the window instead of stretching it. */
     protected boolean backgroundCover() {
         return false;

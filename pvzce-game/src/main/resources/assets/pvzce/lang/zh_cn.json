@@ -1,4 +1,9 @@
 {
+  "pvzce.announce.final_wave": "最后一波攻势",
+  "pvzce.announce.huge_wave": "一大波僵尸即将来袭",
+  "pvzce.announce.plant": "植物！",
+  "pvzce.announce.ready": "准备…",
+  "pvzce.announce.set": "安放…",
   "pvzce.auto_collect": "自动拾取",
   "pvzce.award.buff_hint": "选卡时可以带上它",
   "pvzce.award.coins": "金币 +{0}",

@@ -29,12 +29,18 @@ import java.util.Map;
  * Rebuilding is cheap - the next frame re-rasterises only what it draws.
  */
 final class FontFace {
-    /** Pages per face before the atlas is recycled. Four pages is ~3800 CJK glyphs at 36px. */
+    /**
+     * Pages per face before the atlas is recycled. Each 2048x2048 page holds a few
+     * thousand hanzi at the sizes the UI asks for (an em is 14-56 device pixels, and a
+     * cell is that plus {@link GlyphAtlas#GUTTER}), so this is a guard against unbounded
+     * growth rather than a working set that has to be managed.
+     */
     private static final int MAX_PAGES = 4;
     /**
-     * Ceiling on the rasterisation size, in device pixels. The UI asks for 15-40;
-     * this only matters on an extreme window scale, where drawing a slightly soft
-     * glyph beats reserving a page per 160px character.
+     * Ceiling on the rasterisation size, in device pixels. The UI asks for 14-60; this
+     * only matters on an extreme window scale, where drawing a slightly soft glyph beats
+     * reserving a page per 160px character. Measuring and drawing clamp the same way, so
+     * a clamped glyph still advances by the width it reports.
      */
     private static final int MAX_DEVICE_PIXEL_SIZE = 160;
 
