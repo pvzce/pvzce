@@ -4,6 +4,7 @@ import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.WavePacingData;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
+import com.pvzce.common.level.mechanic.BudgetPlanner;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
@@ -437,10 +438,15 @@ public final class WaveDirector {
         openingGateTicks = 0;
         openingGateHoldTicks = holdTicks;
 
-        List<Identifier> zombies = expandEntries(wave.entries());
+        WavePacingData.Pace pace = pacing.forWave(waveIndex + 1);
+        List<Identifier> zombies = pace.mode() == WavePacingData.WaveMode.BUDGET
+                ? BudgetPlanner.plan(pace, wave.entries(), host.random())
+                : expandEntries(wave.entries());
         Collections.shuffle(zombies, host.random());
         pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(),
-                effectiveSpawnInterval(wave), holdTicks, waveIndex));
+                effectiveSpawnInterval(wave), holdTicks, waveIndex,
+                pace.isStockpile() ? pace.maxAlive() : 0,
+                pacing.earlyKillDelayFactor()));
         // The arc is what this wave set out to send, and it is the number the survival-ratio
         // gate takes its share of. Written here, where the composition is known.
         arcByWave.put(waveIndex, zombies.size());
@@ -563,6 +569,15 @@ public final class WaveDirector {
                 iterator.remove();
                 continue;
             }
+            // A stockpile wave holds a presence rather than a pace: while fewer than
+            // `max_alive` of its own zombies are standing it releases proportionally faster, and
+            // at the cap it waits for one of them to die. Zero means the cap is reached, which is
+            // not a reason to touch the counter - it simply does not run down.
+            int stockpileScale = stockpileScale(queue);
+            if (stockpileScale == 0) {
+                continue;
+            }
+            boolean gateExpired = false;
             if (queue.ticksUntilNext > 0) {
                 // A gated queue is waiting for the zombie it released: the next one is due the
                 // moment that zombie dies. Either way the wait ends with the counter at zero,
@@ -571,10 +586,20 @@ public final class WaveDirector {
                 // exactly like an interval of 1200 would.
                 boolean previousDied = queue.waitsForPrevious()
                         && queue.gateZombieId >= 0 && !host.zombieAlive(queue.gateZombieId);
+                queue.ticksUntilNext--;
                 if (previousDied) {
+                    // The zombie this queue was waiting for is gone: the next one is due now.
                     queue.ticksUntilNext = 0;
-                } else {
-                    queue.ticksUntilNext--;
+                } else if (queue.waitsForPrevious() && queue.ticksUntilNext <= 0) {
+                    // The death gate ran out rather than being answered - that is the whole point
+                    // of it being a cap, and the zombie it waited for took too long. It spawns on
+                    // this tick, and the wait armed below is the tightened one, which is what
+                    // stops an opening wave from becoming a stall.
+                    gateExpired = true;
+                } else if (queue.ticksUntilNext > 0) {
+                    // An interval, still running. It fires on the tick *after* it reaches zero,
+                    // which is the one-tick boundary every shipped wave table is written against:
+                    // a 300-tick interval releases every 301 ticks.
                     continue;
                 }
             }
@@ -588,7 +613,18 @@ public final class WaveDirector {
                 aliveByWave.merge(queue.waveIndex, 1, Integer::sum);
             }
             queue.gateZombieId = queue.waitsForPrevious() && spawned != null ? spawned.id() : -1;
-            queue.ticksUntilNext = queue.waitsForPrevious() ? queue.holdTicks : queue.intervalTicks;
+            // One tick above the wait, because the counter is decremented on the tick after it is
+            // armed and the spawn lands when it reaches zero: a 300-tick interval releases every
+            // 301 ticks and a 1200-tick cap holds for 1201, which is the boundary every shipped
+            // wave table's `delay` is written against. The gate that just expired is the one case
+            // where the cap itself was already spent, so it arms the next (tightened) one.
+            int wait = queue.waitsForPrevious()
+                    ? (gateExpired ? queue.tightenedHold() : queue.holdTicks)
+                    : queue.intervalTicks;
+            queue.ticksUntilNext = wait + 1;
+            if (stockpileScale > 1) {
+                queue.ticksUntilNext = Math.max(1, queue.ticksUntilNext / stockpileScale);
+            }
             if (queue.zombies.isEmpty()) {
                 iterator.remove();
                 // The queue is gone but the wave is not: its deaths are still what the next
@@ -597,6 +633,28 @@ public final class WaveDirector {
             }
         }
         host.flushPending();
+    }
+
+    /**
+     * How much faster a stockpile wave may release, or zero when it may not release at all.
+     *
+     * <p>The written interval divided by this, so a wave that is one zombie short of a cap of
+     * eight releases in an eighth of the time and one at its cap releases at exactly the pace the
+     * author wrote. The divisor is capped by the interval itself, which is what stops "one zombie
+     * per tick" from being something a level can ask for by writing a cap of sixty.
+     *
+     * <p>Waves in any other mode return one, and a wave with no cap never stops: this is a faster
+     * <em>trickle</em>, not a spawner that refills the lawn the moment one zombie dies.
+     */
+    private int stockpileScale(PendingWaveSpawn queue) {
+        if (!queue.waitsForStock()) {
+            return 1;
+        }
+        int alive = aliveOfWave(queue.waveIndex);
+        if (alive >= queue.maxAlive) {
+            return 0;
+        }
+        return Math.max(1, Math.min(queue.intervalTicks, queue.maxAlive - alive));
     }
 
     private static List<Identifier> expandEntries(List<WaveDef.Entry> entries) {
@@ -731,6 +789,7 @@ public final class WaveDirector {
             queueTag.putInt("TicksUntilNext", queue.ticksUntilNext);
             queueTag.putInt("HoldTicks", queue.holdTicks);
             queueTag.putInt("WaveIndex", queue.waveIndex);
+            queueTag.putInt("MaxAlive", queue.maxAlive);
             // The zombie the gate is waiting for is deliberately not written: entity ids come
             // from a process-wide counter, so a restored id may name a different zombie (or
             // none at all). A resumed queue waits out its cap instead of trusting a number
@@ -854,7 +913,9 @@ public final class WaveDirector {
                             ? queueTag.getInt("IntervalTicks")
                             : WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS,
                     Math.max(0, queueTag.getInt("HoldTicks")),
-                    Math.max(0, queueTag.getInt("WaveIndex")));
+                    Math.max(0, queueTag.getInt("WaveIndex")),
+                    Math.max(0, queueTag.getInt("MaxAlive")),
+                    pacing.earlyKillDelayFactor());
             queue.rowIndex = Math.max(0, queueTag.getInt("RowIndex"));
             queue.ticksUntilNext = Math.max(0, queueTag.getInt("TicksUntilNext"));
             pendingWaveSpawns.add(queue);
@@ -878,27 +939,56 @@ public final class WaveDirector {
         private final ArrayDeque<Identifier> zombies;
         private final List<Integer> rows;
         private final int intervalTicks;
-        /** Ticks to wait for the previously released zombie, or 0 to use the interval. */
-        private final int holdTicks;
+        /**
+         * Ticks to wait for the previously released zombie, or 0 to use the interval.
+         *
+         * <p>Mutable because the death gate tightens every time it runs out; see
+         * {@link #tightenedHold()}.
+         */
+        private int holdTicks;
         /** Which wave this queue belongs to, for the per-wave zombie counts. */
         private final int waveIndex;
+        /** How many of this wave's zombies may stand at once, or 0 for no stockpile. */
+        private final int maxAlive;
+        /** What the death gate's cap is multiplied by each time it runs out. */
+        private final float holdDecay;
         private int rowIndex;
         private int ticksUntilNext;
         /** The zombie this queue is waiting for, or -1 when it is not waiting for one. */
         private int gateZombieId = -1;
 
         private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows, int intervalTicks,
-                                 int holdTicks, int waveIndex) {
+                                 int holdTicks, int waveIndex, int maxAlive, float holdDecay) {
             this.zombies = new ArrayDeque<>(zombies);
             this.rows = rows;
             this.intervalTicks = Math.max(1, intervalTicks);
             this.holdTicks = Math.max(0, holdTicks);
             this.waveIndex = waveIndex;
+            this.maxAlive = Math.max(0, maxAlive);
+            this.holdDecay = holdDecay > 0F && holdDecay < 1F ? holdDecay : 1F;
         }
 
         /** True when this queue waits for the zombie it just released. */
         private boolean waitsForPrevious() {
             return holdTicks > 0;
+        }
+
+        /** True when this queue holds a presence on the lawn rather than a pace. */
+        private boolean waitsForStock() {
+            return maxAlive > 0;
+        }
+
+        /**
+         * Tightens the cap, and answers the tighter one.
+         *
+         * <p>Every expiry multiplies the cap by {@code early_kill_delay_factor}, so wave 1's
+         * twenty seconds become fifteen, eleven, eight… by the fifth zombie. The floor is one
+         * second: below that the gate stops being a gate, and a level that wants no gate at all
+         * writes {@code "hold_until_dead": 0}.
+         */
+        private int tightenedHold() {
+            holdTicks = Math.max(60, Math.round(holdTicks * holdDecay));
+            return holdTicks;
         }
     }
 }
