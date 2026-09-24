@@ -55,7 +55,7 @@ class ClientMechanicTest {
         ClientLevel level = levelWith(bowlingMechanics());
 
         assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
-                        PvzceIds.MECHANIC_MOWER),
+                        PvzceIds.MECHANIC_MOWER, PvzceIds.MECHANIC_WAVE_PACING),
                 level.mechanicIds());
         assertTrue(level.hasMechanic(PvzceIds.MECHANIC_CONVEYOR));
         assertEquals(List.of(), level.mechanicData(PvzceIds.MECHANIC_MOWER,
@@ -74,8 +74,9 @@ class ClientMechanicTest {
         ClientLevel level = levelWith(LevelMechanics.payloads(def));
 
         // What the server sent is the whole truth: the implicit deck and the implicit
-        // mowers, neither of which the level's file mentions.
-        assertEquals(List.of(PvzceIds.MECHANIC_DECK, PvzceIds.MECHANIC_MOWER), level.mechanicIds());
+        // mowers and the wave pacing, none of which the level's file mentions.
+        assertEquals(List.of(PvzceIds.MECHANIC_DECK, PvzceIds.MECHANIC_MOWER,
+                PvzceIds.MECHANIC_WAVE_PACING), level.mechanicIds());
         assertFalse(level.hasMechanic(PvzceIds.MECHANIC_CONVEYOR));
         assertEquals(com.pvzce.api.content.MowerData.EVERY_ROW,
                 level.mechanicData(PvzceIds.MECHANIC_MOWER, com.pvzce.api.content.MowerData.class));

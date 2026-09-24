@@ -7,6 +7,7 @@ import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.content.capability.ZombieCapability;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.ZombieCapabilities;
+import com.pvzce.common.capability.zombie.ArmorCapability;
 
 import java.util.List;
 import java.util.Optional;
@@ -42,53 +43,20 @@ public record ZombieDef(
          */
         float renderScale,
         /**
-         * What this zombie carries that visibly wears out; see {@link EquipmentDef}.
+         * What it looks like and what falls off it; see {@link Presentation}.
          *
-         * <p>Empty for a zombie with no equipment art. The entries are presentation except
-         * for {@code drop_particle}, which the server emits when a piece is destroyed - so
-         * both sides read this one list instead of each keeping its own idea of which
-         * sprite belongs to which hat.
+         * <p>One component rather than four because DFU's record codec stops at sixteen fields and
+         * the budget cost below is the seventeenth - and because the four belong together anyway.
          */
-        List<EquipmentDef> equipment,
+        Presentation presentation,
         /**
-         * Whether half health costs this zombie its outer arm, as it does for the
-         * original's ordinary zombies.
+         * What this zombie costs a wave that budgets its composition; see {@code WavePacingData}.
          *
-         * <p>False for the giant and the boss, whose arms are part of what they are. The
-         * arm is hidden client-side from the synced health, and the server plays the pop
-         * right before it happens.
+         * <p>Unwritten ({@code 0}) means "work it out from what the zombie is" - see
+         * {@link #effectiveBudgetCost()}. The field exists for the content a formula cannot know
+         * about: a zombie whose threat is an ability rather than its health bar.
          */
-        boolean dropsArm,
-        /**
-         * Whether dying throws this zombie's head off, as it does for the original's
-         * ordinary zombies.
-         *
-         * <p>The head is a {@code pvzce:zombie_head} particle - the rip's own detached-head
-         * sprite - so the model itself keeps its head hidden in the death clip (that is how
-         * the original is authored) and this is what puts one on the lawn.
-         *
-         * <p>False for the zombies whose silhouette is the point: the giant and the boss
-         * (which fall over whole), and the ones whose head is a piece of equipment rather
-         * than a head - the balloon zombie's head comes off with its balloon and the imp is
-         * a head already.
-         */
-        boolean dropsHead,
-        /**
-         * Model bones this zombie never draws, whatever the clip says.
-         *
-         * <p>The one thing the source reanim cannot express. Its artwork is layered, not
-         * parented: a bone is a sprite drawn from a track with its own position every frame,
-         * so two sprites that are meant to be alternatives are simply both drawn. The flag
-         * zombie is the case that matters - the rip's hand is in the master file and the pole
-         * hangs off it, but the ordinary zombie's outer arm is still in there too, so the
-         * zombie holds the flag with one arm while a second arm dangles beside it.
-         *
-         * <p>Names are matched exactly against the model's bones, so a name no clip uses is
-         * harmless and one this pack renames simply stops hiding anything. Kept as data
-         * rather than a rule in {@code EquipmentArt} because "which sprites are the same
-         * limb drawn twice" is a property of the artwork, not of the engine.
-         */
-        List<String> hiddenBones
+        int budgetCost
 ) {
     public static final int DEFAULT_HEALTH = 200;
 
@@ -98,8 +66,7 @@ public record ZombieDef(
                      Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
                      Optional<Identifier> texture) {
         this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
-                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE, List.of(), true, true,
-                List.of());
+                sounds, animations, texture, ContentDefs.DEFAULT_RENDER_SCALE, Presentation.DEFAULT, 0);
     }
 
     /** A definition with no equipment and the default arm rule. */
@@ -108,14 +75,41 @@ public record ZombieDef(
                      Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
                      Optional<Identifier> texture, float renderScale) {
         this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
-                sounds, animations, texture, renderScale, List.of(), true, true, List.of());
+                sounds, animations, texture, renderScale, Presentation.DEFAULT, 0);
     }
     /** Cells per second at the 60tps baseline. */
     public static final float DEFAULT_MOVE_SPEED = 0.47F;
     public static final int DEFAULT_BITE_DAMAGE = 100;
     public static final int DEFAULT_BITE_INTERVAL = 60;
+    /** What a zombie with nothing written and nothing special about it costs. */
+    public static final int BASE_BUDGET_COST = 1;
+    /**
+     * How much one health bar is worth, as a fraction of {@link #DEFAULT_HEALTH}.
+     *
+     * <p>Five ordinary zombies' worth of health is one point more than an ordinary zombie, so the
+     * point is roughly "what the original would call one more zombie" and a level's budget reads
+     * in the number of zombies it is about to send.
+     */
+    public static final float HEALTH_POINTS_PER_DEFAULT_HEALTH = 1F / 5F;
+    /** How much each point of total armor durability is worth, as a fraction of a health bar. */
+    public static final float ARMOR_POINTS_PER_HEALTH_BAR = 1F / 3F;
+    /** How much being faster than {@link #DEFAULT_MOVE_SPEED} is worth, per multiple of it. */
+    public static final float SPEED_POINTS_PER_DEFAULT_SPEED = 1F / 3F;
+    /** What no zombie may cost, however cheap its numbers are. */
+    public static final int MIN_BUDGET_COST = 1;
+    /** What no zombie may cost, however expensive: a boss is one wave, not one zombie. */
+    public static final int MAX_BUDGET_COST = 40;
 
-    public static final Codec<ZombieDef> CODEC = RecordCodecBuilder.create(i -> i.group(
+    /**
+     * The zombie definition's JSON, split into two groups.
+     *
+     * <p>The four presentation fields ride in one nested {@link Presentation} because DFU's
+     * {@code RecordCodecBuilder} stops at sixteen members and the budget system added the
+     * seventeenth. Grouping what the client draws is also the honest split: equipment, the arm and
+     * head rules and the hidden bones are all "how this zombie looks", and a pack that adds a
+     * fifth such field extends that record instead of hitting the same wall.
+     */
+    public static final MapCodec<ZombieDef> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(ZombieDef::id),
             Codec.INT.optionalFieldOf("health", DEFAULT_HEALTH).forGetter(ZombieDef::health),
             Codec.FLOAT.optionalFieldOf("move_speed", DEFAULT_MOVE_SPEED).forGetter(ZombieDef::moveSpeed),
@@ -129,17 +123,70 @@ public record ZombieDef(
             AnimationBindings.MAP_CODEC.forGetter(ZombieDef::animations),
             Identifier.CODEC.optionalFieldOf("texture").forGetter(ZombieDef::texture),
             ContentDefs.RENDER_SCALE_CODEC.forGetter(ZombieDef::renderScale),
-            EquipmentDef.CODEC.listOf().optionalFieldOf("equipment", List.of()).forGetter(ZombieDef::equipment),
-            Codec.BOOL.optionalFieldOf("drops_arm", true).forGetter(ZombieDef::dropsArm),
-            Codec.BOOL.optionalFieldOf("drops_head", true).forGetter(ZombieDef::dropsHead),
-            Codec.STRING.listOf().optionalFieldOf("hidden_bones", List.of())
-                    .forGetter(ZombieDef::hiddenBones)
+            Presentation.MAP_CODEC.forGetter(ZombieDef::presentation),
+            Codec.INT.optionalFieldOf("budget_cost", 0).forGetter(ZombieDef::budgetCost)
     ).apply(i, ZombieDef::new));
+
+    public static final Codec<ZombieDef> CODEC = MAP_CODEC.codec();
+
+    /**
+     * What this zombie looks like: its equipment, whether it loses an arm or its head on the way
+     * down, and which model bones are never drawn.
+     *
+     * <p>Presentation except for {@code drop_particle}, which the server emits when a piece of
+     * equipment is destroyed - so both sides read this one block instead of each keeping its own
+     * idea of which sprite belongs to which hat.
+     *
+     * @param equipment   what this zombie carries that visibly wears out; see {@link EquipmentDef}
+     * @param dropsArm    whether half health costs it its outer arm
+     * @param dropsHead    whether dying throws its head off as a particle
+     * @param hiddenBones model bones this zombie never draws, whatever the clip says
+     */
+    public record Presentation(List<EquipmentDef> equipment, boolean dropsArm, boolean dropsHead,
+                               List<String> hiddenBones) {
+        public static final Presentation DEFAULT = new Presentation(List.of(), true, true, List.of());
+
+        public static final MapCodec<Presentation> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
+                EquipmentDef.CODEC.listOf().optionalFieldOf("equipment", List.of())
+                        .forGetter(Presentation::equipment),
+                Codec.BOOL.optionalFieldOf("drops_arm", true).forGetter(Presentation::dropsArm),
+                Codec.BOOL.optionalFieldOf("drops_head", true).forGetter(Presentation::dropsHead),
+                Codec.STRING.listOf().optionalFieldOf("hidden_bones", List.of())
+                        .forGetter(Presentation::hiddenBones)
+        ).apply(i, Presentation::new));
+
+        public Presentation {
+            equipment = equipment == null ? List.of() : List.copyOf(equipment);
+            hiddenBones = hiddenBones == null ? List.of() : List.copyOf(hiddenBones);
+        }
+    }
 
     public ZombieDef {
         capabilities = List.copyOf(capabilities);
-        equipment = List.copyOf(equipment);
-        hiddenBones = hiddenBones == null ? List.of() : List.copyOf(hiddenBones);
+        presentation = presentation == null ? Presentation.DEFAULT : presentation;
+    }
+
+    /**
+     * The forwarding accessors for the presentation block.
+     *
+     * <p>Kept so the two dozen call sites that ask a zombie whether it drops its head or what
+     * equipment it carries do not have to know the four fields moved into {@link #presentation}.
+     * A record's components are its shape; what it <em>means</em> is allowed to be a method.
+     */
+    public List<EquipmentDef> equipment() {
+        return presentation.equipment();
+    }
+
+    public boolean dropsArm() {
+        return presentation.dropsArm();
+    }
+
+    public boolean dropsHead() {
+        return presentation.dropsHead();
+    }
+
+    public List<String> hiddenBones() {
+        return presentation.hiddenBones();
     }
 
     /** The equipment entry driven by this armor piece id, if any. */
@@ -147,7 +194,7 @@ public record ZombieDef(
         if (pieceId == null) {
             return java.util.Optional.empty();
         }
-        for (EquipmentDef entry : equipment) {
+        for (EquipmentDef entry : equipment()) {
             if (entry.piece().isPresent() && pieceId.equals(entry.piece().get())) {
                 return java.util.Optional.of(entry);
             }
@@ -157,6 +204,40 @@ public record ZombieDef(
 
     public boolean canSwim() {
         return canSwim;
+    }
+
+    /**
+     * What one of these costs a budget wave: the written number, or what the zombie is.
+     *
+     * <p>The derived number is deliberately crude and deliberately in the open, because a level
+     * author has to be able to predict it: one point, plus a point per five health bars, plus a
+     * point per three health bars of armor, plus a point per third of the default walking speed
+     * it is faster than. That reads 1 for an ordinary zombie, 2 for a conehead or a pole vaulter,
+     * 3 for a buckethead, 4 for a football zombie and 13 for a gargantuar - which is the shape of
+     * the original's own zombie values.
+     *
+     * <p>Health is compared against {@link #DEFAULT_HEALTH} rather than against a table so that a
+     * pack's own zombie is priced by what it is, and a zombie whose threat is an ability rather
+     * than a stat writes {@code budget_cost} instead.
+     */
+    public int effectiveBudgetCost() {
+        if (budgetCost > 0) {
+            return Math.min(MAX_BUDGET_COST, Math.max(MIN_BUDGET_COST, budgetCost));
+        }
+        float points = BASE_BUDGET_COST;
+        points += HEALTH_POINTS_PER_DEFAULT_HEALTH * ((health - DEFAULT_HEALTH) / (float) DEFAULT_HEALTH);
+        int armorDurability = 0;
+        for (TypedCapability<ZombieCapability> entry : resolvedCapabilities()) {
+            if (entry.value() instanceof ArmorCapability armor) {
+                for (ArmorDef piece : armor.armor()) {
+                    armorDurability += Math.max(0, piece.durability());
+                }
+            }
+        }
+        points += ARMOR_POINTS_PER_HEALTH_BAR * (armorDurability / (float) DEFAULT_HEALTH);
+        points += SPEED_POINTS_PER_DEFAULT_SPEED
+                * Math.max(0F, moveSpeed / DEFAULT_MOVE_SPEED - 1F);
+        return Math.min(MAX_BUDGET_COST, Math.max(MIN_BUDGET_COST, Math.round(points)));
     }
 
     /** Explicit capabilities when present, otherwise the {@code behavior} preset. */

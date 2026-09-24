@@ -73,6 +73,29 @@ public sealed interface FieldSpec {
     }
 
     /**
+     * A list of plain strings, edited as one comma-separated line.
+     *
+     * <p>The scalar sibling of {@link ListField}: a list whose entries have no fields of their
+     * own - wave numbers, tag names - does not need a table widget, and without this it had no
+     * widget at all ({@link ListField} describes modeless entries as JSON-only). Kept as its own
+     * kind rather than as "a {@code ListField} with one text item" so the editor can render the
+     * difference between "a list of things" and "a thing that happens to be a string".
+     */
+    record StringList(String path, String label, int maxLength) implements FieldSpec {
+    }
+
+    /**
+     * A list of whole numbers, edited as one comma-separated line.
+     *
+     * <p>Its own kind rather than {@link StringList} with a flag, because the two write different
+     * JSON: {@code "waves": [1, 2]} is a list of numbers and {@code "pool": ["pvzce:x"]} is a list
+     * of strings, and a widget that wrote the wrong one would produce a block the codec rejects.
+     * An entry that is not a number is dropped on write rather than turned into zero.
+     */
+    record IntList(String path, String label) implements FieldSpec {
+    }
+
+    /**
      * Escape hatch: a block the editor does not model.
      *
      * <p>Kept as raw JSON and written back untouched, so a mechanic with a field this

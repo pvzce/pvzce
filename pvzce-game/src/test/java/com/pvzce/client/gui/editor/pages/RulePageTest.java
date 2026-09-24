@@ -26,7 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RulePageTest {
     /** Rules whose registered bound is effectively unbounded; the slider narrows them. */
     private static final List<String> DELIBERATELY_NARROWED = List.of(
-            "pvzce:day_length", "pvzce:night_length", "pvzce:crater_recovery");
+            "pvzce:day_length", "pvzce:night_length", "pvzce:crater_recovery",
+            // The sky's clock: a gap is seconds, and the registered ceiling of 36000 ticks
+            // (ten minutes) would make the slider useless for every value a level writes.
+            "pvzce:sun_spawn_interval_min", "pvzce:sun_spawn_interval_max",
+            "pvzce:sun_spawn_initial_ticks");
 
     @BeforeAll
     static void loadContent() throws Exception {

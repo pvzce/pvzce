@@ -521,6 +521,92 @@ public final class FieldWidgets {
         };
     }
 
+    /**
+     * A comma-separated list of plain entries, edited in one line.
+     *
+     * <p>The scalar sibling of {@link #idList}, and the widget the wave-numbers field of a
+     * mechanic needs: a list whose entries carry nothing but themselves does not need a table,
+     * and before this it had no widget at all. {@code integers} decides what is written back -
+     * a wave number is a number in the file, an id is a string - which is the only difference
+     * between the two uses, so it is a parameter rather than two kinds.
+     */
+    public static FormField scalarList(String path, String label, int maxLength, boolean integers) {
+        return new FormField() {
+            private EditBox box;
+
+            @Override
+            public String label() {
+                return label;
+            }
+
+            @Override
+            public String path() {
+                return path;
+            }
+
+            @Override
+            public void build(EditorContext context, FormLayout.Row row) {
+                EditorContext.Rect control = row.control();
+                box = context.own(new EditBox(control.x(), control.y(), control.width(),
+                        control.height(), maxLength, null));
+            }
+
+            @Override
+            public void readFrom(EditorContext context, String prefix) {
+                if (box == null) {
+                    return;
+                }
+                java.util.List<String> entries = new java.util.ArrayList<>();
+                for (JsonElement element : context.draft().getArray(prefix + path)) {
+                    if (element.isJsonPrimitive()) {
+                        entries.add(element.getAsString());
+                    }
+                }
+                box.setValue(String.join(", ", entries), false);
+            }
+
+            @Override
+            public void writeTo(EditorContext context, String prefix) {
+                if (box == null) {
+                    return;
+                }
+                java.util.List<String> entries = split(box.value());
+                if (entries.isEmpty()) {
+                    // An empty list and no list mean the same thing to every reader of this
+                    // block, so the file keeps the shorter of the two.
+                    context.draft().remove(prefix + path);
+                    return;
+                }
+                com.google.gson.JsonArray array = new com.google.gson.JsonArray();
+                for (String entry : entries) {
+                    if (integers) {
+                        Integer number = parseInteger(entry);
+                        if (number == null) {
+                            continue;
+                        }
+                        array.add(number);
+                    } else {
+                        array.add(entry);
+                    }
+                }
+                if (array.isEmpty()) {
+                    context.draft().remove(prefix + path);
+                    return;
+                }
+                context.draft().set(prefix + path, array);
+            }
+        };
+    }
+
+    /** The number an entry is, or null when it is not one; an unparseable entry is dropped. */
+    private static Integer parseInteger(String entry) {
+        try {
+            return Integer.valueOf(entry.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /** One comma or whitespace separated id list, blanks dropped. */
     static java.util.List<String> split(String value) {
         java.util.List<String> ids = new java.util.ArrayList<>();
@@ -569,9 +655,16 @@ public final class FieldWidgets {
                     ? idList(ref.path(), ref.label(), ref.category())
                     : reference(ref.path(), ref.label(), ref.category());
         }
+        if (spec instanceof FieldSpec.StringList list) {
+            return scalarList(list.path(), list.label(), list.maxLength(), false);
+        }
+        if (spec instanceof FieldSpec.IntList list) {
+            return scalarList(list.path(), list.label(), 256, true);
+        }
         if (spec instanceof FieldSpec.ListField list) {
-            // A list of ids (a weighted card pool, say) is edited as one line of ids until the
-            // row-per-entry editor exists. Saying so beats a page that silently omits a field.
+            // A list whose entries carry fields of their own (a weighted card pool) is a table,
+            // and that editor does not exist yet: naming the field beats a page that silently
+            // omits it.
             return new UnsupportedField(list.path(), list.label(),
                     "列表字段：暂请在 JSON 里编辑这一项");
         }

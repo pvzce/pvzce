@@ -156,7 +156,7 @@ class DayAreaLevelsTest {
                 "the original's belt hands out the Day area's plants");
         assertTrue(belt.producesCards(), "and it can actually deliver them");
         assertEquals(0, def.initialSun(), "a belt level charges no sun");
-        assertEquals(0F, def.rules().get(PvzceIds.RULE_SUN_SPAWN_CHANCE).getAsFloat(),
+        assertEquals(0, def.rules().get(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX).getAsInt(),
                 "and nothing falls from the sky that could not be spent");
 
         // No placement zone: the original's 1-10 is an ordinary lawn.

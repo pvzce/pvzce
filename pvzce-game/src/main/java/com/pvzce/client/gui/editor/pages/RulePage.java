@@ -43,11 +43,18 @@ public final class RulePage {
     private static final Map<String, float[]> NARROWER_SLIDER = Map.of(
             "pvzce:day_length", new float[]{0F, 12000F},
             "pvzce:night_length", new float[]{-1F, 12000F},
-            "pvzce:crater_recovery", new float[]{0F, 30000F});
+            "pvzce:crater_recovery", new float[]{0F, 30000F},
+            // The sky's own clock: a gap is seconds, not minutes, and the registered bound of
+            // 36000 would make the slider useless for every value a level actually writes.
+            "pvzce:sun_spawn_interval_min", new float[]{0F, 3600F},
+            "pvzce:sun_spawn_interval_max", new float[]{0F, 3600F},
+            "pvzce:sun_spawn_initial_ticks", new float[]{0F, 3600F});
 
     /** The order the page lists them in: pacing, economy, combat, then the rest. */
     private static final List<String> ORDER = List.of(
-            "pvzce:day_length", "pvzce:night_length", "pvzce:sun_spawn_chance", "pvzce:sun_value",
+            "pvzce:day_length", "pvzce:night_length",
+            "pvzce:sun_spawn_interval_min", "pvzce:sun_spawn_interval_max",
+            "pvzce:sun_spawn_initial_ticks", "pvzce:sun_value",
             "pvzce:zombie_sun_drop_chance", "pvzce:zombie_sun_drop_count",
             "pvzce:crater_recovery", "pvzce:graves_spawn_night", "pvzce:zombie_damage_multiplier",
             "pvzce:zombie_speed_multiplier", "pvzce:plant_damage_multiplier",

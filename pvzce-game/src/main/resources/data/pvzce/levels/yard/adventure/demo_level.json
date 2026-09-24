@@ -70,7 +70,9 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": -1,
-    "pvzce:sun_spawn_chance": 0.001
+    "pvzce:sun_spawn_interval_min": 420,
+    "pvzce:sun_spawn_interval_max": 780,
+    "pvzce:sun_spawn_initial_ticks": 300
   },
   "env_vars": {
     "pvzce:demo_flag": {

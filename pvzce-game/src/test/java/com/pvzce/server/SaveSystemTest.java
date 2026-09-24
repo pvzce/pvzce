@@ -137,9 +137,10 @@ class SaveSystemTest {
             // has a single lane and cannot hold a zombie that is not in row 0.
             server.requestLevel("pvzce:yard/adventure/demo_level", "zombieworld", true);
             server.waitFor(p -> p instanceof LevelInitS2C init && init.levelId().equals("pvzce:yard/adventure/demo_level"), 5_000);
-            // No sky sun: the level's random is unseeded, so a 0.1%-per-tick drop could land
-            // next to the zombie and turn "one snapshot list" into a count of two.
-            server.send(new CommandC2S("/gamerule pvzce:sun_spawn_chance 0"));
+            // No sky sun: the level's random is unseeded, so a sun landing next to the
+            // zombie would turn "one snapshot list" into a count of two.
+            server.send(new CommandC2S("/gamerule pvzce:sun_spawn_interval_min 0"));
+            server.send(new CommandC2S("/gamerule pvzce:sun_spawn_interval_max 0"));
             server.send(new CommandC2S("/spawn zombie pvzce:buckethead_zombie 5 2"));
             server.waitFor(p -> p instanceof EntitySpawnS2C spawn
                     && "zombie".equals(spawn.entityKind())

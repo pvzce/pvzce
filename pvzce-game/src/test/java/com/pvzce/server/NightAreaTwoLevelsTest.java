@@ -123,7 +123,7 @@ class NightAreaTwoLevelsTest {
             LevelDef def = level(names[i]);
             assertEquals(0, def.rules().get(PvzceIds.RULE_DAY_LENGTH).getAsInt(), names[i] + " is night");
             assertTrue(def.rules().get(PvzceIds.RULE_NIGHT_LENGTH).getAsInt() > 0);
-            assertEquals(0F, def.rules().get(PvzceIds.RULE_SUN_SPAWN_CHANCE).getAsFloat(),
+            assertEquals(0, def.rules().get(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX).getAsInt(),
                     names[i] + " gets no sun from the sky");
             assertEquals(1, def.unlock().requires().size(), names[i] + " requires exactly one level");
             assertEquals(PvzceIds.id("yard/adventure/" + previous[i]),
@@ -446,7 +446,7 @@ class NightAreaTwoLevelsTest {
         LevelDef def = level("2_5");
         float chance = def.rules().get(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE).getAsFloat();
         assertTrue(chance > 0F && chance < 0.5F, "a small chance, not a fountain: " + chance);
-        assertEquals(0F, def.rules().get(PvzceIds.RULE_SUN_SPAWN_CHANCE).getAsFloat(),
+        assertEquals(0, def.rules().get(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX).getAsInt(),
                 "the sky still drops nothing - this is the level's only income");
 
         // Certain drops for the test, so the roll is not what is under test.

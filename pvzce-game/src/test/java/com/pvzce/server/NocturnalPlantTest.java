@@ -59,21 +59,18 @@ class NocturnalPlantTest {
         // No sky sun: this class counts what a plant does, and a sun landing on the board
         // mid-assertion (1-4 drops one every ~10s) would be a second thing to explain.
         day = withRules(source, Map.of(PvzceIds.RULE_DAY_LENGTH, 0, PvzceIds.RULE_NIGHT_LENGTH, -1,
-                PvzceIds.RULE_SUN_SPAWN_CHANCE, 0));
+                PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, 0, PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, 0));
         // One tick of day, then ten minutes of night: the clock reads "night" after a single
         // step, which is what a night level is.
         night = withRules(source, Map.of(PvzceIds.RULE_DAY_LENGTH, 1, PvzceIds.RULE_NIGHT_LENGTH, 36_000,
-                PvzceIds.RULE_SUN_SPAWN_CHANCE, 0));
+                PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, 0, PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, 0));
     }
 
     /** The shipped 1-4 with different day/night lengths. */
     private static LevelDef withRules(LevelDef source, Map<Identifier, Integer> overrides) {
         Map<Identifier, com.google.gson.JsonElement> rules = new java.util.LinkedHashMap<>(source.rules());
-        // JsonPrimitive of an Integer is a number, which is what the rule codecs read; the
-        // float rule (sun spawn chance) gets its own primitive.
-        overrides.forEach((id, value) -> rules.put(id, PvzceIds.RULE_SUN_SPAWN_CHANCE.equals(id)
-                ? new com.google.gson.JsonPrimitive(value.floatValue())
-                : new com.google.gson.JsonPrimitive(value)));
+        // Every rule overridden here is an integer one; the codecs read a JSON number.
+        overrides.forEach((id, value) -> rules.put(id, new com.google.gson.JsonPrimitive(value)));
         return new LevelDef(source.id(), source.name(), source.description(), source.width(),
                 source.height(), source.scene(), source.teams(), source.winTeam(), rules,
                 source.envVars(), List.of(), source.waveIntervalEndMultiplier(), source.slots(),

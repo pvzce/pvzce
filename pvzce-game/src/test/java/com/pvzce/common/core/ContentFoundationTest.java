@@ -266,11 +266,11 @@ class ContentFoundationTest {
     @Test
     @SuppressWarnings("unchecked")
     void gameRuleTypesAreRegisteredAndClamp() {
-        GameRuleType<Float> chance = (GameRuleType<Float>) BuiltInRegistries.GAME_RULES
-                .get(Identifier.withDefaultNamespace("sun_spawn_chance"));
-        assertNotNull(chance);
-        assertEquals(0F, chance.clamp(-5F), 0.0001F);
-        assertEquals(1F, chance.clamp(5F), 0.0001F);
+        GameRuleType<Integer> sunInterval = (GameRuleType<Integer>) BuiltInRegistries.GAME_RULES
+                .get(Identifier.withDefaultNamespace("sun_spawn_interval_min"));
+        assertNotNull(sunInterval);
+        assertEquals(0, sunInterval.clamp(-5));
+        assertEquals(36000, sunInterval.clamp(999_999));
 
         GameRuleType<Integer> dayLength = (GameRuleType<Integer>) BuiltInRegistries.GAME_RULES
                 .get(Identifier.withDefaultNamespace("day_length"));

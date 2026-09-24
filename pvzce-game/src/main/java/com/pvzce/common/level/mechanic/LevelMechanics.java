@@ -50,6 +50,7 @@ public final class LevelMechanics {
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
     public static final GraveFieldMechanic GRAVE_FIELD = new GraveFieldMechanic();
+    public static final WavePacingMechanic WAVE_PACING = new WavePacingMechanic();
 
     public static final Codec<TypedMechanic> CODEC = codec();
     public static final Codec<List<TypedMechanic>> LIST_CODEC = CODEC.listOf();
@@ -63,6 +64,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_TOOL, TOOL);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
         register(PvzceIds.MECHANIC_GRAVE_FIELD, GRAVE_FIELD);
+        register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -153,10 +155,14 @@ public final class LevelMechanics {
      *       bar" must not need a block that only says "the normal rules apply";</li>
      *   <li>the <b>mowers</b>, when the level did not declare them: every ordinary level has
      *       one mower per row, because that is what the lawn is, and levels written before
-     *       mowers existed gained them without being touched.</li>
+     *       mowers existed gained them without being touched;</li>
+     *   <li>the <b>wave pacing</b>, when the level did not declare it: a level whose lawn the
+     *       player has cleared should not make them wait out a countdown written for a slower
+     *       player, and that is not a mode a level opts into. See
+     *       {@link WavePacingMechanic#DEFAULT_PACING}.</li>
      * </ul>
      *
-     * <p>This is the one place both defaults are decided, so the server, the validator, the
+     * <p>This is the one place the defaults are decided, so the server, the validator, the
      * client payload and the editor cannot disagree about what an ordinary level runs with.
      */
     public static List<TypedMechanic> effective(LevelDef def) {
@@ -167,6 +173,10 @@ public final class LevelMechanics {
         if (!has(def, PvzceIds.MECHANIC_MOWER)) {
             mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER,
                     com.pvzce.api.content.MowerData.EVERY_ROW));
+        }
+        if (!has(def, PvzceIds.MECHANIC_WAVE_PACING)) {
+            mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_WAVE_PACING,
+                    WavePacingMechanic.DEFAULT_PACING));
         }
         return List.copyOf(mechanics);
     }

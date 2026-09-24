@@ -119,6 +119,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final Random random = new Random();
     private final PvzcePlayer plantPlayer;
     private final GameRules rules;
+    /**
+     * When the sky drops its next sun; see {@link SunDropClock}.
+     *
+     * <p>Reset from the rules at construction and restored from the save on resume, so a
+     * continued run keeps the gap it was in rather than handing out a sun on the first tick.
+     */
+    private final SunDropClock sunDropClock = new SunDropClock(random);
     private final LevelEnvVars envVars;
     private final PvzceClock clock = new PvzceClock();
     private final PlantAIPlayer plantAi = new PlantAIPlayer();
@@ -305,6 +312,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // host - so a rule read out of order is a null dereference in the constructor rather
         // than a missing value somewhere later.
         this.rules = new GameRules(def.rules());
+        this.sunDropClock.reset(this.rules);
         this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier());
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
@@ -1742,8 +1750,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return weakest;
     }
 
+    /**
+     * Drops a sun from the sky when the level's interval clock says one is due.
+     *
+     * <p>The clock is ticked before the answer is read, so a level whose rules changed
+     * mid-run ({@code /gamerule pvzce:sun_spawn_interval_min 0}) stops dropping on the next
+     * tick instead of on the next drop. A level with both ends of the range at zero never
+     * reaches the spawn below, which is the off switch the old {@code sun_spawn_chance: 0}
+     * used to be.
+     */
     private void maybeSpawnSun() {
-        if (random.nextFloat() >= rules.getFloat(PvzceIds.RULE_SUN_SPAWN_CHANCE)) {
+        if (!sunDropClock.tick(rules)) {
             return;
         }
         ResourceDef sun = BuiltInRegistries.RESOURCES.get(PvzceIds.SUN);
@@ -2499,6 +2516,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         root.putLong("DayTicks", clock.dayTicks());
         root.putInt("NextMusicCueIndex", nextMusicCueIndex);
         waves.save(root);
+        // The sky's own countdown, not the team's sun total (which is written with the teams
+        // below): a resumed run has to keep the gap it was in, or continuing a save hands the
+        // player a free sun on the first tick.
+        sunDropClock.save(root);
 
 
         // Teams, cards, resources and every entity live in one tag; the server no
@@ -2610,6 +2631,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             activeBuffs = com.pvzce.server.LevelBuffSelection.resolve(savedBuffs);
         }
         autoCollectTimers.clear();
+        // A save written before the sky had a countdown has no block here, and then the clock
+        // stays at the opening delay this level's own rules gave it (see the constructor).
+        sunDropClock.restore(root);
         clock.setDayTicks(root.getLong("DayTicks"));
         waves.restore(root);
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));

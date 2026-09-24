@@ -18,7 +18,29 @@ public final class PvzceConstants {
     public static final int PEA_SHOOTER_COST = 100;
     public static final int INITIAL_SUN = 150;
     public static final int SUN_VALUE = 25;
-    public static final float SUN_SPAWN_CHANCE = 0.001F;
+    /**
+     * What the sky does between two suns, in ticks, when a level does not say.
+     *
+     * <p>The defaults for {@code pvzce:sun_spawn_interval_min} / {@code _max}: eight to twelve
+     * seconds. The pair replaces the per-tick {@code sun_spawn_chance} this used to be, because
+     * an independent roll every tick has no memory - a player could wait half a minute and then
+     * collect three suns inside two seconds, and neither is a thing the level asked for.
+     *
+     * <p>Ten seconds is the number the old chance was tuned to ({@code 0.0017} is one sun per
+     * 588 ticks); writing the range down instead of the rate is what makes the spread a
+     * decision rather than an accident.
+     */
+    public static final int SUN_SPAWN_INTERVAL_MIN = 8 * TICKS_PER_SECOND;
+    public static final int SUN_SPAWN_INTERVAL_MAX = 12 * TICKS_PER_SECOND;
+    /**
+     * How long the first sun of a level takes.
+     *
+     * <p>Separate from the steady interval because the opening is the one moment the sky is
+     * allowed to be prompt: the player's first producer costs 50 sun and a fresh level starts
+     * with just enough, so a first sun that arrives after the full interval is a first sun the
+     * player has already stopped waiting for.
+     */
+    public static final int SUN_SPAWN_INITIAL_TICKS = 5 * TICKS_PER_SECOND;
     /**
      * How long a zombie takes to climb out of a grave, in ticks, when a level does not say.
      *

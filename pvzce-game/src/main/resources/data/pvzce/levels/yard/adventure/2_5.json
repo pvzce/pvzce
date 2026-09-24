@@ -80,7 +80,8 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": 360000,
-    "pvzce:sun_spawn_chance": 0,
+    "pvzce:sun_spawn_interval_min": 0,
+    "pvzce:sun_spawn_interval_max": 0,
     "pvzce:graves_spawn_night": true,
     "pvzce:zombie_speed_multiplier": 2.6,
     "pvzce:zombie_sun_drop_chance": 0.05,

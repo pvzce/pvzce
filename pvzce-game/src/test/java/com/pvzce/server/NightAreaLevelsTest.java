@@ -79,7 +79,7 @@ class NightAreaLevelsTest {
     /** No sky sun: the level's own rule, so a pack can write a night level that drops some. */
     @Test
     void noSunFallsFromTheSky() {
-        assertEquals(0F, level("2_1").rules().get(PvzceIds.RULE_SUN_SPAWN_CHANCE).getAsFloat());
+        assertEquals(0, level("2_1").rules().get(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX).getAsInt());
     }
 
     /**

@@ -83,15 +83,15 @@ class CombatSystemsTest {
     @Test
     void gameRulesClampAndDecode() {
         GameRules rules = new GameRules(Map.of(
-                Identifier.withDefaultNamespace("sun_spawn_chance"),
-                com.google.gson.JsonParser.parseString("0.25"),
+                Identifier.withDefaultNamespace("sun_spawn_interval_min"),
+                com.google.gson.JsonParser.parseString("240"),
                 Identifier.withDefaultNamespace("day_length"),
                 com.google.gson.JsonParser.parseString("120")
         ));
-        assertEquals(0.25F, rules.getFloat(Identifier.withDefaultNamespace("sun_spawn_chance")), 0.0001F);
+        assertEquals(240, rules.getInt(Identifier.withDefaultNamespace("sun_spawn_interval_min")));
         assertEquals(120, rules.getInt(Identifier.withDefaultNamespace("day_length")));
-        rules.set(Identifier.withDefaultNamespace("sun_spawn_chance"), 99F);
-        assertEquals(1F, rules.getFloat(Identifier.withDefaultNamespace("sun_spawn_chance")), 0.0001F);
+        rules.set(Identifier.withDefaultNamespace("sun_spawn_interval_min"), 999_999);
+        assertEquals(36000, rules.getInt(Identifier.withDefaultNamespace("sun_spawn_interval_min")));
     }
 
     @Test

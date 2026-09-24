@@ -71,12 +71,31 @@ public final class PvzceIds {
 
     public static final Identifier RULE_DAY_LENGTH = id("day_length");
     public static final Identifier RULE_NIGHT_LENGTH = id("night_length");
-    public static final Identifier RULE_SUN_SPAWN_CHANCE = id("sun_spawn_chance");
+    /**
+     * How long the sky waits between two suns, at least and at most, in ticks.
+     *
+     * <p>A range rather than a rate, and read as a countdown rather than rolled every tick: the
+     * sky picks the next gap when it drops a sun, so the gap the author wrote is the gap the
+     * player gets. The old {@code sun_spawn_chance} was an independent roll per tick, which has
+     * no memory - the same average meant droughts and clusters that no level asked for.
+     *
+     * <p>{@code min} of {@code 0} is the switch: it means the sky never drops anything (the
+     * conveyor levels and most night levels), which is what the old chance of {@code 0} said.
+     */
+    public static final Identifier RULE_SUN_SPAWN_INTERVAL_MIN = id("sun_spawn_interval_min");
+    public static final Identifier RULE_SUN_SPAWN_INTERVAL_MAX = id("sun_spawn_interval_max");
+    /**
+     * How long the level's first sun takes, in ticks.
+     *
+     * <p>Only the first: after it, the sky follows {@code sun_spawn_interval_min}/{@code _max}.
+     * A level that wants no head start writes the same number as its interval.
+     */
+    public static final Identifier RULE_SUN_SPAWN_INITIAL_TICKS = id("sun_spawn_initial_ticks");
     public static final Identifier RULE_SUN_VALUE = id("sun_value");
     /**
      * How often a dying zombie leaves a sun behind, 0..1.
      *
-     * <p>Separate from {@code sun_spawn_chance}, which is the sky: a level can have no sun fall
+     * <p>Separate from {@code sun_spawn_interval_min}, which is the sky: a level can have no sun fall
      * from above and still pay for kills, which is exactly what a level with no sun producers
      * and no sky needs. The original's Whack-a-Zombie is the case it exists for.
      */
@@ -219,6 +238,20 @@ public final class PvzceIds {
      * {@code scene}: the file cannot say "seven of them, over there".
      */
     public static final Identifier MECHANIC_GRAVE_FIELD = id("grave_field");
+    /**
+     * How this level's zombies arrive, wave by wave.
+     *
+     * <p>The wave table says <em>what</em> comes and roughly when; this says how the clock
+     * behaves around it - whether a cleared lawn shortens the next wave's countdown, whether a
+     * wave keeps a presence on the lawn or trickles on its written interval, whether a wave waits
+     * to be finished before the next one is allowed, and whether a wave's composition is a
+     * written list or a point budget spent on a pool.
+     *
+     * <p>Implicit, like the mowers: a level that declares nothing still gets the clear bonus,
+     * because "the player killed everything and is now waiting out a countdown written for a
+     * slower player" is a defect rather than a mode.
+     */
+    public static final Identifier MECHANIC_WAVE_PACING = id("wave_pacing");
 
     /**
      * Automatic pickup of sun and coins: no clicking.

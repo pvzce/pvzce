@@ -49,18 +49,18 @@ class SunShroomGrowthTest {
         assertNotNull(source, "the shipped 1-4 must load");
         // No waves and no sky sun: every drop on this board came out of the mushroom.
         night = withRules(source, Map.of(PvzceIds.RULE_DAY_LENGTH, 1,
-                PvzceIds.RULE_NIGHT_LENGTH, 36_000, PvzceIds.RULE_SUN_SPAWN_CHANCE, 0));
+                PvzceIds.RULE_NIGHT_LENGTH, 36_000,
+                PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, 0, PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, 0));
         // A long night: the mushroom needs `after_ticks` of darkness to grow in, and a cycle
         // that turned over underneath it would be testing the clock instead.
         cycle = withRules(source, Map.of(PvzceIds.RULE_DAY_LENGTH, 3_600,
-                PvzceIds.RULE_NIGHT_LENGTH, 36_000, PvzceIds.RULE_SUN_SPAWN_CHANCE, 0));
+                PvzceIds.RULE_NIGHT_LENGTH, 36_000,
+                PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, 0, PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, 0));
     }
 
     private static LevelDef withRules(LevelDef source, Map<Identifier, Integer> overrides) {
         Map<Identifier, JsonElement> rules = new LinkedHashMap<>(source.rules());
-        overrides.forEach((id, value) -> rules.put(id, PvzceIds.RULE_SUN_SPAWN_CHANCE.equals(id)
-                ? new JsonPrimitive(value.floatValue())
-                : new JsonPrimitive(value)));
+        overrides.forEach((id, value) -> rules.put(id, new JsonPrimitive(value)));
         return TestLevels.copy(source).rules(rules).waves(List.of()).build();
     }
 

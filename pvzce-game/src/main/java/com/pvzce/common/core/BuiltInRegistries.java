@@ -309,8 +309,12 @@ public final class BuiltInRegistries {
         // the constant it mirrors cannot drift apart.
         registerRule(PvzceIds.RULE_DAY_LENGTH, new GameRuleType.IntRule(0, 0, Integer.MAX_VALUE));
         registerRule(PvzceIds.RULE_NIGHT_LENGTH, new GameRuleType.IntRule(-1, -1, Integer.MAX_VALUE));
-        registerRule(PvzceIds.RULE_SUN_SPAWN_CHANCE, new GameRuleType.FloatRule(
-                PvzceConstants.SUN_SPAWN_CHANCE, 0F, 1F));
+        registerRule(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, new GameRuleType.IntRule(
+                PvzceConstants.SUN_SPAWN_INTERVAL_MIN, 0, 36000));
+        registerRule(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, new GameRuleType.IntRule(
+                PvzceConstants.SUN_SPAWN_INTERVAL_MAX, 0, 36000));
+        registerRule(PvzceIds.RULE_SUN_SPAWN_INITIAL_TICKS, new GameRuleType.IntRule(
+                PvzceConstants.SUN_SPAWN_INITIAL_TICKS, 0, 36000));
         registerRule(PvzceIds.RULE_CRATER_RECOVERY, new GameRuleType.IntRule(6000, 0, Integer.MAX_VALUE));
         registerRule(PvzceIds.RULE_SUN_VALUE, new GameRuleType.IntRule(
                 PvzceConstants.SUN_VALUE, 1, 10000));

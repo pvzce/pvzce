@@ -53,3 +53,6 @@ refer/
 
 ### Throwaway game dir + screenshots from `pvzce.smoke*` runs ###
 .smoke/
+
+### Local Gradle home (sandboxed builds) ###
+.gradle-user/
