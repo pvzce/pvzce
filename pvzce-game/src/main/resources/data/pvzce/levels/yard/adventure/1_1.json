@@ -199,5 +199,8 @@
     }
   ],
   "background": "pvzce:textures/gui/screen/level/background1unsodded",
-  "disable_shaders": true
+  "disable_shaders": true,
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ]
 }

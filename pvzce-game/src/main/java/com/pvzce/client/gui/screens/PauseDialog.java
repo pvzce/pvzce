@@ -59,11 +59,14 @@ public final class PauseDialog extends Dialog {
                 // closing it comes back to this dialog, which is still visible because the level is
                 // still paused.
                 () -> client.openScreen(new SettingsScreen(client)),
-                // Closes the running level first, then enters the normal seed-chooser
-                // flow. Layering the chooser on top of the live level used to leave it
-                // running underneath, so ESC fell back into this dialog and the level
-                // never really restarted.
-                () -> client.restartCurrentLevel(),
+                // Asks first: restarting drops the run in progress, and the button sits one
+                // row under 继续游戏. The confirmation goes on top of this dialog rather than
+                // replacing it, so "取消" puts the player back on the pause menu with the
+                // level still paused - nothing was closed and nothing was sent.
+                () -> client.currentScreen().showDialog(ConfirmDialog.restart(client, () -> {
+                    close();
+                    client.restartCurrentLevel();
+                }, null)),
                 () -> {
                     close();
                     client.leaveLevel();
@@ -81,11 +84,22 @@ public final class PauseDialog extends Dialog {
     }
 
     public static PauseDialog create(PvzceClient client) {
-        int width = Math.min(WIDTH, client.guiWidth() - 24);
-        int height = Math.min(HEIGHT, client.guiHeight() - 24);
+        return create(client, client.guiWidth(), client.guiHeight());
+    }
+
+    /**
+     * The same dialog, laid out for an explicit window size.
+     *
+     * <p>Separate from the windowed overload because the window is a GL object: a headless test
+     * has a client with no window at all, and "how big is the menu" is arithmetic that has
+     * nothing to do with whether a window exists.
+     */
+    static PauseDialog create(PvzceClient client, int guiWidth, int guiHeight) {
+        int width = Math.min(WIDTH, guiWidth - 24);
+        int height = Math.min(HEIGHT, guiHeight - 24);
         return new PauseDialog(client,
-                (client.guiWidth() - width) / 2,
-                (client.guiHeight() - height) / 2,
+                (guiWidth - width) / 2,
+                (guiHeight - height) / 2,
                 width,
                 height);
     }

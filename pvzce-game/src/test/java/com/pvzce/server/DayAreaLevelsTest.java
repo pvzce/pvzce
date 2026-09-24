@@ -67,8 +67,8 @@ class DayAreaLevelsTest {
         // repeat stipend and coin drops are the engine's defaults, declared explicitly because the
         // block now exists.
         assertTrue(oneNine.rewards().firstClear().stream().anyMatch(LevelRewards.Reward::isBuff),
-                "1-9 hands over the spore-range buff");
-        assertEquals("pvzce:mushroom_range",
+                "1-9 hands over the Day area's buff");
+        assertEquals("pvzce:auto_collect",
                 oneNine.rewards().firstClear().stream().filter(LevelRewards.Reward::isBuff)
                         .findFirst().orElseThrow().id().orElseThrow().toString());
         assertThrows(AssertionError.class, () -> firstUnlock(oneNine),
@@ -97,6 +97,38 @@ class DayAreaLevelsTest {
     }
 
     /** Each level opens when the one before it is cleared. */
+    /**
+     * The opening three levels are played on the original's unfinished lawn.
+     *
+     * <p>Their backdrop is the unsodded one - the strip of dirt the original starts the game on -
+     * and what used to put a mown field on top of it was the terrain pass: the cells have to be
+     * painted for the simulation (a cell with no element cannot be planted on), but they must not
+     * be drawn, or the level shows a lawn the art under it does not have.
+     *
+     * <p>1-4 is where the lawn is finished in the original, and it is the first level whose
+     * backdrop is the sodded one, so it draws its grass like every later level.
+     */
+    @Test
+    void theFirstThreeLevelsPlayOnTheUnsoddedLawn() {
+        for (String name : List.of("1_1", "1_2", "1_3")) {
+            LevelDef def = level(name);
+            String background = def.background().map(Object::toString).orElse("");
+            assertTrue(background.endsWith("background1unsodded"),
+                    name + " plays on the original's unsodded backdrop, was " + background);
+            assertTrue(def.hiddenSceneElements().contains("pvzce:grass"),
+                    name + " must paint its terrain without drawing it");
+            // Painted, not painted-over: the cells are still grass, so they are plantable.
+            assertFalse(def.scene().getOrDefault(PvzceIds.GRASS, List.of()).isEmpty(),
+                    name + " still paints its lawn cells, or nothing could be planted");
+        }
+        // From 1-4 on, the lawn is part of the backdrop: the shipped levels hide the grass pass
+        // so it is not drawn twice, and their art is the sodded field. The opening three are the
+        // only ones whose dirt is the visible surface.
+        String later = level("1_4").background().map(Object::toString).orElse("");
+        assertTrue(later.endsWith("background1"),
+                "1-4 is the first level with a finished lawn, painted into the backdrop: " + later);
+    }
+
     @Test
     void theChainRunsFromOneFiveToOneTen() {
         for (int i = 0; i < ADVENTURE.size(); i++) {

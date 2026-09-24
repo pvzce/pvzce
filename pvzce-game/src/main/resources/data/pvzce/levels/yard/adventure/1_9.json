@@ -369,7 +369,7 @@
     "first_clear": [
       {
         "type": "buff",
-        "id": "pvzce:mushroom_range"
+        "id": "pvzce:auto_collect"
       }
     ],
     "repeat": [

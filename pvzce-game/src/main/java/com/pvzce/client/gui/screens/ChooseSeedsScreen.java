@@ -907,7 +907,41 @@ public final class ChooseSeedsScreen extends Screen {
      * packet when that beat is over. The delay is a constant rather than a callback
      * so backing out cannot leave a pending start behind.
      */
+    /**
+     * The 开始游戏 button.
+     *
+     * <p>A bar with no sun card in it is the one choice this page can make that the player
+     * cannot fix afterwards: nothing on the lawn collects sun without that card, and on most
+     * levels the sky alone does not pay for a defence. So the first click asks - once - and the
+     * player who meant it (a conveyor level, a level that pays for kills) starts anyway.
+     *
+     * <p>Asked here rather than in {@link #finishStart} because the exit animation plays on the
+     * first click: by the time the packet is due the player has watched the level start, and a
+     * question at that point is a question about something already happening.
+     */
     private void start() {
+        if (exitNanos != 0L || startSent) {
+            return;
+        }
+        if (!onBuffPage() && !hasSunCard()) {
+            client.currentScreen().showDialog(ConfirmDialog.startWithoutSun(client, this::beginStart, null));
+            return;
+        }
+        beginStart();
+    }
+
+    /** True when the bar the player is about to start with has the sun card in it. */
+    private boolean hasSunCard() {
+        for (String slotId : orderedSelection()) {
+            if (SUN_CARD_ID.equals(slotId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Plays the exit animation and, once it is over, sends the start packet. */
+    private void beginStart() {
         if (exitNanos != 0L || startSent) {
             return;
         }

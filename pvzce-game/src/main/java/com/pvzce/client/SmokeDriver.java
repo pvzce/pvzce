@@ -71,6 +71,16 @@ final class SmokeDriver {
     private final String smokePlace = System.getProperty("pvzce.smokePlace", "");
     private boolean smokeLevelRequested;
     /**
+     * Development smoke hook: open a confirmation dialog once a level is running.
+     *
+     * <p>{@code -Ppvzce.smoke=pvzce.smokeConfirm=restart} puts the pause menu's restart question
+     * on screen. It exists because that box has two parents - the pause menu and the seed
+     * chooser - and neither is reachable from the title screen without driving several menus,
+     * which a click-based smoke run does by guessing coordinates.
+     */
+    private final String smokeConfirm = System.getProperty("pvzce.smokeConfirm", "");
+    private boolean smokeConfirmFired;
+    /**
      * Smoke hook: treat the {@code smokeLevel} request as a direct fresh run, so a level's
      * opening dialogue plays in game.
      *
@@ -224,6 +234,16 @@ final class SmokeDriver {
             } else {
                 client.requestLevel(smokeLevel, smokeLevelRestart);
             }
+        }
+        if (!smokeConfirm.isBlank() && !smokeConfirmFired && clientTick > 120
+                && client.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen) {
+            smokeConfirmFired = true;
+            com.pvzce.client.gui.screens.ConfirmDialog box = "sun".equals(smokeConfirm)
+                    ? com.pvzce.client.gui.screens.ConfirmDialog.startWithoutSun(client, () -> {
+                    }, null)
+                    : com.pvzce.client.gui.screens.ConfirmDialog.restart(client, () -> {
+                    }, null);
+            client.currentScreen().showDialog(box);
         }
         if (!smokeReward.isBlank() && !smokeRewardFired && clientTick > 90
                 && client.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen) {

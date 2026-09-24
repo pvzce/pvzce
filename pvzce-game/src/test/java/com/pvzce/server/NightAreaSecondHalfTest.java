@@ -93,10 +93,11 @@ class NightAreaSecondHalfTest {
                     name + "'s unlock needs a card");
         }
         // 2-9 still gives no plant - the original's note is not an item - but it does hand over
-        // the second level buff, auto-pickup, so the player has it before the n-10 belt.
+        // the spore-range buff, which is the one the original's note unlocks and the one 2-10's
+        // mushroom belt wants.
         assertEquals(1, level("2_9").rewards().firstClear().size(),
                 "2-9 declares exactly one first-clear entry");
-        assertEquals("pvzce:auto_collect",
+        assertEquals("pvzce:mushroom_range",
                 level("2_9").rewards().firstClear().get(0).id().orElseThrow().toString());
         assertTrue(level("2_9").rewards().firstClear().get(0).isBuff(), "and it is a buff");
         assertEquals(LevelRewards.DEFAULT.repeat(), level("2_9").rewards().repeat(),
