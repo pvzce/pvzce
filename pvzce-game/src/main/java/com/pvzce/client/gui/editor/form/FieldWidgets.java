@@ -339,7 +339,7 @@ public final class FieldWidgets {
 
             private void refresh() {
                 if (cycle != null) {
-                    cycle.setLabel(label + "：" + (value == null ? "—" : value));
+                    cycle.setLabel(clip(label + "：" + (value == null ? "—" : value)));
                 }
             }
         };
@@ -607,6 +607,31 @@ public final class FieldWidgets {
         }
     }
 
+    /** How much text a self-labelling widget may draw before it runs over its neighbour. */
+    private static final int CHOICE_LABEL_LIMIT = 22;
+
+    /** Trims a button's own caption, which is drawn inside a fixed-width control. */
+    private static String clip(String text) {
+        return text.length() <= CHOICE_LABEL_LIMIT ? text
+                : text.substring(0, CHOICE_LABEL_LIMIT - 1) + "…";
+    }
+
+    /**
+     * A mechanic's declared label, translated.
+     *
+     * <p>{@code FieldSpec.label} is a {@code GuiLang} key. {@code FormPage} resolves the row's own
+     * label, but a widget that draws its declaration - a choice button writes "label: value" on
+     * itself - needs the translated text too, and without this it printed the key: a page of
+     * buttons reading {@code pvzce.mechanic.wave_pacing.field.default_mode：fixed}.
+     */
+    static String fromSpecLabel(String key) {
+        if (key == null || key.isBlank()) {
+            return "";
+        }
+        int dot = key.lastIndexOf('.');
+        return com.pvzce.client.gui.GuiLang.raw(key, dot < 0 ? key : key.substring(dot + 1));
+    }
+
     /** One comma or whitespace separated id list, blanks dropped. */
     static java.util.List<String> split(String value) {
         java.util.List<String> ids = new java.util.ArrayList<>();
@@ -638,34 +663,34 @@ public final class FieldWidgets {
      */
     public static FormField fromSpec(FieldSpec spec) {
         if (spec instanceof FieldSpec.Text text) {
-            return text(text.path(), text.label(), text.maxLength());
+            return text(text.path(), fromSpecLabel(text.label()), text.maxLength());
         }
         if (spec instanceof FieldSpec.Number number) {
-            return number(number.path(), number.label(), number.min(), number.max(), number.integer(),
-                    Optional.empty());
+            return number(number.path(), fromSpecLabel(number.label()), number.min(), number.max(),
+                    number.integer(), Optional.empty());
         }
         if (spec instanceof FieldSpec.Bool bool) {
-            return bool(bool.path(), bool.label(), "开", "关", Optional.empty());
+            return bool(bool.path(), fromSpecLabel(bool.label()), "开", "关", Optional.empty());
         }
         if (spec instanceof FieldSpec.Choice choice) {
-            return choice(choice.path(), choice.label(), choice.options(), "");
+            return choice(choice.path(), fromSpecLabel(choice.label()), choice.options(), "");
         }
         if (spec instanceof FieldSpec.Ref ref) {
             return ref.multiple()
-                    ? idList(ref.path(), ref.label(), ref.category())
-                    : reference(ref.path(), ref.label(), ref.category());
+                    ? idList(ref.path(), fromSpecLabel(ref.label()), ref.category())
+                    : reference(ref.path(), fromSpecLabel(ref.label()), ref.category());
         }
         if (spec instanceof FieldSpec.StringList list) {
-            return scalarList(list.path(), list.label(), list.maxLength(), false);
+            return scalarList(list.path(), fromSpecLabel(list.label()), list.maxLength(), false);
         }
         if (spec instanceof FieldSpec.IntList list) {
-            return scalarList(list.path(), list.label(), 256, true);
+            return scalarList(list.path(), fromSpecLabel(list.label()), 256, true);
         }
         if (spec instanceof FieldSpec.ListField list) {
             // A list whose entries carry fields of their own (a weighted card pool) is a table,
             // and that editor does not exist yet: naming the field beats a page that silently
             // omits it.
-            return new UnsupportedField(list.path(), list.label(),
+            return new UnsupportedField(list.path(), fromSpecLabel(list.label()),
                     "列表字段：暂请在 JSON 里编辑这一项");
         }
         throw new UnsupportedOperationException(

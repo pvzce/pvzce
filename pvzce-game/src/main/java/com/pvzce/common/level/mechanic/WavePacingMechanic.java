@@ -107,8 +107,6 @@ public final class WavePacingMechanic implements LevelMechanic<WavePacingData> {
         return List.of(
                 FieldSpec.decimal("clear_reward_factor", "pvzce.mechanic.wave_pacing.field.clear_reward_factor",
                         1F, 20F),
-                FieldSpec.integer("clear_reward_min_ticks",
-                        "pvzce.mechanic.wave_pacing.field.clear_reward_min_ticks", 0, 3600),
                 FieldSpec.integer("clear_reward_grace_ticks",
                         "pvzce.mechanic.wave_pacing.field.clear_reward_grace_ticks", 0, 3600),
                 FieldSpec.decimal("early_wave_kill_ratio",
@@ -119,12 +117,7 @@ public final class WavePacingMechanic implements LevelMechanic<WavePacingData> {
                         List.of("fixed", "stockpile", "survival_ratio", "budget")),
                 new FieldSpec.Choice("waves[0].mode", "pvzce.mechanic.wave_pacing.field.mode",
                         List.of("fixed", "stockpile", "survival_ratio", "budget")),
-                FieldSpec.integer("waves[0].max_alive",
-                        "pvzce.mechanic.wave_pacing.field.max_alive", 1, 99),
-                FieldSpec.integer("waves[0].budget", "pvzce.mechanic.wave_pacing.field.budget", 0, 999),
-                new FieldSpec.IntList("waves[0].waves", "pvzce.mechanic.wave_pacing.field.waves"),
-                new FieldSpec.Ref("waves[0].pool", "pvzce.mechanic.wave_pacing.field.pool",
-                        "zombie", true));
+                new FieldSpec.IntList("waves[0].waves", "pvzce.mechanic.wave_pacing.field.waves"));
     }
 
     /**

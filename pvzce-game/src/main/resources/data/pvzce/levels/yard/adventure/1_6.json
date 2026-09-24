@@ -237,5 +237,23 @@
   "disable_shaders": true,
   "buffs": [
     "pvzce:player_choice"
+  ],
+  "mechanics": [
+    {
+      "type": "pvzce:wave_pacing",
+      "early_wave_kill_ratio": 0.6,
+      "waves": [
+        {
+          "waves": [
+            4,
+            5,
+            6
+          ],
+          "mode": "survival_ratio",
+          "kill_ratio": 0.6
+        }
+      ],
+      "clear_reward_grace_ticks": 600
+    }
   ]
 }

@@ -1830,16 +1830,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // what the stockpile cap and the survival-ratio gate read, so a kill it never hears about
         // is a wave that still believes it is being fought.
         waves.zombieDied(zombie.id());
+        // Where it fell, recorded before anything else can return: the end-of-level payout lands
+        // on the last kill's cell, and a kill that happened on the same tick the level ended
+        // (the level's own win check runs after the entities) would otherwise leave the payout
+        // with no spot to land on.
+        lastKillX = zombie.cellX();
+        lastKillY = zombie.cellY();
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }
         // The death animation has to reach the client even if the level ends this tick;
         // see entitySyncPending.
         entitySyncPending = true;
-        // Recorded before the drop roll: a zombie that drops nothing still died here, and
-        // this is where the level's reward will land.
-        lastKillX = zombie.cellX();
-        lastKillY = zombie.cellY();
         // Sun first, and independently of the coin roll: a level that pays sun for kills wants
         // it whether or not it also pays coins, and a `return` on the coin roll below would
         // otherwise swallow every sun a level with no coin drops was owed.
