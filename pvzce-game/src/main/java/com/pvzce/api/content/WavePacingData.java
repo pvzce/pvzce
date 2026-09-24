@@ -216,6 +216,33 @@ public record WavePacingData(
         return Math.max(1, Math.min(delayTicks, grace + accelerated));
     }
 
+    /** The same block with the clear bonus switched off: the wave table, exactly as written. */
+    public WavePacingData clearRewardOff() {
+        return new WavePacingData(1F, 0, 0, earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance,
+                defaultMode, waves);
+    }
+
+    /**
+     * A block that only chooses modes: every reward and gate setting stays at its default.
+     *
+     * <p>The shape a level that wants "these waves are stockpiles" writes, and the one the tests
+     * build: eight positional numbers where six are boilerplate is a constructor call nobody can
+     * read, and the two that matter are the mode and the rows.
+     */
+    public static WavePacingData ofModes(WaveMode defaultMode, WavePacing... waves) {
+        return new WavePacingData(DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS,
+                DEFAULT_CLEAR_REWARD_GRACE_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
+                DEFAULT_EARLY_KILL_DELAY_FACTOR, true, defaultMode, List.of(waves));
+    }
+
+    /** One row for one wave, in this mode, with nothing else changed. */
+    public static WavePacing row(int waveNumber, WaveMode mode) {
+        String name = mode.name().toLowerCase(Locale.ROOT);
+        return new WavePacing(List.of(waveNumber), Optional.of(name), Optional.of(mode),
+                Optional.empty(), Optional.empty(), Optional.empty(), List.of(), Optional.empty(),
+                Optional.empty());
+    }
+
     /** A mode by name, or {@link #DEFAULT_MODE} for anything unrecognised. */
     public static WaveMode parseMode(String name) {
         if (name == null) {
