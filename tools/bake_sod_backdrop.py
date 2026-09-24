@@ -1,80 +1,79 @@
 #!/usr/bin/env python3
-"""Bake the original's sod rows into a copy of the unsodded lawn backdrop.
+"""Bake the original's unfinished lawns into backdrop copies for 1-1 .. 1-3.
 
-The original's first Day levels are played on a lawn that is only partly finished.
-`background1unsodded` is bare dirt; the rows the player may plant on are drawn on top of it,
-and the rip keeps them as `sod1row` (one middle row) and `sod3row` (three centre rows) with a
-same-size alpha mask (`sod1row_.png`, `sod3row_.png`).
+The original's first three Day levels are played on a lawn that is only partly finished:
+`background1unsodded` is bare dirt, and the rows the player may plant on were drawn on top of
+it. Level 1-1 has one finished row, 1-2 and 1-3 have three.
 
-The project cannot express those sprites as scene elements - a scene element is one cell, and
-these are nine-cell rows of one specific art - so they are baked into a copy of the backdrop,
-which is how `background1` (whose sod is part of the art) has always worked for 1-4 onwards.
-The level files then point at the baked image and hide the grass pass, as they already do.
+Two things about that art decide how this script works:
+
+* **The rows are already in the repository**, painted at the right pixel scale in
+  `background1.png` - the backdrop levels 1-4 and later use, whose whole lawn is finished.
+  Copying a band of it onto the unsodded dirt reproduces the original exactly, lighting and
+  pebbles included, without rescaling anything.
+* **The rip's separate row sprites** (`refer/im7/images/sod1row.jpg` + `sod1row_.png`,
+  `sod3row.*`) are the same art with a transparent black margin around it. Compositing those by
+  hand is what this script used to do, and it never quite matched: the margin has to be faded
+  out or it draws a dark halo over the dirt. Cutting the same rows out of the finished backdrop
+  has no such problem.
+
+The levels then point at the baked image and keep hiding the grass pass, exactly like 1-4 and
+later hide it over art that already has a lawn.
 
 Run from the repository root:  python3 tools/bake_sod_backdrop.py
-Needs Pillow (the rip's sod art is JPEG, and its shape is an alpha PNG).
+Needs Pillow and numpy.
 """
 
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-REFERENCE = ROOT / "refer" / "im7" / "images"
-ASSETS = ROOT / "pvzce-game" / "src" / "main" / "resources" / "assets" / "pvzce" / "textures"
-LEVEL_ART = ASSETS / "gui" / "screen" / "level"
+LEVEL_ART = (ROOT / "pvzce-game" / "src" / "main" / "resources" / "assets" / "pvzce"
+             / "textures" / "gui" / "screen" / "level")
 
 # The lawn region of the 1400x600 backdrop: nine 80px columns and five 100px rows.
 LAWN_X, LAWN_Y, LAWN_WIDTH, LAWN_HEIGHT = 256, 80, 720, 500
 ROW_HEIGHT = LAWN_HEIGHT // 5
+# How many pixels of the band's own edge are faded into the dirt below and above it. The
+# finished backdrop has a soft grass-to-dirt line along its lawn's edge; without this the band
+# ends on a hard edge wherever it is cut short of the art's own boundary.
+EDGE_FEATHER_PX = 4
 
-# Each sod sprite and the rows of the lawn it covers. Both are 771px wide with a few pixels of
-# transparent margin; the mask says exactly which pixels are opaque, and the sprite is scaled so
-# that opaque part spans the lawn's width.
-SPRITES = {
-    "sod1row": {"rows": 1, "output": "background1_1row.png"},
-    "sod3row": {"rows": 3, "output": "background1_3row.png"},
+# Each output and the rows of the lawn it finishes. The rows are the centre of the five - the
+# same place `LevelStage.board` puts a board that is not five rows tall - so the finished grass
+# is what the player can plant on.
+OUTPUTS = {
+    "background1_1row.png": 1,
+    "background1_3row.png": 3,
 }
 
 
-def compose(name: str, spec: dict) -> Path:
-    art = Image.open(REFERENCE / f"{name}.jpg").convert("RGB")
-    mask = Image.open(REFERENCE / f"{name}_.png").convert("L")
-    if art.size != mask.size:
-        raise SystemExit(f"{name}: art {art.size} does not match mask {mask.size}")
+def bake(finished_rows: int) -> np.ndarray:
+    sodded = np.asarray(Image.open(LEVEL_ART / "background1.png").convert("RGB")).astype(float)
+    unsodded = np.asarray(Image.open(LEVEL_ART / "background1unsodded.png").convert("RGB")).astype(float)
 
-    opaque = mask.point(lambda value: 255 if value > 8 else 0).getbbox()
-    if opaque is None:
-        raise SystemExit(f"{name}: the mask is empty")
-    left, top, right, bottom = opaque
+    first = (5 - finished_rows) // 2
+    top = LAWN_Y + first * ROW_HEIGHT
+    bottom = top + finished_rows * ROW_HEIGHT
+    columns = slice(LAWN_X, LAWN_X + LAWN_WIDTH)
 
-    rows = spec["rows"]
-    # The same centre the board uses for a lawn that is not five rows tall: the finished rows
-    # sit in the middle, with bare dirt above and below (`LevelStage.board` splits the leftover
-    # evenly). The art is placed by its own opaque rectangle so that rectangle lands exactly on
-    # the rows those cells occupy - the sprite's transparent margin then hangs outside the
-    # lawn, which is harmless because it is transparent.
-    first_row = LAWN_Y + (5 - rows) * ROW_HEIGHT // 2
-    scale = LAWN_WIDTH / (right - left)
-    width = max(1, round(art.width * scale))
-    height = max(1, round(art.height * scale))
-    resized_art = art.resize((width, height), Image.LANCZOS)
-    resized_mask = mask.resize((width, height), Image.LANCZOS)
-    target_x = LAWN_X - round(left * scale)
-    target_y = first_row - round(top * scale)
-
-    backdrop = Image.open(LEVEL_ART / "background1unsodded.png").convert("RGB")
-    backdrop.paste(resized_art, (target_x, target_y), resized_mask)
-    out = LEVEL_ART / spec["output"]
-    backdrop.save(out)
-    print(f"{out.relative_to(ROOT)}: {rows} row(s) at y={first_row}..{first_row + rows * ROW_HEIGHT}"
-          f" from {name} (opaque {right - left}x{bottom - top} scaled to {LAWN_WIDTH}px wide)")
-    return out
+    out = unsodded.copy()
+    out[top:bottom, columns] = sodded[top:bottom, columns]
+    for i in range(EDGE_FEATHER_PX):
+        alpha = (i + 1) / (EDGE_FEATHER_PX + 1)
+        for y in (top + i, bottom - 1 - i):
+            out[y, columns] = (out[y, columns] * alpha
+                               + unsodded[y, columns] * (1.0 - alpha))
+    return np.clip(out, 0, 255).astype(np.uint8)
 
 
 def main() -> int:
-    for name, spec in SPRITES.items():
-        compose(name, spec)
+    for name, rows in OUTPUTS.items():
+        Image.fromarray(bake(rows)).save(LEVEL_ART / name)
+        first = (5 - rows) // 2
+        print(f"{name}: {rows} finished row(s), lawn rows {first}..{first + rows - 1}")
     return 0
 
 
