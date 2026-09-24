@@ -1,0 +1,283 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/media/crystalneko/enkoo/java/pvzce/.gradle-user/wrapper/dists/gradle-9.3.0-bin/79n14ral3mx1ozqr3csh2u872/gradle-9.3.0/lib/native-platform-0.22-milestone-29.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+Initialized native services in: /media/crystalneko/enkoo/java/pvzce/.gradle-user/native
+Initialized jansi services in: /media/crystalneko/enkoo/java/pvzce/.gradle-user/native
+Removing daemon from the registry due to communication failure. Daemon information: DaemonInfo{pid=55, address=[a4cb0db3-15a6-40b1-9389-738f63c2143e port:42907, addresses:[/127.0.0.1]], state=Idle, lastBusy=1790259290333, context=DefaultDaemonContext[uid=f98de866-f047-4a6c-a814-d9852446acc5,javaHome=/usr/lib/jvm/java-25-openjdk-amd64,javaVersion=25,javaVendor=Ubuntu,daemonRegistryDir=/media/crystalneko/enkoo/java/pvzce/.gradle-user/daemon,pid=55,idleTimeout=10800000,priority=NORMAL,applyInstrumentationAgent=true,nativeServicesMode=ENABLED,daemonOpts=-Xmx2048M,-Dfile.encoding=UTF-8,-Duser.country=CN,-Duser.language=zh,-Duser.variant]}
+Removing 0 daemon stop events from registry
+Previous Daemon (109) stopped at Thu Sep 24 22:05:46 PST 2026 by user or operating system
+Previous Daemon (59) stopped at Thu Sep 24 22:05:54 PST 2026 by user or operating system
+Previous Daemon (63) stopped at Thu Sep 24 22:06:00 PST 2026 by user or operating system
+Previous Daemon (58) stopped at Thu Sep 24 22:06:10 PST 2026 by user or operating system
+Previous Daemon (111) stopped at Thu Sep 24 22:06:17 PST 2026 by user or operating system
+Previous Daemon (56) stopped at Thu Sep 24 22:06:29 PST 2026 by user or operating system
+Previous Daemon (112) stopped at Thu Sep 24 22:08:22 PST 2026 by user or operating system
+Previous Daemon (57) stopped at Thu Sep 24 22:09:52 PST 2026 by user or operating system
+Previous Daemon (54) stopped at Thu Sep 24 22:11:44 PST 2026 by user or operating system
+Previous Daemon (113) stopped at Thu Sep 24 22:11:51 PST 2026 by user or operating system
+Previous Daemon (51) stopped at Thu Sep 24 22:12:31 PST 2026 by user or operating system
+Previous Daemon (55) stopped at Thu Sep 24 22:13:22 PST 2026 by user or operating system
+Previous Daemon (114) stopped at Thu Sep 24 22:14:42 PST 2026 by user or operating system
+Starting a Gradle Daemon, 1 incompatible and 13 stopped Daemons could not be reused, use --status for details
+Starting process 'Gradle build daemon'. Working directory: /media/crystalneko/enkoo/java/pvzce/.gradle-user/daemon/9.3.0 Command: /usr/lib/jvm/java-25-openjdk-amd64/bin/java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --enable-native-access=ALL-UNNAMED -Xmx2048M -Dfile.encoding=UTF-8 -Duser.country=CN -Duser.language=zh -Duser.variant -cp /media/crystalneko/enkoo/java/pvzce/.gradle-user/wrapper/dists/gradle-9.3.0-bin/79n14ral3mx1ozqr3csh2u872/gradle-9.3.0/lib/gradle-daemon-main-9.3.0.jar -javaagent:/media/crystalneko/enkoo/java/pvzce/.gradle-user/wrapper/dists/gradle-9.3.0-bin/79n14ral3mx1ozqr3csh2u872/gradle-9.3.0/lib/agents/gradle-instrumentation-agent-9.3.0.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 9.3.0
+Successfully started process 'Gradle build daemon'
+An attempt to start the daemon took 0.343 secs.
+The client will now receive all logging from the daemon (pid: 56). The daemon log file: /media/crystalneko/enkoo/java/pvzce/.gradle-user/daemon/9.3.0/daemon-56.out.log
+Starting build in new daemon [memory: 2 GiB]
+Using 32 worker leases.
+Operational build model parameters: {requiresToolingModels=false, parallelProjectExecution=true, configureOnDemand=false, configurationCache=false, configurationCacheParallelStore=false, configurationCacheParallelLoad=true, isolatedProjects=false, parallelProjectConfiguration=false, intermediateModelCache=false, parallelToolingApiActions=true, invalidateCoupledProjects=false, modelAsProjectDependency=false, resilientModelBuilding=false}
+Received JVM installation metadata from '/usr/lib/jvm/java-25-openjdk-amd64': {JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64, JAVA_VERSION=25.0.4.1, JAVA_VENDOR=Ubuntu, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=25.0.4.1+1-1-26.04.4-Ubuntu, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=25.0.4.1+1-1-26.04.4-Ubuntu, VM_VENDOR=Ubuntu, OS_ARCH=amd64}
+Watching the file system is configured to be enabled if available
+Now considering [/media/crystalneko/enkoo/java/pvzce] as hierarchies to watch
+File system watching is active
+Starting Build
+Settings evaluated using settings file '/media/crystalneko/enkoo/java/pvzce/settings.gradle'.
+Projects loaded. Root project using build file '/media/crystalneko/enkoo/java/pvzce/build.gradle'.
+Included projects: [root project 'pvzce', project ':pvzce-api', project ':pvzce-game', project ':pvzce-loader', project ':pvzce-mod-template']
+
+> Configure project :
+Evaluating root project 'pvzce' using build file '/media/crystalneko/enkoo/java/pvzce/build.gradle'.
+Resolved plugin [id: 'java']
+
+> Configure project :pvzce-api
+Evaluating project ':pvzce-api' using build file '/media/crystalneko/enkoo/java/pvzce/pvzce-api/build.gradle'.
+Resolved plugin [id: 'java-library']
+
+> Configure project :pvzce-game
+Evaluating project ':pvzce-game' using build file '/media/crystalneko/enkoo/java/pvzce/pvzce-game/build.gradle'.
+Resolved plugin [id: 'java-library']
+Resolved plugin [id: 'application']
+Resolved plugin [id: 'com.gradleup.shadow', version: '9.2.2']
+Skipping Develocity integration for Shadow plugin.
+Setting org.gradle.jvm.version attribute for shadowRuntimeElements configuration.
+Setting target JVM version to 21 for shadowRuntimeElements configuration.
+Adding shadowRuntimeElements variant to Java component.
+
+> Configure project :pvzce-loader
+Evaluating project ':pvzce-loader' using build file '/media/crystalneko/enkoo/java/pvzce/pvzce-loader/build.gradle'.
+Resolved plugin [id: 'java-library']
+
+> Configure project :pvzce-mod-template
+Evaluating project ':pvzce-mod-template' using build file '/media/crystalneko/enkoo/java/pvzce/pvzce-mod-template/build.gradle'.
+Resolved plugin [id: 'java-library']
+All projects evaluated.
+Task path ':pvzce-game:test' matched project ':pvzce-game'
+Task name matched 'test'
+Selected primary task 'test' from project :pvzce-game
+Path for java installation '/usr/lib/jvm/openjdk-25' (Common Linux Locations) auto-detected does not contain a java executable
+Path for java installation '/usr/lib/jvm/openjdk-21' (Common Linux Locations) auto-detected does not contain a java executable
+Starting process 'command '/home/crystalneko/.jdks/openjdk-25.0.1/bin/java''. Working directory: /media/crystalneko/enkoo/java/pvzce/.gradle-user/.tmp/tmp-jvm6313902163555620339probe Command: /home/crystalneko/.jdks/openjdk-25.0.1/bin/java -Xmx32m -Xms32m -cp . JavaProbe
+Successfully started process 'command '/home/crystalneko/.jdks/openjdk-25.0.1/bin/java''
+Received JVM installation metadata from '/home/crystalneko/.jdks/openjdk-25.0.1': {JAVA_HOME=/home/crystalneko/.jdks/openjdk-25.0.1, JAVA_VERSION=25.0.1, JAVA_VENDOR=Oracle Corporation, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=25.0.1+8-27, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=25.0.1+8-27, VM_VENDOR=Oracle Corporation, OS_ARCH=amd64}
+Starting process 'command '/home/crystalneko/.jdks/ms-21.0.11/bin/java''. Working directory: /media/crystalneko/enkoo/java/pvzce/.gradle-user/.tmp/tmp-jvm8950617440734540670probe Command: /home/crystalneko/.jdks/ms-21.0.11/bin/java -Xmx32m -Xms32m -cp . JavaProbe
+Successfully started process 'command '/home/crystalneko/.jdks/ms-21.0.11/bin/java''
+Received JVM installation metadata from '/home/crystalneko/.jdks/ms-21.0.11': {JAVA_HOME=/home/crystalneko/.jdks/ms-21.0.11, JAVA_VERSION=21.0.11, JAVA_VENDOR=Microsoft, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=21.0.11+10-LTS, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=21.0.11+10-LTS, VM_VENDOR=Microsoft, OS_ARCH=amd64}
+Starting process 'command '/usr/lib/jvm/java-21-openjdk-amd64/bin/java''. Working directory: /media/crystalneko/enkoo/java/pvzce/.gradle-user/.tmp/tmp-jvm9901708125888651770probe Command: /usr/lib/jvm/java-21-openjdk-amd64/bin/java -Xmx32m -Xms32m -cp . JavaProbe
+Successfully started process 'command '/usr/lib/jvm/java-21-openjdk-amd64/bin/java''
+Received JVM installation metadata from '/usr/lib/jvm/java-21-openjdk-amd64': {JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64, JAVA_VERSION=21.0.12.1, JAVA_VENDOR=Ubuntu, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=21.0.12.1+1-1-26.04.4-Ubuntu, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=21.0.12.1+1-1-26.04.4-Ubuntu, VM_VENDOR=Ubuntu, OS_ARCH=amd64}
+Tasks to be executed: [task ':pvzce-loader:compileJava', task ':pvzce-api:compileJava', task ':pvzce-api:processResources', task ':pvzce-api:classes', task ':pvzce-api:jar', task ':pvzce-game:compileJava', task ':pvzce-game:processResources', task ':pvzce-game:classes', task ':pvzce-game:compileTestJava', task ':pvzce-game:processTestResources', task ':pvzce-game:testClasses', task ':pvzce-loader:processResources', task ':pvzce-loader:classes', task ':pvzce-loader:jar', task ':pvzce-game:test']
+Tasks that were excluded: []
+Resolve mutations for :pvzce-loader:compileJava (Thread[#184,Execution worker,5,main]) started.
+Resolve mutations for :pvzce-api:processResources (Thread[#185,Execution worker Thread 2,5,main]) started.
+Resolve mutations for :pvzce-game:processResources (Thread[#186,Execution worker Thread 3,5,main]) started.
+:pvzce-loader:compileJava (Thread[#184,Execution worker,5,main]) started.
+:pvzce-api:processResources (Thread[#185,Execution worker Thread 2,5,main]) started.
+:pvzce-game:processResources (Thread[#186,Execution worker Thread 3,5,main]) started.
+
+> Task :pvzce-api:processResources NO-SOURCE
+Skipping task ':pvzce-api:processResources' as it has no source files and no previous output files.
+This JVM does not support getting OS memory, so no OS memory status updates will be broadcast
+
+> Task :pvzce-game:processResources
+Caching disabled for task ':pvzce-game:processResources' because:
+  Build cache is disabled
+  Not worth caching
+Task ':pvzce-game:processResources' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+Resolve mutations for :pvzce-game:processTestResources (Thread[#186,Execution worker Thread 3,5,main]) started.
+:pvzce-game:processTestResources (Thread[#186,Execution worker Thread 3,5,main]) started.
+
+> Task :pvzce-game:processTestResources NO-SOURCE
+Skipping task ':pvzce-game:processTestResources' as it has no source files and no previous output files.
+
+> Task :pvzce-loader:compileJava
+Caching disabled for task ':pvzce-loader:compileJava' because:
+  Build cache is disabled
+Task ':pvzce-loader:compileJava' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+The input changes require a full rebuild for incremental task ':pvzce-loader:compileJava'.
+Compilation mode: default, forking compiler
+Full recompilation is required because no incremental change information is available. This is usually caused by clean builds or changing compiler arguments.
+Compiling with toolchain '/home/crystalneko/.jdks/ms-21.0.11'.
+Starting process 'Gradle Worker Daemon 1'. Working directory: /media/crystalneko/enkoo/java/pvzce/.gradle-user/workers Command: /home/crystalneko/.jdks/ms-21.0.11/bin/java --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED @/media/crystalneko/enkoo/java/pvzce/.gradle-user/.tmp/gradle-worker-classpath9052945062814131755txt -Xmx512m -Dfile.encoding=UTF-8 -Duser.country=CN -Duser.language=zh -Duser.variant worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Worker Daemon 1'
+Successfully started process 'Gradle Worker Daemon 1'
+Started Gradle worker daemon (0.147 secs) with fork options DaemonForkOptions{executable=/home/crystalneko/.jdks/ms-21.0.11/bin/java, minHeapSize=null, maxHeapSize=null, jvmArgs=[--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED, --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED], keepAliveMode=DAEMON}.
+Compiling with JDK Java compiler API.
+注: 某些输入文件使用或覆盖了已过时的 API。
+注: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+Class dependency analysis for incremental compilation took 0.014 secs.
+Created classpath snapshot for incremental compilation in 0.008 secs.
+work action resolve main (project :pvzce-loader) (Thread[#184,Execution worker,5,main]) started.
+Resolve mutations for :pvzce-api:compileJava (Thread[#184,Execution worker,5,main]) started.
+Resolve mutations for :pvzce-loader:processResources (Thread[#183,included builds,5,main]) started.
+:pvzce-loader:processResources (Thread[#183,included builds,5,main]) started.
+:pvzce-api:compileJava (Thread[#184,Execution worker,5,main]) started.
+
+> Task :pvzce-loader:processResources
+Caching disabled for task ':pvzce-loader:processResources' because:
+  Build cache is disabled
+  Not worth caching
+Task ':pvzce-loader:processResources' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+Resolve mutations for :pvzce-loader:classes (Thread[#183,included builds,5,main]) started.
+:pvzce-loader:classes (Thread[#183,included builds,5,main]) started.
+
+> Task :pvzce-loader:classes
+Skipping task ':pvzce-loader:classes' as it has no actions.
+Resolve mutations for :pvzce-loader:jar (Thread[#183,included builds,5,main]) started.
+:pvzce-loader:jar (Thread[#183,included builds,5,main]) started.
+
+> Task :pvzce-api:compileJava
+Caching disabled for task ':pvzce-api:compileJava' because:
+  Build cache is disabled
+Task ':pvzce-api:compileJava' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+The input changes require a full rebuild for incremental task ':pvzce-api:compileJava'.
+Compilation mode: default, forking compiler
+Full recompilation is required because no incremental change information is available. This is usually caused by clean builds or changing compiler arguments.
+Compiling with toolchain '/home/crystalneko/.jdks/ms-21.0.11'.
+Compiling with JDK Java compiler API.
+Class dependency analysis for incremental compilation took 0.0 secs.
+Created classpath snapshot for incremental compilation in 0.037 secs.
+work action resolve main (project :pvzce-api) (Thread[#184,Execution worker,5,main]) started.
+Resolve mutations for :pvzce-api:classes (Thread[#184,Execution worker,5,main]) started.
+Resolve mutations for :pvzce-game:compileJava (Thread[#194,Execution worker Thread 11,5,main]) started.
+:pvzce-api:classes (Thread[#184,Execution worker,5,main]) started.
+
+> Task :pvzce-api:classes
+Skipping task ':pvzce-api:classes' as it has no actions.
+Resolve mutations for :pvzce-api:jar (Thread[#184,Execution worker,5,main]) started.
+:pvzce-api:jar (Thread[#184,Execution worker,5,main]) started.
+:pvzce-game:compileJava (Thread[#194,Execution worker Thread 11,5,main]) started.
+
+> Task :pvzce-api:jar
+Caching disabled for task ':pvzce-api:jar' because:
+  Build cache is disabled
+  Not worth caching
+Task ':pvzce-api:jar' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+file or directory '/media/crystalneko/enkoo/java/pvzce/pvzce-api/build/resources/main', not found
+work action resolve pvzce-api-1.0.0.jar (project :pvzce-api) (Thread[#184,Execution worker,5,main]) started.
+
+> Task :pvzce-loader:jar
+Caching disabled for task ':pvzce-loader:jar' because:
+  Build cache is disabled
+  Not worth caching
+Task ':pvzce-loader:jar' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+work action resolve pvzce-loader-1.0.0.jar (project :pvzce-loader) (Thread[#183,included builds,5,main]) started.
+
+> Task :pvzce-game:compileJava
+Caching disabled for task ':pvzce-game:compileJava' because:
+  Build cache is disabled
+Task ':pvzce-game:compileJava' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+The input changes require a full rebuild for incremental task ':pvzce-game:compileJava'.
+Compilation mode: default, forking compiler
+Full recompilation is required because no incremental change information is available. This is usually caused by clean builds or changing compiler arguments.
+Compiling with toolchain '/home/crystalneko/.jdks/ms-21.0.11'.
+Compiling with JDK Java compiler API.
+注: 某些输入文件使用了未经检查或不安全的操作。
+注: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+Class dependency analysis for incremental compilation took 0.034 secs.
+Created classpath snapshot for incremental compilation in 0.043 secs.
+Resolve mutations for :pvzce-game:classes (Thread[#194,Execution worker Thread 11,5,main]) started.
+:pvzce-game:classes (Thread[#194,Execution worker Thread 11,5,main]) started.
+
+> Task :pvzce-game:classes
+Skipping task ':pvzce-game:classes' as it has no actions.
+Resolve mutations for :pvzce-game:compileTestJava (Thread[#194,Execution worker Thread 11,5,main]) started.
+:pvzce-game:compileTestJava (Thread[#194,Execution worker Thread 11,5,main]) started.
+
+> Task :pvzce-game:compileTestJava
+Caching disabled for task ':pvzce-game:compileTestJava' because:
+  Build cache is disabled
+Task ':pvzce-game:compileTestJava' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+The input changes require a full rebuild for incremental task ':pvzce-game:compileTestJava'.
+Compilation mode: default, forking compiler
+Full recompilation is required because no incremental change information is available. This is usually caused by clean builds or changing compiler arguments.
+Compiling with toolchain '/home/crystalneko/.jdks/ms-21.0.11'.
+Compiling with JDK Java compiler API.
+Class dependency analysis for incremental compilation took 0.006 secs.
+Created classpath snapshot for incremental compilation in 0.01 secs.
+Resolve mutations for :pvzce-game:testClasses (Thread[#194,Execution worker Thread 11,5,main]) started.
+:pvzce-game:testClasses (Thread[#183,included builds,5,main]) started.
+
+> Task :pvzce-game:testClasses
+Skipping task ':pvzce-game:testClasses' as it has no actions.
+Resolve mutations for :pvzce-game:test (Thread[#183,included builds,5,main]) started.
+:pvzce-game:test (Thread[#183,included builds,5,main]) started.
+Gradle Test Executor 2 started executing tests.
+Gradle Test Executor 2 finished executing tests.
+
+> Task :pvzce-game:test
+Caching disabled for task ':pvzce-game:test' because:
+  Build cache is disabled
+Task ':pvzce-game:test' is not up-to-date because:
+  Executed with '--rerun-tasks'.
+Starting process 'Gradle Test Executor 2'. Working directory: /media/crystalneko/enkoo/java/pvzce/pvzce-game Command: /home/crystalneko/.jdks/ms-21.0.11/bin/java -Dorg.gradle.internal.worker.tmpdir=/media/crystalneko/enkoo/java/pvzce/pvzce-game/build/tmp/test/work @/media/crystalneko/enkoo/java/pvzce/.gradle-user/.tmp/gradle-worker-classpath2552789277401641493txt -Xmx512m -Dfile.encoding=UTF-8 -Duser.country=CN -Duser.language=zh -Duser.variant -ea worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Test Executor 2'
+Successfully started process 'Gradle Test Executor 2'
+
+AdvanceProbeTest > advance() STANDARD_OUT
+    PROBE tick=1 wave=0 interval=1 delay=1500 queues=0 alive=0
+    WAVE 0 at tick 1
+    PROBE tick=251 wave=0 interval=251 delay=1500 queues=0 alive=0
+    PROBE tick=501 wave=0 interval=501 delay=1500 queues=0 alive=0
+    PROBE tick=751 wave=0 interval=751 delay=1500 queues=0 alive=0
+    PROBE tick=1001 wave=0 interval=1001 delay=1500 queues=0 alive=0
+    PROBE tick=1251 wave=0 interval=1251 delay=1500 queues=0 alive=0
+    PROBE tick=1492 wave=0 interval=1492 delay=1500 queues=0 alive=0
+    PROBE tick=1493 wave=0 interval=1493 delay=1500 queues=0 alive=0
+    PROBE tick=1494 wave=0 interval=1494 delay=1500 queues=0 alive=0
+    PROBE tick=1495 wave=0 interval=1495 delay=1500 queues=0 alive=0
+    PROBE tick=1496 wave=0 interval=1496 delay=1500 queues=0 alive=0
+    PROBE tick=1497 wave=0 interval=1497 delay=1500 queues=0 alive=0
+    PROBE tick=1498 wave=0 interval=1498 delay=1500 queues=0 alive=0
+    PROBE tick=1499 wave=0 interval=1499 delay=1500 queues=0 alive=0
+    PROBE tick=1500 wave=1 interval=1500 delay=1500 queues=1[wave=0 left=1] alive=0
+    WAVE 1 at tick 1500
+    PROBE tick=1501 wave=2 interval=1500 delay=1500 queues=1[wave=1 left=3] alive=0
+    WAVE 2 at tick 1501
+    PROBE tick=1502 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=3][wave=2 left=4] alive=0
+    WAVE 3 at tick 1502
+    PROBE tick=1503 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=3][wave=2 left=4] alive=0
+    PROBE tick=1504 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=3][wave=2 left=4] alive=0
+    PROBE tick=1505 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=3][wave=2 left=4] alive=0
+    PROBE tick=1751 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=3][wave=2 left=4] alive=0
+    PROBE tick=2001 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=3][wave=2 left=4] alive=0
+    PROBE tick=2251 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=2][wave=2 left=3] alive=0
+    PROBE tick=2501 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=2][wave=2 left=3] alive=0
+    PROBE tick=2751 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=1][wave=2 left=2] alive=0
+    PROBE tick=3001 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=1][wave=2 left=2] alive=0
+    PROBE tick=3251 wave=3 interval=1500 delay=-1 queues=2[wave=1 left=1][wave=2 left=2] alive=0
+    PROBE tick=3501 wave=3 interval=1500 delay=-1 queues=1[wave=2 left=1] alive=0
+    PROBE tick=3751 wave=3 interval=1500 delay=-1 queues=1[wave=2 left=1] alive=0
+    22:15:18.270 [Test worker] INFO  PVZCE/Level - Game over, winner=pvzce:plant_team
+    END wave=3 tick=3907 state=won
+Generating HTML test report...
+Finished generating test html results (0.011 secs) into: /media/crystalneko/enkoo/java/pvzce/pvzce-game/build/reports/tests/test
+Finished generating test XML results (0.001 secs) into: /media/crystalneko/enkoo/java/pvzce/pvzce-game/build/test-results/test
+
+[Incubating] Problems report is available at: file:///media/crystalneko/enkoo/java/pvzce/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 6s
+9 actionable tasks: 9 executed

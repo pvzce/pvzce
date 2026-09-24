@@ -27,6 +27,7 @@ import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.level.CardCooldown;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.level.mechanic.WavePacingMechanic;
 import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.nbt.CompoundTag;
@@ -313,7 +314,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // than a missing value somewhere later.
         this.rules = new GameRules(def.rules());
         this.sunDropClock.reset(this.rules);
-        this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier());
+        this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier(),
+                WavePacingMechanic.of(def));
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
             SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(cell.value());
@@ -672,6 +674,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     public long aliveZombieCount() {
         return entities.stream().filter(e -> e instanceof ZombieEntity z && z.isAlive()).count();
+    }
+
+    /**
+     * The living zombies' ids, in level order.
+     *
+     * <p>{@link WaveDirector}'s resume path: a stockpile wave counts its own zombies, entity ids
+     * do not survive a process, and the only remaining answer to "how full is the lawn" is the
+     * lawn itself.
+     */
+    @Override
+    public List<Integer> livingZombieIds() {
+        List<Integer> ids = new ArrayList<>();
+        for (PvzceEntity entity : entities) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                ids.add(zombie.id());
+            }
+        }
+        return ids;
     }
 
     /**
@@ -1806,6 +1826,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     @Override
     public void zombieDied(ZombieEntity zombie) {
+        // First, and outside the game-state guard below: the wave director's per-wave counts are
+        // what the stockpile cap and the survival-ratio gate read, so a kill it never hears about
+        // is a wave that still believes it is being fought.
+        waves.zombieDied(zombie.id());
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }

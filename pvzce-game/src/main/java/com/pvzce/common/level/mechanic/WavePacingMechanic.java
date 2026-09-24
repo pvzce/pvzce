@@ -79,6 +79,10 @@ public final class WavePacingMechanic implements LevelMechanic<WavePacingData> {
             errors.add("wave_pacing clear_reward_min_ticks cannot be negative, was "
                     + data.clearRewardMinTicks());
         }
+        if (data.clearRewardGraceTicks() < 0) {
+            errors.add("wave_pacing clear_reward_grace_ticks cannot be negative, was "
+                    + data.clearRewardGraceTicks());
+        }
         if (!(data.earlyWaveKillRatio() > 0F) || data.earlyWaveKillRatio() > 1F) {
             errors.add("wave_pacing early_wave_kill_ratio must be inside (0, 1], was "
                     + data.earlyWaveKillRatio());
@@ -105,6 +109,8 @@ public final class WavePacingMechanic implements LevelMechanic<WavePacingData> {
                         1F, 20F),
                 FieldSpec.integer("clear_reward_min_ticks",
                         "pvzce.mechanic.wave_pacing.field.clear_reward_min_ticks", 0, 3600),
+                FieldSpec.integer("clear_reward_grace_ticks",
+                        "pvzce.mechanic.wave_pacing.field.clear_reward_grace_ticks", 0, 3600),
                 FieldSpec.decimal("early_wave_kill_ratio",
                         "pvzce.mechanic.wave_pacing.field.early_wave_kill_ratio", 0.05F, 1F),
                 FieldSpec.decimal("early_kill_delay_factor",

@@ -64,6 +64,7 @@ import java.util.Set;
 public record WavePacingData(
         float clearRewardFactor,
         int clearRewardMinTicks,
+        int clearRewardGraceTicks,
         float earlyWaveKillRatio,
         float earlyKillDelayFactor,
         boolean earlyAdvance,
@@ -83,6 +84,15 @@ public record WavePacingData(
     public static final float DEFAULT_CLEAR_REWARD_FACTOR = 3F;
     /** Five seconds: the shortest "the next wave is coming" a player can react to. */
     public static final int DEFAULT_CLEAR_REWARD_MIN_TICKS = 5 * PvzceConstants.TICKS_PER_SECOND;
+    /**
+     * How much of a countdown the clear bonus may not touch at all.
+     *
+     * <p>The bonus accelerates the part of the wait that is still ahead, but never the last
+     * {@code clear_reward_grace_ticks} of it: clearing the lawn is the player's reward for
+     * finishing a wave, and a reward that turns every level into one continuous wave is not one.
+     * Ten seconds is also roughly "enough time to replant what the last wave ate".
+     */
+    public static final int DEFAULT_CLEAR_REWARD_GRACE_TICKS = 10 * PvzceConstants.TICKS_PER_SECOND;
     /**
      * Seventy percent of an arrived wave dead is "the player is winning this one", which is the
      * point at which waiting out the rest of the countdown stops being pacing and starts being
@@ -148,6 +158,8 @@ public record WavePacingData(
                     .forGetter(WavePacingData::clearRewardFactor),
             Codec.INT.optionalFieldOf("clear_reward_min_ticks", DEFAULT_CLEAR_REWARD_MIN_TICKS)
                     .forGetter(WavePacingData::clearRewardMinTicks),
+            Codec.INT.optionalFieldOf("clear_reward_grace_ticks", DEFAULT_CLEAR_REWARD_GRACE_TICKS)
+                    .forGetter(WavePacingData::clearRewardGraceTicks),
             Codec.FLOAT.optionalFieldOf("early_wave_kill_ratio", DEFAULT_EARLY_WAVE_KILL_RATIO)
                     .forGetter(WavePacingData::earlyWaveKillRatio),
             Codec.FLOAT.optionalFieldOf("early_kill_delay_factor", DEFAULT_EARLY_KILL_DELAY_FACTOR)
@@ -167,11 +179,11 @@ public record WavePacingData(
      * you asked for" is exactly the kind of thing a level author needs named.
      */
     public static WavePacingData parse(float clearRewardFactor, int clearRewardMinTicks,
-                                       float earlyWaveKillRatio, float earlyKillDelayFactor,
-                                       boolean earlyAdvance, String defaultMode,
-                                       List<WavePacing> waves) {
-        return new WavePacingData(clearRewardFactor, clearRewardMinTicks, earlyWaveKillRatio,
-                earlyKillDelayFactor, earlyAdvance, parseMode(defaultMode), waves);
+                                       int clearRewardGraceTicks, float earlyWaveKillRatio,
+                                       float earlyKillDelayFactor, boolean earlyAdvance,
+                                       String defaultMode, List<WavePacing> waves) {
+        return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, parseMode(defaultMode), waves);
     }
 
     public WavePacingData {
@@ -180,7 +192,8 @@ public record WavePacingData(
 
     /** The level-level defaults: everything on, no per-wave overrides. */
     public static final WavePacingData DEFAULT = new WavePacingData(
-            DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
+            DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS,
+            DEFAULT_CLEAR_REWARD_GRACE_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
             DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_MODE, List.of());
 
     /**
@@ -191,8 +204,16 @@ public record WavePacingData(
      * winning, and the pause is what they spend replanting.
      */
     public int clearRewardDelay(int delayTicks) {
-        return Math.max(1, Math.min(delayTicks,
-                Math.max(clearRewardMinTicks, delayTicks / FASTEST_CLEAR_DELAY_DIVISOR)));
+        if (!(clearRewardFactor > 1F)) {
+            return Math.max(1, delayTicks);
+        }
+        // The grace window is paid in full, and only what is left of the countdown is
+        // accelerated - so a gap the author already wrote short stays exactly as written, and a
+        // long one is shortened without ever becoming "no gap at all".
+        int grace = Math.max(clearRewardMinTicks,
+                Math.min(delayTicks, Math.max(0, clearRewardGraceTicks)));
+        int accelerated = Math.round(Math.max(0, delayTicks - grace) / clearRewardFactor);
+        return Math.max(1, Math.min(delayTicks, grace + accelerated));
     }
 
     /** A mode by name, or {@link #DEFAULT_MODE} for anything unrecognised. */
