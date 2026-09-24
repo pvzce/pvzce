@@ -88,18 +88,18 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 960,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
           "count": 4
         }
       ],
-      "spawn_interval": 420
+      "spawn_interval": 224
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1328,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -110,11 +110,11 @@
           "count": 2
         }
       ],
-      "spawn_interval": 390
+      "spawn_interval": 208
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1440,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -129,11 +129,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 360
+      "spawn_interval": 192
     },
     {
       "type": "huge",
-      "delay": 1860,
+      "delay": 1248,
       "entries": [
         {
           "id": "pvzce:flag_zombie",
@@ -156,12 +156,12 @@
           "count": 1
         }
       ],
-      "spawn_interval": 180,
+      "spawn_interval": 96,
       "warning_ticks": 180
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1520,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -180,11 +180,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 330
+      "spawn_interval": 176
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1728,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -203,11 +203,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 300
+      "spawn_interval": 160
     },
     {
       "type": "final",
-      "delay": 1680,
+      "delay": 1330,
       "entries": [
         {
           "id": "pvzce:flag_zombie",
@@ -230,7 +230,7 @@
           "count": 2
         }
       ],
-      "spawn_interval": 140,
+      "spawn_interval": 74,
       "warning_ticks": 180
     }
   ],

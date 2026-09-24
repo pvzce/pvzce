@@ -93,18 +93,18 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
           "count": 3
         }
       ],
-      "spawn_interval": 420
+      "spawn_interval": 224
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 960,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -115,11 +115,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 420
+      "spawn_interval": 224
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1056,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -134,11 +134,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 360
+      "spawn_interval": 192
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1168,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -153,11 +153,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 330
+      "spawn_interval": 176
     },
     {
       "type": "huge",
-      "delay": 1860,
+      "delay": 1056,
       "entries": [
         {
           "id": "pvzce:flag_zombie",
@@ -176,12 +176,12 @@
           "count": 2
         }
       ],
-      "spawn_interval": 180,
+      "spawn_interval": 96,
       "warning_ticks": 180
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1168,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -196,11 +196,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 330
+      "spawn_interval": 176
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1408,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -219,11 +219,11 @@
           "count": 1
         }
       ],
-      "spawn_interval": 300
+      "spawn_interval": 160
     },
     {
       "type": "final",
-      "delay": 1680,
+      "delay": 1168,
       "entries": [
         {
           "id": "pvzce:flag_zombie",
@@ -246,7 +246,7 @@
           "count": 1
         }
       ],
-      "spawn_interval": 150,
+      "spawn_interval": 80,
       "warning_ticks": 180
     }
   ],
