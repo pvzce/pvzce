@@ -198,7 +198,7 @@
       "trigger": "on_card_refused"
     }
   ],
-  "background": "pvzce:textures/gui/screen/level/background1unsodded",
+  "background": "pvzce:textures/gui/screen/level/background1_1row",
   "disable_shaders": true,
   "hidden_scene_elements": [
     "pvzce:grass"

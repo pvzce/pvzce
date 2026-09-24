@@ -243,7 +243,7 @@
       }
     ]
   },
-  "background": "pvzce:textures/gui/screen/level/background1unsodded",
+  "background": "pvzce:textures/gui/screen/level/background1_3row",
   "disable_shaders": true,
   "hidden_scene_elements": [
     "pvzce:grass"

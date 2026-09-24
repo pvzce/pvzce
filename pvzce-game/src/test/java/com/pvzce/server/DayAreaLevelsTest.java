@@ -110,11 +110,14 @@ class DayAreaLevelsTest {
      */
     @Test
     void theFirstThreeLevelsPlayOnTheUnsoddedLawn() {
+        // Each of the three has its own backdrop: the unsodded dirt with the rows the original
+        // finished baked into it (one row for 1-1, three for 1-2 and 1-3). The rows are art
+        // rather than cells because a row is nine cells of one sprite.
         for (String name : List.of("1_1", "1_2", "1_3")) {
             LevelDef def = level(name);
             String background = def.background().map(Object::toString).orElse("");
-            assertTrue(background.endsWith("background1unsodded"),
-                    name + " plays on the original's unsodded backdrop, was " + background);
+            assertTrue(background.endsWith("background1_1row") || background.endsWith("background1_3row"),
+                    name + " plays on a partly finished lawn backdrop, was " + background);
             assertTrue(def.hiddenSceneElements().contains("pvzce:grass"),
                     name + " must paint its terrain without drawing it");
             // Painted, not painted-over: the cells are still grass, so they are plantable.
