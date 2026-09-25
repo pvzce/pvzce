@@ -48,8 +48,16 @@ import java.util.Optional;
 public final class MutationLevels {
     /** The theme these levels live under: the same {@code yard} the shipped levels use. */
     private static final String THEME = "yard";
-    /** The category they share: a new tab, "庭院无尽". */
-    private static final String CATEGORY = "endless";
+    /**
+     * The category they share with the plain endless level: one "生存无尽" tab.
+     *
+     * <p>They used to live under a category of their own ({@code pvzce:endless}), which put the
+     * two endless modes on two different tabs of the same theme - and "which endless do I feel
+     * like" is one question, so it is one page. The level ids changed with it, which is a
+     * deliberate break: a save that recorded {@code yard/endless/mutation_normal} as cleared
+     * does not match {@code yard/survival/mutation_normal}.
+     */
+    private static final String CATEGORY = "survival";
 
     /** The board of the day pool: nine columns, six rows, water in the middle two. */
     private static final int WIDTH = 9;
@@ -93,11 +101,8 @@ public final class MutationLevels {
         return ALL;
     }
 
-    /** Registers the category and the four levels; called from {@code BuiltInRegistries.bootstrap()}. */
+    /** Registers the four levels; the category belongs to {@code EndlessLevels}. */
     public static void bootstrap() {
-        BuiltInRegistries.registerStatic(BuiltInRegistries.LEVEL_CATEGORIES,
-                PvzceIds.CATEGORY_ENDLESS.toString(),
-                new LevelCategoryDef(PvzceIds.CATEGORY_ENDLESS, 2, true));
         for (MutationDifficulty tier : MutationDifficulty.values()) {
             Identifier levelId = id("mutation_" + tier.tierName());
             BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, levelId.toString(),

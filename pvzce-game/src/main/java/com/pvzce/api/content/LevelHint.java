@@ -42,8 +42,19 @@ public record LevelHint(Trigger trigger, Optional<Identifier> resource, String t
                         int durationTicks) {
     /** Two to three seconds, the original's own beat for the box. */
     public static final int DEFAULT_DURATION_TICKS = 160;
-    /** "Stay up until something happens" - the level ending, or a newer hint. */
+    /** "Stay up until something happens" - a newer hint, or the player's first pickup. */
     public static final int PERSISTENT = 0;
+    /**
+     * The longest any hint stays up, in ticks: fifteen seconds.
+     *
+     * <p>A ceiling rather than a default, and enforced in the client's {@code HintBox} rather than
+     * validated per level, so no content can produce a line that never goes away. That is the
+     * failure a ceiling is here to prevent: a level with a single {@link #PERSISTENT} line and no
+     * follow-up hint had nothing left to replace it, so the box covered a third of the lawn for the
+     * whole level. Fifteen seconds is long enough to read two short sentences and short enough that
+     * a player who has moved on is not still being told about it.
+     */
+    public static final int MAX_DURATION_TICKS = 15 * com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
 
     /**
      * When a hint shows.

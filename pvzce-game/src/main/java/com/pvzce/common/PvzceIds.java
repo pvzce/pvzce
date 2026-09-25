@@ -355,9 +355,6 @@ public final class PvzceIds {
      */
     public static final Identifier MECHANIC_MUTATION = id("mutation");
 
-    /** The level category the mutation levels live under. */
-    public static final Identifier CATEGORY_ENDLESS = id("endless");
-
     /** The level category the plain (mutation-free) endless levels live under. */
     public static final Identifier CATEGORY_SURVIVAL = id("survival");
 

@@ -176,44 +176,95 @@ class MutationManagerTest {
     }
 
     @Test
-    void aSuppressedMutationIsStillOnTheListAndStillCounted() {
+    void onlyBarMutationsHoldEachOtherBack() {
         LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 1);
         MutationManager mutations = level.mutations();
-        // The precedence rule the panel reads by: the belt is the higher one.
         Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
         Mutation slotReplace = MutationRegistry.get(PvzceIds.MUTATION_SLOT_REPLACE);
         assertNotNull(conveyor);
         assertNotNull(slotReplace);
-        assertTrue(slotReplace.suppressedBy(conveyor), "the belt outranks a bar rewrite");
-        assertTrue(!conveyor.suppressedBy(slotReplace), "and the reverse must not hold");
+        // The pair is all {@code suppressedBy} answers: two mutations that both want the card bar
+        // cannot both have it. Which of them actually yields is the manager's call, and it is
+        // decided by arrival order - see theBarFallsToWhicheverMutationArrivedLast.
+        assertTrue(slotReplace.suppressedBy(conveyor), "a dealer holds a rewriter back");
+        assertTrue(conveyor.suppressedBy(slotReplace), "and a rewriter holds a dealer back");
+        assertTrue(!MutationRegistry.get(PvzceIds.MUTATION_SUN_RATE).suppressedBy(conveyor),
+                "a mutation that does not touch the cards does not care who holds the bar");
         assertNotNull(mutations);
     }
 
     /**
-     * The belt takes the bar and nothing else.
+     * The reported bug, as a rule: the card bar goes to whichever bar mutation arrived last.
      *
-     * <p>Precedence is about one thing - who deals the cards - and it used to be read as a rank
-     * over the whole catalogue. The belt's 10 then beat every other mutation's 0, so a single
-     * belt put the entire field into "suppressed": the rate mutations stopped moving, the weather
-     * one stopped changing the sky, and because the belt is also the entry the eviction pass will
-     * not drop, none of them ever came back. A mutation that does not touch the cards must not
-     * care who holds the bar.
+     * <p>It used to go to the one with the higher {@code cardSourcePrecedence}, read without regard
+     * to arrival order. The belt's 10 beat the rewriter's 0, so a belt that arrived <em>first</em>
+     * permanently suppressed a random-card rewrite that arrived <em>later</em> - permanently,
+     * because the eviction pass refuses to drop the entry that owns the bar, so the belt never left
+     * and the rewrite never came back. The player saw "the random card slots were overwritten by
+     * the belt that was already there", which is the order they were looking at.
      */
     @Test
-    void theBeltSuppressesTheBarRewriteAndNothingElse() {
+    void theBarFallsToWhicheverMutationArrivedLast() {
         Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
+        Mutation slotReplace = MutationRegistry.get(PvzceIds.MUTATION_SLOT_REPLACE);
         assertNotNull(conveyor);
-        for (Mutation other : MutationRegistry.all()) {
-            if (other instanceof CardDealingMutation) {
-                continue;
-            }
-            // Slot replacement is the documented exception, and it says so itself.
-            boolean expected = other.id().equals(PvzceIds.MUTATION_SLOT_REPLACE);
-            assertEquals(expected, other.suppressedBy(conveyor),
-                    other.id() + " must not be held back by the belt");
-            assertEquals(false, conveyor.suppressedBy(other),
-                    other.id() + " must not hold the belt back");
-        }
+        assertNotNull(slotReplace);
+        List<Identifier> chosen = List.of(PvzceIds.id("pea_shooter"), PvzceIds.id("sunflower"),
+                PvzceIds.id("wall_nut"));
+
+        LevelServer beltFirst = new LevelServer(TestLevels.copy(endless).slots(chosen).build());
+        beltFirst.random().setSeed(7L);
+        beltFirst.mutations().add(conveyor, Mutation.Roll.NONE);
+        // "mutated" rather than "conveyor": the level reports the shape the client has to draw,
+        // which is "not the level's own bar any more" - the panel says which mutation did it.
+        assertEquals("mutated", beltFirst.cardSourceKind(), "the belt takes the bar first");
+        beltFirst.mutations().add(slotReplace, Mutation.Roll.NONE);
+        assertEquals("deck", beltFirst.cardSourceKind(),
+                "a rewrite arriving later takes the bar back from the belt");
+        assertEquals(MutationStatus.ACTIVE, beltFirst.mutations().statusOf(slotReplace.id()));
+        assertEquals(MutationStatus.SUPPRESSED, beltFirst.mutations().statusOf(conveyor.id()),
+                "and the belt is the one that yields");
+
+        LevelServer rewriteFirst = new LevelServer(TestLevels.copy(endless).slots(chosen).build());
+        rewriteFirst.random().setSeed(7L);
+        rewriteFirst.mutations().add(slotReplace, Mutation.Roll.NONE);
+        rewriteFirst.mutations().add(conveyor, Mutation.Roll.NONE);
+        assertEquals("mutated", rewriteFirst.cardSourceKind(),
+                "and a belt arriving later wins just the same way");
+        assertEquals(MutationStatus.ACTIVE, rewriteFirst.mutations().statusOf(conveyor.id()));
+        assertEquals(MutationStatus.SUPPRESSED,
+                rewriteFirst.mutations().statusOf(slotReplace.id()),
+                "the rewrite yields, because a belt would put its work out of sight");
+    }
+
+    /**
+     * A rewrite survives a bar rebuild it could not see.
+     *
+     * <p>The second half of the same bug: a level rebuilds its own bar from the player's chosen
+     * cards whenever the bar's owner changes, and that rebuild knows nothing about a mutation. So
+     * a rewrite used to survive only until the next rebuild, which is why the belt leaving handed
+     * the player their original cards back while the mutation was still on the panel.
+     */
+    @Test
+    void aRewriteIsLaidBackOnTopOfARebuiltBar() {
+        Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
+        Mutation slotReplace = MutationRegistry.get(PvzceIds.MUTATION_SLOT_REPLACE);
+        assertNotNull(conveyor);
+        assertNotNull(slotReplace);
+        List<Identifier> chosen = List.of(PvzceIds.id("pea_shooter"), PvzceIds.id("sunflower"),
+                PvzceIds.id("wall_nut"));
+        LevelServer level = new LevelServer(TestLevels.copy(endless).slots(chosen).build());
+        level.random().setSeed(11L);
+        level.mutations().add(conveyor, Mutation.Roll.NONE);
+        level.mutations().add(slotReplace, Mutation.Roll.NONE);
+        assertEquals("deck", level.cardSourceKind(), "the last bar mutation is the rewrite");
+        List<Identifier> rewritten = cardIds(level);
+
+        // The handoff path a round re-pick and an eviction both take: the level throws its own bar
+        // away and builds it again from the cards the player chose.
+        level.onMutationCardSourceChanged();
+        assertEquals(rewritten, cardIds(level),
+                "the rewrite is laid back on top of the rebuilt bar, not lost under it");
     }
 
     @Test
@@ -349,6 +400,51 @@ class MutationManagerTest {
                 .belt().def().capacity();
         assertEquals(Math.max(6, 3), capacity,
                 "one slot per replaced plant card, and never a tray narrower than the original's");
+        // And what it did not take over is still on the bar. The reported bug: the bar became
+        // nothing but belt cards, so the shovel/glove/watering can the player was holding
+        // vanished the moment a belt mutation arrived.
+        for (Identifier id : cardIds(level)) {
+            assertNotEquals(PvzceIds.id("shovel"), id,
+                    "a shovel card is not a plant and cannot be dealt by a belt");
+        }
+    }
+
+    /**
+     * The other half of the reported bug: tools survive the takeover.
+     *
+     * <p>A belt hands out <em>plant</em> cards on a timer. The shovel is how the player fixes a
+     * mistake and the sun card is what the sun bank is drawn for, so both stay on the bar exactly
+     * as they were - and they stay <em>usable</em>, which means their remaining uses and their
+     * running cooldown survive every rebuild the belt does when a card slides forward.
+     */
+    @Test
+    void theBeltKeepsTheToolAndResourceCardsOnTheBar() {
+        LevelServer level = new LevelServer(TestLevels.copy(endless)
+                .slots(List.of(PvzceIds.id("pea_shooter"), PvzceIds.id("sunflower"),
+                        PvzceIds.id("shovel"), PvzceIds.id("sun")))
+                .build());
+        List<Identifier> toolsBefore = nonPlantCards(level);
+        assertEquals(List.of(PvzceIds.id("shovel"), PvzceIds.id("sun")), toolsBefore,
+                "the fixture has to actually carry a tool and a resource card");
+
+        Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
+        assertNotNull(conveyor);
+        level.mutations().add(conveyor, Mutation.Roll.NONE);
+        assertEquals(toolsBefore, nonPlantCards(level),
+                "the shovel and the sun card ride the bar the belt deals");
+
+        // Spend some of the shovel's cooldown, then let the belt deal: the clock must not rewind.
+        var shovel = level.plantPlayer().slots().stream()
+                .filter(slot -> slot.defId().equals(PvzceIds.id("shovel"))).findFirst().orElseThrow();
+        shovel.startCooldown(600);
+        int left = shovel.cooldownLeft();
+        tick(level, 400, new ArrayList<>());
+        int afterTicking = level.plantPlayer().slots().stream()
+                .filter(slot -> slot.defId().equals(PvzceIds.id("shovel"))).findFirst().orElseThrow()
+                .cooldownLeft();
+        assertTrue(afterTicking < left, "the clock runs while the belt is dealing");
+        assertEquals(toolsBefore, nonPlantCards(level),
+                "and a rebuild does not drop them off the bar");
     }
 
     @Test
@@ -380,6 +476,11 @@ class MutationManagerTest {
         assertTrue(!level.isNight(), "the mutation levels are day levels; that is the point here");
         Mutation apocalypse = MutationRegistry.get(PvzceIds.MUTATION_APOCALYPSE);
         assertNotNull(apocalypse);
+        // Seeded: the apocalypse's own dice decide which cells it reaches, and this test is about
+        // "it does not fire twice", not about where it fired. Left unseeded it went red on a clean
+        // tree about one run in six - a fixture that is also a coin flip makes "all green" useless
+        // as a signal (see docs/踩坑清单.md).
+        level.random().setSeed(20240925L);
         assertNotNull(level.mutations().add(apocalypse, Mutation.Roll.NONE));
         // They go off on the tick they arrive - "summoned" means "happens now" - so the craters
         // are there after a single tick rather than after a fuse the player would have to wait out.
@@ -485,6 +586,11 @@ class MutationManagerTest {
         List<Identifier> chosen = List.of(PvzceIds.id("pea_shooter"), PvzceIds.id("sunflower"),
                 PvzceIds.id("wall_nut"));
         LevelServer picked = new LevelServer(TestLevels.copy(endless).slots(chosen).build());
+        // Seeded: the substitution is a random pick per slot, so "the bar actually changed" was a
+        // coin flip this test then asserted as a fact - the second of the three flaky fixtures
+        // docs/踩坑清单.md records (12 runs, 3 red). The seed is what makes the check mean
+        // something instead of being a coin flip.
+        picked.random().setSeed(20240925L);
         assertNotNull(picked.mutations().add(slotReplace, Mutation.Roll.NONE));
         List<Identifier> after = cardsOf(picked);
         assertNotEquals(chosen, after, "the mutation is supposed to change the bar");
@@ -552,5 +658,25 @@ class MutationManagerTest {
                     .orElse(-1));
         }
         return costs;
+    }
+
+    /** The card ids on the bar, in order - what "the bar" means to a test. */
+    private static List<Identifier> cardIds(LevelServer level) {
+        List<Identifier> ids = new ArrayList<>();
+        for (var slot : level.plantPlayer().slots()) {
+            ids.add(slot.defId());
+        }
+        return ids;
+    }
+
+    /** The non-plant cards on the bar, in order: tools and resource cards. */
+    private static List<Identifier> nonPlantCards(LevelServer level) {
+        List<Identifier> ids = new ArrayList<>();
+        for (var slot : level.plantPlayer().slots()) {
+            if (slot.kind() != com.pvzce.common.core.Slot.Kind.PLANT) {
+                ids.add(slot.defId());
+            }
+        }
+        return ids;
     }
 }

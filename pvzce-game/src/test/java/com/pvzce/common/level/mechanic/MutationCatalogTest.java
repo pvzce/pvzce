@@ -113,16 +113,18 @@ class MutationCatalogTest {
     }
 
     @Test
-    void theFourLevelsAreRegisteredUnderTheEndlessCategory() {
+    void theFourLevelsAreRegisteredUnderTheSharedEndlessCategory() {
         List<Identifier> ids = MutationLevels.levelIds();
         assertEquals(4, ids.size());
         for (Identifier id : ids) {
             LevelDef def = BuiltInRegistries.LEVELS.get(id);
             assertNotNull(def, id + " is missing from the level registry");
-            assertTrue(id.path().startsWith("yard/endless/"),
-                    "the id must put the level on the endless page, was " + id);
-            assertTrue(BuiltInRegistries.LEVEL_CATEGORIES.containsKey(PvzceIds.CATEGORY_ENDLESS),
-                    "the endless category must exist for the level to have a page");
+            // The same page as the plain endless level: two endless modes on two tabs of one
+            // theme was the reported "they are under two categories" bug.
+            assertTrue(id.path().startsWith("yard/survival/"),
+                    "the id must put the level on the survival page, was " + id);
+            assertTrue(BuiltInRegistries.LEVEL_CATEGORIES.containsKey(PvzceIds.CATEGORY_SURVIVAL),
+                    "the survival category must exist for the level to have a page");
         }
     }
 

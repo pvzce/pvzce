@@ -65,40 +65,35 @@ public interface Mutation {
     }
 
     /**
-     * Higher wins the card bar when two running mutations both want to deal the cards.
+     * Whether a mutation that <em>arrived later</em> holds this one back.
      *
-     * <p>Zero means "this one does not deal cards". A mutation below the highest one is
-     * <em>suppressed</em>: it stays in the list, visibly, and changes nothing until the one
-     * above it leaves - and then takes effect where it stands, with the roll it already had.
-     */
-    default int cardSourcePrecedence() {
-        return 0;
-    }
-
-    /**
-     * Whether another running mutation holds this one back.
+     * <p>Overriding this must keep it antisymmetric: if A suppresses B, B must not suppress A,
+     * or neither ever runs.
      *
-     * <p>Overriding this must keep it symmetric: if A suppresses B and B suppresses A, neither
-     * ever runs.
+     * <p>The card bar is the only resource two mutations fight over, and the rule for it is
+     * <b>"the one that arrived last wins"</b> - the same rule the panel reads by. So the default
+     * is "a bar mutation is held back by a later bar mutation" and nothing else: a rate, weather
+     * or board mutation is never suppressed by a dealer, which is what keeps a belt from becoming
+     * a mute button for the whole field.
      *
-     * <p>The default is the card-bar rule and nothing else: one <em>card dealer</em> is held back
-     * by a dealer with a higher {@link #cardSourcePrecedence()}, because there is only one bar for
-     * them to fight over. It used to be a bare
-     * {@code other.cardSourcePrecedence() > cardSourcePrecedence()}, which read as "precedence
-     * ranks every mutation" and turned the belt into a mute button: the belt's 10 beat every other
-     * mutation's 0, so the moment one arrived each rate, weather and board mutation on the field
-     * went to "suppressed" and stopped ticking, wherever it had arrived in the order - and since
-     * the belt is also the entry the eviction pass refuses to drop, it never left and none of them
-     * ever came back. Asking first whether <em>this</em> mutation deals cards keeps the rule to
-     * the thing it was written about.
+     * <p>It used to be a bare precedence comparison ({@code other.cardSourcePrecedence() >
+     * cardSourcePrecedence()}) applied without regard to arrival order, which had two
+     * consequences the player could see: the belt's fixed 10 beat every other mutation's 0
+     * wherever it sat in the order, and - the bug this replaces - a belt that arrived <em>first</em>
+     * permanently suppressed a random-card-slot mutation that arrived <em>later</em>, because the
+     * eviction pass refuses to drop the entry that owns the bar. Order, not magnitude, is the
+     * thing an author can actually reason about.
      *
-     * <p>{@link SlotReplaceMutation} is the one mutation that is held back without dealing: it
-     * rewrites the cards <em>inside</em> the bar, which a belt would make invisible, so it says so
-     * itself.
+     * <p>The caller passes only the entries that arrived after this one, so an implementation
+     * never has to ask about order itself.
      */
     default boolean suppressedBy(Mutation other) {
-        return this instanceof CardDealingMutation
-                && other.cardSourcePrecedence() > cardSourcePrecedence();
+        return isBarMutation(this) && isBarMutation(other);
+    }
+
+    /** True for a mutation that owns the card bar, in either of the two ways there are. */
+    static boolean isBarMutation(Mutation mutation) {
+        return mutation instanceof CardDealingMutation || mutation instanceof RewriteBarMutation;
     }
 
     /**

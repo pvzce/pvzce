@@ -2435,7 +2435,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return true;
     }
 
-    /** Rebuilds the bar from {@link #selectedCards}, whoever owns it. */
+    /**
+     * Rebuilds the bar from {@link #selectedCards}, whoever owns it.
+     *
+     * <p>Three cases, in order: a mutation is dealing its own bar, a mutation is rewriting the
+     * level's bar, or neither is and the plain deck stands. The last two both produce the deck
+     * first and let the rewriter lay its work on top - because a rewriter's cards are a function
+     * of the player's own bar, and rebuilding that bar without telling the rewriter would silently
+     * undo it.
+     */
     private void rebuildCardBar() {
         if (plantPlayer == null) {
             return;
@@ -2455,6 +2463,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 new com.pvzce.server.level.cardsource.CardSource.Context(
                         plantPlayer, def, selectedCards, random));
         plantPlayer.replaceSlots(PvzcePlayer.deckSlots(selectedCards));
+        if (mutations != null) {
+            mutations.reapplyBarRewrite();
+        }
     }
 
     private void checkEnd(ServerBridge bridge) {

@@ -28,26 +28,39 @@ import java.util.Map;
  * player's bar looks like when this mutation leaves, it is replaced by the one recorded here -
  * so a second replacement mutation that applied on top of this one is undone by its own state
  * rather than by this one guessing.
+ *
+ * <p>A {@link RewriteBarMutation}: it changes what is <em>on</em> the bar rather than which bar it
+ * is. That is the other half of the card-bar takeover, and the two kinds compete on arrival order
+ * alone - a belt that lands after this one hides its work, and this one landing after a belt takes
+ * the bar back. See {@link Mutation#suppressedBy}.
  */
-final class SlotReplaceMutation implements Mutation {
+final class SlotReplaceMutation implements Mutation, RewriteBarMutation {
     @Override
     public Identifier id() {
         return PvzceIds.MUTATION_SLOT_REPLACE;
     }
 
     /**
-     * Held back by anything that deals the cards, even though this one does not deal them itself.
+     * Lays the substitution this activation rolled back onto whatever bar is standing now.
      *
-     * <p>This mutation rewrites the cards <em>inside</em> the bar rather than handing over a
-     * different bar, so it is not a {@link CardDealingMutation} and the default rule would let it
-     * run beside a conveyor belt - where its work would be invisible, because the belt's tray is
-     * what the player is looking at. Saying it here rather than in the default keeps the default
-     * meaning what it says ("one dealer yields to a higher-precedence dealer") and puts the
-     * exception next to the mutation that is the exception.
+     * <p>Needed because the level rebuilds its own bar from the player's chosen cards whenever the
+     * bar's owner changes (a belt arriving or leaving, a round re-pick, a restore), and that
+     * rebuild knows nothing about this mutation. Without this the rewrite would survive only until
+     * the next rebuild - which is how a belt leaving the field used to hand the player their
+     * original cards back with the mutation still on the panel.
+     *
+     * <p>Reads the <em>saved</em> card list, not a fresh roll: the whole point of this mutation is
+     * that the player can see what they have and plan around it.
      */
     @Override
-    public boolean suppressedBy(Mutation other) {
-        return other instanceof CardDealingMutation;
+    public void rewriteBar(LevelServer level, Object state) {
+        if (!(state instanceof Applied applied) || applied.cards().isEmpty()) {
+            return;
+        }
+        PvzcePlayer player = level.plantPlayer();
+        if (player != null) {
+            player.replaceSlots(MutationCards.slotsOf(applied.cards()));
+        }
     }
 
     @Override

@@ -599,7 +599,7 @@
     {
       "trigger": "on_start",
       "text": "水壶就在手上：点植物回满血，还能让它干活更快",
-      "duration_ticks": 0
+      "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"

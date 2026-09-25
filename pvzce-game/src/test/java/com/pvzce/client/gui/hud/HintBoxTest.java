@@ -71,12 +71,61 @@ class HintBoxTest {
         assertFalse(box.currentText().isEmpty());
     }
 
+    /**
+     * Dismissing a line ends it, rather than starting it over.
+     *
+     * <p>The reported bug. {@code hide()} used to set the deadline to "as long as the line has
+     * already been up" and restart the clock, so {@code alpha()} re-ran the fade <em>in</em> and
+     * then held the line for another full lifetime. On a persistent line - which the shipped 3-x
+     * hints all are - the player's first pickup therefore doubled the line's life instead of
+     * taking it down, and a level with one persistent line and no follow-up hint showed it for the
+     * whole level. The old test could not see any of that: it only asserted that the box was still
+     * visible in the same instant it was hidden.
+     */
+    @Test
+    void hidingEndsTheLineRatherThanRestartingIt() {
+        HintBox box = new HintBox(null);
+        box.show(new LevelHint(LevelHint.Trigger.ON_START, Optional.empty(), "水壶就在手上",
+                LevelHint.MAX_DURATION_TICKS));
+        box.hide();
+        // The fade is 0.18s. Once it has run, the line is gone - not faded back in.
+        sleepMillis(260);
+        assertFalse(box.visible(), "a dismissed line must be gone after its fade, not re-fading in");
+    }
+
+    /**
+     * A persistent hint comes down on its own, fifteen seconds at the latest.
+     *
+     * <p>Enforced in the box rather than trusted to level authors: the ceiling is the code's
+     * answer to "some hints never stop", so content cannot get it wrong.
+     */
+    @Test
+    void aPersistentHintIsCappedAtFifteenSeconds() {
+        HintBox box = new HintBox(null);
+        box.show(persistent("传送带免费送卡"));
+        assertTrue(box.visible(), "it is up to begin with");
+        // Nothing here waits fifteen real seconds: the cap is asserted on the deadline the box
+        // installed, which is the number the ceiling is about.
+        assertTrue(box.holdNanosForTest() <= LevelHint.MAX_DURATION_TICKS * 1_000_000_000L
+                        / com.pvzce.common.PvzceConstants.TICKS_PER_SECOND,
+                "a persistent hint's hold must be the fifteen-second ceiling, was "
+                        + box.holdNanosForTest() + "ns");
+    }
+
     @Test
     void anEmptyHintShowsNothing() {
         HintBox box = new HintBox(null);
         box.show(new LevelHint(LevelHint.Trigger.ON_START, Optional.empty(), "   ",
                 LevelHint.DEFAULT_DURATION_TICKS));
         assertFalse(box.visible(), "a hint with no text must not bring the box up");
+    }
+
+    private static void sleepMillis(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static LevelHint persistent(String text) {

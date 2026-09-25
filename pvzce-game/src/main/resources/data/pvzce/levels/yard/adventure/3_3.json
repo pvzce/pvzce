@@ -456,7 +456,7 @@
     {
       "trigger": "on_start",
       "text": "潜水僵尸在水下打不到，等它冒头再打",
-      "duration_ticks": 0
+      "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"

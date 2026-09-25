@@ -84,11 +84,16 @@ public final class HintBox {
     private String text = "";
     private Kind kind = Kind.TUTORIAL;
     private long shownNanos;
-    /** Nanoseconds the line stays fully up; {@link LevelHint#PERSISTENT} means forever. */
+    /** Nanoseconds the line stays up before it fades; never more than {@link LevelHint#MAX_DURATION_TICKS}. */
     private long holdNanos = ticksToNanos(LevelHint.DEFAULT_DURATION_TICKS);
 
     public HintBox(PvzceClient client) {
         this.client = client;
+    }
+
+    /** The deadline this box installed for the line that is up. For the ceiling's own test. */
+    long holdNanosForTest() {
+        return holdNanos;
     }
 
     /** True while a line is up, including its fade-out. */
@@ -101,15 +106,20 @@ public final class HintBox {
         return text;
     }
 
-    /** Shows a tutorial line for the hint's own duration. */
+    /** Shows a tutorial line for the hint's own duration, capped at {@link LevelHint#MAX_DURATION_TICKS}. */
     public void show(LevelHint hint) {
         if (hint == null || hint.text().isBlank()) {
             return;
         }
-        long hold = hint.persistent()
-                ? Long.MAX_VALUE / 4L
-                : ticksToNanos(Math.max(1, hint.durationTicks()));
-        show(hint.text(), Kind.TUTORIAL, hold);
+        // "Persistent" is a level author saying "keep this up until something takes it down", and
+        // the gesture that does that is the player's first pickup. It is not a licence to cover a
+        // third of the lawn for the whole level, which is what a level with one persistent line and
+        // no follow-up hint looked like: the cap is the code's answer, so an author cannot get it
+        // wrong and a pack cannot ship a level that does.
+        int ticks = hint.persistent()
+                ? LevelHint.MAX_DURATION_TICKS
+                : Math.min(Math.max(1, hint.durationTicks()), LevelHint.MAX_DURATION_TICKS);
+        show(hint.text(), Kind.TUTORIAL, ticksToNanos(ticks));
     }
 
     /** Shows a built-in refusal line; see {@link Kind}. */
@@ -142,13 +152,17 @@ public final class HintBox {
         if (text.isEmpty()) {
             return;
         }
-        long now = System.nanoTime();
         long fadeNanos = (long) (FADE_SECONDS * 1_000_000_000L);
-        long elapsed = now - shownNanos;
+        long elapsed = System.nanoTime() - shownNanos;
         if (elapsed < holdNanos - fadeNanos) {
-            // Pull the deadline back so the fade-out starts now.
-            holdNanos = Math.max(0L, elapsed);
-            shownNanos = now;
+            // Pull the deadline in so the fade-out starts now, and leave `shownNanos` alone: it is
+            // the start of the line, and `alpha()` measures from it. Restarting the clock here - the
+            // bug this replaces - made the box fade *in* again and then hold for as long as it had
+            // already been up, so dismissing a line doubled its life instead of ending it. With a
+            // persistent line that is the difference between "the player's first pickup takes the
+            // lesson down" and "the lesson stays for the whole level".
+            long remaining = holdNanos - elapsed;
+            holdNanos = elapsed + Math.max(0L, Math.min(remaining, fadeNanos));
         }
     }
 

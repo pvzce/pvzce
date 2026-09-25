@@ -98,7 +98,14 @@ class GameplaySimulationTest {
                 Map.of(),
                 Map.of(),
                 List.of(new WaveDef(WaveType.SMALL, waveTick, 600,
-                        List.of(new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))),
+                        // The lane is pinned rather than left to the queue's shuffle. With every
+                        // lane open this "one zombie" fixture had a one-in-five chance of arriving
+                        // in the one lane a test happens not to have defended - and then it walked
+                        // to the house unopposed and the level was *lost*, which read as a defect
+                        // in whatever the test was actually about. A fixture that is about
+                        // something else must not also be a dice roll.
+                        List.of(new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1,
+                                List.of(1), 1F)))),
                 1F,
                 List.of(Identifier.withDefaultNamespace("pea_shooter"), Identifier.withDefaultNamespace("sun")),
                 Map.of(),
@@ -121,13 +128,20 @@ class GameplaySimulationTest {
 
     @Test
     void finishedLevelSaveDoesNotRestorePlants() {
-        // A level whose one wave is due immediately: "all waves released" is half of the win
-        // condition, so the wave has to be able to arrive before the level can be won.
-        LevelServer level = new LevelServer(singleZombieLevel(1));
+        // The wave is due *after* the four plants are in the ground. It used to be due on tick
+        // one, which made this fixture a dice roll it had no business being: the one zombie
+        // arrived before the fourth plant existed, so a spawn in row 4 (or in the undefended row
+        // 0) walked to the house unopposed and the level was *lost* - or, once the lane was
+        // pinned, was shot dead so early that the level was won before the last placement. Both
+        // read as a defect in the save/restore rule this test is actually about. The lane is
+        // pinned for the same reason: every lane open means a one-in-five coin flip.
+        LevelServer level = new LevelServer(singleZombieLevel(1800));
         CapturingBridge bridge = new CapturingBridge();
         level.plantPlayer().team().putResource(Identifier.withDefaultNamespace("sun"), 1000);
         for (int row = 1; row <= 4; row++) {
-            assertTrue(level.placePlant(bridge, 0, 0, row));
+            assertTrue(level.placePlant(bridge, 0, 0, row),
+                    "row " + row + " must accept a plant; state=" + level.gameState()
+                            + " messages=" + bridge.messages());
             for (int t = 0; t < 300; t++) {
                 level.tick(bridge);
             }
@@ -167,6 +181,17 @@ class GameplaySimulationTest {
         @Override
         public void send(PvzcePacket packet) {
             packets.add(packet);
+        }
+
+        /** The server's own lines, so a refused action says why instead of just saying no. */
+        List<String> messages() {
+            List<String> lines = new ArrayList<>();
+            for (PvzcePacket packet : packets) {
+                if (packet instanceof com.pvzce.common.network.packet.ServerMessageS2C message) {
+                    lines.add(message.message());
+                }
+            }
+            return lines;
         }
     }
 }

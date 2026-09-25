@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MutationSaveRoundTripTest {
     private static final String WORLD = "world";
     private static final Identifier LEVEL = Identifier.withDefaultNamespace(
-            "yard/endless/mutation_normal");
+            "yard/survival/mutation_normal");
 
     @BeforeAll
     static void load() throws Exception {

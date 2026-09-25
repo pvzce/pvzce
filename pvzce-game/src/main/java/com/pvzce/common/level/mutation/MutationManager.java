@@ -59,6 +59,15 @@ public final class MutationManager {
     private boolean arrivedYet;
     /** The mutation whose card bar is in force, or {@code null} when the level's own bar stands. */
     private MutationEntry cardSourceOwner;
+    /**
+     * The mutation that owns what is <em>on</em> the bar rather than which bar it is.
+     *
+     * <p>Separate from {@link #cardSourceOwner} because the two answer different questions and
+     * only one of them may be in force: a rewriter needs the level's own bar to stand so its work
+     * is visible. {@link #reapplyBarRewrite} is how the level asks it to lay that work down again
+     * after a rebuild it could not see.
+     */
+    private MutationEntry barRewriteOwner;
     /** What the level was last told to deal the cards with - the change detector for the handoff. */
     private MutationCardSource cardSourceFactory;
     private int lastEffects = MutationEffects.NONE.mask();
@@ -541,6 +550,7 @@ public final class MutationManager {
         entries.clear();
         applied.clear();
         cardSourceOwner = null;
+        barRewriteOwner = null;
         cardSourceFactory = null;
     }
 
@@ -586,7 +596,7 @@ public final class MutationManager {
      */
     private boolean evictOldest() {
         for (int i = 0; i < entries.size(); i++) {
-            if (entries.get(i) == cardSourceOwner) {
+            if (entries.get(i) == cardSourceOwner || entries.get(i) == barRewriteOwner) {
                 continue;
             }
             entries.remove(i);
@@ -603,11 +613,18 @@ public final class MutationManager {
      * <ol>
      *   <li>a mutation whose {@code canRun} says no is <b>waiting</b> - on the field, changing
      *       nothing;</li>
-     *   <li>a mutation that another one holds back is <b>suppressed</b> - on the field, changing
-     *       nothing, and back by itself once that other one is gone;</li>
-     *   <li>among the mutations that deal cards, the highest precedence wins and the rest are
-     *       suppressed, so "one bar" stays true.</li>
+     *   <li>a mutation that a <em>later</em> one holds back is <b>suppressed</b> - on the field,
+     *       changing nothing, and back by itself once that other one is gone;</li>
+     *   <li>among the mutations that touch the card bar, <b>the last one to arrive wins</b> and the
+     *       rest are suppressed, so "one bar" stays true. "Touch" covers both a dealer, which
+     *       replaces the bar, and a rewriter, which changes the cards on it.</li>
      * </ol>
+     *
+     * <p>Order, not a precedence number: the player's only model of this is "the new one took
+     * over", and a rule they can see is worth more than one an author can tune. The handoff runs
+     * <em>before</em> the newly acting mutations are applied, so a rewrite that lands in the same
+     * pass as a belt leaving writes onto the rebuilt deck rather than onto a bar that is about to
+     * be replaced under it.
      */
     private void recompute() {
         recompute(false);
@@ -619,30 +636,35 @@ public final class MutationManager {
      *                 part of their effect the save already carries
      */
     private void recompute(boolean fromSave) {
-        int highestPrecedence = 0;
-        for (MutationEntry entry : entries) {
-            highestPrecedence = Math.max(highestPrecedence, entry.mutation().cardSourcePrecedence());
-        }
-        MutationEntry newOwner = null;
+        MutationEntry newDealer = null;
+        MutationEntry newRewriter = null;
+        MutationEntry lastBarEntry = null;
         List<MutationEntry> toApply = new ArrayList<>();
         Set<Identifier> acting = new LinkedHashSet<>();
-        for (MutationEntry entry : entries) {
-            int precedence = entry.mutation().cardSourcePrecedence();
-            if (!entry.mutation().canRun(level) || isHeldBack(entry)) {
+        for (int i = 0; i < entries.size(); i++) {
+            MutationEntry entry = entries.get(i);
+            if (!entry.mutation().canRun(level) || isHeldBack(entry, i)) {
                 continue;
             }
-            if (precedence > 0) {
-                if (precedence < highestPrecedence) {
-                    continue;
-                }
-                // The highest precedence wins; a tie goes to the newer one, which is the same
-                // "the last one to arrive is the one that counts" rule the panel reads by.
-                newOwner = entry;
+            if (entry.mutation() instanceof CardDealingMutation) {
+                newDealer = entry;
+                lastBarEntry = entry;
+            } else if (entry.mutation() instanceof RewriteBarMutation) {
+                newRewriter = entry;
+                lastBarEntry = entry;
             }
             acting.add(entry.id());
             if (!entry.isApplied()) {
                 toApply.add(entry);
             }
+        }
+        // A dealer only owns the bar while it is the last bar mutation standing; a rewriter that
+        // arrived after it takes the bar back to the level's own source and rewrites that.
+        if (lastBarEntry != newDealer) {
+            newDealer = null;
+        }
+        if (lastBarEntry != newRewriter) {
+            newRewriter = null;
         }
         // Anything that was acting and is not in the new set is undone, in arrival order.
         for (MutationEntry entry : entries) {
@@ -650,6 +672,19 @@ public final class MutationManager {
                 entry.mutation().revert(level, entry.roll(), entry.state());
                 entry.setApplied(false);
             }
+        }
+
+        MutationCardSource previous = cardSourceFactory;
+        cardSourceOwner = newDealer;
+        barRewriteOwner = newRewriter;
+        cardSourceFactory = newDealer != null
+                && newDealer.mutation() instanceof CardDealingMutation dealing
+                ? dealing.cardSource()
+                : null;
+        // The handoff first: it rebuilds the bar from the level's own cards, so a rewrite applied
+        // before it would be written over. See the class doc of RewriteBarMutation.
+        if (previous != cardSourceFactory) {
+            level.onMutationCardSourceChanged();
         }
         for (MutationEntry entry : toApply) {
             entry.setState(fromSave
@@ -659,29 +694,38 @@ public final class MutationManager {
         }
         applied.clear();
         applied.addAll(acting);
-
-        MutationCardSource previous = cardSourceFactory;
-        cardSourceOwner = newOwner;
-        cardSourceFactory = newOwner != null && newOwner.mutation() instanceof CardDealingMutation dealing
-                ? dealing.cardSource()
-                : null;
         refreshEffects();
-        if (previous != cardSourceFactory) {
-            level.onMutationCardSourceChanged();
-        }
     }
 
-    /** True when some other entry on the list holds this one back. */
-    private boolean isHeldBack(MutationEntry entry) {
-        for (MutationEntry other : entries) {
-            if (other == entry) {
-                continue;
-            }
-            if (entry.mutation().suppressedBy(other.mutation())) {
+    /**
+     * True when a mutation that arrived later holds this one back.
+     *
+     * <p>Only the entries after {@code index} are asked, because "arrived later" is the whole
+     * rule: {@link Mutation#suppressedBy} is written as "the other one is a bar mutation too",
+     * and the order lives here rather than in twenty implementations.
+     */
+    private boolean isHeldBack(MutationEntry entry, int index) {
+        for (int i = index + 1; i < entries.size(); i++) {
+            if (entry.mutation().suppressedBy(entries.get(i).mutation())) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Re-lays the current bar rewriter's work onto the bar, if one is acting.
+     *
+     * <p>Called by {@code LevelServer} after it rebuilds its own bar (a round re-pick, a restore),
+     * which is a thing the mutation cannot see and would otherwise be silently undone by.
+     */
+    public void reapplyBarRewrite() {
+        if (barRewriteOwner == null || !barRewriteOwner.isApplied()) {
+            return;
+        }
+        if (barRewriteOwner.mutation() instanceof RewriteBarMutation rewriter) {
+            rewriter.rewriteBar(level, barRewriteOwner.state());
+        }
     }
 
     /**

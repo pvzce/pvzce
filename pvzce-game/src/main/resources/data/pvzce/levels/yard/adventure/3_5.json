@@ -629,7 +629,7 @@
     {
       "trigger": "on_start",
       "text": "传送带免费送卡，小僵尸又小又快",
-      "duration_ticks": 0
+      "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"

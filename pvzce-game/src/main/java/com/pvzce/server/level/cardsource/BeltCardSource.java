@@ -48,6 +48,25 @@ public final class BeltCardSource implements CardSource {
         rebuildBar();
     }
 
+    /**
+     * The bar's cards that a belt cannot deal: everything that is not a plant card.
+     *
+     * <p>Read from the live bar on every rebuild rather than captured once. A belt rebuilds its
+     * projection every time a card slides forward, and the bar it rebuilds from already carries
+     * these cards - so reading them back is what keeps a tool's remaining uses and its running
+     * cooldown across the deal. A capture taken when the belt arrived would rewind the shovel's
+     * clock on every deal instead.
+     */
+    private List<Slot> nonPlantSlots() {
+        List<Slot> kept = new ArrayList<>();
+        for (Slot slot : player.slots()) {
+            if (slot.kind() != Slot.Kind.PLANT) {
+                kept.add(slot);
+            }
+        }
+        return kept;
+    }
+
     /** The belt itself, for tests and for the save block. */
     public ConveyorBelt belt() {
         return belt;
@@ -61,10 +80,31 @@ public final class BeltCardSource implements CardSource {
     @Override
     public void tick(LevelServer level, LevelServer.ServerBridge bridge, int tickCount) {
         belt.tick(random);
+        tickKeptSlots(level, bridge, tickCount);
         if (belt.isChanged()) {
             belt.clearChanged();
             rebuildBar();
             bridge.send(syncPacket(level));
+        }
+    }
+
+    /**
+     * Runs the clocks of the cards the belt did not take over.
+     *
+     * <p>A belt has no cooldowns, so this source used to tick nothing at all - which meant that a
+     * watering can the player had just used kept its full cooldown for as long as the belt was on
+     * the field. Keeping the tool on the bar but freezing its clock is not keeping the tool: the
+     * player can see it and cannot use it. The sync rides the same {@code SlotSyncS2C} the deck
+     * uses, so the sweep over the card is drawn by the same code.
+     */
+    private void tickKeptSlots(LevelServer level, LevelServer.ServerBridge bridge, int tickCount) {
+        for (Slot slot : nonPlantSlots()) {
+            int before = slot.cooldownLeft();
+            slot.tick();
+            boolean justBecameReady = before > 0 && slot.cooldownLeft() == 0;
+            if (before > 0 && (justBecameReady || tickCount % 20 == 0)) {
+                bridge.send(new com.pvzce.common.network.packet.SlotSyncS2C(level.toSlotInfo(slot)));
+            }
         }
     }
 
@@ -129,7 +169,15 @@ public final class BeltCardSource implements CardSource {
         return KIND;
     }
 
-    /** Rebuilds the player's bar from the belt; the bar is a projection, not a second copy. */
+    /**
+     * Rebuilds the player's bar from the belt; the bar is a projection, not a second copy.
+     *
+     * <p>The kept cards go <em>after</em> the belt's, which is what lets {@link #spend} keep
+     * looking a card up by {@code slot.index()}: a belt card's index is its own id
+     * ({@code ConveyorBelt} allocates them), so appending cannot shift one. The reverse order
+     * would push the belt to the right of the shovel, which is not the bar the player was looking
+     * at when the mutation arrived.
+     */
     private void rebuildBar() {
         List<Slot> rebuilt = new ArrayList<>();
         for (ConveyorBelt.Card card : belt.cards()) {
@@ -142,6 +190,7 @@ public final class BeltCardSource implements CardSource {
             rebuilt.add(new Slot(card.id(), resolved.kind(), resolved.content(), 0, 0,
                     Slot.UNLIMITED_USES, 0));
         }
+        rebuilt.addAll(nonPlantSlots());
         player.replaceSlots(rebuilt);
     }
 

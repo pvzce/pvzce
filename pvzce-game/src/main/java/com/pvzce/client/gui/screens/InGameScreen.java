@@ -320,6 +320,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     private int selectedCard = -1;
     /**
+     * The content id to put back in hand once the bar has been rebuilt, or {@code null}.
+     *
+     * <p>Set while the bar is being replaced and consumed on the same call, because the new bar is
+     * built from {@code ClientLevel.slots()} which the bar replacement also rewrites - there is no
+     * moment in between where both the old selection and the new bar exist.
+     */
+    private String pendingSelection;
+    /**
      * The slot whose click lifted the plant the client is now carrying, or -1.
      *
      * <p>The second click of a move is not "the selected card": a tool card is put back after
@@ -2389,18 +2397,52 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         String wanted = mutations == null ? "" : mutations.cardBarKind();
         if (cardBar != null && !wanted.equals(cardBarKind)) {
             // The bar changed under the player - a mutation took it over or gave it back - so the
-            // old one goes, along with whatever card was in hand: keeping the held index would
-            // point at a card that is no longer there, and the bar draws that selection as if the
-            // player still had it.
+            // old bar goes. Whatever card was in hand is looked up again in the new bar by its
+            // content id rather than dropped: a belt replaces the *plant* cards, and the shovel or
+            // the watering can the player was holding is still there, at a different index.
+            String heldId = selectedCardId();
             cardBar = null;
             selectedCard = -1;
+            pendingSelection = heldId;
         }
         if (cardBar == null) {
             CardBar fromMechanic = com.pvzce.client.mechanic.ClientMechanics.cardBar(client.level(), this);
             cardBar = fromMechanic != null ? fromMechanic : new com.pvzce.client.gui.hud.cardbar.SeedCardBar(this);
             cardBarKind = wanted;
+            reselectPending();
         }
         return cardBar;
+    }
+
+    /** The content id of the card in hand, or {@code null} when nothing is selected. */
+    private String selectedCardId() {
+        if (selectedCard < 0) {
+            return null;
+        }
+        SlotInfo info = slotInfo(selectedCard);
+        return info == null ? null : info.defId();
+    }
+
+    /**
+     * Puts the player's hand back on the same card after the bar was rebuilt.
+     *
+     * <p>Matched by content id, not by index: a belt allocates its own slot indices and appends
+     * the cards it did not take over at the end, so the shovel that was card 3 is card 7 now. If
+     * the card really is gone - a rewrite replaced it, or the belt took the plant it named - the
+     * hand is left empty, which is the honest answer and what the old code did for every case.
+     */
+    private void reselectPending() {
+        String heldId = pendingSelection;
+        pendingSelection = null;
+        if (heldId == null) {
+            return;
+        }
+        for (SlotInfo info : client.level().slots()) {
+            if (heldId.equals(info.defId())) {
+                selectedCard = info.index();
+                return;
+            }
+        }
     }
 
     /**

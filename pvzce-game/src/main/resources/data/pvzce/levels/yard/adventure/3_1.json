@@ -381,12 +381,12 @@
     {
       "trigger": "on_start",
       "text": "水里要先放莲叶，植物才能种在水上",
-      "duration_ticks": 0
+      "duration_ticks": 600
     },
     {
       "trigger": "on_resource",
       "text": "救生圈僵尸只从水里来，看好两行水池",
-      "duration_ticks": 0,
+      "duration_ticks": 600,
       "resource": "pvzce:sun"
     },
     {

@@ -15,10 +15,12 @@ import java.util.List;
 /**
  * The card bar becomes a conveyor belt: free cards, on a clock, from the player's own plants.
  *
- * <p>Precedence 10, the highest in the catalogue, which is what makes it beat
- * {@link SlotReplaceMutation} when both are on the field: a belt <em>is</em> the bar, and a
- * mutation that rewrote the cards underneath it would be rewriting something nobody can see. The
- * suppressed one stays on the panel and takes effect again the moment the belt is evicted.
+ * <p>A {@link CardDealingMutation}, so it competes for the bar with {@link SlotReplaceMutation} -
+ * and the winner is whichever arrived last (see {@link Mutation#suppressedBy}). A belt <em>is</em>
+ * the bar, so a rewrite that landed earlier would be rewriting something nobody can see; a rewrite
+ * that lands <em>after</em> the belt takes the bar back and rewrites the player's own cards, which
+ * is what the player asked for by having it appear later. The suppressed one stays on the panel and
+ * takes effect again the moment the one above it is evicted.
  *
  * <p>What the belt deals is rolled from the player's backpack rather than borrowed from a level's
  * own belt: the shipped belts are authored for their mini-game, and this one is improvised - a
@@ -47,11 +49,6 @@ final class ConveyorMutation implements Mutation, CardDealingMutation {
     @Override
     public Identifier id() {
         return PvzceIds.MUTATION_CONVEYOR;
-    }
-
-    @Override
-    public int cardSourcePrecedence() {
-        return 10;
     }
 
     @Override
