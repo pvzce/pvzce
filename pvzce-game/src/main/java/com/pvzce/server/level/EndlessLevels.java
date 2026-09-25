@@ -60,6 +60,9 @@ public final class EndlessLevels {
     /** Twelve cards and ten buffs: the same fixed bar the mutation levels are played with. */
     private static final int SEED_SLOTS = PvzceConstants.MAX_SEED_SLOTS;
     private static final int BUFF_SLOTS = 10;
+    /** The mutation levels' wider bar, for the two lawn levels that mutate. */
+    private static final int MUTATION_SEED_SLOTS = 14;
+    private static final int MUTATION_BUFF_SLOTS = 10;
 
     /** Where the sun comes from, in ticks: the pool levels' own numbers. */
     private static final int SUN_INTERVAL_MIN = 480;
@@ -70,24 +73,190 @@ public final class EndlessLevels {
     private static final int FIRST_CLEAR_COINS = 300;
     private static final int REPEAT_COINS = 120;
 
-    /** The one level this class defines. */
-    private static final Identifier ENDLESS_POOL =
-            Identifier.of(Identifier.DEFAULT_NAMESPACE, THEME + "/" + CATEGORY + "/endless_pool");
+    /**
+     * The five levels this class defines: the day pool, and the four lawn ones.
+     *
+     * <p>The lawn levels are the same mode on a board with no water - "endless on the front lawn",
+     * day and night, plain and mutating. They reuse the <em>same two schedules</em> as the pool
+     * levels: an endless schedule's water entries simply never fire on a board with no water rows
+     * ({@code EndlessWaves.composition} asks the level for its rows and gets none), so a third and
+     * fourth curve would be two more copies of the same numbers. What the plan expected to need a
+     * separate schedule for was already handled by the row split.
+     */
+    private static final Identifier ENDLESS_POOL = id("endless_pool");
+    private static final Identifier ENDLESS_LAWN_DAY = id("endless_lawn_day");
+    private static final Identifier ENDLESS_LAWN_NIGHT = id("endless_lawn_night");
+    private static final Identifier MUTATION_LAWN_DAY = id("mutation_lawn_day");
+    private static final Identifier MUTATION_LAWN_NIGHT = id("mutation_lawn_night");
+
+    private static final List<Identifier> ALL = List.of(
+            ENDLESS_POOL, ENDLESS_LAWN_DAY, ENDLESS_LAWN_NIGHT,
+            MUTATION_LAWN_DAY, MUTATION_LAWN_NIGHT);
+
+    /** The front lawn's board: nine columns, five rows, all grass. */
+    private static final int LAWN_HEIGHT = 5;
+    private static final List<Integer> LAWN_ROWS = List.of(0, 1, 2, 3, 4);
+
+    /** The day lawn's sky, which is what the shipped 1-x levels use. */
+    private static final int LAWN_SUN_INTERVAL_MIN = 420;
+    private static final int LAWN_SUN_INTERVAL_MAX = 660;
+
+    /** How many graves a night lawn opens with: 2-1's own number. */
+    private static final int NIGHT_GRAVES = 7;
 
     private EndlessLevels() {
     }
 
-    /** The level's id, for the tests and for the category's page. */
+    private static Identifier id(String path) {
+        return Identifier.of(Identifier.DEFAULT_NAMESPACE, THEME + "/" + CATEGORY + "/" + path);
+    }
+
+    /** The day pool's id, for the tests and for the category's page. */
     public static Identifier levelId() {
         return ENDLESS_POOL;
     }
 
-    /** Registers the category and the level; called from {@code BuiltInRegistries.bootstrap()}. */
+    /** Every endless level, in the order the page lists them. */
+    public static List<Identifier> levelIds() {
+        return ALL;
+    }
+
+    /** Registers the category and the five levels; called from {@code BuiltInRegistries.bootstrap()}. */
     public static void bootstrap() {
         BuiltInRegistries.registerStatic(BuiltInRegistries.LEVEL_CATEGORIES,
                 PvzceIds.CATEGORY_SURVIVAL.toString(),
                 new LevelCategoryDef(PvzceIds.CATEGORY_SURVIVAL, 3, true));
         BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, ENDLESS_POOL.toString(), build());
+        BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, ENDLESS_LAWN_DAY.toString(),
+                lawn(ENDLESS_LAWN_DAY, false, false));
+        BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, ENDLESS_LAWN_NIGHT.toString(),
+                lawn(ENDLESS_LAWN_NIGHT, true, false));
+        BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, MUTATION_LAWN_DAY.toString(),
+                lawn(MUTATION_LAWN_DAY, false, true));
+        BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, MUTATION_LAWN_NIGHT.toString(),
+                lawn(MUTATION_LAWN_NIGHT, true, true));
+    }
+
+    /**
+     * One of the four lawn levels.
+     *
+     * <p>A lawn board is the same level with the water taken out and the sky swapped: the same
+     * schedule, the same round machinery, the same bar. Night brings the graves the shipped night
+     * lawns open with and the night clock (which is also what wakes the mushrooms), and the two
+     * mutation ones add the mutation mechanic with the mutation schedule.
+     *
+     * @param night    true for the night sky and its graves
+     * @param mutating true to switch the mutation system on
+     */
+    private static LevelDef lawn(Identifier levelId, boolean night, boolean mutating) {
+        String label = (mutating ? "变异·" : "") + "草坪无尽（" + (night ? "黑夜" : "白天") + "）";
+        String description = night
+                ? "前院草坪的夜晚无尽。没有水池，天上有墓碑，蘑菇在这里是醒着的——"
+                        + "白天草坪上撑不住的东西，这里换个法子撑。"
+                : "前院草坪的白天无尽。没有水池，也就没有水生僵尸：压力全在五条陆地上，"
+                        + "而每一行只有一台割草机。";
+        if (mutating) {
+            description += "这一局里规则会自己改写。";
+        }
+        return new LevelDef(
+                levelId,
+                label,
+                description,
+                WIDTH, LAWN_HEIGHT,
+                lawnScene(),
+                teams(),
+                PvzceIds.PLANT_TEAM,
+                lawnRules(night, mutating),
+                // The plant AI is on for the same reason the pool endless has it: an endless run is
+                // the one mode long enough to be worth watching play itself.
+                Map.of(PvzceIds.ENV_PLANT_AI, EnvValue.of("pvzce:boolean",
+                        new JsonPrimitive(true))),
+                List.<WaveDef>of(),
+                1F,
+                List.<Identifier>of(),
+                Map.of(PvzceIds.SUN, true),
+                50,
+                LevelDef.LevelMusicDef.DEFAULT,
+                List.<InitialEntityDef>of(),
+                mutating ? MUTATION_SEED_SLOTS : SEED_SLOTS,
+                rewards(),
+                LevelUnlock.NONE,
+                lawnMechanics(night, mutating),
+                LevelDialogue.EMPTY,
+                List.of(onStartHint()),
+                List.of(PvzceIds.PLANT_TEAM),
+                Optional.of(Identifier.withDefaultNamespace(
+                        "textures/gui/screen/level/" + (night ? "background2" : "background1"))),
+                List.of(PvzceIds.GRASS.toString()),
+                false,
+                new LevelDef.LevelBuffPlan(List.of(LevelDef.LevelBuffPlan.PLAYER_CHOICE),
+                        mutating ? MUTATION_BUFF_SLOTS : BUFF_SLOTS));
+    }
+
+    /** Forty-five grass cells: the front lawn has no water to paint. */
+    private static Map<Identifier, List<String>> lawnScene() {
+        Map<Identifier, List<String>> scene = new LinkedHashMap<>();
+        List<String> grass = new ArrayList<>();
+        for (int y = 0; y < LAWN_HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                grass.add(x + "," + y);
+            }
+        }
+        scene.put(PvzceIds.GRASS, grass);
+        return scene;
+    }
+
+    /** The lawn's rules: the day sky, or the night one with its graves. */
+    private static Map<Identifier, JsonElement> lawnRules(boolean night, boolean mutating) {
+        Map<Identifier, JsonElement> rules = new LinkedHashMap<>();
+        rules.put(PvzceIds.RULE_DAY_LENGTH, new JsonPrimitive(0));
+        // The night clock is the shipped night levels' own shape: one long night rather than a
+        // cycle, because an endless run has no dawn to reach.
+        rules.put(PvzceIds.RULE_NIGHT_LENGTH, new JsonPrimitive(night ? 360000 : -1));
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN,
+                new JsonPrimitive(night ? 0 : LAWN_SUN_INTERVAL_MIN));
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX,
+                new JsonPrimitive(night ? 0 : LAWN_SUN_INTERVAL_MAX));
+        if (!night) {
+            rules.put(PvzceIds.RULE_SUN_SPAWN_INITIAL_TICKS, new JsonPrimitive(SUN_INITIAL_TICKS));
+        }
+        if (mutating) {
+            rules.put(PvzceIds.RULE_MUTATION_DIFFICULTY,
+                    new JsonPrimitive(com.pvzce.common.level.mutation.MutationDifficulty.NORMAL
+                            .tierName()));
+            rules.put(PvzceIds.RULE_MUTATION_INITIAL_TICKS,
+                    new JsonPrimitive(PvzceConstants.MUTATION_INITIAL_TICKS));
+            rules.put(PvzceIds.RULE_MUTATION_INTERVAL_MULTIPLIER,
+                    new JsonPrimitive(PvzceConstants.MUTATION_INTERVAL_MULTIPLIER));
+        }
+        rules.put(PvzceIds.id("level_pause_on_single_player"), new JsonPrimitive(true));
+        return rules;
+    }
+
+    /** The lawn's mechanics: mowers on every row, the endless schedule, and the two switches. */
+    private static List<TypedMechanic> lawnMechanics(boolean night, boolean mutating) {
+        List<TypedMechanic> mechanics = new ArrayList<>();
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_ENDLESS,
+                new com.pvzce.common.level.mechanic.EndlessMechanic.Data(mutating
+                        ? PvzceIds.ENDLESS_SCHEDULE_MUTATION : PvzceIds.ENDLESS_SCHEDULE_POOL)));
+        if (mutating) {
+            mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION,
+                    MechanicData.Empty.INSTANCE));
+        }
+        // Every row has an ordinary mower: `MowerData.EVERY_ROW` is what a level that says nothing
+        // gets, and writing it out is what makes a lawn row with no mower a deliberate act.
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER, MowerData.EVERY_ROW));
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_DECK, MechanicData.Empty.INSTANCE));
+        if (night) {
+            // The graves the shipped night lawns open with. They are terrain, so a round boundary
+            // keeps whatever the player has not cleared - which on a night lawn is the point.
+            mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_GRAVE_FIELD,
+                    new com.pvzce.api.content.GraveFieldData(NIGHT_GRAVES,
+                            com.pvzce.api.content.GraveFieldData.MIN_X_UNSET,
+                            com.pvzce.api.content.GraveFieldData.MAX_X_UNSET,
+                            com.pvzce.api.content.GraveFieldData.DEFAULT_REGION, List.of())));
+        }
+        return List.copyOf(mechanics);
     }
 
     private static LevelDef build() {
