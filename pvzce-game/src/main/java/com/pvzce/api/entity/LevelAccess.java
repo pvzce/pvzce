@@ -96,6 +96,18 @@ public interface LevelAccess {
 
     void spawnProjectile(ProjectileRef ref, float x, float y, PlantEntity source);
 
+    /**
+     * A shot fired by a zombie, travelling left.
+     *
+     * <p>The mirror of {@link #spawnProjectile}: same projectile, same damage, same hit rules, and
+     * the only difference is which way it goes and whose side it is on. It exists as its own
+     * method rather than a sign on the plant one because the two are read at different places -
+     * a plant's shot scales with the run's buffs and a zombie's does not - and folding them
+     * together would mean every reader asking which side a number came from.
+     */
+    void spawnZombieProjectile(ProjectileRef ref, float x, float y,
+                               com.pvzce.server.entity.ZombieEntity source);
+
     void spawnArcProjectile(ProjectileRef ref, float x, float y, PlantEntity source, ZombieEntity target);
 
     void spawnResource(Identifier resourceId, int amount, float x, float y, Team team);

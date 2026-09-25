@@ -1120,6 +1120,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
     }
 
+    /**
+     * A shot fired by a zombie, travelling left.
+     *
+     * <p>No {@code scaledShot} and no mutation hook: the buff that lengthens a plant's shots is the
+     * player's, and the mutation that substitutes peas is about what the <em>plants</em> fire. A
+     * ZomBotany zombie's pea is the plain one, which is also what makes it readable - the player
+     * can tell whose shot is whose by where it came from.
+     */
+    @Override
+    public void spawnZombieProjectile(ProjectileRef ref, float x, float y,
+                                      com.pvzce.server.entity.ZombieEntity source) {
+        ProjectileDef projectileDef = BuiltInRegistries.PROJECTILES.get(ref.projectile());
+        if (projectileDef == null) {
+            return;
+        }
+        addEntity(new ProjectileEntity(projectileDef, ref, source.team(), x, y, source.height()));
+    }
+
     @Override
     public void spawnArcProjectile(ProjectileRef ref, float x, float y, PlantEntity source, ZombieEntity target) {
         ProjectileRef shot = scaledShot(ref, source);

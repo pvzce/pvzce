@@ -13,6 +13,8 @@ import com.pvzce.common.capability.zombie.DigCapability;
 import com.pvzce.common.capability.zombie.BungeeCapability;
 import com.pvzce.common.capability.zombie.FloatCapability;
 import com.pvzce.common.capability.zombie.ZamboniCapability;
+import com.pvzce.common.capability.zombie.DeathBlastCapability;
+import com.pvzce.common.capability.zombie.ZombieShooterCapability;
 import com.pvzce.common.capability.zombie.FlyCapability;
 import com.pvzce.common.capability.zombie.HammerCapability;
 import com.pvzce.common.capability.zombie.SubmergeCapability;
@@ -69,6 +71,14 @@ public final class ZombieCapabilities {
     public static final CapabilityType<ZamboniCapability> ZAMBONI =
             type("zamboni", ZamboniCapability.CODEC);
 
+    /** A zombie that shoots back (the ZomBotany line). */
+    public static final CapabilityType<ZombieShooterCapability> ZOMBIE_SHOOTER =
+            type("zombie_shooter", ZombieShooterCapability.CODEC);
+
+    /** Goes off when it dies (the Jalapeno-head zombie). */
+    public static final CapabilityType<DeathBlastCapability> DEATH_BLAST =
+            type("death_blast", DeathBlastCapability.CODEC);
+
     public static final Codec<TypedCapability<ZombieCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.ZOMBIE_CAPABILITIES, "zombie");
     public static final Codec<List<TypedCapability<ZombieCapability>>> LIST_CODEC = CODEC.listOf();
@@ -89,6 +99,8 @@ public final class ZombieCapabilities {
         register(FLOAT, "float");
         register(BUNGEE, "bungee");
         register(ZAMBONI, "zamboni");
+        register(ZOMBIE_SHOOTER, "zombie_shooter");
+        register(DEATH_BLAST, "death_blast");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

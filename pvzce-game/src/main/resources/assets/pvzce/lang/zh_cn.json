@@ -622,5 +622,17 @@
   "zombie.pvzce.zamboni_zombie": "雪橇车僵尸",
   "zombie.pvzce.zamboni_zombie.desc": "开过草坪，碾碎路上的植物，身后留下一道种不了东西的冰面。",
   "zombie.pvzce.zamboni_zombie.flavor": "这辆车比开着它的那只僵尸难对付多了。",
-  "scene_element.pvzce.ice": "冰面"
+  "scene_element.pvzce.ice": "冰面",
+  "zombie.pvzce.zombotany_pea_zombie": "豌豆头僵尸",
+  "zombie.pvzce.zombotany_pea_zombie.desc": "头顶长着一株豌豆射手，会朝你的植物开火。",
+  "zombie.pvzce.zombotany_pea_zombie.flavor": "它大概觉得这样很公平。",
+  "zombie.pvzce.zombotany_gatling_zombie": "机枪豌豆头僵尸",
+  "zombie.pvzce.zombotany_gatling_zombie.desc": "头顶的机枪豌豆一次打四发，是这一群里最危险的一只。",
+  "zombie.pvzce.zombotany_gatling_zombie.flavor": "四倍的火力，一样的脑子。",
+  "zombie.pvzce.zombotany_wallnut_zombie": "坚果头僵尸",
+  "zombie.pvzce.zombotany_wallnut_zombie.desc": "头上的坚果比铁桶还耐打，要先打掉它才碰得到本体。",
+  "zombie.pvzce.zombotany_wallnut_zombie.flavor": "它自己没觉得有什么不方便。",
+  "zombie.pvzce.zombotany_jalapeno_zombie": "火爆辣椒头僵尸",
+  "zombie.pvzce.zombotany_jalapeno_zombie.desc": "倒下时会炸一下，把身边的植物烧掉半条命。",
+  "zombie.pvzce.zombotany_jalapeno_zombie.flavor": "解决它的最好时机是它还离你的植物很远的时候。"
 }

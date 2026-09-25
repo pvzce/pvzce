@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:zombotany_gatling_zombie",
+  "health": 200,
+  "move_speed": 0.2,
+  "bite_damage": 100,
+  "bite_interval": 60,
+  "capabilities": [
+    {
+      "type": "pvzce:zombie_shooter",
+      "interval": 90,
+      "damage": 20,
+      "count": 4
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/zombie_groan",
+    "bite": "pvzce:sfx/effect/bite",
+    "shoot": "pvzce:sfx/plant/shoot_pea",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation_dir": "zombie/zombotany",
+  "texture": "pvzce:textures/entities/zombie/zombotany/zombotany_gatling_zombie",
+  "drops_arm": true,
+  "drops_head": true,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

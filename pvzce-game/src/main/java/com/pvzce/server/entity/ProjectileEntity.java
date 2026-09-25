@@ -214,6 +214,15 @@ public class ProjectileEntity extends PvzceEntity {
         }
         ZombieEntity hit = findTarget(level);
         if (hit == null) {
+            PlantEntity plant = findPlantTarget(level);
+            if (plant != null) {
+                // A shot fired by the zombies. It is the only shot in the game that travels the
+                // other way, and everything about it is the same except which registry it looks
+                // in - see `findPlantTarget`.
+                plant.damage(damage);
+                remove();
+                return;
+            }
             if (targetId >= 0 && Math.abs(cellX() - targetX) < HIT_RADIUS_X && hasLanded()) {
                 applyImpact(null, level);
             }
@@ -240,6 +249,40 @@ public class ProjectileEntity extends PvzceEntity {
             }
         }
         remove();
+    }
+
+    /**
+     * A plant in this shot's way, or {@code null}.
+     *
+     * <p>The projectile router only ever looked for zombies, because until the ZomBotany line only
+     * the plants had guns: {@link #findTarget} asks {@code level.enemiesInRow}, whose answer is
+     * always a list of zombies. A zombie's pea needs the other half, and this is the whole of it -
+     * the same lane, the same hit radius, the other registry.
+     *
+     * <p>It answers null for a plant's own shot, which is what keeps the two apart: a projectile
+     * hits whatever is an enemy of <em>its</em> team, and a plant's team is not its own enemy.
+     *
+     * <p>No armour, no damage type and no pierce: a plant has none of those, and giving a
+     * zombie's pea a damage type would mean asking which of the game's damage rules apply to a
+     * target that has never had any.
+     */
+    private PlantEntity findPlantTarget(LevelServer level) {
+        Team plantTeam = level.team(com.pvzce.common.PvzceIds.PLANT_TEAM);
+        if (plantTeam == null || !LevelServer.isEnemyOf(plantTeam, team())) {
+            return null;
+        }
+        PlantEntity found = null;
+        for (int column = 0; column < level.width(); column++) {
+            if (Math.abs(column + 0.5F - cellX()) > HIT_RADIUS_X) {
+                continue;
+            }
+            PlantEntity plant = level.plantAt(column, gridY());
+            if (plant != null && !plant.isRemoved()) {
+                // Left to right, so the last one found is the nearest to a shot flying left.
+                found = plant;
+            }
+        }
+        return found;
     }
 
     private ZombieEntity findTarget(LevelServer level) {

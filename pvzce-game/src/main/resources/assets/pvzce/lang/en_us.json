@@ -622,5 +622,17 @@
   "zombie.pvzce.zamboni_zombie": "Zomboni",
   "zombie.pvzce.zamboni_zombie.desc": "Drives across the lawn, crushing what is in its way and leaving ice nothing can be planted in.",
   "zombie.pvzce.zamboni_zombie.flavor": "The machine is a lot harder to deal with than the zombie driving it.",
-  "scene_element.pvzce.ice": "Ice"
+  "scene_element.pvzce.ice": "Ice",
+  "zombie.pvzce.zombotany_pea_zombie": "Peashooter Zombie",
+  "zombie.pvzce.zombotany_pea_zombie.desc": "Wears a peashooter and shoots back at your plants.",
+  "zombie.pvzce.zombotany_pea_zombie.flavor": "It probably thinks this is fair.",
+  "zombie.pvzce.zombotany_gatling_zombie": "Gatling Pea Zombie",
+  "zombie.pvzce.zombotany_gatling_zombie.desc": "Its head fires four peas at a time; the worst of the bunch.",
+  "zombie.pvzce.zombotany_gatling_zombie.flavor": "Four times the firepower, same brain.",
+  "zombie.pvzce.zombotany_wallnut_zombie": "Wall-nut Zombie",
+  "zombie.pvzce.zombotany_wallnut_zombie.desc": "The nut on its head is tougher than a bucket; chew through it first.",
+  "zombie.pvzce.zombotany_wallnut_zombie.flavor": "It does not seem bothered by it.",
+  "zombie.pvzce.zombotany_jalapeno_zombie": "Jalapeno Zombie",
+  "zombie.pvzce.zombotany_jalapeno_zombie.desc": "Explodes when it falls, taking half the health of the plants beside it.",
+  "zombie.pvzce.zombotany_jalapeno_zombie.flavor": "The best time to deal with it is while it is still far away."
 }

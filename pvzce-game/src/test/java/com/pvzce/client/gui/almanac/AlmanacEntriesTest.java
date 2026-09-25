@@ -119,14 +119,27 @@ class AlmanacEntriesTest {
         }
     }
 
-    /** The six mini zombies of 3-5 are ours, so they read after every zombie the original lists. */
+    /**
+     * Everything the original does not list reads after everything it does.
+     *
+     * <p>The rule is "the original's book first, our additions after", and it is asserted as that
+     * rather than as an index: the count of both halves grows every time a zombie is added, and a
+     * hardcoded offset turns adding one into a failure of a test about ordering. The original's
+     * list ends at the boss, so "after the boss" is the whole of it.
+     */
     @Test
-    void theMiniZombiesReadLast() {
+    void thisProjectsOwnZombiesReadLast() {
         List<String> paths = AlmanacEntries.zombies().ids().stream().map(Identifier::path).toList();
-        List<String> minis = new ArrayList<>(paths.stream().filter(p -> p.startsWith("mini_")).toList());
-        assertEquals(6, minis.size(), "3-5 ships six mini zombies");
-        assertEquals(paths.size() - 6, paths.indexOf(minis.get(0)),
-                "the mini zombies start right after everything else");
+        int boss = paths.indexOf("zombie_boss");
+        assertTrue(boss >= 0, "the boss has to be in the table");
+        List<String> ours = paths.stream()
+                .filter(p -> p.startsWith("mini_") || p.startsWith("zombotany_"))
+                .toList();
+        assertEquals(10, ours.size(), "six mini zombies of 3-5 and the ZomBotany four");
+        for (String path : ours) {
+            assertTrue(paths.indexOf(path) > boss,
+                    path + " is this project's own and has to read after the original's list");
+        }
     }
 
     @Test

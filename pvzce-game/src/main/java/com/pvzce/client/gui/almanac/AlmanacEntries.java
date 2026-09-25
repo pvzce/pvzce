@@ -78,6 +78,12 @@ public final class AlmanacEntries {
             "ducky_tube_conehead_zombie",
             "ducky_tube_buckethead_zombie",
             // The mini zombies, which the original has no page for at all.
+            // The ZomBotany four, which the original has no page for either: they are a
+            // minigame's cast rather than part of the adventure's bestiary.
+            "zombotany_pea_zombie",
+            "zombotany_wallnut_zombie",
+            "zombotany_gatling_zombie",
+            "zombotany_jalapeno_zombie",
             "mini_basic_zombie",
             "mini_flag_zombie",
             "mini_conehead_zombie",
