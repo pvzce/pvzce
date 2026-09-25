@@ -344,14 +344,18 @@ public final class CanvasPage implements EditorPage {
                                     .sorted()
                                     .filter(id -> !"grass".equals(id.path())),
                             java.util.stream.Stream.of(Identifier.withDefaultNamespace("grass")))
-                    .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.SCENE, id, null))
+                    .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.SCENE,
+                            "scene_element", id, null))
                     .toList();
-            case ENTITY -> (view == View.ZOMBIE
-                    ? BuiltInRegistries.ZOMBIES.keySet()
-                    : BuiltInRegistries.PLANTS.keySet()).stream()
-                    .sorted()
-                    .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, id, null))
-                    .toList();
+            case ENTITY -> {
+                boolean zombies = view == View.ZOMBIE;
+                yield (zombies ? BuiltInRegistries.ZOMBIES.keySet()
+                        : BuiltInRegistries.PLANTS.keySet()).stream()
+                        .sorted()
+                        .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY,
+                                zombies ? "zombie" : "plant", id, null))
+                        .toList();
+            }
             default -> List.of();
         };
         palette.setItems(items);

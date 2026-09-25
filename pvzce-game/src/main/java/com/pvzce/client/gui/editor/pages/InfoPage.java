@@ -474,7 +474,7 @@ public final class InfoPage implements EditorPage {
     }
 
     private void buildGroupRows(EditorContext context) {
-        buildGroupRow(context, groupThemeButtons, themeIds(context), groupThemeY, id -> {
+        buildGroupRow(context, "level_theme", groupThemeButtons, themeIds(context), groupThemeY, id -> {
             if (id.equals(selectedThemeId)) {
                 return;
             }
@@ -486,7 +486,8 @@ public final class InfoPage implements EditorPage {
             }
             rebuildGroupRows(context);
         });
-        buildGroupRow(context, groupCategoryButtons, categoryIds(context), groupCategoryY, id -> {
+        buildGroupRow(context, "level_category", groupCategoryButtons, categoryIds(context),
+                groupCategoryY, id -> {
             if (!id.equals(selectedCategoryId)) {
                 selectedCategoryId = id;
                 refreshGroupState(context);
@@ -508,14 +509,14 @@ public final class InfoPage implements EditorPage {
         buildGroupRows(context);
     }
 
-    private void buildGroupRow(EditorContext context, List<Button> target, List<Identifier> ids, int y,
-                               Consumer<Identifier> onPick) {
+    private void buildGroupRow(EditorContext context, String category, List<Button> target,
+                               List<Identifier> ids, int y, Consumer<Identifier> onPick) {
         int gap = 4;
         int buttonWidth = Math.max(56, (groupRowWidth - gap * (ids.size() - 1)) / Math.max(1, ids.size()));
         for (int i = 0; i < ids.size(); i++) {
             Identifier id = ids.get(i);
             Button button = new Button(context.content().x() + i * (buttonWidth + gap), y, buttonWidth,
-                    groupRowHeight, groupLabel(id), () -> onPick.accept(id));
+                    groupRowHeight, groupLabel(id, category), () -> onPick.accept(id));
             button.style(Button.Style.SEED_CHOOSER);
             // `own` rather than `addWidget`: these belong to the page, so switching away
             // and back does not leave a second copy of the rows behind.
@@ -535,9 +536,9 @@ public final class InfoPage implements EditorPage {
         }
     }
 
-    private static String groupLabel(Identifier id) {
+    private static String groupLabel(Identifier id, String category) {
         return LevelGrouping.isUncategorized(id) ? GuiLang.raw(UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT)
-                : GuiLang.name(id);
+                : GuiLang.name(category, id);
     }
 
     /**

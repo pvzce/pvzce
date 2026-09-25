@@ -259,6 +259,24 @@ public final class ExplosiveCapability implements PlantCapability {
         return fuse;
     }
 
+    /**
+     * Sets the fuse to nothing, so the next tick is the blast.
+     *
+     * <p>For a caller that has just <em>placed</em> this bomb rather than watched it arm: the
+     * apocalypse mutation summons a whole lawn of Doom-shrooms at once, and making the player wait
+     * out ninety ticks of arming while the lawn is covered in them is ninety ticks of a board that
+     * cannot be played. The plant's own fuse is untouched - a Doom-shroom bought from the card bar
+     * still arms on its own.
+     *
+     * <p>{@code linger} is deliberately not set here: the blast happens through the ordinary
+     * {@link #tick}, which is also what draws it.
+     */
+    public void detonateNow() {
+        if (fuse > 0) {
+            fuse = 0;
+        }
+    }
+
     /** The effect this blast draws, in emission order. Never empty. */
     public java.util.List<Identifier> particles() {
         return particles;

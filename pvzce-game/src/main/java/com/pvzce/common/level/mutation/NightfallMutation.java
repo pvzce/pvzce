@@ -13,9 +13,10 @@ import com.pvzce.server.level.LevelServer;
  * two numbers, stops the sky from dropping suns (the original's night levels have no sky sun), and
  * leaves the producers alone: a sunflower in the dark still pays.
  *
- * <p>The backdrop cannot be changed by a rule at all - the client picked it when the level
- * payload arrived - so the mutation also asks for {@link MutationEffects#DARKNESS}, which is the
- * wash the client draws over a board it is already lighting for night.
+ * <p>The backdrop is the client's, so the mutation also asks for
+ * {@link MutationEffects#POOL_NIGHT}: that effect carries the after-dark picture *and* the wash
+ * over it, which together are what "it is night now" looks like. Without it a day level turned
+ * night by this mutation was a black haze on a bright lawn.
  */
 final class NightfallMutation implements Mutation {
     /**
@@ -34,7 +35,10 @@ final class NightfallMutation implements Mutation {
 
     @Override
     public MutationEffects clientEffects() {
-        return MutationEffects.DARKNESS;
+        // Both halves: the clock and the rules are the server's, the haze is a drawing, and the
+        // backdrop is a texture the client has to swap - its id came in with the level payload and
+        // no packet carries a new one.
+        return MutationEffects.POOL_NIGHT;
     }
 
     @Override

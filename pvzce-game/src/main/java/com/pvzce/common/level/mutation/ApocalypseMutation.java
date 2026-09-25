@@ -5,9 +5,11 @@ import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.capability.plant.ExplosiveCapability;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.tag.PvzceTags;
+import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.level.LevelServer;
 
 /**
@@ -80,7 +82,8 @@ final class ApocalypseMutation implements Mutation {
                 if (!isPlantable(level, x, y)) {
                     continue;
                 }
-                level.spawnPlant(doom, level.plantPlayer().team(), x, y);
+                PlantEntity shroom = level.spawnPlant(doom, level.plantPlayer().team(), x, y);
+                arm(shroom);
                 placed++;
             }
         }
@@ -90,6 +93,34 @@ final class ApocalypseMutation implements Mutation {
     // revert does nothing on purpose: the craters it leaves are terrain, and a mushroom that has
     // already exploded cannot be un-exploded. The mutation's whole effect happened in the tick it
     // arrived, which is exactly why the panel keeps showing it as a placeholder afterwards.
+
+    /**
+     * Wakes a summoned Doom-shroom and sends it off.
+     *
+     * <p>Both halves are needed and neither is a detail:
+     *
+     * <ul>
+     *   <li><b>Waking it.</b> A Doom-shroom is a mushroom, and mushrooms sleep in daylight - and
+     *       this mutation's level is a <em>day</em> pool. A summon that left it asleep stood there
+     *       with its ninety-tick fuse frozen (a sleeping plant is not ticked), so the apocalypse
+     *       summoned a lawn of furniture instead of a blast. Waking is the plant's own hook, so any
+     *       future summon that has a sleeping state is handled the same way rather than by a list
+     *       of plant ids here.</li>
+     *   <li><b>Sending it off.</b> "Summoned" reads as "it happens now": the player watches the
+     *       lawn fill with mushrooms and they go off together, rather than ninety ticks of a board
+     *       that cannot be played.</li>
+     * </ul>
+     */
+    private static void arm(PlantEntity shroom) {
+        if (shroom == null) {
+            return;
+        }
+        shroom.wake();
+        ExplosiveCapability explosive = shroom.capability(ExplosiveCapability.class);
+        if (explosive != null) {
+            explosive.detonateNow();
+        }
+    }
 
     /**
      * Whether a Doom-shroom belongs in this cell.

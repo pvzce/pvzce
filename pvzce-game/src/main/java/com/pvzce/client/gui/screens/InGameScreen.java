@@ -2553,11 +2553,23 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * its top half and the green fill in its bottom half, {@code FlagMeterParts} holds the
      * zombie head, the pole and the flag, and {@code FlagMeterLevelProgress} is the plate.
      */
+    /**
+     * The most flags one meter is allowed to draw.
+     *
+     * <p>A hundred-odd is already a texture of dots at this size; the cap is what keeps an endless
+     * level's meter costing the same as an ordinary one's, whatever its table holds.
+     */
+    private static final int MAX_WAVE_FLAGS = 128;
+
     private void renderWaveBar() {
         int total = client.level().totalWaves();
         if (total <= 0) {
             return;
         }
+        // Rounds are drawn on their own line rather than folded into the meter: the meter's
+        // numbers are already the wave inside the current round (see WaveProgressS2C), so the
+        // round is the one thing it cannot say for itself.
+        renderRoundLabel();
         int current = Math.max(0, Math.min(total, client.level().currentWave()));
         // The *level's* progress, not the current wave's: the fill has to reach a flag as
         // that wave arrives, which is the whole point of putting them on one axis.
@@ -2585,14 +2597,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         int trackWidth = Math.max(40, meterWidth - headWidth);
 
         drawMeterBar(trackX, meterY, trackWidth, meterHeight, progress);
-        for (int i = 0; i < total; i++) {
-            String type = i < client.level().waveTypes().size() ? client.level().waveTypes().get(i) : "small";
-            if (!"huge".equals(type) && !"final".equals(type)) {
+        // The flags come from a sampled, bounded list rather than from walking every wave: a
+        // level's table used to be a handful of entries and walking it cost nothing, but an endless
+        // level's is thousands and this runs every frame (see ClientLevel.waveFlagCandidates for
+        // the measurement that found it).
+        int perFlag = (int) Math.max(6F, 10F * scale);
+        int capacity = Math.min(MAX_WAVE_FLAGS, Math.max(1, meterWidth / perFlag));
+        for (int i : com.pvzce.client.ClientLevel.waveFlagCandidates(total, current, capacity)) {
+            if (!client.level().isHugeWave(i)) {
                 continue;
             }
             // The meter runs right to left, so the first wave's flag is the rightmost one.
             drawWaveFlag(trackX + trackWidth * (1F - (i + 0.5F) / total), meterY + meterHeight - 2,
-                    scale * ("final".equals(type) ? 1.15F : 1F), i < current ? 1F : 0F);
+                    scale * (client.level().isFinalWave(i) ? 1.15F : 1F), i < current ? 1F : 0F);
         }
         // The head last, so it reads as standing in front of the flags it has reached.
         drawMeterHead(trackX + trackWidth * (1F - progress), meterY, meterHeight, scale);
@@ -2647,7 +2664,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             client.drawSolid(plateX, plateY, plateWidth, plateHeight, 0.2F, 0.2F, 0.21F, 0.32F, 0.9F);
         }
 
-        String name = client.currentLevelName();
+        // On a level played in rounds the round line takes this gap instead of the level name:
+        // both are one short line to the left of the meter, and "第 3 轮 · 7/13 波" is the one a
+        // player in a two-hour run needs. Drawing both would overlap them, since neither the name
+        // nor the label is measured against the other.
+        String name = client.level().runsInRounds() ? "" : client.currentLevelName();
         if (name.isEmpty()) {
             return;
         }
@@ -2664,6 +2685,39 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // there, and a drop shadow is what keeps a level name readable on a pale sidewalk.
         client.fonts().body().draw(name, nameX + 1F, nameY - 1F, nameScale, 0.05F, 0.05F, 0.05F, 0.8F);
         client.fonts().body().draw(name, nameX, nameY, nameScale, 1F, 0.96F, 0.72F, 1F);
+    }
+
+    /**
+     * "第 3 轮 · 7/13 波" above the meter, on a level that runs in rounds.
+     *
+     * <p>Shown only on an endless level: an ordinary level's meter is already the whole run, and
+     * a "round 1 of 1" line would be noise. The round's wave count comes from the server rather
+     * than from the meter width, because on these levels the round gets longer as the run goes
+     * on and the meter has no way to know that on its own.
+     */
+    private void renderRoundLabel() {
+        if (!client.level().runsInRounds()) {
+            return;
+        }
+        int total = client.level().totalWaves();
+        int current = Math.max(0, Math.min(total, client.level().currentWave()));
+        String text = "第 " + Math.max(1, client.level().round()) + " 轮 · " + current + "/" + total + " 波";
+        // On the meter's own line, left of it like the level name and above it like nothing:
+        // the space above the meter is the pause button's, and a label drawn there is behind it.
+        float scale = Math.max(0.75F, Math.min(0.95F, 1.2F * (METER_SCALE)));
+        float meterHeight = Math.round(METER_NATIVE_HEIGHT * METER_SCALE);
+        float meterY = 6F + Math.round(11F * METER_SCALE);
+        float textWidth = client.fonts().body().width(text, scale);
+        float x = client.guiWidth() - 14F - Math.round(METER_NATIVE_WIDTH * METER_SCALE)
+                - textWidth - 8F;
+        if (x < 4F) {
+            // Not enough room beside the meter (a narrow window): the wave count is the more
+            // useful half, so the round line gives way rather than overlapping the level name.
+            return;
+        }
+        float y = meterY + (meterHeight - client.fonts().body().lineHeight(scale)) / 2F + 4F;
+        client.fonts().body().draw(text, x + 1F, y - 1F, scale, 0.05F, 0.05F, 0.05F, 0.8F);
+        client.fonts().body().draw(text, x, y, scale, 1F, 0.9F, 0.55F, 1F);
     }
 
     /** A pole with a flag on it, standing on the track at one big wave's position. */

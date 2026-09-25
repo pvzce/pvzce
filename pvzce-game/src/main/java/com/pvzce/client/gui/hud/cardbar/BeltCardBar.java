@@ -266,9 +266,17 @@ public final class BeltCardBar implements CardBar {
         int guiH = client.guiHeight();
         float right = host.rightBound();
         float available = Math.max(120F, right - BELT_PADDING * 2F - 4F);
-        com.pvzce.api.content.LevelBelt belt = client.level().mechanicData(
-                com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR, com.pvzce.api.content.LevelBelt.class);
-        int capacity = Math.max(1, belt == null ? 1 : belt.capacity());
+        // Two belts, one drawing: a level may declare one (a block in its definition the client
+        // can read) or a mutation may install one mid-run (no block at all - it is not in the
+        // definition), and the packet carries that one's capacity. Without this the tray of a
+        // mutation's belt was drawn one card wide, because a missing block answered "capacity 1".
+        int capacity = mutationBeltCapacity(client);
+        if (capacity <= 0) {
+            com.pvzce.api.content.LevelBelt belt = client.level().mechanicData(
+                    com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR, com.pvzce.api.content.LevelBelt.class);
+            capacity = belt == null ? 1 : belt.capacity();
+        }
+        capacity = Math.max(1, capacity);
         cardHeight = Math.max(52, Math.min(70, guiH / 7));
         cardWidth = Math.max(38, Math.round(cardHeight * 100F / 140F));
         cardGap = Math.max(3, cardWidth / 8);
@@ -284,6 +292,12 @@ public final class BeltCardBar implements CardBar {
         viewportY = Math.round(guiH - cardHeight - BELT_TOP_MARGIN - BELT_PADDING * 2F);
         viewportWidth = Math.max(1, Math.round(trackWidth - BELT_PADDING * 2F));
         viewportHeight = cardHeight;
+    }
+
+    /** The capacity a mutation's belt reported, or 0 when no mutation is dealing the cards. */
+    private static int mutationBeltCapacity(PvzceClient client) {
+        com.pvzce.common.network.packet.MutationStateS2C mutations = client.level().mutations();
+        return mutations == null ? 0 : mutations.beltCapacity();
     }
 
     /** Width of a tray holding {@code capacity} cards, padding included. */

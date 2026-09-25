@@ -232,15 +232,18 @@ final class LevelPage {
      * A group's display name.
      *
      * <p>Goes through {@link GuiLang} first, so a pack can translate a theme; the key is
-     * {@code <ns>.<path>} like every other content id. When there is no entry the id's last
+     * {@code <registry>.<ns>.<path>} like every other content id - a theme is
+     * {@code level_theme.pvzce.yard} and a category is {@code level_category.pvzce.adventure},
+     * which is why the category is a parameter rather than something derived from the id: the
+     * same id in two registries is two different keys. When there is no entry the id's last
      * segment is used, and only the unclassified bucket has a built-in fallback - it is a
      * sentinel rather than content, so it has no id to translate.
      */
-    static String label(String groupId, String fallbackKey, String fallbackText) {
+    static String label(String groupId, String category, String fallbackKey, String fallbackText) {
         if (groupId == null || groupId.isBlank() || isUncategorizedId(groupId)) {
             return GuiLang.raw(fallbackKey, fallbackText);
         }
-        return GuiLang.name(groupId);
+        return GuiLang.name(category, Identifier.tryParse(groupId));
     }
 
     private static boolean isUncategorizedId(String id) {

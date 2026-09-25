@@ -90,7 +90,24 @@ public class ZombieEntity extends PvzceEntity {
     private boolean grounded = true;
 
     public ZombieEntity(ZombieDef def, Team team, float cellX, int gridY) {
-        super(def.id(), team, cellX, gridY + 0.5F, def.health());
+        this(def, team, cellX, gridY, 1F);
+    }
+
+    /**
+     * A zombie whose body is heavier than its definition, which is what an endless round asks for.
+     *
+     * <p>{@code healthScale} multiplies the definition's own health once, at spawn, and the
+     * result is this zombie's full health for the rest of its life: the half-health arm-loss
+     * transition still reads {@code def.health()} as its denominator (every zombie of a wave
+     * scales together, so the fraction is unchanged), and the client draws the bar from the health
+     * it was sent, so a scaled zombie's bar still reads full.
+     *
+     * <p>Deliberately not a level rule: a rule would be one number for the whole lawn, and a
+     * mutation that also scales zombie speed or damage would have to share it.
+     */
+    public ZombieEntity(ZombieDef def, Team team, float cellX, int gridY, float healthScale) {
+        super(def.id(), team, cellX, gridY + 0.5F,
+                Math.max(1, Math.round(def.health() * (healthScale > 0F ? healthScale : 1F))));
         this.def = def;
         for (TypedCapability<ZombieCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));

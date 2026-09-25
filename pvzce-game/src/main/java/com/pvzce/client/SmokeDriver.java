@@ -33,7 +33,7 @@ import java.util.List;
  * rather than through slf4j, because they are a protocol between this class and the shell scripts
  * that run it - a frame number and a screen name, with no timestamp in front of them.
  */
-final class SmokeDriver {
+final public class SmokeDriver {
     private final PvzceClient client;
 
     private final int captureFrame = Integer.getInteger("pvzce.captureFrame", -1);
@@ -65,6 +65,21 @@ final class SmokeDriver {
     private final String smokeEditorPage = System.getProperty("pvzce.smokeEditorPage", "");
     /** Opens the wave table on top of the editor. */
     private final boolean smokeWaveEditor = Boolean.getBoolean("pvzce.smokeWaveEditor");
+    /**
+     * A schedule for the almanac: {@code frame:page[:entry},frame:page[:entry]}.
+     *
+     * <p>The book is the one screen whose interesting states are behind three navigations (index
+     * -> index card -> entry, then the page arrows), and the click coordinates that would reach
+     * them move with the window. A schedule walks it by frame instead, so one launch shoots the
+     * index and one entry of each page - which is what the screenshot discipline asks for.
+     *
+     * <p>The schedule runs in {@link #beforeFrame()}, so a change and a {@code captureFrame} on
+     * the same frame agree: the page is turned before the frame is drawn, and the capture reads
+     * that same frame's finished buffer.
+     */
+    private final String smokeAlmanacShots = System.getProperty("pvzce.smokeAlmanacShots", "");
+    private final java.util.Set<Long> almanacShotsDone = new java.util.HashSet<>();
+
     /** Saves the editor once, so a smoke run can verify the write round trip. */
     private final boolean smokeSave = Boolean.getBoolean("pvzce.smokeSave");
     /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
@@ -201,8 +216,21 @@ final class SmokeDriver {
             client.connection().send(new RequestLevelListC2S(client.currentWorld()));
         } else if ("title".equals(smokeScreen) || "main".equals(smokeScreen)) {
             client.setScreenReplacing(new TitleScreen(client));
-        } else if ("inventory".equals(smokeScreen) || "backpack".equals(smokeScreen)) {
-            client.setScreenReplacing(new com.pvzce.client.gui.screens.InventoryScreen(client));
+        } else if ("almanac".equals(smokeScreen)) {
+            // The index first; the hooks below walk into a page, which is four states deep
+            // (index -> plants -> entry) and no screenshot run could click its way there.
+            com.pvzce.client.gui.screens.AlmanacScreen almanac =
+                    new com.pvzce.client.gui.screens.AlmanacScreen(client);
+            client.setScreenReplacing(almanac);
+            String page = System.getProperty("pvzce.smokeAlmanacPage", "");
+            if (!page.isBlank()) {
+                almanac.show(com.pvzce.client.gui.almanac.AlmanacEntries.Page.valueOf(
+                        page.toUpperCase(java.util.Locale.ROOT)));
+                String entry = System.getProperty("pvzce.smokeAlmanacEntry", "");
+                if (!entry.isBlank()) {
+                    almanac.showEntry(Integer.parseInt(entry));
+                }
+            }
         } else if ("award".equals(smokeScreen)) {
             // The award page only reads the reward packet, so a synthetic one is enough
             // to render it - winning a level to reach it would make the screen
@@ -223,8 +251,62 @@ final class SmokeDriver {
      * The hooks that must run before this frame's screen tick: getting into a level, running
      * commands, and reaching the editor (which is four screens deep and no run could walk to).
      */
+    /**
+     * {@code -Dpvzce.traceFrames=true}: print the average cost of each part of a frame, once a
+     * second.
+     *
+     * <p>Added because "this level is slow" is otherwise a guess: the first measurement it produced
+     * was an endless level's wave meter walking four thousand waves a frame, which was 46ms of a
+     * 55ms frame and invisible in any code review.
+     */
+    private final boolean traceFrames = Boolean.getBoolean("pvzce.traceFrames");
+    private long frameNanos;
+    private long tickNanos;
+    private long renderNanos;
+    private int frameSamples;
+
+    /** Times one part of the frame; see {@link #traceFrames}. */
+    public void addTickNanos(long nanos) {
+        tickNanos += nanos;
+    }
+
+    /** Times one part of the frame; see {@link #traceFrames}. */
+    void addRenderNanos(long nanos) {
+        renderNanos += nanos;
+    }
+
+    /** Reports and resets the frame budget, once per second. */
+    void sampleFrame() {
+        if (!traceFrames) {
+            return;
+        }
+        frameSamples++;
+        long now = System.nanoTime();
+        if (frameNanos == 0L) {
+            frameNanos = now;
+            return;
+        }
+        if (now - frameNanos < 1_000_000_000L) {
+            return;
+        }
+        double seconds = (now - frameNanos) / 1_000_000_000D;
+        System.out.println(String.format(java.util.Locale.ROOT,
+                "[FRAME] %.1f fps | tick %.2f ms | render %.2f ms | other %.2f ms | frames %d",
+                frameSamples / seconds, tickNanos / 1e6 / frameSamples,
+                renderNanos / 1e6 / frameSamples,
+                (seconds * 1000D - (tickNanos + renderNanos) / 1e6) / frameSamples,
+                frameSamples));
+        frameNanos = now;
+        tickNanos = 0L;
+        renderNanos = 0L;
+        frameSamples = 0;
+    }
+
     void beforeFrame() {
         long clientTick = client.clientTick();
+        // Before the render, not after: the capture hook below runs after the buffers were
+        // swapped, so a page turned in afterFrame would be one frame late in the PNG.
+        applyAlmanacShots(client.currentScreen(), clientTick);
         // Development smoke hook: request a level automatically so CI can
         // render gameplay without driving the title/level screens.
         if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
@@ -418,6 +500,48 @@ final class SmokeDriver {
             }
         }
         return false;
+    }
+
+    /**
+     * Walks the almanac to the state a schedule item asks for, on its own frame.
+     *
+     * <p>Applied before {@link #capturePath}'s timer, so a capture frame in the same item sees the
+     * page it just turned to rather than the one before it.
+     */
+    private void applyAlmanacShots(com.pvzce.client.gui.Screen screen, long clientTick) {
+        if (smokeAlmanacShots.isBlank()
+                || !(screen instanceof com.pvzce.client.gui.screens.AlmanacScreen almanac)) {
+            return;
+        }
+        for (String item : smokeAlmanacShots.split(",")) {
+            String[] parts = item.trim().split(":");
+            if (parts.length < 2) {
+                continue;
+            }
+            long frame;
+            try {
+                frame = Long.parseLong(parts[0].trim());
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            if (clientTick != frame || !almanacShotsDone.add(frame)) {
+                continue;
+            }
+
+            String page = parts[1].trim();
+            // "index" is a page name like any other here: it is what no-page means.
+            if ("index".equalsIgnoreCase(page)) {
+                almanac.showIndex();
+            } else {
+                almanac.show(com.pvzce.client.gui.almanac.AlmanacEntries.Page.valueOf(
+                        page.toUpperCase(java.util.Locale.ROOT)));
+                if (parts.length > 2) {
+                    almanac.showEntry(Integer.parseInt(parts[2].trim()));
+                }
+            }
+            System.out.println("[SMOKE] almanac frame " + frame + " -> " + item.trim()
+                    + " (page=" + almanac.pageIndex() + " entry=" + almanac.currentEntry() + ")");
+        }
     }
 
     /** {@code /tmp/x.png} at frame 240 becomes {@code /tmp/x_240.png}. */

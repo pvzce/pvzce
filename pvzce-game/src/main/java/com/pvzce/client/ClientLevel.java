@@ -82,6 +82,19 @@ public final class ClientLevel {
     private volatile String controlledTeamName = "";
     private volatile int currentWave;
     private volatile int totalWaves;
+    /** The round the run is in, and how many waves it has released across every round. */
+    private volatile int round = 1;
+    private volatile int cumulativeWaves;
+    /** True while the server has stopped between rounds, waiting for a card choice. */
+    private volatile boolean roundClearPending;
+    /**
+     * True when the level generates its waves round after round.
+     *
+     * <p>Told by the server rather than guessed from the wave count: the round machinery is the
+     * same for both kinds of level, so what makes a run endless is a fact the level knows and the
+     * client does not.
+     */
+    private volatile boolean endless;
     private volatile float waveProgress;
     private volatile boolean waveWarningActive;
     private volatile boolean waveWarningFinal;
@@ -257,6 +270,10 @@ public final class ClientLevel {
         currentWave = 0;
         totalWaves = 0;
         waveProgress = 0F;
+        round = 1;
+        cumulativeWaves = 0;
+        roundClearPending = false;
+        endless = false;
         waveWarningActive = false;
         waveWarningFinal = false;
         timeAnchorNanos = System.nanoTime();
@@ -468,6 +485,71 @@ public final class ClientLevel {
         this.mutations = state;
     }
 
+    /**
+     * Whether the wave at that index is a huge (or final) one, i.e. carries a flag on the meter.
+     *
+     * <p>Asked by index rather than handing the whole list to the HUD: a level's wave table may be
+     * thousands of entries long (an endless level's is), and a caller that copies it to look at one
+     * element is copying thousands of strings a frame.
+     */
+    public boolean isHugeWave(int index) {
+        String type = waveTypeAt(index);
+        return "huge".equals(type) || "final".equals(type);
+    }
+
+    /** Whether the wave at that index is the level's final one. */
+    public boolean isFinalWave(int index) {
+        return "final".equals(waveTypeAt(index));
+    }
+
+    /**
+     * The waves a meter of {@code capacity} flags should plant one for, out of {@code total}.
+     *
+     * <p>Pure, and static, because it is the part worth pinning: the caller draws from this list
+     * and nothing else, so "the meter never walks the whole table" is a property of this method
+     * rather than of a rendering loop. It was written the other way round first - the loop walked
+     * every wave in the level - which on an endless level's four-thousand-entry table was 46ms of a
+     * 55ms frame, every frame.
+     *
+     * <p>The window is centred on where the player is, so the flags they can see are the ones near
+     * their position; the cap is what keeps the count bounded whatever the table holds.
+     *
+     * @param total    how many waves the level has
+     * @param current  the wave the run is on
+     * @param capacity the most flags the meter may plant in total
+     * @return the wave indices to consider, in ascending order
+     */
+    public static int[] waveFlagCandidates(int total, int current, int capacity) {
+        int waves = Math.max(0, total);
+        int here = Math.max(0, Math.min(waves, current));
+        int cap = Math.max(1, capacity);
+        if (waves <= cap) {
+            int[] all = new int[waves];
+            for (int i = 0; i < waves; i++) {
+                all[i] = i;
+            }
+            return all;
+        }
+        // Half the budget either side of the player: the flags in front matter as much as the ones
+        // behind, and a window anchored at the start would leave the far end of the meter bare.
+        int half = cap / 2;
+        int first = Math.max(0, Math.min(waves - cap, here - half));
+        int last = Math.min(waves, first + cap);
+        int step = Math.max(1, (last - first) / cap);
+        int count = (last - first + step - 1) / step;
+        int[] picked = new int[count];
+        for (int i = 0; i < count; i++) {
+            picked[i] = first + i * step;
+        }
+        return picked;
+    }
+
+    /** The type of one wave, or {@code "small"} for an index this level does not have. */
+    private String waveTypeAt(int index) {
+        List<String> types = waveTypes;
+        return index >= 0 && index < types.size() ? types.get(index) : "small";
+    }
+
     /** True while the server says a mutation is dealing the cards. */
     public boolean mutatedCardBar() {
         com.pvzce.common.network.packet.MutationStateS2C state = mutations;
@@ -655,6 +737,19 @@ public final class ClientLevel {
      * the same place, so a backdrop is a picture and nothing else moves with it.
      */
     public Identifier background() {
+        // A mutation may ask for a different backdrop (the pool after dark), and that request rides
+        // the mutation state rather than the level: the picture is the client's, and nothing else
+        // on the wire could carry it. The geometry is unaffected - both pool backdrops are the same
+        // 1400x600 canvas with the basin in the same place (see LevelStage.geometryFor).
+        com.pvzce.common.network.packet.MutationStateS2C state = mutations;
+        if (state != null) {
+            for (com.pvzce.common.level.mutation.MutationEffects effect
+                    : com.pvzce.common.level.mutation.MutationEffects.values()) {
+                if (effect.isSet(state.effects()) && effect.backdrop().isPresent()) {
+                    return effect.backdrop().get();
+                }
+            }
+        }
         return background;
     }
 
@@ -771,12 +866,63 @@ public final class ClientLevel {
     }
 
     public void setWaveProgress(int currentWave, int totalWaves, float waveProgress,
-                                boolean warningActive, boolean finalWarning) {
+                                boolean warningActive, boolean finalWarning, int round) {
         this.currentWave = currentWave;
         this.totalWaves = totalWaves;
         this.waveProgress = waveProgress;
         this.waveWarningActive = warningActive;
         this.waveWarningFinal = finalWarning;
+        this.round = round;
+    }
+
+    /**
+     * Applies a round sync: which round the run is in, how long it is, and its wave list.
+     *
+     * <p>The wave list has to travel with the round on an endless level, because the client's
+     * meter draws its flags from the level's wave types - and those were sent once, when the
+     * level started, from the round the player entered. A round that changed without a new list
+     * would keep drawing the previous round's flags.
+     */
+    public void setRound(com.pvzce.common.network.packet.RoundSyncS2C sync) {
+        this.endless = sync.endless();
+        this.round = sync.round();
+        this.totalWaves = sync.wavesInRound();
+        this.cumulativeWaves = sync.cumulativeWaves();
+        this.roundClearPending = sync.roundClearPending();
+        this.waveWarningActive = false;
+        this.waveWarningFinal = false;
+        if (!sync.waveTypes().isEmpty()) {
+            this.waveTypes = java.util.List.copyOf(sync.waveTypes());
+            this.currentWave = 0;
+            this.waveProgress = 0F;
+        }
+    }
+
+    /** The round the run is in, one-based; 1 on a level that does not generate its waves. */
+    public int round() {
+        return round;
+    }
+
+    /** How many waves the run has released in total, across every round. */
+    public int cumulativeWaves() {
+        return cumulativeWaves;
+    }
+
+    /** True while the level is frozen between rounds, waiting for the next card selection. */
+    public boolean roundClearPending() {
+        return roundClearPending;
+    }
+
+    /**
+     * True when the level is played in rounds at all.
+     *
+     * <p>What the HUD asks before it draws a round line: an ordinary level's meter is already the
+     * whole run, and the server sends round 1 with a wave count for those too (the director's
+     * answer for a level with a table), so the number alone cannot tell the two apart. A round
+     * count above one is only ever produced by a level that generates its waves.
+     */
+    public boolean runsInRounds() {
+        return endless;
     }
 
     public TimeOfDayS2C timeOfDay() {

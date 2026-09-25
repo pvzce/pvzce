@@ -50,6 +50,16 @@ public final class PvzceRegistries {
     public static final ResourceKey<Registry<LevelDef>> LEVELS = key("level");
     public static final ResourceKey<Registry<LevelThemeDef>> LEVEL_THEMES = key("level_theme");
     public static final ResourceKey<Registry<LevelCategoryDef>> LEVEL_CATEGORIES = key("level_category");
+    /**
+     * Endless schedules: the per-round growth curve an endlessly generating level runs on.
+     *
+     * <p>Data-driven, unlike the mechanics and buffs below - a schedule is pure numbers (how
+     * long a round is, which zombies unlock when, how tight the pacing gets), so a pack can
+     * write its own endless without touching code. The mechanic that consumes one is
+     * {@code pvzce:endless}, and the directory is {@code data/<ns>/endless_schedules/}.
+     */
+    public static final ResourceKey<Registry<com.pvzce.api.content.EndlessScheduleDef>>
+            ENDLESS_SCHEDULES = key("endless_schedule");
     public static final ResourceKey<Registry<DialogueCharacterDef>> DIALOGUE_CHARACTERS =
             key("dialogue_character");
     public static final ResourceKey<Registry<com.pvzce.api.content.DamageTypeDef>> DAMAGE_TYPES =
@@ -120,6 +130,7 @@ public final class PvzceRegistries {
         map.put("level", LEVELS);
         map.put("level_theme", LEVEL_THEMES);
         map.put("level_category", LEVEL_CATEGORIES);
+        map.put("endless_schedule", ENDLESS_SCHEDULES);
         map.put("dialogue_character", DIALOGUE_CHARACTERS);
         map.put("damage_type", DAMAGE_TYPES);
         // Capability types are code-registered rather than data-driven, but they are

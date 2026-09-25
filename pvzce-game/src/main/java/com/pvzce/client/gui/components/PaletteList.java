@@ -48,12 +48,38 @@ public final class PaletteList extends AbstractSelectionList<PaletteList.Item> {
      */
     public record Item(Identifier id, Identifier icon, String name, String subtitle) {
         public static Item of(Kind kind, Identifier id, String subtitle) {
-            return new Item(id, iconFor(kind, id), GuiLang.name(id), subtitle);
+            return of(kind, defaultCategory(kind), id, subtitle);
+        }
+
+        /**
+         * As {@link #of}, for a row whose registry its icon family does not pin down.
+         *
+         * <p>{@link Kind#ENTITY} covers plants, zombies and projectiles, whose language keys live
+         * in three different categories - so a palette that lists zombies has to say so, or every
+         * row shows a raw id.
+         */
+        public static Item of(Kind kind, String category, Identifier id, String subtitle) {
+            return new Item(id, iconFor(kind, id), GuiLang.name(category, id), subtitle);
         }
 
         /** As {@link #of}, but prefers the game's animation art for entity rows. */
         public static Item of(PvzceClient client, Kind kind, Identifier id, String subtitle) {
-            return new Item(id, iconFor(client, kind, id), GuiLang.name(id), subtitle);
+            return of(client, kind, defaultCategory(kind), id, subtitle);
+        }
+
+        public static Item of(PvzceClient client, Kind kind, String category, Identifier id,
+                              String subtitle) {
+            return new Item(id, iconFor(client, kind, id), GuiLang.name(category, id), subtitle);
+        }
+
+        /** The category a kind implies, for the callers that only ever list one registry. */
+        private static String defaultCategory(Kind kind) {
+            return switch (kind) {
+                case ENTITY -> "plant";
+                case SCENE -> "scene_element";
+                case RESOURCE -> "resource";
+                case PLAIN -> null;
+            };
         }
     }
 

@@ -210,21 +210,22 @@ public final class LevelCreateDialog extends Dialog {
     }
 
     private void buildThemeRow() {
-        buildRow(themeButtons, themeIds, themeRowY, this::switchTheme);
+        buildRow("level_theme", themeButtons, themeIds, themeRowY, this::switchTheme);
     }
 
     private void buildCategoryRow() {
-        buildRow(categoryButtons, categoryIds, categoryRowY, this::switchCategory);
+        buildRow("level_category", categoryButtons, categoryIds, categoryRowY, this::switchCategory);
     }
 
-    private void buildRow(List<GroupChoice> target, List<String> ids, int y, IntConsumer onPick) {
+    private void buildRow(String category, List<GroupChoice> target, List<String> ids, int y,
+                          IntConsumer onPick) {
         int gap = 4;
         int buttonWidth = Math.max(56, (groupWidth - gap * (ids.size() - 1)) / Math.max(1, ids.size()));
         for (int i = 0; i < ids.size(); i++) {
             String id = ids.get(i);
             int index = i;
             Button button = new Button(groupX + i * (buttonWidth + gap), y, buttonWidth, groupHeight,
-                    LevelPage.label(id, UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT),
+                    LevelPage.label(id, category, UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT),
                     () -> onPick.accept(index));
             button.style(Button.Style.SEED_CHOOSER);
             addChild(button);

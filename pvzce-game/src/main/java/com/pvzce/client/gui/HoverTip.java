@@ -62,22 +62,37 @@ public final class HoverTip {
      * itself, so a card whose id and content differ (a slot that grants a plant of another name)
      * is named after what it actually gives the player - the same rule the card's icon follows.
      * An id nobody knows falls back to the id's own path, which is still more use than nothing.
+     *
+     * <p>The language category comes from the resolved card kind, not from the id: a plant card
+     * and the plant it grants share an id, so the two halves are named through the same key
+     * either way, and a slot that grants a tool is named {@code tool.pvzce.*}.
      */
     public static String cardName(String slotId) {
         Identifier id = Identifier.tryParse(slotId);
         if (id == null) {
             return slotId == null ? "" : slotId;
         }
-        Identifier content = com.pvzce.common.core.SlotResolver.resolve(id)
-                .map(com.pvzce.common.core.SlotResolver.ResolvedCard::content)
-                .orElse(id);
-        return GuiLang.name(content);
+        com.pvzce.common.core.SlotResolver.ResolvedCard card =
+                com.pvzce.common.core.SlotResolver.resolve(id).orElse(null);
+        if (card == null) {
+            return GuiLang.name(id);
+        }
+        return GuiLang.name(cardCategory(card.kind()), card.content());
+    }
+
+    /** The language category a card kind names. */
+    private static String cardCategory(com.pvzce.common.core.Slot.Kind kind) {
+        return switch (kind) {
+            case PLANT -> "plant";
+            case TOOL -> "tool";
+            case RESOURCE -> "resource";
+        };
     }
 
     /** The display name of a level buff. Buffs are named off their own id, like content is. */
     public static String buffName(String buffId) {
         Identifier id = Identifier.tryParse(buffId);
-        return id == null ? (buffId == null ? "" : buffId) : GuiLang.name(id);
+        return id == null ? (buffId == null ? "" : buffId) : GuiLang.name("level_buff", id);
     }
 
     /**

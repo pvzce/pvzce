@@ -704,6 +704,26 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
   - `content` 指向真正的植物/工具/资源 id。**关卡卡池引用的是 slot id**；若没有对应的 `slots/*.json`，也可以直接写植物 id（兼容路径）。
 - `tools`：`id` / `use_cost` / `cooldown` / `targets`(`cell`|`plant`|`zombie`) / `effect` / `uses`（`-1` 为无限次）
+
+### `endless_schedules`（`data/<ns>/endless_schedules/<name>.json`）
+
+无尽关卡每一轮的成长曲线。关卡用 `{"type": "pvzce:endless", "schedule": "<id>"}` 指名一份，缺省 `pvzce:pool_endless`。**关卡自己的 `waves` 会被忽略**（校验会报出来）：无尽关的波次是生成的，不是写的。
+
+| 字段 | 默认 | 作用 |
+|---|---|---|
+| `round_waves_base` | `10` | 第一轮的基础波数（实际是它 +1，见下） |
+| `round_waves_per_round` | `1` | 每往后一轮加几波 |
+| `round_waves_max` | `30` | 一轮的上限。**一轮 = `min(max, base+1 + per_round×(n-1))`** |
+| `huge_waves_per_round` | `3` | 一轮里几波带大波横幅；**每轮最后一波一定是** |
+| `spawn_interval_start` / `_end` / `_ramp_rounds` | `420` / `150` / `20` | 一波之内两只僵尸的间隔，按轮次线性收紧 |
+| `gap_start` / `gap_end` / `gap_ramp_rounds` | `900` / `300` / `20` | 两波之间的静默（上一波放完之后），同样收紧 |
+| `count_ramp_rounds` / `count_start` / `count_end` | `30` / `3` / `9` | 一波几只僵尸，按轮次增长，上限 30 |
+| `stat_growth.health_per_round` / `health_cap` | `0.05` / `2.0` | 僵尸血量每轮涨多少、最多涨到几倍（**只影响无尽关生成的波**） |
+| `pool[]` | — | 出怪池，见下 |
+
+`pool` 一条一个僵尸：`zombie`（内容 id）、`from_round`（第几轮开始可能出现，**这就是难度曲线本体**）、`weight`（抽到的权重，0 等于排除）、`water`（true = 只能走水行；水行关若一条都没有，水行永远空着）、`max_per_wave`（一波最多几只，0 = 不限；巨人用 1）。
+
+轮长、巨波位置、行约束、血量成长都只由 `(日程, 轮号, 波号)` 决定，波次**不进存档也不进协议** —— 存档里只有"第几轮第几波"。
 - **`levels` 的卡池字段**：`slots` 是**关卡自己的卡** —— 进入关卡必定发放，玩家不能取消。`max_seed_slots` 是**总卡槽数**；它减去 `slots` 的数量就是玩家能自选的格数（写得比 `slots` 少时会自动抬到 `slots` 的长度）。**不写 `max_seed_slots` 就是"跟随玩家背包"**（新世界 8 格），所以关卡既可以钉死自己的格数，也可以把这件事交给玩家的背包。
 - **`levels` 的小推车**：不用写任何东西——每行默认就有一辆。要改成部分行或干脆没有，才在 `mechanics` 里写 `{"type":"pvzce:mower","rows":[...]}`。
 - `scene_elements`：`id` / `surface`(`GRASS`|`GROUND`|`WATER`|`ROOF`|`ROOF_SLOPE`|`GRAVE`|`CRATER`) / `max_height` / `liquid`(可选，指向一个液体 id)。**没有 `accepts` 字段**：一个瓦片能种什么，完全由它在 `scene_element` 注册表里的标签决定（见下节）

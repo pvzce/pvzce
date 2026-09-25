@@ -78,6 +78,16 @@ public final class BuiltInRegistries {
             ACCESS.newRegistry(PvzceRegistries.DAMAGE_TYPES);
     public static final Registry<LevelCategoryDef> LEVEL_CATEGORIES =
             ACCESS.newRegistry(PvzceRegistries.LEVEL_CATEGORIES);
+    /**
+     * Endless schedules: the growth curve an endless level generates its waves from.
+     *
+     * <p>Data-backed ({@code data/<ns>/endless_schedules/<name>.json}), so a pack or a mod can
+     * ship its own endless without code. The two built-ins are registered from code as well,
+     * because the levels that name them are code-defined - see
+     * {@link com.pvzce.common.level.endless.EndlessSchedules}.
+     */
+    public static final Registry<com.pvzce.api.content.EndlessScheduleDef> ENDLESS_SCHEDULES =
+            ACCESS.newRegistry(PvzceRegistries.ENDLESS_SCHEDULES);
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<PlantCapability>>
             PLANT_CAPABILITIES = ACCESS.newRegistry(PvzceRegistries.PLANT_CAPABILITIES);
     public static final Registry<com.pvzce.api.content.capability.CapabilityType<
@@ -132,6 +142,9 @@ public final class BuiltInRegistries {
         com.pvzce.common.level.mechanic.LevelMechanics.bootstrap();
         com.pvzce.common.buff.LevelBuffs.bootstrap();
         com.pvzce.common.level.mutation.Mutations.bootstrap();
+        // Before the levels: an endless level names a schedule, and the mutation levels are
+        // built in `bootstrap()`'s last step.
+        com.pvzce.common.level.endless.EndlessSchedules.bootstrap();
 
         registerPlants();
         registerZombies();
@@ -149,6 +162,8 @@ public final class BuiltInRegistries {
         // mutation catalogue, the endless mechanic and the pool's own scene elements, so they are
         // built after everything they name.
         com.pvzce.common.level.mutation.MutationLevels.bootstrap();
+        // And the plain endless, which shares the round machinery but none of the mutations.
+        com.pvzce.server.level.EndlessLevels.bootstrap();
     }
 
     private static void registerPlants() {
@@ -338,6 +353,11 @@ public final class BuiltInRegistries {
         registerRule(PvzceIds.RULE_ZOMBIE_SUN_DROP_COUNT, new GameRuleType.IntRule(3, 0, 99));
         registerRule(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         registerRule(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
+        // Zero is "the engine's own minute", so the domain starts there rather than at a second:
+        // a level that wants a short wait writes one, and a level that says nothing gets the
+        // default instead of an instant boundary.
+        registerRule(PvzceIds.RULE_ROUND_CLEAR_TIMEOUT_TICKS,
+                new GameRuleType.IntRule(0, 0, 36_000));
         registerRule(PvzceIds.RULE_PLANT_DAMAGE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0F, 100F));
         // 1 = the wave table as written. Bigger is faster: the gap between waves and the gap
         // between the zombies inside one are both divided by it.

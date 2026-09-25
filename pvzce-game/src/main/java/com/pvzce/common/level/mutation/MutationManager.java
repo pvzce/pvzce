@@ -11,6 +11,8 @@ import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.cardsource.CardSource;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -303,6 +305,85 @@ public final class MutationManager {
         firstSendPending = true;
     }
 
+    /**
+     * The rules the level should write to its save: <em>unwound</em> from the mutations that own
+     * them.
+     *
+     * <p>A mutation writes its own factor into a live rule (see {@code RateMutation}), so the
+     * level's rule map by the time a save is asked for already carries every factor - and a save
+     * that wrote those values would be read back by {@code applyFromSave}, which multiplies once
+     * more. The result was a resumed run whose mutated rules were the square of what was saved.
+     *
+     * <p>So the factors are divided back out for the file and re-applied to memory immediately:
+     * the same mutation is written down twice (its id and the number it rolled) and its effect is
+     * recomputed on load, which is the shape the rest of the mutation save already had - "what the
+     * world looks like" is left to the level's own sections.
+     *
+     * @param live the rules as they are being played
+     * @param forSave the rules to write to the file, with the mutations' factors removed
+     * @return the rules this manager owns and has already put back, so a caller with several
+     *         writers (a rule mutation and a buff, say) can compose them
+     */
+    public List<RuleWrite> rulesForSave(Map<Identifier, Float> live, Map<Identifier, Float> forSave) {
+        Map<Identifier, Float> unwound = new LinkedHashMap<>();
+        // In arrival order, each entry dividing out of what the previous one left: two copies of
+        // the same mutation compound when they arrive (their `apply` is a multiply each), so
+        // undoing them has to compound in reverse. Dividing both out of the live value instead
+        // wrote the intermediate value - a save that resumed one factor short.
+        for (MutationEntry entry : entries) {
+            if (!entry.isApplied() || !(entry.mutation() instanceof RuleMutation owner)) {
+                continue;
+            }
+            Identifier rule = owner.rule();
+            float factor = entry.roll().multiplier();
+            if (!(factor > 0F)) {
+                continue;
+            }
+            // The first entry of a rule starts from the live value; the next one starts from
+            // where the previous left off, which is also what gets written for that rule.
+            Float working = unwound.containsKey(rule) ? unwound.get(rule) : live.get(rule);
+            if (working == null) {
+                continue;
+            }
+            float without = working / factor;
+            unwound.put(rule, without);
+            forSave.put(rule, without);
+        }
+        // The live values are what the caller puts back into memory; `unwound` holds the
+        // intermediate values the loop walked through, so the map kept for that is separate.
+        Map<Identifier, Float> liveValues = new LinkedHashMap<>();
+        for (Identifier rule : unwound.keySet()) {
+            liveValues.put(rule, live.get(rule));
+        }
+        unwound.clear();
+        unwound.putAll(liveValues);
+        return List.copyOf(unwound.entrySet().stream()
+                .map(e -> new RuleWrite(e.getKey(), e.getValue()))
+                .toList());
+    }
+
+    /**
+     * One rule this manager holds a factor for, at its live value.
+     *
+     * @param rule  the rule the mutation scaled
+     * @param value what it says in memory right now
+     */
+    public record RuleWrite(Identifier rule, float value) {
+    }
+
+    /**
+     * A mutation that keeps its number in a game rule.
+     *
+     * <p>The one shape a save has to know about: everything else a mutation does to the world
+     * lives in the level's own sections (the scene, the entities, the cards), which the save
+     * carries anyway - a rule is the one thing the level writes down itself and would therefore
+     * write down twice.
+     */
+    public interface RuleMutation {
+        /** The rule this mutation scales. */
+        Identifier rule();
+    }
+
     /** Hands a mutation the handle it needs to describe its state; see {@code Mutation.saveState}. */
     private void handOverForSave(MutationEntry entry) {
         if (entry.mutation() instanceof SlotReplaceMutation slotReplace) {
@@ -421,16 +502,16 @@ public final class MutationManager {
     /**
      * Puts one named mutation on the field, as if it had just been rolled.
      *
-     * <p>For tests, and deliberately shaped like {@code mechanicState}: the alternative is a test
-     * that rolls the real dice until the catalogue happens to produce the mutation it is about,
-     * which makes the test depend on the weights of eighteen entries and on which of them can act
-     * on the board it built. Which mutation arrives is a separate concern from what a mutation
-     * does, and the latter is what a test should be pinning.
+     * <p>Public because two callers need it and neither is the dice: a test that would otherwise
+     * have to roll until the catalogue happens to produce the mutation it is about (which makes it
+     * depend on eighteen weights and on which of them can act on the board it built), and - the
+     * day one exists - a command or a level option that forces one. Which mutation arrives is a
+     * separate concern from what a mutation does, and this is the seam between them.
      *
      * @param roll the number it "rolled"; {@link Mutation.Roll#NONE} for a stateless one
      * @return the entry that was added, or {@code null} when that mutation is not registered
      */
-    MutationEntry add(Mutation mutation, Mutation.Roll roll) {
+    public MutationEntry add(Mutation mutation, Mutation.Roll roll) {
         if (mutation == null) {
             return null;
         }
@@ -598,6 +679,24 @@ public final class MutationManager {
         return false;
     }
 
+    /**
+     * How wide the tray is when a mutation is dealing the cards.
+     *
+     * <p>Read from the belt itself rather than remembered from the mutation: the capacity is the
+     * mutation's decision (one card per plant card it replaced) and asking the live source is what
+     * keeps this number and the bar the player is looking at the same answer.
+     */
+    private int beltCapacity() {
+        if (cardSourceOwner == null) {
+            return 0;
+        }
+        CardSource source = level.cardSource();
+        if (source instanceof com.pvzce.server.level.cardsource.BeltCardSource belt) {
+            return belt.belt().def().capacity();
+        }
+        return 0;
+    }
+
     /** Folds every acting mutation's client effects into one bit set. */
     private void refreshEffects() {
         int effects = MutationEffects.NONE.mask();
@@ -669,6 +768,7 @@ public final class MutationManager {
                 ticksUntilNext,
                 tier.rollMultiplier(),
                 level.cardSourceKind(),
+                beltCapacity(),
                 lastEffects,
                 tools,
                 wire));

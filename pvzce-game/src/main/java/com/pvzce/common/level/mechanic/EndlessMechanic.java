@@ -1,6 +1,8 @@
 package com.pvzce.common.level.mechanic;
 
 import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.pvzce.api.content.EndlessScheduleDef;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.mechanic.MechanicData;
@@ -12,170 +14,105 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Waves that never run out: the original's Survival Endless.
+ * Waves that do not run out: the original's Survival Endless, played in rounds.
  *
- * <p>A level with this mechanic cycles a small set of wave shapes and inflates each cycle, so the
- * table a player meets in minute thirty is not the one they met in minute one. The expansion
- * happens once, when the level is built ({@link #expand}), because everything downstream - the wave
- * director, the progress bar, the save file - already understands a long wave list, and teaching
- * all of them about a generator would be a much larger change than generating the list.
+ * <p>A level with this mechanic generates its waves instead of writing them. Each round is a
+ * fixed number of waves; when the last of them has arrived <em>and the lawn is clear</em>, the
+ * round is over, the player picks their cards again, and the next round starts heavier. The
+ * round number is what the difficulty is a function of, and the whole curve lives in the
+ * level's {@link EndlessScheduleDef} rather than in a table.
  *
- * <p>The number of waves is finite and enormous rather than infinite. "Never ends" is a property of
- * the count, not of the type: at the pace these waves arrive, running out would take about two and
- * a half hours of continuous play, and a level that somehow reached the end would simply be won -
- * which is a better failure than a loop that never terminates.
+ * <p><b>Nothing is expanded ahead of time.</b> The mechanic block names a schedule; the wave
+ * director asks for one wave at a time and gets it back from
+ * {@code common.level.endless.EndlessWaves}. That is the point of the shape: the version this
+ * replaced expanded a four-thousand-entry list when the level was constructed, which capped
+ * how long "endless" could be at what the network packet could carry and cost every client
+ * the whole table. A generated wave costs one wave.
  *
- * <p>The tier's own rules still apply. Zombie health and speed come from the zombie definitions, the
- * spawn cadence from {@code zombie_spawn_speed_multiplier} (which a mutation may rewrite), and the
- * composition from the pools below - so an endless level is a level like any other, with one long
- * table.
+ * <p>The tier's own rules still apply. Zombie definitions decide health and speed (times the
+ * round's own health growth), {@code zombie_spawn_speed_multiplier} still divides the cadence,
+ * and a mutation may still rewrite any of it - so an endless level is a level like any other,
+ * with a wave source instead of a wave table.
  */
-public final class EndlessMechanic implements LevelMechanic<MechanicData.Empty> {
-    /** A marker block: {@code {"type": "pvzce:endless"}} and nothing else. */
-    public static final MapCodec<MechanicData.Empty> CODEC = MapCodec.unit(MechanicData.Empty.INSTANCE);
-
+public final class EndlessMechanic implements LevelMechanic<EndlessMechanic.Data> {
     /**
-     * How many waves the table is expanded to.
+     * The block a level writes: {@code {"type": "pvzce:endless", "schedule": "pvzce:..."}}.
      *
-     * <p>Three thousand nine hundred and ninety, which at the thirty-to-sixty seconds a wave takes
-     * is about a day and a half of continuous play - "endless" by any measure a session has.
+     * <p>The schedule is optional and defaults to the pool one, so a level that wants vanilla
+     * Survival Endless writes the type and nothing else.
      *
-     * <p>The number is not free: the wave-type list is one field of the level payload, and a
-     * collection on the wire is capped at {@code PacketByteBuf.MAX_COLLECTION_SIZE}. A table longer
-     * than that does not merely truncate - the level fails to send at all, and the client is
-     * disconnected with "Collection too large". The cap is read from the protocol rather than
-     * repeated, so raising it cannot leave this behind.
+     * @param schedule which endless schedule this level generates its waves from
      */
-    public static final int TOTAL_WAVES = com.pvzce.common.network.PacketByteBuf.MAX_COLLECTION_SIZE - 106;
+    public record Data(Identifier schedule) implements MechanicData {
+        /** The schedule a level that does not name one gets. */
+        public static final Identifier DEFAULT_SCHEDULE = PvzceIds.ENDLESS_SCHEDULE_POOL;
 
-    /** The zombie pool a cycle starts with: what a pool lawn can actually walk through. */
-    private static final List<Identifier> EARLY_POOL = List.of(
-            PvzceIds.id("basic_zombie"),
-            PvzceIds.id("conehead_zombie"),
-            PvzceIds.id("flag_zombie"));
-
-    /** Everything the deep cycles add, in the order the difficulty ramps. */
-    private static final List<Identifier> RAMP = List.of(
-            PvzceIds.id("buckethead_zombie"),
-            PvzceIds.id("newspaper_zombie"),
-            PvzceIds.id("pole_vaulter_zombie"),
-            PvzceIds.id("football_zombie"),
-            PvzceIds.id("door_zombie"),
-            PvzceIds.id("gargantuar"));
-
-    /** Rows a land zombie may use on the pool board, and the rows the water zombies use. */
-    private static final List<Integer> LAND_ROWS = List.of(0, 1, 4, 5);
-    private static final List<Integer> WATER_ROWS = List.of(2, 3);
-    /**
-     * The floatie zombies, which are the only ones that may walk the two water rows.
-     *
-     * <p>Not in the ramp, and deliberately: "which rows a zombie may use" is a property of the
-     * zombie's art and behaviour, and an ordinary zombie sent into the pool row drowns. So these
-     * three are added by the water half of every cycle instead of by the pool of land zombies.
-     */
-    private static final List<Identifier> WATER_POOL = List.of(
-            PvzceIds.id("ducky_tube_zombie"),
-            PvzceIds.id("ducky_tube_conehead_zombie"),
-            PvzceIds.id("ducky_tube_buckethead_zombie"));
-
-    /** How many waves make one cycle: two ordinary, one huge. */
-    private static final int WAVES_PER_CYCLE = 3;
-
-    @Override
-    public MapCodec<MechanicData.Empty> codec() {
-        return CODEC;
+        public static final MapCodec<Data> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
+                Identifier.CODEC.optionalFieldOf("schedule", DEFAULT_SCHEDULE).forGetter(Data::schedule)
+        ).apply(i, Data::new));
     }
 
     @Override
-    public List<String> validate(LevelDef def, MechanicData.Empty data) {
+    public MapCodec<Data> codec() {
+        // The record codec is already a MapCodec: it reads the block's own keys, so a level
+        // writes `{"type": "pvzce:endless", "schedule": "pvzce:..."}` and one that omits the
+        // schedule gets the default one rather than a missing-field error.
+        return Data.CODEC;
+    }
+
+    @Override
+    public List<String> validate(LevelDef def, Data data) {
         List<String> errors = new ArrayList<>();
         if (!def.waves().isEmpty()) {
-            // The templates replace the table rather than adding to it: two answers to "what comes
-            // next" is one too many, and the one that loses would be the author's.
-            errors.add("endless expands its own wave table, so the " + def.waves().size()
+            // The generator replaces the table rather than adding to it: two answers to "what
+            // comes next" is one too many, and the one that loses would be the author's.
+            errors.add("endless generates its own waves, so the " + def.waves().size()
                     + " waves this level writes are ignored; delete them or drop the mechanic");
         }
-        for (Identifier zombie : EARLY_POOL) {
-            if (BuiltInRegistries.ZOMBIES.get(zombie) == null) {
-                errors.add("endless names unknown zombie '" + zombie + "'");
+        EndlessScheduleDef schedule = BuiltInRegistries.ENDLESS_SCHEDULES.get(data.schedule());
+        if (schedule == null) {
+            errors.add("endless names unknown schedule '" + data.schedule() + "'");
+            return errors;
+        }
+        if (schedule.pool().isEmpty()) {
+            errors.add("endless schedule '" + data.schedule() + "' has an empty pool, so no wave"
+                    + " could ever be sent");
+        }
+        for (EndlessScheduleDef.ZombieEntry entry : schedule.pool()) {
+            if (BuiltInRegistries.ZOMBIES.get(entry.zombie()) == null) {
+                errors.add("endless schedule '" + data.schedule() + "' names unknown zombie '"
+                        + entry.zombie() + "'");
             }
         }
         return errors;
     }
 
-    /**
-     * The long wave table this level runs with.
-     *
-     * <p>Called from the level's constructor, which is the one moment the expansion can happen: a
-     * level's waves are read once, and a mutation that rewrote the pacing later has the rules to do
-     * it with.
-     *
-     * @param levelWidth how many rows the board has, for the Zombie-Land rows the entries use
-     */
-    public static List<WaveDef> expand(int levelWidth) {
-        return expand(levelWidth, TOTAL_WAVES);
-    }
-
-    /** The table, cut short at {@code total} waves; the short form is what the tests use. */
-    static List<WaveDef> expand(int rows, int total) {
-        List<WaveDef> waves = new ArrayList<>(Math.max(0, total));
-        int cycle = 0;
-        for (int index = 0; index < total; index++) {
-            if (index > 0 && index % WAVES_PER_CYCLE == 0) {
-                cycle++;
+    /** The schedule a level runs with, or {@code null} when it names one that is not loaded. */
+    public static EndlessScheduleDef scheduleOf(LevelDef def) {
+        for (com.pvzce.api.content.mechanic.TypedMechanic typed : def.mechanics()) {
+            if (typed.is(PvzceIds.MECHANIC_ENDLESS) && typed.value() instanceof Data data) {
+                return BuiltInRegistries.ENDLESS_SCHEDULES.get(data.schedule());
             }
-            waves.add(waveFor(index % WAVES_PER_CYCLE, cycle, rows));
         }
-        return List.copyOf(waves);
+        return null;
+    }
+
+    /** True when this level generates its waves rather than reading them. */
+    public static boolean generatesWaves(LevelDef def) {
+        return LevelMechanics.has(def, PvzceIds.MECHANIC_ENDLESS);
     }
 
     /**
-     * One wave of a cycle.
+     * The waves a round holds, as the level list wants them for its preview.
      *
-     * <p>Three shapes, and the cycle's number inflates all of them: two ordinary waves that arrive
-     * faster and heavier, then a huge one with a warning. The gap between them shortens as well -
-     * a wave that took a minute to arrive in cycle one arrives in twenty seconds by cycle ten - so
-     * the pressure comes from the clock as much as from the count.
+     * <p>Only the first round: a level list entry is not a run, and the player has not started
+     * counting rounds yet.
      */
-    private static WaveDef waveFor(int slot, int cycle, int rows) {
-        int count = 2 + cycle + slot * 2;
-        float delayFactor = Math.max(0.25F, 1F - cycle * 0.05F);
-        int delay = Math.round(1500 * delayFactor);
-        int interval = Math.max(60, 420 - cycle * 15);
-        List<WaveDef.Entry> entries = entries(count, cycle, rows);
-        if (slot == WAVES_PER_CYCLE - 1) {
-            return new WaveDef(WaveDef.WaveType.HUGE, Math.round(delay * 1.2F), 180,
-                    entries, Math.max(40, interval / 2));
+    public static List<WaveDef> previewWaves(LevelDef def) {
+        EndlessScheduleDef schedule = scheduleOf(def);
+        if (schedule == null) {
+            return List.of();
         }
-        return new WaveDef(WaveDef.WaveType.SMALL, delay, 0, entries, interval);
-    }
-
-    /** The zombies of one wave: land rows and water rows, in the mix the cycle has unlocked. */
-    private static List<WaveDef.Entry> entries(int count, int cycle, int rows) {
-        List<WaveDef.Entry> entries = new ArrayList<>();
-        List<Identifier> land = landPool(cycle);
-        int waterRows = rows >= 4 ? 2 : 0;
-        int landCount = waterRows > 0 ? Math.max(1, count - waterRows) : count;
-        entries.add(new WaveDef.Entry(land.get(cycle % land.size()), landCount, LAND_ROWS));
-        if (waterRows > 0) {
-            Identifier floater = WATER_POOL.get(cycle % WATER_POOL.size());
-            entries.add(new WaveDef.Entry(floater, 1 + cycle / 3, WATER_ROWS));
-        }
-        return entries;
-    }
-
-    /**
-     * The land zombies a cycle may send: the starter pool plus one more per two cycles.
-     *
-     * <p>A ramp rather than a fixed pool with a count multiplier, because "more of the same" stops
-     * being harder once the player has a full board, while "and now there are Footballs" does not.
-     */
-    private static List<Identifier> landPool(int cycle) {
-        List<Identifier> pool = new ArrayList<>(EARLY_POOL);
-        int unlocked = Math.min(RAMP.size(), 1 + cycle / 2);
-        for (int i = 0; i < unlocked; i++) {
-            pool.add(RAMP.get(i));
-        }
-        return pool;
+        return com.pvzce.common.level.endless.EndlessWaves.preview(schedule, def.height());
     }
 }

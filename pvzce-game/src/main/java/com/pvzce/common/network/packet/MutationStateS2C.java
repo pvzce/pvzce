@@ -26,6 +26,9 @@ import java.util.List;
  *                      "×1.5" is readable as "and this is why"
  * @param cardBarKind    {@code deck} or {@code conveyor}: which bar the client should be drawing
  *                       right now, which a mutation can change mid-level
+ * @param beltCapacity   how many cards the tray the client should draw holds - the mutation's
+ *                       belt has no block in the level definition for the client to read it from
+ *                       (which is what made it draw a one-card tray), so the server says it
  * @param effects        the union of every running mutation's {@code MutationEffects} bits
  * @param tools          the tools a mutation granted, in full: the client's click handler has to
  *                       know which one it is holding and on what terms, and it has no other way to
@@ -39,6 +42,7 @@ public record MutationStateS2C(
         int ticksUntilNext,
         float rollMultiplier,
         String cardBarKind,
+        int beltCapacity,
         int effects,
         List<ToolGrant> tools,
         List<Entry> entries
@@ -84,6 +88,8 @@ public record MutationStateS2C(
                             PacketByteBuf::readFloat)
                     .field(MutationStateS2C::cardBarKind, PacketByteBuf::writeString,
                             PacketByteBuf::readString)
+                    .field(MutationStateS2C::beltCapacity, PacketByteBuf::writeInt,
+                            PacketByteBuf::readInt)
                     .field(MutationStateS2C::effects, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                     .list(MutationStateS2C::tools, ToolGrant.CODEC::encode, ToolGrant.CODEC::decode)
                     .list(MutationStateS2C::entries, Entry.CODEC::encode, Entry.CODEC::decode)
@@ -95,8 +101,9 @@ public record MutationStateS2C(
                             (Float) values.get(4),
                             (String) values.get(5),
                             (Integer) values.get(6),
-                            castTools(values.get(7)),
-                            castEntries(values.get(8))));
+                            (Integer) values.get(7),
+                            castTools(values.get(8)),
+                            castEntries(values.get(9))));
 
     @SuppressWarnings("unchecked")
     private static List<ToolGrant> castTools(Object value) {

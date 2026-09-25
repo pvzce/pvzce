@@ -1,6 +1,6 @@
 package com.pvzce.client;
 
-import com.pvzce.client.gui.screens.InventoryScreen;
+import com.pvzce.client.gui.screens.AlmanacScreen;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
@@ -32,6 +32,10 @@ class SmokeDriverTest {
      */
     private static void withScreen(String screen, java.util.function.BiConsumer<PvzceClient, ClientHarness> assertions)
             throws Exception {
+        // The registry bootstrap is global and idempotent, and the almanac reads it to decide
+        // what the book holds - a harness that skipped it would render an empty book and the
+        // assertion would look like a screen bug.
+        com.pvzce.common.core.BuiltInRegistries.bootstrap();
         String previous = System.getProperty("pvzce.smokeScreen");
         String previousWorld = System.getProperty("pvzce.smokeWorld");
         try {
@@ -93,9 +97,37 @@ class SmokeDriverTest {
     }
 
     @Test
-    void theInventorySpellingIsAccepted() throws Exception {
-        withScreen("backpack", (client, harness) ->
-                assertInstanceOf(InventoryScreen.class, client.currentScreen()));
+    void theAlmanacScreenOpensOnItsIndex() throws Exception {
+        withScreen("almanac", (client, harness) -> {
+            assertInstanceOf(AlmanacScreen.class, client.currentScreen());
+            AlmanacScreen almanac = (AlmanacScreen) client.currentScreen();
+            assertEquals(-1, almanac.pageIndex(), "the book opens on its index");
+        });
+    }
+
+    /**
+     * The entry pages are three states deep (index -> plants -> entry) and no screenshot run can
+     * click its way there, so the smoke driver walks in through the system properties.
+     */
+    @Test
+    void theAlmanacEntryPageIsReachableByProperty() throws Exception {
+        System.setProperty("pvzce.smokeAlmanacPage", "zombies");
+        System.setProperty("pvzce.smokeAlmanacEntry", "0");
+        try {
+            withScreen("almanac", (client, harness) -> {
+                AlmanacScreen almanac = (AlmanacScreen) client.currentScreen();
+                // The screen initializes on its first rendered frame, so the driver's request is
+                // remembered and applied there; a test has to walk the same path.
+                almanac.initIfNeeded();
+                assertEquals(1, almanac.pageIndex(), "page 1 is the zombies");
+
+                assertEquals(com.pvzce.api.util.Identifier.withDefaultNamespace("basic_zombie"),
+                        almanac.currentEntry(), "the first zombie in the original's book");
+            });
+        } finally {
+            System.clearProperty("pvzce.smokeAlmanacPage");
+            System.clearProperty("pvzce.smokeAlmanacEntry");
+        }
     }
 
     @Test

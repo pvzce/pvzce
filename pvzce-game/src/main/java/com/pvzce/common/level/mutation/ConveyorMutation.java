@@ -3,14 +3,14 @@ package com.pvzce.common.level.mutation;
 import com.pvzce.api.content.LevelBelt;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
-import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.Slot;
+import com.pvzce.common.core.SlotResolver;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.cardsource.BeltCardSource;
 import com.pvzce.server.level.cardsource.CardSource;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * The card bar becomes a conveyor belt: free cards, on a clock, from the player's own plants.
@@ -32,9 +32,16 @@ final class ConveyorMutation implements Mutation, CardDealingMutation {
      * arrives unasked on a lawn the player is already busy with.
      */
     private static final int INTERVAL_TICKS = 200;
-    /** How many cards may ride the belt at once. */
-    private static final int CAPACITY = 6;
-    /** Cards already on it when it arrives, so the player can act immediately. */
+    /**
+     * The narrowest tray this belt draws, in cards.
+     *
+     * <p>The shipped belts hold six, and a mutation that reduced the player's plant cards to two
+     * would otherwise draw a two-card tray that reads as a broken HUD. The capacity is the number
+     * of plant cards being replaced whenever that is larger - which is what makes the tray as wide
+     * as the bar it stands in for.
+     */
+    private static final int MIN_CAPACITY = 6;
+    /** Cards already riding when it arrives, so the player can do something immediately. */
     private static final int INITIAL_CARDS = 3;
 
     @Override
@@ -50,30 +57,64 @@ final class ConveyorMutation implements Mutation, CardDealingMutation {
     @Override
     public MutationCardSource cardSource() {
         return (level, context) -> {
-            LevelBelt belt = beltFor(context, level.ownedCards());
+            LevelBelt belt = beltFor(context);
             return belt == null ? null : new BeltCardSource(context, belt);
         };
     }
 
     /**
-     * The belt this mutation deals, built from the cards the player owns.
+     * The belt this mutation deals: the player's bar with its plant cards replaced by a belt.
      *
-     * <p>The player's own selection says nothing here: the level's bar is being replaced, and
-     * what an improvised belt carries is the whole backpack. An empty pool answers {@code null},
-     * which leaves the level's own bar standing - a belt that deals nothing would read as the
-     * mutation having broken the game rather than as the player owning nothing.
+     * <p><b>Only the plant cards are replaced.</b> A tool or a resource card is not something a
+     * belt can hand out on a timer - the shovel is how the player fixes a mistake and the sun card
+     * is what the sun bank is drawn for - so they stay on the bar exactly as they were, and the
+     * belt deals only the cards it took over. That is also what makes the tray as wide as the bar
+     * it stands in for: the pool is one entry per replaced plant card.
      */
-    static LevelBelt beltFor(CardSource.Context context, Predicate<Identifier> ownsCard) {
-        List<LevelBelt.BeltCard> cards = new ArrayList<>();
-        for (Identifier plantId : BuiltInRegistries.PLANTS.keySet()) {
-            if (ownsCard.test(plantId)) {
-                cards.add(new LevelBelt.BeltCard(plantId, 1, LevelBelt.BeltCard.UNLIMITED));
-            }
-        }
-        if (cards.isEmpty()) {
+    static LevelBelt beltFor(CardSource.Context context) {
+        List<Identifier> plants = plantCardsOf(context);
+        if (plants.isEmpty()) {
+            // Nothing to hand out: the mutation leaves the level's own bar standing rather than
+            // replacing it with a belt that would never deal anything.
             return null;
         }
-        return new LevelBelt(INTERVAL_TICKS, CAPACITY, INITIAL_CARDS, cards);
+        List<LevelBelt.BeltCard> cards = new ArrayList<>(plants.size());
+        for (Identifier plantId : plants) {
+            cards.add(new LevelBelt.BeltCard(plantId, 1, LevelBelt.BeltCard.UNLIMITED));
+        }
+        return new LevelBelt(INTERVAL_TICKS, Math.max(MIN_CAPACITY, plants.size()),
+                INITIAL_CARDS, cards);
+    }
+
+    /**
+     * The plant cards of the bar this belt is replacing.
+     *
+     * <p>The bar the player chose, when the caller still has it - and otherwise the bar the player
+     * is holding. The second case is what a resumed run uses: by then the level's bar is whatever
+     * the save restored, which is the same set of cards, and a bar another mutation has already
+     * shuffled is still a bar of the same plants.
+     */
+    private static List<Identifier> plantCardsOf(CardSource.Context context) {
+        List<Identifier> source = context.selectedSlots().isEmpty()
+                ? currentBar(context)
+                : context.selectedSlots();
+        List<Identifier> plants = new ArrayList<>();
+        for (Identifier cardId : source) {
+            SlotResolver.ResolvedCard card = SlotResolver.resolve(cardId).orElse(null);
+            if (card != null && card.kind() == Slot.Kind.PLANT) {
+                plants.add(card.slotId());
+            }
+        }
+        return List.copyOf(plants);
+    }
+
+    /** The cards on the player's bar right now, by the card ids the bar was built from. */
+    private static List<Identifier> currentBar(CardSource.Context context) {
+        List<Identifier> cards = new ArrayList<>();
+        for (Slot slot : context.player().slots()) {
+            cards.add(slot.defId());
+        }
+        return List.copyOf(cards);
     }
 
     @Override

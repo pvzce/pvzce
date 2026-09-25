@@ -305,7 +305,7 @@ public final class CardsPage implements EditorPage {
                     0.1F, 1F, 1F, 1F, 1F);
         }
         float textX = x + iconSize + 6;
-        renderClient.fonts().body().draw(GuiLang.name(parsed), textX, y + rowH / 2F + 1F, 0.78F, 1F, 1F, 1F, 1F);
+        renderClient.fonts().body().draw(GuiLang.name("slot", parsed), textX, y + rowH / 2F + 1F, 0.78F, 1F, 1F, 1F, 1F);
         renderClient.fonts().body().draw(GuiText.shortId(id), textX, y + rowH / 2F - 12F, 0.6F, 0.6F, 0.65F, 0.7F, 1F);
         if (inAvailable && cardPoolConfig.pool.contains(id)) {
             String marker = "已选";

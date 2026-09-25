@@ -19,8 +19,18 @@ import java.util.Map;
  * them, so every UI that needed a name fell back to the raw id: the editor's
  * palette listed {@code pvzce:pea_shooter}, the wave table listed
  * {@code pvzce:buckethead_zombie}, and the seed chooser did the same on hover.
- * MC's convention is {@code <namespace>.<path>} as the key, which is what the
- * built-in files already use ({@code "pvzce.pea_shooter": "豌豆射手"}).
+ *
+ * <p><b>Key shape.</b> A registered piece of content is named
+ * {@code <registry>.<namespace>.<path>} - {@code plant.pvzce.pea_shooter},
+ * {@code scene_element.pvzce.grass} - with optional trailing segments for extra text
+ * ({@code plant.pvzce.pea_shooter.desc}, {@code .flavor}). The rule and the reason the category
+ * exists live in {@link com.pvzce.common.core.RegistryCategories}. The old flat
+ * {@code <namespace>.<path>} form is still accepted as a fallback so a resource pack written
+ * before the change keeps working; the built-in files no longer use it for content.
+ *
+ * <p>A string that belongs to the interface rather than to a registry
+ * ({@code gui.pvzce.almanac.title}, {@code pvzce.editor.page.rule}) is a hand-written key with
+ * no id behind it and is read through {@link #raw}.
  *
  * <p>Lookup is a flat map with no fallback chain to the base language: the
  * built-in {@code zh_cn} file is the base, and a resource pack that ships only a
@@ -121,16 +131,33 @@ public final class GuiLang {
     /**
      * The display name of a content id, or {@code null} when the language file has
      * no entry. Callers that must show something use {@link #name} instead.
+     *
+     * <p>Flat: tries the category-qualified key first when {@code category} is given, then the
+     * pre-category {@code <namespace>.<path>} key. Both are tried because the two forms are
+     * indistinguishable for a non-content id, and a pack that translates
+     * {@code pvzce.level_category.adventure} must not stop resolving the moment the built-in
+     * file moves to {@code level_category.pvzce.adventure}.
      */
-    public static String lookup(Identifier id) {
+    public static String lookup(String category, Identifier id) {
         if (id == null) {
             return null;
+        }
+        String key = com.pvzce.common.core.RegistryCategories.key(category, id);
+        if (key != null) {
+            String found = strings.get(key);
+            if (found != null) {
+                return found;
+            }
         }
         return strings.get(id.namespace() + "." + id.path());
     }
 
+    public static String lookup(Identifier id) {
+        return lookup(null, id);
+    }
+
     public static String lookup(String id) {
-        return lookup(Identifier.tryParse(id));
+        return lookup(null, Identifier.tryParse(id));
     }
 
     /**
@@ -140,13 +167,42 @@ public final class GuiLang {
      * translation should look like a name the author can fix, not like a debugging
      * dump in a list row.
      */
-    public static String name(Identifier id) {
-        String found = lookup(id);
+    public static String name(String category, Identifier id) {
+        String found = lookup(category, id);
         return found != null ? found : GuiText.shortId(id);
     }
 
+    public static String name(Identifier id) {
+        return name(null, id);
+    }
+
     public static String name(String id) {
-        return name(Identifier.tryParse(id));
+        return name(null, Identifier.tryParse(id));
+    }
+
+    /**
+     * A trailing segment of a content's entry: {@code plant.pvzce.pea_shooter.desc}.
+     *
+     * <p>One accessor rather than every screen spelling the key out, because the shape of that
+     * key is the thing a resource pack has to match and it should be written down once. Answers
+     * {@code null} when the segment is absent so callers can fall back rather than drawing an
+     * empty box.
+     */
+    public static String content(String category, Identifier id, String segment) {
+        if (id == null || segment == null || segment.isBlank()) {
+            return null;
+        }
+        String base = com.pvzce.common.core.RegistryCategories.key(category, id);
+        if (base == null) {
+            return null;
+        }
+        return strings.get(base + "." + segment);
+    }
+
+    /** The same, falling back to {@code fallback} when the entry has no such segment. */
+    public static String contentOr(String category, Identifier id, String segment, String fallback) {
+        String found = content(category, id, segment);
+        return found != null ? found : fallback;
     }
 
     /**

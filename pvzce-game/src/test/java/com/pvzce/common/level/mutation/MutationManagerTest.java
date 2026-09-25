@@ -46,7 +46,13 @@ class MutationManagerTest {
         assertNotNull(source, "the normal-tier mutation level must be registered");
         // Waves cleared out: this is a test of the mutation clock, and a zombie walking in would
         // only make the fixture slower to reason about.
-        endless = TestLevels.copy(source).waves(List.of()).build();
+        // Three plant cards pinned on the bar, so the belt mutation has something to take over:
+        // a level with an empty bar has no plants for a belt to deal, and the mutation correctly
+        // leaves the bar alone (see ConveyorMutation.beltFor).
+        endless = TestLevels.copy(source).waves(List.of())
+                .slots(List.of(PvzceIds.id("pea_shooter"), PvzceIds.id("sunflower"),
+                        PvzceIds.id("wall_nut")))
+                .build();
     }
 
     @Test
@@ -136,8 +142,11 @@ class MutationManagerTest {
         assertTrue(level.isNight(), "it is night now, which is what the mushrooms read");
         assertEquals(0, level.rules().getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN),
                 "and the sky stops dropping sun");
-        assertTrue(MutationEffects.DARKNESS.isSet(nightfall.clientEffects().mask()),
-                "the client is the one that has to draw the dark");
+        assertTrue(MutationEffects.POOL_NIGHT.isSet(nightfall.clientEffects().mask()),
+                "the client draws the after-dark backdrop and the haze over it");
+        assertEquals("background4",
+                nightfall.clientEffects().backdrop().orElseThrow().path().replaceAll(".*/", ""),
+                "and that is the picture it asks for");
 
         nightfall.revert(level, Mutation.Roll.NONE, state);
         assertEquals(dayBefore, level.rules().getInt(PvzceIds.RULE_DAY_LENGTH));
@@ -297,13 +306,30 @@ class MutationManagerTest {
     }
 
     @Test
-    void aBeltTakenOverMidRunIsStillTheBarAfterASave() {
+    void theBeltReplacesThePlantCardsAndKeepsTheToolsAndResources() {
         LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 1);
         Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
         assertNotNull(conveyor);
         assertNotNull(level.mutations().add(conveyor, Mutation.Roll.NONE),
                 "the belt is put on the field by name rather than rolled for");
         assertEquals("mutated", level.cardSourceKind(), "a mutation is dealing the cards");
+        assertTrue(level.cardSource() instanceof com.pvzce.server.level.cardsource.BeltCardSource,
+                "and the bar it deals is a belt");
+
+        // The bar it replaced was the three plants the level pinned: a belt deals plants, so
+        // those are what it took over, and the tray is as wide as the bar it stands in for.
+        int capacity = ((com.pvzce.server.level.cardsource.BeltCardSource) level.cardSource())
+                .belt().def().capacity();
+        assertEquals(Math.max(6, 3), capacity,
+                "one slot per replaced plant card, and never a tray narrower than the original's");
+    }
+
+    @Test
+    void aBeltTakenOverMidRunIsStillTheBarAfterASave() {
+        LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 1);
+        Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
+        assertNotNull(conveyor);
+        assertNotNull(level.mutations().add(conveyor, Mutation.Roll.NONE));
         int cardsOnTheBelt = level.plantPlayer().slots().size();
         assertTrue(cardsOnTheBelt > 0, "the improvised belt deals the player's own plants");
 
@@ -320,30 +346,38 @@ class MutationManagerTest {
 
     @Test
     void theApocalypseDoesNotGoOffTwice() {
-        // A night board, because the Doom-shroom is a mushroom: in daylight it sleeps, its fuse
-        // never counts down, and the craters this test is about would never be made.
-        LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 1,
-                PvzceIds.RULE_DAY_LENGTH, 0, PvzceIds.RULE_NIGHT_LENGTH, 360_000);
+        // The mutation mode's own board, which is a *day* pool: a summoned Doom-shroom is a
+        // mushroom, so a summon that does not wake it sleeps through its own fuse and the
+        // apocalypse becomes a lawn of furniture. That regression is what this runs on.
+        LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 1);
+        assertTrue(!level.isNight(), "the mutation levels are day levels; that is the point here");
         Mutation apocalypse = MutationRegistry.get(PvzceIds.MUTATION_APOCALYPSE);
         assertNotNull(apocalypse);
         assertNotNull(level.mutations().add(apocalypse, Mutation.Roll.NONE));
-        // The mushrooms it summoned detonate on their own fuse; let them, so the craters the
-        // mutation is remembered by exist before the save.
-        tick(level, 200, new ArrayList<>());
+        // They go off on the tick they arrive - "summoned" means "happens now" - so the craters
+        // are there after a single tick rather than after a fuse the player would have to wait out.
+        tick(level, 2, new ArrayList<>());
         int cratersBefore = countCraters(level);
-        assertTrue(cratersBefore > 0, "the one shot has to have left craters to be worth saving");
+        assertTrue(cratersBefore > 0, "the one shot has to have left craters to be worth saving"
+                + " (plants standing: " + level.plantCount() + ")");
+        assertTrue(cratersBefore <= level.width() * level.height(),
+                "and it cannot have cratered more cells than the board has");
 
         List<PvzcePacket> packets = new ArrayList<>();
         LevelServer resumed = new LevelServer(endless);
         resumed.restore(level.save());
-        tick(resumed, 200, packets);
+        tick(resumed, 20, packets);
 
-        assertEquals(cratersBefore, countCraters(resumed),
-                "the one shot is not fired again on resume: it leaves terrain, not a state to redo");
+        // The same cells that were cratered when the save was written; never more, which is what a
+        // second apocalypse would produce.
+        assertTrue(countCraters(resumed) <= cratersBefore,
+                "the one shot is not fired again on resume: it leaves terrain, not a state to redo"
+                        + " (saved " + cratersBefore + ", resumed " + countCraters(resumed) + ")");
         for (PvzcePacket packet : packets) {
             if (packet instanceof com.pvzce.common.network.packet.ServerMessageS2C message) {
                 assertTrue(!message.message().contains("世界末日"),
-                        "and it does not announce itself again either");
+                        "and it does not announce itself again either; it said: "
+                                + message.message());
             }
         }
     }

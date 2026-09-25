@@ -21,5 +21,5 @@
   "animation_dir": "plant/environment",
   "texture": "pvzce:textures/entities/plant/environment/tangle_kelp",
   "render_scale": 0.9,
-  "order": 19
+  "order": 20
 }

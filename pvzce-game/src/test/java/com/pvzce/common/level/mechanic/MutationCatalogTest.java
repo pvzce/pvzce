@@ -140,8 +140,11 @@ class MutationCatalogTest {
                 "the base is the day pool: no day length and no night");
         assertEquals(-1, def.rules().get(PvzceIds.RULE_NIGHT_LENGTH).getAsInt());
         assertTrue(def.background().isPresent(), "the pool backdrop");
-        assertTrue(def.background().get().path().contains("background4"),
-                "the pool backdrop, with a night variant a mutation can ask for");
+        // background3 is the pool by daylight - the same picture the shipped 3-x levels are
+        // played on. background4 is the same pool after dark, and using it here made a brand new
+        // run *look* like night while its rules said day: mushrooms slept on a black lawn.
+        assertEquals("background3", def.background().get().path().replaceAll(".*/", ""),
+                "a fresh mutation run starts in daylight, so it starts on the day backdrop");
     }
 
     @Test
@@ -162,23 +165,37 @@ class MutationCatalogTest {
     }
 
     @Test
-    void theEndlessTableIsLongInflationaryAndFullOfGapsForTheFloaties() {
-        List<com.pvzce.api.content.WaveDef> waves =
-                com.pvzce.common.level.mechanic.EndlessMechanic.expand(6, 30);
-        assertEquals(30, waves.size());
-        // Cycle 0's first wave is one land zombie and one floatie; cycle 9's is much bigger.
-        com.pvzce.api.content.WaveDef first = waves.get(0);
-        com.pvzce.api.content.WaveDef later = waves.get(29);
+    void anEndlessRoundGrowsWithTheRoundNumberAndKeepsTheFloatiesInTheWater() {
+        com.pvzce.api.content.EndlessScheduleDef schedule =
+                com.pvzce.common.level.endless.EndlessSchedules.poolEndless();
+        // Rounds get longer, up to the cap; the waves get bigger and arrive tighter.
+        assertEquals(11, com.pvzce.common.level.endless.EndlessRamp.wavesInRound(schedule, 1));
+        assertEquals(30, com.pvzce.common.level.endless.EndlessRamp.wavesInRound(schedule, 20));
+        var first = com.pvzce.common.level.endless.EndlessWaves.wave(schedule, 1, 0,
+                List.of(0, 1, 4, 5), List.of(2, 3), new java.util.Random(1L));
+        var later = com.pvzce.common.level.endless.EndlessWaves.wave(schedule, 12, 0,
+                List.of(0, 1, 4, 5), List.of(2, 3), new java.util.Random(1L));
+        assertNotNull(first);
+        assertNotNull(later);
         assertTrue(later.totalZombies() > first.totalZombies(),
-                "the table has to inflate, or 'endless' is a loop");
-        assertTrue(later.delay() < first.delay(), "and to arrive faster");
-        // Every floatie wave must be restricted to the water rows: an ordinary zombie sent into
-        // the pool row is a zombie that drowns.
-        for (com.pvzce.api.content.WaveDef wave : waves) {
-            for (com.pvzce.api.content.WaveDef.Entry entry : wave.entries()) {
-                if (entry.id().path().startsWith("ducky_tube")) {
-                    assertTrue(entry.restrictedToRows(),
-                            "a floatie zombie has to say which rows it uses");
+                "a later round has to send more, or the ramp is not one");
+        assertTrue(later.delay() < first.delay(), "and to arrive sooner");
+        // Every floatie has to name the water rows: an ordinary zombie sent into the pool row
+        // drowns, and a ducky sent onto the grass is not a ducky.
+        for (int round = 1; round <= 3; round++) {
+            for (com.pvzce.api.content.WaveDef wave : com.pvzce.common.level.endless.EndlessWaves
+                    .round(schedule, round,
+                            new com.pvzce.common.level.endless.EndlessWaves.Rows(
+                                    List.of(0, 1, 4, 5), List.of(2, 3)),
+                            new java.util.Random(7L))) {
+                for (com.pvzce.api.content.WaveDef.Entry entry : wave.entries()) {
+                    if (entry.id().path().startsWith("ducky_tube")) {
+                        assertEquals(List.of(2, 3), entry.rows(),
+                                "a floatie zombie has to say which rows it uses");
+                    } else {
+                        assertEquals(List.of(0, 1, 4, 5), entry.rows(),
+                                "and a walker must stay off the water");
+                    }
                 }
             }
         }

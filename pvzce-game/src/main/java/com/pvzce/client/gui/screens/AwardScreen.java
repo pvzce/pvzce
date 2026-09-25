@@ -104,14 +104,18 @@ public final class AwardScreen extends Screen {
                 : null;
         this.unlockedIcon = card == null ? null : card.icon().orElse(null);
         this.unlockedCost = card == null ? 0 : card.costSun();
-        this.unlockedName = reward.hasUnlock() ? GuiLang.name(reward.unlockedCard()) : "";
+        // The category comes from the resolved card, not from the id: a level may award a plant
+        // or a tool, and the two are named through different registries.
+        this.unlockedName = reward.hasUnlock()
+                ? GuiLang.name(card == null ? null : cardCategory(card.kind()), Identifier.tryParse(reward.unlockedCard()))
+                : "";
         // A buff takes the frame after a card and before an object, in the same order the drop on
         // the lawn asks it, so the two cannot disagree about what was paid. It is drawn in the
         // seed packet's chrome with its own icon - what the level handed over is a new rule, and
         // the page says so the same way it says "a new card".
         boolean buff = !reward.hasUnlock() && reward.hasUnlockedBuff();
         this.buffIcon = buff ? buffIcon(reward.unlockedBuff()) : null;
-        this.buffName = buff ? GuiLang.name(reward.unlockedBuff()) : "";
+        this.buffName = buff ? GuiLang.name("level_buff", Identifier.tryParse(reward.unlockedBuff())) : "";
         boolean item = !reward.hasUnlock() && !buff && reward.hasRewardItem();
         Identifier itemId = item ? Identifier.tryParse(reward.rewardItem()) : null;
         com.pvzce.api.content.ResourceDef itemDef = itemId == null
@@ -121,8 +125,17 @@ public final class AwardScreen extends Screen {
         // "something you do not have the art for".
         this.rewardItemIcon = !item ? null
                 : (itemDef != null ? itemDef.icon() : com.pvzce.common.core.EntityArt.sprite(itemId));
-        this.rewardItemName = item ? GuiLang.name(reward.rewardItem()) : "";
+        this.rewardItemName = item ? GuiLang.name("resource", itemId) : "";
         this.rewardItemAmount = item ? reward.rewardItemAmount() : 0;
+    }
+
+    /** The language category a card kind names; see {@link com.pvzce.common.core.Slot.Kind}. */
+    private static String cardCategory(com.pvzce.common.core.Slot.Kind kind) {
+        return switch (kind) {
+            case PLANT -> "plant";
+            case TOOL -> "tool";
+            case RESOURCE -> "resource";
+        };
     }
 
     /** True when the frame shows a new card rather than the run's coin payout. */

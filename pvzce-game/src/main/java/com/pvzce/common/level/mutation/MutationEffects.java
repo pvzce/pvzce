@@ -22,7 +22,20 @@ public enum MutationEffects {
      */
     DARKNESS(1),
     /** The pointer carries the mallet, as in Whack-a-Zombie. */
-    WHACK_CURSOR(1 << 1);
+    WHACK_CURSOR(1 << 1),
+    /**
+     * The backdrop becomes the pool after dark.
+     *
+     * <p>The one effect that is a <em>picture</em> rather than a wash, and it is here because the
+     * backdrop is the client's: the server rewrote the clock and that is what the lighting, the
+     * mushrooms and the client's own day/night blend all read, but which texture is drawn came in
+     * with the level payload and nothing on the wire could change it. A mutation that says "it is
+     * night now" on a day level therefore arrived as a dark wash over a bright lawn.
+     *
+     * <p>Distinct from {@link #DARKNESS}, which is the haze drawn <em>on top</em> of whatever
+     * backdrop is in force: a level that is already at night wants the haze without the swap.
+     */
+    POOL_NIGHT(1 << 2);
 
     private final int mask;
 
@@ -43,6 +56,20 @@ public enum MutationEffects {
     /** The union of two effects, for folding a whole list into one bit set. */
     public static int union(int left, int right) {
         return left | right;
+    }
+
+    /**
+     * A backdrop this effect asks the client to draw instead of the level's own, or empty.
+     *
+     * <p>Returned rather than declared as a constant field so the id lives in the effect that
+     * means it - the same "one fact, one place" rule the rest of the content follows.
+     */
+    public java.util.Optional<com.pvzce.api.util.Identifier> backdrop() {
+        if (this != POOL_NIGHT) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(com.pvzce.api.util.Identifier.withDefaultNamespace(
+                "textures/gui/screen/level/background4"));
     }
 
     /** True when a bit set contains any of the given effects. */

@@ -121,7 +121,9 @@ class GameplaySimulationTest {
 
     @Test
     void finishedLevelSaveDoesNotRestorePlants() {
-        LevelServer level = new LevelServer(singleZombieLevel(Integer.MAX_VALUE));
+        // A level whose one wave is due immediately: "all waves released" is half of the win
+        // condition, so the wave has to be able to arrive before the level can be won.
+        LevelServer level = new LevelServer(singleZombieLevel(1));
         CapturingBridge bridge = new CapturingBridge();
         level.plantPlayer().team().putResource(Identifier.withDefaultNamespace("sun"), 1000);
         for (int row = 1; row <= 4; row++) {
@@ -131,15 +133,23 @@ class GameplaySimulationTest {
             }
         }
 
-        // Deterministic zombie: spawn in row 0 where no plant can kill it.
+        // The win is the wave list running out with nothing hostile standing; this zombie is
+        // the "nothing hostile" half, and the kill below removes it so the level can finish.
+        // (`singleZombieLevel` writes one empty wave: a level whose table is empty never
+        // finishes its waves, so the win check could never fire on it.)
         ZombieDef basic = BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace("basic_zombie"));
-        level.addEntity(new ZombieEntity(basic, level.team(Identifier.withDefaultNamespace("zombie_team")),
-                level.width() + 0.6F, 0));
+        ZombieEntity bystander = new ZombieEntity(basic,
+                level.team(Identifier.withDefaultNamespace("zombie_team")),
+                level.width() + 0.6F, 0);
+        level.addEntity(bystander);
 
         for (int i = 0; i < 5_000 && level.gameState().equals(GameStateS2C.RUNNING); i++) {
+            bystander.damageBody(10_000, level);
             level.tick(bridge);
         }
-        assertEquals("won", level.gameState());
+        assertEquals("won", level.gameState(),
+                "a level whose waves are done and whose lawn is clear is won by the plants");
+        assertTrue(level.wavesReleased(), "and it finished because its waves ran out");
         assertTrue(level.plantCount() > 0, "plants outside the losing row should survive; count="
                 + level.plantCount() + " entities="
                 + level.entities().stream().filter(e -> !e.isRemoved()).map(e -> e.entityKind() + "@" + e.gridY()).toList());

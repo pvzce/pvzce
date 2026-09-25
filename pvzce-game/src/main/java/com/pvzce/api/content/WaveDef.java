@@ -115,20 +115,38 @@ public record WaveDef(
         }
     }
 
-    /** Exact zombie composition of one wave. */
-    public record Entry(Identifier id, int count, List<Integer> rows) {
+    /**
+     * Exact zombie composition of one wave.
+     *
+     * @param id          the zombie's content id
+     * @param count       how many of it
+     * @param rows        the lanes it may arrive in, or empty for any lane
+     * @param healthScale what this wave multiplies the zombie's own health by; {@code 1} for an
+     *                    ordinary wave, and above one only for the waves an endless round
+     *                    generates (see {@code EndlessScheduleDef.StatGrowth}). It lives on the
+     *                    entry rather than on the level because it is a property of the wave a
+     *                    zombie arrives in, and a level-wide zombie-health rule would be
+     *                    rewritten under a running mutation's feet.
+     */
+    public record Entry(Identifier id, int count, List<Integer> rows, float healthScale) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("id").forGetter(Entry::id),
                 Codec.INT.optionalFieldOf("count", 1).forGetter(Entry::count),
-                Codec.INT.listOf().optionalFieldOf("rows", List.of()).forGetter(Entry::rows)
+                Codec.INT.listOf().optionalFieldOf("rows", List.of()).forGetter(Entry::rows),
+                Codec.FLOAT.optionalFieldOf("health_scale", 1F).forGetter(Entry::healthScale)
         ).apply(i, Entry::new));
 
+        public Entry(Identifier id, int count, List<Integer> rows) {
+            this(id, count, rows, 1F);
+        }
+
         public Entry(Identifier id, int count) {
-            this(id, count, List.of());
+            this(id, count, List.of(), 1F);
         }
 
         public Entry {
             rows = rows == null ? List.of() : List.copyOf(rows);
+            healthScale = healthScale > 0F ? healthScale : 1F;
         }
 
         /**

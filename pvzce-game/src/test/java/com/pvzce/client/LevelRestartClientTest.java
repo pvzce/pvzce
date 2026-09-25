@@ -85,7 +85,7 @@ class LevelRestartClientTest {
                 com.pvzce.api.entity.EntityAnimations.WALK, 0F, "pvzce:zombie_team"));
         level.addMessage("旧关卡的消息");
         level.setResource(Identifier.of("pvzce", "plant_team"), Identifier.of("pvzce", "sun"), 999);
-        level.setWaveProgress(3, 5, 0.5F, true, true);
+        level.setWaveProgress(3, 5, 0.5F, true, true, 1);
         assertEquals(1, level.entities().size());
 
         // Restart: the same level is entered again with the other team controlled.

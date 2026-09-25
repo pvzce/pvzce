@@ -18,7 +18,7 @@ import com.pvzce.server.level.LevelServer;
  * is the "数值类的就叠加" rule - and undoing them in any order still lands back on the original,
  * because each one restores what it found only when it is the last one holding the rule.
  */
-final class RateMutation implements Mutation {
+final class RateMutation implements Mutation, com.pvzce.common.level.mutation.MutationManager.RuleMutation {
     private final Identifier id;
     private final Identifier rule;
     private final float lowest;
@@ -43,6 +43,12 @@ final class RateMutation implements Mutation {
     @Override
     public Identifier id() {
         return id;
+    }
+
+    /** The rule this mutation scales; see {@code MutationManager.rulesForSave}. */
+    @Override
+    public Identifier rule() {
+        return rule;
     }
 
     @Override

@@ -14,6 +14,7 @@ import com.pvzce.client.gui.mods.ModMenu;
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
 import com.pvzce.client.gui.screens.EditorScreen;
 import com.pvzce.client.gui.screens.InGameScreen;
+import com.pvzce.client.gui.screens.RoundClearDialog;
 import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
@@ -143,6 +144,13 @@ public final class PvzceClient {
     private java.nio.file.Path dumpFontAtlasTo;
     private boolean savePromptOpen;
     private LevelSavePromptS2C deferredSavePrompt;
+    /** A round-clear dialog that arrived while the client was not on the board. */
+    private com.pvzce.common.network.packet.RoundClearS2C deferredRoundClear;
+    private boolean roundClearOpen;
+    /** The dialog currently on screen, so a round that moved on can close it. */
+    private RoundClearDialog openRoundClear;
+    /** A round chooser that is waiting for the level list to arrive. */
+    private PendingRoundChooser pendingRoundChooser;
     /**
      * Level id whose fresh run was started without passing the seed chooser.
      *
@@ -273,10 +281,15 @@ public final class PvzceClient {
             pollInput();
             Screen screen = currentScreen();
             screen.initIfNeeded();
+            long beforeTick = System.nanoTime();
             screen.tick();
             music.tick();
             animations.tick();
+            smoke.addTickNanos(System.nanoTime() - beforeTick);
+            long beforeRender = System.nanoTime();
             render();
+            smoke.addRenderNanos(System.nanoTime() - beforeRender);
+            smoke.sampleFrame();
 
             if (smoke.afterFrame(screen)) {
                 break;
@@ -1336,6 +1349,7 @@ public final class PvzceClient {
             animations.clear();
         }
         savePromptOpen = false;
+        roundClearOpen = false;
         if (music != null) {
             music.startLevel("pvzce:music/grasswalk");
         }
@@ -1346,6 +1360,11 @@ public final class PvzceClient {
                 ? levelDialogue(levelId) : com.pvzce.api.content.LevelDialogue.EMPTY;
         directDialogueLevelId = null;
         setScreenReplacing(new InGameScreen(this, opening));
+        if (deferredRoundClear != null) {
+            com.pvzce.common.network.packet.RoundClearS2C pending = deferredRoundClear;
+            deferredRoundClear = null;
+            showRoundClear(pending);
+        }
         if (deferredSavePrompt != null) {
             LevelSavePromptS2C prompt = deferredSavePrompt;
             deferredSavePrompt = null;
@@ -1543,6 +1562,139 @@ public final class PvzceClient {
     }
 
     /**
+     * Shows the between-rounds summary, and opens the card chooser once it is confirmed.
+     *
+     * <p>Deferred while the client is not on the board, exactly like the save prompt: the packet
+     * can land while a menu is open, and a dialog stacked on the title screen would be asking
+     * about a run the player is not looking at.
+     */
+    public void showRoundClear(com.pvzce.common.network.packet.RoundClearS2C summary) {
+        if (!(currentScreen() instanceof InGameScreen)) {
+            deferredRoundClear = summary;
+            return;
+        }
+        if (roundClearOpen) {
+            return;
+        }
+        RoundClearDialog dialog = RoundClearDialog.create(this, summary,
+                () -> openRoundSeedSelection(level.levelId(), summary.round() + 1,
+                        currentBarIds(), currentBuffIds()));
+        roundClearOpen = true;
+        openRoundClear = dialog;
+        dialog.onClose(() -> {
+            roundClearOpen = false;
+            openRoundClear = null;
+        });
+        currentScreen().showDialog(dialog);
+    }
+
+    /** The cards the run is holding right now, as the round chooser's starting selection. */
+    private List<String> currentBarIds() {
+        List<String> ids = new ArrayList<>();
+        for (com.pvzce.common.network.packet.SlotInfo slot : level.slots()) {
+            if (slot.defId() != null && !slot.defId().isBlank()) {
+                ids.add(slot.defId());
+            }
+        }
+        return ids;
+    }
+
+    /** The run's own buffs, so the round chooser's buff page opens where the run left it. */
+    private List<String> currentBuffIds() {
+        return level.activeBuffs();
+    }
+
+    /**
+     * Closes a round-clear dialog whose round the run has already moved past.
+     *
+     * <p>The server gives up waiting for an answer eventually (see its
+     * {@code round_clear_timeout_ticks}) and starts the next round with the bar the player
+     * already had. A client still showing "round 1 is over" over a board that is playing round 2
+     * is a modal nobody can dismiss and a round nobody was told about, so the round sync closes
+     * it: the run is the authority on which round it is in.
+     *
+     * @param startedRound the round the server has just begun
+     */
+    public void onRoundStarted(int startedRound) {
+        if (openRoundClear == null || startedRound <= openRoundClear.round()) {
+            return;
+        }
+        openRoundClear.close();
+    }
+
+    /**
+     * Opens the card chooser for the next round of an endless run.
+     *
+     * <p>The same page as entering a level, and deliberately so - what changes is what its
+     * confirm button sends. There is nothing to back out to: the server has stopped simulating
+     * and is waiting for this answer, so the chooser is opened without a back target and the
+     * run continues with the player's old bar if they never answer (see the server's timeout).
+     *
+     * @param levelId    the level the run is in
+     * @param round      the round the choice is for, for the title
+     * @param current    the bar the run is playing with, which the chooser starts from
+     * @param buffs      the run's own buff list, so the buff page opens where it was left
+     */
+    public void openRoundSeedSelection(String levelId, int round, List<String> current,
+                                       List<String> buffs) {
+        LevelListS2C.LevelInfo info = findLevelInfo(levelId);
+        if (info == null) {
+            // No registry snapshot yet. A player who entered this level straight from a smoke
+            // hook - or whose list was refreshed while they were on the board - has none, and the
+            // page cannot be built without one, so ask for the list and open the chooser when it
+            // arrives. The run is waiting on the server's own timeout the whole time.
+            pendingRoundChooser = new PendingRoundChooser(levelId, round, List.copyOf(current),
+                    List.copyOf(buffs));
+            connection.send(new com.pvzce.common.network.packet.RequestLevelListC2S(currentWorld));
+            return;
+        }
+        openScreen(createSeedSelection(info, current, buffs, null, true, round));
+    }
+
+    /**
+     * Opens a round chooser that was waiting for the level list.
+     *
+     * <p>Called from {@link #setLevelList}: the list is what the page is built from, and a
+     * request that came back with nothing still leaves the run on the server's own timeout.
+     *
+     * @return true when a waiting chooser was opened
+     */
+    private boolean openPendingRoundChooser() {
+        PendingRoundChooser pending = pendingRoundChooser;
+        if (pending == null) {
+            return false;
+        }
+        pendingRoundChooser = null;
+        LevelListS2C.LevelInfo info = findLevelInfo(pending.levelId());
+        if (info == null) {
+            LOGGER.warn("No level list entry for {}; the next round keeps the current cards",
+                    pending.levelId());
+            return false;
+        }
+        openScreen(createSeedSelection(info, pending.cards(), pending.buffs(), null, true,
+                pending.round()));
+        return true;
+    }
+
+    /**
+     * A round chooser waiting for the level list it is built from.
+     *
+     * @param levelId the level the run is in
+     * @param round   the round the choice is for
+     * @param cards   the bar the chooser starts from
+     * @param buffs   the run's buffs, so the buff page opens where it was left
+     */
+    private record PendingRoundChooser(String levelId, int round, List<String> cards,
+                                       List<String> buffs) {
+    }
+
+    /** Sends the next round's card selection to the running level. */
+    public void reselectCards(String levelId, List<String> selectedSeeds) {
+        connection.send(new com.pvzce.common.network.packet.ReselectCardsC2S(levelId, currentWorld,
+                List.copyOf(selectedSeeds)));
+    }
+
+    /**
      * The buffs the chooser should start with when nobody has chosen anything yet: a resumed
      * run's own list when there is one, otherwise the world's auto list.
      *
@@ -1600,6 +1752,17 @@ public final class PvzceClient {
     private ChooseSeedsScreen createSeedSelection(LevelListS2C.LevelInfo info,
                                                   List<String> initialSelection, List<String> initialBuffs,
                                                   Runnable onBack) {
+        return createSeedSelection(info, initialSelection, initialBuffs, onBack, false, 0);
+    }
+
+    /**
+     * @param nextRound       true to pick the next endless round's cards rather than start a run
+     * @param nextRoundNumber the round that choice is for, one-based
+     */
+    private ChooseSeedsScreen createSeedSelection(LevelListS2C.LevelInfo info,
+                                                  List<String> initialSelection, List<String> initialBuffs,
+                                                  Runnable onBack, boolean nextRound,
+                                                  int nextRoundNumber) {
         return new ChooseSeedsScreen(this, info.id(), info.name(), info.seedPool(),
                 info.maxSeedSlots(), info.previewZombies(), info.width(), info.height(),
                 info.sceneCells(), initialSelection, onBack != null, onBack, lockedSlotsFor(info.id()),
@@ -1608,7 +1771,8 @@ public final class PvzceClient {
                 // conversation and the zombies - see ChooseSeedsScreen's pass-through.
                 dealsItsOwnCards(info.id()),
                 info.payload().buffPool(), info.payload().maxBuffSlots(),
-                lockedBuffsFor(info.id()), autoBuffSelectionFor(info.id(), initialBuffs));
+                lockedBuffsFor(info.id()), autoBuffSelectionFor(info.id(), initialBuffs),
+                nextRound, nextRoundNumber);
     }
 
     private LevelListS2C.LevelInfo findLevelInfo(String levelId) {
@@ -1628,6 +1792,12 @@ public final class PvzceClient {
      * prompt so the player can still continue.
      */
     public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
+        // The answer is about the saved run, not about the next one: the chooser below can be
+        // backed out of, and a player who does so has still refused the run they were shown. Sent
+        // before the chooser opens so the decision sticks either way - otherwise the save stayed on
+        // disk, and picking the level again offered the same night they had just turned down.
+        connection.send(new com.pvzce.common.network.packet.DiscardLevelSaveC2S(
+                prompt.levelId(), prompt.worldName()));
         LevelListS2C.LevelInfo info = findLevelInfo(prompt.levelId());
         if (info == null) {
             // No registry snapshot (for example a direct smoke request): fall back to the
@@ -2101,6 +2271,9 @@ public final class PvzceClient {
 
     public void setLevelList(List<LevelListS2C.LevelInfo> levelList) {
         this.levelList = levelList == null ? List.of() : List.copyOf(levelList);
+        // A round chooser that could not be built when it was asked for now can be: it is the
+        // level list that carries the card pool, the board and the level's name.
+        openPendingRoundChooser();
         smoke.openSeedChooserForSmoke(this.levelList);
         // A test run saved the level and asked the server for a reload; the list that
         // arrives next carries the saved definition, so this is where its seed chooser can

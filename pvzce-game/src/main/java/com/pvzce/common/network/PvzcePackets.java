@@ -18,6 +18,9 @@ import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.LevelInitS2C;
+import com.pvzce.common.network.packet.ReselectCardsC2S;
+import com.pvzce.common.network.packet.RoundClearS2C;
+import com.pvzce.common.network.packet.RoundSyncS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.LevelRewardS2C;
@@ -40,6 +43,7 @@ import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.ReleaseMowerC2S;
+import com.pvzce.common.network.packet.DiscardLevelSaveC2S;
 import com.pvzce.common.network.packet.MutationStateS2C;
 import com.pvzce.common.network.packet.UseGrantedToolC2S;
 import com.pvzce.common.network.packet.UseToolC2S;
@@ -83,7 +87,11 @@ public final class PvzcePackets {
     // carries whether a level was ever beaten (LevelInfo.cleared, which is what the row's
     // trophy reads), and the reward carries the resource a level handed over when it pays in
     // objects rather than in cards (LevelRewardS2C.rewardItem).
-    public static final int PROTOCOL_VERSION = 24;
+    // 27: endless runs are played in rounds. The wave meter's numbers became round-relative
+    // (WaveProgressS2C gained the round), a level that generates its waves has to be told its
+    // current round's wave list (RoundSyncS2C), and a finished round pauses the run for a card
+    // choice (RoundClearS2C / ReselectCardsC2S).
+    public static final int PROTOCOL_VERSION = 27;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -138,6 +146,18 @@ public final class PvzcePackets {
     public static final int S2C_MECHANIC_SYNC = S2C_BASE + 25;
     public static final int S2C_CARRY_SYNC = S2C_BASE + 26;
     public static final int S2C_MUTATION_STATE = S2C_BASE + 27;
+    /** Where an endless run stands: the round, its length, and that round's wave list. */
+    public static final int S2C_ROUND_SYNC = S2C_BASE + 28;
+    /** An endless round is over and the run is waiting for the player's next card choice. */
+    public static final int S2C_ROUND_CLEAR = S2C_BASE + 29;
+    /**
+     * The save prompt's 重新开始.
+     *
+     * <p>19 rather than 18: 18 is {@link #C2S_USE_GRANTED_TOOL}, and id 16 stays retired.
+     */
+    public static final int C2S_DISCARD_SAVE = 19;
+    /** The endless card chooser's answer: the bar to play the next round with. */
+    public static final int C2S_RESELECT_CARDS = 20;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -203,7 +223,15 @@ public final class PvzcePackets {
             def(S2C_MECHANIC_SYNC, ConnectionDirection.CLIENTBOUND, MechanicSyncS2C.class,
                     MechanicSyncS2C::decode),
             def(S2C_MUTATION_STATE, ConnectionDirection.CLIENTBOUND, MutationStateS2C.class,
-                    MutationStateS2C::decode));
+                    MutationStateS2C::decode),
+            def(S2C_ROUND_SYNC, ConnectionDirection.CLIENTBOUND, RoundSyncS2C.class,
+                    RoundSyncS2C::decode),
+            def(S2C_ROUND_CLEAR, ConnectionDirection.CLIENTBOUND, RoundClearS2C.class,
+                    RoundClearS2C::decode),
+            def(C2S_RESELECT_CARDS, ConnectionDirection.SERVERBOUND, ReselectCardsC2S.class,
+                    ReselectCardsC2S::decode),
+            def(C2S_DISCARD_SAVE, ConnectionDirection.SERVERBOUND, DiscardLevelSaveC2S.class,
+                    DiscardLevelSaveC2S::decode));
 
     private static volatile boolean registered;
 

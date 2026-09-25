@@ -112,6 +112,11 @@ public final class PvzceDataLoader {
             new RegistryData<>(PvzceRegistries.LEVELS, LevelDef.CODEC, "levels"),
             new RegistryData<>(PvzceRegistries.LEVEL_THEMES, LevelThemeDef.CODEC, "level_themes"),
             new RegistryData<>(PvzceRegistries.LEVEL_CATEGORIES, LevelCategoryDef.CODEC, "level_categories"),
+            // Endless schedules load with the levels rather than after them: the levels that
+            // name one are decoded in the same pass, and a schedule that arrived late would
+            // leave those levels pointing at nothing.
+            new RegistryData<>(PvzceRegistries.ENDLESS_SCHEDULES,
+                    com.pvzce.api.content.EndlessScheduleDef.CODEC, "endless_schedules"),
             new RegistryData<>(PvzceRegistries.DIALOGUE_CHARACTERS,
                     com.pvzce.api.content.DialogueCharacterDef.CODEC, "dialogue_characters"),
             // Damage types load before the content that names them, so a plant or

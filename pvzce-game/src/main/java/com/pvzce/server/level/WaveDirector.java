@@ -6,6 +6,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.level.mechanic.BudgetPlanner;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.FloatTag;
 import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.StringTag;
@@ -35,10 +36,17 @@ import java.util.Set;
  * level's interval curve - and they were sitting in the middle of two thousand lines of unrelated
  * code.
  *
+ * <p><b>Rounds.</b> What the director plays is a sequence of rounds, each of them a fixed number
+ * of waves, and the wave it is about to send is asked for one at a time rather than read from a
+ * list. On an ordinary level a round is the whole table and there is only ever one of them; on an
+ * endless level a round is ten to thirty waves and the next one is heavier. The director does not
+ * know which of the two it is driving - it knows the round number, the wave inside it, and who to
+ * ask (see {@link Host#waveAt}), which is what keeps the endless generator out of the clock.
+ *
  * <p>What it needs from the level is small and one-directional, so it asks through {@link Host}:
- * spawning, counting and asking after zombies, the board's size, the level's random source, the
- * two sounds a wave can make, and the scene operation the final wave performs (opening graves).
- * Nothing here touches entities, scene or save format directly except its own block.
+ * the board's size, the level's random source, the two sounds a wave can make, the scene
+ * operation the final wave performs (opening graves), and the wave source. Nothing here touches
+ * entities, scene or save format directly except its own block.
  *
  * <p>The save block keeps the key names it had when it lived in {@code LevelServer.save}: a save
  * written by an earlier build of this branch is not a compatibility promise (the project is
@@ -47,6 +55,17 @@ import java.util.Set;
 public final class WaveDirector {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Waves");
 
+    /**
+     * The format of this director's save block.
+     *
+     * <p>2 because the position inside a run is now "a round and a wave in it" rather than "the
+     * nth wave of one list". A block without this key was written by the version whose endless
+     * levels expanded a four-thousand-entry table, and its {@code NextWaveIndex} means nothing
+     * to a generator - so a level that reads one refuses it (see {@link #restore}) and the
+     * caller drops the save rather than resuming into a different run.
+     */
+    public static final int SAVE_VERSION = 2;
+
     /** Everything a wave needs from the level it runs in. */
     public interface Host {
         int width();
@@ -54,6 +73,24 @@ public final class WaveDirector {
         int height();
 
         java.util.Random random();
+
+        /**
+         * The wave this round holds at this index, generated or read from the level's table.
+         *
+         * <p>The one thing the director cannot know for itself: a level with a wave table
+         * answers from the list, and an endless level answers from its schedule. Both are pure
+         * functions of {@code (round, index)}, which is why a save can hold those two numbers
+         * instead of a table.
+         *
+         * @return the wave, or {@code null} when this position does not exist
+         */
+        WaveDef waveAt(int round, int index);
+
+        /** How many waves the round holds; zero means the round has none. */
+        int wavesInRound(int round);
+
+        /** How many zombies of this one {@code healthScale} times its own health; 1 for ordinary. */
+        ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale);
 
         /** Zombies still standing, corpses excluded. */
         long aliveZombieCount();
@@ -71,9 +108,6 @@ public final class WaveDirector {
 
         /** True while the entity with this id is a living zombie; corpses answer false. */
         boolean zombieAlive(int entityId);
-
-        /** Puts one zombie on the board; returns it, or null when the id is unknown. */
-        ZombieEntity spawnZombie(Identifier zombieId, float x, int row);
 
         /** Moves everything spawned this tick into the level's live entity list. */
         void flushPending();
@@ -95,7 +129,6 @@ public final class WaveDirector {
     }
 
     private final Host host;
-    private final List<WaveDef> waves;
     /**
      * How this level's waves behave beyond the wave table; see {@link WavePacingData}.
      *
@@ -106,8 +139,16 @@ public final class WaveDirector {
      */
     private final WavePacingData pacing;
 
+    /** True when the level's waves are generated: there is always a next round, so no win. */
+    private final boolean endless;
+
     private final List<PendingWaveSpawn> pendingWaveSpawns = new ArrayList<>();
-    private int nextWaveIndex;
+    /** The round being played, one-based. */
+    private int round = 1;
+    /** The wave inside {@link #round} that comes next, zero-based. */
+    private int waveIndex;
+    /** How many waves {@link #round} holds, read once when the round began. */
+    private int roundWaves;
     private int waveIntervalTicks;
     /**
      * The delay the next wave is actually counting down, which the arrival is tested against.
@@ -127,13 +168,21 @@ public final class WaveDirector {
     private int openingGateTicks;
     private int openingGateHoldTicks;
     private boolean waveArrivalHeld;
+    /**
+     * True from the moment the round's last wave is fully released until the level acknowledges
+     * it: the run is between rounds, and no wave is owed until the player has picked their cards.
+     *
+     * <p>Only an endless level ever sets this. A level with one round never rolls over, so the
+     * flag stays false and the "all waves released" path means what it always did.
+     */
+    private boolean roundClearPending;
     /** Set when the HUD-visible part of the wave state changed and the client has not heard. */
     private boolean dirty = true;
     private final Set<Integer> announcedWaves = new HashSet<>();
     private final Set<Integer> announcedWarnings = new HashSet<>();
 
     /**
-     * Which wave owns each zombie still on the lawn, by entity id.
+     * Which wave owns each zombie still on the lawn, keyed by {@link #waveKey}.
      *
      * <p>The stockpile cap and the survival-ratio gate both ask "how many of <em>this</em> wave
      * are still standing", and the level's own {@code aliveZombieCount()} answers a different
@@ -159,15 +208,26 @@ public final class WaveDirector {
      */
     private final Set<Integer> releasedWaves = new HashSet<>();
 
+    /**
+     * @param configured         the level's own table; empty on an endless level
+     * @param intervalEndMultiplier the level's {@code wave_interval_end_multiplier}
+     * @param pacing             the level's effective pacing
+     * @param endless            true when the level generates its waves and never finishes
+     */
     public WaveDirector(Host host, List<WaveDef> configured, float intervalEndMultiplier,
-                        WavePacingData pacing) {
+                        WavePacingData pacing, boolean endless) {
         this.host = host;
-        this.waves = normalizeWaves(configured);
         this.pacing = pacing == null ? WavePacingData.DEFAULT : pacing;
         this.intervalEndMultiplier = intervalEndMultiplier;
-        this.nextWaveDelayTicks = waves.isEmpty() ? -1 : effectiveWaveDelay(0);
-        this.nextWaveTargetTicks = 0;
+        this.endless = endless;
+        this.table = normalizeWaves(configured);
+        this.roundWaves = host.wavesInRound(1);
+        this.waveIndex = 0;
+        this.nextWaveDelayTicks = firstWaveDelay();
     }
+
+    /** The level's own table; empty on a level that generates its waves. */
+    private final List<WaveDef> table;
 
     /** The pacing this level runs on, for the tests and for the level's own reporting. */
     public WavePacingData pacing() {
@@ -179,6 +239,11 @@ public final class WaveDirector {
     /**
      * Cross-field normalization: a final wave may only be the last one, and the
      * last wave is always treated as final even when the data omits the type.
+     *
+     * <p>Applied to a level's own table only. A generated wave is never retyped: an endless
+     * round's last wave is a huge one, and the final-wave branch is what plays the siren and
+     * opens every grave, which is a level ending rather than a round ending. A round that ended
+     * that way would open the graves ten times a run.
      */
     private static List<WaveDef> normalizeWaves(List<WaveDef> configured) {
         if (configured.isEmpty()) {
@@ -200,16 +265,38 @@ public final class WaveDirector {
         return List.copyOf(normalized);
     }
 
+    /** The wave at a position, from the level's table or from its generator. */
+    private WaveDef waveAt(int round, int index) {
+        return host.waveAt(round, index);
+    }
+
+    /**
+     * The delay of the first wave of the current round, before any countdown has run.
+     *
+     * <p>Read at construction and again whenever a round begins, so a resumed level and a fresh
+     * round both start their meter from the wave they are actually about to send.
+     */
+    private int firstWaveDelay() {
+        return nextWaveDelayTicks(0);
+    }
+
+    /** The written delay of the wave at an index of the current round, or -1 past its end. */
+    private int nextWaveDelayTicks(int index) {
+        WaveDef wave = index < roundWaves ? waveAt(round, index) : null;
+        return wave == null ? -1 : effectiveWaveDelay(wave, index, roundWaves);
+    }
+
     /**
      * Effective delay of a wave after applying the level's linear interval curve.
      * The first wave uses the configured delay as-is; the last wave uses
      * {@code wave_interval_end_multiplier}.
      */
-    private int effectiveWaveDelay(int waveIndex) {
-        WaveDef wave = waves.get(waveIndex);
-        int total = waves.size();
+    private int effectiveWaveDelay(WaveDef wave, int waveIndex, int total) {
         float endMultiplier = Float.isFinite(intervalEndMultiplier) ? intervalEndMultiplier : 1F;
         endMultiplier = Math.max(0.05F, Math.min(10F, endMultiplier));
+        // The curve runs across the round rather than across the level, because on an endless
+        // level there is no "end of the level" to scale towards. An ordinary level has one round,
+        // so the two are the same thing there.
         float progress = total <= 1 ? 0F : waveIndex / (float) (total - 1);
         float multiplier = 1F + (endMultiplier - 1F) * progress;
         return Math.max(1, Math.round(wave.delay() * multiplier / spawnSpeed()));
@@ -236,19 +323,26 @@ public final class WaveDirector {
 
     /** One tick of the wave clock. Call it once per level tick, before the entities move. */
     public void tick() {
-        if (nextWaveIndex < waves.size()) {
+        if (roundClearPending) {
+            // Between rounds: everything is out and the lawn is clear, and the next wave is
+            // whatever the player picks their cards for. Ticking the clock here would send the
+            // next round's first wave into a screen nobody can see.
+            spawnPendingWaveZombies();
+            return;
+        }
+        if (waveIndex < roundWaves) {
             // A wave's delay is the gap *between waves*, so it starts once the previous
             // wave has finished releasing, not the moment it was triggered. Counting
             // from the trigger let two waves' release queues run at once, and zombies
-            // from different waves then arrived a few seconds apart instead of on the
-            // pacing their own wave asked for - the "they all come out together" of a
+            // from different waves then arrived a few seconds apart instead of on
+            // the pacing their own wave asked for - the "they all come out together" of a
             // level whose first waves are authored ten seconds apart.
             //
             // The counter is frozen rather than held at its target so the warning window
             // stays a property of the gap the author wrote: the warning shows for
             // `warning_ticks` before the wave arrives, and the arrival is this countdown
             // reaching its target.
-            boolean firstWave = nextWaveIndex == 0;
+            boolean firstWave = waveIndex == 0;
             if (firstWave || !waveStillReleasing()) {
                 // Two things can make this countdown shorter than written, and both are the
                 // answer to "I killed everything and the level is making me stand here": a
@@ -275,17 +369,48 @@ public final class WaveDirector {
             boolean due = waveIntervalTicks > 0 && waveIntervalTicks >= nextWaveTargetTicks;
             waveArrivalHeld = due && openingWaveStillOnTheField();
             if (due && !waveArrivalHeld) {
-                triggerWave(waves.get(nextWaveIndex), nextWaveIndex);
+                WaveDef wave = waveAt(round, waveIndex);
+                if (wave != null) {
+                    triggerWave(wave, waveIndex);
+                } else {
+                    // A generator with nothing to send: the round is over rather than the level
+                    // being stuck, so the same "wait for the next round" state applies.
+                    finishRound();
+                }
             } else {
                 updateWaveWarning();
             }
         } else {
+            // The round's last wave is out: on an ordinary level that is the end of the level
+            // and the win check takes it from here, and on an endless one it is the end of a
+            // round, which the player closes by choosing their next cards.
             waveProgress = 1F;
             waveWarningActive = false;
             waveWarningFinal = false;
             waveArrivalHeld = false;
+            if (endless) {
+                finishRound();
+            }
         }
         spawnPendingWaveZombies();
+    }
+
+    /**
+     * Marks the round as waiting to be closed, once the lawn really is clear.
+     *
+     * <p>The zombies matter as much as the waves: a round that ended the moment its last wave
+     * was <em>released</em> would stop the clock with the field still full, and - because the
+     * lawn is kept between rounds - hand the player a card chooser in the middle of a fight.
+     */
+    private void finishRound() {
+        if (roundClearPending || !pendingWaveSpawns.isEmpty()) {
+            return;
+        }
+        if (host.aliveZombieCount() > 0) {
+            return;
+        }
+        roundClearPending = true;
+        dirty = true;
     }
 
     /**
@@ -297,12 +422,12 @@ public final class WaveDirector {
      * kill and is not counted as progress; the level's own alive count is what notices it.
      */
     public void zombieDied(int entityId) {
-        Integer waveIndex = waveOwner.remove(entityId);
-        if (waveIndex == null) {
+        Integer key = waveOwner.remove(entityId);
+        if (key == null) {
             return;
         }
-        aliveByWave.merge(waveIndex, -1, Integer::sum);
-        killsByWave.merge(waveIndex, 1, Integer::sum);
+        aliveByWave.merge(key, -1, Integer::sum);
+        killsByWave.merge(key, 1, Integer::sum);
     }
 
     /**
@@ -334,7 +459,7 @@ public final class WaveDirector {
         if (releasedWaves.isEmpty()) {
             return false;
         }
-        if (aliveOfWave(nextWaveIndex - 1) > 0) {
+        if (aliveOfWave(waveKey(round, waveIndex - 1)) > 0) {
             return false;
         }
         return host.aliveZombieCount() == 0;
@@ -354,23 +479,23 @@ public final class WaveDirector {
      * not been answered.
      */
     private boolean earnedEarlyArrival() {
-        if (nextWaveIndex <= 0 || nextWaveIndex >= waves.size()) {
+        if (waveIndex <= 0 || waveIndex >= roundWaves) {
             return false;
         }
-        int behind = nextWaveIndex - 1;
-        if (!releasedWaves.contains(behind)) {
+        int key = waveKey(round, waveIndex - 1);
+        if (!releasedWaves.contains(key)) {
             return false;
         }
-        WavePacingData.Pace pace = pacing.forWave(behind + 1);
+        WavePacingData.Pace pace = pacing.forWave(waveIndex);
         if (pace.mode() != WavePacingData.WaveMode.SURVIVAL_RATIO) {
             return false;
         }
-        int released = arcByWave.getOrDefault(behind, 0);
+        int released = arcByWave.getOrDefault(key, 0);
         float ratio = pace.killRatio();
         if (released <= 0 || !(ratio > 0F) || ratio >= 1F) {
             return false;
         }
-        return killsByWave.getOrDefault(behind, 0) >= Math.ceil(ratio * released);
+        return killsByWave.getOrDefault(key, 0) >= Math.ceil(ratio * released);
     }
 
     /**
@@ -386,9 +511,14 @@ public final class WaveDirector {
         return false;
     }
 
-    /** How many of the wave at this index are still standing. */
-    private int aliveOfWave(int waveIndex) {
-        return Math.max(0, aliveByWave.getOrDefault(waveIndex, 0));
+    /** How many of the wave at this position are still standing. */
+    private int aliveOfWave(int key) {
+        return Math.max(0, aliveByWave.getOrDefault(key, 0));
+    }
+
+    /** The identity of one wave in the run: which round, and which wave inside it. */
+    private static int waveKey(int round, int index) {
+        return round * 1000 + index;
     }
 
     /**
@@ -420,7 +550,7 @@ public final class WaveDirector {
     }
 
     private void triggerWave(WaveDef wave, int waveIndex) {
-        nextWaveIndex++;
+        this.waveIndex++;
         // The counter is left where the arriving wave put it - at the target it ran to. Resetting
         // it here would read as "no countdown has started yet", and the next tick would hand the
         // following wave a target of its own and, with a cleared lawn, arrive it immediately.
@@ -443,20 +573,21 @@ public final class WaveDirector {
         // not apply to it: the planner answers with zombie ids and nothing else.
         List<QueuedZombie> zombies = pace.mode() == WavePacingData.WaveMode.BUDGET
                 ? BudgetPlanner.plan(pace, wave.entries(), host.random()).stream()
-                        .map(id -> new QueuedZombie(id, List.of()))
+                        .map(id -> new QueuedZombie(id, List.of(), 1F))
                         .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                 : expandEntries(wave.entries());
         Collections.shuffle(zombies, host.random());
+        int key = waveKey(round, waveIndex);
         pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(),
-                effectiveSpawnInterval(wave), holdTicks, waveIndex,
+                effectiveSpawnInterval(wave), holdTicks, key,
                 pace.isStockpile() ? pace.maxAlive() : 0,
-                pacing.earlyKillDelayFactor()));
+                pacing.earlyKillDelayFactor(), round, waveIndex));
         // The arc is what this wave set out to send, and it is the number the survival-ratio
         // gate takes its share of. Written here, where the composition is known.
-        arcByWave.put(waveIndex, zombies.size());
-        releasedWaves.remove(waveIndex);
+        arcByWave.put(key, zombies.size());
+        releasedWaves.remove(key);
 
-        int announcedIndex = waveIndex;
+        int announcedIndex = key;
         boolean firstAnnouncement = announcedWaves.add(announcedIndex);
         // The huge-wave call belongs to the warning (see announceWaveWarning); a wave whose data
         // asks for no warning window would otherwise arrive in silence, so it is played here
@@ -474,26 +605,32 @@ public final class WaveDirector {
             }
         }
 
-        nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
+        nextWaveDelayTicks = nextWaveDelayTicks(this.waveIndex);
         // A new countdown starts from zero with no target yet; the target is decided on the first
         // tick it runs, because `clearRewardApplies` wants the lawn state of that moment. With no
         // wave left there is nothing to arm, and `nextWaveTargetTicks` stays zero - which is also
         // why the arrival test cannot fire again: after the last wave both are zero but the index
         // is past the end, so this whole branch is skipped.
-        if (nextWaveIndex < waves.size()) {
+        if (this.waveIndex < roundWaves) {
             waveIntervalTicks = 0;
             nextWaveTargetTicks = 0;
         }
     }
 
     private void updateWaveWarning() {
-        if (nextWaveIndex >= waves.size()) {
+        if (waveIndex >= roundWaves) {
             waveProgress = 1F;
             waveWarningActive = false;
             waveWarningFinal = false;
             return;
         }
-        WaveDef next = waves.get(nextWaveIndex);
+        WaveDef next = waveAt(round, waveIndex);
+        if (next == null) {
+            waveProgress = 1F;
+            waveWarningActive = false;
+            waveWarningFinal = false;
+            return;
+        }
         int remaining = nextWaveTargetTicks - waveIntervalTicks;
         int warningTicks = Math.max(0, next.warningTicks());
         // The wave has to be counting down, not still releasing: ``tick`` freezes the counter
@@ -501,11 +638,12 @@ public final class WaveDirector {
         // negative there - but the release window still sits *before* the countdown starts, and
         // a banner that went up during it would be announcing a wave the player has already
         // been told about.
-        // ``nextWaveDelayTicks`` is -1 once the last wave has been released - that is the "no
-        // more waves" sentinel, not a countdown of minus one. Testing it for positivity is the
-        // whole fix: without it ``remaining`` was negative, the second half of the range check
-        // is trivially true for a negative number, and the banner stayed lit from the final wave
-        // until the level ended. That is the "a huge wave is coming" that never stops.
+        // ``nextWaveDelayTicks`` is -1 once the last wave of the round has been released - that
+        // is the "no more waves" sentinel, not a countdown of minus one. Testing it for
+        // positivity is the whole fix: without it ``remaining`` was negative, the second half of
+        // the range check is trivially true for a negative number, and the banner stayed lit from
+        // the final wave until the level ended. That is the "a huge wave is coming" that never
+        // stops.
         boolean countingDown = nextWaveTargetTicks > 0 && remaining > 0
                 && remaining <= nextWaveTargetTicks;
         // A held arrival keeps its banner: the countdown has finished because the field is still
@@ -516,7 +654,7 @@ public final class WaveDirector {
                 && (waveArrivalHeld || (countingDown && remaining <= warningTicks));
         boolean finalWarning = active && next.type() == WaveDef.WaveType.FINAL;
         if (active && !waveWarningActive) {
-            announceWaveWarning(nextWaveIndex);
+            announceWaveWarning(waveIndex);
         }
         if (active != waveWarningActive || finalWarning != waveWarningFinal) {
             dirty = true;
@@ -541,7 +679,7 @@ public final class WaveDirector {
      * event, so "first tick of the window" is the transition that fires it.
      */
     private void announceWaveWarning(int waveIndex) {
-        if (!announcedWarnings.add(waveIndex)) {
+        if (!announcedWarnings.add(waveKey(round, waveIndex))) {
             return;
         }
         emitAtBoardCentre(PvzceSounds.AMBIENT_HUGE_WAVE);
@@ -553,8 +691,9 @@ public final class WaveDirector {
         // level that asks for one - so the player read the banner, waited, and then the graves
         // opened to an empty-looking pause. A final wave with no warning window still opens
         // its graves on arrival (see triggerWave), because then the two are the same tick.
-        if (waves.get(waveIndex).type() == WaveDef.WaveType.FINAL) {
-            host.riseGraveZombies(waves.get(waveIndex));
+        WaveDef wave = waveAt(round, waveIndex);
+        if (wave != null && wave.type() == WaveDef.WaveType.FINAL) {
+            host.riseGraveZombies(wave);
         }
     }
 
@@ -609,12 +748,13 @@ public final class WaveDirector {
             }
             QueuedZombie queued = queue.zombies.poll();
             int row = queued.rowFor(queue.rows, queue.rowIndex++);
-            ZombieEntity spawned = host.spawnZombie(queued.id(), host.width() + 0.6F, row);
+            ZombieEntity spawned = host.spawnZombie(queued.id(), host.width() + 0.6F, row,
+                    queued.healthScale());
             if (spawned != null) {
                 // Owned here, where the wave is known: the stockpile cap and the survival-ratio
                 // gate both count a wave's own zombies rather than the lawn's.
-                waveOwner.put(spawned.id(), queue.waveIndex);
-                aliveByWave.merge(queue.waveIndex, 1, Integer::sum);
+                waveOwner.put(spawned.id(), queue.waveKey);
+                aliveByWave.merge(queue.waveKey, 1, Integer::sum);
             }
             queue.gateZombieId = queue.waitsForPrevious() && spawned != null ? spawned.id() : -1;
             // One tick above the wait, because the counter is decremented on the tick after it is
@@ -633,7 +773,7 @@ public final class WaveDirector {
                 iterator.remove();
                 // The queue is gone but the wave is not: its deaths are still what the next
                 // wave's early arrival is measured against.
-                releasedWaves.add(queue.waveIndex);
+                releasedWaves.add(queue.waveKey);
             }
         }
         host.flushPending();
@@ -654,7 +794,7 @@ public final class WaveDirector {
         if (!queue.waitsForStock()) {
             return 1;
         }
-        int alive = aliveOfWave(queue.waveIndex);
+        int alive = aliveOfWave(queue.waveKey);
         if (alive >= queue.maxAlive) {
             return 0;
         }
@@ -666,7 +806,7 @@ public final class WaveDirector {
         for (WaveDef.Entry entry : entries) {
             int count = Math.max(0, entry.count());
             for (int i = 0; i < count; i++) {
-                zombies.add(new QueuedZombie(entry.id(), entry.rows()));
+                zombies.add(new QueuedZombie(entry.id(), entry.rows(), entry.healthScale()));
             }
         }
         return zombies;
@@ -679,8 +819,12 @@ public final class WaveDirector {
      * whole board, which is what every wave table written before the pool wanted. A pool level
      * writes the lanes on the *entry* instead (floaties in the water, walkers on the grass),
      * and this carries that answer to the spawn rather than making the queue guess.
+     *
+     * <p>{@code healthScale} is the endless round's growth, carried per zombie rather than taken
+     * from a level rule: it belongs to the wave a zombie arrived in, and a level-wide multiplier
+     * would be a rule the level rewrites under a running mutation's feet.
      */
-    private record QueuedZombie(Identifier id, List<Integer> rows) {
+    private record QueuedZombie(Identifier id, List<Integer> rows, float healthScale) {
         /** The lane to use, given the queue's own shuffled order and how many it has sent. */
         int rowFor(List<Integer> anyRow, int index) {
             List<Integer> lanes = rows.isEmpty() ? anyRow : rows;
@@ -697,18 +841,119 @@ public final class WaveDirector {
         return rows;
     }
 
-    /** The wave the player is in, 1-based once the first wave has arrived. */
-    public int currentWave() {
-        return Math.min(nextWaveIndex, waves.size());
+    // ------------------------------------------------------------------
+    // Rounds
+    // ------------------------------------------------------------------
+
+    /** The round the run is in, one-based. */
+    public int round() {
+        return round;
     }
 
-    public int totalWaves() {
-        return waves.size();
+    /** How many waves the current round holds. */
+    public int roundWaves() {
+        return roundWaves;
     }
 
-    /** Every wave's type, lowercase, as the client's banner list wants them. */
-    public java.util.List<String> waveTypes() {
-        return waves.stream().map(wave -> wave.type().name().toLowerCase(java.util.Locale.ROOT)).toList();
+    /** The wave the player is in, zero-based inside the round; equals the round's length at its end. */
+    public int waveInRound() {
+        return Math.min(waveIndex, roundWaves);
+    }
+
+    /** Every wave's type in the current round, lowercase, as the client's banner list wants them. */
+    public List<String> roundWaveTypes() {
+        List<String> types = new ArrayList<>(Math.max(0, roundWaves));
+        for (int index = 0; index < roundWaves; index++) {
+            WaveDef wave = waveAt(round, index);
+            types.add(wave == null ? "small" : wave.type().name().toLowerCase(java.util.Locale.ROOT));
+        }
+        return List.copyOf(types);
+    }
+
+    /**
+     * True when the round is over and waiting for the player to choose their next cards.
+     *
+     * <p>What the level freezes on: no wave is owed, the lawn is clear, and nothing should tick
+     * until the choice is in. An ordinary level never reaches this state - it wins instead.
+     */
+    public boolean pendingRoundClear() {
+        return roundClearPending;
+    }
+
+    /**
+     * Closes the round and arms the next one.
+     *
+     * <p>Called by the level when the player's card choice arrives (or when the wait for it runs
+     * out). The per-wave bookkeeping is dropped rather than carried: the lawn is empty by
+     * definition - that is what let the round close - so no zombie on the field belongs to a
+     * previous round, and wave keys of a round nobody is playing any more would be a slow leak
+     * on a run long enough to matter.
+     *
+     * @return the round that just began, one-based
+     */
+    public int beginNextRound() {
+        round++;
+        waveIndex = 0;
+        roundWaves = Math.max(0, host.wavesInRound(round));
+        waveIntervalTicks = 0;
+        nextWaveTargetTicks = 0;
+        nextWaveDelayTicks = firstWaveDelay();
+        waveProgress = 0F;
+        waveWarningActive = false;
+        waveWarningFinal = false;
+        waveArrivalHeld = false;
+        openingGateArmed = false;
+        openingGateTicks = 0;
+        openingGateHoldTicks = 0;
+        roundClearPending = false;
+        releasedWaves.clear();
+        aliveByWave.clear();
+        killsByWave.clear();
+        arcByWave.clear();
+        waveOwner.clear();
+        dirty = true;
+        return round;
+    }
+
+    /**
+     * How many waves the run has released in total.
+     *
+     * <p>The score an endless run is measured in, and the number the summary line shows. Counted
+     * from the rounds already finished rather than kept as a running total, so a resumed run and
+     * a fresh one agree.
+     */
+    public int cumulativeWaves() {
+        int total = 0;
+        for (int earlier = 1; earlier < round; earlier++) {
+            total += Math.max(0, host.wavesInRound(earlier));
+        }
+        return total + waveIndex;
+    }
+
+    /**
+     * True when nothing more will arrive: every wave of the round is out and no queue is left.
+     *
+     * <p>A level with no waves at all never answers true, which is deliberate and is the one
+     * case that looks wrong: a level whose table is empty has finished its waves the moment it
+     * starts, so "nothing more will arrive" holds from tick one - and the win check, which is
+     * the only caller that matters, would declare a level won before the player had done
+     * anything. An empty table is a test level or a sandbox, never a shipped one, and those
+     * levels end the way they always did: a zombie eats the house.
+     */
+    public boolean allWavesReleased() {
+        return roundWaves > 0 && waveIndex >= roundWaves && pendingWaveSpawns.isEmpty();
+    }
+
+    /**
+     * True when the whole run is over rather than the round.
+     *
+     * <p>What a mechanic that produces zombies on its own clock has to ask before it may stop:
+     * a grave that keeps raising one every second and a half never lets the field fall to zero,
+     * so a level whose only mouths are its graves could not be finished at all. An endless
+     * level never finishes, so it answers false forever - its graves keep working.
+     */
+    public boolean runFinished() {
+        return !endless && allWavesReleased();
     }
 
     public boolean waveWarningActive() {
@@ -723,20 +968,10 @@ public final class WaveDirector {
         return waveWarningActive && waveWarningFinal;
     }
 
-    /**
-     * True when nothing more will arrive: every wave has been released and no queue is left.
-     *
-     * <p>What the win check asks before it can call a level won, so it lives here rather than
-     * being spelled out as a pair of field reads on the level.
-     */
-    public boolean allWavesReleased() {
-        return !waves.isEmpty() && nextWaveIndex >= waves.size() && pendingWaveSpawns.isEmpty();
-    }
-
     /** The HUD's view of the wave state. */
     public WaveProgressS2C progressPacket() {
-        return new WaveProgressS2C(currentWave(), totalWaves(), waveProgress,
-                waveWarningActive, waveWarningFinal);
+        return new WaveProgressS2C(waveInRound(), Math.max(0, roundWaves), waveProgress,
+                waveWarningActive, waveWarningFinal, round);
     }
 
     /**
@@ -777,13 +1012,22 @@ public final class WaveDirector {
         return true;
     }
 
-    /** Writes this director's block of the level save: index, clock, gates and the queues. */
+    // ------------------------------------------------------------------
+    // Save and restore
+    // ------------------------------------------------------------------
+
+    /** Writes this director's block of the level save: the position, the clock and the queues. */
     public void save(CompoundTag root) {
-        root.putInt("NextWaveIndex", nextWaveIndex);
+        root.putInt("LoadVersion", SAVE_VERSION);
+        root.putInt("WaveRound", round);
+        root.putInt("WaveIndexInRound", waveIndex);
         root.putInt("WaveIntervalTicks", waveIntervalTicks);
         root.putInt("NextWaveTargetTicks", nextWaveTargetTicks);
         root.putInt("OpeningGateTicks", openingGateTicks);
         root.putInt("OpeningGateHoldTicks", openingGateHoldTicks);
+        if (roundClearPending) {
+            root.putByte("RoundClearPending", (byte) 1);
+        }
         if (openingGateArmed) {
             root.putByte("OpeningGateArmed", (byte) 1);
         }
@@ -796,6 +1040,7 @@ public final class WaveDirector {
             CompoundTag queueTag = new CompoundTag();
             ListTag zombies = new ListTag();
             ListTag zombieRows = new ListTag();
+            ListTag zombieScales = new ListTag();
             for (QueuedZombie queued : queue.zombies) {
                 zombies.add(new StringTag(queued.id().toString()));
                 ListTag lanes = new ListTag();
@@ -803,11 +1048,15 @@ public final class WaveDirector {
                     lanes.add(new IntTag(lane));
                 }
                 zombieRows.add(lanes);
+                zombieScales.add(new FloatTag(queued.healthScale()));
             }
             queueTag.put("Zombies", zombies);
             // Parallel to `Zombies`; a save written before a wave could name its lanes has no
             // such key, and every zombie in it reads back as "any lane" - which is what it was.
             queueTag.put("ZombieRows", zombieRows);
+            // Parallel too, and read the same way: a missing or zero entry is an ordinary
+            // zombie, which is what every queue held before the rounds existed.
+            queueTag.put("ZombieScales", zombieScales);
             ListTag rows = new ListTag();
             for (int row : queue.rows) {
                 rows.add(new IntTag(row));
@@ -817,7 +1066,9 @@ public final class WaveDirector {
             queueTag.putInt("RowIndex", queue.rowIndex);
             queueTag.putInt("TicksUntilNext", queue.ticksUntilNext);
             queueTag.putInt("HoldTicks", queue.holdTicks);
-            queueTag.putInt("WaveIndex", queue.waveIndex);
+            queueTag.putInt("WaveKey", queue.waveKey);
+            queueTag.putInt("WaveRound", queue.round);
+            queueTag.putInt("WaveIndex", queue.waveIndexInRound);
             queueTag.putInt("MaxAlive", queue.maxAlive);
             // The zombie the gate is waiting for is deliberately not written: entity ids come
             // from a process-wide counter, so a restored id may name a different zombie (or
@@ -828,17 +1079,30 @@ public final class WaveDirector {
         root.put("PendingWaveSpawns", pendingWaves);
     }
 
-    /** Reads back what {@link #save} wrote. A save without a wave block keeps wave zero. */
+    /**
+     * Reads back what {@link #save} wrote.
+     *
+     * @throws IllegalStateException when the block was written by a version whose position this
+     *         one cannot read. The caller drops the save rather than resuming into a run whose
+     *         wave numbering means something else - an endless level's old save held the index
+     *         into a table that no longer exists.
+     */
     public void restore(CompoundTag root) {
-        nextWaveIndex = Math.max(0, Math.min(waves.size(), root.getInt("NextWaveIndex")));
+        if (root.getInt("LoadVersion") != SAVE_VERSION) {
+            throw new IllegalStateException("wave block is not version " + SAVE_VERSION
+                    + " (found " + root.getInt("LoadVersion") + ")");
+        }
+        round = Math.max(1, root.getInt("WaveRound"));
+        roundWaves = Math.max(0, host.wavesInRound(round));
+        waveIndex = Math.max(0, Math.min(roundWaves, root.getInt("WaveIndexInRound")));
         // Everything below the index has already walked in, so it has already announced itself.
         // Without this, resuming a save taken after the last wave started made ``triggerWave``
         // see an empty ``announcedWaves`` and play the siren and the huge-wave call a second
         // time - the sound the player reported as looping, since it lands while that wave's
         // zombies are still coming in.
         announcedWaves.clear();
-        for (int i = 0; i < nextWaveIndex; i++) {
-            announcedWaves.add(i);
+        for (int i = 0; i < waveIndex; i++) {
+            announcedWaves.add(waveKey(round, i));
         }
         // The warning call-out is per wave too, but a wave below the index may still be *inside*
         // its warning window when the save was taken (the window ends when the wave arrives, and
@@ -852,7 +1116,8 @@ public final class WaveDirector {
         waveArrivalHeld = root.getInt("WaveArrivalHeld") != 0;
         openingGateTicks = Math.max(0, root.getInt("OpeningGateTicks"));
         openingGateHoldTicks = Math.max(0, root.getInt("OpeningGateHoldTicks"));
-        nextWaveDelayTicks = nextWaveIndex < waves.size() ? effectiveWaveDelay(nextWaveIndex) : -1;
+        roundClearPending = root.getInt("RoundClearPending") != 0;
+        nextWaveDelayTicks = waveIndex < roundWaves ? nextWaveDelayTicks(waveIndex) : -1;
         // A resumed countdown keeps the target it was running at: `clearRewardApplies` answers
         // differently on the tick after a resume (the lawn arrives with the entities, a moment
         // later) and a finish line that moved would stop the level dead.
@@ -868,7 +1133,7 @@ public final class WaveDirector {
      * Rebuilds the per-wave counts a restored save cannot carry.
      *
      * <p>Entity ids do not survive a process, so which wave a zombie belonged to is not in the
-     * file. Two things follow, and both are static properties of the wave table rather than of
+     * file. Two things follow, and both are static properties of the wave source rather than of
      * the run: every wave below the index either still has a release queue (it is releasing) or
      * has finished, and its arc is the wave's own size. The zombies on the lawn are then handed
      * to the newest waves first - the wave that just walked in owns the lawn - so a resumed
@@ -882,30 +1147,33 @@ public final class WaveDirector {
         releasedWaves.clear();
         Set<Integer> releasing = new HashSet<>();
         for (PendingWaveSpawn queue : pendingWaveSpawns) {
-            releasing.add(queue.waveIndex);
-            arcByWave.put(queue.waveIndex, waveSize(queue.waveIndex));
+            releasing.add(queue.waveKey);
+            arcByWave.put(queue.waveKey, waveSize(queue.round, queue.waveIndexInRound));
         }
-        for (int index = 0; index < nextWaveIndex; index++) {
-            if (!releasing.contains(index)) {
-                releasedWaves.add(index);
-                arcByWave.putIfAbsent(index, waveSize(index));
+        for (int index = 0; index < waveIndex; index++) {
+            int key = waveKey(round, index);
+            if (!releasing.contains(key)) {
+                releasedWaves.add(key);
+                arcByWave.putIfAbsent(key, waveSize(round, index));
             }
         }
         for (int id : host.livingZombieIds()) {
-            for (int index = nextWaveIndex - 1; index >= 0; index--) {
-                if (releasing.contains(index) || aliveOfWave(index) >= arcByWave.getOrDefault(index, 0)) {
+            for (int index = waveIndex - 1; index >= 0; index--) {
+                int key = waveKey(round, index);
+                if (releasing.contains(key) || aliveOfWave(key) >= arcByWave.getOrDefault(key, 0)) {
                     continue;
                 }
-                waveOwner.put(id, index);
-                aliveByWave.merge(index, 1, Integer::sum);
+                waveOwner.put(id, key);
+                aliveByWave.merge(key, 1, Integer::sum);
                 break;
             }
         }
     }
 
-    /** How many zombies the wave at this index sends, as the wave table says. */
-    private int waveSize(int waveIndex) {
-        return waveIndex >= 0 && waveIndex < waves.size() ? waves.get(waveIndex).totalZombies() : 0;
+    /** How many zombies the wave at this position sends, as the wave source says. */
+    private int waveSize(int round, int waveIndex) {
+        WaveDef wave = waveAt(round, waveIndex);
+        return wave == null ? 0 : wave.totalZombies();
     }
 
     private void restorePendingWaves(ListTag pending) {
@@ -916,6 +1184,7 @@ public final class WaveDirector {
             }
             List<Tag> zombieTags = queueTag.getList("Zombies").values();
             List<Tag> zombieRowTags = queueTag.getList("ZombieRows").values();
+            List<Tag> scaleTags = queueTag.getList("ZombieScales").values();
             List<QueuedZombie> zombieIds = new ArrayList<>();
             for (int index = 0; index < zombieTags.size(); index++) {
                 if (!(zombieTags.get(index) instanceof StringTag stringTag)) {
@@ -935,7 +1204,12 @@ public final class WaveDirector {
                         }
                     }
                 }
-                zombieIds.add(new QueuedZombie(zombieId, List.copyOf(lanes)));
+                float scale = 1F;
+                if (index < scaleTags.size() && scaleTags.get(index) instanceof FloatTag scaleTag
+                        && scaleTag.value() > 0F) {
+                    scale = scaleTag.value();
+                }
+                zombieIds.add(new QueuedZombie(zombieId, List.copyOf(lanes), scale));
             }
             List<Integer> rows = new ArrayList<>();
             for (Tag tag : queueTag.getList("Rows").values()) {
@@ -951,14 +1225,16 @@ public final class WaveDirector {
             // death gate's cap - but not the zombie it was waiting for, whose id does not
             // survive a process (see the save side), so a resumed queue paces itself by the
             // cap until it releases a zombie it can follow again.
+            int queueRound = Math.max(1, queueTag.getInt("WaveRound"));
+            int queueWave = Math.max(0, queueTag.getInt("WaveIndex"));
             PendingWaveSpawn queue = new PendingWaveSpawn(zombieIds, rows,
                     queueTag.getInt("IntervalTicks") > 0
                             ? queueTag.getInt("IntervalTicks")
                             : WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS,
                     Math.max(0, queueTag.getInt("HoldTicks")),
-                    Math.max(0, queueTag.getInt("WaveIndex")),
+                    waveKey(queueRound, queueWave),
                     Math.max(0, queueTag.getInt("MaxAlive")),
-                    pacing.earlyKillDelayFactor());
+                    pacing.earlyKillDelayFactor(), queueRound, queueWave);
             queue.rowIndex = Math.max(0, queueTag.getInt("RowIndex"));
             queue.ticksUntilNext = Math.max(0, queueTag.getInt("TicksUntilNext"));
             pendingWaveSpawns.add(queue);
@@ -989,8 +1265,11 @@ public final class WaveDirector {
          * {@link #tightenedHold()}.
          */
         private int holdTicks;
-        /** Which wave this queue belongs to, for the per-wave zombie counts. */
-        private final int waveIndex;
+        /** Which wave this queue belongs to, as {@link WaveDirector#waveKey}. */
+        private final int waveKey;
+        /** The round and the wave inside it, kept beside the key for the save block. */
+        private final int round;
+        private final int waveIndexInRound;
         /** How many of this wave's zombies may stand at once, or 0 for no stockpile. */
         private final int maxAlive;
         /** What the death gate's cap is multiplied by each time it runs out. */
@@ -1001,14 +1280,17 @@ public final class WaveDirector {
         private int gateZombieId = -1;
 
         private PendingWaveSpawn(List<QueuedZombie> zombies, List<Integer> rows, int intervalTicks,
-                                 int holdTicks, int waveIndex, int maxAlive, float holdDecay) {
+                                 int holdTicks, int waveKey, int maxAlive, float holdDecay,
+                                 int round, int waveIndexInRound) {
             this.zombies = new ArrayDeque<>(zombies);
             this.rows = rows;
             this.intervalTicks = Math.max(1, intervalTicks);
             this.holdTicks = Math.max(0, holdTicks);
-            this.waveIndex = waveIndex;
+            this.waveKey = waveKey;
             this.maxAlive = Math.max(0, maxAlive);
             this.holdDecay = holdDecay > 0F && holdDecay < 1F ? holdDecay : 1F;
+            this.round = round;
+            this.waveIndexInRound = waveIndexInRound;
         }
 
         /** True when this queue waits for the zombie it just released. */

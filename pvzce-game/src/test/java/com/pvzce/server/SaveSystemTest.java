@@ -192,8 +192,12 @@ class SaveSystemTest {
             Path saveDir = gameDir.resolve("saves/statusworld/levels/70767a6365__test_complete");
             server.waitForFile(saveDir.resolve("level.dat"), 5_000);
 
-            // Ending the level for real takes ~295 ticks (the zombie walks in, then its
-            // countdown). Sprinting runs those ticks back to back instead of making the
+            // The level has one empty wave and one zombie, so it ends the way an ordinary level
+            // does: the wave list runs out with nothing hostile left on the lawn, and the plants
+            // win - the row's own mower is what removes the one zombie, because a walker that got
+            // to the house first would lose the level instead. A completion marker is only written
+            // for a plant win (see PvzceServer.onLevelFinished), which is why the level's win
+            // team is the plants. Sprinting runs the ticks back to back instead of making the
             // suite wait ~5s of wall clock for them.
             server.send(new CommandC2S("/tick sprint 400"));
 
@@ -203,8 +207,9 @@ class SaveSystemTest {
             server.waitForDeleted(saveDir, 5_000);
 
             CompoundTag status = NbtIo.readCompressed(statusFile);
-            assertEquals("completed", status.getString("GameState"));
-            assertEquals("pvzce:zombie_team", status.getString("Winner"));
+            assertEquals("completed", status.getString("GameState"),
+                    "a level whose own win team is the plants is cleared by surviving it");
+            assertEquals("pvzce:plant_team", status.getString("Winner"));
 
             server.clear();
             server.send(new RequestLevelListC2S("statusworld"));
@@ -255,11 +260,14 @@ class SaveSystemTest {
                     { "id": "pvzce:plant_team", "name": "植物方", "win_condition": "survive_waves" },
                     { "id": "pvzce:zombie_team", "name": "僵尸方", "win_condition": "plant_side_lost" }
                   ],
-                  "win_team": "pvzce:zombie_team",
+                  "win_team": "pvzce:plant_team",
                   "rules": { "pvzce:day_length": 0, "pvzce:night_length": -1 },
-                  "waves": [],
+                  "waves": [
+                    { "type": "final", "delay": 60, "warning_ticks": 0,
+                      "entries": [], "spawn_interval": 30 }
+                  ],
                   "slots": [ "pvzce:pea_shooter", "pvzce:sun" ],
-                  "mechanics": [ { "type": "pvzce:mower", "rows": [] } ],
+                  "mechanics": [ { "type": "pvzce:mower", "rows": [0] } ],
                   "initial_entities": [
                     { "kind": "zombie", "id": "pvzce:basic_zombie", "x": 0, "y": 0 }
                   ]

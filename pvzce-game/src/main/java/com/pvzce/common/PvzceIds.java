@@ -224,6 +224,16 @@ public final class PvzceIds {
      */
     public static final Identifier RULE_ZOMBIE_RISE_TICKS = id("zombie_rise_ticks");
 
+    /**
+     * How long an endless level waits between rounds for the player's card choice, in ticks.
+     *
+     * <p>Zero (and unwritten) means the engine's own minute. A level that wants the boundary to
+     * carry on by itself shortens it; the point of the rule is that the wait is a level's
+     * decision rather than a constant, which is also what lets a demo or a test drive past the
+     * boundary without a client that knows how to answer.
+     */
+    public static final Identifier RULE_ROUND_CLEAR_TIMEOUT_TICKS = id("round_clear_timeout_ticks");
+
     public static final Identifier ENV_PLANT_AI = id("plant_ai");
 
     /**
@@ -347,6 +357,20 @@ public final class PvzceIds {
 
     /** The level category the mutation levels live under. */
     public static final Identifier CATEGORY_ENDLESS = id("endless");
+
+    /** The level category the plain (mutation-free) endless levels live under. */
+    public static final Identifier CATEGORY_SURVIVAL = id("survival");
+
+    /**
+     * The two built-in endless schedules, the growth curves
+     * {@code common.level.endless.EndlessSchedules} registers.
+     *
+     * <p>Named here for the same reason the mutations below are: the levels, the language files
+     * and the tests all have to name one, and "which curve is this level on" is exactly the kind
+     * of fact that otherwise ends up written twice.
+     */
+    public static final Identifier ENDLESS_SCHEDULE_POOL = id("pool_endless");
+    public static final Identifier ENDLESS_SCHEDULE_MUTATION = id("mutation_endless");
 
     /**
      * The built-in mutations, the catalogue {@code common.level.mutation.Mutations} registers.

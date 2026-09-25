@@ -211,11 +211,12 @@ public final class LevelSelectScreen extends Screen {
                 .style(Button.Style.SEED_CHOOSER);
         editButton.setActive(selectedRow >= 0);
         addWidget(editButton);
-        // The backpack belongs here rather than on the title screen: this is the screen
-        // where "what may I bring into a level" is the question the player is asking.
+        // The almanac belongs here rather than on the title screen: this is the screen where
+        // "what may I bring into a level" is the question the player is asking, and the book
+        // answers both halves of it - which cards are unlocked, and what each one is.
         addWidget(new Button(startX + (quadWidth + rowGap) * 2, actionY, quadWidth, actionHeight,
-                GuiLang.raw("pvzce.inventory", "背包"),
-                () -> client.openScreen(new InventoryScreen(client))).style(Button.Style.SEED_CHOOSER));
+                GuiLang.raw("gui.pvzce.almanac.title", "图鉴"),
+                () -> client.openScreen(new AlmanacScreen(client))).style(Button.Style.SEED_CHOOSER));
         addWidget(new Button(startX + (quadWidth + rowGap) * 3, actionY, quadWidth, actionHeight,
                 GuiLang.raw("pvzce.back", "返回"), this::requestClose).style(Button.Style.SEED_CHOOSER));
 
@@ -511,7 +512,7 @@ public final class LevelSelectScreen extends Screen {
         int y = themeTop - buttonHeight;
         for (String themeId : themeIds) {
             Button button = new Button(themeColumnX, y, themeColumnWidth, buttonHeight,
-                    LevelPage.label(themeId, UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT),
+                    LevelPage.label(themeId, "level_theme", UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT),
                     () -> switchToTheme(themeId));
             button.style(Button.Style.SEED_CHOOSER);
             addWidget(button);
@@ -527,7 +528,7 @@ public final class LevelSelectScreen extends Screen {
                     - categoryGap * (categories.size() - 1)) / categories.size()));
             int x = categoryRowX;
             for (LevelPage.Tab tab : categories) {
-                String label = LevelPage.label(tab.categoryId(), UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT);
+                String label = LevelPage.label(tab.categoryId(), "level_category", UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT);
                 Button button = new Button(x, categoryRowY, buttonWidth, categoryRowHeight, label,
                         () -> switchToCategory(tab));
                 button.style(Button.Style.SEED_CHOOSER);
@@ -725,7 +726,7 @@ public final class LevelSelectScreen extends Screen {
         // The theme column's own label, so the column reads as themes and not as an
         // unlabelled stripe of buttons.
         if (openTab != null) {
-            String themeName = LevelPage.label(openTab.themeId(), UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT);
+            String themeName = LevelPage.label(openTab.themeId(), "level_theme", UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT);
             client.fonts().body().draw(themeName, themeColumnX, themeTop + 4, 0.8F, 0.85F, 0.9F, 0.75F, 1F);
         }
 

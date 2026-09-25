@@ -80,6 +80,35 @@ public final class PvzceCommands {
             server.refreshLevelList();
             return 1;
         }));
+        // Development/authoring command: put one mutation on the field by name. The engine rolls
+        // its own, so this is the only way to ask for a particular one - to reproduce a report, to
+        // photograph a mutation for the docs, or to look at what a level plays like under one.
+        dispatcher.register(lit("mutation")
+                .then(lit("add").then(argIdentifier("mutation", "mutation").executes(ctx -> {
+                    LevelServer level = ctx.getSource().server().level();
+                    Identifier id = ctx.getArgument("mutation", Identifier.class);
+                    var mutation = com.pvzce.common.level.mutation.MutationRegistry.get(id);
+                    if (level == null || level.mutations() == null) {
+                        ctx.getSource().sendFeedback("当前关卡不接受变异。");
+                        return 0;
+                    }
+                    if (mutation == null) {
+                        ctx.getSource().sendFeedback("未知变异: " + id);
+                        return 0;
+                    }
+                    level.mutations().add(mutation, mutation.roll(level));
+                    ctx.getSource().sendFeedback("已加入变异: " + id);
+                    return 1;
+                })))
+                .then(lit("list").executes(ctx -> {
+                    LevelServer level = ctx.getSource().server().level();
+                    if (level == null || level.mutations() == null) {
+                        ctx.getSource().sendFeedback("当前关卡不接受变异。");
+                        return 0;
+                    }
+                    ctx.getSource().sendFeedback("当前变异: " + level.mutations().activeIds());
+                    return 1;
+                })));
         dispatcher.register(lit("save").executes(ctx -> {
             server.saveGame();
             ctx.getSource().sendFeedback("已保存世界。");

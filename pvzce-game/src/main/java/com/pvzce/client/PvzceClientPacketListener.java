@@ -128,7 +128,22 @@ public final class PvzceClientPacketListener implements PacketListener {
             LOGGER.info("[msg] {}", message.message());
         } else if (packet instanceof WaveProgressS2C wave) {
             level.setWaveProgress(wave.currentWave(), wave.totalWaves(), wave.progress(),
-                    wave.warningActive(), wave.finalWarning());
+                    wave.warningActive(), wave.finalWarning(), wave.round());
+        } else if (packet instanceof com.pvzce.common.network.packet.RoundSyncS2C round) {
+            // Where the run stands and which waves the meter is drawing: the round's own list
+            // rides with it, because an endless level regenerates it every round and the level
+            // init packet carried only the first one.
+            level.setRound(round);
+            // A round that has begun closes a summary the server gave up waiting on: see
+            // PvzceClient.onRoundStarted.
+            if (!round.roundClearPending()) {
+                client.onRoundStarted(round.round());
+            }
+        } else if (packet instanceof com.pvzce.common.network.packet.RoundClearS2C clear) {
+            // An endless round is over: the server has stopped and is waiting on the player's
+            // next card choice. Shown as a dialog over the board, not as a results screen -
+            // nothing was won or lost.
+            client.showRoundClear(clear);
         } else if (packet instanceof TimeOfDayS2C time) {
             level.setTimeOfDay(time);
         } else if (packet instanceof GameSpeedS2C speed) {

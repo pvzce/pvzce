@@ -109,6 +109,34 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final List<PvzceEntity> pendingRemove = new ArrayList<>();
     private final WaveDirector waves;
     /**
+     * True when this level generates its waves round after round instead of owning a table.
+     *
+     * <p>Read from the {@code pvzce:endless} mechanic, and the switch three things hang off:
+     * where a wave comes from (see {@link #waveAt}), whether the level can ever be won (it
+     * cannot - an endless run ends only when a zombie reaches the house), and whether the
+     * round's end pauses the level for a card selection.
+     */
+    private final boolean rounds;
+    /** The schedule those waves grow on, or {@code null} on an ordinary level. */
+    private final com.pvzce.api.content.EndlessScheduleDef endlessSchedule;
+    /**
+     * How long the level waits for a card choice before continuing with the bar it has.
+     *
+     * <p>A minute is far longer than the choice takes, and it exists only so that a client that
+     * never answers - a crash, a closed window, a test harness that does not know the packet -
+     * cannot freeze a run forever. The run continuing on its old cards is a worse round than the
+     * player would have picked, and a much better outcome than a level that stops.
+     */
+    static final int ROUND_CLEAR_TIMEOUT_TICKS = 60 * PvzceConstants.TICKS_PER_SECOND;
+    /**
+     * How long the open round boundary has been waiting for an answer, in ticks.
+     *
+     * <p>Counted here rather than read off {@link #tickCount}, which the boundary deliberately
+     * stops advancing: the run's own clock should not charge the player for the time they spend
+     * choosing their cards, and a wait measured on a frozen clock never expires.
+     */
+    private int roundClearWaitedTicks;
+    /**
      * Entities that joined the level while no bridge was set, and still owe the client a
      * spawn packet.
      *
@@ -118,6 +146,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final List<PvzceEntity> awaitSpawnPacket = new ArrayList<>();
     private final Map<Integer, Integer> craterTimers = new HashMap<>();
     private final Random random = new Random();
+
+    /**
+     * Reseeds the level's dice.
+     *
+     * <p>For tests: everything a run rolls - the mutation catalogue, a wave's rows, a coin
+     * scatter - comes from this one source, so a seeded level is a reproducible run. "Which
+     * mutations a save round-trips" is a question about the save format, and a test that asked it
+     * with a time-seeded generator was really asserting that this particular run happened to roll
+     * a mutation that touches a rule.
+     *
+     * <p>Not for gameplay: nothing in the game reseeds a running level.
+     */
+    public void seedRandom(long seed) {
+        random.setSeed(seed);
+    }
     private final PvzcePlayer plantPlayer;
     private final GameRules rules;
     /**
@@ -152,8 +195,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * <p>Kept for the card-bar handoff: handing the bar back after a mutation's belt ends needs
      * "what the player picked" to still exist, and by then the bar holds the belt's cards rather
      * than the player's.
+     *
+     * <p>Not final because an endless run replaces it between rounds: the card chooser opens
+     * again at every round boundary, and this is the one field that decision writes (see
+     * {@link #reselectCards}). What it is <em>not</em> is a per-round reset of anything else -
+     * the lawn, the sun and the mowers carry over by design.
      */
-    private final List<Identifier> selectedCards;
+    private List<Identifier> selectedCards;
     /**
      * Which cards the player owns, for the mutations that hand out other ones.
      *
@@ -372,8 +420,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // than a missing value somewhere later.
         this.rules = new GameRules(def.rules());
         this.sunDropClock.reset(this.rules);
-        this.waves = new WaveDirector(this, waveTable(def), def.waveIntervalEndMultiplier(),
-                WavePacingMechanic.of(def));
+        this.rounds = com.pvzce.common.level.mechanic.EndlessMechanic.generatesWaves(def);
+        this.endlessSchedule = com.pvzce.common.level.mechanic.EndlessMechanic.scheduleOf(def);
+        this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier(),
+                WavePacingMechanic.of(def), rounds);
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
             SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(cell.value());
@@ -473,17 +523,108 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
-     * The wave table this level runs with, which an endless level generates.
+     * The wave this level holds at a position in its run.
      *
-     * <p>Read once, here, rather than asked of the director per wave: the expansion is a pure
-     * function of the board's height, and everything downstream - the progress bar, the save, the
-     * stockpile gates - already reads a list.
+     * <p>The director's one question about where waves come from, and the whole of what
+     * "endless" means to it: an ordinary level answers out of the table it wrote, and an
+     * endless one asks its schedule and generates the wave on the spot. Nothing is expanded
+     * ahead of time, so the length of an endless run is not bounded by anything a packet or a
+     * save file could carry.
+     *
+     * @param round the round, one-based
+     * @param index the wave inside that round, zero-based
+     * @return the wave, or {@code null} when the position does not exist
      */
-    private static List<com.pvzce.api.content.WaveDef> waveTable(LevelDef def) {
-        if (LevelMechanics.has(def, PvzceIds.MECHANIC_ENDLESS)) {
-            return LevelMechanics.ENDLESS.expand(def.height());
+    @Override
+    public com.pvzce.api.content.WaveDef waveAt(int round, int index) {
+        if (index < 0) {
+            return null;
         }
-        return def.waves();
+        if (!rounds) {
+            // A level with a table has exactly one round, so the round number is a formality:
+            // any other value is a caller mistake, and answering it with a wave would hide one.
+            return round == 1 && index < def.waves().size() ? def.waves().get(index) : null;
+        }
+        if (endlessSchedule == null) {
+            return null;
+        }
+        if (index >= wavesInRound(round)) {
+            return null;
+        }
+        com.pvzce.common.level.endless.EndlessWaves.Rows rows = endlessRows();
+        return com.pvzce.common.level.endless.EndlessWaves.wave(endlessSchedule, round, index,
+                rows.land(), rows.water(), random);
+    }
+
+    @Override
+    public int wavesInRound(int round) {
+        if (!rounds || endlessSchedule == null) {
+            return round == 1 ? def.waves().size() : 0;
+        }
+        return com.pvzce.common.level.endless.EndlessRamp.wavesInRound(endlessSchedule, round);
+    }
+
+    /**
+     * The board's rows split into "walkers" and "floaters".
+     *
+     * <p>From the level's own scene rather than from a constant: the day pool has water in its
+     * middle two rows, a front-lawn endless has none, and the same generator serves both. The
+     * water rows are the ones whose scene element is the water one - the same test the rest of
+     * the simulation uses to decide whether a plant may go there.
+     *
+     * <p>Filled once, right after the scene grid is built (see {@link #resolveEndlessRows}).
+     */
+    private com.pvzce.common.level.endless.EndlessWaves.Rows endlessRows;
+
+    /** The board's row split, resolved from the scene the first time a wave needs it. */
+    private com.pvzce.common.level.endless.EndlessWaves.Rows endlessRows() {
+        if (endlessRows == null) {
+            resolveEndlessRows();
+        }
+        return endlessRows;
+    }
+
+    /**
+     * Builds the row split from the scene.
+     *
+     * <p>Lazy rather than eager because the wave director reads round one's length while the
+     * level is still being constructed - the {@code waves} field is initialized before the
+     * {@code scene} one - so "which rows are water" is not answerable yet at that point.
+     */
+    private void resolveEndlessRows() {
+        List<Integer> land = new ArrayList<>();
+        List<Integer> water = new ArrayList<>();
+        if (scene == null) {
+            // Asked before the grid exists - the director reads round one's length while the
+            // level is still being constructed. Every row is land for now; the real split is
+            // resolved the first time a wave is actually generated, which is long after the
+            // scene is built.
+            for (int y = 0; y < def.height(); y++) {
+                land.add(y);
+            }
+            this.endlessRows = new com.pvzce.common.level.endless.EndlessWaves.Rows(land, List.of());
+            return;
+        }
+        for (int y = 0; y < def.height(); y++) {
+            boolean isWater = false;
+            for (int x = 0; x < def.width(); x++) {
+                SceneElementDef element = scene.get(x, y);
+                if (element != null && PvzceIds.WATER.equals(element.id())) {
+                    isWater = true;
+                    break;
+                }
+            }
+            (isWater ? water : land).add(y);
+        }
+        if (water.isEmpty()) {
+            // A board with no water rows at all: every row is land, which is what a lawn endless
+            // wants and what a pool endless cannot be (its floaters would have nowhere to walk).
+            land.clear();
+            for (int y = 0; y < def.height(); y++) {
+                land.add(y);
+            }
+        }
+        this.endlessRows = new com.pvzce.common.level.endless.EndlessWaves.Rows(land, water);
     }
 
     private static SceneElementDef defaultSceneElement() {
@@ -976,18 +1117,33 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /**
      * Puts one zombie on the board for the wave director, which does not pick teams: a wave
      * always arrives on the zombie side.
+     *
+     * <p>{@code healthScale} is the endless round's growth, applied here rather than through a
+     * game rule: it belongs to the wave the zombie arrived in, and a level-wide multiplier would
+     * be a rule the level rewrites under a running mutation's feet. Ordinary levels pass 1 and
+     * get exactly the zombie their definition describes.
      */
     @Override
+    public ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale) {
+        return spawnZombie(zombieId, zombieTeam(), x, row, healthScale);
+    }
+
     public ZombieEntity spawnZombie(Identifier zombieId, float x, int row) {
-        return spawnZombie(zombieId, zombieTeam(), x, row);
+        return spawnZombie(zombieId, zombieTeam(), x, row, 1F);
     }
 
     public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row) {
+        return spawnZombie(zombieId, team, x, row, 1F);
+    }
+
+    /** One zombie, with the arriving wave's own health growth applied. */
+    public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row,
+                                    float healthScale) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(zombieId);
         if (def == null) {
             return null;
         }
-        ZombieEntity zombie = new ZombieEntity(def, team, x, row);
+        ZombieEntity zombie = new ZombieEntity(def, team, x, row, healthScale);
         addEntity(zombie);
         emitEffect("", x, row + 0.5F, def.sounds().spawn().orElse(PvzceSounds.ZOMBIE_GROAN));
         return zombie;
@@ -1387,6 +1543,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }
+        // Between rounds: the last wave of the round is dead, the lawn is clear, and the player
+        // is choosing their next cards. Simulating through that would walk the next round's
+        // zombies onto a board nobody is watching - and, because the lawn is kept between
+        // rounds, it would do it while the player believes the game is paused.
+        if (tickRoundClear(bridge)) {
+            return;
+        }
         ServerBridge previous = this.bridge;
         this.bridge = bridge;
         try {
@@ -1582,27 +1745,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * whose bar was not rebuilt keeps clicking the belt's cards after it is gone.
      */
     public void onMutationCardSourceChanged() {
-        if (plantPlayer == null) {
-            return;
-        }
-        com.pvzce.common.level.mutation.MutationCardSource factory = mutations == null
-                ? null : mutations.cardSourceFactory();
-        if (factory != null) {
-            com.pvzce.server.level.cardsource.CardSource created = factory.createCardSource(this,
-                    new com.pvzce.server.level.cardsource.CardSource.Context(
-                            plantPlayer, def, selectedCards, random));
-            if (created != null) {
-                cardSource = created;
-                syncAllSlots();
-                return;
-            }
-        }
-        // No mutation deals the cards any more: the level's own source stands, and the bar goes
-        // back to the cards the player chose.
-        cardSource = LevelMechanics.createCardSource(def,
-                new com.pvzce.server.level.cardsource.CardSource.Context(
-                        plantPlayer, def, selectedCards, random));
-        plantPlayer.replaceSlots(PvzcePlayer.deckSlots(selectedCards));
+        rebuildCardBar();
         syncAllSlots();
     }
 
@@ -1833,11 +1976,31 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public int currentWave() {
-        return waves.currentWave();
+        return waves.waveInRound();
     }
 
     public int totalWaves() {
-        return waves.totalWaves();
+        return waves.roundWaves();
+    }
+
+    /** The round the run is in, one-based; always 1 on a level that does not generate waves. */
+    public int round() {
+        return waves.round();
+    }
+
+    /** How many waves of the current round have arrived. */
+    public int waveInRound() {
+        return waves.waveInRound();
+    }
+
+    /** How many waves the run has released in total, across every round. */
+    public int cumulativeWaves() {
+        return waves.cumulativeWaves();
+    }
+
+    /** True when this level generates its waves round after round and can never be won. */
+    public boolean isEndlessRun() {
+        return rounds;
     }
 
     /**
@@ -1850,7 +2013,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * at all. See {@code GraveSpawnerMechanic}.
      */
     public boolean wavesReleased() {
-        return waves.allWavesReleased();
+        return waves.runFinished();
     }
 
     public boolean waveWarningActive() {
@@ -2084,8 +2247,142 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 rules.getInt(PvzceIds.RULE_SUN_VALUE)));
     }
 
+    /**
+     * Runs the between-rounds state: announces it once, and gives up waiting eventually.
+     *
+     * @return true while the level is frozen for a card choice
+     */
+    private boolean tickRoundClear(ServerBridge bridge) {
+        if (!rounds || !waves.pendingRoundClear()) {
+            roundClearWaitedTicks = 0;
+            return false;
+        }
+        roundClearWaitedTicks++;
+        if (roundClearWaitedTicks == 1) {
+            LOGGER.info("Round {} cleared after {} waves; waiting for the next card selection",
+                    waves.round(), waves.cumulativeWaves());
+            bridge.send(new com.pvzce.common.network.packet.RoundClearS2C(waves.round(),
+                    waves.cumulativeWaves(), zombieKills, tickCount));
+            bridge.send(roundSyncPacket());
+            return true;
+        }
+        if (roundClearWaitedTicks >= roundClearTimeoutTicks()) {
+            LOGGER.warn("No card selection for round {} after {} ticks; continuing with the"
+                    + " current bar", waves.round() + 1, roundClearTimeoutTicks());
+            beginNextRound(bridge);
+        }
+        return true;
+    }
+
+    /**
+     * The player's answer to the round-clear dialog: these cards for the next round.
+     *
+     * <p>The lawn is deliberately untouched. Everything the last round was defended with - the
+     * plants, the sun, the mowers, the cooldowns - is still standing, because that is what makes
+     * the mode a run rather than a series of levels: only the bar is a fresh decision.
+     *
+     * @param newCards the cards to play the next round with, already sanitized by the caller
+     * @return true when the level was waiting for this answer, false when it was not (a stale or
+     *         duplicated packet, which is dropped rather than treated as a restart)
+     */
+    public boolean reselectCards(List<Identifier> newCards, ServerBridge bridge) {
+        if (!rounds || plantPlayer == null || !waves.pendingRoundClear()) {
+            return false;
+        }
+        this.selectedCards = List.copyOf(newCards);
+        rebuildCardBar();
+        syncAllSlots();
+        LOGGER.info("Round {} begins with {} cards", waves.round() + 1, selectedCards.size());
+        beginNextRound(bridge);
+        return true;
+    }
+
+    /** Closes the finished round, arms the next one, and tells the client about both. */
+    private void beginNextRound(ServerBridge bridge) {
+        int next = waves.beginNextRound();
+        roundClearWaitedTicks = 0;
+        // The client's meter is drawn from the round's wave list, so the new round's list has to
+        // arrive with the round number: a client told only the number would keep the old flags.
+        bridge.send(roundSyncPacket());
+        bridge.send(waveProgressPacket());
+        bridge.send(new ServerMessageS2C("第 " + next + " 轮开始"));
+    }
+
+    /**
+     * How long this level waits for the card choice, in ticks.
+     *
+     * <p>The level's {@code round_clear_timeout_ticks} rule when it writes one, and the engine's
+     * minute otherwise. A level author who wants the round boundary to move on by itself (a demo,
+     * a soak test) shortens it; a rule of zero falls back to the default rather than meaning
+     * "never", because a level that never continues is a level that hangs.
+     *
+     * <p>Read live, like every other rule this level reads per tick, so {@code /gamerule} bites
+     * on the boundary that is already open.
+     */
+    private int roundClearTimeoutTicks() {
+        int configured = rules.getInt(PvzceIds.RULE_ROUND_CLEAR_TIMEOUT_TICKS);
+        return configured > 0 ? configured : ROUND_CLEAR_TIMEOUT_TICKS;
+    }
+
+    /** Where the run stands, for the client's meter and round line. */
+    public com.pvzce.common.network.packet.RoundSyncS2C roundSyncPacket() {
+        return new com.pvzce.common.network.packet.RoundSyncS2C(waves.round(), waves.roundWaves(),
+                waves.cumulativeWaves(), waves.pendingRoundClear(), rounds, waves.roundWaveTypes());
+    }
+
+    /**
+     * True while the level is frozen between rounds.
+     *
+     * <p>Asked by the input paths: a player who plants, digs or fires a tool while choosing their
+     * next cards would be acting on a level that is not running, and the actions would land on
+     * the board a moment before the bar they were paid from is replaced.
+     */
+    public boolean isRoundClearPending() {
+        return rounds && waves.pendingRoundClear();
+    }
+
+    /**
+     * Refuses an action while the player is choosing their next round's cards.
+     *
+     * <p>The level is not simulating in that state, so an accepted action would be applied to a
+     * board that is about to change bar under it: the plants would appear the moment the next
+     * round starts, having been paid for out of a card the new bar may not even hold.
+     */
+    private boolean rejectWhileChoosingCards(ServerBridge bridge) {
+        if (!isRoundClearPending()) {
+            return false;
+        }
+        bridge.send(new ServerMessageS2C("请先选择下一轮的卡牌。"));
+        return true;
+    }
+
+    /** Rebuilds the bar from {@link #selectedCards}, whoever owns it. */
+    private void rebuildCardBar() {
+        if (plantPlayer == null) {
+            return;
+        }
+        com.pvzce.common.level.mutation.MutationCardSource factory = mutations == null
+                ? null : mutations.cardSourceFactory();
+        if (factory != null) {
+            com.pvzce.server.level.cardsource.CardSource created = factory.createCardSource(this,
+                    new com.pvzce.server.level.cardsource.CardSource.Context(
+                            plantPlayer, def, selectedCards, random));
+            if (created != null) {
+                cardSource = created;
+                return;
+            }
+        }
+        cardSource = LevelMechanics.createCardSource(def,
+                new com.pvzce.server.level.cardsource.CardSource.Context(
+                        plantPlayer, def, selectedCards, random));
+        plantPlayer.replaceSlots(PvzcePlayer.deckSlots(selectedCards));
+    }
+
     private void checkEnd(ServerBridge bridge) {
-        if (gameState.equals(GameStateS2C.RUNNING)
+        // An endless level is never won: its waves do not run out, so "every wave released"
+        // would be true at the end of every round. The only way a run ends is a zombie reaching
+        // the house, which `zombieReachedLeft` reports.
+        if (!rounds && gameState.equals(GameStateS2C.RUNNING)
                 && waves.allWavesReleased()
                 && hostileZombieCount() == 0) {
             markEnd(teams.get(PvzceIds.PLANT_TEAM));
@@ -2113,9 +2410,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return zombieKills;
     }
 
-    /** How many full mutation cycles of zombies have arrived: what an endless run counts in. */
+    /**
+     * How many waves the run released: what an endless run's score is measured in.
+     *
+     * <p>Cumulative across the rounds rather than the wave inside the current one, because on an
+     * endless level there is nothing else to count - "survived eleven waves" would reset to one
+     * every time the player survived a round.
+     */
     public int completedWaves() {
-        return waves.currentWave();
+        return waves.cumulativeWaves();
     }
 
     /**
@@ -2239,11 +2542,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
     }
 
+    /**
+     * Ends the level, with the winning team deciding how it reads.
+     *
+     * <p>{@code GameStateS2C.LOST} means the plant side lost rather than "somebody lost": the
+     * client's defeat screen is the original's, and it only ever plays for the player whose
+     * house is being eaten. A level that ends with the zombies winning therefore reports
+     * {@code LOST} - which on an endless level is the only way a run can end at all.
+     */
     private void markEnd(Team winnerTeam) {
         if (!gameState.equals(GameStateS2C.RUNNING) || winnerTeam == null) {
             return;
         }
-        gameState = GameStateS2C.WON;
+        gameState = PvzceIds.PLANT_TEAM.equals(winnerTeam.id())
+                ? GameStateS2C.WON
+                : GameStateS2C.LOST;
         winner = winnerTeam.id();
         // The level stops ticking, so anything that only gets cleared by a tick has to be
         // cleared here. The wave warning was the one that mattered: a win that lands
@@ -2263,6 +2576,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private boolean placePlantInternal(ServerBridge bridge, int slotIndex, int x, int y) {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             bridge.send(new ServerMessageS2C("游戏已经结束。"));
+            return false;
+        }
+        if (rejectWhileChoosingCards(bridge)) {
             return false;
         }
         if (!humanTeamId.equals(PvzceIds.PLANT_TEAM)) {
@@ -2430,6 +2746,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     private boolean useToolInternal(ServerBridge bridge, int slotIndex, int x, int y) {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
+            return false;
+        }
+        if (rejectWhileChoosingCards(bridge)) {
             return false;
         }
         if (!humanTeamId.equals(PvzceIds.PLANT_TEAM)) {
@@ -2817,7 +3136,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public void sendFullState(ServerBridge bridge) {
         Team plantTeam = plantPlayer != null ? plantPlayer.team() : null;
         LevelPayload payload = payloadFor(def, seedContext);
-        bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waves.waveTypes(), payload,
+        bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waves.roundWaveTypes(), payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
         withBridge(bridge, () -> {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
@@ -2845,6 +3164,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     Math.max(0F, currentMusicCue.fadeSeconds())));
         }
         bridge.send(waveProgressPacket());
+        bridge.send(roundSyncPacket());
         bridge.send(timeOfDayPacket());
         if (plantTeam != null) {
             for (Identifier resource : plantTeam.resourceIds()) {
@@ -2911,6 +3231,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // The run's own tally, so a resumed endless attempt keeps counting from where it was
         // rather than from zero.
         root.putInt("ZombieKills", zombieKills);
+        // The live rules, not the level's written ones: a mutation rewrites rules while the level
+        // runs ("it is night now" is four of them), and a save that kept only the definition would
+        // hand the player a daylight board with mushrooms that had gone to sleep in it.
+        java.util.Map<Identifier, Float> liveRules = rules.floatView();
+        java.util.Map<Identifier, Float> forSave = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<Identifier, Float> entry : liveRules.entrySet()) {
+            forSave.put(entry.getKey(), entry.getValue());
+        }
+        // The rules the file gets are the level's own, with every mutation's factor divided back
+        // out: a mutation writes into a live rule, so a save that wrote the live value would be
+        // read back by `applyFromSave` and multiplied a second time. The in-memory rules are put
+        // straight back, so nothing that reads them in the same tick sees the unwound value.
+        List<com.pvzce.common.level.mutation.MutationManager.RuleWrite> owned =
+                mutations == null ? List.of() : mutations.rulesForSave(liveRules, forSave);
+        root.put("Rules", rules.toNbt("Rules", forSave));
+        for (com.pvzce.common.level.mutation.MutationManager.RuleWrite written : owned) {
+            rules.set(written.rule(), written.value());
+        }
 
 
         // Teams, cards, resources and every entity live in one tag; the server no
@@ -3027,6 +3365,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             activeBuffs = com.pvzce.server.LevelBuffSelection.resolve(savedBuffs);
         }
         autoCollectTimers.clear();
+        // The rules as they were being played, before anything reads them: the saved board was
+        // saved under those rules, and a mutation that owns a share of them re-applies its own
+        // factor afterwards (see MutationManager.restore). A save written before this block
+        // existed keeps the level definition's rules, which is what it was played under.
+        if (root.contains("Rules")) {
+            rules.applySaved(root.getCompound("Rules"));
+        }
         // A save written before the sky had a countdown has no block here, and then the clock
         // stays at the opening delay this level's own rules gave it (see the constructor).
         sunDropClock.restore(root);

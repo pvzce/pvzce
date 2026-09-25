@@ -151,7 +151,7 @@ public final class WavePage implements EditorPage {
                 MathUtil.clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
         waveZombieList.setItems(BuiltInRegistries.ZOMBIES.keySet().stream()
                 .sorted()
-                .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, id, null))
+                .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, "zombie", id, null))
                 .toList());
 
         int actionW = Math.max(64, (listW - 6) / 2);
@@ -269,7 +269,7 @@ public final class WavePage implements EditorPage {
         if (waveEntryList != null) {
             waveEntryList.setItems(has
                     ? wave.entries.stream()
-                            .map(entry -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY,
+                            .map(entry -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, "zombie",
                                     Identifier.tryParse(entry.id), "×" + entry.count))
                             .toList()
                     : List.of());

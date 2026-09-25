@@ -217,6 +217,18 @@ public final class ChooseSeedsScreen extends Screen {
     private Button startButton;
     private Button clearButton;
     private Button backButton;
+    /**
+     * True when this chooser is picking the next round's cards rather than starting a run.
+     *
+     * <p>The two are the same page and almost the same question, and they differ in exactly two
+     * places: what the confirm button sends ({@code ReselectCardsC2S} rather than
+     * {@code PlayLevelC2S}), and what it is called ("开始下一轮" rather than "开始游戏"). Keeping
+     * them one screen is what stops the round chooser from drifting into a second, subtly
+     * different card picker.
+     */
+    private boolean nextRound;
+    /** The round this chooser is picking cards for, for the title; 0 when it starts a run. */
+    private int nextRoundNumber;
 
     /** One kind block ("resource" / "plant" / "tool") of the left-hand pool. */
     private static final class CardSection {
@@ -314,8 +326,33 @@ public final class ChooseSeedsScreen extends Screen {
                              Identifier background, List<String> hiddenSceneElements,
                              boolean dealsItsOwnCards, List<SeedOption> buffOptions,
                              int maxBuffSlots, List<String> lockedBuffs, List<String> initialBuffs) {
+        this(client, levelId, levelName, options, maxSeedSlots, previewZombies, levelWidth,
+                levelHeight, sceneCells, initialSelection, restart, onBack, lockedSlots,
+                background, hiddenSceneElements, dealsItsOwnCards, buffOptions, maxBuffSlots,
+                lockedBuffs, initialBuffs, false, 0);
+    }
+
+    /**
+     * The whole screen, including which question it is asking.
+     *
+     * @param nextRound       true to pick the next endless round's cards: the confirm button
+     *                        sends the choice to the running level instead of starting one, and
+     *                        there is nothing to back out to - the run is waiting on the answer
+     * @param nextRoundNumber the round the choice is for, one-based, for the title
+     */
+    public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
+                             List<SeedOption> options, int maxSeedSlots,
+                             List<String> previewZombies, int levelWidth, int levelHeight,
+                             List<SceneSyncS2C.Cell> sceneCells, List<String> initialSelection,
+                             boolean restart, Runnable onBack, List<String> lockedSlots,
+                             Identifier background, List<String> hiddenSceneElements,
+                             boolean dealsItsOwnCards, List<SeedOption> buffOptions,
+                             int maxBuffSlots, List<String> lockedBuffs, List<String> initialBuffs,
+                             boolean nextRound, int nextRoundNumber) {
         super(client);
         this.levelId = levelId;
+        this.nextRound = nextRound;
+        this.nextRoundNumber = Math.max(0, nextRoundNumber);
         this.background = background;
         this.sceneVisibility = SceneVisibility.of(hiddenSceneElements);
         this.levelName = levelName;
@@ -497,7 +534,8 @@ public final class ChooseSeedsScreen extends Screen {
         updateLayout();
         ensurePreviewAnimations();
 
-        startButton = new Button((int) panelX + 10, (int) panelY + 10, 10, 10, "开始游戏", this::start)
+        startButton = new Button((int) panelX + 10, (int) panelY + 10, 10, 10,
+                nextRound ? "开始下一轮" : "开始游戏", this::start)
                 .style(Button.Style.SEED_CHOOSER);
         clearButton = new Button((int) panelX + 10, (int) panelY + 10, 10, 10, "清空", this::clearSelection)
                 .style(Button.Style.SEED_CHOOSER);
@@ -957,6 +995,12 @@ public final class ChooseSeedsScreen extends Screen {
         // The card row in bar order and the buff row in its own order: the server re-sorts
         // nothing, and both lists become what the run starts with (and, for buffs, what this
         // world pre-selects next time).
+        if (nextRound) {
+            // The run is already going: this changes its bar and nothing else. The buffs are
+            // deliberately not re-sent - a round does not re-open the buff page.
+            client.reselectCards(levelId, new ArrayList<>(orderedSelection(selectedOrder)));
+            return;
+        }
         client.startLevelWithSeedsAndBuffs(levelId, restart, new ArrayList<>(orderedSelection(selectedOrder)),
                 new ArrayList<>(selectedBuffs));
     }
@@ -1488,16 +1532,22 @@ public final class ChooseSeedsScreen extends Screen {
                     hintScale, 1F, 0.88F, 0.5F, alpha);
         }
 
-        if (levelName != null && !levelName.isBlank()) {
+        // The round chooser's label replaces the level's name rather than sitting beside it: the
+        // player already knows which level they are in - they are standing on it - and "第 3 轮"
+        // is the only thing this screen has to say about where the choice lands.
+        String label = nextRound
+                ? "第 " + Math.max(1, nextRoundNumber) + " 轮 · 选择卡牌"
+                : levelName;
+        if (label != null && !label.isBlank()) {
             float levelScale = MathUtil.clamp(panelW / 420F, 0.5F, 0.75F);
             float available = startButtonX - (clearButtonX + clearButtonW) - 8F;
             if (available >= 24F) {
-                float width = client.fonts().body().width(levelName, levelScale);
+                float width = client.fonts().body().width(label, levelScale);
                 if (width > available) {
                     levelScale *= available / Math.max(1F, width);
-                    width = client.fonts().body().width(levelName, levelScale);
+                    width = client.fonts().body().width(label, levelScale);
                 }
-                client.fonts().body().draw(levelName,
+                client.fonts().body().draw(label,
                         (clearButtonX + clearButtonW + startButtonX) / 2F + shift - width / 2F,
                         startButtonY + (startButtonH - client.fonts().body().lineHeight(levelScale)) / 2F,
                         levelScale, 0.9F, 0.82F, 0.62F, alpha);

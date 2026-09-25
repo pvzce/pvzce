@@ -72,7 +72,7 @@ public final class RulePage {
                 continue;
             }
             String path = "rules." + id;
-            String label = GuiLang.name(id);
+            String label = GuiLang.name("game_rule", id);
             if (type instanceof GameRuleType.BooleanRule booleanRule) {
                 page.field(FieldWidgets.bool(path, label, "开", "关",
                         Optional.of(Boolean.TRUE.equals(booleanRule.defaultValue()))));

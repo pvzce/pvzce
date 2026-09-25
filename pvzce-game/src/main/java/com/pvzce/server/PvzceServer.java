@@ -655,9 +655,20 @@ public final class PvzceServer implements Runnable {
         return currentWorld != null ? currentWorld : "world";
     }
 
-    /** The wallet, card slots, buff slots and unlocks, in the one shape the client understands. */
+    /**
+     * The wallet, card slots, buff slots and unlocks, in the one shape the client understands.
+     *
+     * <p>{@code pvzce.smokeUnlockAll} flips the flag on the way out, for the screenshot runs that
+     * need to see a page a new world cannot reach: the almanac draws a locked plant as a
+     * silhouette, so "what an entry looks like once you own it" is otherwise 32 levels of play
+     * away. The flag is a display fact the client re-checks nothing against - every card pool the
+     * server hands out is filtered by the same profile - and it is only ever set by a smoke
+     * property, so a normal run cannot reach this branch.
+     */
     private static ProfileS2C profilePacket(PlayerProfile profile) {
-        return new ProfileS2C(profile.coins(), profile.unlockedIds(), profile.unlocksEverything(),
+        boolean unlockAll = profile.unlocksEverything()
+                || Boolean.getBoolean("pvzce.smokeUnlockAll");
+        return new ProfileS2C(profile.coins(), profile.unlockedIds(), unlockAll,
                 profile.unlockedLevelIds(), profile.seedSlots(), profile.buffSlots(),
                 profile.autoBuffIds());
     }
@@ -943,6 +954,9 @@ public final class PvzceServer implements Runnable {
             // the simulation frozen until the client chooses continue/restart. A load only
             // ever happens for "continue", so the question always still needs asking.
             savePromptPending = true;
+            // Remembered so a discard can be checked against the run the prompt was actually
+            // about, rather than against whatever the client names.
+            pendingSaveLevel = id;
             connection.send(new LevelSavePromptS2C(id.toString(), safeWorld, def.displayName(),
                     saveTag.getInt("Tick"), saveTag.getInt("PlantCount"), saveTag.getInt("Sun")));
         }
@@ -993,6 +1007,44 @@ public final class PvzceServer implements Runnable {
         levelFinishHandled = false;
         connection.send(new ServerMessageS2C("关卡已退出。"));
     }
+
+    /**
+     * Deletes the run left on disk for a level, on the player's word.
+     *
+     * <p>The other half of the save prompt's 重新开始: the chooser that opens next can be backed out
+     * of, and the player who does so has still refused the run they were shown. Refuses anything
+     * but the level they are actually being asked about, so a stale or hostile packet cannot delete
+     * a different level's save.
+     */
+    private void discardSavedRun(com.pvzce.common.network.packet.DiscardLevelSaveC2S discard) {
+        Identifier id = Identifier.tryParse(discard.levelId());
+        if (id == null || discard.worldName() == null || discard.worldName().isBlank()) {
+            return;
+        }
+        // Two states are legitimate: the player is looking at this level's save prompt right now,
+        // or they have stepped out of the level to answer it (leaving clears the prompt, and the
+        // answer has to survive that). Anything else - a level actually being played, or a level
+        // that is not the one the prompt named - is refused, so a stale or hostile packet cannot
+        // delete a running game's own file.
+        boolean promptOpen = savePromptPending && id.equals(pendingSaveLevel);
+        boolean steppedOut = level == null;
+        if (!promptOpen && !steppedOut) {
+            LOGGER.debug("Ignoring a discard for {}; the save prompt is about {}", id, pendingSaveLevel);
+            return;
+        }
+        Path saveDir = LevelKey.levelDir(WorldPaths.worldDir(gameDir, discard.worldName()), id);
+        WorldStore.deleteRunningSave(saveDir);
+        pendingSaveLevel = null;
+        LOGGER.info("Discarded the saved run for {}", id);
+    }
+
+    /**
+     * The level whose save prompt is currently open, or {@code null}.
+     *
+     * <p>A save is only discarded on the player's word for the run they were actually shown: the
+     * prompt names a level, and this is what makes {@link #discardSavedRun} check that name.
+     */
+    private Identifier pendingSaveLevel;
 
     public void saveGame() {
         LevelServer current = level;
@@ -1159,6 +1211,19 @@ public final class PvzceServer implements Runnable {
                         current.useGrantedTool(bridge, data, granted.gridX(), granted.gridY());
                     }
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.ReselectCardsC2S reselect) {
+                // The endless round-clear chooser's answer. Answered only by the run it names:
+                // a card choice for another level (or for a run that has already moved on) is
+                // dropped rather than applied to whatever happens to be loaded.
+                if (current != null && currentWorld != null
+                        && current.def().id().toString().equals(reselect.levelId())
+                        && currentWorld.equals(WorldPaths.sanitize(reselect.worldName()))) {
+                    List<Identifier> cards = SeedSelection.sanitize(current.def(),
+                            seedIds(reselect.selectedSeeds()), worlds.profileFor(currentWorld));
+                    current.reselectCards(cards, bridge);
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.DiscardLevelSaveC2S discard) {
+                discardSavedRun(discard);
             } else if (packet instanceof CollectResourceC2S collect) {
                 if (current != null) {
                     current.collectResource(bridge, collect.entityId());

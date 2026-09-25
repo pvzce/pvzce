@@ -37,9 +37,9 @@ import java.util.Optional;
  *
  * <p>What they are: the original's Survival Endless on the day pool, with the mutation system
  * switched on. Six rows, water in the middle two, mowers on the land rows and pool cleaners in the
- * water; twelve card slots and ten buff slots; no victory condition that a player will ever reach,
- * because the wave table is nine thousand nine hundred and ninety waves long and inflates as it
- * goes.
+ * water; twelve card slots and ten buff slots; no victory condition a player will ever reach,
+ * because the waves do not run out - each round is generated, and the next one is heavier (see
+ * {@code pvzce:mutation_endless}).
  *
  * <p>Registration happens from {@code BuiltInRegistries.bootstrap()} like every other code-defined
  * entry, so the levels exist before any data pack is read and a pack that ships its own levels sits
@@ -123,7 +123,7 @@ public final class MutationLevels {
                 List.of(onStartHint()),
                 List.of(PvzceIds.PLANT_TEAM),
                 Optional.of(Identifier.withDefaultNamespace(
-                        "textures/gui/screen/level/background4")),
+                        "textures/gui/screen/level/background3")),
                 // The lawn is hidden because the backdrop already draws it: the terrain still
                 // exists for the simulation (it decides where a Lily Pad may go), but painting
                 // it as well would put a second lawn on top of the first.
@@ -194,7 +194,11 @@ public final class MutationLevels {
     /** The mechanics every tier declares. */
     private static List<TypedMechanic> mechanics() {
         List<TypedMechanic> mechanics = new ArrayList<>();
-        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_ENDLESS, MechanicData.Empty.INSTANCE));
+        // The endless block names its schedule rather than being an empty marker: which curve
+        // this mode grows on is the one thing about its waves the level still gets to say.
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_ENDLESS,
+                new com.pvzce.common.level.mechanic.EndlessMechanic.Data(
+                        PvzceIds.ENDLESS_SCHEDULE_MUTATION)));
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION, MechanicData.Empty.INSTANCE));
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER, poolMowers()));
         // A deck, written out rather than left implicit: the level's cards come from the player's

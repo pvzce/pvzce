@@ -1,5 +1,6 @@
 package com.pvzce.client.gui.screens;
 
+import com.pvzce.api.util.Identifier;
 import com.pvzce.client.gui.GuiLang;
 
 import com.google.gson.JsonArray;
@@ -143,7 +144,7 @@ public final class WaveEditorModel {
                     text.append(", ");
                 }
                 EntryModel entry = entries.get(i);
-                text.append(entry.count).append("× ").append(GuiLang.name(entry.id));
+                text.append(entry.count).append("× ").append(GuiLang.name("zombie", Identifier.tryParse(entry.id)));
             }
             return text.toString();
         }
