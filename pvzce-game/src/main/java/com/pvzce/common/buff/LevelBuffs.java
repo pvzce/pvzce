@@ -69,6 +69,21 @@ public final class LevelBuffs {
         return multiplier;
     }
 
+    /**
+     * How many columns right the fog's boundary moves for this run.
+     *
+     * <p>Summed rather than maximised: two copies of a "shorter fog" buff - a level that pins one
+     * and a player who brought one - are two reasons to see further, and a maximum would silently
+     * discard one of them.
+     */
+    public static float fogRetreat(List<LevelBuff> active) {
+        float columns = 0F;
+        for (LevelBuff buff : active == null ? List.<LevelBuff>of() : active) {
+            columns += Math.max(0F, buff.fogRetreat());
+        }
+        return columns;
+    }
+
     /** True when any active buff picks resources up on its own. */
     public static boolean autoCollects(List<LevelBuff> active) {
         for (LevelBuff buff : active == null ? List.<LevelBuff>of() : active) {

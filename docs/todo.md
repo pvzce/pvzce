@@ -16,29 +16,7 @@
 `ShooterCapability` 的 `pendingShots` 已经有一套现成的倒计时，接上去不难。
 它是玩法节奏的改动而不是动画修复，所以这一轮没有做。
 
-## 1. 关卡增益的贴图仍是借来的
-
-两个内置增益的图标（`common/buff/BuiltInBuffs`）现在是**复用已有素材**的占位：
-
-| 增益 | 现在画的 | 应该画成 |
-|---|---|---|
-| `pvzce:auto_collect`（自动拾取） | `pvzce:textures/resource/sun`（资源目录里那张阳光） | 一个"拾取"图标的正式贴图 |
-| `pvzce:mushroom_range`（远距蘑菇） | `pvzce:textures/gui/cards/puff_shroom`（小喷菇的卡面图标） | 一个"射程"图标的正式贴图 |
-
-要换的时候只改两个地方，别的一行都不用动：
-
-1. `BuiltInBuffs` 里那个 `Identifier`（`BuffIcon.of(texture)`）；
-2. 如果新贴图是**图集里的一块**而不是一张独立 PNG，改用
-   `new LevelBuff.BuffIcon(texture, u0, v0, u1, v1)` —— `BuffIconRow` 已经会走
-   `drawTextureRegion`，`SeedCardRenderer` 那条路需要补一次同样的分支。
-
-贴图放哪：`assets/pvzce/textures/gui/buff/<名字>.png`（新目录），命名跟增益的 path 一致，
-例如 `auto_collect.png` / `mushroom_range.png`。UI 图标在项目里都是
-`textures/gui/...` 这一族（见 `textures/gui/hud/sun_bank.png`），增益图标属于同一层。
-
-> 注意 `SeedCardRenderer` 会把图标按自身宽高比塞进卡片的图标窗，所以新贴图**方形**最省事。
-
-## 1b. 奖励页上的增益卡用的是种子包的框
+## 1. 奖励页上的增益卡用的是种子包的框
 
 1-9 / 2-9 首通时，草坪上落下的与结算页相框里放的是**增益自己的图标 + 种子包的框**（`SeedCardRenderer` 的
 `CardKind.BUFF` 只决定"不印价格"）。这不是占位，只是取舍：项目里没有第二套"奖励卡"边框，

@@ -68,6 +68,22 @@ public interface LevelBuff {
         return false;
     }
 
+    /**
+     * How many columns further right the fog's boundary sits while this buff is on.
+     *
+     * <p>Zero for every buff that has nothing to say about fog, which is all of them but the one
+     * the world-4 reward hands out. A distance in columns rather than a multiplier: "the fog is a
+     * column and a half shorter" is what the player was promised, and a multiplier would mean
+     * something different on a nine-column board than on a six-row one.
+     *
+     * <p>Read by {@code LevelServer.fogData()}, which is the single place the fog's final span is
+     * decided - so a mutation, a lamp and this buff all end up in one answer rather than three
+     * that have to be reconciled by the renderer.
+     */
+    default float fogRetreat() {
+        return 0F;
+    }
+
     /** A texture and, optionally, the sub-rectangle of it this icon occupies. */
     record BuffIcon(Identifier texture, float u0, float v0, float u1, float v1) {
         /** No icon: the chooser draws the level's placeholder and the tooltip still names it. */

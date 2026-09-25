@@ -69,6 +69,11 @@ class LevelBuffSelectionTest {
                 LevelDef.LevelMusicDef.DEFAULT, List.of())).build();
     }
 
+    /** Every buff the game registers, in registration order. */
+    private static List<Identifier> everyRegisteredBuff() {
+        return List.copyOf(com.pvzce.common.core.BuiltInRegistries.LEVEL_BUFFS.keySet());
+    }
+
     private static List<String> names(List<Identifier> ids) {
         return ids.stream().map(Identifier::toString).toList();
     }
@@ -99,13 +104,17 @@ class LevelBuffSelectionTest {
         java.util.function.Predicate<Identifier> ownsRange = RANGE::equals;
 
         List<SeedOption> pool = LevelBuffSelection.chooserPool(def, ownsNothing);
-        assertEquals(names(List.of(AUTO, RANGE)), pool.stream().map(SeedOption::slotId).toList(),
-                "both are still listed, so the player can see what exists");
+        // Read from the registry, not written down: the claim is "every buff exists in the pool
+        // even when the player owns none of them", and a literal list would make adding a buff
+        // look like a regression in a test that is not about that buff.
+        assertEquals(names(everyRegisteredBuff()), pool.stream().map(SeedOption::slotId).toList(),
+                "every buff is still listed, so the player can see what exists");
         assertTrue(pool.stream().allMatch(option ->
                         option.costSun() == com.pvzce.common.core.SeedOptions.LOCKED_OPTION),
-                "and both are marked locked");
+                "and all of them are marked locked");
 
-        assertEquals(List.of(), names(LevelBuffSelection.sanitize(def, 5, List.of(AUTO, RANGE), ownsNothing)),
+        assertEquals(List.of(),
+                names(LevelBuffSelection.sanitize(def, 5, List.of(AUTO, RANGE), ownsNothing)),
                 "a locked buff cannot be submitted");
         assertEquals(names(List.of(RANGE)),
                 names(LevelBuffSelection.sanitize(def, 5, List.of(AUTO, RANGE), ownsRange)),
@@ -160,7 +169,8 @@ class LevelBuffSelectionTest {
         LevelDef def = level(List.of(PLAYER_CHOICE), 3);
         assertTrue(def.offersBuffChoice());
         List<SeedOption> pool = LevelBuffSelection.chooserPool(def);
-        assertEquals(names(List.of(AUTO, RANGE)), pool.stream().map(SeedOption::slotId).toList());
+        assertEquals(names(everyRegisteredBuff()),
+                pool.stream().map(SeedOption::slotId).toList());
         assertTrue(def.buffPlan().fixedBuffs().isEmpty(), "the marker is not a fixed buff");
     }
 

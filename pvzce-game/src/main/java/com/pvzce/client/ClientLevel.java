@@ -619,6 +619,23 @@ public final class ClientLevel {
         return (T) mechanicState.computeIfAbsent(mechanicId, id -> create.get());
     }
 
+    /** Writes a mechanic's own run state; the counterpart of {@link #mechanicState}. */
+    public void setMechanicState(Identifier mechanicId, Object state) {
+        mechanicState.put(mechanicId, state);
+    }
+
+    /**
+     * A mechanic's run state if it has one, without creating it.
+     *
+     * <p>The difference from {@link #mechanicState} matters for anything read per frame: creating
+     * the slot as a side effect of asking whether it exists would make a level that never synced
+     * the mechanic look like one that had, and a renderer must not mutate what it draws.
+     */
+    public <T> T mechanicStateOrNull(Identifier mechanicId, Class<T> type) {
+        Object state = mechanicState.get(mechanicId);
+        return type.isInstance(state) ? type.cast(state) : null;
+    }
+
     /** The level's plantable area, or the whole board when it restricts nothing. */
     public com.pvzce.api.content.PlacementZone placementZone() {
         com.pvzce.api.content.PlacementZone zone = mechanicData(

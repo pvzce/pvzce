@@ -68,9 +68,13 @@ class LevelBuffFlowTest {
         Path dir = gameDir();
         try (ServerHarness harness = ServerHarness.createWithWorld(dir, WORLD, true)) {
             LevelListS2C.LevelInfo info = levelInfo(harness, CHOICE_LEVEL);
-            assertEquals(List.of(AUTO.toString(), RANGE.toString()),
+            // Read from the registry rather than written down: the claim is "the whole catalogue
+            // is on offer", and a literal list turns every new buff into a failure of a test that
+            // is about the offer reaching the client at all.
+            assertEquals(com.pvzce.common.core.BuiltInRegistries.LEVEL_BUFFS.keySet().stream()
+                            .map(com.pvzce.api.util.Identifier::toString).toList(),
                     info.payload().buffPool().stream().map(SeedOption::slotId).toList(),
-                    "both built-ins are on offer for a level that opted in");
+                    "the whole catalogue is on offer for a level that opted in");
             assertEquals(com.pvzce.common.PvzceConstants.DEFAULT_BUFF_SLOTS, info.payload().maxBuffSlots(),
                     "a level that declares no count follows the backpack");
             assertEquals(List.of(), info.payload().activeBuffs(),
@@ -129,13 +133,14 @@ class LevelBuffFlowTest {
             // so the *gate under test* is the buff one rather than the level one. Written through
             // the store rather than by faking a level unlock, so the entry flow is the real one.
             clearPrerequisitesOfChoiceLevel(dir);
-            // Nothing granted: both built-ins are listed for a level that offers them, and both
-            // are padlocked - so the run gets neither.
+            // Nothing granted: every buff is listed for a level that offers them, and all of them
+            // are padlocked - so the run gets none.
             LevelListS2C.LevelInfo info = levelInfo(harness, CHOICE_LEVEL);
-            assertEquals(2, info.payload().buffPool().size(), "both are still listed");
+            assertEquals(com.pvzce.common.core.BuiltInRegistries.LEVEL_BUFFS.size(),
+                    info.payload().buffPool().size(), "all of them are still listed");
             assertTrue(info.payload().buffPool().stream().allMatch(option -> option.costSun()
                             == com.pvzce.common.core.SeedOptions.LOCKED_OPTION),
-                    "and both are padlocked");
+                    "and all of them are padlocked");
 
             harness.clear();
             harness.send(new PlayLevelC2S(CHOICE_LEVEL, WORLD, true, List.of(),

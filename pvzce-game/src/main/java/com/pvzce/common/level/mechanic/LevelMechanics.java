@@ -48,6 +48,7 @@ public final class LevelMechanics {
     public static final PlacementZoneMechanic PLACEMENT_ZONE = new PlacementZoneMechanic();
     public static final MowerMechanic MOWER = new MowerMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
+    public static final FogMechanic FOG = new FogMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
     public static final GraveFieldMechanic GRAVE_FIELD = new GraveFieldMechanic();
     public static final WavePacingMechanic WAVE_PACING = new WavePacingMechanic();
@@ -66,6 +67,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_PLACEMENT_ZONE, PLACEMENT_ZONE);
         register(PvzceIds.MECHANIC_MOWER, MOWER);
         register(PvzceIds.MECHANIC_TOOL, TOOL);
+        register(PvzceIds.MECHANIC_FOG, FOG);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
         register(PvzceIds.MECHANIC_GRAVE_FIELD, GRAVE_FIELD);
         register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
@@ -81,6 +83,27 @@ public final class LevelMechanics {
 
     public static LevelMechanic<?> get(Identifier id) {
         return BuiltInRegistries.LEVEL_MECHANICS.get(id);
+    }
+
+    /**
+     * The fog a level declares, or {@code null} when it declares none.
+     *
+     * <p>Static rather than an instance call because the question is asked of a definition: the
+     * level list, the renderer's registration and {@code LevelServer.fogData} all want to know
+     * "does this level have fog" without a running level.
+     */
+    public static com.pvzce.api.content.FogData fogData(
+            com.pvzce.api.content.LevelDef def) {
+        if (def == null) {
+            return null;
+        }
+        for (com.pvzce.api.content.mechanic.TypedMechanic mechanic : effective(def)) {
+            if (mechanic.type().equals(PvzceIds.MECHANIC_FOG)
+                    && mechanic.value() instanceof com.pvzce.api.content.FogData fog) {
+                return fog;
+            }
+        }
+        return null;
     }
 
     /** True when the registered mechanic with that id decides where the cards come from. */

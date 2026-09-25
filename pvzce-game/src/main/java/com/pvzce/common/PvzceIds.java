@@ -303,6 +303,13 @@ public final class PvzceIds {
      */
     public static final Identifier MECHANIC_TOOL = id("tool");
     /**
+     * Fog over part of the board (world 4).
+     *
+     * <p>Read by the client's renderer and by the plantern's own capability; nothing about the
+     * simulation consults it, which is what makes the whole feature a presentation one.
+     */
+    public static final Identifier MECHANIC_FOG = id("fog");
+    /**
      * Graves that keep giving up their dead while the level runs.
      *
      * <p>Whack-a-Zombie's shape: the level's zombies come out of the gravestones, not off the
@@ -438,6 +445,14 @@ public final class PvzceIds {
      * {@code BuiltInBuffs.MUSHROOM_RANGE_FACTOR}, because this table is names, not numbers.
      */
     public static final Identifier BUFF_MUSHROOM_RANGE = id("mushroom_range");
+    /**
+     * The fog over world 4 is a column and a half shorter.
+     *
+     * <p>The reward for 4-9, and the one buff that exists purely so the player can answer the
+     * thing that has been beating them for nine levels. The distance is
+     * {@code BuiltInBuffs.FOG_RETREAT_COLUMNS}; this table is names, not numbers.
+     */
+    public static final Identifier BUFF_FOG_RETREAT = id("fog_retreat");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

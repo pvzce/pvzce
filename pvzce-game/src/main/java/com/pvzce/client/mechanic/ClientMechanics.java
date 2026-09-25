@@ -36,6 +36,7 @@ public final class ClientMechanics {
         register(new PlacementZoneClientMechanic());
         register(new MowerClientMechanic());
         register(new ToolClientMechanic());
+        register(new FogClientMechanic());
     }
 
     public static void register(ClientMechanic mechanic) {

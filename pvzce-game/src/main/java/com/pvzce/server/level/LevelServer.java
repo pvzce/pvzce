@@ -260,6 +260,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private int zombieKills;
     /** Per-mechanic run state; see {@link #mechanicState}. */
     private final Map<Identifier, Object> mechanicState = new HashMap<>();
+    /** A fog a mutation installed, or {@code null} while the level's own answer stands. */
+    private com.pvzce.api.content.FogData fogOverride;
     private ServerBridge bridge;
 
     private int tickCount;
@@ -1424,6 +1426,48 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public <T> T mechanicState(Identifier mechanicId, java.util.function.Supplier<T> create) {
         return (T) mechanicState.computeIfAbsent(mechanicId, id -> create.get());
     }
+
+    /** Writes a mechanic's own run state. The counterpart of {@link #mechanicState}. */
+    public void setMechanicState(Identifier mechanicId, Object state) {
+        mechanicState.put(mechanicId, state);
+    }
+
+    /**
+     * How much fog this board has right now, and where it starts.
+     *
+     * <p>The one place the question is answered, because three things have an opinion about it:
+     * the level's own {@code pvzce:fog} block, a mutation that rolled the fog in on a lawn that
+     * never declared any, and the fog-retreat buff the player brought. Folding them here means the
+     * renderer draws one picture and none of the three has to know about the others.
+     *
+     * <p>Absent everywhere, the answer is "no fog": a span that ends before it starts, so
+     * {@code alphaAt} is zero for every column and the client registers nothing to draw.
+     */
+    public com.pvzce.api.content.FogData fogData() {
+        com.pvzce.api.content.FogData base = fogOverride != null
+                ? fogOverride
+                : com.pvzce.common.level.mechanic.LevelMechanics.fogData(def);
+        if (base == null) {
+            return NO_FOG;
+        }
+        return base.retreatedBy(com.pvzce.common.buff.LevelBuffs.fogRetreat(activeBuffs));
+    }
+
+    /**
+     * Installs a fog the level did not declare, or clears one with {@code null}.
+     *
+     * <p>For mutations. It is an override rather than a rewrite of the definition because the
+     * definition belongs to the level file and a mutation is a temporary fact about this run: when
+     * the mutation is evicted, {@code null} restores exactly what the level asked for, with no
+     * copy of it kept anywhere.
+     */
+    public void setFogOverride(com.pvzce.api.content.FogData fog) {
+        this.fogOverride = fog;
+    }
+
+    /** The fog a board with none at all reports: a span that draws nothing. */
+    private static final com.pvzce.api.content.FogData NO_FOG =
+            new com.pvzce.api.content.FogData(0F, 0F, 0F);
 
     /**
      * Lawn mowers still parked in their row, which a win pays out as coins.

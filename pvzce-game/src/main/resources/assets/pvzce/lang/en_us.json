@@ -564,5 +564,9 @@
   "zombie_capability.pvzce.hammer": "Hammer",
   "zombie_capability.pvzce.submerge": "Submerge",
   "zombie_capability.pvzce.summon_dancers": "Summon Dancers",
-  "zombie_capability.pvzce.vault": "Vault"
+  "zombie_capability.pvzce.vault": "Vault",
+  "pvzce.mechanic.fog.field.start_column": "Fog starts at column",
+  "pvzce.mechanic.fog.field.end_column": "Fog fully dark at column",
+  "pvzce.mechanic.fog.field.max_alpha": "Fog opacity",
+  "level_buff.pvzce.fog_retreat": "Fog Retreat"
 }

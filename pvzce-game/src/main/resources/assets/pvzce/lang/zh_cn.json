@@ -564,5 +564,9 @@
   "zombie_capability.pvzce.hammer": "重锤",
   "zombie_capability.pvzce.submerge": "潜水",
   "zombie_capability.pvzce.summon_dancers": "召唤伴舞",
-  "zombie_capability.pvzce.vault": "翻越"
+  "zombie_capability.pvzce.vault": "翻越",
+  "pvzce.mechanic.fog.field.start_column": "雾起始列",
+  "pvzce.mechanic.fog.field.end_column": "雾最浓列",
+  "pvzce.mechanic.fog.field.max_alpha": "雾最大浓度",
+  "level_buff.pvzce.fog_retreat": "迷雾退缩"
 }
