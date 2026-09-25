@@ -521,6 +521,11 @@ public final class MutationManager {
         // back, and the card-bar handoff).
         entries.add(entry);
         recompute();
+        announce(mutation, roll);
+        // Last, and on purpose: `announce` reads the state `recompute` just installed, and the
+        // state packet is the one the client redraws its panel from. Sending it first would put
+        // the two out of order on the wire - the panel would learn about the mutation before the
+        // banner that explains it, and a caller collecting the packets would see them reversed.
         sendState(true);
         return entry;
     }
@@ -710,7 +715,19 @@ public final class MutationManager {
 
     /** Tells the player what just appeared. */
     private void announce(Mutation mutation, Mutation.Roll roll) {
-        String text = MutationText.banner(mutation, roll, level);
+        // A mutation that can say what it actually did says it; the generic name-and-multiplier
+        // line is the fallback. See Mutation.announcement.
+        MutationEntry entry = null;
+        for (MutationEntry candidate : entries) {
+            if (candidate.mutation() == mutation && candidate.roll() == roll) {
+                entry = candidate;
+                break;
+            }
+        }
+        String text = (entry == null ? java.util.Optional.<String>empty()
+                : mutation.announcement(level, roll, entry.state()))
+                .filter(line -> !line.isBlank())
+                .orElseGet(() -> MutationText.banner(mutation, roll, level));
         if (!text.isEmpty()) {
             level.send(new ServerMessageS2C(text));
         }
@@ -733,6 +750,22 @@ public final class MutationManager {
             return;
         }
         sendState(false);
+    }
+
+    /**
+     * Tells the client its buffs changed, now.
+     *
+     * <p>Called by the buff-shift mutation through {@code LevelServer.setActiveBuffs}. Forced,
+     * because the heartbeat's own condition is "the mutation list changed or the resync is due",
+     * and a buff shift is neither: without this the icon row would keep showing the buffs the run
+     * started with until the next mutation arrived - which, at the higher tiers' intervals, could
+     * be most of a round.
+     *
+     * <p>Nothing is invented here: the packet has carried the list since it gained the field, so
+     * this is only "send it a tick early".
+     */
+    public void buffsChanged() {
+        sendState(true);
     }
 
     /** Sends the mutation list now. */
@@ -771,6 +804,8 @@ public final class MutationManager {
                 beltCapacity(),
                 lastEffects,
                 tools,
+                com.pvzce.server.LevelBuffSelection.resolveIds(level.activeBuffs()).stream()
+                        .map(com.pvzce.api.util.Identifier::toString).toList(),
                 wire));
         lastSentTick = level.tickCount();
         lastSentEntryCount = entries.size();

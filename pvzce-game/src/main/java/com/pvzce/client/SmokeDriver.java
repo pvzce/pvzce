@@ -228,7 +228,7 @@ final public class SmokeDriver {
                         page.toUpperCase(java.util.Locale.ROOT)));
                 String entry = System.getProperty("pvzce.smokeAlmanacEntry", "");
                 if (!entry.isBlank()) {
-                    almanac.showEntry(Integer.parseInt(entry));
+                    almanac.selectEntry(Integer.parseInt(entry));
                 }
             }
         } else if ("award".equals(smokeScreen)) {
@@ -513,6 +513,10 @@ final public class SmokeDriver {
                 || !(screen instanceof com.pvzce.client.gui.screens.AlmanacScreen almanac)) {
             return;
         }
+        // This hook runs before the client initializes the screen for the frame, and a screen is
+        // initialized lazily - so a page asked for here would be thrown away a moment later by
+        // init() rebuilding its catalogues. Initialize first, then steer.
+        screen.initIfNeeded();
         for (String item : smokeAlmanacShots.split(",")) {
             String[] parts = item.trim().split(":");
             if (parts.length < 2) {
@@ -536,7 +540,7 @@ final public class SmokeDriver {
                 almanac.show(com.pvzce.client.gui.almanac.AlmanacEntries.Page.valueOf(
                         page.toUpperCase(java.util.Locale.ROOT)));
                 if (parts.length > 2) {
-                    almanac.showEntry(Integer.parseInt(parts[2].trim()));
+                    almanac.selectEntry(Integer.parseInt(parts[2].trim()));
                 }
             }
             System.out.println("[SMOKE] almanac frame " + frame + " -> " + item.trim()

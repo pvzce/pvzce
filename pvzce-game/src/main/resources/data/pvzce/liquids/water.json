@@ -15,7 +15,12 @@
     "amplitude": 0.55,
     "density": 2
   },
-  "caustics": 0.22,
+  "caustics": {
+    "strength": 0.22,
+    "texture": "pvzce:textures/scene/water_caustics",
+    "scale": 0.3333,
+    "scroll": 0.02
+  },
   "reflect_color": "#9FC7E8",
   "fresnel": 0.35,
   "specular": 0.35,

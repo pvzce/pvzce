@@ -6,6 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.LevelAccess;
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.PvzceSounds;
@@ -54,6 +55,19 @@ public final class BowlCapability implements PlantCapability {
      * that one is just the nut doing its job.
      */
     public static final int DEFAULT_COIN_FROM_HIT = 2;
+    /**
+     * Ticks a nut waits before it may damage another zombie.
+     *
+     * <p>Six ticks is 100 ms: long enough that one pass through a stack of zombies is a chain of
+     * separate hits rather than one hit per tick, short enough that a fast nut does not tunnel
+     * through a crowd. It is also shorter than the client's 130 ms repeat window for one event,
+     * which is why {@link #impactSound(int)} alternates two ids.
+     */
+    private static final int HIT_COOLDOWN_TICKS = 6;
+    /** How many hits the pitch ladder climbs over before it stops rising. */
+    private static final int PITCH_CAP_HITS = 8;
+    /** How far the pitch has risen by the time the chain reaches {@link #PITCH_CAP_HITS}. */
+    private static final float PITCH_RISE = 0.19F;
 
     private final float speed;
     private final int damage;
@@ -200,14 +214,14 @@ public final class BowlCapability implements PlantCapability {
         hits++;
         target.damageImpact(damage, level);
         level.emitEffect(PvzceParticles.HIT_SPARK.toString(), target.cellX(), target.cellY(),
-                PvzceSounds.EFFECT_BONK);
+                impactSound(hits), 1F, impactPitch(hits));
         if (hits >= coinFromHit) {
             // The ladder from the original: one coin on the second zombie, two on the
             // third, three on the fourth, and so on. The coin itself is the level's.
             level.dropCoin(target.cellX(), target.cellY(), hits - coinFromHit + 1);
             level.emitEffect("", plant.cellX(), plant.cellY(), PvzceSounds.UI_POINTS);
         }
-        hitCooldown = 6;
+        hitCooldown = HIT_COOLDOWN_TICKS;
         if (ricochet) {
             // Knocked into the next lane, still going forward. `ricochet: false` keeps it
             // rolling straight; there is no "bounce back" mode, because a ball that turns
@@ -216,6 +230,33 @@ public final class BowlCapability implements PlantCapability {
         } else {
             directionY = 0F;
         }
+    }
+
+    /** The impact sound for a hit, counting from one. */
+    public static Identifier impactSound(int hit) {
+        return (hit & 1) == 1
+                ? PvzceSounds.PROJECTILE_BOWLING_IMPACT
+                : PvzceSounds.PROJECTILE_BOWLING_IMPACT_ALT;
+    }
+
+    /**
+     * The pitch a hit plays at, rising a little with the chain.
+     *
+     * <p>The coin ladder is the original's way of saying "this run is going well"; the ear should
+     * hear it too. Nearly three semitones over eight hits - 1.19x at the top - is enough to read
+     * as climbing without turning into a slide whistle, and it is capped so a nut that somehow
+     * lives forever cannot run the pitch off the top of the range.
+     *
+     * <p>Both of these are static and take the hit count rather than reading {@link #hits},
+     * because that is the only way they can be pinned: a test that wants the second hit's sound
+     * otherwise has to steer a ricocheting nut into two zombies, which is a game of chance rather
+     * than an assertion. The two ids are not decoration either - a nut hits every
+     * {@link #HIT_COOLDOWN_TICKS} ticks (100 ms) and the client folds repeats of one event inside
+     * 130 ms, so a single id would swallow most of a long chain.
+     */
+    public static float impactPitch(int hit) {
+        int step = Math.min(Math.max(hit, 1), PITCH_CAP_HITS) - 1;
+        return 1F + step * (PITCH_RISE / PITCH_CAP_HITS);
     }
 
     /**

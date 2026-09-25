@@ -33,6 +33,13 @@ import java.util.List;
  * @param tools          the tools a mutation granted, in full: the client's click handler has to
  *                       know which one it is holding and on what terms, and it has no other way to
  *                       learn about a tool that is not in the level's file
+ * @param activeBuffs    the level buffs in force <em>right now</em>, as ids. They travel here
+ *                       rather than in a packet of their own because a mutation is what changes
+ *                       them: the buff-shift mutation rewrites the list mid-level, and before
+ *                       this field the client only ever heard the list once, in the level init,
+ *                       so the icons in the corner kept showing what the run started with. The
+ *                       panel already re-reads this packet whenever it arrives, so a buff that
+ *                       changes shows up on the same frame as the mutation that changed it
  * @param entries        every mutation on the field, oldest first
  */
 public record MutationStateS2C(
@@ -45,6 +52,7 @@ public record MutationStateS2C(
         int beltCapacity,
         int effects,
         List<ToolGrant> tools,
+        List<String> activeBuffs,
         List<Entry> entries
 ) implements PvzcePacket {
     /**
@@ -92,6 +100,7 @@ public record MutationStateS2C(
                             PacketByteBuf::readInt)
                     .field(MutationStateS2C::effects, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                     .list(MutationStateS2C::tools, ToolGrant.CODEC::encode, ToolGrant.CODEC::decode)
+                    .stringList(MutationStateS2C::activeBuffs)
                     .list(MutationStateS2C::entries, Entry.CODEC::encode, Entry.CODEC::decode)
                     .build(values -> new MutationStateS2C(
                             (String) values.get(0),
@@ -103,11 +112,17 @@ public record MutationStateS2C(
                             (Integer) values.get(6),
                             (Integer) values.get(7),
                             castTools(values.get(8)),
-                            castEntries(values.get(9))));
+                            castStrings(values.get(9)),
+                            castEntries(values.get(10))));
 
     @SuppressWarnings("unchecked")
     private static List<ToolGrant> castTools(Object value) {
         return (List<ToolGrant>) value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> castStrings(Object value) {
+        return (List<String>) value;
     }
 
     @SuppressWarnings("unchecked")
@@ -119,6 +134,7 @@ public record MutationStateS2C(
         difficulty = difficulty == null ? "" : difficulty;
         cardBarKind = cardBarKind == null ? "" : cardBarKind;
         tools = tools == null ? List.of() : List.copyOf(tools);
+        activeBuffs = activeBuffs == null ? List.of() : List.copyOf(activeBuffs);
         entries = entries == null ? List.of() : List.copyOf(entries);
     }
 

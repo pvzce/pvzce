@@ -234,9 +234,11 @@ public final class SceneTileRenderer {
     /**
      * Draws a board into a GUI rectangle, on the stage the level will be played on.
      *
-     * <p>The liquid frame is in the same GUI pixels as {@code originX}/{@code cellWidth}
-     * (see {@link LevelStage.LiquidFrame#scaledTo}), so the chooser's preview shows the
-     * water where the level itself will.
+     * <p>{@code liquidFrame} is the stage's frame in <strong>world cells</strong> - the same
+     * value {@code PvzceCamera.liquidFrame()} hands the in-game board - because
+     * {@link LiquidTextures#renderGuiBoard} is where it is scaled onto the GUI pixels this
+     * method is drawing into. A caller that scales it first gets a squared frame and no
+     * visible water at all (see {@link LiquidTextures#renderGuiBoard}'s own note).
      */
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight,

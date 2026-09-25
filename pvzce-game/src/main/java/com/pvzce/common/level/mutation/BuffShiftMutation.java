@@ -49,6 +49,46 @@ final class BuffShiftMutation implements Mutation {
     }
 
     /**
+     * Says which buffs moved, because the generic banner cannot.
+     *
+     * <p>"增益变动 ×1.40" tells the player that something happened to their buffs and nothing
+     * about what; the only place it showed was the icon row in the corner, which nobody was
+     * looking at. Naming the gains and losses is the whole of "let the player know".
+     */
+    @Override
+    public java.util.Optional<String> announcement(LevelServer level, Mutation.Roll roll,
+                                                  Object state) {
+        if (!(state instanceof Applied applied)) {
+            return java.util.Optional.empty();
+        }
+        List<LevelBuff> after = level.activeBuffs();
+        List<String> gained = namesOf(after, applied.before());
+        List<String> lost = namesOf(applied.before(), after);
+        if (gained.isEmpty() && lost.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        StringBuilder line = new StringBuilder("增益变动");
+        if (!gained.isEmpty()) {
+            line.append("：获得 ").append(String.join("、", gained));
+        }
+        if (!lost.isEmpty()) {
+            line.append(gained.isEmpty() ? "：" : "；").append("失去 ").append(String.join("、", lost));
+        }
+        return java.util.Optional.of(line.toString());
+    }
+
+    /** The display names of everything in {@code from} that {@code without} does not hold. */
+    private static List<String> namesOf(List<LevelBuff> from, List<LevelBuff> without) {
+        List<String> names = new ArrayList<>();
+        for (LevelBuff buff : from) {
+            if (!without.contains(buff)) {
+                names.add(MutationText.subjectName(LevelBuffs.idOf(buff)));
+            }
+        }
+        return names;
+    }
+
+    /**
      * The new list.
      *
      * <p>The roll decides which way it goes: the chance of adding is {@code roll / (1 + roll)}, so

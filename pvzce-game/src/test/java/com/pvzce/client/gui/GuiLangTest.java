@@ -159,9 +159,13 @@ class GuiLangTest {
 
     @Test
     void theAlmanacsOwnStringsAreTranslated() {
-        assertEquals("图鉴", GuiLang.raw("gui.pvzce.almanac.title", "Almanac"));
-        assertEquals("植物", GuiLang.raw("gui.pvzce.almanac.tab.plants", "Plants"));
-        assertFalse(GuiLang.raw("gui.pvzce.almanac.close", "Close").equals("Close"));
+        assertEquals("图鉴 - 索引", GuiLang.raw("gui.pvzce.almanac.index_title", "Almanac"));
+        assertEquals("图鉴 - 植物", GuiLang.raw("gui.pvzce.almanac.page_title_plants", "Plants"));
+        assertEquals("查看植物", GuiLang.raw("gui.pvzce.almanac.view_plants", "View Plants"));
+        assertEquals("图鉴索引", GuiLang.raw("gui.pvzce.almanac.index_button", "Index"));
+        assertEquals("关闭", GuiLang.raw("gui.pvzce.almanac.close", "Close"));
+        assertEquals("伤害", GuiLang.raw("gui.pvzce.almanac.stat.damage", "Damage"));
+        assertEquals("强壮度", GuiLang.raw("gui.pvzce.almanac.stat.toughness", "Toughness"));
     }
 
     private static Identifier id(String path) {

@@ -15,7 +15,12 @@
       "radius": 0.5,
       "square": true,
       "damage": 1800,
-      "trigger_range": 0.5
+      "trigger_range": 0.5,
+      "particles": [
+        "pvzce:potato_mine_flash",
+        "pvzce:potato_mine_word",
+        "pvzce:potato_mine"
+      ]
     }
   ],
   "sounds": {

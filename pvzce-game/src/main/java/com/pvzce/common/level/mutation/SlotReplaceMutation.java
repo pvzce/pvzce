@@ -35,6 +35,21 @@ final class SlotReplaceMutation implements Mutation {
         return PvzceIds.MUTATION_SLOT_REPLACE;
     }
 
+    /**
+     * Held back by anything that deals the cards, even though this one does not deal them itself.
+     *
+     * <p>This mutation rewrites the cards <em>inside</em> the bar rather than handing over a
+     * different bar, so it is not a {@link CardDealingMutation} and the default rule would let it
+     * run beside a conveyor belt - where its work would be invisible, because the belt's tray is
+     * what the player is looking at. Saying it here rather than in the default keeps the default
+     * meaning what it says ("one dealer yields to a higher-precedence dealer") and puts the
+     * exception next to the mutation that is the exception.
+     */
+    @Override
+    public boolean suppressedBy(Mutation other) {
+        return other instanceof CardDealingMutation;
+    }
+
     @Override
     public Object apply(LevelServer level, Mutation.Roll roll) {
         PvzcePlayer player = level.plantPlayer();

@@ -31,6 +31,7 @@ public final class LiquidRenderer {
             | LiquidShader.FEATURE_CAUSTICS
             | LiquidShader.FEATURE_FRESNEL
             | LiquidShader.FEATURE_SPECULAR
+            | LiquidShader.FEATURE_CAUSTIC_SHEET
             | LiquidShader.FEATURE_RIPPLES
             | LiquidShader.FEATURE_SHORE;
 
@@ -108,9 +109,21 @@ public final class LiquidRenderer {
             drawLiquid(client, request, cells, ripples);
         } finally {
             com.pvzce.client.renderer.RenderSystem.setShader();
+            GL13.glActiveTexture(GL13.GL_TEXTURE1);
+            GL13.glBindTexture(GL13.GL_TEXTURE_2D, 0);
             GL13.glActiveTexture(GL13.GL_TEXTURE0);
         }
     }
+
+    /**
+     * How hard the original's caustic sheet modulates the surface at full strength.
+     *
+     * <p>It is added as light, so this is the swing around the sheet's own midpoint rather than
+     * a colour: at 0.55 a fully lit cell lifts the water by about a fifth and a dark lane takes
+     * the same back, which is motion the eye catches on a surface this bright without turning
+     * the pool into a checkerboard.
+     */
+    private static final float CAUSTIC_GAIN = 0.55F;
 
     private static void drawLiquid(PvzceClient client, Request request, List<LiquidCell> cells,
                                    LiquidRipples ripples) {
@@ -123,6 +136,19 @@ public final class LiquidRenderer {
                     client.textures().getOrLoad(texture).glId());
         }
         shader.setTexture(0, hasTexture);
+        // The caustic sheet, on its own unit. Bound after the base texture so the active unit
+        // is left where the caller expects it (unit 0) when this returns.
+        Identifier causticTexture = request.liquid().caustics().texture().orElse(null);
+        boolean hasCaustic = causticTexture != null && safeHasTexture(client, causticTexture)
+                && request.liquid().caustics().scale() > 0F;
+        if (hasCaustic) {
+            GL13.glActiveTexture(GL13.GL_TEXTURE1);
+            com.pvzce.client.renderer.RenderSystem.bindTexture(
+                    client.textures().getOrLoad(causticTexture).glId());
+            GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        }
+        shader.setCausticTexture(1, hasCaustic, request.liquid().caustics().scale(),
+                request.liquid().caustics().scroll(), CAUSTIC_GAIN);
         shader.setBaseScale(request.liquid().baseScale());
         shader.setColors(request.liquid().shallowColor(), request.liquid().deepColor(),
                 request.liquid().foam().color(), request.liquid().reflectColor(),
@@ -130,7 +156,7 @@ public final class LiquidRenderer {
         shader.setSurface(request.liquid().depthScale(), request.liquid().foam().width(),
                 request.liquid().wave().speed(), request.liquid().wave().amplitude(),
                 request.liquid().wave().density(),
-                request.liquid().caustics(), request.liquid().fresnel(),
+                request.liquid().causticStrength(), request.liquid().fresnel(),
                 request.liquid().specular(), request.liquid().specularPower());
         shader.setTime(request.time());
         shader.setLighting(request.tintR(), request.tintG(), request.tintB(), request.tintLift(),
@@ -250,9 +276,13 @@ public final class LiquidRenderer {
         }
         return switch (PvzceClientConfig.WaterQuality.clamp(quality)) {
             // Low: a flat, still surface with shoreline foam. The foam stays in
-            // because without it the water reads as a slab of colour.
+            // because without it the water reads as a slab of colour. Deliberately the one
+            // tier with no time term at all - it is what "low" means here.
             case PvzceClientConfig.WaterQuality.LOW -> LiquidShader.FEATURE_SHORE;
-            // Medium: motion and glitter, no caustics, no sky reflection.
+            // Medium: motion and glitter, no procedural caustics, no sky reflection. The
+            // original's caustic sheet stays: it is the cheapest of the moving terms (one
+            // texture read, no noise) and it is the one that actually shows on this surface,
+            // so dropping it here is what used to leave the middle tier as still as the low one.
             case PvzceClientConfig.WaterQuality.MEDIUM -> ALL_FEATURES
                     & ~(LiquidShader.FEATURE_CAUSTICS | LiquidShader.FEATURE_FRESNEL);
             default -> ALL_FEATURES;

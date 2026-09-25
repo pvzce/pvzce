@@ -296,7 +296,9 @@ public final class BuiltInRegistries {
                 LiquidDef.WATER_SURFACE_SCALE,
                 new LiquidDef.FoamStyle(LiquidDef.parseColor("#BFE0DE"), 0.04F),
                 new LiquidDef.WaveShape(0.055F, 0.55F, 2F),
-                0.22F,
+                // The light web: the strength the shipped file had, plus the original's own
+                // caustic sheet drifting across the surface. See LiquidDef.CausticStyle.
+                new LiquidDef.CausticStyle(0.22F, Optional.of(LiquidDef.CAUSTIC_TEXTURE), 0.3333F, 0.02F),
                 LiquidDef.parseColor("#9FC7E8"),
                 0.35F,
                 0.35F,

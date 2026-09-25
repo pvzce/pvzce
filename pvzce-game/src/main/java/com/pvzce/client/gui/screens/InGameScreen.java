@@ -2106,10 +2106,21 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float width = com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_WIDTH;
         float height = com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_HEIGHT;
         float drawX = entity.visualCellX();
-        float drawY = entity.visualCellY() - contact;
+        float drawY = entity.visualCellY() - contact + liquidDrop(entity);
         client.drawTexture(com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_TEXTURE,
                 drawX - width * 0.5F, drawY - height * 0.5F, width, height,
                 com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_Z, 1F, 1F, 1F, 0.95F);
+    }
+
+    /**
+     * How far the entity's ground contact point moves for standing on a liquid.
+     *
+     * <p>Delegated to the animation manager, which is where the anchor that moves for the same
+     * reason is computed: the shadow, the frozen spikes and the art have to shift together, or a
+     * shadow stays on the cell grid while the thing casting it floats down into the pool.
+     */
+    private float liquidDrop(ClientEntity entity) {
+        return client.animations() == null ? 0F : client.animations().liquidDrop(entity);
     }
 
     /**
@@ -2203,7 +2214,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (entity.kind().equals("plant")) {
             float width = (visual == null ? 0.68F : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.76F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY - contact,
+            client.drawEntityShadow(texture, drawX, drawY - contact + liquidDrop(entity),
                     width * renderScale, height * renderScale, 0.4F);
         } else if (entity.kind().equals("zombie") && entity.layer() != -1) {
             float lift = Math.max(0F, drawHeight);

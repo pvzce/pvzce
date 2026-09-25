@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>What this pins is the part a player would notice immediately if it were wrong: that every
  * mutation the code names is registered, that the four tiers differ in exactly the three numbers
- * the mode is balanced around, and that the levels themselves are built with the twelve-card,
+ * the mode is balanced around, and that the levels themselves are built with the fourteen-card,
  * ten-buff, pool-day shape the mode promises.
  */
 class MutationCatalogTest {
@@ -127,13 +127,13 @@ class MutationCatalogTest {
     }
 
     @Test
-    void aMutationLevelIsThePoolDayWithAFixedTwelveCardTenBuffBar() {
+    void aMutationLevelIsThePoolDayWithAFixedFourteenCardTenBuffBar() {
         LevelDef def = BuiltInRegistries.LEVELS.get(
                 MutationLevels.levelIds().get(1));
         assertNotNull(def);
         assertEquals(9, def.width());
         assertEquals(6, def.height());
-        assertEquals(12, def.maxSeedSlots(), "the mode fixes twelve card slots");
+        assertEquals(14, def.maxSeedSlots(), "the mode fixes fourteen card slots");
         assertEquals(10, def.buffPlan().maxBuffSlots(), "and ten buff slots");
         assertEquals(50, def.initialSun());
         assertEquals(0, def.rules().get(PvzceIds.RULE_DAY_LENGTH).getAsInt(),
@@ -198,6 +198,49 @@ class MutationCatalogTest {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * A tombstone may not stand in the pool.
+     *
+     * <p>The mutation levels put their opening graves on the same 9x6 board the pool levels use,
+     * so two of their six rows are water. The scatter used to be free to pick those rows - the
+     * only gate was "is there a scene element here, and is anything planted on it" - and a stone
+     * raised in a pool lane punches a hole in the water, refuses the lily pad that belongs
+     * there, and leaves a gravestone drawn over a lawn the level hides. Meanwhile the walkers
+     * were already kept off those rows (see the floatie test above), which is the tell that the
+     * water was never meant to hold anything.
+     */
+    @Test
+    void aGravestoneNeverStandsOnThePoolsWater() {
+        LevelDef def = BuiltInRegistries.LEVELS.get(
+                MutationLevels.levelIds().get(MutationDifficulty.DEFAULT.ordinal()));
+        assertNotNull(def);
+        com.pvzce.server.level.LevelServer level =
+                new com.pvzce.server.level.LevelServer(def, def.slots(),
+                        com.pvzce.server.level.LevelServer.SeedContext.all(def));
+
+        for (int x = 0; x < level.width(); x++) {
+            for (int y = 0; y < level.height(); y++) {
+                boolean water = com.pvzce.common.core.PlantPlacement.terrainTagged(
+                        com.pvzce.common.core.PlantPlacement.Terrain.of(level.sceneAt(x, y)),
+                        com.pvzce.common.tag.PvzceTags.SCENE_WATER);
+                boolean placed = level.placeGrave(PvzceIds.id("grave"), x, y);
+                if (water) {
+                    assertTrue(!placed, "a gravestone was raised in the water at " + x + "," + y);
+                }
+            }
+        }
+
+        // And the same thing asked of the whole board the mode actually opens with: whatever the
+        // scatter managed to place, none of it is in the pool.
+        for (var grave : level.graveCells()) {
+            assertTrue(!com.pvzce.common.core.PlantPlacement.terrainTagged(
+                            com.pvzce.common.core.PlantPlacement.Terrain.of(
+                                    level.sceneAt(grave.x(), grave.y())),
+                            com.pvzce.common.tag.PvzceTags.SCENE_WATER),
+                    "a gravestone ended up in the water at " + grave.x() + "," + grave.y());
         }
     }
 

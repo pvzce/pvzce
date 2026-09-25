@@ -29,6 +29,16 @@ public final class PvzceSounds {
     public static final Identifier PLANT_WAKEUP = id("sfx/plant/wakeup");
 
     public static final Identifier PROJECTILE_HIT = id("sfx/projectile/hit");
+    /**
+     * A bowled nut hitting a zombie.
+     *
+     * <p>Two ids because a nut caroming through a crowd hits about every 100 ms and the client
+     * folds a repeat of the <em>same</em> event inside 130 ms - alternating them is what keeps a
+     * five-zombie chain from sounding like two hits. The nut used to play {@link #EFFECT_BONK},
+     * which is the mallet's own sound and belongs to the tool that swings it.
+     */
+    public static final Identifier PROJECTILE_BOWLING_IMPACT = id("sfx/projectile/bowlingimpact");
+    public static final Identifier PROJECTILE_BOWLING_IMPACT_ALT = id("sfx/projectile/bowlingimpact2");
 
     public static final Identifier ZOMBIE_GROAN = id("sfx/zombie/groan");
     public static final Identifier ZOMBIE_SHIELD_HIT = id("sfx/zombie/shieldhit");

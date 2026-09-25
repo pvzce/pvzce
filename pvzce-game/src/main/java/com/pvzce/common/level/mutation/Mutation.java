@@ -78,12 +78,42 @@ public interface Mutation {
     /**
      * Whether another running mutation holds this one back.
      *
-     * <p>The general form of the card-bar rule above, for pairs that are not about cards.
-     * Overriding this must keep it symmetric: if A suppresses B and B suppresses A, neither ever
-     * runs.
+     * <p>Overriding this must keep it symmetric: if A suppresses B and B suppresses A, neither
+     * ever runs.
+     *
+     * <p>The default is the card-bar rule and nothing else: one <em>card dealer</em> is held back
+     * by a dealer with a higher {@link #cardSourcePrecedence()}, because there is only one bar for
+     * them to fight over. It used to be a bare
+     * {@code other.cardSourcePrecedence() > cardSourcePrecedence()}, which read as "precedence
+     * ranks every mutation" and turned the belt into a mute button: the belt's 10 beat every other
+     * mutation's 0, so the moment one arrived each rate, weather and board mutation on the field
+     * went to "suppressed" and stopped ticking, wherever it had arrived in the order - and since
+     * the belt is also the entry the eviction pass refuses to drop, it never left and none of them
+     * ever came back. Asking first whether <em>this</em> mutation deals cards keeps the rule to
+     * the thing it was written about.
+     *
+     * <p>{@link SlotReplaceMutation} is the one mutation that is held back without dealing: it
+     * rewrites the cards <em>inside</em> the bar, which a belt would make invisible, so it says so
+     * itself.
      */
     default boolean suppressedBy(Mutation other) {
-        return other.cardSourcePrecedence() > cardSourcePrecedence();
+        return this instanceof CardDealingMutation
+                && other.cardSourcePrecedence() > cardSourcePrecedence();
+    }
+
+    /**
+     * What to tell the player instead of the generic banner, or empty to use the generic one.
+     *
+     * <p>The banner is built from the mutation's name and its rolled multiplier, which describes
+     * every mutation whose effect is a number. It cannot describe one whose effect is a
+     * <em>change to a list</em>: "增益变动 ×1.40" says a buff moved without saying which way or
+     * which buff, and the player's only way to find out was to watch the icons in the corner -
+     * which they were not told to look at. A mutation that knows what it did says so here.
+     *
+     * <p>Called after {@link #apply}, so a mutation can answer from the state it just returned.
+     */
+    default java.util.Optional<String> announcement(LevelServer level, Roll roll, Object state) {
+        return java.util.Optional.empty();
     }
 
     /**

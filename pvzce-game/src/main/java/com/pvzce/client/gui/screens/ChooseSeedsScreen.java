@@ -1393,10 +1393,15 @@ public final class ChooseSeedsScreen extends Screen {
         float boardX = board.x() + panShift;
         client.clipping().push(boardX, board.y(), board.width(), board.height());
         try {
+            // The frame travels in WORLD CELLS, exactly as the camera hands it to the in-game
+            // board: `renderBoard` scales it onto the rectangle it is drawing into (see
+            // LiquidTextures.renderGuiBoard). Scaling it here as well is how the preview lost
+            // its water outright - the frame was squared, so the batch landed at origin
+            // ~(2540, 893) with 2265x2111-pixel cells and the whole pool was clipped away,
+            // leaving the backdrop's own empty basin showing.
             SceneTileRenderer.renderBoard(client, levelWidth, levelHeight, this::sceneAt,
                     boardX, board.y(), board.cellWidth(), board.cellHeight(), sceneVisibility,
-                    LevelStage.geometryFor(background).liquid()
-                            .scaledTo(boardX, board.y(), board.cellWidth(), board.cellHeight()));
+                    LevelStage.geometryFor(background).liquid());
         } finally {
             client.clipping().pop();
         }

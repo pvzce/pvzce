@@ -1715,7 +1715,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * because the level's own pinned buffs have to stay in the list either way.
      */
     public void setActiveBuffs(List<com.pvzce.api.content.LevelBuff> buffs) {
-        this.activeBuffs = buffs == null ? List.of() : List.copyOf(buffs);
+        List<com.pvzce.api.content.LevelBuff> next =
+                buffs == null ? List.of() : List.copyOf(buffs);
+        boolean changed = !com.pvzce.server.LevelBuffSelection.resolveIds(next)
+                .equals(com.pvzce.server.LevelBuffSelection.resolveIds(activeBuffs));
+        this.activeBuffs = next;
+        // The client draws the icon row from what it was last told, and this is the only thing
+        // that ever changes the list mid-level: without the nudge the icons keep showing what the
+        // run started with until the next mutation happens to arrive. See
+        // MutationManager.buffsChanged.
+        if (changed && mutations != null) {
+            mutations.buffsChanged();
+        }
     }
 
     /**
@@ -1864,18 +1875,69 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public static final int AUTO_COLLECT_DELAY_TICKS = 15;
 
     /**
+     * The board a run of {@code def} opens on, built once and then thrown away.
+     *
+     * <p>The authored {@code scene} map is not the opening board. A level's mechanisms write
+     * cells while the level is being built - {@code grave_field} scatters its tombstones from
+     * the level's own random source, {@code grave_spawner} raises the opening stones - and only
+     * the finished grid knows where they landed. The seed chooser is the screen that claims to
+     * show "the lawn you are about to play", so it is the one caller that needs them.
+     *
+     * <p>Building the whole level is deliberate over re-deriving the cells: there is exactly one
+     * implementation of "what does this level's opening board look like", and it is the
+     * constructor. A second one that scattered graves by the same rules would be free to drift
+     * from the run it previews. Nothing here is started - no tick, no bridge, no save - and the
+     * caller drops the instance as soon as it has read the cells.
+     *
+     * <p>The draw is not the draw the player will get: this instance has its own random source,
+     * so the tombstones stand somewhere else than they will in the run. That is the level's own
+     * design - the layout is redrawn every attempt - and it is why the preview is honest about
+     * showing a board of this shape rather than this exact board.
+     *
+     * @param seeds the chooser's own seed context, so a level whose board depends on the card
+     *              source is built the way the chooser describes it
+     */
+    public static List<SceneSyncS2C.Cell> openingBoard(LevelDef def, SeedContext seeds) {
+        LevelServer level = new LevelServer(def, def.slots(), seeds);
+        return SceneCells.forGrid(level.sceneIds());
+    }
+
+    /**
+     * The built board's elements, in the same order {@link #sendFullState} walks them.
+     *
+     * <p>Read from the grid rather than from the definitions, because half of what stands on a
+     * night lawn got there through a mechanic rather than through the level file.
+     */
+    private SceneGrid<Identifier> sceneIds() {
+        SceneGrid<Identifier> ids = SceneGrid.create(width(), height(), null);
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                SceneElementDef element = scene.get(x, y);
+                if (element != null && element.id() != null) {
+                    ids.set(x, y, element.id());
+                }
+            }
+        }
+        return ids;
+    }
+
+    /**
      * The board description a client is given, for the level list and for the level init.
      *
      * <p>One builder because both callers describe the same level: the list hands it to the
      * seed chooser's preview and the init builds the running board from it, and a level that
      * says "I have a belt and the left four columns are plantable" in one of them and not
      * the other would show a screen contradicting the one that follows it.
+     *
+     * <p>{@code sceneCells} travels as the <strong>opening board</strong>, mechanics included -
+     * see {@link #openingBoard}. It used to be the level's authored map, which is why a preview
+     * of a night level showed an empty lawn: the tombstones are not in the file.
      */
     public static LevelPayload payloadFor(LevelDef def, SeedContext seeds) {
         // The resolved bar size, not the raw field: a level with no max_seed_slots of its
         // own is sized by the backpack, and the payload is where the client learns which.
         return new LevelPayload(def.width(), def.height(), seeds.pool(), seeds.maxSeedSlots(),
-                def.previewZombieIds(), SceneCells.forLevel(def), seeds.lockedSlotIds(),
+                def.previewZombieIds(), openingBoard(def, seeds), seeds.lockedSlotIds(),
                 LevelMechanics.payloads(def),
                 // The backdrop travels as its texture id rather than as a field the client
                 // looks up in its own copy of the level file: the board it draws has to be the
@@ -2177,14 +2239,31 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
-     * Raises a gravestone in a cell, if the cell is free ground.
+     * Raises a gravestone in a cell, if the cell is free <em>land</em>.
      *
      * <p>Used by the {@code grave_spawner} mechanic. Refused on a cell that already has a
      * gravestone (nothing to do) or a plant (a tombstone may not be dropped on the player's
      * lawn mid-level) - the caller picks another cell rather than this one being replaced.
+     *
+     * <p>And refused on water, which is the check that took a while to be needed. A gravestone
+     * is a thing standing in soil: it is {@code #c:unplantable} terrain whose art is drawn over
+     * the lawn beneath it, so a stone raised in a pool lane both punches a hole in the water and
+     * takes the cell away from the plants that belong there. Nothing noticed while the only
+     * callers were night lawns - they have no water - and then the mutation levels arrived with
+     * their opening graves and a pool in the middle of the board, and the stones started landing
+     * in it. The rule belongs here rather than in each caller for the reason this method exists
+     * at all: "may a tombstone stand here" is one question.
      */
     public boolean placeGrave(Identifier graveElement, int x, int y) {
         if (!inBounds(x, y) || sceneAt(x, y) == null || plantAt(x, y) != null) {
+            return false;
+        }
+        // Land only. `#c:ground` and `#c:plantable` are the pair the placement matrix already
+        // reads as "soil, and never water" - the same two the apocalypse mutation asks before
+        // it plants its doom-shrooms.
+        PlantPlacement.Terrain under = PlantPlacement.Terrain.of(sceneAt(x, y));
+        if (!PlantPlacement.terrainTagged(under, PvzceTags.SCENE_GROUND)
+                && !PlantPlacement.terrainTagged(under, PvzceTags.SCENE_PLANTABLE)) {
             return false;
         }
         SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(graveElement);
@@ -3142,16 +3221,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
             return null;
         });
-        List<SceneSyncS2C.Cell> cells = new ArrayList<>();
-        for (int x = 0; x < width(); x++) {
-            for (int y = 0; y < height(); y++) {
-                SceneElementDef element = scene.get(x, y);
-                if (element != null) {
-                    cells.add(new SceneSyncS2C.Cell(x, y, element.id().toString()));
-                }
-            }
-        }
-        bridge.send(new SceneSyncS2C(cells));
+        bridge.send(new SceneSyncS2C(SceneCells.forGrid(sceneIds())));
         // What is playing, for a client that arrived after the cue did: a resumed run, or a
         // second player joining. Sent after the init packet so the client has a level to attach
         // the track to, and harmless when the track is the one it already started - the music

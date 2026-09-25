@@ -33,6 +33,11 @@ class SoundResourceLayoutTest {
         assertTrue(root.has("sfx/plant/plant"));
         assertTrue(root.has("sfx/ui/collect"));
         assertTrue(root.has("music/grasswalk"));
+        // The two a bowled nut alternates between. They shipped with the original's own assets
+        // and had no call site at all until the nut stopped borrowing the mallet's bonk, so
+        // nothing would have noticed if they went missing.
+        assertTrue(root.has("sfx/projectile/bowlingimpact"), "the bowled nut's hit");
+        assertTrue(root.has("sfx/projectile/bowlingimpact2"), "and its alternate");
         assertTrue(((JsonObject) root.get("music/grasswalk")).getAsJsonArray("sounds")
                 .get(0).getAsJsonObject().get("name").getAsString().startsWith("pvzce:sounds/music/"));
     }

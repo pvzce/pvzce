@@ -202,7 +202,13 @@ def main():
     wave_speed = wave.get("speed", 0.055)
     wave_amplitude = wave.get("amplitude", 0.55)
     wave_density = wave.get("density", 2.0)
-    caustics = liquid.get("caustics", 0.30)
+    # The definition's `caustics` became an object when the shader gained the original's own
+    # caustic sheet (strength / texture / scale / scroll); this mirror only models the strength.
+    # It also does not model the sheet itself - see the note at the top of this file about the
+    # constants being kept in step by hand.
+    raw_caustics = liquid.get("caustics", 0.30)
+    caustics = (raw_caustics.get("strength", 0.30)
+                if isinstance(raw_caustics, dict) else raw_caustics)
     depth_gamma = args.depth_gamma
     fresnel_strength = liquid.get("fresnel", 0.35)
     specular = liquid.get("specular", 0.65)

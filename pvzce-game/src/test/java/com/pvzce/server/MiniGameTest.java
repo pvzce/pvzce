@@ -261,11 +261,51 @@ class MiniGameTest {
         }
         assertTrue(zombie.isDying(), "650 damage kills a 200-health zombie");
         assertEquals(1, bowl.hits());
+        // The nut sounds like a nut. It used to play the mallet's own bonk, which belongs to the
+        // tool that swings it - see BowlCapability.impactSound.
+        assertTrue(soundPlayed(bridge, "bowlingimpact"),
+                "a bowled nut has to hit like one, not like the hammer");
+        assertFalse(soundPlayed(bridge, "effect/bonk"),
+                "the hammer's bonk belongs to the hammer");
 
         float xAtHit = nut.cellX();
         tick(level, bridge, 10);
         assertTrue(nut.cellX() > xAtHit, "and it keeps going forward after the hit");
         assertNotEquals(0F, bowl.laneDrift(), "the hit knocked it into another lane");
+    }
+
+    /**
+     * A chain of hits alternates the two impact ids, and climbs a little as it goes.
+     *
+     * <p>Asked of the two functions rather than of a nut: a nut ricochets at random, so steering
+     * one into two zombies is a game of chance. What the client actually hears is these two
+     * answers, and they are pure.
+     */
+    @Test
+    void aBowledNutsImpactAlternatesItsSoundAndClimbsInPitch() {
+        assertEquals("sfx/projectile/bowlingimpact", BowlCapability.impactSound(1).path());
+        assertEquals("sfx/projectile/bowlingimpact2", BowlCapability.impactSound(2).path());
+        assertEquals("sfx/projectile/bowlingimpact", BowlCapability.impactSound(3).path(),
+                "the pair has to keep alternating down a long chain");
+        assertNotEquals(BowlCapability.impactSound(1), BowlCapability.impactSound(2),
+                "one id would be folded away by the client's repeat window");
+
+        assertEquals(1F, BowlCapability.impactPitch(1), 1.0e-6F, "the first hit is unauthored");
+        assertTrue(BowlCapability.impactPitch(2) > BowlCapability.impactPitch(1),
+                "and the chain is audible, like the coin ladder it runs beside");
+        assertTrue(BowlCapability.impactPitch(8) < 1.25F, "a rise, not a slide whistle");
+        assertEquals(BowlCapability.impactPitch(8), BowlCapability.impactPitch(50), 1.0e-6F,
+                "and it stops rising, however long the nut lives");
+    }
+
+    /** True when an effect packet carrying that sound id was sent. */
+    private static boolean soundPlayed(CapturingBridge bridge, String needle) {
+        for (PvzcePacket packet : bridge.packets) {
+            if (packet instanceof EffectEventS2C event && event.sound().contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

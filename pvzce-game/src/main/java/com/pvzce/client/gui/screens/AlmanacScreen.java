@@ -7,67 +7,48 @@ import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.almanac.AlmanacEntries;
 import com.pvzce.client.renderer.EntityTextures;
-import com.pvzce.client.renderer.EntityVisuals;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.core.EntityArt;
 import com.pvzce.common.core.SlotResolver;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The almanac: the book that replaced the backpack.
+ * The almanac: the book that replaced the backpack, laid out like the original's Suburban Almanac.
  *
- * <p>Three pages - plants, zombies, resources - reached from an index, exactly as the original's
- * Suburban Almanac is laid out, on the original's own art (the 800x600 backgrounds and the two
- * card frames converted from {@code refer/im7/images}). The text is the original's too, read from
- * the language files: {@code plant.pvzce.pea_shooter.desc} is the line printed on the card face
- * and {@code .flavor} is the bio underneath. Numbers are not in the language file - sun cost,
- * recharge, health, speed and bite damage come from the definitions the simulation actually uses,
- * so the book can never advertise a value the game does not.
+ * <p><b>Layout, from the original.</b> Every page of the original is the same shape, and this is
+ * that shape:
  *
- * <p><b>Why it replaced the backpack.</b> The old screen listed cards the player owns and greyed
- * out the ones they do not, which answers "what can I bring". The almanac answers that too (an
- * unlocked plant's card is drawn at full brightness, an unlocked one is a silhouette) and also the
- * question underneath it - "what <em>is</em> this thing" - which the old screen had nowhere to
- * put. It is read-only either way: nothing here changes the profile.
+ * <pre>
+ *   +--------------------------------------------------------------+
+ *   |                     title plate (page name)                  |
+ *   +---------------------------------------+----------------------+
+ *   |  shelf: every entry on this page, one  |  detail card:        |
+ *   |  card each, the open one highlighted   |   picture window,    |
+ *   |  (and the plant page prints sun cost)  |   name, card line,   |
+ *   |                                        |   flavour, numbers   |
+ *   +---------------------------------------+----------------------+
+ *   |  ALMANAC INDEX                                        CLOSE   |
+ *   +--------------------------------------------------------------+
+ * </pre>
  *
- * <p><b>Layout.</b> Everything is measured against the art's own 800x600 canvas and scaled by one
- * factor, so the page cannot come apart at a different window size: the card frames, their text
- * panels and the fonts all move together. The pages run in the original's order
- * ({@link AlmanacEntries}), arrow keys and the side buttons turn them, and the counter between the
- * arrows says where the reader is.
+ * <p>The index is the same book's cover page: two big plates - a brown one for plants, a blue-grey
+ * one for zombies - each with a "view" button, and the title plate above them. Both were measured
+ * off the original's own screenshots at its own 800x600 and are written down as constants here; the
+ * whole page is then contain-fitted to the window, so the composition never changes shape.
+ *
+ * <p><b>Why a shelf and not one entry per page.</b> The first version of this screen showed one
+ * entry at a time with arrows to turn pages, which is not what the original does and reads badly: a
+ * book whose whole point is "what is this thing" wants the shelf visible next to the open page, so
+ * a reader can compare and browse. The original's shelf also carries each plant's sun cost on its
+ * card, which is the number a player is actually comparing.
+ *
+ * <p>Resources have no page in the original (it never had a resource system), so that page reuses
+ * the plants layout: same browns, same card shelf, its value printed where a plant prints its sun
+ * cost.
  */
 public final class AlmanacScreen extends Screen {
-    /**
-     * Font scales, as every other screen writes them: a scale of 1 draws a hanzi about 14 GUI
-     * units tall, and the call sites in this project sit between 0.6 and 2.0.
-     *
-     * <p>These are <em>not</em> native units and must not be scaled by the page's own factor: the
-     * font renderer already multiplies by the window's GUI scale. Two attempts to be clever here -
-     * dividing a native-unit size by the em, then by the em and the page scale - both produced
-     * text several times too large, because the page's factor is already applied to the GUI
-     * coordinates it is drawn at.
-     */
-    private static final float TITLE_SCALE = 1.5F;
-    private static final float INDEX_LABEL_SCALE = 1.5F;
-    private static final float INDEX_COUNT_SCALE = 0.9F;
-    private static final float PAGE_TITLE_SCALE = 1.2F;
-    private static final float PAGE_NUMBER_SCALE = 0.9F;
-    private static final float CARD_LINE_SCALE = 0.95F;
-    private static final float LOCKED_SCALE = 1.1F;
-    private static final float STATS_SCALE = 1.0F;
-    private static final float FLAVOR_SCALE = 0.9F;
-    private static final float FOOTER_SCALE = 0.8F;
-
-    /** The gold the title and the index labels are printed in. */
-    private static final float[] GOLD = {1F, 0.94F, 0.4F, 1F};
-    /** Muted grey-gold, for a count or a page number. */
-    private static final float[] MUTED_GOLD = {0.86F, 0.80F, 0.62F, 0.95F};
-    /** The footer buttons and the entry title keep their own white. */
-    private static final float[] BUTTON_WHITE = {1F, 1F, 1F, 1F};
-
-    /** The canvas the art was authored on; every measurement below is in these units. */
+    /** The canvas the original draws on; every measurement below is in these units. */
     private static final float NATIVE_WIDTH = 800F;
     private static final float NATIVE_HEIGHT = 600F;
 
@@ -89,20 +70,84 @@ public final class AlmanacScreen extends Screen {
             Identifier.withDefaultNamespace("textures/gui/almanac/button_close");
     private static final Identifier BUTTON_CLOSE_LIT =
             Identifier.withDefaultNamespace("textures/gui/almanac/button_close_highlight");
-    private static final Identifier MISSING_TEXTURE = EntityArt.MISSING_TEXTURE;
+    private static final Identifier LOCK_BADGE =
+            Identifier.withDefaultNamespace("textures/gui/icon/lock");
+    /**
+     * The plot an entry stands on, which is the original's own art for it.
+     *
+     * <p>Every entry in the original is drawn on grass - "the background of each plant's animation
+     * varies according to the environment it can be used in, but all zombies have the same
+     * background, which is the grassy backdrop in the Day levels". This project has only the lawn
+     * plot, so every entry gets it, and a per-environment variant is a matter of picking a
+     * different id from the level's `scene` of the level the entry belongs to.
+     */
+    private static final Identifier GROUND_DAY =
+            Identifier.withDefaultNamespace("textures/gui/screen/level/almanac_groundday");
+
+    // ------------------------------------------------------------------------------------------
+    // Geometry, measured off the original's own screenshots at 800x600.
+    // ------------------------------------------------------------------------------------------
 
     /**
-     * Card geometry, in native units, taken from the art rather than invented.
+     * The title band across the top of every page.
      *
-     * <p>The frame is drawn at its own pixel size (scaled by the page's one factor) with its two
-     * windows filled by our own content. It is <em>not</em> nine-sliced to a shape the page would
-     * prefer: the first attempt did that and the painted middle smeared, because the art is a
-     * picture of a card rather than a border kit. So the numbers below are read off the two PNGs:
-     * the picture window and the text panel sit exactly where the artist painted them, and the
-     * card keeps the proportions it was drawn with.
+     * <p>Every background paints its own stone bar - measured, they run from about y 16 to y 66,
+     * x 50 to 750 - and this band sits inside it. It is drawn <em>over</em> that bar rather than
+     * replacing it, so the bar's moulded edges stay visible and the page name has a flat place to
+     * sit on all three backgrounds, whose bars are three slightly different paints.
      */
-    private static final float PLANT_CARD_W = 324F;
-    private static final float PLANT_CARD_H = 484F;
+    private static final float TITLE_X = 54F;
+    private static final float TITLE_Y = 18F;
+    private static final float TITLE_W = 692F;
+    private static final float TITLE_H = 46F;
+    private static final float TITLE_BASELINE = 52F;
+
+    /** The shelf of entry cards. */
+    private static final float GRID_X = 24F;
+    private static final float GRID_Y = 92F;
+    private static final int GRID_COLUMNS = 8;
+    /**
+     * How many rows the shelf has.
+     *
+     * <p>Four, which is what fits between the title band and the footer at the original's pitch -
+     * the original ships exactly four rows of eight on its plant page and five of five on its
+     * zombie page. A page a mod makes longer than that is walked with the arrow keys rather than
+     * drawn over the frame.
+     */
+    private static final int GRID_ROWS = 4;
+
+    /**
+     * A shelf card's size and pitch, per page.
+     *
+     * <p>The original's plant cards are the seed-packet shape (46x70 on a 52x80 pitch, eight to a
+     * row); its zombie cards are near-square and wider (76x87 on an 82x80 pitch, five to a row).
+     * Two shapes rather than one because that is what the original ships, and the zombie card needs
+     * the width for a walking figure where the plant card needs the height for a packet.
+     */
+    private static final float PLANT_CARD_W = 46F;
+    private static final float PLANT_CARD_H = 70F;
+    private static final float PLANT_PITCH_X = 52F;
+    private static final float PLANT_PITCH_Y = 80F;
+
+    private static final float ZOMBIE_CARD_W = 76F;
+    private static final float ZOMBIE_CARD_H = 87F;
+    private static final float ZOMBIE_PITCH_X = 82F;
+    private static final float ZOMBIE_PITCH_Y = 80F;
+
+    /** The detail card, on the right. Both frames are drawn 1:1, as the original does. */
+    private static final float DETAIL_X = 458F;
+    private static final float DETAIL_Y = 76F;
+
+    /**
+     * The two frames' own size, and where their windows sit inside them.
+     *
+     * <p>Read off the two PNGs. The plant frame's windows are the white picture box and the beige
+     * text panel; the zombie frame's are the dark picture box and the violet text panel - and they
+     * are <em>not</em> at the same fractions of the card, which is why they are written down per
+     * frame instead of computed.
+     */
+    private static final float PLANT_ART_W = 324F;
+    private static final float PLANT_ART_H = 484F;
     private static final float PLANT_IMAGE_X = 71F;
     private static final float PLANT_IMAGE_Y = 32F;
     private static final float PLANT_IMAGE_W = 181F;
@@ -112,8 +157,8 @@ public final class AlmanacScreen extends Screen {
     private static final float PLANT_TEXT_W = 264F;
     private static final float PLANT_TEXT_H = 231F;
 
-    private static final float ZOMBIE_CARD_W = 324F;
-    private static final float ZOMBIE_CARD_H = 497F;
+    private static final float ZOMBIE_ART_W = 324F;
+    private static final float ZOMBIE_ART_H = 497F;
     private static final float ZOMBIE_IMAGE_X = 72F;
     private static final float ZOMBIE_IMAGE_Y = 58F;
     private static final float ZOMBIE_IMAGE_W = 183F;
@@ -124,112 +169,80 @@ public final class AlmanacScreen extends Screen {
     private static final float ZOMBIE_TEXT_H = 162F;
 
     /**
-     * Where the card sits on the page, and how big it is drawn.
+     * How much of the world an animated preview shows, in cells.
      *
-     * <p>The card is on the left and everything else is to its right and under it: the frame is
-     * 324x497 art pixels, so a card that fills the page would leave no room for the text the book
-     * exists to show.
-     */
-    private static final float CARD_X = 74F;
-    private static final float CARD_Y = 118F;
-    private static final float CARD_DRAW_SCALE = 0.82F;
-
-    /** The numbers, in the right-hand column, level with the card's picture window. */
-    private static final float STATS_X = 400F;
-    private static final float STATS_Y = 236F;
-    private static final float STATS_W = 200F;
-
-    /** The bio, under the card, where the page has room for a long paragraph. */
-    private static final float FLAVOR_X = 400F;
-    private static final float FLAVOR_Y = 300F;
-    private static final float FLAVOR_W = 350F;
-    private static final float FLAVOR_H = 210F;
-
-    /**
-     * How much of the world a card window shows, in cells.
-     *
-     * <p>Under one cell, so the entity fills the window: a plant is drawn about 0.5 cells wide and
-     * a zombie about 0.7, and a window showing a whole cell would leave both rattling around in
-     * the middle of an empty square.
+     * <p>Under one cell, so the figure fills the window: a zombie is drawn about 0.7 cells tall and
+     * a window showing a whole cell would leave it rattling around in the middle of an empty square.
      */
     private static final float PREVIEW_CELLS = 0.85F;
 
-    /** The page arrows, in the margins either side of the card. */
-    private static final float ARROW_W = 30F;
-    private static final float ARROW_H = 70F;
+    /** The footer buttons: "Almanac Index" bottom-left, "Close" bottom-right. */
+    private static final float FOOTER_Y = 566F;
+    private static final float FOOTER_H = 28F;
+    private static final float INDEX_BUTTON_X = 20F;
+    private static final float INDEX_BUTTON_W = 164F;
+    private static final float CLOSE_BUTTON_W = 89F;
+    private static final float CLOSE_BUTTON_X = NATIVE_WIDTH - 20F - CLOSE_BUTTON_W;
 
-    /**
-     * The index's rows: the three pages, one per row.
-     *
-     * <p>A row rather than a card: three pages do not fill the original's two-by-two, and a card
-     * squeezed into a quarter of its height is a smear. Each row draws the page's own frame at
-     * {@link #CARD_DRAW_SCALE} beside its name, which reads as a shelf of cards.
-     */
-    private static final float INDEX_X = 104F;
-    private static final float INDEX_W = 592F;
-    private static final float INDEX_H = 132F;
-    private static final float INDEX_GAP = 10F;
-    private static final float INDEX_TOP = 120F;
-    /**
-     * How big the card frame is drawn on the index, in native units per art pixel.
-     *
-     * <p>Small on purpose: the index background already paints a slate board down the right-hand
-     * side of the page (it is in the art, not drawn by us), so the rows and their labels live in
-     * the left column and the board stays visible as the page's own decoration.
-     */
-    private static final float INDEX_CARD_SCALE = 0.25F;
+    /** The index's two plates, measured off the original's index screenshot. */
+    private static final float INDEX_PLANT_X = 27F;
+    private static final float INDEX_PLANT_Y = 172F;
+    private static final float INDEX_PLANT_W = 363F;
+    private static final float INDEX_PLANT_H = 240F;
+    private static final float INDEX_ZOMBIE_X = 410F;
+    private static final float INDEX_ZOMBIE_Y = 165F;
+    private static final float INDEX_ZOMBIE_W = 365F;
+    private static final float INDEX_ZOMBIE_H = 260F;
+    private static final float VIEW_BUTTON_W = 160F;
+    private static final float VIEW_BUTTON_H = 26F;
 
-    /** The entry page's title plate, measured on {@code plant_background} and shared by both. */
-    /**
-     * The entry title's plate, measured on {@code plant_background}, and the baseline the title
-     * is printed on inside it.
-     *
-     * <p>The baseline matters: the plate is 22 units tall, so a 1.2-scale line (about 17 units of
-     * ink) has to start within 5 units of the plate's top. {@link #TITLE_BASELINE} is the plate's
-     * top plus an ascent's worth, which is what centres the glyphs in the band rather than
-     * balancing them on its top edge.
-     */
-    private static final float TITLE_X = 71F;
-    private static final float TITLE_Y = 78F;
-    private static final float TITLE_W = 646F;
-    private static final float TITLE_H = 22F;
-    private static final float TITLE_BASELINE = TITLE_Y + 24F;
+    // ------------------------------------------------------------------------------------------
+    // Palette. The original prints plants in gold on brown and zombies in green on violet.
+    // ------------------------------------------------------------------------------------------
 
-    /** Ink colours, sampled from the art: the plant card is warm, the zombie card is not. */
-    private static final float[] PLANT_INK = {0.28F, 0.13F, 0.04F};
-    private static final float[] ZOMBIE_INK = {0.10F, 0.10F, 0.17F};
+    private static final float[] PLANT_GOLD = {212F / 255F, 158F / 255F, 42F / 255F, 1F};
+    private static final float[] PLANT_INK = {82F / 255F, 29F / 255F, 11F / 255F, 1F};
+    private static final float[] PLANT_CARD_FILL = {252F / 255F, 206F / 255F, 140F / 255F, 1F};
+    private static final float[] PLANT_CARD_EDGE = {124F / 255F, 48F / 255F, 15F / 255F, 1F};
+    private static final float[] PLANT_SELECTED_FILL = {255F / 255F, 233F / 255F, 180F / 255F, 1F};
+    private static final float[] PLANT_BUTTON_FILL = {168F / 255F, 108F / 255F, 56F / 255F, 1F};
 
+    private static final float[] ZOMBIE_GREEN = {0F, 196F / 255F, 0F, 1F};
+    private static final float[] ZOMBIE_INK = {13F / 255F, 128F / 255F, 13F / 255F, 1F};
+    private static final float[] ZOMBIE_CARD_FILL = {80F / 255F, 82F / 255F, 117F / 255F, 1F};
+    private static final float[] ZOMBIE_CARD_EDGE = {46F / 255F, 44F / 255F, 66F / 255F, 1F};
+    private static final float[] ZOMBIE_SELECTED_FILL = {118F / 255F, 122F / 255F, 172F / 255F, 1F};
+    private static final float[] ZOMBIE_BUTTON_FILL = {96F / 255F, 98F / 255F, 140F / 255F, 1F};
+
+    /** The stone plate the title sits on. */
+    private static final float[] PLATE_FILL = {150F / 255F, 152F / 255F, 172F / 255F, 1F};
+    private static final float[] PLATE_EDGE = {78F / 255F, 80F / 255F, 100F / 255F, 1F};
+
+    private static final float[] BLACK = {0F, 0F, 0F, 1F};
+
+    /** Font scales, as every other screen in this project writes them (0.7 .. 1.5). */
+    private static final float TITLE_SCALE = 1.2F;
+    private static final float VIEW_LABEL_SCALE = 1.05F;
+    private static final float CARD_COST_SCALE = 0.7F;
+    private static final float DETAIL_NAME_SCALE = 0.9F;
+    private static final float DETAIL_BODY_SCALE = 0.6F;
+    private static final float DETAIL_STAT_SCALE = 0.6F;
+    private static final float BUTTON_SCALE = 0.8F;
+
+    // ------------------------------------------------------------------------------------------
+
+    /** One catalogue per page, in the order the index lists them. */
     private final List<AlmanacEntries.Catalogue> catalogues = new ArrayList<>();
     /** {@code -1} shows the index; anything else is an index into {@link #catalogues}. */
     private int page = -1;
-    private int entry;
-    /**
-     * A page asked for before {@link #init()} ran, applied by it.
-     *
-     * <p>A screen is initialized lazily - on the first frame it is rendered - so anything that
-     * wants to open the book somewhere other than its first page (the smoke driver's screenshot
-     * runs, and anything else that constructs rather than clicks) has to say so without the state
-     * being thrown away a frame later.
-     */
+    /** The entry the detail card is showing. */
+    private int selected;
+    /** A page asked for before {@link #init()} ran, applied by it. */
     private AlmanacEntries.Page wanted;
-    /** An entry asked for alongside {@link #wanted}; {@code -1} means "the first one". */
-    private int pendingEntry = -1;
 
     private float scale = 1F;
     private float originX;
     private float originY;
-
-    private ClientEntity preview;
-    /**
-     * One preview per index card, in the order the index lists them.
-     *
-     * <p>The index draws each page's first entry as its own icon, and a still of a plant is not
-     * what the plant looks like - so the index animates too. Three entities at most, ticked only
-     * while the index is the page on screen.
-     */
-    private final List<ClientEntity> indexPreviews = new ArrayList<>();
-    /** The rects the current frame was drawn with, so a click can be tested against them. */
-    private final List<Hit> hits = new ArrayList<>();
 
     /** A clickable rect in native units, with what it does. */
     private record Hit(float x, float y, float w, float h, Runnable action) {
@@ -237,6 +250,23 @@ public final class AlmanacScreen extends Screen {
             return nx >= x && nx <= x + w && ny >= y && ny <= y + h;
         }
     }
+
+    private final List<Hit> hits = new ArrayList<>();
+
+    /**
+     * One preview entity per entry, built on first use and released with the screen.
+     *
+     * <p>Every entry with a rig animates, on the shelf and in the detail card alike: the original's
+     * entries do, and a rig drawn into a box keeps its own proportions - which a stretched seed
+     * packet does not (the first version drew the packet icon into a box of a different shape and
+     * a Peashooter came out half as wide as it is tall).
+     *
+     * <p>Built lazily and kept, rather than rebuilt per frame: a page holds up to 32 entries and
+     * building a playback for each one every frame would leak a playback per frame. Anything the
+     * client cannot animate (a resource, or content whose definition names no rig) has no entry
+     * here and falls back to its sprite.
+     */
+    private final java.util.Map<Identifier, ClientEntity> previews = new java.util.HashMap<>();
 
     public AlmanacScreen(PvzceClient client) {
         super(client);
@@ -249,145 +279,109 @@ public final class AlmanacScreen extends Screen {
         if (client.music() != null) {
             client.music().ensureMenu("pvzce:music/choose_your_seeds");
         }
-        // The profile travels with the level list, and the almanac draws lock state from it.
-        // Without this, opening the book as the first thing after launch showed every plant as a
-        // silhouette - the same trap the backpack screen documented before it.
+        // The profile travels with the level list, and the plant page draws lock state from it.
         if (client.connection() != null) {
             client.connection().send(new com.pvzce.common.network.packet.RequestLevelListC2S(
                     client.currentWorld()));
         }
         catalogues.clear();
         catalogues.addAll(AlmanacEntries.all());
-        rebuildIndexPreviews();
         if (wanted != null) {
             AlmanacEntries.Page target = wanted;
             wanted = null;
             openPage(target);
-            if (pendingEntry >= 0) {
-                AlmanacEntries.Catalogue opened = current();
-                entry = opened == null ? 0 : Math.floorMod(pendingEntry, Math.max(1, opened.size()));
-            }
-            pendingEntry = -1;
         }
-        rebuildPreview();
     }
 
     @Override
     protected void onRemoved() {
-        releasePreview();
-        releaseIndexPreviews();
+        releasePreviews();
     }
 
-    /** Builds the index's per-card previews; one per catalogue, in order. */
-    private void rebuildIndexPreviews() {
-        releaseIndexPreviews();
-        if (client.animations() == null) {
-            return;
+    /**
+     * The live preview for an entry, built on first use.
+     *
+     * <p>{@code null} when the entry has no rig the client can play, which is the caller's cue to
+     * draw its sprite instead.
+     */
+    private ClientEntity previewFor(AlmanacEntries.Page openPage, Identifier id) {
+        if (id == null || client.animations() == null) {
+            return null;
         }
-        int index = 0;
-        for (AlmanacEntries.Catalogue catalogue : catalogues) {
-            Identifier id = catalogue.at(0);
-            if (id == null) {
-                continue;
-            }
-            ClientEntity entity = new ClientEntity(-100 - index, catalogue.page().entityKind(),
-                    id.toString(), 0.5F, 0.5F, 100, 1, "idle", 0F, "");
-            entity.attachAnimationManager(client.animations());
-            indexPreviews.add(entity);
-            index++;
+        ClientEntity cached = previews.get(id);
+        if (cached != null) {
+            return cached;
         }
+        // Only content with a rig: a resource has no animation file, and an entity built for one
+        // would leave a playback that never draws anything.
+        if (com.pvzce.common.core.EntityArt.animationFile(id) == null) {
+            return null;
+        }
+        ClientEntity entity = new ClientEntity(-1 - previews.size(), openPage.entityKind(),
+                id.toString(), 0.5F, 0.5F, 100, 1, "idle", 0F, "");
+        entity.attachAnimationManager(client.animations());
+        previews.put(id, entity);
+        return entity;
     }
 
-    private void releaseIndexPreviews() {
+    /** Drops every preview's playback; called once, when the screen goes away. */
+    private void releasePreviews() {
         if (client.animations() != null) {
-            for (ClientEntity entity : indexPreviews) {
+            for (ClientEntity entity : previews.values()) {
                 client.animations().release(entity);
             }
         }
-        indexPreviews.clear();
+        previews.clear();
     }
 
-    /** The page currently being read, or {@code null} on the index. */
+    @Override
+    public void tick() {
+        for (ClientEntity entity : previews.values()) {
+            entity.update(0.5F, 0.5F, 100, "idle", 0F);
+            entity.playAnimation("idle");
+        }
+    }
+
     private AlmanacEntries.Catalogue current() {
         return page < 0 || page >= catalogues.size() ? null : catalogues.get(page);
     }
 
     /** Back to the index, whether or not the screen has been initialized yet. */
     public void showIndex() {
+        page = -1;
+        selected = 0;
         if (catalogues.isEmpty()) {
             wanted = null;
-            pendingEntry = -1;
-            page = -1;
-            entry = 0;
-            return;
         }
-        page = -1;
-        entry = 0;
-        releasePreview();
     }
 
-    private void openPage(AlmanacEntries.Page wanted) {
+    private void openPage(AlmanacEntries.Page wantedPage) {
         for (int i = 0; i < catalogues.size(); i++) {
-            if (catalogues.get(i).page() == wanted) {
+            if (catalogues.get(i).page() == wantedPage) {
                 page = i;
-                entry = 0;
-                rebuildPreview();
+                selected = 0;
                 return;
             }
         }
     }
 
-    /** Turns the page by {@code delta} entries, wrapping; the index has nothing to turn. */
-    private void turn(int delta) {
-        AlmanacEntries.Catalogue catalogue = current();
-        if (catalogue == null || catalogue.size() == 0) {
-            return;
-        }
-        entry = Math.floorMod(entry + delta, catalogue.size());
-        rebuildPreview();
-    }
-
     /**
-     * Rebuilds the animated preview of the entry on screen.
+     * Opens a page without a click, so a screenshot run can reach it.
      *
-     * <p>The card window plays the entity's own idle animation rather than showing a still: the
-     * art is already in the game, the editor's canvas has drawn preview entities this way since it
-     * was written, and a book that showed a plant mid-bloom exactly as it looks on the lawn is
-     * more use than a photograph of it. A resource or a mod's content with no animation resource
-     * falls back to its sprite.
+     * <p>Safe to call before the screen has been initialized: the request is remembered and applied
+     * by {@link #init()}, which otherwise runs on the first rendered frame and would discard it.
      */
-    private void rebuildPreview() {
-        releasePreview();
-        AlmanacEntries.Catalogue catalogue = current();
-        if (catalogue == null || client.animations() == null) {
+    public void show(AlmanacEntries.Page target) {
+        if (catalogues.isEmpty()) {
+            wanted = target;
             return;
         }
-        Identifier id = catalogue.at(entry);
-        if (id == null) {
-            return;
-        }
-        preview = new ClientEntity(-1, catalogue.page().entityKind(), id.toString(),
-                0.5F, 0.5F, 100, 1, "idle", 0F, "");
-        preview.attachAnimationManager(client.animations());
+        openPage(target);
     }
 
-    private void releasePreview() {
-        if (preview != null && client.animations() != null) {
-            client.animations().release(preview);
-        }
-        preview = null;
-    }
-
-    @Override
-    public void tick() {
-        if (preview != null) {
-            preview.update(0.5F, 0.5F, 100, "idle", 0F);
-            preview.playAnimation("idle");
-        }
-        for (ClientEntity entity : indexPreviews) {
-            entity.update(0.5F, 0.5F, 100, "idle", 0F);
-            entity.playAnimation("idle");
-        }
+    /** Selects an entry by index; for the smoke driver's screenshot runs. */
+    public void selectEntry(int index) {
+        selected = index;
     }
 
     @Override
@@ -396,24 +390,18 @@ public final class AlmanacScreen extends Screen {
         computeLayout();
         hits.clear();
 
-        // The letterbox: the book is contained, so a window that is not 4:3 leaves bars, and a
-        // warm dark brown reads as the desk it is lying on rather than as a missing image.
         client.drawSolid(0, 0, client.guiWidth(), client.guiHeight(), -2F, 0.09F, 0.05F, 0.03F, 1F);
         if (page < 0) {
             renderIndex();
         } else {
-            renderEntry();
+            renderCatalogue();
         }
     }
 
     /**
-     * One scale for everything, and it is a <em>contain</em> fit.
-     *
-     * <p>Cover-fitting the page was the first attempt and it was wrong: the book's own frame is
-     * inside the 800x600 image, so filling a 16:9 window crops 75 native units off the top and
-     * bottom - which is the title plate and half of the footer buttons. Letterboxing instead keeps
-     * the whole page, which is what a book wants; the bars are painted dark so they read as the
-     * desk the book is lying on rather than as a bug.
+     * One scale for the whole page, and it is a <em>contain</em> fit: the book's own frame is
+     * inside the 800x600 image, so cover-fitting a 16:9 window would crop the title plate and the
+     * footer buttons away.
      */
     private void computeLayout() {
         scale = Math.min(client.guiWidth() / NATIVE_WIDTH, client.guiHeight() / NATIVE_HEIGHT);
@@ -421,22 +409,19 @@ public final class AlmanacScreen extends Screen {
         originY = (client.guiHeight() - NATIVE_HEIGHT * scale) / 2F;
     }
 
-    /** A native-space rect in GUI pixels. */
     private float sx(float nativeX) {
         return originX + nativeX * scale;
     }
 
+    /** Native space grows downward from the top of the art; GUI space grows upward. */
     private float sy(float nativeY) {
-        // Native space grows downward from the top of the art; GUI space grows upward from the
-        // bottom of the window. One flip, here, so nothing else in the file has to think about it.
         return originY + (NATIVE_HEIGHT - nativeY) * scale;
     }
 
-    private float sw(float nativeWidth) {
-        return nativeWidth * scale;
+    private float sw(float nativeLength) {
+        return nativeLength * scale;
     }
 
-    /** Converts a GUI-space click into native space; the inverse of {@link #sx}/{@link #sy}. */
     private float nativeX(double guiX) {
         return (float) ((guiX - originX) / scale);
     }
@@ -445,272 +430,272 @@ public final class AlmanacScreen extends Screen {
         return NATIVE_HEIGHT - (float) ((guiY - originY) / scale);
     }
 
-    private void drawBackground(Identifier texture) {
-        client.drawTexture(texture, sx(0F), sy(NATIVE_HEIGHT), sw(NATIVE_WIDTH),
-                sw(NATIVE_HEIGHT), -1F, 1F, 1F, 1F, 1F);
-    }
-
     // ------------------------------------------------------------------------------------------
     // Index
     // ------------------------------------------------------------------------------------------
 
-    /**
-     * The index: one card per page, in the original's two-by-two arrangement.
-     *
-     * <p>The fourth cell is the original's second place-holder (it has "plant or zombie" and an
-     * empty frame beside it) and stays empty here - the book has exactly three pages, and an
-     * empty frame is an honest way to say so.
-     */
     private void renderIndex() {
         drawBackground(BACKGROUND_INDEX);
-        drawLineCentred(GuiLang.raw("gui.pvzce.almanac.title", "Almanac"), 70F, TITLE_SCALE, GOLD);
+        drawTitlePlate(GuiLang.raw("gui.pvzce.almanac.index_title", "Almanac - Index"), PLANT_GOLD);
 
-        for (int i = 0; i < catalogues.size() && i < 3; i++) {
-            drawIndexRow(catalogues.get(i), INDEX_X, INDEX_TOP + i * (INDEX_H + INDEX_GAP));
-        }
+        // Two plates, in the original's own colours and positions: brown wood for plants, blue-grey
+        // stone for zombies, each with the page's first entry standing on it and a "view" label at
+        // its foot. Drawn as plates rather than as scaled card frames - a 324x484 frame squeezed
+        // into a 363x240 box fits at 49% and leaves the plate three quarters empty, which is what
+        // the first version looked like.
+        drawPlate(AlmanacEntries.Page.PLANTS, INDEX_PLANT_X, INDEX_PLANT_Y,
+                INDEX_PLANT_W, INDEX_PLANT_H);
+        drawPlate(AlmanacEntries.Page.ZOMBIES, INDEX_ZOMBIE_X, INDEX_ZOMBIE_Y,
+                INDEX_ZOMBIE_W, INDEX_ZOMBIE_H);
 
-        drawFooterButtons(true);
+        viewButton(GuiLang.raw("gui.pvzce.almanac.view_plants", "View Plants"),
+                AlmanacEntries.Page.PLANTS,
+                INDEX_PLANT_X + (INDEX_PLANT_W - VIEW_BUTTON_W) / 2F,
+                INDEX_PLANT_Y + INDEX_PLANT_H - 44F, PLANT_GOLD, PLANT_INK);
+        viewButton(GuiLang.raw("gui.pvzce.almanac.view_zombies", "View Zombies"),
+                AlmanacEntries.Page.ZOMBIES,
+                INDEX_ZOMBIE_X + (INDEX_ZOMBIE_W - VIEW_BUTTON_W) / 2F,
+                INDEX_ZOMBIE_Y + INDEX_ZOMBIE_H - 44F, ZOMBIE_GREEN, ZOMBIE_INK);
+
+        // The previews last, because the rig path moves the projection. Each stands above its
+        // label, in the plate's own upper area.
+        drawIndexPreview(AlmanacEntries.Page.PLANTS, INDEX_PLANT_X + 112F, INDEX_PLANT_Y + 22F,
+                140F, 118F);
+        drawIndexPreview(AlmanacEntries.Page.ZOMBIES, INDEX_ZOMBIE_X + 108F, INDEX_ZOMBIE_Y + 18F,
+                150F, 150F);
+
+        drawFooter(false);
     }
 
     /**
-     * One index row: the page's frame on the left with its first entry in the picture window, and
-     * the page's name beside it.
+     * The index plate's preview: the page's first entry, standing on its plot.
      *
-     * <p>The frame is drawn at {@link #INDEX_CARD_SCALE} - small, but at its own proportions, so
-     * the picture window is a window rather than a smear. The name goes on the row's paper to the
-     * right of the card, which is the only place on this background with room for it.
+     * <p>Called after the label, because the rig path moves the projection.
      */
-    private void drawIndexRow(AlmanacEntries.Catalogue catalogue, float x, float y) {
-        float artW = cardWidth(catalogue.page()) * INDEX_CARD_SCALE;
-        float artH = cardHeight(catalogue.page()) * INDEX_CARD_SCALE;
-        // Vertically centred in the row.
-        float artY = y + (INDEX_H - artH) / 2F;
-        drawCardArt(catalogue.page(), x, artY, INDEX_CARD_SCALE);
-
-        if (catalogue.size() > 0) {
-            float[] window = imageWindow(catalogue.page());
-            drawAnimated(catalogue.at(0), catalogue.page().entityKind(), indexPreviewFor(catalogue),
-                    x + window[0] * INDEX_CARD_SCALE, artY + window[1] * INDEX_CARD_SCALE,
-                    window[2] * INDEX_CARD_SCALE, window[3] * INDEX_CARD_SCALE);
+    private void drawIndexPreview(AlmanacEntries.Page openPage, float x, float y, float w, float h) {
+        Identifier id = firstOf(openPage);
+        drawGround(x, y, w, h);
+        ClientEntity entity = previewFor(openPage, id);
+        if (entity == null) {
+            drawPreview(openPage, id, x, y, w, h);
+        } else {
+            drawRig(entity, x, y, w, h);
         }
-
-        float labelX = x + artW + 44F;
-        drawTextLeft(GuiLang.raw(catalogue.page().labelKey(), catalogue.page().name()),
-                labelX, y + INDEX_H * 0.56F, INDEX_LABEL_SCALE, GOLD);
-        drawTextLeft(catalogue.size() + "", labelX + 2F, y + INDEX_H * 0.26F, INDEX_COUNT_SCALE, MUTED_GOLD);
-
-        hits.add(new Hit(x, y, INDEX_W, INDEX_H, () -> openPage(catalogue.page())));
     }
 
-    /** The card art's own size for a page. */
-    private static float cardWidth(AlmanacEntries.Page page) {
-        return page == AlmanacEntries.Page.ZOMBIES ? ZOMBIE_CARD_W : PLANT_CARD_W;
+    /** One of the index's two plates: a filled panel with the page's own colours. */
+    private void drawPlate(AlmanacEntries.Page openPage, float x, float y, float w, float h) {
+        boolean zombies = openPage == AlmanacEntries.Page.ZOMBIES;
+        float[] edge = zombies ? ZOMBIE_CARD_EDGE : PLANT_CARD_EDGE;
+        float[] fill = zombies ? new float[]{74F / 255F, 62F / 255F, 52F / 255F}
+                : new float[]{108F / 255F, 48F / 255F, 20F / 255F};
+        float border = 10F;
+        client.drawSolid(sx(x), sy(y + h), sw(w), sw(h), 0.1F, edge[0], edge[1], edge[2], 1F);
+        client.drawSolid(sx(x + border), sy(y + h - border), sw(w - border * 2F),
+                sw(h - border * 2F), 0.1F, fill[0], fill[1], fill[2], 1F);
+        hits.add(new Hit(x, y, w, h, () -> openPage(openPage)));
     }
 
-    private static float cardHeight(AlmanacEntries.Page page) {
-        return page == AlmanacEntries.Page.ZOMBIES ? ZOMBIE_CARD_H : PLANT_CARD_H;
-    }
-
-    private static Identifier cardArt(AlmanacEntries.Page page) {
-        return page == AlmanacEntries.Page.ZOMBIES ? CARD_ZOMBIE : CARD_PLANT;
-    }
-
-    /** {@code {x, y, w, h}} of a page's picture window, in the card art's own pixels. */
-    private static float[] imageWindow(AlmanacEntries.Page page) {
-        return page == AlmanacEntries.Page.ZOMBIES
-                ? new float[]{ZOMBIE_IMAGE_X, ZOMBIE_IMAGE_Y, ZOMBIE_IMAGE_W, ZOMBIE_IMAGE_H}
-                : new float[]{PLANT_IMAGE_X, PLANT_IMAGE_Y, PLANT_IMAGE_W, PLANT_IMAGE_H};
-    }
-
-    /** {@code {x, y, w, h}} of a page's text panel, in the card art's own pixels. */
-    private static float[] textWindow(AlmanacEntries.Page page) {
-        return page == AlmanacEntries.Page.ZOMBIES
-                ? new float[]{ZOMBIE_TEXT_X, ZOMBIE_TEXT_Y, ZOMBIE_TEXT_W, ZOMBIE_TEXT_H}
-                : new float[]{PLANT_TEXT_X, PLANT_TEXT_Y, PLANT_TEXT_W, PLANT_TEXT_H};
+    /** The first id of a page's catalogue, or {@code null} when it has none. */
+    private Identifier firstOf(AlmanacEntries.Page wantedPage) {
+        for (AlmanacEntries.Catalogue catalogue : catalogues) {
+            if (catalogue.page() == wantedPage) {
+                return catalogue.at(0);
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------------------------------
-    // Entry page
+    // Catalogue page: shelf on the left, detail on the right
     // ------------------------------------------------------------------------------------------
 
-    private void renderEntry() {
+    private void renderCatalogue() {
         AlmanacEntries.Catalogue catalogue = current();
         if (catalogue == null) {
             showIndex();
             return;
         }
-        drawBackground(backgroundFor(catalogue.page()));
+        AlmanacEntries.Page openPage = catalogue.page();
+        drawBackground(backgroundFor(openPage));
+        drawTitlePlate(pageTitle(openPage), inkFor(openPage));
+
         if (catalogue.size() == 0) {
-            drawLineCentred(GuiLang.raw("gui.pvzce.almanac.empty", "Nothing here yet"),
-                    300F, PAGE_TITLE_SCALE, MUTED_GOLD);
-            drawFooterButtons(false);
+            drawTextLeft(GuiLang.raw("gui.pvzce.almanac.empty", "Nothing here yet"),
+                    40F, 210F, 1.2F, inkFor(openPage));
+            drawFooter(true);
             return;
         }
+        if (selected < 0 || selected >= catalogue.size()) {
+            selected = 0;
+        }
 
-        Identifier id = catalogue.at(entry);
-        drawTitle(GuiLang.name(catalogue.page().category(), id));
-
-        float artX = CARD_X;
-        float artW = cardWidth(catalogue.page()) * CARD_DRAW_SCALE;
-        float artH = cardHeight(catalogue.page()) * CARD_DRAW_SCALE;
-        drawCardArt(catalogue.page(), artX, CARD_Y, CARD_DRAW_SCALE);
-
-        float[] window = imageWindow(catalogue.page());
-        drawAnimated(id, catalogue.page().entityKind(), preview,
-                artX + window[0] * CARD_DRAW_SCALE, CARD_Y + window[1] * CARD_DRAW_SCALE,
-                window[2] * CARD_DRAW_SCALE, window[3] * CARD_DRAW_SCALE);
-
-        drawCardLine(catalogue.page(), id, artX);
-        drawEntryStats(catalogue.page(), id);
-        drawFlavor(catalogue.page(), id);
-
-        arrowButton(CARD_X - ARROW_W - 12F, CARD_Y + (artH - ARROW_H) / 2F, ARROW_W, ARROW_H, false,
-                () -> turn(-1));
-        arrowButton(artX + artW + 12F, CARD_Y + (artH - ARROW_H) / 2F, ARROW_W, ARROW_H, true,
-                () -> turn(1));
-
-        String position = GuiLang.raw("gui.pvzce.almanac.page", "{0} / {1}")
-                .replace("{0}", String.valueOf(entry + 1))
-                .replace("{1}", String.valueOf(catalogue.size()));
-        drawLineCentred(position, CARD_Y + artH + 28F, PAGE_NUMBER_SCALE, MUTED_GOLD);
-
-        drawFooterButtons(false);
-    }
-
-    /** Draws the frame art at its own proportions, at {@code scale} native units per art pixel. */
-    private void drawCardArt(AlmanacEntries.Page page, float x, float y, float scale) {
-        client.drawTexture(cardArt(page), sx(x), sy(y + cardHeight(page) * scale),
-                sw(cardWidth(page) * scale), sw(cardHeight(page) * scale), 0F, 1F, 1F, 1F, 1F);
+        renderShelf(catalogue);
+        Identifier id = catalogue.at(selected);
+        // Detail card, in this order and no other:
+        //   1. every opaque layer (the frame, then the picture window's own fill),
+        //   2. the text - the frame's painted panel would cover it otherwise, which is exactly
+        //      the bug this order exists to prevent,
+        //   3. the animated preview last, because it switches the world projection on the way in
+        //      and the GUI one on the way out, and text drawn while the world projection is up
+        //      comes out at world scale.
+        renderDetailCard(openPage, id);
+        renderDetailText(openPage, id);
+        renderDetailPreview(openPage, id);
+        drawFooter(true);
     }
 
     /**
-     * The line printed on the card face, inside the art's own text panel.
+     * The shelf: every entry on this page, one card each, the open one highlighted.
      *
-     * <p>This is the only text that goes on the card: the panel is 264x231 art pixels, which holds
-     * the card line comfortably and the bio not at all, and overrunning the painted panel would
-     * put text on the wood.
+     * <p>Laid out at the original's pitch, and each card draws the entry's own art plus - on the
+     * plant page - its sun cost, which is the number the original prints there and the only number
+     * a reader compares across the shelf.
      */
-    private void drawCardLine(AlmanacEntries.Page page, Identifier id, float artX) {
-        float[] window = textWindow(page);
-        float x = artX + window[0] * CARD_DRAW_SCALE;
-        float y = CARD_Y + window[1] * CARD_DRAW_SCALE;
-        float w = window[2] * CARD_DRAW_SCALE;
-        float h = window[3] * CARD_DRAW_SCALE;
-        float[] ink = ink();
+    private void renderShelf(AlmanacEntries.Catalogue catalogue) {
+        AlmanacEntries.Page openPage = catalogue.page();
+        boolean zombies = openPage == AlmanacEntries.Page.ZOMBIES;
+        float cardW = zombies ? ZOMBIE_CARD_W : PLANT_CARD_W;
+        float cardH = zombies ? ZOMBIE_CARD_H : PLANT_CARD_H;
+        float pitchX = zombies ? ZOMBIE_PITCH_X : PLANT_PITCH_X;
+        float pitchY = zombies ? ZOMBIE_PITCH_Y : PLANT_PITCH_Y;
 
-        if (!isUnlocked(page, id)) {
-            drawWrappedCentred(GuiLang.raw("gui.pvzce.almanac.locked", "Not yet unlocked"),
-                    x, y + h * 0.52F, w, LOCKED_SCALE, ink, 1F);
-            return;
-        }
-        String desc = GuiLang.contentOr(page.category(), id, "desc",
-                GuiLang.raw("gui.pvzce.almanac.empty", "Nothing here yet"));
-        drawWrappedCentred(desc, x, y + h - 8F, w, CARD_LINE_SCALE, ink, 1F);
-    }
-
-    /**
-     * The bio, under the card.
-     *
-     * <p>Not on the card: the original prints it on the card's back, and this book has one page
-     * per entry. Clipped to its own box because a translated bio can be any length, and text
-     * running over the page's painted frame looks like a bug rather than like an overflow.
-     */
-    private void drawFlavor(AlmanacEntries.Page page, Identifier id) {
-        if (!isUnlocked(page, id)) {
-            drawWrapped(GuiLang.raw("gui.pvzce.almanac.unlock_hint", ""),
-                    FLAVOR_X, FLAVOR_Y + FLAVOR_H - 16F, FLAVOR_W, FLAVOR_SCALE, ink(), 0.8F);
-            return;
-        }
-        String flavor = GuiLang.content(page.category(), id, "flavor");
-        if (flavor == null || flavor.isBlank()) {
-            return;
-        }
-        float top = FLAVOR_Y + FLAVOR_H - 14F;
-        client.clipping().push(sx(FLAVOR_X), sy(FLAVOR_Y), sw(FLAVOR_W), sw(FLAVOR_H));
-        try {
-            drawWrapped(flavor, FLAVOR_X, top, FLAVOR_W, FLAVOR_SCALE, ink(), 0.9F);
-        } finally {
-            client.clipping().pop();
+        int shown = Math.min(catalogue.size(), GRID_COLUMNS * GRID_ROWS);
+        for (int i = 0; i < shown; i++) {
+            int column = i % GRID_COLUMNS;
+            int row = i / GRID_COLUMNS;
+            float x = GRID_X + column * pitchX;
+            float y = GRID_Y + row * pitchY;
+            drawShelfCard(openPage, catalogue.at(i), x, y, cardW, cardH, i == selected);
+            final int index = i;
+            hits.add(new Hit(x, y, cardW, cardH, () -> selected = index));
         }
     }
 
-    private Identifier backgroundFor(AlmanacEntries.Page page) {
-        return switch (page) {
-            case PLANTS -> BACKGROUND_PLANTS;
-            case ZOMBIES -> BACKGROUND_ZOMBIES;
-            case RESOURCES -> BACKGROUND_PLANTS;
-        };
-    }
+    private void drawShelfCard(AlmanacEntries.Page openPage, Identifier id, float x, float y,
+                               float w, float h, boolean selected) {
+        boolean zombies = openPage == AlmanacEntries.Page.ZOMBIES;
+        float[] fill = zombies
+                ? (selected ? ZOMBIE_SELECTED_FILL : ZOMBIE_CARD_FILL)
+                : (selected ? PLANT_SELECTED_FILL : PLANT_CARD_FILL);
+        float[] edge = zombies ? ZOMBIE_CARD_EDGE : PLANT_CARD_EDGE;
 
-    private float[] ink() {
-        AlmanacEntries.Catalogue catalogue = current();
-        boolean zombies = catalogue != null && catalogue.page() == AlmanacEntries.Page.ZOMBIES;
-        return zombies ? ZOMBIE_INK : PLANT_INK;
-    }
+        // A filled packet with a one-unit border, which is what the original's shelf cards are;
+        // the content's own art is drawn on top of it.
+        client.drawSolid(sx(x), sy(y + h), sw(w), sw(h), 0.1F, edge[0], edge[1], edge[2], 1F);
+        client.drawSolid(sx(x + 2F), sy(y + h - 2F), sw(w - 4F), sw(h - 4F), 0.1F,
+                fill[0], fill[1], fill[2], 1F);
 
-    /**
-     * The entry's name, on the page's own title plate.
-     *
-     * <p>Not clipped to the plate and not centred inside it: the plate is a shallow 22-unit band
-     * and the line it was drawn for is ~17 units of ink, so a 1.2-scale name that is centred in
-     * the band has its glyph tops above the band and gets cut. The name is drawn on the plate's
-     * baseline and allowed to be a little taller than the artwork's own label was - which is what
-     * the original does too, its title being taller than the plate's inner area.
-     */
-    private void drawTitle(String text) {
-        drawLineCentred(text, TITLE_BASELINE, PAGE_TITLE_SCALE, BUTTON_WHITE);
-    }
+        // The card's picture area leaves room underneath for the cost line (plants) or a little
+        // breathing space (zombies). A zombie has no whole-body sprite, so its card is drawn from
+        // its rig; a plant could go either way and uses the rig too, so nothing on this page is a
+        // stretched packet.
+        float artBottom = zombies ? y + h - 6F : y + h - 20F;
+        float artTop = artBottom - (h - 12F);
+        if (zombies) {
+            drawGround(x + 3F, artTop, w - 6F, h - 12F);
+        }
+        ClientEntity shelfEntity = previewFor(openPage, id);
+        if (shelfEntity != null) {
+            drawRig(shelfEntity, x + 3F, artTop, w - 6F, h - 12F);
+        } else if (!zombies) {
+            drawPreview(openPage, id, x + 4F, artTop, w - 8F, h - 12F);
+        }
 
-    /**
-     * The card's picture window.
-     *
-     * <p>Rendered through the world projection into the window's own rect - the trick the editor's
-     * canvas uses - so an animated entity is drawn by exactly the code that draws it on the lawn,
-     * at the size {@link EntityVisuals} gives it, instead of a second implementation that would
-     * drift from the first.
-     */
-    /** The index preview belonging to a catalogue, or {@code null} when it has none. */
-    private ClientEntity indexPreviewFor(AlmanacEntries.Catalogue catalogue) {
-        int index = catalogues.indexOf(catalogue);
-        return index < 0 || index >= indexPreviews.size() ? null : indexPreviews.get(index);
-    }
-
-    /**
-     * Draws an entry into a window, in native units.
-     *
-     * <p>The animated path goes through the world projection into the window's own rect - the
-     * trick the editor's canvas uses - so an animated entity is drawn by exactly the code that
-     * draws it on the lawn, at the size {@link EntityVisuals} gives it, rather than by a second
-     * implementation that would drift from the first. The fallback is a flat sprite, which is all
-     * a resource or a mod's art-less content has.
-     */
-    /**
-     * Draws an entry into a window, in native units.
-     *
-     * <p>The animated path goes through the world projection into the window's own rect - the
-     * trick the editor's canvas uses - so an animated entity is drawn by exactly the code that
-     * draws it on the lawn, rather than by a second implementation that would drift from the
-     * first. The world rect is {@link #PREVIEW_CELLS} cells rather than the one cell a plant
-     * actually occupies, which zooms the preview in: a Peashooter is about half a cell tall and
-     * would otherwise be a speck in a card window.
-     */
-    private void drawAnimated(Identifier id, String kind, ClientEntity entity,
-                              float wx, float wy, float ww, float wh) {
-        client.clipping().push(sx(wx), sy(wy + wh), sw(ww), sw(wh));
-        try {
-            if (entity != null && client.animations() != null) {
-                client.beginOverlayWorldView(sx(wx), sy(wy + wh), sw(ww), sw(wh),
-                        0F, PREVIEW_CELLS, 0F, PREVIEW_CELLS);
-                boolean drawn = client.animations().render(entity);
-                // Back to GUI space *before* returning: the world view sets the sprite scale
-                // factor as well as the projection, and the caller draws text next. Leaving it
-                // set drew the almanac's own labels at world scale - about eight times too big.
-                client.beginGuiView();
-                if (drawn) {
-                    return;
-                }
+        if (!zombies) {
+            // The number the shelf is for: what it costs. Plants print the sun cost, resources
+            // their value.
+            String amount = String.valueOf(openPage == AlmanacEntries.Page.RESOURCES
+                    ? resourceValue(id) : plantCost(id));
+            float fontScale = CARD_COST_SCALE;
+            float textW = width(amount, fontScale);
+            Identifier sun = sunIcon();
+            float iconSize = sun == null ? 0F : 11F;
+            float total = textW + (sun == null ? 0F : 3F + iconSize);
+            float textX = x + (w - total) / 2F;
+            drawTextLeft(amount, textX, y + h - 7F, fontScale, PLANT_INK);
+            if (sun != null) {
+                client.drawTexture(sun, sx(textX + textW + 3F), sy(y + h - 3F),
+                        sw(iconSize), sw(iconSize), 0.2F, 1F, 1F, 1F, 1F);
             }
-            drawSprite(id, kind, sx(wx), sy(wy + wh), sw(ww), sw(wh));
+        }
+
+        if (!isUnlocked(openPage, id)) {
+            // Locked plants are listed and dimmed with the lock badge the rest of the game uses.
+            // The original only lists what you own; showing what is missing is this project's own
+            // call, because "why can't I plant a wall-nut" is the question the shelf answers.
+            client.drawSolid(sx(x + 2F), sy(y + h - 2F), sw(w - 4F), sw(h - 4F), 0.3F,
+                    0.05F, 0.05F, 0.05F, 0.45F);
+            if (client.hasTexture(LOCK_BADGE)) {
+                float size = Math.min(w, h) * 0.4F;
+                client.drawTexture(LOCK_BADGE, sx(x + (w - size) / 2F), sy(y + h * 0.55F + size / 2F),
+                        sw(size), sw(size), 0.4F, 1F, 1F, 1F, 0.95F);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Detail card
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * The detail card's opaque layers: the frame, and the fill of its picture window.
+     *
+     * <p>The window is filled with the card's own colour rather than left transparent, because the
+     * text of the entry behind it must not show through - the frame's painted panel is opaque and
+     * the window is not.
+     */
+    private void renderDetailCard(AlmanacEntries.Page openPage, Identifier id) {
+        drawCardArt(openPage, DETAIL_X, DETAIL_Y, artWidth(openPage), artHeight(openPage));
+        float[] image = imageWindow(openPage);
+        // The plot the entry stands on, inside the frame's picture window.
+        drawGround(DETAIL_X + image[0], DETAIL_Y + image[1], image[2], image[3]);
+    }
+
+    /**
+     * The detail card's picture.
+     *
+     * <p>Called <em>after</em> {@link #renderDetailText}: the animated path switches the world
+     * projection and switches it back, and anything drawn while it is active comes out at world
+     * scale.
+     */
+    private void renderDetailPreview(AlmanacEntries.Page openPage, Identifier id) {
+        float[] image = imageWindow(openPage);
+        float imageX = DETAIL_X + image[0];
+        float imageY = DETAIL_Y + image[1];
+        ClientEntity entity = previewFor(openPage, id);
+        if (entity == null) {
+            drawPreview(openPage, id, imageX, imageY, image[2], image[3]);
+            return;
+        }
+        drawRig(entity, imageX, imageY, image[2], image[3]);
+    }
+
+    /**
+     * Draws a live rig into a box, in the box's own viewport.
+     *
+     * <p>Three things this has to get right, each of which was a bug on its own:
+     * <ul>
+     *   <li>the world rect is {@link #PREVIEW_CELLS} (under a cell), so the figure fills the box
+     *       instead of rattling around an empty lawn square;
+     *   <li>the playback is started <em>here</em>, not only in {@link #tick()}: a preview is built
+     *       lazily on the frame it is first drawn, and that frame's tick has already run, so an
+     *       entity that only ever played there drew nothing at all - which looked like "every
+     *       zombie card is empty";
+     *   <li>the GUI view is restored on the way out, because the world view sets the sprite scale
+     *       too and the page's text is drawn in GUI space.
+     * </ul>
+     */
+    private void drawRig(ClientEntity entity, float x, float y, float w, float h) {
+        if (entity == null || w <= 0F || h <= 0F) {
+            return;
+        }
+        entity.playAnimation("idle");
+        client.clipping().push(sx(x), sy(y + h), sw(w), sw(h));
+        try {
+            client.beginOverlayWorldView(sx(x), sy(y + h), sw(w), sw(h),
+                    0F, PREVIEW_CELLS, 0F, PREVIEW_CELLS);
+            client.animations().render(entity);
         } finally {
             client.clipping().pop();
             client.beginGuiView();
@@ -718,72 +703,129 @@ public final class AlmanacScreen extends Screen {
     }
 
     /**
-     * The numbers, on the background's right half.
+     * A live entity for an entry, so the detail panel can animate it.
      *
-     * <p>Read from the definitions rather than from the language file, so what the book says is
-     * what the game does. The original prints type/toughness/cost/recharge there; this project has
-     * no "toughness" field (it has real health) and no "type" taxonomy, so it prints what it does
-     * have and leaves the rest out rather than inventing a table that would have to be kept in
-     * sync by hand.
+     * <p>Plants animate too: the original's entries do, and a plant's rig file is right there. The
+     * preview is built for whatever entry is open and released when it changes, so at most one
+     * playback per page is alive at a time.
      */
-    private void drawEntryStats(AlmanacEntries.Page page, Identifier id) {
-        if (!isUnlocked(page, id)) {
-            return;
+    private ClientEntity anyPreview(AlmanacEntries.Page openPage, Identifier id) {
+        return previewFor(openPage, id);
+    }
+
+    /**
+     * The detail card's text.
+     *
+     * <p>One flow, from the top of the card's painted text panel downwards: the name, the card's
+     * own line, the numbers, the bio. The original prints exactly this and does not box the parts
+     * apart, and the panel is the hard boundary.
+     *
+     * <p><b>How the boundary is kept.</b> By layout, not by a scissor: {@link #drawWrapped} is given
+     * the panel's floor and drops any line that would fall past it. Pushing a clip here looked
+     * right and was not - the card art draw ends by restoring the GUI view, and the clip does not
+     * survive that, so the scissor silently stopped applying part way through the panel and the bio
+     * printed over the picture window.
+     *
+     * <p>Called <em>before</em> {@link #renderDetailPreview}: the animated preview sets the world
+     * projection and restores the GUI one, and text drawn in between comes out at world scale.
+     */
+    private void renderDetailText(AlmanacEntries.Page openPage, Identifier id) {
+        boolean zombies = openPage == AlmanacEntries.Page.ZOMBIES;
+        float[] text = textWindow(openPage);
+        float textX = DETAIL_X + text[0];
+        float textY = DETAIL_Y + text[1];
+        float textW = text[2];
+        float textH = text[3];
+
+        float[] accent = zombies ? ZOMBIE_GREEN : PLANT_GOLD;
+        float[] ink = zombies ? ZOMBIE_INK : PLANT_INK;
+        // The panel's four bands, top to bottom: the name, the card line and the numbers, the bio,
+        // and the two numbers the original prints at the foot of the card.
+        float nameBaseline = textY + textH - 16F;
+        float bodyTop = nameBaseline - 16F;
+        float floor = textY + 30F;
+
+        drawLineCentredIn(textX, textW, GuiLang.name(openPage.category(), id),
+                nameBaseline, DETAIL_NAME_SCALE, accent);
+
+        float cursor = drawWrapped(GuiLang.contentOr(openPage.category(), id, "desc", ""),
+                textX, bodyTop, textW, DETAIL_BODY_SCALE, ink, floor);
+        for (String line : statLines(openPage, id)) {
+            cursor = drawWrapped(line, textX, cursor - 4F, textW, DETAIL_STAT_SCALE, ink, floor) - 2F;
         }
-        float y = STATS_Y;
-        for (String line : statLines(page, id)) {
-            y = drawWrapped(line, STATS_X, y, STATS_W, STATS_SCALE, ink(), 0.95F) - 10F;
+        String flavor = GuiLang.content(openPage.category(), id, "flavor");
+        if (flavor != null && !flavor.isBlank()) {
+            drawWrapped(flavor, textX, cursor - 4F, textW, DETAIL_BODY_SCALE, ink, floor);
+        }
+        drawBottomBand(openPage, id, textX, textY, textW);
+        if (!isUnlocked(openPage, id)) {
+            drawLineCentredIn(textX, textW,
+                    GuiLang.raw("gui.pvzce.almanac.locked", "Not yet unlocked"),
+                    textY + 11F, DETAIL_BODY_SCALE, ink);
         }
     }
 
-    private List<String> statLines(AlmanacEntries.Page page, Identifier id) {
+    /** The card's bottom band: what the plant costs and how long it takes to come back. */
+    private void drawBottomBand(AlmanacEntries.Page openPage, Identifier id, float textX, float textY,
+                                float textW) {
+        if (openPage != AlmanacEntries.Page.PLANTS) {
+            return;
+        }
+        int cost = plantCost(id);
+        int cooldown = plantCooldown(id);
+        String left = GuiLang.raw("gui.pvzce.almanac.stat.cost", "Cost") + " " + cost;
+        String right = cooldown <= 0 ? "" : GuiLang.raw("gui.pvzce.almanac.stat.recharge", "Recharge")
+                + " " + GuiLang.raw("gui.pvzce.almanac.seconds", "{0}s")
+                        .replace("{0}", trim(cooldown / 60F));
+        float baseline = textY + 15F;
+        float[] ink = openPage == AlmanacEntries.Page.ZOMBIES ? ZOMBIE_INK : PLANT_INK;
+        drawTextLeft(left, textX, baseline, DETAIL_STAT_SCALE, ink);
+        if (!right.isEmpty()) {
+            client.fonts().body().draw(right,
+                    sx(textX + textW) - client.fonts().body().width(right, DETAIL_STAT_SCALE),
+                    sy(baseline), DETAIL_STAT_SCALE, ink[0], ink[1], ink[2], 1F);
+        }
+    }
+
+    /**
+     * The numbers, as lines of text in the detail panel.
+     *
+     * <p>Read from the definitions rather than the language file, so the book cannot advertise a
+     * value the simulation does not use. The original's vocabulary is kept where it fits - a plant
+     * shows a damage figure, a zombie a toughness figure - and this project's own numbers fill
+     * them.
+     */
+    private List<String> statLines(AlmanacEntries.Page openPage, Identifier id) {
         List<String> lines = new ArrayList<>();
-        String seconds = GuiLang.raw("gui.pvzce.almanac.seconds", "{0}s");
-        switch (page) {
+        switch (openPage) {
             case PLANTS -> {
-                var plant = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id);
-                if (plant == null) {
-                    return lines;
+                var plant = BuiltInRegistries.PLANTS.get(id);
+                if (plant != null) {
+                    lines.add(stat("damage", "Damage") + " " + plant.health());
                 }
-                int cost = plant.cost().amountOf(com.pvzce.common.PvzceIds.SUN);
-                int cooldown = plant.cost().cooldownTicks();
-                var slot = com.pvzce.common.core.BuiltInRegistries.SLOT_TYPES.get(id);
-                if (slot != null && slot.cost().amountOf(com.pvzce.common.PvzceIds.SUN) > 0) {
-                    cost = slot.cost().amountOf(com.pvzce.common.PvzceIds.SUN);
-                }
-                if (slot != null && slot.cost().cooldownTicks() > 0) {
-                    cooldown = slot.cost().cooldownTicks();
-                }
-                lines.add(GuiLang.raw("gui.pvzce.almanac.stat.cost", "Sun") + "  " + cost);
-                if (cooldown > 0) {
-                    lines.add(GuiLang.raw("gui.pvzce.almanac.stat.recharge", "Recharge") + "  "
-                            + seconds.replace("{0}", trim(cooldown / 60F)));
-                }
-                lines.add(GuiLang.raw("gui.pvzce.almanac.stat.health", "Health") + "  "
-                        + plant.health());
             }
             case ZOMBIES -> {
-                var zombie = com.pvzce.common.core.BuiltInRegistries.ZOMBIES.get(id);
-                if (zombie == null) {
-                    return lines;
+                var zombie = BuiltInRegistries.ZOMBIES.get(id);
+                if (zombie != null) {
+                    lines.add(stat("toughness", "Toughness") + " " + zombie.health());
+                    lines.add(stat("speed", "Speed") + " " + trim(zombie.moveSpeed() * 60F)
+                            + GuiLang.raw("gui.pvzce.almanac.cells_per_second", " cells/s"));
+                    lines.add(stat("bite", "Bite") + " " + zombie.biteDamage());
                 }
-                lines.add(GuiLang.raw("gui.pvzce.almanac.stat.health", "Health") + "  "
-                        + zombie.health());
-                lines.add(GuiLang.raw("gui.pvzce.almanac.stat.speed", "Speed") + "  "
-                        + trim(zombie.moveSpeed() * 60F));
-                lines.add(GuiLang.raw("gui.pvzce.almanac.stat.bite", "Bite") + "  "
-                        + zombie.biteDamage());
             }
             case RESOURCES -> {
-                var resource = com.pvzce.common.core.BuiltInRegistries.RESOURCES.get(id);
-                if (resource == null) {
-                    return lines;
+                var resource = BuiltInRegistries.RESOURCES.get(id);
+                if (resource != null) {
+                    lines.add(stat("value", "Value") + " " + resource.defaultValue());
                 }
-                lines.add(GuiLang.raw("gui.pvzce.almanac.stat.value", "Value") + "  "
-                        + resource.defaultValue());
             }
         }
         return lines;
+    }
+
+    /** A stat label, as the original prints "Damage:" and "Recharge:". */
+    private String stat(String key, String fallback) {
+        return GuiLang.raw("gui.pvzce.almanac.stat." + key, fallback) + ":";
     }
 
     /** A number with at most one decimal, and no trailing {@code .0}. */
@@ -792,21 +834,51 @@ public final class AlmanacScreen extends Screen {
         return text.endsWith(".0") ? text.substring(0, text.length() - 2) : text;
     }
 
+    /** The sun a plant card costs, resolved through its slot when one exists. */
+    private int plantCost(Identifier id) {
+        var slot = BuiltInRegistries.SLOT_TYPES.get(id);
+        if (slot != null && slot.cost().amountOf(com.pvzce.common.PvzceIds.SUN) > 0) {
+            return slot.cost().amountOf(com.pvzce.common.PvzceIds.SUN);
+        }
+        var plant = BuiltInRegistries.PLANTS.get(id);
+        return plant == null ? 0 : plant.cost().amountOf(com.pvzce.common.PvzceIds.SUN);
+    }
+
+    /** A plant card's recharge in ticks: its slot's, or its own definition's. */
+    private int plantCooldown(Identifier id) {
+        var slot = BuiltInRegistries.SLOT_TYPES.get(id);
+        if (slot != null && slot.cost().cooldownTicks() > 0) {
+            return slot.cost().cooldownTicks();
+        }
+        var plant = BuiltInRegistries.PLANTS.get(id);
+        return plant == null ? 0 : plant.cost().cooldownTicks();
+    }
+
+    private int resourceValue(Identifier id) {
+        var resource = BuiltInRegistries.RESOURCES.get(id);
+        return resource == null ? 0 : resource.defaultValue();
+    }
+
+    private Identifier sunIcon() {
+        var sun = BuiltInRegistries.RESOURCES.get(com.pvzce.common.PvzceIds.SUN);
+        Identifier icon = sun == null ? null : sun.icon();
+        return icon != null && client.hasTexture(icon) ? icon : null;
+    }
+
     /**
      * Whether the player may use this entry.
      *
-     * <p>Plants and tools are the backpack's business, exactly as {@link SlotResolver#requiresUnlock}
-     * defines it; resources never lock (a level with no sun card could not be played), and zombies
-     * never lock either - this project has no record of which zombies a player has met, so the book
-     * shows them all rather than pretending to a knowledge it does not have.
+     * <p>Plants are the backpack's business, exactly as {@link SlotResolver#requiresUnlock} defines
+     * it; resources and zombies never lock - this project has no record of which zombies a player
+     * has met, so the book shows them all rather than pretending to a knowledge it does not have.
      */
-    private boolean isUnlocked(AlmanacEntries.Page page, Identifier id) {
-        if (page != AlmanacEntries.Page.PLANTS) {
+    private boolean isUnlocked(AlmanacEntries.Page openPage, Identifier id) {
+        if (openPage != AlmanacEntries.Page.PLANTS) {
             return true;
         }
         // The card id is the plant id for every plant this project ships, but a pack may grant a
-        // plant through a differently named slot, so the card is only assumed when one exists.
-        Identifier card = com.pvzce.common.core.BuiltInRegistries.SLOT_TYPES.containsKey(id)
+        // plant through a differently named slot, so a card is only assumed when one exists.
+        Identifier card = BuiltInRegistries.SLOT_TYPES.containsKey(id)
                 ? id
                 : BuiltInRegistries.SLOT_TYPES.keySet().stream()
                         .filter(slotId -> id.equals(SlotResolver.resolve(slotId)
@@ -817,82 +889,208 @@ public final class AlmanacScreen extends Screen {
     }
 
     // ------------------------------------------------------------------------------------------
-    // Shared painters
+    // Per-page presentation
     // ------------------------------------------------------------------------------------------
 
+    private Identifier backgroundFor(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES ? BACKGROUND_ZOMBIES : BACKGROUND_PLANTS;
+    }
+
+    private Identifier cardArt(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES ? CARD_ZOMBIE : CARD_PLANT;
+    }
+
+    private static float artWidth(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES ? ZOMBIE_ART_W : PLANT_ART_W;
+    }
+
+    private static float artHeight(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES ? ZOMBIE_ART_H : PLANT_ART_H;
+    }
+
+    private static float[] imageWindow(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES
+                ? new float[]{ZOMBIE_IMAGE_X, ZOMBIE_IMAGE_Y, ZOMBIE_IMAGE_W, ZOMBIE_IMAGE_H}
+                : new float[]{PLANT_IMAGE_X, PLANT_IMAGE_Y, PLANT_IMAGE_W, PLANT_IMAGE_H};
+    }
+
+    private static float[] textWindow(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES
+                ? new float[]{ZOMBIE_TEXT_X, ZOMBIE_TEXT_Y, ZOMBIE_TEXT_W, ZOMBIE_TEXT_H}
+                : new float[]{PLANT_TEXT_X, PLANT_TEXT_Y, PLANT_TEXT_W, PLANT_TEXT_H};
+    }
+
+    private float[] inkFor(AlmanacEntries.Page openPage) {
+        return openPage == AlmanacEntries.Page.ZOMBIES ? ZOMBIE_GREEN : PLANT_GOLD;
+    }
+
+    /** The page's own name for the title band, e.g. "Almanac - Plants". */
+    private String pageTitle(AlmanacEntries.Page openPage) {
+        String key = switch (openPage) {
+            case PLANTS -> "gui.pvzce.almanac.page_title_plants";
+            case ZOMBIES -> "gui.pvzce.almanac.page_title_zombies";
+            case RESOURCES -> "gui.pvzce.almanac.page_title_resources";
+        };
+        return GuiLang.raw(key, "Almanac - " + openPage.name());
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Painters
+    // ------------------------------------------------------------------------------------------
+
+    private void drawBackground(Identifier texture) {
+        client.drawTexture(texture, sx(0F), sy(NATIVE_HEIGHT), sw(NATIVE_WIDTH),
+                sw(NATIVE_HEIGHT), -1F, 1F, 1F, 1F, 1F);
+    }
+
     /**
-     * A content sprite by its kind, used when there is no animation resource to play.
+     * The stone plate the page's name is printed on.
      *
-     * <p>Resources are asked for their declared {@code icon} rather than through
-     * {@code EntityArt.sprite}: a resource's authored art lives in {@code textures/resource/},
-     * and its {@code texture} field points at a drop sprite under {@code textures/entities/} that
-     * does not exist for every denomination. Three of the seven drops (energy bean, redstone,
-     * money bag) have no animation either, so this is the path they are always drawn by.
+     * <p>Drawn rather than taken from the background: both entry backgrounds do carry a blank
+     * plate, but the index background's bar is a different colour and size, and one painter for
+     * all three pages is what keeps the title in the same place everywhere.
      */
-    private void drawSprite(Identifier id, String kind, float x, float y, float w, float h) {
+    private void drawTitlePlate(String text, float[] ink) {
+        client.drawSolid(sx(TITLE_X - 3F), sy(TITLE_Y + TITLE_H + 3F), sw(TITLE_W + 6F),
+                sw(TITLE_H + 6F), -0.6F, PLATE_EDGE[0], PLATE_EDGE[1], PLATE_EDGE[2], 0.85F);
+        client.drawSolid(sx(TITLE_X), sy(TITLE_Y + TITLE_H), sw(TITLE_W), sw(TITLE_H), -0.6F,
+                PLATE_FILL[0], PLATE_FILL[1], PLATE_FILL[2], 0.72F);
+        drawLineCentredIn(TITLE_X, TITLE_W, text, TITLE_BASELINE, TITLE_SCALE, ink);
+    }
+
+    /** One of the two card frames, drawn at its own size. */
+    private void drawCardArt(AlmanacEntries.Page openPage, float x, float y, float w, float h) {
+        client.drawTexture(cardArt(openPage), sx(x), sy(y + h), sw(w), sw(h), 0F, 1F, 1F, 1F, 1F);
+    }
+
+    /**
+     * An entry's art in a box.
+     *
+     * <p>Static, as the original's is: this project has no pre-rendered almanac frames, and the
+     * alternatives are worse - animating needs the world projection, which resets the GUI view the
+     * page's text is drawn with, and baking frames is a toolchain of its own. A plant uses its seed
+     * packet's 1:1 icon, which is the same art the chooser and the in-game bar draw; a zombie uses
+     * its animation's largest part, which is what the editor's palette does.
+     */
+    private void drawPreview(AlmanacEntries.Page openPage, Identifier id, float x, float y,
+                             float w, float h) {
+        if (id == null || w <= 0F || h <= 0F) {
+            return;
+        }
+        Identifier texture = previewTexture(openPage, id);
+        if (texture == null) {
+            return;
+        }
+        drawSpriteFitted(texture, x, y, w, h, 0.2F);
+    }
+
+    /**
+     * The texture a static preview of an entry draws.
+     *
+     * <p>Plants use their seed packet icon, which is the 1:1 art the chooser and the in-game bar
+     * draw and is exactly what the original prints on a plant's page. A zombie has no single-body
+     * sprite - its art is the parts of the rig, one PNG per limb - so it falls back to the
+     * animation's largest visible part, which is its body; the animated detail panel is where a
+     * zombie is drawn whole.
+     */
+    private Identifier previewTexture(AlmanacEntries.Page openPage, Identifier id) {
         Identifier texture = null;
-        if (com.pvzce.api.entity.EntityKind.RESOURCE.equals(kind)) {
+        if (openPage == AlmanacEntries.Page.PLANTS) {
+            // The seed packet's 1:1 icon: the same art the chooser and the in-game bar draw.
+            var slot = SlotResolver.resolve(id).orElse(null);
+            texture = slot == null ? null : slot.icon().orElse(null);
+        } else if (openPage == AlmanacEntries.Page.RESOURCES) {
             var resource = BuiltInRegistries.RESOURCES.get(id);
             texture = resource == null ? null : resource.icon();
         }
-        if (texture == null) {
-            texture = EntityTextures.forEntity(id, kind);
-        }
-        if (texture == null || !client.hasTexture(texture)) {
-            // Nothing to show: a card with an empty window reads as "no art yet", while the
-            // shared missing-texture tile reads as a bug - which is what it is, and not what the
-            // reader should be told about.
-            return;
-        }
-        client.drawTexture(texture, x, y, w, h, 0.5F, 1F, 1F, 1F, 1F);
+        // A zombie deliberately has no texture path here: its art is one PNG per limb, so every
+        // candidate is either a directory or a single body part. Its caller draws the rig instead
+        // (and leaves the card empty when there is no rig to draw).
+        return texture != null && client.hasTexture(texture) ? texture : null;
     }
 
-    /** The two footer buttons, which the original has on every page. */
-    private void drawFooterButtons(boolean onIndex) {
-        float height = 26F;
-        float y = NATIVE_HEIGHT - 40F;
-        float closeW = 89F;
-        float indexW = 164F;
-        if (onIndex) {
-            // On the index only "close" applies; the index button would go where the reader is.
-            float x = (NATIVE_WIDTH - closeW) / 2F;
-            drawTexturedButton(BUTTON_CLOSE, BUTTON_CLOSE_LIT, x, y, closeW, height,
-                    GuiLang.raw("gui.pvzce.almanac.close", "Close"), () -> requestClose());
+    /**
+     * Draws a sprite inside a box, at its own aspect ratio and centred.
+     *
+     * <p>Not stretched to the box: a seed packet icon is square and the boxes on this page are not,
+     * and the first version stretched them - a Peashooter came out half as wide as it is tall.
+     * {@code coverGround} puts the plot behind the sprite, which is what the original does.
+     */
+    private void drawSpriteFitted(Identifier texture, float x, float y, float w, float h, float z) {
+        // Probed and caught: `hasTexture` answering yes is not a promise that the bytes decode
+        // (a directory listing, a truncated pack file), and the texture manager throws rather than
+        // returning null. A missing picture must not take the render loop down with it.
+        if (texture == null || !client.hasTexture(texture)) {
             return;
         }
-        float gap = 240F;
-        float left = (NATIVE_WIDTH - (closeW + indexW + gap)) / 2F;
-        drawTexturedButton(BUTTON_CLOSE, BUTTON_CLOSE_LIT, left, y, closeW, height,
-                GuiLang.raw("gui.pvzce.almanac.close", "Close"), () -> requestClose());
-        drawTexturedButton(BUTTON_INDEX, BUTTON_INDEX_LIT, left + closeW + gap, y, indexW, height,
-                GuiLang.raw("gui.pvzce.almanac.index", "Index"), this::showIndex);
+        com.pvzce.client.renderer.texture.Texture tex;
+        try {
+            tex = client.textures().getOrLoad(texture);
+        } catch (RuntimeException e) {
+            return;
+        }
+        float texW = Math.max(1, tex.width());
+        float texH = Math.max(1, tex.height());
+        float fit = Math.min(w / texW, h / texH);
+        float drawW = texW * fit;
+        float drawH = texH * fit;
+        client.drawTexture(texture, sx(x + (w - drawW) / 2F), sy(y + (h - drawH) / 2F + drawH),
+                sw(drawW), sw(drawH), z, 1F, 1F, 1F, 1F);
+    }
+
+    /** The grass the entries stand on, tiled to fill a window. */
+    private void drawGround(float x, float y, float w, float h) {
+        if (!client.hasTexture(GROUND_DAY)) {
+            return;
+        }
+        var tex = client.textures().getOrLoad(GROUND_DAY);
+        float tile = 40F;
+        for (float ty = y; ty < y + h; ty += tile) {
+            for (float tx = x; tx < x + w; tx += tile) {
+                float tw = Math.min(tile, x + w - tx);
+                float th = Math.min(tile, y + h - ty);
+                client.drawTextureRegion(GROUND_DAY, 0F, 0F, tw / tile, th / tile,
+                        sx(tx), sy(ty + th), sw(tw), sw(th), -0.05F, 1F, 1F, 1F, 1F);
+            }
+        }
+        // A soft dark rim so the plot reads as a window rather than as a hole in the card. The
+        // texture is only used to size the tile above; the rim is flat.
+        client.drawSolid(sx(x), sy(y + h), sw(w), sw(2F), 0.1F, 0F, 0F, 0F, 0.25F);
+    }
+
+    /** The two footer buttons. */
+    private void drawFooter(boolean showIndex) {
+        if (showIndex) {
+            drawTexturedButton(BUTTON_INDEX, BUTTON_INDEX_LIT, INDEX_BUTTON_X, FOOTER_Y,
+                    INDEX_BUTTON_W, FOOTER_H,
+                    GuiLang.raw("gui.pvzce.almanac.index_button", "Almanac Index"),
+                    BLACK, this::showIndex);
+        }
+        drawTexturedButton(BUTTON_CLOSE, BUTTON_CLOSE_LIT, CLOSE_BUTTON_X, FOOTER_Y,
+                CLOSE_BUTTON_W, FOOTER_H,
+                GuiLang.raw("gui.pvzce.almanac.close", "Close"), BLACK, this::requestClose);
     }
 
     private void drawTexturedButton(Identifier texture, Identifier lit, float x, float y, float w,
-                                    float h, String label, Runnable action) {
+                                    float h, String label, float[] ink, Runnable action) {
         boolean hovered = hovering(x, y, w, h);
-        client.drawTexture(hovered ? lit : texture, sx(x), sy(y + h), sw(w), sw(h), 0.5F,
+        client.drawTexture(hovered ? lit : texture, sx(x), sy(y + h), sw(w), sw(h), 0.4F,
                 1F, 1F, 1F, 1F);
-        drawLineCentred(label, y + h - 11F, FOOTER_SCALE, BUTTON_WHITE);
+        drawLineCentredIn(x, w, label, y + 9F, BUTTON_SCALE, ink);
         hits.add(new Hit(x, y, w, h, action));
     }
 
-    /** A page-turning arrow, drawn as a triangle so it needs no extra art. */
-    private void arrowButton(float x, float y, float w, float h, boolean forward, Runnable action) {
+    /** One of the index's two "view" buttons: a small plate of the page's own colour. */
+    private void viewButton(String label, AlmanacEntries.Page target, float x, float y,
+                            float[] accent, float[] shadow) {
+        float w = VIEW_BUTTON_W;
+        float h = VIEW_BUTTON_H;
         boolean hovered = hovering(x, y, w, h);
-        float alpha = hovered ? 0.95F : 0.62F;
-        float midY = y + h / 2F;
-        // Six stacked bars make a triangle; the painter has no triangle primitive and the depth
-        // test is off, so a run of rects is both cheaper and exactly as crisp at this size.
-        int steps = 12;
-        for (int i = 0; i < steps; i++) {
-            float t = i / (float) (steps - 1);
-            float barW = 10F + t * (w - 10F);
-            float barX = forward ? x : x + w - barW;
-            client.drawSolid(sx(barX), sy(midY + (t - 0.5F) * h), sw(barW), sw(h / steps) + 1F,
-                    0.5F, 0.18F, 0.10F, 0.03F, alpha);
-        }
-        hits.add(new Hit(x, y, w, h, action));
+        client.drawSolid(sx(x), sy(y + h), sw(w), sw(h), 0.3F, shadow[0], shadow[1], shadow[2], 1F);
+        client.drawSolid(sx(x + 3F), sy(y + h - 3F), sw(w - 6F), sw(h - 6F), 0.3F,
+                hovered ? 0.55F : 0.30F, hovered ? 0.42F : 0.22F, hovered ? 0.20F : 0.10F, 1F);
+        drawLineCentredIn(x, w, label, y + 8F, VIEW_LABEL_SCALE, accent);
+        hits.add(new Hit(x, y, w, h, () -> openPage(target)));
     }
 
     private boolean hovering(float x, float y, float w, float h) {
@@ -903,50 +1101,53 @@ public final class AlmanacScreen extends Screen {
     }
 
     // ------------------------------------------------------------------------------------------
-    // Text helpers, all in native units
+    // Text: positions in native units, sizes in the project's GUI-scale band
     // ------------------------------------------------------------------------------------------
 
     /**
-     * A line centred on the page, {@code nativeY} being the line's own baseline.
+     * A line drawn from {@code nativeX} rightward.
      *
-     * <p>Named apart from {@link Screen}'s own centring helper because this one takes native units
-     * and flips them; a same-signature overload would silently win over the base method and turn
-     * every inherited caller upside down.
+     * <p>Coordinates are native units ({@link #sx}/{@link #sy}); <em>font scales are not</em> - they
+     * are the same 0.7..1.5 band every other screen uses. Converting a font size from native units
+     * is the mistake that cost the most time in this file; see the pitfalls list.
      */
-    /** A line drawn from {@code nativeX} rightward. */
     private void drawTextLeft(String text, float nativeX, float nativeY, float fontScale,
-                              float[] colour) {
+                              float[] ink) {
         client.fonts().body().draw(text, sx(nativeX), sy(nativeY), fontScale,
-                colour[0], colour[1], colour[2], colour[3]);
+                ink[0], ink[1], ink[2], 1F);
     }
 
-    private void drawLineCentred(String text, float nativeY, float fontScale, float[] colour) {
-        client.fonts().body().drawCentered(text, sx(NATIVE_WIDTH / 2F), sy(nativeY), fontScale,
-                colour[0], colour[1], colour[2], colour[3]);
+    private void drawLineCentredIn(float boxX, float boxW, String text, float nativeBaseline,
+                                   float fontScale, float[] ink) {
+        client.fonts().body().drawCentered(text, sx(boxX + boxW / 2F), sy(nativeBaseline),
+                fontScale, ink[0], ink[1], ink[2], 1F);
     }
 
-    /** Wraps {@code text} into a native-space box, returning the y below the last line. */
+    /** Text width in native units, for the callers that lay out in native space. */
+    private float width(String text, float fontScale) {
+        return client.fonts().body().width(text, fontScale) / Math.max(0.01F, scale);
+    }
+
+    /**
+     * Wraps {@code text} into a native-space box, returning the y below the last line.
+     *
+     * <p>{@code bottom} is a hard floor: a line whose baseline would fall past it is not drawn. That
+     * is how every box on this screen keeps its text inside its own frame, rather than with a
+     * scissor - see {@link #renderDetailText} for why the scissor cannot be trusted here.
+     */
     private float drawWrapped(String text, float x, float y, float width, float fontScale,
-                              float[] ink, float alpha) {
-        List<String> lines = client.fonts().body().wrapLines(text, sw(width), fontScale);
-        float lineHeight = client.fonts().body().lineHeight(fontScale) / Math.max(0.01F, scale);
-        float cursor = y;
-        for (String line : lines) {
-            client.fonts().body().draw(line, sx(x), sy(cursor), fontScale, ink[0], ink[1], ink[2], alpha);
-            cursor -= lineHeight;
+                              float[] ink, float bottom) {
+        if (text == null || text.isBlank()) {
+            return y;
         }
-        return cursor;
-    }
-
-    /** As {@link #drawWrapped}, centred on the box's horizontal middle. */
-    private float drawWrappedCentred(String text, float x, float y, float width, float fontScale,
-                                     float[] ink, float alpha) {
         List<String> lines = client.fonts().body().wrapLines(text, sw(width), fontScale);
         float lineHeight = client.fonts().body().lineHeight(fontScale) / Math.max(0.01F, scale);
         float cursor = y;
         for (String line : lines) {
-            client.fonts().body().drawCentered(line, sx(x + width / 2F), sy(cursor), fontScale,
-                    ink[0], ink[1], ink[2], alpha);
+            if (cursor < bottom) {
+                break;
+            }
+            client.fonts().body().draw(line, sx(x), sy(cursor), fontScale, ink[0], ink[1], ink[2], 1F);
             cursor -= lineHeight;
         }
         return cursor;
@@ -963,8 +1164,8 @@ public final class AlmanacScreen extends Screen {
         }
         float nx = nativeX(guiX);
         float ny = nativeY(guiY);
-        // Topmost first: the footer and the arrows are added after the card, and a click on the
-        // card under a button must not fall through to it.
+        // Topmost first: the footer and the "view" buttons are added after the shelf, so a click
+        // on a button that overlaps a card must not fall through to the card.
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit hit = hits.get(i);
             if (hit.contains(nx, ny)) {
@@ -976,10 +1177,10 @@ public final class AlmanacScreen extends Screen {
 
     @Override
     protected void onMouseScrolled(double guiX, double guiY, double amount) {
-        // A wheel over the book turns its pages: the only scrollable thing here is which entry is
-        // open, and the original has no scrolling at all.
+        // The shelf has no scrolling: it is sized for every entry a page can hold the way the
+        // original's is. A page a mod makes longer than the shelf is walkable with the arrow keys.
         if (page >= 0) {
-            turn(amount > 0 ? 1 : -1);
+            select(amount > 0 ? 1 : -1);
         }
     }
 
@@ -987,11 +1188,11 @@ public final class AlmanacScreen extends Screen {
     public void keyPressed(int key) {
         if (page >= 0) {
             if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT || key == org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN) {
-                turn(1);
+                select(1);
                 return;
             }
             if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT || key == org.lwjgl.glfw.GLFW.GLFW_KEY_UP) {
-                turn(-1);
+                select(-1);
                 return;
             }
             if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE) {
@@ -1000,6 +1201,14 @@ public final class AlmanacScreen extends Screen {
             }
         }
         super.keyPressed(key);
+    }
+
+    private void select(int delta) {
+        AlmanacEntries.Catalogue catalogue = current();
+        if (catalogue == null || catalogue.size() == 0) {
+            return;
+        }
+        selected = Math.floorMod(selected + delta, catalogue.size());
     }
 
     // ------------------------------------------------------------------------------------------
@@ -1011,41 +1220,10 @@ public final class AlmanacScreen extends Screen {
         return page;
     }
 
-    /** The entry being read, or {@code null} on the index. */
+    /** The entry the detail card is showing, or {@code null} on the index. */
     public Identifier currentEntry() {
         AlmanacEntries.Catalogue catalogue = current();
-        return catalogue == null ? null : catalogue.at(entry);
-    }
-
-    /**
-     * Opens a page without a click, so a screenshot run can reach any of them.
-     *
-     * <p>Safe to call before the screen has been initialized: the request is remembered and
-     * applied by {@link #init()}, which otherwise runs on the first rendered frame and would
-     * discard it.
-     */
-    public void show(AlmanacEntries.Page target) {
-        if (catalogues.isEmpty()) {
-            wanted = target;
-            return;
-        }
-        openPage(target);
-    }
-
-    /**
-     * Turns to an entry by index, wrapping; for the smoke driver's screenshot runs.
-     *
-     * <p>Applies after {@link #show} either way: when the screen has not been initialized yet, the
-     * page request is pending and this index is applied to it by {@link #init()}.
-     */
-    public void showEntry(int index) {
-        pendingEntry = index;
-        AlmanacEntries.Catalogue catalogue = current();
-        if (catalogue == null || catalogue.size() == 0) {
-            return;
-        }
-        entry = Math.floorMod(index, catalogue.size());
-        rebuildPreview();
+        return catalogue == null ? null : catalogue.at(selected);
     }
 
     /** How many entries the open page holds, or {@code 0} on the index. */

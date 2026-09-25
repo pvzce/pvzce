@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -151,6 +152,63 @@ class AnimationResourceLoaderTest {
         assertTrue(gargantuar.model().sizeY() > basic.model().sizeY() * 1.30F);
         assertTrue(boss.model().sizeY() > basic.model().sizeY() * 1.80F);
         assertTrue(imp.model().sizeY() < basic.model().sizeY() * 0.80F);
+    }
+
+    /**
+     * The threepeater draws three heads standing still, and one head at a time firing.
+     *
+     * <p>Its three heads live on three timelines that never overlap in the source (head 1's face
+     * on frames 4..41, head 3's on 45..82, head 2's on 86..123), so no single frame of the file
+     * shows the plant. The converter's rescue rule forces the head group on for the standing
+     * pose - and it is matched with {@code fullmatch} against de-duplicated names, so a pattern
+     * that named the family without allowing the {@code _2}/{@code _3} suffixes silently dropped
+     * two of the three heads and every headleaf. A threepeater at rest drew one head on three
+     * stems, and mid-volley it drew all three faces on the same pixel.
+     *
+     * <p>Both halves are pinned here because they fail in opposite directions: the idle clip has
+     * to show <em>every</em> head, and the shoot clip has to show exactly one per volley.
+     */
+    @Test
+    void theThreepeaterDrawsThreeHeadsIdleAndOneAtATimeFiring() throws Exception {
+        ControllerFile controller = (ControllerFile) parseClasspath("threepeater");
+        String[] heads = {"head", "head_2", "head_3"};
+        String[] mouths = {"mouth", "mouth_2", "mouth_3"};
+
+        ControllerClip idle = (ControllerClip) controller.clip("idle").orElseThrow();
+        var idlePose = idle.samplePose(controller.model(), 0D);
+        for (String head : heads) {
+            assertTrue(idlePose.get(head).visible(),
+                    head + " must be drawn in the idle pose; a standing threepeater has three heads");
+        }
+        for (String mouth : mouths) {
+            assertTrue(idlePose.get(mouth).visible(), mouth + " belongs to a head that is up");
+        }
+
+        // The volley: three shooting masks laid end to end, one head per phase. The invariant is
+        // "never two at once" over every frame, plus "all three get a turn" - the defect being
+        // guarded is three faces drawn on the same pixel, and a sampling scheme that only looked
+        // at three guessed moments would have missed it.
+        ControllerClip shoot = (ControllerClip) controller.clip("shoot").orElseThrow();
+        // Three masks of 13 source frames each, laid end to end with no dead time: the clip's
+        // length is their sum, not the 95-frame span they live in.
+        assertEquals(3.25D, shoot.duration(), 0.001D,
+                "the three volleys back to back, not the whole span they sit in");
+        java.util.Set<String> fired = new java.util.HashSet<>();
+        for (int step = 0; step <= 200; step++) {
+            double at = shoot.duration() * step / 200.0;
+            var pose = shoot.samplePose(controller.model(), at);
+            int up = 0;
+            for (String head : heads) {
+                if (pose.get(head).visible()) {
+                    up++;
+                    fired.add(head);
+                }
+            }
+            assertTrue(up <= 1,
+                    "two heads were drawn at once at " + at + "s; the volley fires one at a time");
+        }
+        assertEquals(3, fired.size(),
+                "every head takes its turn over one clip, saw " + fired);
     }
 
     @Test
@@ -429,11 +487,17 @@ class AnimationResourceLoaderTest {
      * symptom with no address; a blast that is a composition of nine is nine chances to typo one.
      * The doom-shroom's cloud pieces are additionally required to be placed around the blast
      * rather than on top of each other - that placement is the whole reason they are a list.
+     *
+     * <p>The potato mine is why the loop names its plants instead of scanning the ash line: it
+     * shipped with no {@code particles} at all, so it silently drew the capability's default
+     * flash - which happens to be the middle piece of the cherry bomb's composition. Falling back
+     * to that default is a wrong answer for a plant that has an explosion of its own in the
+     * original's emitter list, so the mine is checked against the default explicitly.
      */
     @Test
     void theBlastsNameParticlesThatExistAndArePlaced() throws Exception {
         TestContent.loadBuiltInContentAndTags();
-        for (String plant : new String[]{"cherry_bomb", "doom_shroom"}) {
+        for (String plant : new String[]{"cherry_bomb", "doom_shroom", "potato_mine"}) {
             var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
                     Identifier.withDefaultNamespace(plant));
             var explosive = def.capabilities().stream()
@@ -444,6 +508,9 @@ class AnimationResourceLoaderTest {
                     .orElseThrow();
             assertTrue(explosive.particles().size() > 1,
                     plant + " has an explosion of its own rather than the default flash");
+            assertNotEquals(com.pvzce.common.capability.plant.ExplosiveCapability.DEFAULT_PARTICLES,
+                    explosive.particles(),
+                    plant + " must not draw the ash line's generic flash");
             for (Identifier particle : explosive.particles()) {
                 var particleDef = com.pvzce.common.core.BuiltInRegistries.PARTICLES.get(particle);
                 assertNotNull(particleDef, plant + " names " + particle + ", which has no definition");

@@ -74,7 +74,13 @@ class LiquidDefinitionTest {
         assertEquals(fallback.baseScale(), shipped.baseScale(), 1e-6F);
         assertEquals(fallback.opacity(), shipped.opacity(), 1e-6F);
         assertEquals(fallback.depthScale(), shipped.depthScale(), 1e-6F);
-        assertEquals(fallback.caustics(), shipped.caustics(), 1e-6F);
+        // The light web, field by field: strength, the sheet, and the sheet's own scale and
+        // drift. A fallback that kept the strength but lost the sheet is a still pool whenever
+        // no pack was found - the same class of drift this test exists for.
+        assertEquals(fallback.causticStrength(), shipped.causticStrength(), 1e-6F);
+        assertEquals(fallback.caustics().texture(), shipped.caustics().texture());
+        assertEquals(fallback.caustics().scale(), shipped.caustics().scale(), 1e-6F);
+        assertEquals(fallback.caustics().scroll(), shipped.caustics().scroll(), 1e-6F);
         assertEquals(fallback.specular(), shipped.specular(), 1e-6F);
         assertEquals(fallback.specularPower(), shipped.specularPower(), 1e-6F);
         assertEquals(fallback.foam().width(), shipped.foam().width(), 1e-6F);
@@ -82,6 +88,29 @@ class LiquidDefinitionTest {
         assertArrayEquals(fallback.shallowColor(), shipped.shallowColor(), 1e-4F);
         assertArrayEquals(fallback.deepColor(), shipped.deepColor(), 1e-4F);
         assertArrayEquals(fallback.foam().color(), shipped.foam().color(), 1e-4F);
+    }
+
+    /**
+     * The caustic sheet the water names is actually shipped.
+     *
+     * <p>The same shape of failure as the baked frames below and for the same reason: a missing
+     * texture is not an error at load time, it is {@code hasTexture == false}, and the shader
+     * then draws a surface with no light web on it. That is indistinguishable from "the caustics
+     * are switched off" except that nobody switched them off.
+     */
+    @Test
+    void theCausticSheetIsShipped() throws Exception {
+        LiquidDef water = BuiltInRegistries.LIQUIDS.get(Identifier.withDefaultNamespace("water"));
+        Identifier sheet = water.caustics().texture().orElse(null);
+        assertNotNull(sheet, "the water has to name the original's caustic sheet");
+        assertEquals(LiquidDef.CAUSTIC_TEXTURE, sheet);
+        assertTrue(water.caustics().scroll() > 0F,
+                "a sheet that does not drift is a still pool with a pattern painted on it");
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        try (java.io.InputStream in = loader.getResourceAsStream(
+                "assets/pvzce/" + sheet.path() + ".png")) {
+            assertNotNull(in, "missing caustic texture assets/pvzce/" + sheet.path() + ".png");
+        }
     }
 
     @Test

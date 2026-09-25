@@ -72,7 +72,14 @@ final class MutationText {
         };
     }
 
-    /** The Chinese label for a zombie or plant id a mutation picked as its subject. */
+    /**
+     * The Chinese label for a zombie, plant or buff id a mutation names in its banner.
+     *
+     * <p>Buffs are here for the same reason zombies are: a mutation that says what it changed has
+     * to be able to say <em>which</em> buff, and the server has no language file to read. The
+     * client's own name for a buff is {@code level_buff.<ns>.<path>} (see {@code GuiLang}), and
+     * the two lists have to agree - the same debt the panel's own id-to-name table carries.
+     */
     static String subjectName(Identifier id) {
         if (id == null) {
             return "?";
@@ -100,6 +107,9 @@ final class MutationText {
             case "zombie_boss" -> "僵尸博士";
             case "pea" -> "豌豆";
             case "snow_pea" -> "寒冰豌豆";
+            // Buffs, for the mutation that shifts them.
+            case "auto_collect" -> "自动拾取";
+            case "mushroom_range" -> "远距蘑菇";
             default -> id.path();
         };
     }

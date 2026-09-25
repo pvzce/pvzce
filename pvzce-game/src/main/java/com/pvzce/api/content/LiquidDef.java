@@ -43,7 +43,8 @@ import java.util.Optional;
  * @param depthScale  world cells over which shallow fades into deep
  * @param foam        shoreline foam: colour and band width
  * @param wave        surface motion: scroll speed, strength and spatial density
- * @param caustics    caustics strength
+ * @param caustics    the light web on the surface: strength, and the scroll of the original's
+ *                    own caustic sheet (see {@link CausticStyle})
  * @param reflectColor ambient / sky colour mixed in by the fresnel term
  * @param fresnel     how strongly the horizon reflection takes over at grazing angles
  * @param specular    sun and moon glitter strength
@@ -60,7 +61,7 @@ public record LiquidDef(
         float baseScale,
         FoamStyle foam,
         WaveShape wave,
-        float caustics,
+        CausticStyle caustics,
         float[] reflectColor,
         float fresnel,
         float specular,
@@ -93,6 +94,15 @@ public record LiquidDef(
     public static final float WATER_SURFACE_SCALE = 1F / 9F;
 
     /**
+     * The original's tileable caustic sheet, built by {@code tools/gen_water_caustics.py}.
+     *
+     * <p>This is the drawing the original drifts across its pool, and it is what makes the
+     * surface move at all on a body this bright: see {@link CausticStyle}.
+     */
+    public static final Identifier CAUSTIC_TEXTURE =
+            Identifier.withDefaultNamespace("textures/scene/water_caustics");
+
+    /**
      * How many texture tiles fit in one world cell, i.e. the base texture's scale.
      *
      * <p>The shipped default is deliberately denser than one tile per lawn. A tile that
@@ -104,6 +114,11 @@ public record LiquidDef(
      * flattens the tile's low-frequency luminance for the same reason.
      */
     public static final float DEFAULT_BASE_SCALE = 1F / 3.5F;
+
+    /** How strongly the light web lightens the water. See {@link CausticStyle#strength()}. */
+    public float causticStrength() {
+        return caustics.strength();
+    }
 
     /** Fallback frames baked by {@code tools/gen_water_frames.py}. */
     public static final String STATIC_FRAME_PREFIX = "textures/scene/water_frames/";
@@ -122,7 +137,8 @@ public record LiquidDef(
                     .forGetter(LiquidDef::baseScale),
             FoamStyle.CODEC.optionalFieldOf("foam", FoamStyle.DEFAULT).forGetter(LiquidDef::foam),
             WaveShape.CODEC.optionalFieldOf("wave", WaveShape.DEFAULT).forGetter(LiquidDef::wave),
-            Codec.floatRange(0F, 2F).optionalFieldOf("caustics", 0.45F).forGetter(LiquidDef::caustics),
+            CausticStyle.CODEC.optionalFieldOf("caustics", CausticStyle.DEFAULT)
+                    .forGetter(LiquidDef::caustics),
             COLOR.optionalFieldOf("reflect_color", parseColor("#9FC7E8")).forGetter(LiquidDef::reflectColor),
             Codec.floatRange(0F, 1F).optionalFieldOf("fresnel", 0.35F).forGetter(LiquidDef::fresnel),
             Codec.floatRange(0F, 4F).optionalFieldOf("specular", 1.0F).forGetter(LiquidDef::specular),
@@ -157,6 +173,39 @@ public record LiquidDef(
     }
 
     /** Surface motion. */
+    /**
+     * The light web on the surface: how strong it is, and how the sheet that draws it drifts.
+     *
+     * <p>Two sources draw it and they are not alternatives. The procedural trains in the shader
+     * are always there and give the surface its fine shimmer; {@code texture} is the original's
+     * own tileable caustic drawing, which is what can <em>modulate</em> a bright surface rather
+     * than only adding light to it. A liquid that names no texture keeps the procedural web
+     * alone, which is every liquid but water.
+     *
+     * @param strength how much the web lightens the water, 0..2
+     * @param texture  a tiling caustic sheet, or empty for the procedural web alone. What the
+     *                 original animates its pool with; {@code tools/gen_water_caustics.py}
+     *                 builds the shipped one from {@code refer/im7/images/pool_caustic_effect.jpg}
+     * @param scale    tiles per world cell - the sheet's on-screen size
+     * @param scroll   how fast the sheet drifts across the surface, in tiles per second. The
+     *                 shader also drifts it sideways at a third of this, so the pattern travels
+     *                 rather than slides along one axis
+     */
+    public record CausticStyle(float strength, Optional<Identifier> texture, float scale,
+                               float scroll) {
+        public static final CausticStyle DEFAULT = new CausticStyle(0.45F, Optional.empty(), 1F, 0F);
+
+        public static final Codec<CausticStyle> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.floatRange(0F, 2F).optionalFieldOf("strength", 0.45F)
+                        .forGetter(CausticStyle::strength),
+                Identifier.CODEC.optionalFieldOf("texture").forGetter(CausticStyle::texture),
+                Codec.floatRange(1F / 64F, 16F).optionalFieldOf("scale", 1F)
+                        .forGetter(CausticStyle::scale),
+                Codec.floatRange(0F, 4F).optionalFieldOf("scroll", 0F)
+                        .forGetter(CausticStyle::scroll)
+        ).apply(i, CausticStyle::new));
+    }
+
     public record WaveShape(float speed, float amplitude, float density) {
         public static final WaveShape DEFAULT = new WaveShape(0.055F, 0.55F, 2F);
 

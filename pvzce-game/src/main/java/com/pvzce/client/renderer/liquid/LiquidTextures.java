@@ -118,11 +118,15 @@ public final class LiquidTextures {
     }
 
     /**
-     * As above, with the stage's frame expressed in the same GUI pixels.
+     * As above, with the stage's world-cell frame scaled onto the board's own rectangle.
      *
-     * <p>{@code cellFrame} is the board's own rect and cell size (the pixels the caller
-     * already draws the terrain in); the stage's world-cell frame is scaled onto them, so
-     * the preview and the level it previews cannot disagree about where the water is.
+     * <p>{@code stageFrame} is in <strong>world cells</strong> - the value a camera returns and
+     * nothing else - and this method is the one place that turns it into the GUI pixels
+     * {@code originX}/{@code pixelsPerCell} describe. {@code scaledTo} is linear, not idempotent,
+     * so a caller that pre-scales the frame hands this method a squared one: the batch then lands
+     * at a cell size proportional to the board rather than to the stage, and on the seed chooser's
+     * small board that is several thousand pixels per cell, i.e. off screen. The preview lost its
+     * water exactly that way; see {@link SceneTileRenderer#renderBoard}.
      */
     public static void renderGuiBoard(PvzceClient client, LiquidDef liquid, String sceneId,
                                       int width, int height, SceneTileRenderer.SceneSource scene,

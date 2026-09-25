@@ -91,7 +91,10 @@ public final class PvzcePackets {
     // (WaveProgressS2C gained the round), a level that generates its waves has to be told its
     // current round's wave list (RoundSyncS2C), and a finished round pauses the run for a card
     // choice (RoundClearS2C / ReselectCardsC2S).
-    public static final int PROTOCOL_VERSION = 27;
+    // 28: the mutation state carries the run's active level buffs (MutationStateS2C.activeBuffs).
+    // A mutation is what rewrites that list mid-level, and the client used to hear it only once,
+    // in the level init, so the buff icons kept showing what the run started with.
+    public static final int PROTOCOL_VERSION = 28;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

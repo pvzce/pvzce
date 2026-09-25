@@ -31,13 +31,13 @@ import java.util.Optional;
  *
  * <p>Four levels - one per difficulty tier - and they are built here rather than written as JSON
  * because almost everything about them is code already: the mutation catalogue, the endless wave
- * generator, and the twelve-card, ten-buff bar they all share. A JSON file for each tier would hold
+ * generator, and the fourteen-card, ten-buff bar they all share. A JSON file for each tier would hold
  * four lines that differ (an id, a name, a description and one rule) around a scene block that is
  * identical, and the real content would still be in {@code common.level.mutation}.
  *
  * <p>What they are: the original's Survival Endless on the day pool, with the mutation system
  * switched on. Six rows, water in the middle two, mowers on the land rows and pool cleaners in the
- * water; twelve card slots and ten buff slots; no victory condition a player will ever reach,
+ * water; fourteen card slots and ten buff slots; no victory condition a player will ever reach,
  * because the waves do not run out - each round is generated, and the next one is heavier (see
  * {@code pvzce:mutation_endless}).
  *
@@ -57,8 +57,17 @@ public final class MutationLevels {
     private static final List<Integer> LAND_ROWS = List.of(0, 1, 4, 5);
     private static final List<Integer> WATER_ROWS = List.of(2, 3);
 
-    /** Twelve cards and ten buffs: the fixed bar this whole mode is played with. */
-    private static final int SEED_SLOTS = PvzceConstants.MAX_SEED_SLOTS;
+    /**
+     * Fourteen cards and ten buffs: the fixed bar this whole mode is played with.
+     *
+     * <p>Two more than {@link PvzceConstants#MAX_SEED_SLOTS}, and deliberately its own number
+     * rather than a raise of that ceiling: the backpack's 12 is a progression figure that the
+     * shop and {@code /profile slots} hand out, while this is the mode's own shape - a run whose
+     * lawn keeps rewriting itself needs a wider bar to answer with. Raising the shared constant
+     * would have widened the backpack, the level editor's card-pool limit and the plain survival
+     * endless level along with it.
+     */
+    private static final int SEED_SLOTS = 14;
     private static final int BUFF_SLOTS = 10;
 
     /** Where the sun comes from, in ticks: the pool levels' own numbers. */
@@ -202,7 +211,7 @@ public final class MutationLevels {
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION, MechanicData.Empty.INSTANCE));
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER, poolMowers()));
         // A deck, written out rather than left implicit: the level's cards come from the player's
-        // twelve picks, and "which card source" is the question a mutation overrides - so the
+        // own picks, and "which card source" is the question a mutation overrides - so the
         // declaration is what a mutation has to beat rather than something it falls back to.
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_DECK, MechanicData.Empty.INSTANCE));
         return List.copyOf(mechanics);

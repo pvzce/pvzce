@@ -189,6 +189,33 @@ class MutationManagerTest {
         assertNotNull(mutations);
     }
 
+    /**
+     * The belt takes the bar and nothing else.
+     *
+     * <p>Precedence is about one thing - who deals the cards - and it used to be read as a rank
+     * over the whole catalogue. The belt's 10 then beat every other mutation's 0, so a single
+     * belt put the entire field into "suppressed": the rate mutations stopped moving, the weather
+     * one stopped changing the sky, and because the belt is also the entry the eviction pass will
+     * not drop, none of them ever came back. A mutation that does not touch the cards must not
+     * care who holds the bar.
+     */
+    @Test
+    void theBeltSuppressesTheBarRewriteAndNothingElse() {
+        Mutation conveyor = MutationRegistry.get(PvzceIds.MUTATION_CONVEYOR);
+        assertNotNull(conveyor);
+        for (Mutation other : MutationRegistry.all()) {
+            if (other instanceof CardDealingMutation) {
+                continue;
+            }
+            // Slot replacement is the documented exception, and it says so itself.
+            boolean expected = other.id().equals(PvzceIds.MUTATION_SLOT_REPLACE);
+            assertEquals(expected, other.suppressedBy(conveyor),
+                    other.id() + " must not be held back by the belt");
+            assertEquals(false, conveyor.suppressedBy(other),
+                    other.id() + " must not hold the belt back");
+        }
+    }
+
     @Test
     void thePanelIsToldTheWholeListOnEveryChange() {
         LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 5,
@@ -380,6 +407,60 @@ class MutationManagerTest {
                                 + message.message());
             }
         }
+    }
+
+    /**
+     * A buff the mutation moved reaches the client, and the player is told which one.
+     *
+     * <p>The buff-shift mutation rewrites the run's buff list, and the client's icon row draws
+     * from what it was last told. That used to be the level init and nothing else, so the icons
+     * kept showing the buffs the run started with for the rest of the level while the simulation
+     * played by a different list - the two halves disagreeing, silently. The list rides in the
+     * mutation state packet now, and the banner names what moved.
+     */
+    @Test
+    void aBuffShiftReachesTheClientAndSaysWhichBuffMoved() {
+        LevelServer level = levelWith(PvzceIds.RULE_MUTATION_INITIAL_TICKS, 100_000);
+        Mutation buffShift = MutationRegistry.get(PvzceIds.MUTATION_BUFF_SHIFT);
+        assertNotNull(buffShift);
+        // No buffs at all to start with, so the shift has somewhere to go.
+        level.setActiveBuffs(List.of());
+
+        List<PvzcePacket> packets = new ArrayList<>();
+        // The mutation is installed from inside a tick, which is where a packet can actually be
+        // delivered: `send` drops everything while no bridge is installed, and the bridge only
+        // exists for the duration of a tick.
+        level.tick(packet -> {
+            packets.add(packet);
+            if (packets.size() == 1) {
+                // A heavy roll, which is what decides the direction: the chance of adding is
+                // weight/(1+weight), so a roll of 100 is "give" beyond any doubt. Which way the
+                // dice fall is the mutation's own business; this test is about what is told.
+                level.mutations().add(buffShift, Mutation.Roll.of(100F));
+            }
+        });
+
+        assertTrue(!level.activeBuffs().isEmpty(), "the mutation has to actually give a buff");
+        MutationStateS2C state = lastMutationState(packets);
+        assertNotNull(state, "the client has to be told, or its icon row keeps the old list");
+        assertEquals(
+                com.pvzce.server.LevelBuffSelection.resolveIds(level.activeBuffs()).stream()
+                        .map(com.pvzce.api.util.Identifier::toString).toList(),
+                state.activeBuffs(),
+                "and told the run's actual list, not a re-derived one");
+
+        String said = null;
+        for (PvzcePacket packet : packets) {
+            if (packet instanceof com.pvzce.common.network.packet.ServerMessageS2C message
+                    && message.message().contains("增益变动")) {
+                said = message.message();
+            }
+        }
+        assertNotNull(said, "the player is told the buffs changed");
+        assertTrue(said.contains("获得"),
+                "and told which way, rather than only that something moved; it said: " + said);
+        assertTrue(said.contains("拾取") || said.contains("蘑菇"),
+                "and which buff it was; it said: " + said);
     }
 
     /** How many cells of the board are craters, which is what the apocalypse leaves behind. */

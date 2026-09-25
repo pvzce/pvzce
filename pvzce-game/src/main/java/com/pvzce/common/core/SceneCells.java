@@ -103,4 +103,27 @@ public final class SceneCells {
         }
         return List.copyOf(cells);
     }
+
+    /**
+     * Packet form of a scene grid that has already been built, every cell included.
+     *
+     * <p>{@link #forLevel} answers with the <em>authored</em> cells, which is what a level file
+     * can say; a grid that a level has finished building also holds what its mechanics put
+     * there - the tombstones {@code grave_field} scattered, the ones {@code grave_spawner}
+     * raised for the opening board. Those cells exist only in the grid, so a caller that wants
+     * to show the board a run will actually open on has to read it here rather than re-deriving
+     * it from the file.
+     */
+    public static List<SceneSyncS2C.Cell> forGrid(SceneGrid<Identifier> grid) {
+        List<SceneSyncS2C.Cell> cells = new ArrayList<>();
+        for (int x = 0; x < grid.width(); x++) {
+            for (int y = 0; y < grid.height(); y++) {
+                Identifier element = grid.get(x, y);
+                if (element != null) {
+                    cells.add(new SceneSyncS2C.Cell(x, y, element.toString()));
+                }
+            }
+        }
+        return List.copyOf(cells);
+    }
 }

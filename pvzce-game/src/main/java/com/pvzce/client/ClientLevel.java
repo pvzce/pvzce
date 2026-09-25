@@ -308,6 +308,19 @@ public final class ClientLevel {
         return activeBuffs;
     }
 
+    /**
+     * Replaces the buff list from the server's own answer.
+     *
+     * <p>The level init used to be the only writer, which is why the icon row in the corner kept
+     * showing the buffs a run started with even after the buff-shift mutation rewrote them mid
+     * level. The mutation state packet carries the list now - see
+     * {@code MutationStateS2C.activeBuffs} - and this is where it lands. The row re-reads it every
+     * frame, so an icon appears or disappears on the frame the packet arrives.
+     */
+    public void setActiveBuffs(List<String> buffs) {
+        this.activeBuffs = List.copyOf(buffs == null ? List.of() : buffs);
+    }
+
     public String levelId() {
         return levelId;
     }
@@ -483,6 +496,9 @@ public final class ClientLevel {
     /** Applies one mutation state update; the whole set arrives at once. */
     public void setMutations(com.pvzce.common.network.packet.MutationStateS2C state) {
         this.mutations = state;
+        // The buffs ride in the same packet: a mutation is what changes them, and the panel that
+        // draws the mutations is what the player is already watching. See setActiveBuffs.
+        setActiveBuffs(state == null ? List.of() : state.activeBuffs());
     }
 
     /**

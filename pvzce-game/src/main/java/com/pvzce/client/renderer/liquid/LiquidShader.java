@@ -51,6 +51,8 @@ public final class LiquidShader implements Closeable {
     public static final int FEATURE_FRESNEL = 4;
     public static final int FEATURE_SPECULAR = 8;
     public static final int FEATURE_RIPPLES = 16;
+    /** Bit for the extra caustic sheet; see {@link LiquidRenderer#featuresFor}. */
+    public static final int FEATURE_CAUSTIC_SHEET = 64;
     public static final int FEATURE_SHORE = 32;
 
     /**
@@ -137,6 +139,11 @@ public final class LiquidShader implements Closeable {
             const int MAX_RIPPLES = 16;
             uniform sampler2D uTexture;
             uniform int uHasTexture;
+            uniform sampler2D uCausticTexture;
+            uniform int uHasCausticTexture;
+            uniform float uCausticScale;    // caustic tiles per world cell
+            uniform float uCausticScroll;   // caustic tiles per second
+            uniform float uCausticGain;
             uniform vec3 uShallow;
             uniform vec3 uDeep;
             uniform float uOpacity;
@@ -409,6 +416,29 @@ public final class LiquidShader implements Closeable {
                     causticTerm = caustic * uCaustics * 1.5 + uCaustics * waveTilt * 0.14;
                 }
 
+                /* THE ORIGINAL'S OWN CAUSTIC SHEET, drifting.
+                   The procedural web above is additive light, and on this surface there is
+                   almost nothing left to add to: the basin art sits at 240-255 in G and B over
+                   most of its area, so the measured per-pixel change over time was a median of
+                   1.3 of 255 - a pool that does not visibly move however the clock runs. The
+                   sheet is drawn as its own texture instead, and it is a MODULATION: the
+                   original's drawing has broad dark lanes between the light cells, so it can
+                   take light away as well as give it, which is what makes the motion read.
+
+                   The two axes drift at different rates, so the pattern travels diagonally
+                   rather than sliding along one edge. Sampled in world-cell space like the
+                   base art, so neighbouring cells continue one another. */
+                if ((uFeatures & 64) != 0 && uHasCausticTexture == 1) {
+                    vec2 causticUv = world * uCausticScale
+                            + vec2(uTime * uCausticScroll, uTime * uCausticScroll * 0.35);
+                    float sheet = texture(uCausticTexture, fract(causticUv)).r;
+                    /* Centred first: the sheet's own average is a mid grey, and adding that
+                       straight would lift the whole pool instead of laying a web on it. */
+                    float web = (sheet - 0.5) * uCausticGain * mix(1.0, 0.45, shaped);
+                    col += web * vec3(0.86, 1.0, 0.98);
+                    causticTerm += web;
+                }
+
                 if ((uFeatures & 8) != 0 && uLightStrength > 0.001) {
                     vec2 offset = world - uLightCenter;
                     float distanceToLight = max(length(offset), 1.0e-3);
@@ -519,6 +549,11 @@ public final class LiquidShader implements Closeable {
     private final int projectionLocation;
     private final int textureLocation;
     private final int hasTextureLocation;
+    private final int causticTextureLocation;
+    private final int hasCausticTextureLocation;
+    private final int causticScaleLocation;
+    private final int causticScrollLocation;
+    private final int causticGainLocation;
     private final int shallowLocation;
     private final int deepLocation;
     private final int opacityLocation;
@@ -568,6 +603,11 @@ public final class LiquidShader implements Closeable {
         projectionLocation = uniform("uProj");
         textureLocation = uniform("uTexture");
         hasTextureLocation = uniform("uHasTexture");
+        causticTextureLocation = uniform("uCausticTexture");
+        hasCausticTextureLocation = uniform("uHasCausticTexture");
+        causticScaleLocation = uniform("uCausticScale");
+        causticScrollLocation = uniform("uCausticScroll");
+        causticGainLocation = uniform("uCausticGain");
         shallowLocation = uniform("uShallow");
         deepLocation = uniform("uDeep");
         opacityLocation = uniform("uOpacity");
@@ -612,6 +652,20 @@ public final class LiquidShader implements Closeable {
     public void setTexture(int textureId, boolean hasTexture) {
         GL20.glUniform1i(textureLocation, 0);
         GL20.glUniform1i(hasTextureLocation, hasTexture ? 1 : 0);
+    }
+
+    /**
+     * Points the caustic layer at a texture unit, or switches it off.
+     *
+     * @param textureUnit the unit the sheet is bound to, or -1 for "no sheet"
+     */
+    public void setCausticTexture(int textureUnit, boolean hasTexture, float scale, float scroll,
+                                  float gain) {
+        GL20.glUniform1i(causticTextureLocation, Math.max(0, textureUnit));
+        GL20.glUniform1i(hasCausticTextureLocation, hasTexture ? 1 : 0);
+        GL20.glUniform1f(causticScaleLocation, scale);
+        GL20.glUniform1f(causticScrollLocation, scroll);
+        GL20.glUniform1f(causticGainLocation, gain);
     }
 
     public void setBaseScale(float tilesPerCell) {

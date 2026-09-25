@@ -849,21 +849,59 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="plant/attacker",
         reanim="ThreePeater.reanim",
         target_box=PLANT_BOX,
-        # The three heads fire in turn: head 1 is visible on frames 4..41, head 3 on
-        # 45..82 and head 2 on 86..123, so no single frame range ever shows the plant.
-        # The original draws them from three timelines at once; here the whole head
-        # group is held visible, which is what the plant looks like standing still.
-        force_visible_bones=r"(head|mouth|blink|face)",
+        # Three heads are drawn from three timelines that never overlap: head 1's face lives on
+        # frames 4..41, head 3's on 45..82, head 2's on 86..123, and the base idle pose - all
+        # three heads and the whole stem - only on 124..148. No single frame range therefore ever
+        # shows the plant, which is why the whole head group is forced visible standing still.
+        #
+        # The regex is matched with fullmatch against a bone's name, and a name is de-duplicated
+        # when two images yield the same one: `ThreePeater_head1.png` is `head`, `..._head2.png`
+        # is `head_2` and `..._head3.png` is `head_3`. A bare `(head|mouth|blink|face)` matches
+        # only the FIRST head of each family, so the other two heads and every headleaf were
+        # written out as `visible: false` for the whole idle clip and a standing threepeater drew
+        # one head on three stems. `\w*` is what makes the pattern cover the family.
+        force_visible_bones=r"(head|mouth|blink|face)\w*",
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            # A full volley in one clip: the three shooting runs (29..41, 70..82, 111..123) laid
+            # end to end, three 13-frame bursts with no dead time between them. Written as a
+            # list of segments rather than one 29..123 span, because the gaps between those runs
+            # belong to other phases of the same 149-frame file - playing the span would spend
+            # two and a half of its three seconds on a plant with no head drawn.
+            #
+            # Every head is claimed by the window of the phase it fires in, so exactly one head
+            # and one mouth are up at a time. Without that the converter draws whatever each
+            # bone's source state was at the top of the clip, and all three faces land on the
+            # same pixel - which is the "three heads stacked" the plant used to show.
+            #
+            # `head_2` is head 3's face and `head_3` is head 2's: the suffixes come from the
+            # order the images are discovered in, not from the heads' own numbering. The images
+            # are identical bitmaps, so what a window has to get right is *which phase* a bone
+            # belongs to, and that is what the masks say.
             "shoot": {
                 "rate": SHOOT_ANIMATION_RATE,
-                "mask": "anim_shooting1",
+                "range": [[29, 41], [70, 82], [111, 123]],
                 "loop": False,
                 "on_end": "idle",
                 "transition": 0.1,
                 "force_visible_hidden": True,
                 "force_visible_exclude_prefixes": ["blink"],
+                "visibility_windows": [
+                    # Every pattern is anchored, because these are de-duplicated names and a
+                    # prefix is not a head: `head` prefixes `head_2` and `head_3` (the other two
+                    # faces), and `headleaf_1` prefixes `headleaf_1_2` and `headleaf_1_3` (the
+                    # other two heads' third leaves). An unanchored pattern puts two heads'
+                    # faces up at once, which is the defect this whole window list exists for.
+                    # Which leaf belongs to which head is the model's own answer: head 1 has
+                    # headleaf_1/2/3, head 3 has headleaf_1_2 and headleaf_2_2, head 2 has
+                    # headleaf_1_3.
+                    {"mask": "anim_shooting1",
+                     "bones": r"headleaf_[123]$|head$|mouth$|blink_1$|blink_2$"},
+                    {"mask": "anim_shooting3",
+                     "bones": r"head_2$|mouth_2$|headleaf_1_2$|headleaf_2_2$|blink_1_2|blink_2_2"},
+                    {"mask": "anim_shooting2",
+                     "bones": r"head_3$|mouth_3$|headleaf_1_3$|blink_1_3|blink_2_3"},
+                ],
             },
         },
     ),
@@ -1801,25 +1839,54 @@ def values_close(a: Sequence[float], b: Sequence[float], epsilon: float = 1.0E-4
 
 
 def resolve_range(spec: Dict[str, object], tracks: Sequence[core.Track]) -> Tuple[int, int]:
+    """The clip's source frames as an inclusive ``(start, end)``.
+
+    <p>Kept for the callers that only need the extent; a composite range reports its first and
+    last frame, and {@link range_frames} is what a caller wants when it walks the clip.
+    """
+    frames = range_frames(spec, tracks)
+    return frames[0], frames[-1]
+
+
+def range_frames(spec: Dict[str, object], tracks: Sequence[core.Track]) -> List[int]:
+    """The source frames a clip plays, in order.
+
+    <p>A single ``[from, to]`` is played straight through. A <em>list of pairs</em> is played one
+    segment after another, which is how the original's parallel timelines are put back into one
+    clip: the threepeater fires from three masks on frames 29..41, 70..82 and 111..123, and
+    playing the whole span 29..123 would spend two and a half seconds of every three showing
+    nothing at all - the gaps between those ranges belong to phases this clip is not.
+    """
     if "range" in spec:
         value = spec["range"]
         if value == "all":
             frame_count = max(len(track.frames) for track in tracks)
-            start, end = 0, frame_count - 1
-        elif isinstance(value, (list, tuple)) and len(value) == 2:
-            start, end = int(value[0]), int(value[1])
+            frames = list(range(0, frame_count))
+        elif isinstance(value, (list, tuple)) and len(value) == 2 \
+                and all(isinstance(bound, int) for bound in value):
+            frames = list(range(int(value[0]), int(value[1]) + 1))
+        elif isinstance(value, (list, tuple)):
+            frames = []
+            for segment in value:
+                if not isinstance(segment, (list, tuple)) or len(segment) != 2:
+                    raise SystemExit(f"Invalid range segment: {segment!r}")
+                # Each segment is inclusive, like a single range is.
+                frames.extend(range(int(segment[0]), int(segment[1]) + 1))
         else:
             raise SystemExit(f"Invalid range spec: {value!r}")
     else:
         start, end = mask_range(tracks, str(spec["mask"]))
+        frames = list(range(start, end + 1))
     # trim_end exists because a mask range can end on a frame that repeats the one before it.
     # That is a legitimate authoring choice for a one-shot (the pose is held) and a visible
     # stall for a loop, and only the clip's author knows which this is - the length maths
     # cannot tell a deliberate hold from a mistake.
     trim = int(spec.get("trim_end", 0))
     if trim > 0:
-        end = max(start, end - trim)
-    return start, end
+        frames = frames[: max(1, len(frames) - trim)]
+    if not frames:
+        raise SystemExit("A clip's range selected no frames")
+    return frames
 
 
 def excluded_from_rescue(name: str, prefixes: Sequence[str]) -> bool:
@@ -1842,6 +1909,94 @@ def excluded_from_rescue(name: str, prefixes: Sequence[str]) -> bool:
     )
 
 
+def build_visibility_windows(
+    spec: Dict[str, object],
+    tracks: Sequence[core.Track],
+    fps: float,
+    frames: Sequence[int],
+    config: EntityConfig,
+) -> List[Tuple["re.Pattern", int, int, str]]:
+    """Compiles a clip's ``visibility_windows`` into ``(bone pattern, from, to)``.
+
+    <p>A window names a mask track and the bones that belong to it, and means "these bones are
+    drawn exactly while that mask is visible" - in the clip's own frame numbering, so a window
+    written against a composite ``range`` lines up with the phase it names.
+
+    This exists because a reanim can split one pose across several masks that never overlap, and
+    the converter's other two visibility knobs cannot express "in turn":
+
+    * ``force_visible_bones`` forces a bone on for the whole clip, which is what a standing pose
+      wants and what the threepeater's three heads need for ``idle``;
+    * ``force_visible_hidden`` only rescues bones hidden in *every* frame, so it cannot say
+      "head 2 is drawn during head 2's turn and not during head 1's".
+
+    Without it, a clip built over a composite range draws every phase at once: the threepeater's
+    ``shoot`` had all three heads firing on top of each other, at the same position, in the first
+    volley's window.
+    """
+    raw = spec.get("visibility_windows")
+    if raw is None:
+        return []
+    if not isinstance(raw, (list, tuple)):
+        raise SystemExit(f"{config.output}/{spec.get('mask') or spec.get('range')}:"
+                         " visibility_windows must be a list")
+    windows: List[Tuple["re.Pattern", int, int, str]] = []
+    for entry in raw:
+        if not isinstance(entry, dict) or "mask" not in entry or "bones" not in entry:
+            raise SystemExit(f"{config.output}: each visibility window needs 'mask' and 'bones'")
+        mask_name = str(entry["mask"])
+        track = next((candidate for candidate in tracks if candidate.name == mask_name), None)
+        if track is None:
+            raise SystemExit(f"{config.output}: visibility window names mask {mask_name!r},"
+                             " which is not in the reanim")
+        ranges = core.visible_ranges(track)
+        if not ranges:
+            raise SystemExit(f"{config.output}: visibility window mask {mask_name!r} is never"
+                             " visible, so the bones it claims would never be drawn")
+        mask_start, mask_end = ranges[0]
+        trim = int(entry.get("trim_end", 0))
+        if trim > 0:
+            mask_end = max(mask_start, mask_end - trim)
+        if mask_start not in frames or mask_end not in frames:
+            raise SystemExit(f"{config.output}: visibility window {mask_name!r} covers source"
+                             f" frames {mask_start}..{mask_end}, which the clip's own range does"
+                             " not play; the window would never be on")
+        try:
+            pattern = re.compile(str(entry["bones"]), re.IGNORECASE)
+        except re.error as exc:
+            raise SystemExit(f"{config.output}: visibility window {mask_name!r} has an invalid"
+                             f" bone pattern: {exc}") from exc
+        windows.append((pattern, frames.index(mask_start), frames.index(mask_end), mask_name))
+    return windows
+
+
+def window_for(
+    windows: Sequence[Tuple["re.Pattern", int, int, str]],
+    bone_name: str,
+):
+    """The predicate for a bone that a window claims, or ``None``.
+
+    <p>Matched with ``search`` against the bone's name, because the names a window has to reach
+    are the de-duplicated ones: three heads drawn from three images become ``head``, ``head_2``
+    and ``head_3``, and a pattern written the way an author thinks of them - ``head`` - has to
+    cover all three. A bone belongs to exactly one phase, so two windows claiming it is an
+    authoring mistake rather than a precedence question, and it is reported with both names.
+    """
+    claimed = [window for window in windows if window[0].search(bone_name)]
+    if not claimed:
+        return None
+    if len(claimed) > 1:
+        names = ", ".join(f"{window[3]!r}" for window in claimed)
+        raise SystemExit(f"Bone {bone_name!r} is claimed by {len(claimed)} visibility windows"
+                         f" ({names}); a bone can only belong to one phase")
+    _, first, last, _ = claimed[0]
+
+    def visible(frame: int, first: int = first, last: int = last) -> bool:
+        return first <= frame <= last
+
+    return visible
+
+
 def build_animation(
     state: str,
     spec: Dict[str, object],
@@ -1853,8 +2008,9 @@ def build_animation(
     config: EntityConfig,
     attached_bones: Optional[set] = None,
 ) -> Dict[str, object]:
-    start, end = resolve_range(spec, tracks)
-    frame_count = end - start + 1
+    frames = range_frames(spec, tracks)
+    start, end = frames[0], frames[-1]
+    frame_count = len(frames)
     animation_bones: Dict[str, object] = {}
     force_visible = bool(spec.get("force_visible_hidden"))
     exclude_prefixes = tuple(str(value) for value in spec.get("force_visible_exclude_prefixes", ()))
@@ -1869,6 +2025,7 @@ def build_animation(
     # not permanently hidden and were still dropped.
     clip_visible_re = (re.compile(str(spec["force_visible"]), re.IGNORECASE)
                        if isinstance(spec.get("force_visible"), str) else None)
+    windows = build_visibility_windows(spec, tracks, fps, frames, config)
 
     host_bone = None
     if attached_bones and config.extra_bone_host:
@@ -1888,9 +2045,9 @@ def build_animation(
         # off the hand, so the frame that hides the hand (the death clip) hides the flag
         # too rather than leaving it hovering over the collapsing body.
         source = host_bone if (attached_bones and bone.name in attached_bones) else bone
-        permanently_hidden = not any(source.visibility[index] for index in range(start, end + 1))
+        permanently_hidden = not any(source.visibility[index] for index in frames)
         visibility: List[bool] = []
-        for frame in range(start, end + 1):
+        for position, frame in enumerate(frames):
             is_visible = bool(source.visibility[frame])
             if force_visible and permanently_hidden and not excluded_from_rescue(bone.name, exclude_prefixes):
                 is_visible = True
@@ -1898,6 +2055,15 @@ def build_animation(
                 is_visible = True
             if clip_visible_re is not None and clip_visible_re.search(bone.name):
                 is_visible = True
+            window = window_for(windows, bone.name)
+            if window is not None:
+                # A scoped override, and it wins over everything above but `bone.hidden`:
+                # this bone belongs to one of the clip's phases and is drawn exactly while
+                # that phase runs. See ``visibility_windows``.
+                #
+                # The window counts in CLIP frames, which is what an author reads off the
+                # exported clip; `position` is where this source frame sits in that clip.
+                is_visible = window(position)
             if force_hidden_re is not None and force_hidden_re.fullmatch(bone.name):
                 is_visible = False
             if bone.hidden:
@@ -1907,12 +2073,12 @@ def build_animation(
                 is_visible = False
             visibility.append(is_visible)
 
-        def key(frame: int) -> str:
-            return core.format_time((frame - start) / fps)
+        def key(position: int) -> str:
+            return core.format_time(position / fps)
 
         weld = host_translation if (attached_bones and bone.name in attached_bones) else None
         # The host's rest position, which is the pivot a welded bone swings around.
-        weld_pivot = weld(start) if weld is not None else None
+        weld_pivot = weld(frames[0]) if weld is not None else None
 
         def translation_at(frame: int) -> List[float]:
             state_data = bone.states[frame]
@@ -1959,15 +2125,19 @@ def build_animation(
         def vector_keys(value_at) -> Dict[str, List[float]]:
             keys: Dict[str, List[float]] = {}
             last_value: Optional[List[float]] = None
-            last_key_frame: Optional[int] = None
+            last_key_position: Optional[int] = None
             last_key_value: Optional[List[float]] = None
-            for frame in range(start, end + 1):
+            # Positions, not frames: a clip's frames are not necessarily consecutive (a
+            # composite range is several runs laid end to end), and both the key's time and the
+            # "is this a gap worth closing with a hold key" question are about the clip.
+            for position, frame in enumerate(frames):
                 value = value_at(frame)
                 if last_value is None or not values_close(value, last_value):
-                    if last_key_frame is not None and last_key_frame < frame - 1 and last_key_value is not None:
-                        keys[key(frame - 1)] = list(last_key_value)
-                    keys[key(frame)] = list(value)
-                    last_key_frame = frame
+                    if (last_key_position is not None and last_key_position < position - 1
+                            and last_key_value is not None):
+                        keys[key(position - 1)] = list(last_key_value)
+                    keys[key(position)] = list(value)
+                    last_key_position = position
                     last_key_value = value
                 last_value = value
             return keys
@@ -1975,10 +2145,10 @@ def build_animation(
         def boolean_keys() -> Dict[str, bool]:
             keys: Dict[str, bool] = {}
             last_value: Optional[bool] = None
-            for offset, frame in enumerate(range(start, end + 1)):
-                value = visibility[offset]
+            for position in range(len(frames)):
+                value = visibility[position]
                 if last_value is None or value != last_value:
-                    keys[key(frame)] = value
+                    keys[key(position)] = value
                 last_value = value
             return keys
 
@@ -1995,15 +2165,15 @@ def build_animation(
             """
             scale = (config.additive_alpha_scale
                      if additive_search(config, bone.asset.ref) else 1.0)
-            values = [bone.states[frame].a * scale for frame in range(start, end + 1)]
+            values = [bone.states[frame].a * scale for frame in frames]
             if all(abs(value - 1.0) <= 1e-6 for value in values):
                 return {}
             keys: Dict[str, float] = {}
             last: Optional[float] = None
-            for offset, frame in enumerate(range(start, end + 1)):
-                value = values[offset]
+            for position in range(len(frames)):
+                value = values[position]
                 if last is None or abs(value - last) > 1e-6:
-                    keys[key(frame)] = core.round_float(value)
+                    keys[key(position)] = core.round_float(value)
                 last = value
             return keys
 
@@ -2020,7 +2190,7 @@ def build_animation(
 
     loop = bool(spec.get("loop", False))
     animation: Dict[str, object] = {
-        "animation_length": round(max(1e-6, loop_frames(bones, start, end, loop)) / fps, 10),
+        "animation_length": round(max(1e-6, loop_frames(bones, start, end, loop, frames)) / fps, 10),
         "loop": loop,
     }
     if spec.get("on_end") is not None:
@@ -2057,7 +2227,8 @@ def planar_step(a: core.FrameState, b: core.FrameState) -> float:
     return math.hypot(a.x - b.x, a.y - b.y)
 
 
-def loop_frames(bones: Sequence[core.Bone], start: int, end: int, loop: bool) -> int:
+def loop_frames(bones: Sequence[core.Bone], start: int, end: int, loop: bool,
+                frames: Optional[Sequence[int]] = None) -> int:
     """How many frames of travel one loop of this clip covers.
 
     A looping clip has to come back to where it started, and reanim art says so in one of two
@@ -2087,8 +2258,12 @@ def loop_frames(bones: Sequence[core.Bone], start: int, end: int, loop: bool) ->
     13-frame flagpole inside a 504-frame zombie) contributes nothing, because its own "last
     frame" is not the clip's.
     """
+    if frames is not None:
+        played = list(frames)
+    else:
+        played = list(range(start, end + 1))
     if not loop:
-        return end - start + 1
+        return len(played)
     steps: List[float] = []
     seam = 0.0
     for bone in bones:
@@ -2096,14 +2271,14 @@ def loop_frames(bones: Sequence[core.Bone], start: int, end: int, loop: bool) ->
             continue
         if bone.states[start].image is None:
             continue
-        for frame in range(start, end):
-            steps.append(planar_step(bone.states[frame], bone.states[frame + 1]))
-        seam = max(seam, planar_step(bone.states[end], bone.states[start]))
+        for index in range(len(played) - 1):
+            steps.append(planar_step(bone.states[played[index]], bone.states[played[index + 1]]))
+        seam = max(seam, planar_step(bone.states[played[-1]], bone.states[played[0]]))
     if not steps:
-        return end - start
+        return len(played) - 1
     steps.sort()
     median = steps[len(steps) // 2]
-    return end - start if seam <= max(median * 1.5, 1e-3) else end - start + 1
+    return len(played) - 1 if seam <= max(median * 1.5, 1e-3) else len(played)
 
 
 def model_extent(bones: Sequence[core.Bone], frames: Iterable[int],

@@ -175,6 +175,17 @@ public interface LevelAccess {
     void emitEffect(String particle, float x, float y, Identifier sound);
 
     /**
+     * The same, with the volume and pitch the sound is played at.
+     *
+     * <p>For a capability that fires the same event repeatedly within the client's own
+     * repeat-folding window and wants each one heard - a bowled nut caroming through a crowd hits
+     * every 100 ms, and the sound engine drops a repeat of the <em>same</em> event inside 130 ms.
+     * Alternating two ids gets past that; a nudge on the pitch is what keeps a long chain from
+     * reading as a loop.
+     */
+    void emitEffect(String particle, float x, float y, Identifier sound, float volume, float pitch);
+
+    /**
      * Disturbs a liquid surface at a world position.
      *
      * <p>Ripples are presentation only: the server decides that something happened
