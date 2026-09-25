@@ -47,6 +47,12 @@ public final class Mutations {
         for (Mutation raid : RaidMutation.all()) {
             register(raid.id(), raid);
         }
+        // The player's own side: what the lawn does for and to them.
+        register(PvzceIds.MUTATION_PEA_PARTY, new PeaPartyMutation());
+        for (Mutation mower : MowerMutation.all()) {
+            register(mower.id(), mower);
+        }
+        register(PvzceIds.MUTATION_SUN_DRAIN, new SunDrainMutation());
         register(PvzceIds.MUTATION_SLOT_ROULETTE, new SlotRouletteMutation());
 
         register(PvzceIds.MUTATION_SLOT_REPLACE, new SlotReplaceMutation());

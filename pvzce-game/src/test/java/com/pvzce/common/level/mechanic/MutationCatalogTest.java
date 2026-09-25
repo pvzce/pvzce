@@ -51,7 +51,7 @@ class MutationCatalogTest {
                 PvzceIds.MUTATION_BUFF_SHIFT, PvzceIds.MUTATION_APOCALYPSE,
                 PvzceIds.MUTATION_ZOMBIE_BLAST, PvzceIds.MUTATION_PLANT_BLAST,
                 PvzceIds.MUTATION_MENDEL, PvzceIds.MUTATION_KELP_SPREAD,
-                // The second catalogue, as the commits land (the player's own side is next).
+                // The second catalogue, all twenty.
                 PvzceIds.MUTATION_ZOMBIE_HEALTH, PvzceIds.MUTATION_PLANT_FRAGILE,
                 PvzceIds.MUTATION_CARD_COOLDOWN, PvzceIds.MUTATION_SUN_SHOWER,
                 PvzceIds.MUTATION_SLOT_LOCK, PvzceIds.MUTATION_SLOT_ROULETTE,
@@ -61,7 +61,10 @@ class MutationCatalogTest {
                 PvzceIds.MUTATION_ICE_GROUND,
                 PvzceIds.MUTATION_ZOMBOTANY, PvzceIds.MUTATION_GARGANTUAR_RAID,
                 PvzceIds.MUTATION_IMP_AIRDROP, PvzceIds.MUTATION_BUNGEE_RAID,
-                PvzceIds.MUTATION_BALLOON_RAID);
+                PvzceIds.MUTATION_BALLOON_RAID,
+                // Group E: the player's own side. This is the whole second catalogue.
+                PvzceIds.MUTATION_PEA_PARTY, PvzceIds.MUTATION_RANDOM_SUPPLY,
+                PvzceIds.MUTATION_AUTO_RELEASE, PvzceIds.MUTATION_SUN_DRAIN);
         assertEquals(expected.size(), MutationRegistry.all().size(),
                 "the catalogue grew or shrank; update the list and the docs together");
         for (Identifier id : expected) {

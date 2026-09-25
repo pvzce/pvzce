@@ -344,6 +344,33 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
         }
 
         /**
+         * Puts a spent mower back in its row.
+         *
+         * <p>For the {@code random_supply} mutation - the one thing a player cannot do for
+         * themselves. Restoring is the exact inverse of the row's own trigger, so a mower that comes
+         * back is parked where it started, rolls when the next zombie reaches it, and is spent
+         * again: nothing about it remembers that it had already run.
+         *
+         * <p>A row that still has its mower, or that never had one, is left alone rather than
+         * given a second: "one per row" is the lawn's own rule, and a mutation that could stack two
+         * in a lane would be a different mutation.
+         *
+         * @return true when a mower was restored
+         */
+        public boolean restore(int row) {
+            Mower mower = mowers.get(row);
+            if (mower == null || mower.state == STATE_READY) {
+                return false;
+            }
+            mower.state = STATE_READY;
+            // Parked exactly where a fresh one starts, so a restored mower is drawn and triggered
+            // like any other - see the constructor.
+            mower.x = IDLE_X;
+            mower.launchSoundPending = false;
+            return true;
+        }
+
+        /**
          * The rows this level actually has mowers in, so a caller can tell "that row has no
          * mower" from "that mower is gone" without knowing the level data.
          */

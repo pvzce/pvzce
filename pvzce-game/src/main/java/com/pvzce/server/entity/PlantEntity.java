@@ -26,6 +26,9 @@ import java.util.List;
 public class PlantEntity extends PvzceEntity {
     private final PlantDef def;
     private final List<Instance> capabilities = new ArrayList<>();
+    /** The capabilities a mutation added at runtime, by identity; see the two methods below. */
+    private final java.util.Set<Instance> temporaryInstances =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     /**
      * This plant's capability instances, for the one caller that has to walk them all.
@@ -497,6 +500,39 @@ public class PlantEntity extends PvzceEntity {
     }
 
     /** The live capability instance of the given type, or {@code null}. */
+    /**
+     * Gives this plant a capability it was not defined with, for as long as something says so.
+     *
+     * <p>For a mutation that arms every plant on the lawn ("豌豆派对": everything shoots, even the
+     * sunflowers), which cannot go through the definition: the definition is shared by every plant
+     * of that kind and by every level, and rewriting it would arm the player's next run too. The
+     * instance is marked and lives beside the ones the definition built, so it is ticked, saved and
+     * removed exactly like them.
+     *
+     * @return the instance, so the caller can take it back with {@link #removeTemporaryCapability}
+     */
+    public Instance addTemporaryCapability(Identifier type, PlantCapability capability) {
+        Instance instance = new Instance(type, capability);
+        capabilities.add(instance);
+        // Identity, not equality: two temporary instances of the same capability are equal by the
+        // record's own rule, and taking one back must not take the other with it.
+        temporaryInstances.add(instance);
+        return instance;
+    }
+
+    /**
+     * Takes back one {@link #addTemporaryCapability}.
+     *
+     * <p>By instance rather than by type: two mutations may hand out the same kind of capability,
+     * and removing "the shooter" would take the other one's with it.
+     *
+     * @return true when it was there
+     */
+    public boolean removeTemporaryCapability(Instance instance) {
+        return instance != null && temporaryInstances.remove(instance)
+                && capabilities.remove(instance);
+    }
+
     public <T extends PlantCapability> T capability(Class<T> type) {
         for (Instance instance : capabilities) {
             if (type.isInstance(instance.capability)) {
@@ -508,6 +544,9 @@ public class PlantEntity extends PvzceEntity {
 
     @Override
     public CompoundTag saveState() {
+        // Temporary capabilities are deliberately not saved: they belong to a mutation, the mutation
+        // is in the save by id, and it arms the plants again when it re-applies on load. Saving them
+        // would leave a plant armed by a mutation that has since been evicted.
         CompoundTag tag = saveBaseState();
         tag.putInt("age", age);
         tag.putInt("watered", wateredTicks);

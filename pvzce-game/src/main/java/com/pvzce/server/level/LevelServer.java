@@ -1701,6 +1701,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return LevelMechanics.has(mechanics, mechanicId);
     }
 
+    /**
+     * A mechanic's own run state, or {@code null} when the level has none for it.
+     *
+     * <p>The reading half of {@link #mechanicState}: a caller that only wants to <em>look</em> at a
+     * mechanic's state - a mutation asking "is there a mower rig on this level" - must not create one
+     * by asking, which is what {@code mechanicState(id, create)} would do.
+     */
+    public <T> T mechanicStateOrNull(Identifier mechanicId, Class<T> type) {
+        Object state = mechanicState.get(mechanicId);
+        return type.isInstance(state) ? type.cast(state) : null;
+    }
+
     /** Writes a mechanic's own run state. The counterpart of {@link #mechanicState}. */
     public void setMechanicState(Identifier mechanicId, Object state) {
         mechanicState.put(mechanicId, state);
