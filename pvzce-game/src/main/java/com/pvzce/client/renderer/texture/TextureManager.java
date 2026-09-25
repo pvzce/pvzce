@@ -102,11 +102,22 @@ public final class TextureManager implements AutoCloseable {
         com.pvzce.client.renderer.RenderSystem.bindTexture(texture.glId());
     }
 
-    @Override
-    public void close() {
+    /**
+     * Drops every uploaded texture, so the next draw re-reads it from the pack stack.
+     *
+     * <p>The map is keyed by id and never revalidated, which is right for a session that reads
+     * its packs once and wrong the moment a pack changes: a texture a pack replaced would keep
+     * drawing the old bytes, and one the pack no longer has would keep drawing at all.
+     */
+    public void invalidate() {
         for (Texture texture : textures.values()) {
             GL11.glDeleteTextures(texture.glId());
         }
         textures.clear();
+    }
+
+    @Override
+    public void close() {
+        invalidate();
     }
 }

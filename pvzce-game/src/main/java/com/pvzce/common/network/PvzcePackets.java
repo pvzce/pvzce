@@ -44,6 +44,7 @@ import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.ReleaseMowerC2S;
+import com.pvzce.common.network.packet.ReloadPacksC2S;
 import com.pvzce.common.network.packet.DiscardLevelSaveC2S;
 import com.pvzce.common.network.packet.MutationStateS2C;
 import com.pvzce.common.network.packet.UseGrantedToolC2S;
@@ -99,7 +100,9 @@ public final class PvzcePackets {
     // so the bar can draw the padlock on exactly the cards the server refuses.
     // 31: the debug heartbeat carries the running level's own tick counter (DebugInfoS2C.levelTick),
     // which is what the tutorial's timed dialogue lines are written against.
-    public static final int PROTOCOL_VERSION = 31;
+    // 32: the client can ask the server to rebuild its side of the pack stack after the player
+    // switched a pack off (ReloadPacksC2S), which is the first half of a hot reload.
+    public static final int PROTOCOL_VERSION = 32;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -168,6 +171,8 @@ public final class PvzcePackets {
     public static final int C2S_RESELECT_CARDS = 20;
     /** The shop: "buy this item", priced by the server. */
     public static final int C2S_BUY_SHOP_ITEM = 21;
+    /** The pack list changed on disk; the server reloads its side before the client reloads its own. */
+    public static final int C2S_RELOAD_PACKS = 22;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -201,6 +206,8 @@ public final class PvzcePackets {
                     BuyShopItemC2S::decode),
             def(C2S_USE_GRANTED_TOOL, ConnectionDirection.SERVERBOUND, UseGrantedToolC2S.class,
                     UseGrantedToolC2S::decode),
+            def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
+                    ReloadPacksC2S::decode),
 
             def(S2C_LEVEL_INIT, ConnectionDirection.CLIENTBOUND, LevelInitS2C.class, LevelInitS2C::decode),
             def(S2C_LEVEL_LIST, ConnectionDirection.CLIENTBOUND, LevelListS2C.class, LevelListS2C::decode),

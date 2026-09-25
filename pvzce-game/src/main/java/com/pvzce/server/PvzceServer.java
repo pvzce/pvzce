@@ -25,6 +25,7 @@ import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.ProfileS2C;
+import com.pvzce.common.network.packet.ReloadPacksC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
@@ -1281,6 +1282,14 @@ public final class PvzceServer implements Runnable {
                 if (current != null) {
                     current.releaseMower(mower.row());
                 }
+            } else if (packet instanceof ReloadPacksC2S) {
+                // The player switched a pack off on the packs page. The list is the file both
+                // sides read, so a reload here picks it up; the message reloadData sends is also
+                // the client's cue to rebuild its own caches afterwards - server first, because
+                // the registries and level definitions it pushes are what the client parses the
+                // new resources against.
+                reloadData(true);
+                refreshLevelList();
             } else if (packet instanceof CommandC2S command) {
                 submitCommand(command.command());
             } else if (packet instanceof com.pvzce.common.network.packet.PickCardC2S) {

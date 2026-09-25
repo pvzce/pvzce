@@ -123,9 +123,15 @@ public final class PvzceClientPacketListener implements PacketListener {
             level.setControlledTeam(team.teamId(), team.teamName());
         } else if (packet instanceof SuggestionsS2C suggestions) {
             level.addSuggestions(suggestions);
-        } else if (packet instanceof ServerMessageS2C message
-                && Boolean.getBoolean("pvzce.traceMessages")) {
-            LOGGER.info("[msg] {}", message.message());
+        } else if (packet instanceof ServerMessageS2C message) {
+            if (Boolean.getBoolean("pvzce.traceMessages")) {
+                LOGGER.info("[msg] {}", message.message());
+            }
+            // Two readers, and the second one is why this is not traced-only any more: the level
+            // draws its own list, while a menu has no level messages to draw - a refusal that
+            // arrived while the player was in the packs page used to be dropped on the floor.
+            level.addMessage(message.message());
+            client.onServerMessage(message.message());
         } else if (packet instanceof WaveProgressS2C wave) {
             level.setWaveProgress(wave.currentWave(), wave.totalWaves(), wave.progress(),
                     wave.warningActive(), wave.finalWarning(), wave.round());
@@ -158,8 +164,6 @@ public final class PvzceClientPacketListener implements PacketListener {
             // Arrives right after GameStateS2C; the client is already showing the
             // victory overlay, and this is what turns it into the award screen.
             client.onLevelReward(reward);
-        } else if (packet instanceof ServerMessageS2C message) {
-            level.addMessage(message.message());
         }
     }
 

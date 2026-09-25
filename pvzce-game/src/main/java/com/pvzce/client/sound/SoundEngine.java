@@ -425,6 +425,25 @@ public final class SoundEngine implements AutoCloseable {
         return 0.95F + RANDOM.nextFloat() * 0.10F;
     }
 
+    /**
+     * Drops the parsed event table and the decoded buffers, so the next play re-reads them.
+     *
+     * <p>Both caches are keyed by event path and file name and are never revalidated - which is
+     * fine for a session that reads its packs once, and wrong the moment a pack changes the
+     * {@code sounds.json} or a file behind an event: the old bytes would keep playing.
+     */
+    public void invalidate() {
+        if (enabled) {
+            for (int buffer : buffers.values()) {
+                if (buffer != 0) {
+                    AL10.alDeleteBuffers(buffer);
+                }
+            }
+        }
+        buffers.clear();
+        events.clear();
+    }
+
     @Override
     public void close() {
         if (!enabled) {
@@ -436,13 +455,7 @@ public final class SoundEngine implements AutoCloseable {
         for (int source : musicSources) {
             AL10.alDeleteSources(source);
         }
-        for (int buffer : buffers.values()) {
-            if (buffer != 0) {
-                AL10.alDeleteBuffers(buffer);
-            }
-        }
-        buffers.clear();
-        events.clear();
+        invalidate();
         ALC10.alcDestroyContext(context);
         ALC10.alcCloseDevice(device);
         enabled = false;

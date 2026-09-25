@@ -231,55 +231,8 @@ public final class ModsScreen extends Screen {
         // The description is wrapped down to the bottom of the window; the old
         // fixed y=190 cut it off silently on tall windows and overflowed on short
         // ones.
-        drawWrapped(selected.description(), rightX, y, rightWidth, 0.8F, 0.9F, 0.9F, 0.9F, 1F,
+        drawWrappedText(selected.description(), rightX, y, rightWidth, 0.8F, 0.9F, 0.9F, 0.9F, 1F,
                 Math.max(12F, y - (client.guiHeight() - titleReserve - 8) + y));
-    }
-
-    /**
-     * Char-wraps text into the band between {@code y} and {@code minY}. Text that
-     * does not fit is truncated with an ellipsis so the reader can tell it was cut
-     * rather than wondering why the description stops mid-sentence.
-     */
-    private void drawWrapped(String text, float x, float y, float maxWidth, float scale,
-                             float r, float g, float b, float a, float minY) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        float lineHeight = client.fonts().body().lineHeight(scale) + 2;
-        StringBuilder line = new StringBuilder();
-        float cursorY = y;
-        boolean truncated = false;
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            String candidate = line.toString() + ch;
-            boolean wrap = ch == '\n' || client.fonts().body().width(candidate, scale) > maxWidth;
-            if (wrap) {
-                if (!line.isEmpty()) {
-                    if (cursorY - lineHeight < minY) {
-                        truncated = true;
-                        break;
-                    }
-                    client.fonts().body().draw(line.toString(), x, cursorY, scale, r, g, b, a);
-                    cursorY -= lineHeight;
-                    line.setLength(0);
-                }
-                if (ch != '\n') {
-                    line.append(ch);
-                }
-            } else {
-                line.append(ch);
-            }
-        }
-        if (!line.isEmpty() && !truncated) {
-            if (cursorY - lineHeight < minY) {
-                truncated = true;
-            } else {
-                client.fonts().body().draw(line.toString(), x, cursorY, scale, r, g, b, a);
-            }
-        }
-        if (truncated && cursorY >= minY) {
-            client.fonts().body().draw("…", x, cursorY, scale, r, g, b, a);
-        }
     }
 
     private static String badgeLabel(String badge) {

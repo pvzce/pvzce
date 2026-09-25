@@ -16,6 +16,15 @@ import java.util.jar.JarFile;
 
 /** The built-in pack served from the game classpath (directories in dev, fat jar in production). */
 public final class ClasspathPack implements PvzcePack {
+    /**
+     * The one name the built-in pack answers to.
+     *
+     * <p>Written down here rather than as a literal at each site: this is also the name
+     * {@link PackSelection} refuses to disable, and a second spelling of it would be a second
+     * answer to "may this pack be switched off".
+     */
+    public static final String NAME = "pvzce";
+
     private final ClassLoader classLoader;
 
     public ClasspathPack(ClassLoader classLoader) {
@@ -24,7 +33,7 @@ public final class ClasspathPack implements PvzcePack {
 
     @Override
     public String name() {
-        return "pvzce";
+        return NAME;
     }
 
     @Override

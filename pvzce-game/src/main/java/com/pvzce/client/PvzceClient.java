@@ -18,6 +18,7 @@ import com.pvzce.client.gui.screens.RoundClearDialog;
 import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.client.particle.ParticleEngine;
 import com.pvzce.client.renderer.LevelStage;
@@ -47,6 +48,7 @@ import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
+import com.pvzce.common.network.packet.ReloadPacksC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.common.tag.PvzceTags;
@@ -56,6 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.lwjgl.glfw.GLFW;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -186,6 +189,17 @@ public final class PvzceClient {
     private float spriteXScale = 1F;
     private final java.util.Set<Identifier> missingTextures = new HashSet<>();
     private final com.pvzce.client.gui.Clipping clipping = new com.pvzce.client.gui.Clipping(this);
+    /** How long a menu keeps showing the last line the server pushed. */
+    private static final long MESSAGE_VISIBLE_NANOS =
+            5L * PvzceConstants.TICKS_PER_SECOND * PvzceConstants.NANOS_PER_TICK;
+    /** The last line the server pushed, and when it arrived; see {@link #recentServerMessage()}. */
+    private String lastServerMessage = "";
+    private long lastServerMessageNanos;
+    private long serverMessageCount;
+    /** A pack reload this client asked for and has not seen answered yet. */
+    private boolean packReloadPending;
+    private long packReloadBaseline;
+    private int contentReloads;
 
     public PvzceClient(Connection connection, Path gameDir, ClassLoader classLoader) {
         this.connection = connection;
@@ -214,31 +228,7 @@ public final class PvzceClient {
         Files.createDirectories(gameDir);
         resources = new PvzceResourceManager(classLoader);
         resources.init(gameDir);
-        // Animation files are parsed lazily and cached; a reload must drop both the
-        // parsed files and the "missing/broken" marks, otherwise a fixed animation
-        // stays invisible for the rest of the session.
-        if (animations != null) {
-            animations.invalidate();
-        }
-        // A pack can replace a bundled TTF. Glyphs are rasterised from the file and
-        // cached, so a reload has to drop them or the old outlines stay on screen for
-        // the rest of the session.
-        if (fonts != null) {
-            fonts.invalidate();
-        }
-        // Same reason as the animations above: which scene elements are liquid is
-        // cached by id, so a reload that changes a definition has to drop the cache
-        // or the old answer would be used for the rest of the session.
-        com.pvzce.client.renderer.liquid.LiquidTextures.invalidate();
-        // Display names come from the pack stack too, so a pack that adds or renames
-        // content updates the editor's palette on the same reload as the content.
-        com.pvzce.client.gui.GuiLang.reload(resources);
-        var tagResult = PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
-        for (String error : tagResult.errors()) {
-            // The client used to discard this result entirely, so a broken tag file
-            // was silent on the client and reported only on the server.
-            LOGGER.warn("[tags] {}", error);
-        }
+        reloadContent();
 
         window = new PvzceWindow("PVZ Community Edition", config);
         lastWindowWidth = window.width();
@@ -321,6 +311,130 @@ public final class PvzceClient {
         textures.close();
         blurredBackdrop.close();
         window.close();
+    }
+
+    // ---------- content ----------
+
+    /**
+     * Rebuilds everything read out of the pack stack: the stack itself, then every cache that
+     * was filled from it.
+     *
+     * <p>Once at startup, then again whenever the packs change (see {@link #requestPackReload()}).
+     * Every cache here had to be listed by hand when the pack list became editable, because each
+     * one is keyed by id or path and never revalidated - which is exactly what makes it fast and
+     * what would keep a replaced texture, glyph, animation, liquid rule, display name or sound
+     * playing for the rest of the session.
+     *
+     * @return whether the stack was rescanned; a failure is logged and counted too, so a screen
+     *         waiting on the reload does not wait forever
+     */
+    public boolean reloadContent() {
+        if (resources == null) {
+            // A windowless client (tests, tooling) never loaded a stack, so there is nothing to
+            // rebuild; counting it keeps "waiting for the reload to land" from waiting forever.
+            contentReloads++;
+            return true;
+        }
+        boolean reloaded = true;
+        try {
+            resources.reload();
+        } catch (IOException e) {
+            // The stack is left holding whatever the rescan managed to build rather than
+            // nothing at all: a page that cannot list packs still draws the built-in content.
+            LOGGER.error("Reloading the pack stack failed", e);
+            reloaded = false;
+        }
+        // Animation files are parsed lazily and cached; a reload must drop both the
+        // parsed files and the "missing/broken" marks, otherwise a fixed animation
+        // stays invisible for the rest of the session.
+        if (animations != null) {
+            animations.invalidate();
+        }
+        // A pack can replace a bundled TTF. Glyphs are rasterised from the file and
+        // cached, so a reload has to drop them or the old outlines stay on screen for
+        // the rest of the session.
+        if (fonts != null) {
+            fonts.invalidate();
+        }
+        // Same reason as the animations above: which scene elements are liquid is
+        // cached by id, so a reload that changes a definition has to drop the cache
+        // or the old answer would be used for the rest of the session.
+        com.pvzce.client.renderer.liquid.LiquidTextures.invalidate();
+        // The two remaining id-keyed caches, for the same reason as the three above.
+        if (textures != null) {
+            textures.invalidate();
+        }
+        if (sound != null) {
+            sound.invalidate();
+        }
+        // Display names come from the pack stack too, so a pack that adds or renames
+        // content updates the editor's palette on the same reload as the content.
+        com.pvzce.client.gui.GuiLang.reload(resources);
+        try {
+            var tagResult = PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
+            for (String error : tagResult.errors()) {
+                // The client used to discard this result entirely, so a broken tag file
+                // was silent on the client and reported only on the server.
+                LOGGER.warn("[tags] {}", error);
+            }
+        } catch (IOException e) {
+            LOGGER.error("Reloading tags failed", e);
+            reloaded = false;
+        }
+        contentReloads++;
+        return reloaded;
+    }
+
+    /** How many times the pack stack has been rebuilt; a screen watches it to see its request land. */
+    public int contentReloads() {
+        return contentReloads;
+    }
+
+    /**
+     * Tells the server the pack list changed, and rebuilds this side once the server answers.
+     *
+     * <p>The order is the point: the level definitions and content registries travel from the
+     * server to the client, so a client that reloaded first would parse the new resources against
+     * the old registries. The answer is the {@code ServerMessageS2C} the server's own reload
+     * sends - the single-player server is in-process, so there is no other reply to wait for.
+     */
+    public void requestPackReload() {
+        packReloadPending = true;
+        packReloadBaseline = serverMessageCount;
+        connection.send(new ReloadPacksC2S());
+    }
+
+    /**
+     * Records a line the server pushed.
+     *
+     * <p>Kept on the client rather than only in {@code ClientLevel} because a refusal can arrive
+     * while the player is in a menu, where nothing was reading the level's message list - so the
+     * answer to a click was invisible until they entered a level.
+     */
+    public void onServerMessage(String message) {
+        lastServerMessage = message == null ? "" : message;
+        lastServerMessageNanos = System.nanoTime();
+        serverMessageCount++;
+        if (packReloadPending && serverMessageCount > packReloadBaseline) {
+            packReloadPending = false;
+            reloadContent();
+        }
+    }
+
+    /** The last server line while it is still fresh, otherwise an empty string. */
+    public String recentServerMessage() {
+        return System.nanoTime() - lastServerMessageNanos <= MESSAGE_VISIBLE_NANOS
+                ? lastServerMessage : "";
+    }
+
+    /**
+     * How many lines the server has pushed this session.
+     *
+     * <p>A screen that sent a request and is waiting for its answer compares this before and
+     * after; "is there a fresh message" cannot tell a line that was already there from the reply.
+     */
+    public long serverMessageCount() {
+        return serverMessageCount;
     }
 
     // ---------- input ----------

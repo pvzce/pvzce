@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.util.WorldPaths;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.layout.GuiLayout;
@@ -10,7 +11,7 @@ import com.pvzce.client.gui.mods.ModsScreen;
 import net.fabricmc.loader.api.FabricLoader;
 
 /**
- * Main menu: who is playing, and the four things the player can do from here.
+ * Main menu: who is playing, and the things the player can do from here.
  *
  * <p>Who is playing <em>is</em> the world list. A world directory is a player's save
  * ({@code saves/<name>/}), so the original's "who are you?" screen and this project's world
@@ -65,20 +66,33 @@ public final class TitleScreen extends Screen {
         int buttonWidth = Math.min(280, guiW - 24);
         int titleReserve = Math.max(56, Math.min(140, guiH * 30 / 100));
         // 48px legacy height enlarged by 40%; shrinks automatically when 4x UI has less room.
-        // Five entries now: the shop sits second, where the original puts Crazy Dave's counter -
-        // right after "start playing" and before the utility pages.
-        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 5, titleReserve, 8);
+        // Six entries now: the shop sits second, where the original puts Crazy Dave's counter -
+        // right after "start playing" - and the packs page follows it, because both are the
+        // menu's "what is in my game" pages.
+        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 6, titleReserve, 8);
         int gap = GuiLayout.gapFor(buttonHeight);
-        int blockHeight = 5 * buttonHeight + 4 * gap;
+        int blockHeight = 6 * buttonHeight + 5 * gap;
 
         // Buttons are anchored to the bottom so the menu fills the screen and
         // no large blank strip remains under the last button.
         int blockTop = 8 + blockHeight;
         buttonTop = blockTop;
-        String[] labels = {"开始游戏", "商店", "模组列表", "设置", "退出"};
+        // The labels are language keys now rather than literals: this array is where the menu's
+        // text lives, and it was the last place in this file where a translation could not
+        // reach. The shop's and the packs page's keys are theirs - the button and the page say
+        // the same word on purpose.
+        String[] labels = {
+                GuiLang.raw("gui.pvzce.title.start", "Start playing"),
+                GuiLang.raw("gui.pvzce.shop.title", "Shop"),
+                GuiLang.raw("gui.pvzce.packs.title", "Packs"),
+                GuiLang.raw("gui.pvzce.title.mods", "Mods"),
+                GuiLang.raw("gui.pvzce.title.settings", "Settings"),
+                GuiLang.raw("gui.pvzce.title.quit", "Quit")
+        };
         Runnable[] actions = {
                 this::enterCurrentPlayer,
                 () -> client.openScreen(new ShopScreen(client)),
+                () -> client.openScreen(new PackScreen(client)),
                 () -> client.openScreen(new ModsScreen(client)),
                 () -> client.openScreen(new SettingsScreen(client)),
                 () -> client.window().requestClose()
@@ -195,6 +209,27 @@ public final class TitleScreen extends Screen {
         for (var widget : widgets) {
             widget.render(client);
         }
+        renderServerMessage();
+    }
+
+    /**
+     * The last line the server pushed, for five seconds.
+     *
+     * <p>Over the middle of the menu, the way the shop draws its own answer, and drawn after the
+     * widgets so it is not hidden by them: at the default window every corner is either a button,
+     * the player board or the logo, and a message that lands behind one of those is the same as
+     * no message at all. This is the menu's only channel for a server answer - a refusal that
+     * arrives while the player is in a menu has no level HUD to land on.
+     */
+    private void renderServerMessage() {
+        String message = client.recentServerMessage();
+        if (message.isEmpty()) {
+            return;
+        }
+        float scale = 1.15F;
+        client.fonts().button().draw(message,
+                (client.guiWidth() - client.fonts().button().width(message, scale)) / 2F,
+                client.guiHeight() / 2F + 10F, scale, 1F, 0.45F, 0.4F, 1F);
     }
 
     /** The wooden plate the player board is drawn on; the same one the menu buttons use. */

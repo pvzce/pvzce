@@ -1,11 +1,15 @@
 package com.pvzce.common.resource;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.pvzce.api.util.Identifier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,6 +32,39 @@ import java.util.function.BiConsumer;
 public final class PvzceResourceManager implements AutoCloseable {
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/Resources");
+
+    /**
+     * One pack root: the directory a kind of pack lives in.
+     *
+     * <p>The list order is the load order, so a data pack's file wins over a resource pack's when
+     * both define the same path - the same precedence the two hard-coded calls had.
+     */
+    private record PackRoot(String directory, AvailablePack.Kind kind) {
+    }
+
+    private static final List<PackRoot> PACK_ROOTS = List.of(
+            new PackRoot("resourcepacks", AvailablePack.Kind.RESOURCEPACK),
+            new PackRoot("datapacks", AvailablePack.Kind.DATAPACK));
+
+    /**
+     * A pack this game directory offers, whether or not it is loaded.
+     *
+     * @param name        the directory name, or {@link ClasspathPack#NAME} for the built-in pack
+     * @param kind        which root it was found under; the built-in pack is its own kind because
+     *                    it is neither a resource pack nor a data pack - it serves both trees
+     * @param enabled     whether it is in the loaded stack
+     * @param path        its directory, or {@code null} for the built-in pack
+     * @param description the {@code pack.mcmeta} description, falling back to the name
+     */
+    public record AvailablePack(String name, Kind kind, boolean enabled, Path path, String description) {
+        /** Which tree a pack was found under, or that it is the built-in one. */
+        public enum Kind {
+            BUILT_IN,
+            RESOURCEPACK,
+            DATAPACK
+        }
+    }
+
     private final List<PvzcePack> packs = new ArrayList<>();
     private final ClassLoader classLoader;
     private Path gameDir;
@@ -50,22 +87,120 @@ public final class PvzceResourceManager implements AutoCloseable {
         packs.add(new ClasspathPack(classLoader));
 
         if (gameDir != null) {
-            addDirectoryPacks(gameDir.resolve("resourcepacks"));
-            addDirectoryPacks(gameDir.resolve("datapacks"));
+            // Re-read here rather than holding a selection field: the client writes this file and
+            // the server reloads on its say-so, so a cached copy is a copy that goes stale exactly
+            // when it matters.
+            PackSelection selection = PackSelection.load(gameDir);
+            for (PackRoot root : PACK_ROOTS) {
+                addDirectoryPacks(root, selection);
+            }
         }
     }
 
-    private void addDirectoryPacks(Path dir) throws IOException {
-        if (!Files.isDirectory(dir)) {
-            return;
+    private void addDirectoryPacks(PackRoot root, PackSelection selection) throws IOException {
+        for (Path entry : listPackDirectories(gameDir.resolve(root.directory()))) {
+            String name = entry.getFileName().toString();
+            if (selection.isDisabled(name)) {
+                continue;
+            }
+            packs.add(new DirectoryPack(entry, "dir/" + name));
         }
-        try (var entries = Files.list(dir)) {
-            for (Path entry : entries.sorted().toList()) {
-                if (Files.isDirectory(entry)) {
-                    packs.add(new DirectoryPack(entry, "dir/" + entry.getFileName()));
+    }
+
+    /**
+     * The one rule for "what is a pack": a directory directly under a pack root, in name order.
+     *
+     * <p>Both {@link #reload()} and {@link #scanAvailable(Path)} come through here. A page that
+     * listed packs by its own copy of this loop would disagree with the stack the moment either
+     * copy changed - and the page's whole job is to show what is loaded.
+     */
+    public static List<Path> listPackDirectories(Path root) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return List.of();
+        }
+        try (var entries = Files.list(root)) {
+            return entries.filter(Files::isDirectory).sorted().toList();
+        }
+    }
+
+    /**
+     * Every pack this game directory offers, built-in first, then resource packs, then data packs.
+     *
+     * <p>{@link #packs()} reports the loaded stack only, so it cannot answer "what is switched
+     * off"; this is the list a management page shows, and its {@code enabled} flag is read from
+     * the same selection file {@link #reload()} consults.
+     */
+    public List<AvailablePack> scanAvailable(Path gameDir) throws IOException {
+        PackSelection selection = PackSelection.load(gameDir);
+        List<AvailablePack> result = new ArrayList<>();
+        ClasspathPack builtIn = new ClasspathPack(classLoader);
+        result.add(new AvailablePack(ClasspathPack.NAME, AvailablePack.Kind.BUILT_IN, true, null,
+                readDescription(builtIn, ClasspathPack.NAME)));
+        for (PackRoot root : PACK_ROOTS) {
+            for (Path path : listPackDirectories(gameDir.resolve(root.directory()))) {
+                String name = path.getFileName().toString();
+                result.add(new AvailablePack(name, root.kind(), selection.isEnabled(name), path,
+                        readDescription(new DirectoryPack(path, name), name)));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * The description a pack declares in its {@code pack.mcmeta}, or {@code fallback}.
+     *
+     * <p>Only the plain-string form of {@code pack.description} is read: Minecraft also allows a
+     * chat component there, and rendering one is a thing this project has no use for.
+     */
+    private static String readDescription(PvzcePack pack, String fallback) {
+        try (InputStream in = pack.open("pack.mcmeta")) {
+            if (in == null) {
+                return fallback;
+            }
+            JsonObject root = JsonParser.parseString(
+                    new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonObject section = root.getAsJsonObject("pack");
+            JsonElement description = section == null ? null : section.get("description");
+            return description != null && description.isJsonPrimitive()
+                    ? description.getAsString() : fallback;
+        } catch (Exception e) {
+            // A pack with an unreadable pack.mcmeta still loads and still shows its name; only
+            // the caption is missing, so this is not worth more than a debug line.
+            LOGGER.debug("Could not read pack.mcmeta of " + pack.name() + "; showing its name instead", e);
+            return fallback;
+        }
+    }
+
+    /**
+     * How many files one pack holds under each content directory: {@code plants 12},
+     * {@code textures 40}. Keys are the directory names the loader uses.
+     *
+     * <p>Counts the pack's own files rather than the merged stack's, because the page's question
+     * is "what does this pack add" - a number that includes the built-in content underneath it
+     * would be the same for every pack.
+     */
+    public Map<String, Integer> contentSummary(AvailablePack pack) throws IOException {
+        PvzcePack source = pack.path() == null
+                ? builtInPack() : new DirectoryPack(pack.path(), pack.name());
+        if (source == null) {
+            return Map.of();
+        }
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (String tree : List.of("data", "assets")) {
+            for (String path : source.list(tree)) {
+                // <tree>/<namespace>/<content directory>/<file>; anything shallower is not content.
+                String[] parts = path.split("/");
+                if (parts.length >= 4) {
+                    counts.merge(parts[2], 1, Integer::sum);
                 }
             }
         }
+        return counts;
+    }
+
+    /** The built-in pack at the bottom of the stack, or {@code null} before the first reload. */
+    public PvzcePack builtInPack() {
+        return packs.isEmpty() ? null : packs.get(0);
     }
 
     /** Loads a resource by path (e.g. {@code assets/pvzce/textures/foo.png}); highest pack wins. */
