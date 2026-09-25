@@ -356,7 +356,7 @@ class MutationGroupTwoTest {
         List<com.pvzce.api.content.mechanic.TypedMechanic> mechanics =
                 new java.util.ArrayList<>(yard.mechanics());
         mechanics.add(com.pvzce.api.content.mechanic.TypedMechanic.of(
-                PvzceIds.MECHANIC_MUTATION, com.pvzce.api.content.mechanic.MechanicData.Empty.INSTANCE));
+                PvzceIds.MECHANIC_MUTATION, com.pvzce.api.content.MutationData.RANDOM));
         return new LevelServer(TestLevels.copy(yard).waves(List.of()).mechanics(mechanics).build());
     }
 

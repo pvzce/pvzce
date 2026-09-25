@@ -149,7 +149,8 @@ public final class PvzceClientPacketListener implements PacketListener {
         } else if (packet instanceof GameSpeedS2C speed) {
             level.setTargetTickRate(speed.tickRate());
         } else if (packet instanceof DebugInfoS2C debug) {
-            level.setDebugInfo(debug.tickCount(), debug.frozen(), debug.sprinting());
+            level.setDebugInfo(debug.tickCount(), debug.levelTick(), debug.frozen(),
+                    debug.sprinting());
         } else if (packet instanceof ProfileS2C profile) {
             client.setProfile(profile.coins(), profile.unlocked(), profile.unlockAll(), profile.seedSlots(),
                     profile.buffSlots(), profile.autoBuffs(), profile.unlockedBuffs());

@@ -105,6 +105,8 @@ public final class ClientLevel {
     private volatile long lastSyncedNanos;
     private volatile double serverTicksPerNano = TICKS_PER_NANO;
     private volatile long debugTickCount;
+    /** The running level's own counter, as last reported by the server's heartbeat. */
+    private volatile int levelTickCount;
     private volatile float measuredTps;
     private volatile float targetTps = 60F;
     private volatile boolean serverFrozen;
@@ -996,7 +998,7 @@ public final class ClientLevel {
     }
 
     /** F3 heartbeat: measures the real tick rate with an exponential moving average. */
-    public void setDebugInfo(long tickCount, boolean frozen, boolean sprinting) {
+    public void setDebugInfo(long tickCount, int levelTick, boolean frozen, boolean sprinting) {
         long now = System.nanoTime();
         if (lastDebugTickCount >= 0 && lastDebugNanos > 0 && now > lastDebugNanos) {
             long deltaTicks = Math.max(0L, tickCount - lastDebugTickCount);
@@ -1004,6 +1006,9 @@ public final class ClientLevel {
             measuredTps = measuredTps <= 0F ? instant : measuredTps * 0.7F + instant * 0.3F;
         }
         this.debugTickCount = tickCount;
+        // The running level's own clock, which is what per-level moments are written against (the
+        // tutorial's timed lines). Not derived from `tickCount`: that one counts across levels.
+        this.levelTickCount = Math.max(0, levelTick);
         this.serverFrozen = frozen;
         this.serverSprinting = sprinting;
         this.lastDebugTickCount = tickCount;
@@ -1033,6 +1038,11 @@ public final class ClientLevel {
 
     public long debugTickCount() {
         return debugTickCount;
+    }
+
+    /** The running level's own tick counter; zero when there is no level. */
+    public int levelTickCount() {
+        return levelTickCount;
     }
 
     public float measuredTps() {

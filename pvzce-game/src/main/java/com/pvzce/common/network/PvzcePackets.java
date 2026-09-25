@@ -97,7 +97,9 @@ public final class PvzcePackets {
     // in the level init, so the buff icons kept showing what the run started with.
     // 30: the mutation state carries the bar slots a mutation locked (MutationStateS2C.lockedSlots),
     // so the bar can draw the padlock on exactly the cards the server refuses.
-    public static final int PROTOCOL_VERSION = 30;
+    // 31: the debug heartbeat carries the running level's own tick counter (DebugInfoS2C.levelTick),
+    // which is what the tutorial's timed dialogue lines are written against.
+    public static final int PROTOCOL_VERSION = 31;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

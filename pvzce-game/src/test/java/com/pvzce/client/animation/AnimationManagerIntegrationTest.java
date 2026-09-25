@@ -163,7 +163,7 @@ class AnimationManagerIntegrationTest {
     private static String advanceUntilClip(AnimationManager manager, ClientLevel level,
                                            ClientEntity entity, String clip) throws InterruptedException {
         for (int tick = 0; tick < 2_000; tick += 4) {
-            level.setDebugInfo(tick, false, false);
+            level.setDebugInfo(tick, tick, false, false);
             manager.tick();
             AnimationPlayback playback = manager.playback(entity);
             if (playback != null && clip.equals(playback.activeName())) {

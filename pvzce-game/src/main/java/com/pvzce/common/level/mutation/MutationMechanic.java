@@ -16,18 +16,31 @@ import com.pvzce.api.content.mechanic.MechanicData;
  * <p>The mutation timer lives in the manager rather than here: a registered mechanic is one shared
  * instance across every level, so anything per-run belongs to the level (see {@code MutationManager}).
  */
-public final class MutationMechanic implements com.pvzce.common.level.mechanic.LevelMechanic<MechanicData.Empty> {
-    /** A marker block: {@code {"type": "pvzce:mutation"}} and nothing else. */
-    public static final MapCodec<MechanicData.Empty> CODEC = MapCodec.unit(MechanicData.Empty.INSTANCE);
+public final class MutationMechanic
+        implements com.pvzce.common.level.mechanic.LevelMechanic<com.pvzce.api.content.MutationData> {
+    /**
+     * The block: whether this level also rolls its mutations, and which ones it stages by hand.
+     *
+     * <p>It was a bare marker until the tutorial level needed a script; {@code MutationData}
+     * documents the two fields and why they are independent.
+     */
+    public static final MapCodec<com.pvzce.api.content.MutationData> CODEC =
+            com.pvzce.api.content.MutationData.MAP_CODEC;
 
     @Override
-    public MapCodec<MechanicData.Empty> codec() {
+    public MapCodec<com.pvzce.api.content.MutationData> codec() {
         return CODEC;
     }
 
     @Override
-    public java.util.List<String> validate(LevelDef def, MechanicData.Empty data) {
-        java.util.List<String> errors = new java.util.ArrayList<>();
+    public java.util.List<String> validate(LevelDef def, com.pvzce.api.content.MutationData data) {
+        java.util.List<String> errors = new java.util.ArrayList<>(data.validate());
+        for (com.pvzce.api.content.MutationData.Planned planned : data.schedule()) {
+            if (com.pvzce.common.level.mutation.MutationRegistry.get(planned.id()) == null) {
+                errors.add("scheduled mutation '" + planned.id() + "' is not registered, so it"
+                        + " would never arrive");
+            }
+        }
         String difficulty = null;
         com.google.gson.JsonElement configured = def.rules().get(
                 com.pvzce.common.PvzceIds.RULE_MUTATION_DIFFICULTY);

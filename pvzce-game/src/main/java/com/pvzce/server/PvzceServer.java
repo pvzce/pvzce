@@ -237,7 +237,10 @@ public final class PvzceServer implements Runnable {
                     lastDebugInfoNanos = now;
                     // The tick rate is owned by GameSpeedS2C; this heartbeat only
                     // reports the measured clock and the run state.
+                    // The level's own counter rides along: the tutorial's timed lines are written
+                    // against it, and the server's clock counts across levels.
                     connection.send(new DebugInfoS2C(tickRate.tickCount(),
+                            level == null ? 0 : level.tickCount(),
                             tickRate.isFrozen(), tickRate.isSprinting()));
                 }
 

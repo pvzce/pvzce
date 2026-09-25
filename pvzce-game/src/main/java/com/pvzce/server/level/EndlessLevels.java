@@ -241,7 +241,7 @@ public final class EndlessLevels {
                         ? PvzceIds.ENDLESS_SCHEDULE_MUTATION : PvzceIds.ENDLESS_SCHEDULE_POOL)));
         if (mutating) {
             mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION,
-                    MechanicData.Empty.INSTANCE));
+                    com.pvzce.api.content.MutationData.RANDOM));
         }
         // Every row has an ordinary mower: `MowerData.EVERY_ROW` is what a level that says nothing
         // gets, and writing it out is what makes a lawn row with no mower a deliberate act.

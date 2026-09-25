@@ -1696,6 +1696,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return false;
     }
 
+    /**
+     * The level's {@code pvzce:mutation} block, or {@code null} when it does not mutate.
+     *
+     * <p>Read by the mutation manager at construction: whether this run also rolls mutations, and
+     * which ones the level stages by hand. The block is content, so it is asked of the definition
+     * rather than remembered from the last look.
+     */
+    public com.pvzce.api.content.MutationData mutationData() {
+        return LevelMechanics.dataOf(def, PvzceIds.MECHANIC_MUTATION,
+                com.pvzce.api.content.MutationData.class).orElse(null);
+    }
+
     /** True when this level has that mechanic installed, declared or added at runtime. */
     public boolean hasMechanic(Identifier mechanicId) {
         return LevelMechanics.has(mechanics, mechanicId);

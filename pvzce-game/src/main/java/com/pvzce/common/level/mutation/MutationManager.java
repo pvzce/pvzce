@@ -95,6 +95,9 @@ public final class MutationManager {
     public MutationManager(LevelServer level) {
         this.level = level;
         this.ticksUntilNext = Math.max(1, level.rules().getInt(PvzceIds.RULE_MUTATION_INITIAL_TICKS));
+        com.pvzce.api.content.MutationData data = level.mutationData();
+        this.schedule = data == null ? List.of() : data.schedule();
+        this.rolls = data == null || data.random();
     }
 
     // ------------------------------------------------------------------
@@ -187,6 +190,18 @@ public final class MutationManager {
     // The level's hooks
     // ------------------------------------------------------------------
 
+    /**
+     * The mutations this level stages by hand, in tick order; empty for a level that rolls them.
+     *
+     * <p>Read once, from the level's own block: the script is content, and the only thing that
+     * changes while a run is on is how far through it the run has got ({@link #scheduledFired}).
+     */
+    private final List<com.pvzce.api.content.MutationData.Planned> schedule;
+    /** How many of {@link #schedule} have already arrived. */
+    private int scheduledFired;
+    /** False when the level stages every mutation and never rolls one. */
+    private final boolean rolls;
+
     /** Runs on level construction; the first mutation is due after the level's grace period. */
     public void start() {
         recompute();
@@ -198,7 +213,11 @@ public final class MutationManager {
             firstSendPending = false;
             sendState(true);
         }
-        if (--ticksUntilNext <= 0) {
+        tickSchedule();
+        if (!rolls) {
+            // A staged level does not roll: the countdown stays where it is so a schedule written
+            // for the tutorial is not joined by guests the author never asked for.
+        } else if (--ticksUntilNext <= 0) {
             arrive();
         } else if (!arrivedYet) {
             // Nothing has arrived yet, so this countdown is the level's grace period and it reads
@@ -291,6 +310,10 @@ public final class MutationManager {
         com.pvzce.common.nbt.CompoundTag block = new com.pvzce.common.nbt.CompoundTag();
         block.putInt("TicksUntilNext", ticksUntilNext);
         block.putString("Difficulty", difficulty().tierName());
+        // How far through the level's own script this run has got. A count rather than a bit set:
+        // staged mutations arrive in the order they are written, so "how many have fired" is the
+        // whole state - and a script that repeats a mutation is fine with it.
+        block.putInt("ScheduledFired", scheduledFired);
         com.pvzce.common.nbt.ListTag list = new com.pvzce.common.nbt.ListTag();
         for (MutationEntry entry : entries) {
             com.pvzce.common.nbt.CompoundTag entryTag = new com.pvzce.common.nbt.CompoundTag();
@@ -338,6 +361,9 @@ public final class MutationManager {
             return;
         }
         ticksUntilNext = Math.max(1, block.getInt("TicksUntilNext"));
+        // Before the list is read, and clamped to what the level declares: a save from a build
+        // whose script was longer must not skip the entries the shorter one still has coming.
+        scheduledFired = Math.max(0, Math.min(schedule.size(), block.getInt("ScheduledFired")));
         for (com.pvzce.common.nbt.Tag element : block.getList("List").values()) {
             if (!(element instanceof com.pvzce.common.nbt.CompoundTag entryTag)) {
                 continue;
@@ -638,6 +664,56 @@ public final class MutationManager {
     // Arrivals and evictions
     // ------------------------------------------------------------------
 
+    /**
+     * Adds every staged mutation whose tick has come.
+     *
+     * <p>A loop rather than one per tick: a level may stage two entries close together, and a
+     * frame spent at 20x speed skips ticks - the script is a list of moments, not a metronome, so
+     * "everything that is due" is the honest reading. Entries arrive in the order they are written,
+     * and each is added exactly like a rolled one (its own roll, the same eviction, the same
+     * banner), because a staged mutation is not a different kind of mutation.
+     */
+    private void tickSchedule() {
+        while (scheduledFired < schedule.size()
+                && level.tickCount() >= schedule.get(scheduledFired).atTick()) {
+            com.pvzce.api.content.MutationData.Planned planned = schedule.get(scheduledFired);
+            scheduledFired++;
+            Mutation mutation = MutationRegistry.get(planned.id());
+            if (mutation == null) {
+                // A pack that was removed, or a typo the validator already reported: the entry is
+                // skipped rather than left to stall the script forever.
+                continue;
+            }
+            addFromSchedule(mutation);
+        }
+    }
+
+    /** The arrival half of {@link #arrive}, for a mutation the level named itself. */
+    private void addFromSchedule(Mutation mutation) {
+        int limit = limit();
+        while (entries.size() >= limit) {
+            if (!evictOldest()) {
+                clear();
+                break;
+            }
+        }
+        Mutation.Roll roll = mutation.roll(level);
+        entries.add(new MutationEntry(mutation, roll));
+        recompute();
+        announce(mutation, roll);
+        sendState(true);
+    }
+
+    /** How many staged mutations have arrived, and how many the level stages at all. */
+    public int scheduledFired() {
+        return scheduledFired;
+    }
+
+    /** The staged mutations this level declares, in tick order. */
+    public List<com.pvzce.api.content.MutationData.Planned> schedule() {
+        return schedule;
+    }
+
     /** Rolls one mutation, makes room for it, and takes effect. */
     private void arrive() {
         arrivedYet = true;
@@ -922,7 +998,10 @@ public final class MutationManager {
                 tier.tierName(),
                 tier.maxConcurrent(),
                 intervalTicks(),
-                ticksUntilNext,
+                // Zero when this level stages every mutation and never rolls one: the panel's
+                // "next one in N seconds" line is about a roll that is not coming, and a tutorial
+                // that promises a random mutation it will never deliver is a tutorial that lies.
+                rolls ? ticksUntilNext : 0,
                 tier.rollMultiplier(),
                 level.cardSourceKind(),
                 beltCapacity(),

@@ -401,6 +401,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     /** True while this screen is holding the server paused for a dialogue. */
     private boolean dialogueHoldsPause;
     private final com.pvzce.api.content.LevelDialogue openingDialogue;
+    /**
+     * How far through the level's timed lines this screen has got.
+     *
+     * <p>An index rather than a queue of remaining lines: the script is content, and "which line is
+     * next" is the only thing the screen has to remember. Read from the level's own definition, like
+     * the dialogue and the hints, because the client loads the same data packs.
+     */
+    private int timedLineIndex;
+    /** The timed line currently on screen, or {@code null}. */
+    private DialogueOverlay timedDialogue;
     /** Last coin count the HUD noticed, and when it last changed. */
     private int seenCoins = -1;
     private long coinBankNanos;
@@ -613,6 +623,75 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 : com.pvzce.common.core.BuiltInRegistries.LEVELS.get(id);
         levelHints = new com.pvzce.client.gui.hud.LevelHints(hints, def);
         levelHints.onLevelStart();
+    }
+
+    /**
+     * Plays the level's timed lines, one at a time, as their ticks come up.
+     *
+     * <p>Read from the local level definition: {@code timed} lines are content, like the opening
+     * conversation, and the client already has the same data packs as the server. The tick they are
+     * aimed at is the level's own counter, so a line written against a mutation's schedule fires on
+     * the same beat as that mutation - which is the whole reason a tutorial can say "look, the bar
+     * just changed" and be right.
+     *
+     * <p>One at a time, and the level is paused while one is up: a line that is read while a zombie
+     * is eating the lawn is a line nobody reads. The pause is the same one the opening conversation
+     * takes, so a level whose opening dialogue is still on screen simply waits.
+     */
+    private void tickTimedDialogue() {
+        if (timedDialogue != null && timedDialogue.isActive()) {
+            return;
+        }
+        if (dialogue != null && dialogue.isActive()) {
+            return;
+        }
+        if (!client.level().gameState().equals("running")) {
+            return;
+        }
+        java.util.List<com.pvzce.api.content.LevelDialogue.Timed> script = timedLines();
+        if (timedLineIndex >= script.size()) {
+            return;
+        }
+        // The level's own counter, not the server's: the server's counts across levels, so a
+        // moment written against it would be "already passed" the instant a second level started.
+        long tick = client.level().levelTickCount();
+        if (tick < script.get(timedLineIndex).atTick()) {
+            return;
+        }
+        com.pvzce.api.content.LevelDialogue.Timed next = script.get(timedLineIndex++);
+        DialogueOverlay overlay = DialogueOverlay.create(client,
+                new com.pvzce.api.content.LevelDialogue(
+                        java.util.List.of(next.line()),
+                        com.pvzce.api.content.DialogueEffect.SLIDE,
+                        com.pvzce.api.content.DialogueEffect.SLIDE),
+                this::onTimedDialogueFinished);
+        if (overlay == null) {
+            return;
+        }
+        timedDialogue = overlay;
+        showDialog(overlay);
+        if (!dialogueHoldsPause) {
+            // Same hold the opening conversation takes: the level freezes for as long as the player
+            // takes to read, and the next line waits behind it.
+            dialogueHoldsPause = true;
+            client.connection().send(new PauseGameC2S(true));
+        }
+    }
+
+    /** The level's timed lines, or an empty list when it has none. */
+    private java.util.List<com.pvzce.api.content.LevelDialogue.Timed> timedLines() {
+        String levelId = client.level().levelId();
+        com.pvzce.api.util.Identifier id =
+                levelId == null ? null : com.pvzce.api.util.Identifier.tryParse(levelId);
+        com.pvzce.api.content.LevelDef def = id == null
+                ? null : com.pvzce.common.core.BuiltInRegistries.LEVELS.get(id);
+        return def == null ? java.util.List.of() : def.dialogue().timed();
+    }
+
+    /** A timed line is over: let go of the level and forget the overlay. */
+    private void onTimedDialogueFinished() {
+        timedDialogue = null;
+        onDialogueFinished();
     }
 
     /** The conversation is over: unpause and let the "准备… 安放… 种植！" banner play. */
@@ -1269,6 +1348,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         tickReward();
         tickDefeat();
         tickSleepZzz();
+        tickTimedDialogue();
         // The bar ticks here rather than in render(): the click that picks a card is
         // dispatched before this frame's render, and a belt card has to be hit where the
         // player last saw it.

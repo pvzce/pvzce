@@ -6,6 +6,7 @@ import com.pvzce.api.content.EnvValue;
 import com.pvzce.api.content.InitialEntityDef;
 import com.pvzce.api.content.LevelCategoryDef;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.DialogueLine;
 import com.pvzce.api.content.LevelDialogue;
 import com.pvzce.api.content.LevelHint;
 import com.pvzce.api.content.LevelRewards;
@@ -93,21 +94,212 @@ public final class MutationLevels {
             id("mutation_hard"),
             id("mutation_hell"));
 
+    /**
+     * The tutorial's id.
+     *
+     * <p>Not one of the four tiers: it is a short, hand-scripted level that teaches what a mutation
+     * <em>is</em>, on the same page as them because that is where a player who has just met one will
+     * look. It is not endless either - it has six waves and a victory - which is the other half of
+     * "this is a lesson, not a run".
+     */
+    private static final Identifier TUTORIAL = id("mutation_tutorial");
+
     private MutationLevels() {
     }
 
-    /** The four level ids, in tier order. Read by the tests and by the category's page. */
+    /** The four level ids, in tier order, plus the tutorial. Read by the tests and by the page. */
     public static List<Identifier> levelIds() {
+        List<Identifier> ids = new ArrayList<>(ALL);
+        ids.add(TUTORIAL);
+        return List.copyOf(ids);
+    }
+
+    /** The four tier ids alone, which is what the difficulty tests walk. */
+    public static List<Identifier> tierIds() {
         return ALL;
     }
 
-    /** Registers the four levels; the category belongs to {@code EndlessLevels}. */
+    /** The tutorial's id. */
+    public static Identifier tutorialId() {
+        return TUTORIAL;
+    }
+
+    /** Registers the five levels; the category belongs to {@code EndlessLevels}. */
     public static void bootstrap() {
         for (MutationDifficulty tier : MutationDifficulty.values()) {
             Identifier levelId = id("mutation_" + tier.tierName());
             BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, levelId.toString(),
                     build(levelId, tier));
         }
+        BuiltInRegistries.registerStatic(BuiltInRegistries.LEVELS, TUTORIAL.toString(), tutorial());
+    }
+
+    /**
+     * The tutorial: six gentle waves on a day lawn, four cards, and four mutations on a script.
+     *
+     * <p>What it teaches is the shape of the system rather than any one mutation - a card-bar
+     * rewrite, a number, a mini-game and a card dealer, in that order - and it teaches it by
+     * <em>showing</em>: each staged mutation arrives with a line from 豌豆酱 that says which kind it
+     * is. That is why the level pins a schedule and turns the dice off
+     * ({@code random: false}): a lesson whose examples arrive in a random order and a random
+     * strength is not a lesson.
+     *
+     * <p>Six small waves, all of them plain zombies, and no endless mechanic: the run has to end so
+     * the player can go and meet the real thing.
+     */
+    private static LevelDef tutorial() {
+        List<com.pvzce.api.content.MutationData.Planned> script = List.of(
+                new com.pvzce.api.content.MutationData.Planned(
+                        PvzceIds.MUTATION_SLOT_REPLACE, 900),
+                new com.pvzce.api.content.MutationData.Planned(PvzceIds.MUTATION_SUN_RATE, 2400),
+                new com.pvzce.api.content.MutationData.Planned(PvzceIds.MUTATION_BOWLING_NUT, 4200),
+                new com.pvzce.api.content.MutationData.Planned(PvzceIds.MUTATION_CONVEYOR, 6000));
+        return new LevelDef(
+                TUTORIAL,
+                "变异教程",
+                "这一关不长：打完六波就赢。变异会在固定的时刻出现，豌豆酱会告诉你每一种叫什么——"
+                        + "认全了再去变异无尽里碰上它们，就不慌了。",
+                WIDTH, 5,
+                tutorialScene(),
+                teams(),
+                PvzceIds.PLANT_TEAM,
+                tutorialRules(),
+                Map.<Identifier, EnvValue>of(),
+                tutorialWaves(),
+                1F,
+                tutorialSlots(),
+                Map.of(PvzceIds.SUN, true),
+                150,
+                LevelDef.LevelMusicDef.DEFAULT,
+                List.<InitialEntityDef>of(),
+                PvzceConstants.MAX_SEED_SLOTS,
+                rewards(),
+                // Open from the start: it is a lesson, not a reward, and a player who has just met
+                // their first mutation should be able to go and read about it.
+                LevelUnlock.NONE,
+                tutorialMechanics(script),
+                tutorialDialogue(),
+                List.of(new LevelHint(LevelHint.Trigger.ON_START, Optional.empty(),
+                        "豌豆酱会一路解说，跟着看就行", 600)),
+                List.of(PvzceIds.PLANT_TEAM),
+                Optional.of(Identifier.withDefaultNamespace(
+                        "textures/gui/screen/level/background1")),
+                List.of(PvzceIds.GRASS.toString()),
+                false,
+                new LevelDef.LevelBuffPlan(List.of(LevelDef.LevelBuffPlan.PLAYER_CHOICE),
+                        BUFF_SLOTS));
+    }
+
+    /** The tutorial's board: the front lawn, all grass. */
+    private static Map<Identifier, List<String>> tutorialScene() {
+        Map<Identifier, List<String>> scene = new LinkedHashMap<>();
+        List<String> grass = new ArrayList<>();
+        for (int y = 0; y < 5; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                grass.add(x + "," + y);
+            }
+        }
+        scene.put(PvzceIds.GRASS, grass);
+        return scene;
+    }
+
+    /** Four cards: enough to hold a lawn of plain zombies, few enough to read. */
+    private static List<Identifier> tutorialSlots() {
+        return List.of(PvzceIds.id("sun"), PvzceIds.id("pea_shooter"), PvzceIds.id("sunflower"),
+                PvzceIds.id("wall_nut"), PvzceIds.id("cherry_bomb"), PvzceIds.id("shovel"));
+    }
+
+    /**
+     * The day lawn's sky and the script's own clock.
+     *
+     * <p>The mutation rules are the middle tier's numbers even though nothing is rolled: the panel
+     * reads the tier for its "next one in N seconds" line, and a level with no tier at all would
+     * show the default one anyway - this way the level says what it means.
+     */
+    private static Map<Identifier, JsonElement> tutorialRules() {
+        Map<Identifier, JsonElement> rules = new LinkedHashMap<>();
+        rules.put(PvzceIds.RULE_DAY_LENGTH, new JsonPrimitive(0));
+        rules.put(PvzceIds.RULE_NIGHT_LENGTH, new JsonPrimitive(-1));
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, new JsonPrimitive(SUN_INTERVAL_MIN));
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, new JsonPrimitive(SUN_INTERVAL_MAX));
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INITIAL_TICKS, new JsonPrimitive(SUN_INITIAL_TICKS));
+        rules.put(PvzceIds.RULE_MUTATION_DIFFICULTY,
+                new JsonPrimitive(MutationDifficulty.NORMAL.tierName()));
+        rules.put(PvzceIds.id("level_pause_on_single_player"), new JsonPrimitive(true));
+        return rules;
+    }
+
+    /** Six small waves of plain zombies: pressure for the player to have to do something. */
+    private static List<WaveDef> tutorialWaves() {
+        List<WaveDef> waves = new ArrayList<>();
+        List<Integer> rows = List.of(0, 1, 2, 3, 4);
+        for (int i = 0; i < 6; i++) {
+            boolean last = i == 5;
+            List<WaveDef.Entry> entries = new ArrayList<>();
+            if (last) {
+                entries.add(new WaveDef.Entry(PvzceIds.id("flag_zombie"), 1, rows, 1F));
+            }
+            entries.add(new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"),
+                    1 + i / 2, rows, 1F));
+            if (i >= 3) {
+                entries.add(new WaveDef.Entry(Identifier.withDefaultNamespace("conehead_zombie"),
+                        1, rows, 1F));
+            }
+            // (type, delay, warning, entries, spawn interval): a slow trickle, so each line has
+            // time to be read between two zombies.
+            waves.add(new WaveDef(last ? WaveDef.WaveType.FINAL : WaveDef.WaveType.SMALL,
+                    1500, last ? 180 : 0, entries, 300));
+        }
+        return List.copyOf(waves);
+    }
+
+    /**
+     * The tutorial's words: two lines before it starts, and one for each staged mutation.
+     *
+     * <p>豌豆酱 is the guide the user asked for, and the voice is the one the shipped levels already
+     * use for her - short sentences, 咱 for "I", and an exclamation when she gets excited. The timed
+     * lines are aimed at the ticks the mutations fire on (900 / 2400 / 4200 / 6000, plus a little
+     * slack so the banner of the mutation itself has shown first), which is the whole reason the
+     * script and the dialogue are written in one place.
+     */
+    private static LevelDialogue tutorialDialogue() {
+        Identifier pea = Identifier.withDefaultNamespace("pea_chan");
+        List<DialogueLine> opening = List.of(
+                new DialogueLine(pea, "happy",
+                        "欢迎来到变异教程！这一关不长，咱带你认认变异是什么。", "", DialogueLine.Side.LEFT),
+                new DialogueLine(pea, "smile",
+                        "变异就是——打着打着，规则突然变了一下。别慌，咱陪你。", "",
+                        DialogueLine.Side.LEFT));
+        List<LevelDialogue.Timed> timed = List.of(
+                timed(pea, 1000, "surprised",
+                        "看卡槽！卡变了！这叫卡槽变异，你的卡会被换成同类型的别的植物。"),
+                timed(pea, 2500, "tsundere",
+                        "阳光变快了……或者变慢了。这种只改数字的，叫数值变异。"),
+                timed(pea, 4300, "happy",
+                        "坚果变保龄球了！这种把玩法整个换掉的，叫小游戏变异。"),
+                timed(pea, 6100, "fierce",
+                        "卡槽变传送带了！注意——铲子还在，工具不会被传送带吃掉。"));
+        return new LevelDialogue(opening, com.pvzce.api.content.DialogueEffect.SLIDE,
+                com.pvzce.api.content.DialogueEffect.SLIDE, timed);
+    }
+
+    /** One timed line from 豌豆酱. */
+    private static LevelDialogue.Timed timed(Identifier pea, int atTick, String portrait,
+                                             String text) {
+        return new LevelDialogue.Timed(atTick, new DialogueLine(pea, portrait, text, "",
+                DialogueLine.Side.LEFT));
+    }
+
+    /** The tutorial's mechanics: a scripted mutation block, mowers, and a deck. */
+    private static List<TypedMechanic> tutorialMechanics(
+            List<com.pvzce.api.content.MutationData.Planned> script) {
+        List<TypedMechanic> mechanics = new ArrayList<>();
+        // No endless mechanic at all: six waves and the level is won.
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION,
+                new com.pvzce.api.content.MutationData(false, script)));
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER, MowerData.EVERY_ROW));
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_DECK, MechanicData.Empty.INSTANCE));
+        return List.copyOf(mechanics);
     }
 
     /** One level, for one tier. */
@@ -213,7 +405,8 @@ public final class MutationLevels {
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_ENDLESS,
                 new com.pvzce.common.level.mechanic.EndlessMechanic.Data(
                         PvzceIds.ENDLESS_SCHEDULE_MUTATION)));
-        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION, MechanicData.Empty.INSTANCE));
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MUTATION,
+                com.pvzce.api.content.MutationData.RANDOM));
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER, poolMowers()));
         // A deck, written out rather than left implicit: the level's cards come from the player's
         // own picks, and "which card source" is the question a mutation overrides - so the

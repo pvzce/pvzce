@@ -129,7 +129,11 @@ class MutationCatalogTest {
     @Test
     void theFourLevelsAreRegisteredUnderTheSharedEndlessCategory() {
         List<Identifier> ids = MutationLevels.levelIds();
-        assertEquals(4, ids.size());
+        // Four tiers plus the tutorial, which lives on the same page: a player who has just met
+        // their first mutation looks in the same place for the level that explains them.
+        assertEquals(5, ids.size());
+        assertEquals(4, MutationLevels.tierIds().size(),
+                "four of them are the difficulty tiers, and the fifth is the tutorial");
         for (Identifier id : ids) {
             LevelDef def = BuiltInRegistries.LEVELS.get(id);
             assertNotNull(def, id + " is missing from the level registry");
