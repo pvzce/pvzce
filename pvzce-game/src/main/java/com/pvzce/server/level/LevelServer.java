@@ -1079,6 +1079,23 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return plant;
     }
 
+    /**
+     * The 3-9 reward: the kelp the player just planted grows a second one beside it.
+     *
+     * <p>Called from the <em>placement</em> path and not from {@code spawnPlant}, and the
+     * difference is not tidiness - it is the difference between one plant and eight. The spread
+     * grows its kelp through {@code spawnPlant}, so a hook there would fire again for the kelp the
+     * spread just made, and again for that one's neighbour, until the pool was full. The buff says
+     * "planting one grows one more"; it does not say "the pool fills itself", which is what the
+     * mutation of the same name does on a timer.
+     */
+    private void spreadKelpFrom(PlantDef planted, int x, int y) {
+        if (PvzceIds.TANGLE_KELP.equals(planted.id())
+                && com.pvzce.common.buff.LevelBuffs.spreadsKelp(activeBuffs)) {
+            com.pvzce.common.level.mutation.KelpSpread.spreadFrom(this, x, y);
+        }
+    }
+
     /** The placement itself, past every rewrite: one entity, one {@code onPlaced}. */
     private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y) {
         PlantEntity plant = new PlantEntity(def, team, x, y);
@@ -2959,6 +2976,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         PlantEntity plant = spawnPlant(plantDef, plantPlayer.team(), x, y);
+        spreadKelpFrom(plantDef, x, y);
         LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, y, plantCount());
         cardSource.afterSpend(this, bridge, slot);
         return !plant.isRemoved() || plant.consumesOnPlace();

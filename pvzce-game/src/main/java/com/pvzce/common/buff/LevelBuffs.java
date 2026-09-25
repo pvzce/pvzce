@@ -100,6 +100,16 @@ public final class LevelBuffs {
         return fraction;
     }
 
+    /** True when any active buff grows a second tangle kelp next to the one just planted. */
+    public static boolean spreadsKelp(List<LevelBuff> active) {
+        for (LevelBuff buff : active == null ? List.<LevelBuff>of() : active) {
+            if (buff.spreadsKelp()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** True when any active buff picks resources up on its own. */
     public static boolean autoCollects(List<LevelBuff> active) {
         for (LevelBuff buff : active == null ? List.<LevelBuff>of() : active) {

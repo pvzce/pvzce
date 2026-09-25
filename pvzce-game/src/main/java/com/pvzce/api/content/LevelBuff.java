@@ -101,6 +101,25 @@ public interface LevelBuff {
         return 0F;
     }
 
+    /**
+     * Whether planting a tangle kelp grows another one next to it.
+     *
+     * <p>The 3-9 reward, and the only buff whose effect is a second plant appearing: the player
+     * plants one kelp in the pool and the water fills itself, which is what makes the pool's two
+     * rows answerable without spending a card per cell.
+     *
+     * <p>A boolean rather than a count or a rate: the rule the user described is "one more, next to
+     * it, if there is water and nothing in the way", and there is nothing to tune about it. A buff
+     * that spread two would be a different buff.
+     *
+     * <p>Read by {@code LevelServer.spawnPlant}, through {@code KelpSpread.spreadFrom} - the same
+     * method the mutation of the same name calls, so the two can never disagree about what "next
+     * to" means.
+     */
+    default boolean spreadsKelp() {
+        return false;
+    }
+
     /** A texture and, optionally, the sub-rectangle of it this icon occupies. */
     record BuffIcon(Identifier texture, float u0, float v0, float u1, float v1) {
         /** No icon: the chooser draws the level's placeholder and the tooltip still names it. */

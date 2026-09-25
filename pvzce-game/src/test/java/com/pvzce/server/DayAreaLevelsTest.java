@@ -253,16 +253,30 @@ class DayAreaLevelsTest {
             }
         }
         adventure.sort(LevelGrouping.idOrder());
-        assertEquals(List.of("yard/adventure/1_1", "yard/adventure/1_2", "yard/adventure/1_3",
-                        "yard/adventure/1_4", "yard/adventure/1_5", "yard/adventure/1_6",
-                        "yard/adventure/1_7", "yard/adventure/1_8", "yard/adventure/1_9",
-                        "yard/adventure/1_10", "yard/adventure/2_1", "yard/adventure/2_2",
-                        "yard/adventure/2_3", "yard/adventure/2_4", "yard/adventure/2_5",
-                        "yard/adventure/2_6", "yard/adventure/2_7", "yard/adventure/2_8",
-                        "yard/adventure/2_9", "yard/adventure/2_10", "yard/adventure/3_1",
-                        "yard/adventure/3_2", "yard/adventure/3_3", "yard/adventure/3_4",
-                        "yard/adventure/3_5"),
-                adventure, "the list reads as a numbered list: 1-10 before 2-1, then 2-2 onwards");
+        // Asserted as the *shape* rather than as a literal list: "the list reads as a numbered
+        // list" is the claim, and a literal list turns every new level into a failure of a test
+        // about ordering. The shape is: every id is <chapter>_<number>, the chapters never go
+        // backwards, and within a chapter the numbers ascend 1,2,...,10 - which is exactly what
+        // plain text ordering gets wrong (1_10 lands between 1_1 and 1_2).
+        int chapter = 0;
+        int number = 0;
+        for (String path : adventure) {
+            String tail = path.substring(path.lastIndexOf('/') + 1);
+            String[] parts = tail.split("_");
+            assertEquals(2, parts.length, "every adventure level is <chapter>_<number>: " + path);
+            int thisChapter = Integer.parseInt(parts[0]);
+            int thisNumber = Integer.parseInt(parts[1]);
+            assertTrue(thisChapter >= chapter,
+                    path + " comes after a later chapter; the list has to ascend");
+            if (thisChapter == chapter) {
+                assertTrue(thisNumber > number,
+                        path + " does not follow the one before it in its own chapter");
+            }
+            chapter = thisChapter;
+            number = thisNumber;
+        }
+        assertTrue(adventure.contains("yard/adventure/1_10"), "1-10 is in the list");
+        assertTrue(adventure.contains("yard/adventure/3_10"), "and so is 3-10");
     }
 
     /** The mushroom itself: free, short-ranged, and nocturnal. */

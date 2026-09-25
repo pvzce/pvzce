@@ -471,6 +471,13 @@ public final class PvzceIds {
      * Read by {@code LevelServer}'s shovel branch through {@code LevelBuff.shovelRefundFraction}.
      */
     public static final Identifier BUFF_SUN_SHOVEL = id("sun_shovel");
+    /**
+     * A planted tangle kelp grows another one beside it.
+     *
+     * <p>The 3-9 reward. The same effect the mutation of the same name applies on a timer; the
+     * rule is shared, only the trigger differs.
+     */
+    public static final Identifier BUFF_KELP_SPREAD = id("kelp_spread");
 
     /**
      * The shop's one item that is nothing but a shop item.

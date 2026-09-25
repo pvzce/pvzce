@@ -42,7 +42,8 @@ final class KelpSpreadMutation implements Mutation, MutationHooks {
 
     @Override
     public boolean canRun(LevelServer level) {
-        return BuiltInRegistries.PLANTS.get(PvzceIds.TANGLE_KELP) != null && hasWater(level);
+        return BuiltInRegistries.PLANTS.get(PvzceIds.TANGLE_KELP) != null
+                && KelpSpread.hasWater(level);
     }
 
     @Override
@@ -100,88 +101,15 @@ final class KelpSpreadMutation implements Mutation, MutationHooks {
         // From a kelp that is already in the water, so "蔓延" is literally what happens: no kelp
         // planted means no spread, which is why the mutation is worth a panel entry even before it
         // does anything.
-        PlantEntity source = firstKelp(level);
+        PlantEntity source = KelpSpread.firstKelp(level);
         if (source == null) {
             return;
         }
-        int[] target = nearbyWater(level, source.gridX(), source.gridY());
-        if (target == null) {
-            return;
+        // The rule itself lives in `KelpSpread`, shared with the buff the same effect is handed
+        // out as at 3-9; this class owns only the clock and the budget.
+        if (KelpSpread.spreadFrom(level, source.gridX(), source.gridY())) {
+            applied.spread++;
         }
-        // Whatever was growing there goes first: replacing a plant is not something `spawnPlant`
-        // does, and leaving the old one would put two plants in one cell.
-        PlantEntity occupant = level.plantAt(target[0], target[1]);
-        if (occupant != null) {
-            occupant.remove();
-            level.requestEntitySync();
-        }
-        level.spawnPlant(kelp, level.plantPlayer().team(), target[0], target[1]);
-        applied.spread++;
-        level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), target[0] + 0.5F, target[1] + 0.5F,
-                PvzceSounds.ZOMBIE_SPLASH);
-    }
-
-    /** The first Tangle Kelp on the lawn, or {@code null} when the player has planted none. */
-    private static PlantEntity firstKelp(LevelServer level) {
-        for (PlantEntity plant : allPlants(level)) {
-            if (PvzceIds.TANGLE_KELP.equals(plant.def().id())) {
-                return plant;
-            }
-        }
-        return null;
-    }
-
-    private static List<PlantEntity> allPlants(LevelServer level) {
-        return level.entities().stream()
-                .filter(entity -> entity instanceof PlantEntity)
-                .map(entity -> (PlantEntity) entity)
-                .toList();
-    }
-
-    /**
-     * A water cell next to a kelp, or {@code null} when every neighbour is already taken by kelp.
-     *
-     * <p>Four-neighbour rather than eight: the kelp is a plant standing in a cell, and a lawn that
-     * spread diagonally would fill a pool in a quarter of the time with a shape that reads as
-     * cheating. Cells that are not water are skipped, so a kelp at the pool's edge spreads along
-     * the pool rather than onto the grass.
-     */
-    private static int[] nearbyWater(LevelServer level, int fromX, int fromY) {
-        int[][] offsets = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        int start = level.random().nextInt(offsets.length);
-        for (int i = 0; i < offsets.length; i++) {
-            int[] offset = offsets[(start + i) % offsets.length];
-            int x = fromX + offset[0];
-            int y = fromY + offset[1];
-            if (!level.inBounds(x, y) || !isWater(level, x, y)) {
-                continue;
-            }
-            PlantEntity occupant = level.plantAt(x, y);
-            if (occupant != null && PvzceIds.TANGLE_KELP.equals(occupant.def().id())) {
-                continue;
-            }
-            return new int[]{x, y};
-        }
-        return null;
-    }
-
-    /** True when that cell's terrain is water, which is the only place a kelp may go. */
-    private static boolean isWater(LevelServer level, int x, int y) {
-        SceneElementDef base = level.sceneAt(x, y);
-        return base != null && PlantPlacement.terrainTagged(PlantPlacement.Terrain.of(base),
-                PvzceTags.SCENE_WATER);
-    }
-
-    /** True when the board has any water at all, for the "may it run" answer. */
-    private static boolean hasWater(LevelServer level) {
-        for (int x = 0; x < level.width(); x++) {
-            for (int y = 0; y < level.height(); y++) {
-                if (isWater(level, x, y)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /** This activation's clock and its budget of new plants. */

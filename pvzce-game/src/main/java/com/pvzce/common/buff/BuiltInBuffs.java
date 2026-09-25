@@ -84,6 +84,25 @@ public enum BuiltInBuffs implements LevelBuff {
         public float shovelRefundFraction() {
             return SUN_SHOVEL_REFUND;
         }
+    },
+
+    /**
+     * Planting a tangle kelp grows another one beside it.
+     *
+     * <p>The 3-9 reward. The pool's two rows are the part of a level the player has the least room
+     * to answer - every water cell costs a lily pad and a plant - and this is the one reward that
+     * gives the water back: one kelp becomes a patch of it, for as long as there is water next to
+     * the last one and nothing already growing there.
+     *
+     * <p>The same rule the mutation of the same name applies on a timer; the two share
+     * {@code KelpSpread.spreadFrom}, so "next to" has one definition.
+     */
+    KELP_SPREAD(PvzceIds.BUFF_KELP_SPREAD,
+            Identifier.withDefaultNamespace("textures/gui/buff/kelp_spread")) {
+        @Override
+        public boolean spreadsKelp() {
+            return true;
+        }
     };
 
     /** What "1.5x" is, in one place: the codec's default and the buff's answer agree. */

@@ -634,5 +634,7 @@
   "zombie.pvzce.zombotany_wallnut_zombie.flavor": "它自己没觉得有什么不方便。",
   "zombie.pvzce.zombotany_jalapeno_zombie": "火爆辣椒头僵尸",
   "zombie.pvzce.zombotany_jalapeno_zombie.desc": "倒下时会炸一下，把身边的植物烧掉半条命。",
-  "zombie.pvzce.zombotany_jalapeno_zombie.flavor": "解决它的最好时机是它还离你的植物很远的时候。"
+  "zombie.pvzce.zombotany_jalapeno_zombie.flavor": "解决它的最好时机是它还离你的植物很远的时候。",
+  "level_buff.pvzce.kelp_spread": "水草蔓延",
+  "gui.pvzce.shop.item.pvzce:kelp_spread": "水草蔓延"
 }
