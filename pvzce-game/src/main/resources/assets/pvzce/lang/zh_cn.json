@@ -568,5 +568,16 @@
   "pvzce.mechanic.fog.field.start_column": "雾起始列",
   "pvzce.mechanic.fog.field.end_column": "雾最浓列",
   "pvzce.mechanic.fog.field.max_alpha": "雾最大浓度",
-  "level_buff.pvzce.fog_retreat": "迷雾退缩"
+  "level_buff.pvzce.fog_retreat": "迷雾退缩",
+  "gui.pvzce.shop.title": "商店",
+  "gui.pvzce.shop.wallet": "金币",
+  "gui.pvzce.shop.owned": "已拥有",
+  "gui.pvzce.shop.poor": "金币不足",
+  "gui.pvzce.shop.item.rake": "钉耙",
+  "gui.pvzce.shop.item.card_slot": "卡槽 +1",
+  "gui.pvzce.shop.item.sun_shovel": "阳光铲 I",
+  "tool.pvzce.rake": "钉耙",
+  "tool.pvzce.rake.desc": "开局在随机一行放一把，压死走进来的第一只僵尸。",
+  "level_buff.pvzce.sun_shovel": "阳光铲 I",
+  "slot.pvzce.rake": "钉耙"
 }

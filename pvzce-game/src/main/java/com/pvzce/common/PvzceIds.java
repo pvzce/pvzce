@@ -453,6 +453,37 @@ public final class PvzceIds {
      * {@code BuiltInBuffs.FOG_RETREAT_COLUMNS}; this table is names, not numbers.
      */
     public static final Identifier BUFF_FOG_RETREAT = id("fog_retreat");
+    /**
+     * Digging a plant up returns a fifth of what it cost.
+     *
+     * <p>The shop's third item, and the only buff in the game that is not handed out by a level.
+     * Read by {@code LevelServer}'s shovel branch through {@code LevelBuff.shovelRefundFraction}.
+     */
+    public static final Identifier BUFF_SUN_SHOVEL = id("sun_shovel");
+
+    /**
+     * The shop's one item that is nothing but a shop item.
+     *
+     * <p>The other two are not repeated here: the sun shovel's item id <em>is</em>
+     * {@link #BUFF_SUN_SHOVEL}, and the rake's is the tool card {@code pvzce:rake}. An item id
+     * that shadowed the thing it grants would be a second name for one fact, and "do I own this"
+     * would have two answers.
+     */
+    public static final Identifier SHOP_CARD_SLOT = id("card_slot");
+
+    /**
+     * The rake: a one-shot guard that flattens the first zombie to reach it.
+     *
+     * <p>Two registries share the name, on purpose. The <em>card</em> {@code pvzce:rake} is what
+     * the shop grants and what "do I own the rake" is asked about (a player's backpack is a set of
+     * card ids, tools included); this is the <em>mechanic</em> that places one at the start of a
+     * level that did not say otherwise. A second id for the card would be a second answer to the
+     * same question.
+     */
+    public static final Identifier MECHANIC_RAKE = id("rake");
+
+    /** The rake as a card: the shop item id and what the profile's unlocked set holds. */
+    public static final Identifier RAKE = id("rake");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

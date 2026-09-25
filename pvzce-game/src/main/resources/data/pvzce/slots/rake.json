@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:rake",
+  "kind": "tool",
+  "content": "pvzce:rake",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/rake"
+}

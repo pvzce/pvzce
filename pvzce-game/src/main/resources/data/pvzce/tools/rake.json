@@ -1,0 +1,13 @@
+{
+  "id": "pvzce:rake",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 0,
+  "targets": [],
+  "effect": "pvzce:rake_placed",
+  "uses": -1,
+  "texture": "pvzce:textures/gui/cards/rake",
+  "animation_dir": "mechanic"
+}

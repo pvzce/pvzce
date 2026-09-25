@@ -29,7 +29,8 @@ import java.util.List;
  */
 public record ProfileS2C(int coins, List<String> unlocked, boolean unlockAll,
                          List<String> unlockedLevels, int seedSlots, int buffSlots,
-                         List<String> autoBuffs) implements PvzcePacket {
+                         List<String> autoBuffs, List<String> unlockedBuffs)
+        implements PvzcePacket {
     public static final PacketStruct.Codec<ProfileS2C> CODEC = PacketStruct.<ProfileS2C>builder()
             .field(ProfileS2C::coins, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .stringList(ProfileS2C::unlocked)
@@ -43,15 +44,32 @@ public record ProfileS2C(int coins, List<String> unlocked, boolean unlockAll,
             // the chooser pre-selects these before the player has asked for anything, and
             // nothing else on the client knows them.
             .stringList(ProfileS2C::autoBuffs)
+            // Which buffs this world has been *given*, as against ``autoBuffs`` above, which is
+            // which of them it switches on by itself. The shop's "already owned" marks and the
+            // chooser's padlocks read this one; before it travelled, the client could only see
+            // the auto list and drew every unbought buff as if it had been handed over.
+            .stringList(ProfileS2C::unlockedBuffs)
             .build(values -> new ProfileS2C((Integer) values.get(0), (List<String>) values.get(1),
                     (Boolean) values.get(2), (List<String>) values.get(3), (Integer) values.get(4),
-                    (Integer) values.get(5), (List<String>) values.get(6)));
+                    (Integer) values.get(5), (List<String>) values.get(6),
+                    (List<String>) values.get(7)));
+
+    /** The same snapshot with no buffs handed over; what most callers want. */
+    public ProfileS2C(int coins, List<String> unlocked, boolean unlockAll,
+                      List<String> unlockedLevels, int seedSlots, int buffSlots,
+                      List<String> autoBuffs) {
+        this(coins, unlocked, unlockAll, unlockedLevels, seedSlots, buffSlots, autoBuffs, List.of());
+    }
+
+    public ProfileS2C {
+        unlockedBuffs = unlockedBuffs == null ? List.of() : List.copyOf(unlockedBuffs);
+    }
 
     /** Before card slots travelled; kept for the tests that only care about cards. */
     public ProfileS2C(int coins, List<String> unlocked, boolean unlockAll) {
         this(coins, unlocked, unlockAll, List.of(),
                 com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS,
-                com.pvzce.common.PvzceConstants.DEFAULT_BUFF_SLOTS, List.of());
+                com.pvzce.common.PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of());
     }
 
     /** Before card slots travelled but with level purchases. */

@@ -191,6 +191,10 @@ final public class SmokeDriver {
             client.setScreenReplacing(new com.pvzce.client.gui.mods.ModsScreen(client));
         } else if ("settings".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.SettingsScreen(client));
+        } else if ("shop".equals(smokeScreen)) {
+            // The shop is reached from the title screen in play, but a smoke run that had to click
+            // its way there would be a smoke run that broke the next time the menu's layout moved.
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.ShopScreen(client));
         } else if ("console".equals(smokeScreen)) {
             // The console is an overlay, so the run needs a screen for it to float over.
             client.setScreenReplacing(new TitleScreen(client));

@@ -65,17 +65,20 @@ public final class TitleScreen extends Screen {
         int buttonWidth = Math.min(280, guiW - 24);
         int titleReserve = Math.max(56, Math.min(140, guiH * 30 / 100));
         // 48px legacy height enlarged by 40%; shrinks automatically when 4x UI has less room.
-        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 4, titleReserve, 8);
+        // Five entries now: the shop sits second, where the original puts Crazy Dave's counter -
+        // right after "start playing" and before the utility pages.
+        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 5, titleReserve, 8);
         int gap = GuiLayout.gapFor(buttonHeight);
-        int blockHeight = 4 * buttonHeight + 3 * gap;
+        int blockHeight = 5 * buttonHeight + 4 * gap;
 
         // Buttons are anchored to the bottom so the menu fills the screen and
         // no large blank strip remains under the last button.
         int blockTop = 8 + blockHeight;
         buttonTop = blockTop;
-        String[] labels = {"开始游戏", "模组列表", "设置", "退出"};
+        String[] labels = {"开始游戏", "商店", "模组列表", "设置", "退出"};
         Runnable[] actions = {
                 this::enterCurrentPlayer,
+                () -> client.openScreen(new ShopScreen(client)),
                 () -> client.openScreen(new ModsScreen(client)),
                 () -> client.openScreen(new SettingsScreen(client)),
                 () -> client.window().requestClose()

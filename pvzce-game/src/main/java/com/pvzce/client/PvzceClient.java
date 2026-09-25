@@ -1442,6 +1442,17 @@ public final class PvzceClient {
      * definition, so a modified client can choose which level to buy but not what it
      * costs. The refreshed level list comes back on its own.
      */
+    /**
+     * Asks the server to buy one shop item.
+     *
+     * <p>The world name travels with it because the shop is reached from the title screen: the
+     * server has no current world then, and would otherwise charge whichever one it last
+     * defaulted to. Nothing about the price is sent - the server re-reads it.
+     */
+    public void buyShopItem(String itemId) {
+        connection.send(new com.pvzce.common.network.packet.BuyShopItemC2S(itemId, currentWorld));
+    }
+
     public void buyLevelUnlock(String levelId) {
         connection.send(new UnlockLevelC2S(levelId, currentWorld));
     }
@@ -2252,6 +2263,12 @@ public final class PvzceClient {
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
                            int buffSlots, List<String> autoBuffs) {
         profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs);
+    }
+
+    /** As above, with the buffs this world has been given - what the shop and the padlocks read. */
+    public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
+                           int buffSlots, List<String> autoBuffs, List<String> unlockedBuffs) {
+        profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs, unlockedBuffs);
     }
 
     /**

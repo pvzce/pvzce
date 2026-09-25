@@ -568,5 +568,16 @@
   "pvzce.mechanic.fog.field.start_column": "Fog starts at column",
   "pvzce.mechanic.fog.field.end_column": "Fog fully dark at column",
   "pvzce.mechanic.fog.field.max_alpha": "Fog opacity",
-  "level_buff.pvzce.fog_retreat": "Fog Retreat"
+  "level_buff.pvzce.fog_retreat": "Fog Retreat",
+  "gui.pvzce.shop.title": "Shop",
+  "gui.pvzce.shop.wallet": "Coins",
+  "gui.pvzce.shop.owned": "Owned",
+  "gui.pvzce.shop.poor": "Not enough coins",
+  "gui.pvzce.shop.item.rake": "Rake",
+  "gui.pvzce.shop.item.card_slot": "Extra Card Slot",
+  "gui.pvzce.shop.item.sun_shovel": "Sun Shovel I",
+  "tool.pvzce.rake": "Rake",
+  "tool.pvzce.rake.desc": "Lies in a random lane and flattens the first zombie to reach it.",
+  "level_buff.pvzce.sun_shovel": "Sun Shovel I",
+  "slot.pvzce.rake": "Rake"
 }

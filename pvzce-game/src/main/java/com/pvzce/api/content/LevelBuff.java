@@ -84,6 +84,23 @@ public interface LevelBuff {
         return 0F;
     }
 
+    /**
+     * What fraction of a plant's sun price digging it up gives back.
+     *
+     * <p>Zero for every buff that has nothing to say about the shovel, which is all of them but
+     * the shop's sun shovel. A fraction rather than a flat amount because the plant is what is
+     * being refunded: a fifth of a 50-sun potato mine and a fifth of a 325-sun threepeater are
+     * different numbers on purpose.
+     *
+     * <p>Read by {@code LevelServer}'s shovel branch, which also decides the one case the buff
+     * does not cover: a card the level <em>gave</em> the player rather than sold them. A conveyor
+     * belt's cards are free, so refunding a fifth of the catalogue price of one would be sun out
+     * of nothing - see {@code CardSource.dealsItsOwnCards}.
+     */
+    default float shovelRefundFraction() {
+        return 0F;
+    }
+
     /** A texture and, optionally, the sub-rectangle of it this icon occupies. */
     record BuffIcon(Identifier texture, float u0, float v0, float u1, float v1) {
         /** No icon: the chooser draws the level's placeholder and the tooltip still names it. */

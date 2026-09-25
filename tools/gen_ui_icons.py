@@ -1,30 +1,36 @@
 #!/usr/bin/env python3
-"""Draws the level buffs' own icons.
+"""Draws the UI icons the project has no art for.
 
-`todo.md` carried a debt here: the first two buffs borrowed a sprite each - the resource
-directory's sun for "picks things up for you", and a puff-shroom card face for "mushrooms
-shoot further" - so the icon row said nothing about what either buff did. These are drawn
-rather than borrowed, which is not the same as being hand-painted, but it is the difference
-between an icon that means the right thing and one that means a different thing.
+Two families, both 64x64 so the card renderer's aspect fit has nothing to do:
 
-Four shapes, one per buff, all on the same 64x64 field so the card renderer's aspect fit has
-nothing to do:
+**Level buffs** (`textures/gui/buff/`). `todo.md` carried a debt here: the first two buffs
+borrowed a sprite each - the resource directory's sun for "picks things up for you", and a
+puff-shroom card face for "mushrooms shoot further" - so the icon row said nothing about what
+either buff did. Drawn rather than borrowed is not the same as hand-painted, but it is the
+difference between an icon that means the right thing and one that means a different thing.
 
-* `auto_collect`   a sun with a small hand closing on it
+* `auto_collect`   a sun with a hand closing on it
 * `mushroom_range` a spore arc reaching past a dashed line
 * `fog_retreat`    a bank of fog with the right-hand bars pushed away
 
+**Card faces** (`textures/gui/cards/`). Only for the cards whose subject has no plant art to
+borrow - the rake is a level fixture, not a plant, so there is no sprite of it to crop.
+
+* `rake`           a rake lying on the lawn
+
 Run from the repository root:
 
-    python3 tools/gen_buff_icons.py
+    python3 tools/gen_ui_icons.py
 """
 
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUT_DIR = (Path(__file__).resolve().parent.parent
-           / "pvzce-game/src/main/resources/assets/pvzce/textures/gui/buff")
+ASSETS = (Path(__file__).resolve().parent.parent
+          / "pvzce-game/src/main/resources/assets/pvzce/textures/gui")
+BUFF_DIR = ASSETS / "buff"
+CARD_DIR = ASSETS / "cards"
 
 SIZE = 64
 SUN = (255, 214, 64, 255)
@@ -84,14 +90,35 @@ def fog_retreat(draw: ImageDraw.ImageDraw) -> None:
     draw.polygon([(56, 24), (64, 32), (56, 40)], fill=SUN_DARK)
 
 
+def rake_icon(draw: ImageDraw.ImageDraw) -> None:
+    """A rake lying on the lawn: a shaft, a head of tines, and a little grass."""
+    WOOD = (150, 106, 58, 255)
+    WOOD_DARK = (108, 74, 38, 255)
+    # The shaft, lying at a shallow angle the way the reanim draws it.
+    draw.line((12, 44, 52, 22), fill=WOOD, width=5)
+    draw.line((12, 44, 52, 22), fill=WOOD_DARK, width=1)
+    # The head and its tines.
+    draw.line((40, 14, 58, 34), fill=WOOD_DARK, width=4)
+    for index in range(5):
+        t = index / 4
+        x = 40 + 18 * t
+        y = 14 + 20 * t
+        draw.line((x, y, x + 4, y + 10), fill=WOOD_DARK, width=3)
+    # The grass it is lying in.
+    for x in (10, 18, 26, 34, 42, 50):
+        draw.line((x, 58, x + 3, 50), fill=LEAF, width=2)
+
+
 def main() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for name, painter in (("auto_collect", auto_collect),
-                          ("mushroom_range", mushroom_range),
-                          ("fog_retreat", fog_retreat)):
+    for directory, name, painter in (
+            (BUFF_DIR, "auto_collect", auto_collect),
+            (BUFF_DIR, "mushroom_range", mushroom_range),
+            (BUFF_DIR, "fog_retreat", fog_retreat),
+            (CARD_DIR, "rake", rake_icon)):
+        directory.mkdir(parents=True, exist_ok=True)
         image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
         painter(ImageDraw.Draw(image))
-        path = OUT_DIR / f"{name}.png"
+        path = directory / f"{name}.png"
         image.save(path)
         print(f"wrote {path}")
 

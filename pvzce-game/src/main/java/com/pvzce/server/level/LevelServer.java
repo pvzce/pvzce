@@ -227,6 +227,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * built).
      */
     private final List<TypedMechanic> mechanics;
+
+    /**
+     * The mechanics actually in force, after the implicit ones and the player's rake.
+     *
+     * <p>Exposed because it is the resolved answer rather than the file's: a test asking "did this
+     * world get its rake" and a future UI asking "what is this level doing" both want the list the
+     * simulation is running, not the one the level declared.
+     */
+    public List<TypedMechanic> mechanics() {
+        return mechanics;
+    }
     /**
      * The level buffs this run is actually played with, with locked, pickable and saved lists
      * already resolved into the one answer.
@@ -439,7 +450,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         this.envVars = new LevelEnvVars(def.envVars());
 
-        this.mechanics = LevelMechanics.effective(def);
+        this.mechanics = withPlayerMechanics(LevelMechanics.effective(def));
         Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
         // The level owns the bar; the card source fills it. A self-dealt level (a conveyor
         // belt) ignores the seed selection, which is why the selection is still passed in:
@@ -1412,6 +1423,36 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * The level's mechanics plus the ones the <em>player</em> brings.
+     *
+     * <p>Exactly one thing is in this category today, and it is worth the method anyway: the rake
+     * is a shop item, so whether it exists is a fact about the profile rather than about the level,
+     * and the profile is only known here. Adding it to {@code LevelMechanics.effective} instead
+     * would have handed a rake to every player who never bought one.
+     *
+     * <p>The level keeps the last word. Its own block - including one that names no rows at all -
+     * means it decided, and this adds nothing; only an absent block falls through to the player's
+     * rake. That is the same "absence is a statement" rule the mower and the deck follow.
+     */
+    private List<TypedMechanic> withPlayerMechanics(List<TypedMechanic> base) {
+        if (!seedContext.ownsRake() || declaresMechanic(base, PvzceIds.MECHANIC_RAKE)) {
+            return base;
+        }
+        List<TypedMechanic> withRake = new ArrayList<>(base);
+        withRake.add(TypedMechanic.of(PvzceIds.MECHANIC_RAKE, com.pvzce.api.content.RakeData.RANDOM));
+        return List.copyOf(withRake);
+    }
+
+    private static boolean declaresMechanic(List<TypedMechanic> mechanics, Identifier id) {
+        for (TypedMechanic mechanic : mechanics) {
+            if (mechanic.type().equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * A mechanic's own per-level state.
      *
      * <p>Registered mechanics are shared registry entries - one instance serves every level -
@@ -1531,7 +1572,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public record SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots,
                               List<SeedOption> buffPool, int maxBuffSlots, int buffSlots,
                               List<Identifier> autoBuffs, List<Identifier> activeBuffs,
-                              java.util.function.Predicate<Identifier> ownsBuff) {
+                              java.util.function.Predicate<Identifier> ownsBuff,
+                              boolean ownsRake) {
         public SeedContext {
             pool = List.copyOf(pool);
             lockedSlotIds = List.copyOf(lockedSlotIds);
@@ -1545,13 +1587,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         /** The card half alone; a context built before buffs existed has none of them. */
         public SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots) {
             this(pool, lockedSlotIds, maxSeedSlots, List.of(), 0,
-                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null);
+                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null, false);
+        }
+
+        /** Everything but the rake; what every caller that predates the shop wants. */
+        public SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots,
+                           List<SeedOption> buffPool, int maxBuffSlots, int buffSlots,
+                           List<Identifier> autoBuffs, List<Identifier> activeBuffs,
+                           java.util.function.Predicate<Identifier> ownsBuff) {
+            this(pool, lockedSlotIds, maxSeedSlots, buffPool, maxBuffSlots, buffSlots, autoBuffs,
+                    activeBuffs, ownsBuff, false);
         }
 
         /** The same context with the run's buffs filled in, after the caller resolved them. */
         public SeedContext withActiveBuffs(List<Identifier> buffs) {
             return new SeedContext(pool, lockedSlotIds, maxSeedSlots, buffPool, maxBuffSlots,
-                    buffSlots, autoBuffs, buffs, ownsBuff);
+                    buffSlots, autoBuffs, buffs, ownsBuff, ownsRake);
         }
 
         /**
@@ -1566,7 +1617,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     def.effectiveMaxSeedSlots(PvzceConstants.DEFAULT_SEED_SLOTS),
                     com.pvzce.server.LevelBuffSelection.chooserPool(def),
                     def.effectiveMaxBuffSlots(PvzceConstants.DEFAULT_BUFF_SLOTS),
-                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null);
+                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null,
+                    // No rake either. `ownsCard == null` means "every *card* is available", which
+                    // is a statement about a pool; a rake is a thing a specific world bought, and a
+                    // caller with no profile has bought nothing. Folding the two together handed a
+                    // free rake to every test and to the plant AI.
+                    false);
         }
 
         /** The pool a player with this backpack may actually pick from. */
@@ -1582,7 +1638,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return new SeedContext(SeedOptions.forLevel(def, owns), SeedOptions.lockedSlotIds(def),
                     slots, com.pvzce.server.LevelBuffSelection.chooserPool(def, buffOwns),
                     def.effectiveMaxBuffSlots(buffSlots), buffSlots,
-                    profile == null ? List.of() : profile.autoBuffs(), List.of(), buffOwns);
+                    profile == null ? List.of() : profile.autoBuffs(), List.of(), buffOwns,
+                    profile != null && profile.unlocked().contains(PvzceIds.RAKE));
         }
     }
 
@@ -3045,6 +3102,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             case "pvzce:shovel" -> {
                 PlantEntity plant = plantAt(x, y);
                 if (plant != null) {
+                    refundShovel(plant);
                     plant.remove();
                     flushPending();
                     emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.EFFECT_SHOVEL);
@@ -3103,6 +3161,49 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // An effect this build does not implement: refused, so no use is spent.
             default -> false;
         };
+    }
+
+    /**
+     * Gives back part of what a dug-up plant cost, when a buff says to.
+     *
+     * <p>The shop's sun shovel. Two conditions, and the second is the one worth stating: the run
+     * has to be one where the player <em>bought</em> their cards. A conveyor belt hands them out
+     * free, so a refund there would be sun conjured out of a plant that cost nothing - which is
+     * the case the user named when the buff was asked for ("传送带无效").
+     *
+     * <p>The refund is computed from the plant's <em>definition</em> price rather than from the
+     * card's, because the card's has already been through whatever multipliers the level and the
+     * mutations apply: "a fifth of what this plant is worth" is the promise, and a level that
+     * doubled every price should not also double the refund of a plant that was planted before
+     * the change.
+     */
+    private void refundShovel(PlantEntity plant) {
+        float fraction = com.pvzce.common.buff.LevelBuffs.shovelRefundFraction(activeBuffs);
+        if (fraction <= 0F || cardSource == null || cardSource.dealsItsOwnCards()) {
+            return;
+        }
+        if (plantPlayer == null) {
+            return;
+        }
+        int price = plant.def().cost().amountOf(PvzceIds.SUN);
+        if (price <= 0) {
+            return;
+        }
+        int refund = Math.max(1, Math.round(price * fraction));
+        // `addResource`, not `putResource`: the latter *sets* the total, so a refund written with
+        // it replaced the player's whole sun bank with the refund. The test caught it as "digging
+        // up a 100-sun plant while holding 50 sun left me with 20".
+        plantPlayer.team().addResource(PvzceIds.SUN, refund);
+        // And the client has to hear about it, or the sun bank keeps drawing the old total until
+        // the next collection happens to sync - the same packet the tool's own charge sends.
+        send(new com.pvzce.common.network.packet.ResourceDeltaS2C(
+                plantPlayer.team().id().toString(), PvzceIds.SUN.toString(),
+                plantPlayer.team().resourcesOf(PvzceIds.SUN)));
+        // The id, not a display name: the server has no language file, and the client's own name
+        // for a plant is a key it looks up (`GuiLang`). The plants' names live there because the
+        // server's copy would be a second translation to keep in step - see `MutationText`, which
+        // exists only because a mutation's banner is *built* on the server.
+        send(new ServerMessageS2C("铲掉 " + plant.def().id() + "，返还 " + refund + " 阳光"));
     }
 
     /**

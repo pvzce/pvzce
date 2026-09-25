@@ -84,6 +84,22 @@ public final class LevelBuffs {
         return columns;
     }
 
+    /**
+     * What fraction of a plant's price digging it up returns.
+     *
+     * <p>Maximised rather than summed: two "you get money back" buffs are two answers to the same
+     * question, and a refund of 40% because the player happened to have two of them is a
+     * different mechanism from the one either describes. (Compare {@link #fogRetreat}, which
+     * sums - two reasons to see further really are twice the reason.)
+     */
+    public static float shovelRefundFraction(List<LevelBuff> active) {
+        float fraction = 0F;
+        for (LevelBuff buff : active == null ? List.<LevelBuff>of() : active) {
+            fraction = Math.max(fraction, Math.max(0F, buff.shovelRefundFraction()));
+        }
+        return fraction;
+    }
+
     /** True when any active buff picks resources up on its own. */
     public static boolean autoCollects(List<LevelBuff> active) {
         for (LevelBuff buff : active == null ? List.<LevelBuff>of() : active) {

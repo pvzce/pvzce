@@ -64,10 +64,32 @@ public enum BuiltInBuffs implements LevelBuff {
         public float fogRetreat() {
             return FOG_RETREAT_COLUMNS;
         }
+    },
+
+    /**
+     * Digging a plant up gives a fifth of its sun back.
+     *
+     * <p>The shop's third item, and the only buff in the game that no level hands out: the other
+     * three are rewards for reaching somewhere, and this one is bought. It exists because the
+     * shovel is the one tool with no upside at all - it is how a player fixes a mistake, and
+     * before this buff the fix cost the whole plant.
+     *
+     * <p>A fifth rather than a half: a generous refund turns "I misplanted" into "I am
+     * rearranging my lawn for free", and the point of the buff is to take the sting out of a
+     * mistake rather than to remove the cost of a decision.
+     */
+    SUN_SHOVEL(PvzceIds.BUFF_SUN_SHOVEL,
+            Identifier.withDefaultNamespace("textures/gui/buff/auto_collect")) {
+        @Override
+        public float shovelRefundFraction() {
+            return SUN_SHOVEL_REFUND;
+        }
     };
 
     /** What "1.5x" is, in one place: the codec's default and the buff's answer agree. */
     public static final float MUSHROOM_RANGE_FACTOR = 1.5F;
+    /** How much of a plant's price digging it up returns while {@link #SUN_SHOVEL} is on. */
+    public static final float SUN_SHOVEL_REFUND = 0.20F;
     /** How many columns the fog retreats while {@link #FOG_RETREAT} is on. */
     public static final float FOG_RETREAT_COLUMNS = 1.5F;
 

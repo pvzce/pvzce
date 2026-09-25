@@ -19,6 +19,15 @@ import java.util.Set;
  */
 public final class ClientProfile {
     private final Set<Identifier> unlocked = new LinkedHashSet<>();
+    /**
+     * The level buffs this world has been given.
+     *
+     * <p>Carried for the shop, which has to answer "do I already own the sun shovel" - and for the
+     * seed chooser's buff page, where an unbought buff is padlocked. It is a separate set from
+     * {@link #unlocked} for the server's reason: a buff is not a card, and a world that owns the
+     * card {@code pvzce:sun_shovel} owns it because it owns the <em>buff</em> of that name.
+     */
+    private final Set<Identifier> unlockedBuffs = new LinkedHashSet<>();
     private int coins;
     private int seedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
     private int buffSlots = com.pvzce.common.PvzceConstants.DEFAULT_BUFF_SLOTS;
@@ -47,6 +56,18 @@ public final class ClientProfile {
     /** Applies a server snapshot including the buff half of the backpack. */
     public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots,
                       int buffSlots, List<String> autoBuffIds) {
+        apply(coins, unlockedIds, unlockAll, seedSlots, buffSlots, autoBuffIds, List.of());
+    }
+
+    /**
+     * Applies a server snapshot including the buffs the world has been given.
+     *
+     * <p>The five-argument overload above stopped at the auto-enabled list, which is a different
+     * fact: "which buffs are switched on by default" is a preference, and "which buffs this world
+     * has been handed" is what the padlocks and the shop read.
+     */
+    public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots,
+                      int buffSlots, List<String> autoBuffIds, List<String> unlockedBuffIds) {
         this.coins = Math.max(0, coins);
         this.unlockAll = unlockAll;
         this.seedSlots = Math.max(1, seedSlots);
@@ -66,6 +87,15 @@ public final class ClientProfile {
                 Identifier id = Identifier.tryParse(raw);
                 if (id != null) {
                     unlocked.add(id);
+                }
+            }
+        }
+        unlockedBuffs.clear();
+        if (unlockedBuffIds != null) {
+            for (String raw : unlockedBuffIds) {
+                Identifier id = Identifier.tryParse(raw);
+                if (id != null) {
+                    unlockedBuffs.add(id);
                 }
             }
         }
@@ -122,5 +152,15 @@ public final class ClientProfile {
     /** True when this card is available to the player; the rule is {@link SlotResolver#owns}. */
     public boolean ownsCard(Identifier card) {
         return SlotResolver.owns(unlocked, unlockAll, card);
+    }
+
+    /** The level buffs this world has been given; empty for a sandbox world that owns everything. */
+    public Set<Identifier> unlockedBuffs() {
+        return Set.copyOf(unlockedBuffs);
+    }
+
+    /** True when this buff is available; a sandbox world owns every buff. */
+    public boolean ownsBuff(Identifier buff) {
+        return unlockAll || unlockedBuffs.contains(buff);
     }
 }

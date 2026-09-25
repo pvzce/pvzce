@@ -470,6 +470,50 @@ public final class PvzceServer implements Runnable {
     }
 
     /**
+     * One shop purchase.
+     *
+     * <p>The price is re-read here from the catalogue rather than taken from the packet, exactly as
+     * {@link #buyLevel} re-derives a level's cost: the client's copy of the number is for drawing,
+     * and this is the copy that charges.
+     *
+     * <p>Charging and applying are deliberately in that order and both before the save, so a world
+     * whose profile fails to apply the item (a ceiling reached between the click and the packet)
+     * is not charged for it. {@code ShopPurchases.apply} is the one place that decides, and it
+     * returns the reason rather than throwing.
+     */
+    private void buyShopItem(String itemId, String worldName) {
+        Identifier id = Identifier.tryParse(itemId);
+        com.pvzce.common.shop.ShopItems.Item item = id == null
+                ? null : com.pvzce.common.shop.ShopItems.byId(id).orElse(null);
+        if (item == null) {
+            connection.send(new ServerMessageS2C("商店里没有 " + itemId));
+            return;
+        }
+        String safeWorld = WorldPaths.sanitize(worldName);
+        PlayerProfile profile = worlds.profileFor(safeWorld);
+        if (com.pvzce.server.shop.ShopPurchases.maxedOut(profile, item)) {
+            connection.send(new ServerMessageS2C("已经拥有 " + id + " 了"));
+            return;
+        }
+        if (profile.coins() < item.price()) {
+            connection.send(new ServerMessageS2C("金币不足：需要 " + item.price()
+                    + "，当前 " + profile.coins()));
+            return;
+        }
+        String refusal = com.pvzce.server.shop.ShopPurchases.apply(profile, item);
+        if (!refusal.isEmpty()) {
+            connection.send(new ServerMessageS2C(refusal));
+            return;
+        }
+        profile.setCoins(profile.coins() - item.price());
+        worlds.saveProfile(safeWorld, profile);
+        connection.send(new ServerMessageS2C("已购买 " + id + "，花费 " + item.price() + " 金币"));
+        // The list carries the profile, so sending it also refreshes the wallet and the "已拥有"
+        // marks in one go - the same reason `buyLevel` ends by re-sending the list.
+        sendLevelList(safeWorld);
+    }
+
+    /**
      * Everything the unlock rule needs about this world.
      *
      * <p>Assembled per request rather than cached: it depends on the profile (which a
@@ -670,7 +714,7 @@ public final class PvzceServer implements Runnable {
                 || Boolean.getBoolean("pvzce.smokeUnlockAll");
         return new ProfileS2C(profile.coins(), profile.unlockedIds(), unlockAll,
                 profile.unlockedLevelIds(), profile.seedSlots(), profile.buffSlots(),
-                profile.autoBuffIds());
+                profile.autoBuffIds(), profile.unlockedBuffIds());
     }
 
     /**
@@ -1185,6 +1229,8 @@ public final class PvzceServer implements Runnable {
                 createWorld(create.worldName(), create.unlockAll());
             } else if (packet instanceof com.pvzce.common.network.packet.UnlockLevelC2S unlockLevel) {
                 buyLevel(unlockLevel.levelId(), unlockLevel.worldName());
+            } else if (packet instanceof com.pvzce.common.network.packet.BuyShopItemC2S buy) {
+                buyShopItem(buy.itemId(), buy.worldName());
             } else if (packet instanceof LeaveLevelC2S) {
                 if (current != null) {
                     leaveLevel();

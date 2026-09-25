@@ -152,7 +152,7 @@ public final class PvzceClientPacketListener implements PacketListener {
             level.setDebugInfo(debug.tickCount(), debug.frozen(), debug.sprinting());
         } else if (packet instanceof ProfileS2C profile) {
             client.setProfile(profile.coins(), profile.unlocked(), profile.unlockAll(), profile.seedSlots(),
-                    profile.buffSlots(), profile.autoBuffs());
+                    profile.buffSlots(), profile.autoBuffs(), profile.unlockedBuffs());
         } else if (packet instanceof LevelRewardS2C reward) {
             // Arrives right after GameStateS2C; the client is already showing the
             // victory overlay, and this is what turns it into the award screen.

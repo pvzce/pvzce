@@ -8,6 +8,7 @@ import com.pvzce.common.network.packet.CreateWorldC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
+import com.pvzce.common.network.packet.BuyShopItemC2S;
 import com.pvzce.common.network.packet.UnlockLevelC2S;
 import com.pvzce.common.network.packet.DebugInfoS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
@@ -94,7 +95,7 @@ public final class PvzcePackets {
     // 28: the mutation state carries the run's active level buffs (MutationStateS2C.activeBuffs).
     // A mutation is what rewrites that list mid-level, and the client used to hear it only once,
     // in the level init, so the buff icons kept showing what the run started with.
-    public static final int PROTOCOL_VERSION = 28;
+    public static final int PROTOCOL_VERSION = 29;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -161,6 +162,8 @@ public final class PvzcePackets {
     public static final int C2S_DISCARD_SAVE = 19;
     /** The endless card chooser's answer: the bar to play the next round with. */
     public static final int C2S_RESELECT_CARDS = 20;
+    /** The shop: "buy this item", priced by the server. */
+    public static final int C2S_BUY_SHOP_ITEM = 21;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -190,6 +193,8 @@ public final class PvzcePackets {
                     UnlockLevelC2S::decode),
             def(C2S_RELEASE_MOWER, ConnectionDirection.SERVERBOUND, ReleaseMowerC2S.class,
                     ReleaseMowerC2S::decode),
+            def(C2S_BUY_SHOP_ITEM, ConnectionDirection.SERVERBOUND, BuyShopItemC2S.class,
+                    BuyShopItemC2S::decode),
             def(C2S_USE_GRANTED_TOOL, ConnectionDirection.SERVERBOUND, UseGrantedToolC2S.class,
                     UseGrantedToolC2S::decode),
 

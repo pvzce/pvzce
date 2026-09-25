@@ -879,7 +879,14 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             # are identical bitmaps, so what a window has to get right is *which phase* a bone
             # belongs to, and that is what the masks say.
             "shoot": {
-                "rate": SHOOT_ANIMATION_RATE,
+                # The three bursts laid end to end are 39 frames = 3.25 s at the file's 12fps,
+                # and the plant fires every 90 ticks (1.5 s). At the line's usual 2x that is
+                # 1.625 s - a volley that is still finishing when the next one is due, so the
+                # clip is re-triggered partway through every single time. 3.25/1.5 = 2.1667
+                # puts the last head's recoil on the tick the next volley leaves: the faster
+                # rate is the plant's own cadence rather than a style choice, which is why it
+                # is not `SHOOT_ANIMATION_RATE`.
+                "rate": 2.1666667,
                 "range": [[29, 41], [70, 82], [111, 123]],
                 "loop": False,
                 "on_end": "idle",
@@ -1527,6 +1534,21 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "drive": {"mask": "anim_suck", "loop": True, "transition": 0.05},
         },
     ),
+    # The rake: the shop item, and the only fixture on the board that is not a machine.
+    #
+    # Its reanim has no `anim_*` mask tracks at all - it is two layer tracks and nothing else,
+    # because in the original it is never animated. So the clip is declared by range rather
+    # than by mask, which is the converter's supported way of saying "the whole file, no
+    # phases". One cell wide and about half a cell tall, which is how it sits on the lawn.
+    EntityConfig(
+        output="rake",
+        group="mechanic",
+        reanim="Rake.reanim",
+        target_box=(1.0, 0.5),
+        animations={
+            "idle": {"range": "all", "loop": True, "transition": 0.05},
+        },
+    ),
     EntityConfig(
         output="imp",
         group="zombie/giant",
@@ -1848,6 +1870,20 @@ def resolve_range(spec: Dict[str, object], tracks: Sequence[core.Track]) -> Tupl
     return frames[0], frames[-1]
 
 
+def idle_first_frame(config: "EntityConfig", tracks: Sequence[core.Track]) -> Optional[int]:
+    """The source frame the `idle` clip starts on, or ``None`` when there is no idle clip.
+
+    <p>The pose a rescued bone borrows. Read from the config rather than assumed to be frame 0:
+    several entities' idle masks begin partway into the file (the threepeater's begins at 124),
+    and borrowing frame 0 there would substitute one unset pose for another.
+    """
+    idle = config.animations.get("idle")
+    if idle is None:
+        return None
+    frames = range_frames(idle, tracks)
+    return frames[0] if frames else None
+
+
 def range_frames(spec: Dict[str, object], tracks: Sequence[core.Track]) -> List[int]:
     """The source frames a clip plays, in order.
 
@@ -2040,12 +2076,31 @@ def build_animation(
         center_x, center_y = core.model_center_px(state_data, host_bone.asset, bbox)
         return [center_x * scale, center_y * scale]
 
+    # The frame of the `idle` clip this one borrows a pose from; see `rescued_pose_frame`.
+    idle_pose_frame = idle_first_frame(config, tracks)
+
     for bone in bones:
         # An attached bone is drawn exactly when its host is: the original hangs the pole
         # off the hand, so the frame that hides the hand (the death clip) hides the flag
         # too rather than leaving it hovering over the collapsing body.
         source = host_bone if (attached_bones and bone.name in attached_bones) else bone
         permanently_hidden = not any(source.visibility[index] for index in frames)
+        # A bone this clip never draws and that `force_visible_hidden` puts back on screen is
+        # drawn in the pose the idle clip gives it, not in the pose its own track holds across
+        # these frames. The two are not the same thing: a reanim that splits one character's
+        # pose across several masks leaves the tracks of the parts it is not currently showing
+        # at their *unset* values - scale 1.0 at the origin - and those values are only mean-
+        # ingful to a renderer that is not drawing them. The threepeater is the case that got
+        # this wrong: its nine leaf and stem tracks sit at scale 1.0 with no translation for
+        # frames 0..123 and only reach their drawn pose at frame 124 (the base-idle mask), so
+        # rescuing them made the whole plant balloon by 1.8x and jump outward the instant it
+        # fired. A bone the clip *does* animate is untouched, which is why the pea-shooter -
+        # whose leaves happen to be placed correctly throughout its shooting mask - comes out
+        # of this unchanged.
+        rescued = force_visible and permanently_hidden \
+            and not excluded_from_rescue(bone.name, exclude_prefixes) \
+            and idle_pose_frame is not None
+        pose_frame = (lambda frame: idle_pose_frame) if rescued else (lambda frame: frame)
         visibility: List[bool] = []
         for position, frame in enumerate(frames):
             is_visible = bool(source.visibility[frame])
@@ -2081,7 +2136,7 @@ def build_animation(
         weld_pivot = weld(frames[0]) if weld is not None else None
 
         def translation_at(frame: int) -> List[float]:
-            state_data = bone.states[frame]
+            state_data = bone.states[pose_frame(frame)]
             center_x, center_y = core.model_center_px(state_data, bone.asset, bbox)
             value = [center_x * scale, center_y * scale]
             if weld is not None:
@@ -2107,11 +2162,11 @@ def build_animation(
             # The piece's own drawn shear, untouched. It already carries the same swing the host
             # does - the art was drawn as one animation - so tilting it by the host's delta
             # rotates the pole twice about a pivot it is already positioned against.
-            state_data = bone.states[frame]
+            state_data = bone.states[pose_frame(frame)]
             return [core.round_float(state_data.kx), core.round_float(state_data.ky), 0.0]
 
         def scale_at(frame: int) -> List[float]:
-            state_data = bone.states[frame]
+            state_data = bone.states[pose_frame(frame)]
             if weld is not None:
                 # The piece is held *in* the hand, so it is drawn at the hand's size rather than
                 # at whatever the source happened to draw it at. The flagpole is the case: the
