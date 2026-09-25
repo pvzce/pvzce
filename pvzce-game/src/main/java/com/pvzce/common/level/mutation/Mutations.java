@@ -28,6 +28,17 @@ public final class Mutations {
         register(PvzceIds.MUTATION_ZOMBIE_SPAWN_RATE, RateMutation.zombieSpawnRate());
         register(PvzceIds.MUTATION_PLANT_SUN_COST, RateMutation.plantSunCost());
 
+        // The second catalogue, in the groups the plan laid out: the quiet numeric ones (two of
+        // which are new rules read where a zombie or a plant is created), then the card bar, then
+        // the board, then what arrives on it, then what the player's own side does.
+        register(PvzceIds.MUTATION_ZOMBIE_HEALTH, RateMutation.zombieHealth());
+        register(PvzceIds.MUTATION_PLANT_FRAGILE, RateMutation.plantFragile());
+        register(PvzceIds.MUTATION_CARD_COOLDOWN, RateMutation.cardCooldown());
+        register(PvzceIds.MUTATION_SUN_SHOWER, new SunShowerMutation());
+
+        register(PvzceIds.MUTATION_SLOT_LOCK, new SlotLockMutation());
+        register(PvzceIds.MUTATION_SLOT_ROULETTE, new SlotRouletteMutation());
+
         register(PvzceIds.MUTATION_SLOT_REPLACE, new SlotReplaceMutation());
         register(PvzceIds.MUTATION_CONVEYOR, new ConveyorMutation());
 

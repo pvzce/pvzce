@@ -3376,6 +3376,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * <p>A damped shake that starts and ends at zero, so the card never jumps into or out
      * of the wobble: three half-cycles is enough to read as "no" without looking broken.
      */
+    /**
+     * The cards a mutation has locked, straight from the state packet.
+     *
+     * <p>The screen already holds the latest {@code MutationStateS2C} (the panel draws from it), so
+     * the bar asks it here rather than keeping a second copy of "which slots are shut" that could
+     * arrive a frame late.
+     */
+    @Override
+    public java.util.List<Integer> lockedSlots() {
+        com.pvzce.common.network.packet.MutationStateS2C mutations = client.level().mutations();
+        return mutations == null ? java.util.List.of() : mutations.lockedSlots();
+    }
+
     @Override
     public float cardShake(int slotIndex) {
         if (slotIndex != refusedCard) {

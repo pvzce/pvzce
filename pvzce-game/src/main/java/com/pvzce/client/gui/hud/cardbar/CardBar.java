@@ -66,5 +66,16 @@ public interface CardBar {
         default float cardShake(int slotIndex) {
             return 0F;
         }
+
+        /**
+         * The bar indices a mutation has locked, so the card wears a padlock.
+         *
+         * <p>Read from the mutation state the screen already holds rather than worked out per card:
+         * the server refuses exactly these indices, and the picture and the refusal have to be the
+         * same answer. Empty for a level with no mutations, which is every level that is not one.
+         */
+        default java.util.List<Integer> lockedSlots() {
+            return java.util.List.of();
+        }
     }
 }

@@ -33,6 +33,11 @@ import java.util.List;
  * @param tools          the tools a mutation granted, in full: the client's click handler has to
  *                       know which one it is holding and on what terms, and it has no other way to
  *                       learn about a tool that is not in the level's file
+ * @param lockedSlots    the bar slots a mutation has locked, as indices. The bar has to draw a
+ *                       padlock on exactly the cards the server will refuse, and the same "which
+ *                       slots are shut" answer cannot be derived from the entries: it is the
+ *                       mutation's own state, and asking each mutation on the client would be a
+ *                       second implementation of the rule
  * @param activeBuffs    the level buffs in force <em>right now</em>, as ids. They travel here
  *                       rather than in a packet of their own because a mutation is what changes
  *                       them: the buff-shift mutation rewrites the list mid-level, and before
@@ -52,6 +57,7 @@ public record MutationStateS2C(
         int beltCapacity,
         int effects,
         List<ToolGrant> tools,
+        List<Integer> lockedSlots,
         List<String> activeBuffs,
         List<Entry> entries
 ) implements PvzcePacket {
@@ -100,6 +106,8 @@ public record MutationStateS2C(
                             PacketByteBuf::readInt)
                     .field(MutationStateS2C::effects, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                     .list(MutationStateS2C::tools, ToolGrant.CODEC::encode, ToolGrant.CODEC::decode)
+                    .list(MutationStateS2C::lockedSlots,
+                            (value, buf) -> buf.writeInt(value), PacketByteBuf::readInt)
                     .stringList(MutationStateS2C::activeBuffs)
                     .list(MutationStateS2C::entries, Entry.CODEC::encode, Entry.CODEC::decode)
                     .build(values -> new MutationStateS2C(
@@ -112,12 +120,18 @@ public record MutationStateS2C(
                             (Integer) values.get(6),
                             (Integer) values.get(7),
                             castTools(values.get(8)),
-                            castStrings(values.get(9)),
-                            castEntries(values.get(10))));
+                            castInts(values.get(9)),
+                            castStrings(values.get(10)),
+                            castEntries(values.get(11))));
 
     @SuppressWarnings("unchecked")
     private static List<ToolGrant> castTools(Object value) {
         return (List<ToolGrant>) value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Integer> castInts(Object value) {
+        return (List<Integer>) value;
     }
 
     @SuppressWarnings("unchecked")
@@ -134,6 +148,7 @@ public record MutationStateS2C(
         difficulty = difficulty == null ? "" : difficulty;
         cardBarKind = cardBarKind == null ? "" : cardBarKind;
         tools = tools == null ? List.of() : List.copyOf(tools);
+        lockedSlots = lockedSlots == null ? List.of() : List.copyOf(lockedSlots);
         activeBuffs = activeBuffs == null ? List.of() : List.copyOf(activeBuffs);
         entries = entries == null ? List.of() : List.copyOf(entries);
     }

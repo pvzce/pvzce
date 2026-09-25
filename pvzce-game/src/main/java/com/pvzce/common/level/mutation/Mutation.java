@@ -208,6 +208,30 @@ public interface Mutation {
     }
 
     /**
+     * Whether this mutation has locked the card at this bar index, so it cannot be used.
+     *
+     * <p>A different question from {@link #canPlacePlant}, and the two are side by side on purpose:
+     * that one is about a <em>cell</em> ("can a plant stand here"), this one about a
+     * <em>card</em> ("may the player use this one at all"). A locked card is refused wherever it is
+     * clicked, which is why {@code LevelServer} asks before it looks at the ground.
+     *
+     * <p>The index is the bar's own - the same number the client sends when a card is clicked -
+     * rather than the card's id, because the point of the mutation is that the player can see which
+     * slot is shut (the padlock is drawn on the card, on the bar they are looking at). A mutation
+     * that locked by id would keep the lock on a card that a rewrite had moved, and a belt's indices
+     * are its own ids, so the number is the one stable name for "that card there".
+     *
+     * <p>Takes the state like every other per-tick hook: the set of locked slots is rolled once and
+     * kept in {@link #apply}'s return value, and a mutation must not remember it in a field (the
+     * instance is shared by every level in the process).
+     *
+     * <p>The default is nobody's card, and almost every mutation answers that.
+     */
+    default boolean isSlotLocked(LevelServer level, Roll roll, Object state, int slotIndex) {
+        return false;
+    }
+
+    /**
      * A veto on planting, layered on terrain, stacking and the level's own mechanics.
      *
      * <p>Same contract as {@code LevelMechanic.canPlacePlant}: false means "this mutation does

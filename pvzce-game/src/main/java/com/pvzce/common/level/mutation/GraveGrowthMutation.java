@@ -18,7 +18,7 @@ import com.pvzce.server.level.LevelServer;
  * now, the same as any other grave on the lawn, and removing them would delete whatever the player
  * built around them in the meantime. What the mutation owns is the clock.
  */
-final class GraveGrowthMutation implements Mutation {
+final class GraveGrowthMutation implements Mutation, MutationManager.SaveHandle {
     /** The gap between two stones, before the tier's multiplier. */
     private static final int GROWTH_INTERVAL_TICKS = 20 * PvzceConstants.TICKS_PER_SECOND;
     /** A ceiling, for the same reason {@code whack_a_zombie} has one: the lawn is only so big. */
@@ -65,7 +65,7 @@ final class GraveGrowthMutation implements Mutation {
     private Applied pendingState;
 
     /** How the manager hands this mutation the state it should write down. */
-    void savingState(Object state) {
+    public void savingState(Object state) {
         this.savingState = state instanceof Applied applied ? applied : null;
     }
 

@@ -26,7 +26,7 @@ import com.pvzce.server.level.LevelServer;
  * the least. The level places these itself, so the placement restrictions that apply to the player
  * do not apply here.
  */
-final class ApocalypseMutation implements Mutation {
+final class ApocalypseMutation implements Mutation, MutationManager.SaveHandle {
     @Override
     public Identifier id() {
         return PvzceIds.MUTATION_APOCALYPSE;
@@ -66,7 +66,7 @@ final class ApocalypseMutation implements Mutation {
     private int firedPlaced;
 
     /** How the manager hands this mutation the state it should write down. */
-    void savingState(Object state) {
+    public void savingState(Object state) {
         this.savingState = state instanceof Applied applied ? applied : null;
     }
 

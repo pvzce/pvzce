@@ -95,7 +95,9 @@ public final class PvzcePackets {
     // 28: the mutation state carries the run's active level buffs (MutationStateS2C.activeBuffs).
     // A mutation is what rewrites that list mid-level, and the client used to hear it only once,
     // in the level init, so the buff icons kept showing what the run started with.
-    public static final int PROTOCOL_VERSION = 29;
+    // 30: the mutation state carries the bar slots a mutation locked (MutationStateS2C.lockedSlots),
+    // so the bar can draw the padlock on exactly the cards the server refuses.
+    public static final int PROTOCOL_VERSION = 30;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

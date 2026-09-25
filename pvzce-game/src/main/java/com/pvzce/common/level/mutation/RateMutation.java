@@ -7,10 +7,12 @@ import com.pvzce.server.level.LevelServer;
 /**
  * The numeric mutations: one game rule, multiplied by whatever the tier rolled.
  *
- * <p>Six mutations in the catalogue are the same sentence with a different rule - sun arrives
- * faster, plants work faster, zombies walk faster, zombies arrive faster, cards cost more - so
- * they are one class parameterised by the rule rather than five classes that would each have to
- * get the save-and-restore half right.
+ * <p>Nine mutations in the catalogue are the same sentence with a different rule - sun arrives
+ * faster, plants work faster, zombies walk faster, zombies arrive faster, cards cost more, cards
+ * recharge slower, the horde is tougher, the plants are frailer - so they are one class
+ * parameterised by the rule rather than nine classes that would each have to get the save-and-restore
+ * half right. Two of them scale a rule this class does not otherwise care about: the health
+ * multipliers are read where an entity is <em>created</em>, which is why they need no refresh pass.
  *
  * <p>The roll multiplies the rule's <em>written</em> value, not the current one: the mutation
  * snapshots what the rule said when it arrived and restores exactly that when it leaves. A second
@@ -120,6 +122,33 @@ final class RateMutation implements Mutation, com.pvzce.common.level.mutation.Mu
     static Mutation zombieSpawnRate() {
         return new RateMutation(PvzceIds.MUTATION_ZOMBIE_SPAWN_RATE,
                 PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER, 0.1F, 20F, false);
+    }
+
+    /** Zombies arrive with more (or less) health than their definition says. */
+    static Mutation zombieHealth() {
+        return new RateMutation(PvzceIds.MUTATION_ZOMBIE_HEALTH,
+                PvzceIds.RULE_ZOMBIE_HEALTH_MULTIPLIER, 0.1F, 20F, false);
+    }
+
+    /**
+     * Plants are planted with a fraction of their own health: "植物脆化".
+     *
+     * <p><b>Inverted, and capped at 1.</b> The rule is a health <em>multiplier</em>, so the roll has
+     * to be read upside down for a bigger roll to mean more fragile - and the ceiling is the whole
+     * point of the mutation: a mutation called "fragile" that rolled the other way and handed the
+     * player tougher plants would be a different mutation wearing this one's name. Dividing also
+     * makes the tiers work: EASY's rolls give 0.67x to 1x, HELL's give 0.22x to 0.67x, and the floor
+     * stops it at a fifth.
+     */
+    static Mutation plantFragile() {
+        return new RateMutation(PvzceIds.MUTATION_PLANT_FRAGILE,
+                PvzceIds.RULE_PLANT_HEALTH_MULTIPLIER, 0.2F, 1F, true);
+    }
+
+    /** Cards take longer (or less long) to recharge, on top of whatever the level asked for. */
+    static Mutation cardCooldown() {
+        return new RateMutation(PvzceIds.MUTATION_CARD_COOLDOWN,
+                PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER, 0.1F, 5F, false);
     }
 
     /** Cards cost more (or less). */

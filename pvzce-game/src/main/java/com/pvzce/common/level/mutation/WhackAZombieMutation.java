@@ -23,7 +23,7 @@ import java.util.List;
  * is the point, and at 简单 one every three seconds is survivable. The standing grave count scales
  * with the tier too, so a harder lawn has both more holes and more coming out of them.
  */
-final class WhackAZombieMutation implements Mutation, MutationHooks {
+final class WhackAZombieMutation implements Mutation, MutationManager.SaveHandle, MutationHooks {
     /** The gap between two zombies climbing out, before the tier's multiplier. */
     private static final int RISE_INTERVAL_TICKS = 100;
     /** How many graves the lawn is kept at, before the tier's multiplier. */
@@ -103,7 +103,7 @@ final class WhackAZombieMutation implements Mutation, MutationHooks {
     private Applied pendingState;
 
     /** How the manager hands this mutation the state it should write down. */
-    void savingState(Object state) {
+    public void savingState(Object state) {
         this.savingState = state instanceof Applied applied ? applied : null;
     }
 

@@ -92,7 +92,8 @@ public final class SeedCardBar implements CardBar {
                 // drawn exactly where the hit test below expects it.
                 x += host.cardShake(slot.index());
                 CardPainter.draw(client, slot, x, viewportY, cardWidth, cardHeight, 1F,
-                        host.selectedCardIndex() == slot.index());
+                        host.selectedCardIndex() == slot.index(),
+                        host.lockedSlots().contains(slot.index()));
             }
         } finally {
             client.clipping().pop();

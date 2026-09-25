@@ -1168,7 +1168,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     /** The placement itself, past every rewrite: one entity, one {@code onPlaced}. */
     private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y) {
-        PlantEntity plant = new PlantEntity(def, team, x, y);
+        // The plant's full health, as this level's rules say it at this moment. Passed in rather
+        // than left to the definition because the watering can heals to full and the client draws
+        // a damaged plant against it - see `PlantEntity`'s own constructor.
+        int fullHealth = Math.max(1, Math.round(def.health()
+                * rules.getFloat(PvzceIds.RULE_PLANT_HEALTH_MULTIPLIER)));
+        PlantEntity plant = new PlantEntity(def, team, x, y, fullHealth);
         plant.setGridBounds(width(), height());
         if (plantsAt(x, y).stream().anyMatch(LevelServer::isCarrier)) {
             plant.setCellX(plant.cellX() + PlantPlacement.CARRIER_X_OFFSET);
@@ -1357,7 +1362,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // lane blind - the wave director's shuffle, a mutation's random row, a boss summon, a
         // dancer's escort - all arrive through here.
         row = spawnRowFor(def, row);
-        ZombieEntity zombie = new ZombieEntity(def, team, x, row, healthScale);
+        // The level's own half of "how tough is this zombie", folded into the wave's growth here
+        // because this is the one place a zombie is created. Read at spawn and never again: a
+        // zombie's health is its health for life, and re-scaling one mid-bite would heal it.
+        ZombieEntity zombie = new ZombieEntity(def, team, x, row,
+                healthScale * rules.getFloat(PvzceIds.RULE_ZOMBIE_HEALTH_MULTIPLIER));
         addEntity(zombie);
         emitEffect("", x, row + 0.5F, def.sounds().spawn().orElse(PvzceSounds.ZOMBIE_GROAN));
         return zombie;
@@ -2674,6 +2683,27 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * Drops one sun from the sky in a cell, outside the level's own sun clock.
+     *
+     * <p>For the sun-shower mutation, which is a second, independent shower rather than a faster
+     * clock: it has to be able to rain on a level whose own sky is silent. Written as the sky's own
+     * drop (<em>not</em> {@code spawnResource}'s landed motion, which is what a kill drops) so the
+     * sun falls in and the player collects it the same way as every other sun.
+     *
+     * @return true when a sun appeared
+     */
+    public boolean dropSkySun(float x, float y) {
+        ResourceDef sun = BuiltInRegistries.RESOURCES.get(PvzceIds.SUN);
+        Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
+        if (sun == null || plantTeam == null) {
+            return false;
+        }
+        addEntity(new ResourceDropEntity(sun, plantTeam, Math.round(x), Math.round(y),
+                rules.getInt(PvzceIds.RULE_SUN_VALUE)));
+        return true;
+    }
+
+    /**
      * Runs the between-rounds state: announces it once, and gives up waiting eventually.
      *
      * @return true while the level is frozen for a card choice
@@ -3032,6 +3062,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         if (!slot.ready()) {
             bridge.send(new ServerMessageS2C("卡片冷却中。"));
+            return false;
+        }
+        // A mutation may have locked this card. Asked before the cell is even looked at: the card
+        // is what the player cannot use, so "this card is locked" is the answer whatever they
+        // clicked on - and the client draws the same lock from the same state (see
+        // `MutationStateS2C.lockedSlots`).
+        if (mutations != null && mutations.isSlotLocked(slotIndex)) {
+            bridge.send(new ServerMessageS2C("这张卡被变异锁住了。"));
             return false;
         }
         if (!inBounds(x, y)) {

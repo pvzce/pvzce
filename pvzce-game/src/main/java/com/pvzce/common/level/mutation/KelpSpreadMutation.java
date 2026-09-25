@@ -29,7 +29,7 @@ import java.util.List;
  * which is also why it stops the moment it is evicted - the kelp already in the water stays, since
  * it is a plant the player now owns.
  */
-final class KelpSpreadMutation implements Mutation, MutationHooks {
+final class KelpSpreadMutation implements Mutation, MutationManager.SaveHandle, MutationHooks {
     /** How often the water gains a kelp, before the tier's multiplier. */
     private static final int SPREAD_INTERVAL_TICKS = PvzceConstants.TICKS_PER_SECOND;
     /** A ceiling on how many plants this mutation may create, so a long run stays bounded. */
@@ -81,7 +81,7 @@ final class KelpSpreadMutation implements Mutation, MutationHooks {
     private Applied pendingState;
 
     /** How the manager hands this mutation the state it should write down. */
-    void savingState(Object state) {
+    public void savingState(Object state) {
         this.savingState = state instanceof Applied applied ? applied : null;
     }
 

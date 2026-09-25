@@ -52,7 +52,16 @@ public final class MutationManager {
 
     private final LevelServer level;
     private final List<MutationEntry> entries = new ArrayList<>();
-    private final Set<Identifier> applied = new LinkedHashSet<>();
+    /**
+     * The entries that are currently acting, by <em>entry</em> rather than by id.
+     *
+     * <p>Per entry because a level may roll the same mutation twice - the weights allow it, and two
+     * "僵尸危机" with different subjects are two entries a player can see on the panel. A set of ids
+     * cannot tell those apart, and the earlier copy of a pair would be left marked as acting after
+     * the later one arrived to hold it back: the undo pass asked "is this id in the new acting set"
+     * and the second copy's id answered for the first, so the suppressed copy went on ticking.
+     */
+    private final Set<MutationEntry> applied = new LinkedHashSet<>();
 
     private int ticksUntilNext;
     /** False until the first mutation of this run has arrived; see {@link #tick}. */
@@ -125,7 +134,12 @@ public final class MutationManager {
 
     /** True while that mutation is on the field and acting. */
     public boolean isApplied(Identifier mutationId) {
-        return applied.contains(mutationId);
+        for (MutationEntry entry : applied) {
+            if (entry.id().equals(mutationId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -201,6 +215,46 @@ public final class MutationManager {
             }
         }
         sendIfStale();
+    }
+
+    /**
+     * The bar slots some acting mutation has locked, ascending.
+     *
+     * <p>Folded from the whole list here rather than asked per card by the client: the lock is part
+     * of the state packet, so the bar draws it from the same answer the server refuses a click
+     * with. Only acting mutations count - a lock held by a mutation that is being suppressed (or
+     * that cannot run) is not a lock the player can see any reason for.
+     */
+    public List<Integer> lockedSlots() {
+        List<Integer> locked = new ArrayList<>();
+        for (MutationEntry entry : entries) {
+            if (!entry.isApplied()) {
+                continue;
+            }
+            // The bar's size, not the tier's: a mutation that named slot 7 on a six-card bar has
+            // nothing to lock, and asking each index rather than each mutation's own list keeps
+            // this the same question the placement path asks.
+            int size = level.plantPlayer() == null ? 0 : level.plantPlayer().slots().size();
+            for (int index = 0; index < size; index++) {
+                if (entry.mutation().isSlotLocked(level, entry.roll(), entry.state(), index)
+                        && !locked.contains(index)) {
+                    locked.add(index);
+                }
+            }
+        }
+        java.util.Collections.sort(locked);
+        return List.copyOf(locked);
+    }
+
+    /** True when that bar slot is locked; what {@code LevelServer.placePlantInternal} asks. */
+    public boolean isSlotLocked(int slotIndex) {
+        for (MutationEntry entry : entries) {
+            if (entry.isApplied() && entry.mutation().isSlotLocked(level, entry.roll(),
+                    entry.state(), slotIndex)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A veto on planting, asked of every acting mutation. */
@@ -393,20 +447,28 @@ public final class MutationManager {
         Identifier rule();
     }
 
+    /**
+     * A mutation whose {@code saveState} has to read the run state the manager is holding.
+     *
+     * <p>{@code Mutation.saveState} takes no level and no state - the interface is shared by
+     * mutations that need neither, and a server type on that method would be paid for by all of
+     * them - so the manager hands the state over around the call instead. This interface is how a
+     * mutation says it wants that: it was an {@code instanceof} chain here, and every stateful
+     * mutation added had to be remembered in <em>two</em> places of it (set and clear) or its clock
+     * silently restarted on every resume.
+     */
+    interface SaveHandle {
+        /** The state to write down, or {@code null} when the handle is being cleared. */
+        void savingState(Object state);
+    }
+
     /** Hands a mutation the handle it needs to describe its state; see {@code Mutation.saveState}. */
     private void handOverForSave(MutationEntry entry) {
         if (entry.mutation() instanceof SlotReplaceMutation slotReplace) {
             slotReplace.savingPlayer(level.plantPlayer());
-        } else if (entry.mutation() instanceof WhackAZombieMutation whack) {
-            whack.savingState(entry.state());
-        } else if (entry.mutation() instanceof GraveGrowthMutation growth) {
-            growth.savingState(entry.state());
-        } else if (entry.mutation() instanceof ZombieCrisisMutation crisis) {
-            crisis.savingState(entry.state());
-        } else if (entry.mutation() instanceof KelpSpreadMutation kelp) {
-            kelp.savingState(entry.state());
-        } else if (entry.mutation() instanceof ApocalypseMutation apocalypse) {
-            apocalypse.savingState(entry.state());
+        }
+        if (entry.mutation() instanceof SaveHandle handle) {
+            handle.savingState(entry.state());
         }
     }
 
@@ -415,16 +477,9 @@ public final class MutationManager {
         for (MutationEntry entry : entries) {
             if (entry.mutation() instanceof SlotReplaceMutation slotReplace) {
                 slotReplace.savingPlayer(null);
-            } else if (entry.mutation() instanceof WhackAZombieMutation whack) {
-                whack.savingState(null);
-            } else if (entry.mutation() instanceof GraveGrowthMutation growth) {
-                growth.savingState(null);
-            } else if (entry.mutation() instanceof ZombieCrisisMutation crisis) {
-                crisis.savingState(null);
-            } else if (entry.mutation() instanceof KelpSpreadMutation kelp) {
-                kelp.savingState(null);
-            } else if (entry.mutation() instanceof ApocalypseMutation apocalypse) {
-                apocalypse.savingState(null);
+            }
+            if (entry.mutation() instanceof SaveHandle handle) {
+                handle.savingState(null);
             }
         }
     }
@@ -640,7 +695,7 @@ public final class MutationManager {
         MutationEntry newRewriter = null;
         MutationEntry lastBarEntry = null;
         List<MutationEntry> toApply = new ArrayList<>();
-        Set<Identifier> acting = new LinkedHashSet<>();
+        Set<MutationEntry> acting = new LinkedHashSet<>();
         for (int i = 0; i < entries.size(); i++) {
             MutationEntry entry = entries.get(i);
             if (!entry.mutation().canRun(level) || isHeldBack(entry, i)) {
@@ -653,7 +708,7 @@ public final class MutationManager {
                 newRewriter = entry;
                 lastBarEntry = entry;
             }
-            acting.add(entry.id());
+            acting.add(entry);
             if (!entry.isApplied()) {
                 toApply.add(entry);
             }
@@ -668,7 +723,7 @@ public final class MutationManager {
         }
         // Anything that was acting and is not in the new set is undone, in arrival order.
         for (MutationEntry entry : entries) {
-            if (entry.isApplied() && !acting.contains(entry.id())) {
+            if (entry.isApplied() && !acting.contains(entry)) {
                 entry.mutation().revert(level, entry.roll(), entry.state());
                 entry.setApplied(false);
             }
@@ -848,6 +903,7 @@ public final class MutationManager {
                 beltCapacity(),
                 lastEffects,
                 tools,
+                lockedSlots(),
                 com.pvzce.server.LevelBuffSelection.resolveIds(level.activeBuffs()).stream()
                         .map(com.pvzce.api.util.Identifier::toString).toList(),
                 wire));

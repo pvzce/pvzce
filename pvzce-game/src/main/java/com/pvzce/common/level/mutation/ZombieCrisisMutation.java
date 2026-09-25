@@ -19,7 +19,7 @@ import java.util.List;
  * <p>They walk in from the right edge like any other zombie rather than rising out of the ground,
  * so the level's own pacing still applies: a crisis fills the road, it does not bypass it.
  */
-final class ZombieCrisisMutation implements Mutation {
+final class ZombieCrisisMutation implements Mutation, MutationManager.SaveHandle {
     /** The gap between two zombies, before the tier's multiplier. */
     private static final int SPAWN_INTERVAL_TICKS = 100;
     /** How many the mutation may have on the lawn at once, so a long run cannot lock the tick up. */
@@ -82,7 +82,7 @@ final class ZombieCrisisMutation implements Mutation {
     private Applied pendingState;
 
     /** How the manager hands this mutation the state it should write down. */
-    void savingState(Object state) {
+    public void savingState(Object state) {
         this.savingState = state instanceof Applied applied ? applied : null;
     }
 

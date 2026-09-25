@@ -159,7 +159,8 @@ public final class BeltCardBar implements CardBar {
                     continue;
                 }
                 CardPainter.draw(client, slot, x, viewportY, cardWidth, cardHeight, 1F,
-                        host.selectedCardIndex() == slot.index());
+                        host.selectedCardIndex() == slot.index(),
+                        host.lockedSlots().contains(slot.index()));
             }
         } finally {
             client.clipping().pop();

@@ -29,6 +29,19 @@ public final class CardPainter {
 
     public static void draw(PvzceClient client, SlotInfo slot, float x, float y, float width, float height,
                             float alpha, boolean selected) {
+        draw(client, slot, x, y, width, height, alpha, selected, false);
+    }
+
+    /**
+     * The same card, plus the padlock a mutation may have put on it.
+     *
+     * <p>A locked card is drawn like a card that is not ready (its picture dimmed) with the lock
+     * over it: the mutation's own state says <em>which</em> slots are shut
+     * ({@code MutationStateS2C.lockedSlots}), and the server refuses the same slots, so the picture
+     * and the refusal cannot disagree.
+     */
+    public static void draw(PvzceClient client, SlotInfo slot, float x, float y, float width, float height,
+                            float alpha, boolean selected, boolean locked) {
         boolean ready = slot.available() && slot.cooldownLeft() <= 0;
         float dark = ready ? 1F : 0.45F;
         Identifier icon = icon(slot);
@@ -43,6 +56,38 @@ public final class CardPainter {
             model = model.chrome(com.pvzce.client.gui.SeedCardRenderer.SHOVEL_SLOT_BACKGROUND, false);
         }
         com.pvzce.client.gui.SeedCardRenderer.draw(client, model, x, y, width, height);
+        if (locked) {
+            drawLockBadge(client, x, y, width, height, alpha);
+        }
+    }
+
+    /**
+     * The padlock a card wears when something has taken it out of play.
+     *
+     * <p>Drawn from primitives because the UI has no icon font, and here rather than in the seed
+     * chooser (where it started) because two screens now need the same mark: the chooser uses it for
+     * a card the level fixes in the bar, and the in-game bar for one a mutation has locked. Two
+     * copies of six rectangles is how the two marks end up looking different.
+     */
+    public static void drawLockBadge(PvzceClient client, float x, float y, float width, float height,
+                                     float alpha) {
+        float size = Math.max(10F, Math.min(width, height) * 0.34F);
+        client.drawSolid(x + width - size, y, size, size, 0.4F, 0.15F, 0.16F, 0.2F, 0.85F * alpha);
+        // Body.
+        float bodyW = size * 0.56F;
+        float bodyH = size * 0.42F;
+        float bodyX = x + width - size / 2F - bodyW / 2F;
+        float bodyY = y + size * 0.18F;
+        client.drawSolid(bodyX, bodyY, bodyW, bodyH, 0.45F, 1F, 0.86F, 0.35F, alpha);
+        // Shackle: two uprights and a top bar, so it reads as a padlock at this size.
+        float legW = Math.max(1F, bodyW * 0.16F);
+        float shackleH = size * 0.26F;
+        client.drawSolid(bodyX + bodyW * 0.16F, bodyY + bodyH, legW, shackleH, 0.45F,
+                1F, 0.86F, 0.35F, alpha);
+        client.drawSolid(bodyX + bodyW * 0.68F, bodyY + bodyH, legW, shackleH, 0.45F,
+                1F, 0.86F, 0.35F, alpha);
+        client.drawSolid(bodyX + bodyW * 0.16F, bodyY + bodyH + shackleH, bodyW * 0.68F,
+                Math.max(1F, legW * 0.8F), 0.45F, 1F, 0.86F, 0.35F, alpha);
     }
 
     /**

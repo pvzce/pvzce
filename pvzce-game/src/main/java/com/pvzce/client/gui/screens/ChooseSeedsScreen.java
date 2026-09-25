@@ -1745,23 +1745,10 @@ public final class ChooseSeedsScreen extends Screen {
      * reads instantly, drawn from primitives because the UI has no icon font.
      */
     private void drawLockBadge(float x, float y, float width, float height, float alpha) {
-        float size = Math.max(10F, Math.min(width, height) * 0.34F);
-        client.drawSolid(x + width - size, y, size, size, 0.4F, 0.15F, 0.16F, 0.2F, 0.85F * alpha);
-        // Body.
-        float bodyW = size * 0.56F;
-        float bodyH = size * 0.42F;
-        float bodyX = x + width - size / 2F - bodyW / 2F;
-        float bodyY = y + size * 0.18F;
-        client.drawSolid(bodyX, bodyY, bodyW, bodyH, 0.45F, 1F, 0.86F, 0.35F, alpha);
-        // Shackle: two uprights and a top bar, so it reads as a padlock at this size.
-        float legW = Math.max(1F, bodyW * 0.16F);
-        float shackleH = size * 0.26F;
-        client.drawSolid(bodyX + bodyW * 0.16F, bodyY + bodyH, legW, shackleH, 0.45F,
-                1F, 0.86F, 0.35F, alpha);
-        client.drawSolid(bodyX + bodyW * 0.68F, bodyY + bodyH, legW, shackleH, 0.45F,
-                1F, 0.86F, 0.35F, alpha);
-        client.drawSolid(bodyX + bodyW * 0.16F, bodyY + bodyH + shackleH, bodyW * 0.68F,
-                Math.max(1F, legW * 0.8F), 0.45F, 1F, 0.86F, 0.35F, alpha);
+        // The drawing lives in `CardPainter`: the in-game bar wears the same mark when a mutation
+        // locks a card, and two copies of it would drift.
+        com.pvzce.client.gui.hud.cardbar.CardPainter.drawLockBadge(
+                client, x, y, width, height, alpha);
     }
 
     /**

@@ -82,6 +82,12 @@ class MutationManagerTest {
         // A seeded dice: which mutations arrive - and therefore how many of them can act on this
         // particular board at all - is then the same in every run of the suite.
         level.random().setSeed(20240925L);
+        // The fixture must not be able to lose while the clock is being watched. The board has no
+        // waves and no plants, so a mutation that sends zombies (a crisis, a raid) walks them
+        // straight to the house and the level is over - which is a real thing that happens in play
+        // and has nothing to do with what this test is about. Zero speed is a legal value of the
+        // rule and freezes whatever arrives on the lawn instead.
+        level.setRule(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER, 0F);
         int limit = MutationDifficulty.EASY.maxConcurrent();
         assertEquals(720, level.mutations().intervalTicks(),
                 "ten times the tier's 120s interval, which is the fastest the rule can be set");

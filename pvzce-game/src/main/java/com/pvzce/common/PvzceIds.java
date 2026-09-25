@@ -132,6 +132,29 @@ public final class PvzceIds {
     public static final Identifier RULE_ZOMBIE_SPEED_MULTIPLIER = id("zombie_speed_multiplier");
     public static final Identifier RULE_PLANT_DAMAGE_MULTIPLIER = id("plant_damage_multiplier");
     /**
+     * How much health a zombie arrives with, as a multiplier on its definition's own.
+     *
+     * <p>Read where a zombie is <em>created</em>, not while it walks: a zombie's health is its
+     * health for the rest of its life (armour, the half-health transition and the client's bar all
+     * read it), so a mutation that strengthens the horde strengthens the horde that has not
+     * arrived yet. That is also the honest reading of "僵尸强化" - the ones already on the lawn
+     * were killed or will be, and re-scaling a half-eaten zombie mid-bite would heal it.
+     *
+     * <p>Separate from the endless rounds' growth, which travels per wave
+     * ({@code WaveDef.Entry.healthScale}) because it belongs to the wave rather than to the level.
+     */
+    public static final Identifier RULE_ZOMBIE_HEALTH_MULTIPLIER = id("zombie_health_multiplier");
+    /**
+     * How much health a plant has when it is planted, as a multiplier on its definition's own.
+     *
+     * <p>The same "read once, at creation" rule as {@link #RULE_ZOMBIE_HEALTH_MULTIPLIER}, and for
+     * the same reason: a plant's full health is what the watering can heals it to and what the
+     * client compares its current health against, so re-scaling a wounded plant would silently
+     * repair it. A plant placed while the mutation is running is born fragile; the ones already
+     * rooted are what the player has.
+     */
+    public static final Identifier RULE_PLANT_HEALTH_MULTIPLIER = id("plant_health_multiplier");
+    /**
      * How much faster than written this level's zombies arrive, as a multiplier on the rate.
      *
      * <p>Scales the level's whole spawn cadence - the gap between waves and the gap between
@@ -424,6 +447,54 @@ public final class PvzceIds {
     public static final Identifier MUTATION_PLANT_BLAST = id("plant_blast");
     public static final Identifier MUTATION_MENDEL = id("mendel");
     public static final Identifier MUTATION_KELP_SPREAD = id("kelp_spread");
+
+    // The second catalogue. Grouped the way `Mutations.bootstrap` registers them, which is also
+    // the order the panel lists them in and the order the dice walk them.
+
+    /** 僵尸强化: every zombie that arrives has a rolled multiple of its own health. */
+    public static final Identifier MUTATION_ZOMBIE_HEALTH = id("zombie_health");
+    /** 植物脆化: every plant that is planted has a rolled fraction of its own health. */
+    public static final Identifier MUTATION_PLANT_FRAGILE = id("plant_fragile");
+    /** 卡片冷却: every card's recharge is scaled, the bar and the belt alike. */
+    public static final Identifier MUTATION_CARD_COOLDOWN = id("card_cooldown");
+    /** 阳光暴雨: extra sun falls from the sky on a clock of the mutation's own. */
+    public static final Identifier MUTATION_SUN_SHOWER = id("sun_shower");
+
+    /** 卡槽封锁: one or two plant cards are locked for as long as the mutation stands. */
+    public static final Identifier MUTATION_SLOT_LOCK = id("slot_lock");
+    /** 卡槽轮盘: a plant card is swapped for another one, over and over. */
+    public static final Identifier MUTATION_SLOT_ROULETTE = id("slot_roulette");
+
+    /** 迷雾降临: the right half of the board is covered by fog. */
+    public static final Identifier MUTATION_FOG_ROLL_IN = id("fog_roll_in");
+    /** 水淹草坪: the middle rows become water. */
+    public static final Identifier MUTATION_FLOOD_LAWN = id("flood_lawn");
+    /** 陨石雨: rocks fall on the lawn, leaving craters. */
+    public static final Identifier MUTATION_METEOR_SHOWER = id("meteor_shower");
+    /** 荆棘草坪: anything walking on the ground bleeds. */
+    public static final Identifier MUTATION_THORN_LAWN = id("thorn_lawn");
+    /** 结冰地面: zombies walk half again as fast and stay frozen twice as long. */
+    public static final Identifier MUTATION_ICE_GROUND = id("ice_ground");
+
+    /** 植物僵尸: a plant-headed zombie is sent in every so often. */
+    public static final Identifier MUTATION_ZOMBOTANY = id("zombotany");
+    /** 巨人突袭: a Gargantuar, with the Imp that rides it. */
+    public static final Identifier MUTATION_GARGANTUAR_RAID = id("gargantuar_raid");
+    /** 小鬼空投: an Imp is dropped straight onto the lawn. */
+    public static final Identifier MUTATION_IMP_AIRDROP = id("imp_airdrop");
+    /** 蹦极僵尸: one arrives, takes a plant, and leaves. */
+    public static final Identifier MUTATION_BUNGEE_RAID = id("bungee_raid");
+    /** 气球空袭: a small flock of balloons, all in one lane. */
+    public static final Identifier MUTATION_BALLOON_RAID = id("balloon_raid");
+
+    /** 豌豆派对: plants that do not shoot are given a gun. */
+    public static final Identifier MUTATION_PEA_PARTY = id("pea_party");
+    /** 割草机补给: a spent mower comes back. */
+    public static final Identifier MUTATION_RANDOM_SUPPLY = id("random_supply");
+    /** 割草机自走: an unspent mower is released on its own. */
+    public static final Identifier MUTATION_AUTO_RELEASE = id("auto_release");
+    /** 阳光流失: the bank leaks. */
+    public static final Identifier MUTATION_SUN_DRAIN = id("sun_drain");
 
     /**
      * The zombies a {@code zombie_crisis} may pick from: {@code #pvzce:mutation_crisis}.

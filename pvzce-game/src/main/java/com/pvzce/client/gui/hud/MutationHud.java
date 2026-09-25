@@ -200,47 +200,28 @@ public final class MutationHud {
     }
 
     /**
-     * The Chinese name for a mutation id.
+     * The player's name for a mutation id, out of the language file.
      *
-     * <p>A copy of the server's own table, because the id is all that crosses the wire and the two
-     * sides have to agree on the words. Kept in step by naming new mutations in both places when
-     * the catalogue grows - which is also true of every content id in the game's language files.
+     * <p>It used to be a table here that mirrored the server's own - twenty names written twice, in
+     * two languages, kept in step by hand. The id is all that crosses the wire, and the client
+     * already loads the pack's language file, so the name is a lookup with the id's last segment as
+     * the fallback: a mutation a pack adds without a translation is still listed, under its own id.
      */
     private static String mutationName(Identifier id) {
-        return switch (id.path()) {
-            case "slot_replace" -> "卡槽替换";
-            case "conveyor" -> "传送带";
-            case "sun_rate" -> "阳光速率";
-            case "plant_attack_rate" -> "植物攻击速率";
-            case "zombie_speed" -> "僵尸移动速率";
-            case "zombie_spawn_rate" -> "僵尸出怪速率";
-            case "plant_sun_cost" -> "植物阳光消耗";
-            case "nightfall" -> "天黑";
-            case "bowling_nut" -> "坚果保龄球";
-            case "whack_a_zombie" -> "打地鼠";
-            case "grave_growth" -> "墓碑生长";
-            case "zombie_crisis" -> "僵尸危机";
-            case "buff_shift" -> "增益变动";
-            case "apocalypse" -> "世界末日";
-            case "zombie_blast" -> "僵尸爆炸";
-            case "plant_blast" -> "植物爆炸";
-            case "mendel" -> "孟德尔乱入";
-            case "kelp_spread" -> "水草蔓延";
-            default -> id.path();
-        };
+        // `ns.path`, not `ns:path`: that is the shape every content key in the language files has.
+        return com.pvzce.client.gui.GuiLang.raw(
+                "mutation." + id.namespace() + "." + id.path(), id.path());
     }
 
-    /** The Chinese name for the subject a mutation rolled (a zombie, a bullet). */
+    /**
+     * The player's name for the subject a mutation rolled.
+     *
+     * <p>A subject is a zombie (the crisis picks one out of a tag) or a buff, and both already have
+     * names in the language file under their own prefixes - so this asks for the zombie's name and
+     * falls back to the id, rather than keeping the seven-zombie table that used to live here.
+     */
     private static String subjectName(Identifier id) {
-        return switch (id.path()) {
-            case "basic_zombie" -> "普通僵尸";
-            case "conehead_zombie" -> "路障僵尸";
-            case "buckethead_zombie" -> "铁桶僵尸";
-            case "flag_zombie" -> "旗帜僵尸";
-            case "ducky_tube_zombie" -> "救生圈僵尸";
-            case "ducky_tube_conehead_zombie" -> "救生圈路障僵尸";
-            case "ducky_tube_buckethead_zombie" -> "救生圈铁桶僵尸";
-            default -> id.path();
-        };
+        return com.pvzce.client.gui.GuiLang.raw(
+                "zombie." + id.namespace() + "." + id.path(), id.path());
     }
 }
