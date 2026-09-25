@@ -9,14 +9,11 @@
   "health": 300,
   "capabilities": [
     {
-      "type": "pvzce:explosive",
-      "trigger": "proximity",
-      "fuse_ticks": 60,
-      "radius": 1.0,
-      "square": true,
-      "damage": 1800,
+      "type": "pvzce:squash",
       "trigger_range": 0.5,
-      "linger_ticks": 40
+      "fuse_ticks": 60,
+      "damage": 1800,
+      "damage_type": "pvzce:ash"
     }
   ],
   "sounds": {

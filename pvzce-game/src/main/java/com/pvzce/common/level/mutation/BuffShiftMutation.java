@@ -103,16 +103,32 @@ final class BuffShiftMutation implements Mutation {
         float weight = Math.max(0.05F, roll.multiplier());
         int count = Math.max(1, Math.round(weight));
         boolean adding = level.random().nextFloat() < weight / (1F + weight);
-        List<LevelBuff> missing = missing(before);
-        if (adding && !missing.isEmpty()) {
-            List<LevelBuff> after = new ArrayList<>(before);
-            for (int i = 0; i < count && !missing.isEmpty(); i++) {
-                LevelBuff picked = missing.remove(level.random().nextInt(missing.size()));
-                after.add(picked);
-            }
-            return List.copyOf(after);
+        List<LevelBuff> after = adding ? grow(level, before, count) : shrink(level, before, count);
+        if (after.equals(before)) {
+            // The direction the dice picked had nothing to work with, so the other one gets its
+            // turn. The fallback used to be written as "if the direction is add and there is
+            // nothing missing, shrink instead", which covers a full list but not an empty one - so
+            // a shift that rolled "take" against no buffs at all did nothing whatsoever. A silent
+            // no-op is exactly what this class says a mutation must never be, and it made
+            // MutationManagerTest.aBuffShiftReachesTheClientAndSaysWhichBuffMoved fail about once
+            // in a hundred runs on a clean tree.
+            after = adding ? shrink(level, before, count) : grow(level, before, count);
         }
-        return shrink(level, before, count);
+        return after;
+    }
+
+    /** Up to {@code count} buffs the run does not have yet, picked at random. */
+    private static List<LevelBuff> grow(LevelServer level, List<LevelBuff> before, int count) {
+        List<LevelBuff> missing = missing(before);
+        if (missing.isEmpty()) {
+            return List.copyOf(before);
+        }
+        List<LevelBuff> after = new ArrayList<>(before);
+        for (int i = 0; i < count && !missing.isEmpty(); i++) {
+            LevelBuff picked = missing.remove(level.random().nextInt(missing.size()));
+            after.add(picked);
+        }
+        return List.copyOf(after);
     }
 
     /** Drops up to {@code count} buffs the level did not pin. */

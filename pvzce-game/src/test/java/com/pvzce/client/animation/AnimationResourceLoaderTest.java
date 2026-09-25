@@ -454,8 +454,7 @@ class AnimationResourceLoaderTest {
     @Test
     void everyAshPlantStaysLongEnoughToDrawItsBlast() throws Exception {
         TestContent.loadBuiltInContentAndTags();
-        for (String plant : new String[]{"cherry_bomb", "jalapeno", "doom_shroom", "potato_mine",
-                "squash"}) {
+        for (String plant : new String[]{"cherry_bomb", "jalapeno", "doom_shroom", "potato_mine"}) {
             var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
                     Identifier.withDefaultNamespace(plant));
             assertNotNull(def, plant + " has to exist");
@@ -478,6 +477,38 @@ class AnimationResourceLoaderTest {
                             + " is removed after " + explosive.lingerTicks() + ", so the blast is"
                             + " cut off before it finishes");
         }
+    }
+
+    /**
+     * The squash holds its landing pose for as long as the landing pose takes to draw.
+     *
+     * <p>The same invariant as the ash line's, for the one plant that used to be on that list and
+     * no longer is: the squash stopped being a blast (it leaps onto one zombie instead of exploding
+     * in a footprint) so it no longer carries {@code ExplosiveCapability}, but it still holds an
+     * {@code explode} clip after the strike and would still cut it off by removing itself early.
+     */
+    @Test
+    void theSquashHoldsItsLandingPoseLongEnoughToDraw() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
+                Identifier.withDefaultNamespace("squash"));
+        assertNotNull(def, "squash has to exist");
+        var squash = def.capabilities().stream()
+                .map(com.pvzce.api.content.capability.TypedCapability::value)
+                .filter(com.pvzce.common.capability.plant.SquashCapability.class::isInstance)
+                .map(com.pvzce.common.capability.plant.SquashCapability.class::cast)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(squash, "the squash is a leaping plant and has to carry pvzce:squash");
+
+        ControllerClip explode = (ControllerClip) parseClasspath("squash").clip("explode")
+                .orElseThrow();
+        float screenSeconds = explode.duration() / explode.rate();
+        int needed = (int) Math.ceil(screenSeconds * 60F);
+        assertTrue(squash.lingerTicks() >= needed,
+                "squash's explode clip needs " + needed + " ticks on screen but the plant is"
+                        + " removed after " + squash.lingerTicks() + ", so the landing is cut off"
+                        + " before it finishes");
     }
 
     /**

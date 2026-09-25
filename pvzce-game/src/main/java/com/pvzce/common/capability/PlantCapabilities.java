@@ -16,6 +16,7 @@ import com.pvzce.common.capability.plant.MeleeCapability;
 import com.pvzce.common.capability.plant.NocturnalCapability;
 import com.pvzce.common.capability.plant.ProducerCapability;
 import com.pvzce.common.capability.plant.ShooterCapability;
+import com.pvzce.common.capability.plant.SquashCapability;
 import com.pvzce.common.capability.plant.ThrowerCapability;
 import com.pvzce.common.capability.plant.WakeBelowCapability;
 import com.mojang.serialization.Codec;
@@ -36,6 +37,14 @@ public final class PlantCapabilities {
     public static final CapabilityType<ProducerCapability> PRODUCER = type("producer", ProducerCapability.CODEC);
     public static final CapabilityType<ExplosiveCapability> EXPLOSIVE = type("explosive", ExplosiveCapability.CODEC);
     public static final CapabilityType<MeleeCapability> MELEE = type("melee", MeleeCapability.CODEC);
+    /**
+     * Leaps onto the one zombie that walks into range and flattens it (the squash).
+     *
+     * <p>Deliberately not {@link #EXPLOSIVE}: the squash used to be a proximity blast, which
+     * killed the neighbours and scorched the lawn as well. See {@link SquashCapability}.
+     */
+    public static final CapabilityType<SquashCapability> SQUASH =
+            type("squash", SquashCapability.CODEC);
     public static final CapabilityType<WakeBelowCapability> WAKE_BELOW = type("wake_below", WakeBelowCapability.CODEC);
     /**
      * Eats the gravestone it was planted on.
@@ -99,6 +108,7 @@ public final class PlantCapabilities {
         register(PRODUCER, "producer");
         register(EXPLOSIVE, "explosive");
         register(MELEE, "melee");
+        register(SQUASH, "squash");
         register(WAKE_BELOW, "wake_below");
         register(GRAVE_BUSTER, "grave_buster");
         register(CHARM, "charm");

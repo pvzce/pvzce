@@ -572,49 +572,92 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * water rows are the ones whose scene element is the water one - the same test the rest of
      * the simulation uses to decide whether a plant may go there.
      *
-     * <p>Filled once, right after the scene grid is built (see {@link #resolveEndlessRows}).
+     * <p>Computed on demand rather than cached: a mutation can turn a lawn row into water under a
+     * running level (and back again), so a cached answer would be a stale one. The whole board is a
+     * few dozen cells, and this is asked once per wave and once per zombie spawn.
      */
-    private com.pvzce.common.level.endless.EndlessWaves.Rows endlessRows;
-
-    /** The board's row split, resolved from the scene the first time a wave needs it. */
     private com.pvzce.common.level.endless.EndlessWaves.Rows endlessRows() {
-        if (endlessRows == null) {
-            resolveEndlessRows();
+        return resolveEndlessRows();
+    }
+
+    /** True when any cell of {@code row} is water - what makes a row one of "the water rows". */
+    public boolean rowIsWater(int row) {
+        if (scene == null) {
+            return false;
         }
-        return endlessRows;
+        for (int x = 0; x < def.width(); x++) {
+            SceneElementDef element = scene.get(x, row);
+            if (element != null && PvzceIds.WATER.equals(element.id())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The rows a zombie that cannot swim may arrive in; every row when the board has no water. */
+    public List<Integer> landRows() {
+        List<Integer> land = new ArrayList<>();
+        for (int y = 0; y < def.height(); y++) {
+            if (!rowIsWater(y)) {
+                land.add(y);
+            }
+        }
+        if (land.isEmpty()) {
+            // A board that is water from edge to edge: there is no land lane to send a walker to,
+            // so the caller gets the whole board and the zombie drowns. That is the honest outcome
+            // for a level that is nothing but pool - it is a level-authoring error, not something
+            // to paper over by quietly spawning the zombie somewhere the author did not ask for.
+            for (int y = 0; y < def.height(); y++) {
+                land.add(y);
+            }
+        }
+        return land;
+    }
+
+    /**
+     * The row a zombie of this definition should actually arrive in.
+     *
+     * <p>A swimmer may use any lane; a walker is moved to the nearest land lane instead of being
+     * dropped into the pool. Wave spawns start off the right edge and {@link
+     * com.pvzce.api.entity.Entity#gridX()} clamps that to the last column, so a walker placed in a
+     * water row drowned on its very first tick - "it spawns on the water and dies before it
+     * appears", which is what players reported. The lane is redirected rather than the spawn
+     * refused, because a refused spawn leaves the wave owing a zombie forever.
+     *
+     * <p>This is the backstop for <em>every</em> spawn path, not just the wave director: a mutation
+     * that conjures a zombie in a random lane, a boss phase that summons in a random lane, a
+     * dancer's escort, an imp thrown at a fixed offset - all of them arrive here, and none of them
+     * knows which rows are water.
+     */
+    public int spawnRowFor(ZombieDef def, int row) {
+        if (def == null || def.canSwim() || !rowIsWater(row)) {
+            return row;
+        }
+        List<Integer> land = landRows();
+        int best = land.get(0);
+        for (int candidate : land) {
+            if (Math.abs(candidate - row) < Math.abs(best - row)) {
+                best = candidate;
+            }
+        }
+        LOGGER.debug("A zombie that cannot swim may not walk in water: lane {} becomes {}",
+                row, best);
+        return best;
     }
 
     /**
      * Builds the row split from the scene.
      *
-     * <p>Lazy rather than eager because the wave director reads round one's length while the
-     * level is still being constructed - the {@code waves} field is initialized before the
-     * {@code scene} one - so "which rows are water" is not answerable yet at that point.
+     * <p>Pure, and asked afresh every time: the scene is not fixed for the life of a level (a flood
+     * mutation rewrites it), and the wave director reads round one's length while the level is still
+     * being constructed - so there is no moment at which caching this would be both correct and
+     * cheap.
      */
-    private void resolveEndlessRows() {
+    private com.pvzce.common.level.endless.EndlessWaves.Rows resolveEndlessRows() {
         List<Integer> land = new ArrayList<>();
         List<Integer> water = new ArrayList<>();
-        if (scene == null) {
-            // Asked before the grid exists - the director reads round one's length while the
-            // level is still being constructed. Every row is land for now; the real split is
-            // resolved the first time a wave is actually generated, which is long after the
-            // scene is built.
-            for (int y = 0; y < def.height(); y++) {
-                land.add(y);
-            }
-            this.endlessRows = new com.pvzce.common.level.endless.EndlessWaves.Rows(land, List.of());
-            return;
-        }
         for (int y = 0; y < def.height(); y++) {
-            boolean isWater = false;
-            for (int x = 0; x < def.width(); x++) {
-                SceneElementDef element = scene.get(x, y);
-                if (element != null && PvzceIds.WATER.equals(element.id())) {
-                    isWater = true;
-                    break;
-                }
-            }
-            (isWater ? water : land).add(y);
+            (rowIsWater(y) ? water : land).add(y);
         }
         if (water.isEmpty()) {
             // A board with no water rows at all: every row is land, which is what a lawn endless
@@ -624,7 +667,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 land.add(y);
             }
         }
-        this.endlessRows = new com.pvzce.common.level.endless.EndlessWaves.Rows(land, water);
+        return new com.pvzce.common.level.endless.EndlessWaves.Rows(land, water);
     }
 
     private static SceneElementDef defaultSceneElement() {
@@ -1143,6 +1186,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (def == null) {
             return null;
         }
+        // The one place every zombie comes into the world, and therefore the one place that can
+        // promise a walker is never dropped into the pool: see spawnRowFor. Callers that picked a
+        // lane blind - the wave director's shuffle, a mutation's random row, a boss summon, a
+        // dancer's escort - all arrive through here.
+        row = spawnRowFor(def, row);
         ZombieEntity zombie = new ZombieEntity(def, team, x, row, healthScale);
         addEntity(zombie);
         emitEffect("", x, row + 0.5F, def.sounds().spawn().orElse(PvzceSounds.ZOMBIE_GROAN));

@@ -136,6 +136,68 @@ class PoolMechanicsTest {
         }
     }
 
+    /**
+     * An entry that names <em>no</em> lanes still keeps walkers out of the pool.
+     *
+     * <p>The reported bug: a land zombie spawned in a water row died before it appeared. The wave
+     * spawns off the right edge and the entity's column is clamped to the last one, so on a pool
+     * board the spawn cell was water - and {@code ZombieEntity.tick} drowns a non-swimmer on its
+     * very first tick. Levels that write {@code rows} per entry were safe (see the test above);
+     * the ones that leave it open, and every spawn that does not come from a wave at all, were not.
+     */
+    @Test
+    void aWalkerWithNoNamedLanesStillNeverArrivesInTheWater() {
+        WaveDef wave = new WaveDef(WaveDef.WaveType.SMALL, 1, 5,
+                List.of(new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 24)));
+        LevelServer level = new LevelServer(poolLevel(List.of(wave), List.of()));
+        Bridge bridge = new Bridge();
+
+        List<Integer> seen = new ArrayList<>();
+        for (int i = 0; i < 4_000; i++) {
+            level.tick(bridge);
+            for (int row = 0; row < level.height(); row++) {
+                for (ZombieEntity zombie : level.zombiesInRow(row)) {
+                    seen.add(zombie.gridY());
+                }
+            }
+        }
+        assertTrue(seen.size() >= 20,
+                "the wave has to have actually sent zombies, saw " + seen.size());
+        for (int row : seen) {
+            assertTrue(GRASS_ROWS.contains(row),
+                    "a zombie that cannot swim arrived in water row " + row);
+        }
+    }
+
+    /**
+     * The same rule for spawns that do not come from a wave.
+     *
+     * <p>This is the half the wave director cannot cover: a mutation's random lane, a boss summon,
+     * a dancer's escort. They all land on {@code LevelServer.spawnZombie}, which is where the rule
+     * is enforced for them.
+     */
+    @Test
+    void everySpawnPathRedirectsAWalkerOutOfTheWater() {
+        LevelServer level = new LevelServer(poolLevel(List.of(), List.of()));
+        for (int row : WATER_ROWS) {
+            ZombieEntity walker = level.spawnZombie(
+                    Identifier.withDefaultNamespace("basic_zombie"), level.width() + 0.6F, row);
+            assertNotNull(walker);
+            assertTrue(GRASS_ROWS.contains(walker.gridY()),
+                    "a walker asked for water row " + row + " must be moved to land, was "
+                            + walker.gridY());
+            walker.remove();
+        }
+        for (int row : WATER_ROWS) {
+            ZombieEntity swimmer = level.spawnZombie(
+                    Identifier.withDefaultNamespace("ducky_tube_zombie"), level.width() + 0.6F, row);
+            assertNotNull(swimmer);
+            assertEquals(row, swimmer.gridY(),
+                    "and a swimmer that asked for the water stays exactly where it asked");
+            swimmer.remove();
+        }
+    }
+
     /** The lanes are the codec's business too, and a row off the board is reported. */
     @Test
     void lanesRoundTripThroughJsonAndAreValidated() {

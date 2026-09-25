@@ -75,6 +75,15 @@ public final class WaveDirector {
         java.util.Random random();
 
         /**
+         * True when any cell of this row is water.
+         *
+         * <p>Asked by the lane chooser, which keeps walkers out of the pool. It is on the host
+         * rather than derived here because "which rows are water" is a fact about the level's
+         * scene, and the scene is not fixed for the life of a level - a flood mutation rewrites it.
+         */
+        boolean rowIsWater(int row);
+
+        /**
          * The wave this round holds at this index, generated or read from the level's table.
          *
          * <p>The one thing the director cannot know for itself: a level with a wave table
@@ -747,7 +756,7 @@ public final class WaveDirector {
                 }
             }
             QueuedZombie queued = queue.zombies.poll();
-            int row = queued.rowFor(queue.rows, queue.rowIndex++);
+            int row = rowFor(queued, queue);
             ZombieEntity spawned = host.spawnZombie(queued.id(), host.width() + 0.6F, row,
                     queued.healthScale());
             if (spawned != null) {
@@ -825,13 +834,45 @@ public final class WaveDirector {
      * would be a rule the level rewrites under a running mutation's feet.
      */
     private record QueuedZombie(Identifier id, List<Integer> rows, float healthScale) {
-        /** The lane to use, given the queue's own shuffled order and how many it has sent. */
-        int rowFor(List<Integer> anyRow, int index) {
-            List<Integer> lanes = rows.isEmpty() ? anyRow : rows;
-            return lanes.get(index % lanes.size());
-        }
     }
 
+    /**
+     * The lane one zombie arrives in.
+     *
+     * <p>An entry that names its lanes gets exactly those (that is what {@code rows} is for, and a
+     * pool level uses it to put floaties in the water and walkers on the grass). An entry that
+     * names none gets the queue's shuffled whole board, <em>narrowed to the lanes this zombie can
+     * actually use</em>: a walker skips the water rows and a swimmer prefers them. Without that
+     * narrowing the shuffle dealt walkers into the pool - they spawned off the right edge, which
+     * clamps to the last column, and drowned on their first tick.
+     *
+     * <p>Narrowing a shuffled list rather than reshuffling keeps the order: the same seed still
+     * deals the same lanes to the same zombies, which is what makes a recorded run replay.
+     *
+     * <p>{@code LevelServer.spawnZombie} carries the same rule as a backstop, so this is about
+     * picking the right lane in the first place rather than about being the only guard.
+     */
+    private int rowFor(QueuedZombie queued, PendingWaveSpawn queue) {
+        List<Integer> lanes = queued.rows().isEmpty() ? queue.rows : queued.rows();
+        com.pvzce.api.content.ZombieDef def =
+                com.pvzce.common.core.BuiltInRegistries.ZOMBIES.get(queued.id());
+        if (def != null) {
+            List<Integer> usable = new ArrayList<>();
+            for (int lane : lanes) {
+                if (host.rowIsWater(lane) == def.canSwim()) {
+                    usable.add(lane);
+                }
+            }
+            // Nowhere of its own kind to go: a ducky tube on a lawn walks, and a walker on a board
+            // that is nothing but pool drowns - the level's problem, not this method's.
+            if (!usable.isEmpty()) {
+                lanes = usable;
+            }
+        }
+        return lanes.get(queue.rowIndex++ % lanes.size());
+    }
+
+    /** The whole board, shuffled: the lane pool an entry that names no lanes draws from. */
     private List<Integer> shuffledRows() {
         List<Integer> rows = new ArrayList<>();
         for (int y = 0; y < host.height(); y++) {
