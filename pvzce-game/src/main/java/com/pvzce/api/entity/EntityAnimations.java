@@ -10,6 +10,15 @@ public final class EntityAnimations {
     public static final String WALK = "walk";
     public static final String EAT = "eat";
     public static final String SHOOT = "shoot";
+    /**
+     * A plant hitting something that is standing on it, rather than shooting at it.
+     *
+     * <p>Its own state because it is its own gesture: the spikeweed has no target and no
+     * projectile, and asking for {@code shoot} would play whatever the plant's shooting clip
+     * happens to be - or, for a plant that has none, silently fall back to {@code idle} and make
+     * the stab invisible. See {@code SpikeCapability}.
+     */
+    public static final String ATTACK = "attack";
     public static final String PRODUCE = "produce";
     public static final String CHEW = "chew";
     public static final String EXPLODE = "explode";

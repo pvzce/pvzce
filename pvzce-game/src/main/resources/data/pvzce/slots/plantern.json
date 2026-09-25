@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:plantern",
+  "kind": "plant",
+  "content": "pvzce:plantern",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 25
+    },
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/plantern"
+}

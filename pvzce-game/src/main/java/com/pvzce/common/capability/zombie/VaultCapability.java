@@ -138,6 +138,12 @@ public final class VaultCapability implements ZombieCapability {
         if (plant == null) {
             return false;
         }
+        if (com.pvzce.common.core.PlantPlacement.is(plant.def(), com.pvzce.common.tag.PvzceTags.TALL)) {
+            // The tall-nut's whole reason to exist. A vaulter that met one stops and eats it like
+            // any other zombie, and `jumped` stays false - it has not used its pole up, it simply
+            // cannot get over this.
+            return false;
+        }
         startVault(zombie, level);
         return true;
     }

@@ -119,6 +119,17 @@ ANIMATION_DIRS: Dict[str, str] = {
     "gargantuar": "zombie/giant",
     "imp": "zombie/giant",
     "zombie_boss": "zombie/boss",
+    # World 3's second half and world 4. The group must match the `group` field of the converter
+    # config that produced each file, or this renderer looks for an animation that is not there.
+    "spikeweed": "plant/special",
+    "torchwood": "plant/special",
+    "tall_nut": "plant/defense",
+    "sea_shroom": "plant/attacker",
+    "plantern": "plant/special",
+    "blover": "plant/special",
+    "starfruit": "plant/attacker",
+    "pumpkin": "plant/defense",
+    "magnet_shroom": "plant/special",
 }
 
 PLANT_ENTITIES = [
@@ -134,6 +145,12 @@ PLANT_ENTITIES = [
     "scaredy_shroom", "ice_shroom",
     # The pool's own plant: it is drawn from its converted reanim like every other card here.
     "tangle_kelp",
+    # World 3's second half and world 4: nine plants, each drawn from its own reanim like the
+    # rest. The rake is here rather than in TOOL_ENTITIES because its card is a picture of the
+    # fixture, not of a model the player holds - and `gen_ui_icons.py` draws it by hand, so it is
+    # deliberately *not* in this list.
+    "spikeweed", "torchwood", "tall_nut", "sea_shroom", "plantern",
+    "blover", "starfruit", "pumpkin", "magnet_shroom",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

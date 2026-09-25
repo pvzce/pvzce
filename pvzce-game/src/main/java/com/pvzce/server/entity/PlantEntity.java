@@ -26,6 +26,17 @@ import java.util.List;
 public class PlantEntity extends PvzceEntity {
     private final PlantDef def;
     private final List<Instance> capabilities = new ArrayList<>();
+
+    /**
+     * This plant's capability instances, for the one caller that has to walk them all.
+     *
+     * <p>The level, when the plant stops existing: {@code PlantCapability.onRemoved} is what a
+     * capability uses to withdraw something it registered when it was placed - the plantern takes
+     * its lamp out of the fog - and the entity is the only thing that knows what it is carrying.
+     */
+    public List<Instance> capabilityInstances() {
+        return List.copyOf(capabilities);
+    }
     private int age;
 
     /**
@@ -526,6 +537,6 @@ public class PlantEntity extends PvzceEntity {
         return def.id();
     }
 
-    private record Instance(Identifier type, PlantCapability capability) {
+    public record Instance(Identifier type, PlantCapability capability) {
     }
 }

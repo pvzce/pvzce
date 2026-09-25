@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:spikeweed",
+  "kind": "plant",
+  "content": "pvzce:spikeweed",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 600
+  },
+  "icon": "pvzce:textures/gui/cards/spikeweed"
+}

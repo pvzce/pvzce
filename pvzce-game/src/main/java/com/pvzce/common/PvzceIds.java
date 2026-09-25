@@ -309,6 +309,9 @@ public final class PvzceIds {
      * simulation consults it, which is what makes the whole feature a presentation one.
      */
     public static final Identifier MECHANIC_FOG = id("fog");
+
+    /** The plantern's capability id; named here because the level's fog bookkeeping looks it up. */
+    public static final Identifier PLANT_CAPABILITY_REVEAL = id("reveal");
     /**
      * Graves that keep giving up their dead while the level runs.
      *

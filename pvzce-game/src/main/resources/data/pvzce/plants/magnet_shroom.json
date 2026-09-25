@@ -1,0 +1,21 @@
+{
+  "id": "pvzce:magnet_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 1800
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:magnet",
+      "range": 4.5,
+      "interval": 300
+    }
+  ],
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/magnet_shroom",
+  "render_scale": 0.85,
+  "order": 54
+}

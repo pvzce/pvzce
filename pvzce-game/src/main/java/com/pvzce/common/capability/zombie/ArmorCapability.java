@@ -166,6 +166,26 @@ public final class ArmorCapability implements ZombieCapability {
     }
 
     /**
+     * Takes one whole piece off, the way the magnet-shroom does.
+     *
+     * <p>Deliberately not "set the health to zero and let the impact path notice": losing a piece
+     * has consequences beyond its health - the equipment stops being drawn, a piece that promises
+     * a speed change triggers the rage clip - and every one of them already lives in
+     * {@link #absorb}. So this damages the piece by exactly its remaining health, which is the
+     * same event as a hit that happened to finish it.
+     *
+     * @return true when something came off
+     */
+    public boolean strip(ZombieEntity zombie, LevelAccess level) {
+        Piece piece = pieces.stream().filter(p -> p.hp > 0).findFirst().orElse(null);
+        if (piece == null) {
+            return false;
+        }
+        Identifier sound = zombie.def().sounds().armorHit().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT);
+        return absorb(zombie, piece.def.position(), piece.hp, level, sound, "");
+    }
+
+    /**
      * Resolves a hit against the first intact piece in {@code wanted}, or on the body.
      *
      * @param splash the shot's own impact effect, or empty for a hit that is not a shot

@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:pumpkin",
+  "kind": "plant",
+  "content": "pvzce:pumpkin",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/pumpkin"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:starfruit",
+  "kind": "plant",
+  "content": "pvzce:starfruit",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/starfruit"
+}

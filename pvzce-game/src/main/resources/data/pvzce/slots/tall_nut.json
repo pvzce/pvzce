@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:tall_nut",
+  "kind": "plant",
+  "content": "pvzce:tall_nut",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/tall_nut"
+}

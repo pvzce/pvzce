@@ -271,6 +271,56 @@ public class ZombieEntity extends PvzceEntity {
         walkOrEat(level);
     }
 
+    /**
+     * Takes this body off the board without killing it.
+     *
+     * <p>For the blover's gust, and for the balloon zombie whose balloon is shot out - which are
+     * the same event as far as everything downstream is concerned: the zombie is gone, nothing
+     * about it counts as destroyed, and no corpse is left. The direction is only used by the
+     * effect, so a gust reads as leaving the way it was facing.
+     *
+     * <p>Deliberately not {@code damage(100000)}: a blover is not a kill, and a level that counts
+     * kills (or pays for them) must not be paid for a zombie that merely left. It is also not
+     * {@code remove()}: the animation is different - a body that is blown away does not fall over.
+     */
+    public void blowAway(float direction) {
+        remove();
+        setAnimation(EntityAnimations.FLY);
+        this.blowAwayDirection = direction;
+    }
+
+    /** Which way a blown-away body left, for the client's own effect. */
+    public float blowAwayDirection() {
+        return blowAwayDirection;
+    }
+
+    private float blowAwayDirection;
+
+    /** True when this zombie is still wearing anything. */
+    public boolean hasArmor() {
+        com.pvzce.common.capability.zombie.ArmorCapability armor =
+                capability(com.pvzce.common.capability.zombie.ArmorCapability.class);
+        return armor != null && armor.hasArmor();
+    }
+
+    /**
+     * Takes one piece of armour off, for the magnet-shroom.
+     *
+     * <p>The zombie-side half of the magnet's pull, and it lives here because the entity is what
+     * owns its capabilities: a plant reaching into another entity's capability list would be the
+     * one place in the game that does, and {@code ArmorCapability} has no business knowing that
+     * magnets exist.
+     *
+     * @param level where the "the piece came off" effect is played; losing a piece throws the
+     *              same debris a hit that finished it would
+     * @return true when something came off
+     */
+    public boolean stripArmor(LevelAccess level) {
+        com.pvzce.common.capability.zombie.ArmorCapability armor =
+                capability(com.pvzce.common.capability.zombie.ArmorCapability.class);
+        return armor != null && armor.strip(this, level);
+    }
+
     /** Land zombies without {@code can_swim} drown when their cell becomes water. */
     private boolean drownInWater(LevelServer level) {
         if (!grounded || def.canSwim()) {
@@ -321,7 +371,11 @@ public class ZombieEntity extends PvzceEntity {
             biteOrWalk(level, enemyZombieInFront(level));
             return;
         }
-        PlantEntity plant = level.plantAt(gridX(), gridY());
+        // `biteTargetAt` rather than `plantAt`: a spikeweed is a plant you walk over, and
+        // stopping to eat one is the opposite of what it is for.
+        PlantEntity plant = level instanceof LevelServer server
+                ? server.biteTargetAt(gridX(), gridY())
+                : level.plantAt(gridX(), gridY());
         if (plant != null) {
             bitePlant(level, plant);
             return;
@@ -554,11 +608,25 @@ public class ZombieEntity extends PvzceEntity {
      * answer the non-projectile entry point gives.
      */
     public void damage(ProjectileDef projectile, int amount, LevelAccess level) {
+        damage(projectile, amount, level, null);
+    }
+
+    /**
+     * The same hit, with the damage type overridden.
+     *
+     * <p>For the one thing in the game that changes a shot already in the air: a pea that flew
+     * through a torchwood is a burning hit rather than a plain one, and the projectile's own
+     * definition still describes everything else about it (its layer, its pierce, its art). A
+     * {@code null} override - every ordinary shot - reads the definition as before.
+     */
+    public void damage(ProjectileDef projectile, int amount, LevelAccess level,
+                       com.pvzce.api.util.Identifier typeOverride) {
         if (!isAlive()) {
             return;
         }
         int dmg = scaled(amount, level);
-        DamageTypeDef type = projectile.damageType().map(ZombieEntity::damageType).orElse(null);
+        DamageTypeDef type = (typeOverride != null ? java.util.Optional.of(typeOverride)
+                : projectile.damageType()).map(ZombieEntity::damageType).orElse(null);
         if (!ignoresArmor(type)) {
             // A shot is what a projectile layer means, so this is the one caller that
             // passes the hit down to the armour capabilities itself: which slot it meets

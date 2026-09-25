@@ -874,6 +874,30 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * The plant a zombie in this cell would bite, or {@code null} when there is nothing to eat.
+     *
+     * <p>{@link #plantAt} plus one rule: a plant tagged {@code #c:walk_over} is not food. The
+     * spikeweed is the only one, and without this a zombie that stepped on it would stop and eat
+     * it - which is the opposite of what a spikeweed is. Tools deliberately keep using
+     * {@code plantAt}: a spikeweed is a plant, and the shovel and the watering can must still find
+     * it.
+     */
+    public com.pvzce.server.entity.PlantEntity biteTargetAt(int column, int row) {
+        List<com.pvzce.server.entity.PlantEntity> plants = plantsBottomFirst(column, row);
+        for (int i = plants.size() - 1; i >= 0; i--) {
+            com.pvzce.server.entity.PlantEntity plant = plants.get(i);
+            if (!plant.occupiesCell()) {
+                continue;
+            }
+            if (com.pvzce.common.core.PlantPlacement.is(plant.def(), PvzceTags.WALK_OVER)) {
+                continue;
+            }
+            return plant;
+        }
+        return null;
+    }
+
+    /**
      * Whether {@code def} may be planted at a cell.
      *
      * <p>The rules themselves live in {@link PlantPlacement}: this method only
@@ -916,6 +940,30 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public List<com.pvzce.server.entity.ProjectileEntity> projectilesInCell(int column, int row) {
+        List<com.pvzce.server.entity.ProjectileEntity> found = new ArrayList<>();
+        for (PvzceEntity entity : entities) {
+            if (entity instanceof com.pvzce.server.entity.ProjectileEntity shot
+                    && !shot.isRemoved()
+                    && shot.gridX() == column && shot.gridY() == row) {
+                found.add(shot);
+            }
+        }
+        return found;
+    }
+
+    @Override
+    public List<ZombieEntity> enemiesOf(Team team) {
+        List<ZombieEntity> found = new ArrayList<>();
+        for (PvzceEntity entity : entities) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                    && isEnemyOf(zombie.team(), team)) {
+                found.add(zombie);
+            }
+        }
+        return found;
+    }
+
     public List<ZombieEntity> enemiesInRow(int row, Team team) {
         return entities.stream()
                 .filter(e -> e instanceof ZombieEntity z && z.isAlive() && z.gridY() == row
@@ -1495,6 +1543,34 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * A lamp: this circle of the fog is clear for as long as the plant stands.
+     *
+     * <p>Keyed by the plant's entity id, so a lamp that is eaten takes back its own light and no
+     * other's - the alternative, a list the caller removes from by value, breaks the moment two
+     * lamps stand at the same place.
+     */
+    public void addFogReveal(int entityId, float x, float y, float radius, float strength) {
+        fogReveals.put(entityId, new FogReveal(entityId, x, y, Math.max(0F, radius),
+                Math.max(0F, Math.min(1F, strength))));
+    }
+
+    /** Takes a lamp's light back; a no-op for an id that had none. */
+    public void removeFogReveal(int entityId) {
+        fogReveals.remove(entityId);
+    }
+
+    /** Every lamp currently standing, for the folder that decides how dark it is where. */
+    public java.util.Collection<FogReveal> fogReveals() {
+        return java.util.List.copyOf(fogReveals.values());
+    }
+
+    /** One lamp's circle. */
+    public record FogReveal(int entityId, float x, float y, float radius, float strength) {
+    }
+
+    private final Map<Integer, FogReveal> fogReveals = new java.util.LinkedHashMap<>();
+
+    /**
      * Installs a fog the level did not declare, or clears one with {@code null}.
      *
      * <p>For mutations. It is an override rather than a rewrite of the definition because the
@@ -1683,6 +1759,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         awaitSpawnPacket.clear();
         for (PvzceEntity entity : pendingRemove) {
             entities.remove(entity);
+            // The one place a plant stops existing, and therefore the one place its capabilities
+            // can be told. `PlantCapability.onRemoved` was declared with no caller for as long as
+            // it existed - a hook nothing dispatches is a hook that silently does nothing, and the
+            // plantern's lamp was the first thing that needed it.
+            if (entity instanceof PlantEntity plant) {
+                for (PlantEntity.Instance instance : plant.capabilityInstances()) {
+                    instance.capability().onRemoved(plant, this);
+                }
+            }
             bridge.send(new EntityDespawnS2C(entity.id()));
         }
         pendingRemove.clear();

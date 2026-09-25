@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:torchwood",
+  "kind": "plant",
+  "content": "pvzce:torchwood",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 175
+    },
+    "cooldown": 450
+  },
+  "icon": "pvzce:textures/gui/cards/torchwood"
+}

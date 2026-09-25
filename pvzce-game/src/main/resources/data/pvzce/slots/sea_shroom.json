@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:sea_shroom",
+  "kind": "plant",
+  "content": "pvzce:sea_shroom",
+  "cost": {
+    "resources": {},
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/sea_shroom"
+}

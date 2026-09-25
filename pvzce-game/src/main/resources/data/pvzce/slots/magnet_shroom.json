@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:magnet_shroom",
+  "kind": "plant",
+  "content": "pvzce:magnet_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/magnet_shroom"
+}

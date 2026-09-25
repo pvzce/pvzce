@@ -63,11 +63,10 @@ public final class FogClientMechanic implements ClientMechanic {
 
     @Override
     public void applySync(ClientLevel level, PacketByteBuf payload) {
-        // Straight into the level's own state slot, which is also where `fogOf` reads it from: the
-        // overlay is created once per level and holds the span it was made with, so this is what
-        // the next frame's overlay sees.
-        level.setMechanicState(PvzceIds.MECHANIC_FOG,
-                FogMechanic.Wire.decode(payload).data());
+        // Straight into the level's own state slot, which is also where the accessors below read
+        // it from: the overlay is created once per level and holds what it was made with, so this
+        // is what the next frame's overlay sees.
+        level.setMechanicState(PvzceIds.MECHANIC_FOG, FogMechanic.Wire.decode(payload));
     }
 
     @Override
@@ -89,11 +88,21 @@ public final class FogClientMechanic implements ClientMechanic {
      * level starting and its first mechanic sync.
      */
     public static FogData fogOf(ClientLevel level) {
-        FogData synced = level.mechanicStateOrNull(PvzceIds.MECHANIC_FOG, FogData.class);
+        FogMechanic.Wire synced = wire(level);
         if (synced != null) {
-            return synced;
+            return synced.data();
         }
         return level.mechanicData(PvzceIds.MECHANIC_FOG, FogData.class);
+    }
+
+    /** The lamps the server last reported, or an empty list. */
+    public static java.util.List<FogMechanic.Reveal> revealsOf(ClientLevel level) {
+        FogMechanic.Wire synced = wire(level);
+        return synced == null ? java.util.List.of() : synced.reveals();
+    }
+
+    private static FogMechanic.Wire wire(ClientLevel level) {
+        return level.mechanicStateOrNull(PvzceIds.MECHANIC_FOG, FogMechanic.Wire.class);
     }
 
     /**
@@ -104,10 +113,29 @@ public final class FogClientMechanic implements ClientMechanic {
      * is a zombie the player will argue about. What walks in from the right does the opposite: it
      * appears at the line, fully drawn.
      */
-    public static boolean hides(ClientLevel level, float column) {
+    public static boolean hides(ClientLevel level, float x, float y) {
         FogData fog = fogOf(level);
-        return fog != null && fog.maxAlpha() > 0F && column > fog.hidingColumn();
+        if (fog == null || fog.maxAlpha() <= 0F) {
+            return false;
+        }
+        // The same fold the drawing uses, through the same method on `FogMechanic`: a lamp has to
+        // light the *view* and the *hiding test* together, or a zombie stands in a lit circle and
+        // is not drawn.
+        return FogMechanic.alphaAt(fog, revealsOf(level), x, y)
+                >= fog.maxAlpha() * HIDE_FRACTION;
     }
+
+    /**
+     * How dark a cell has to be before what is standing there is not drawn.
+     *
+     * <p>Expressed as a fraction of the fog's own ceiling, so a level that lightens its fog
+     * lightens what can be seen through it too, and a lamp's hole is judged by the same rule
+     * everywhere on the board. Three quarters, and not 1.0: a fully opaque pixel still shows a
+     * silhouette, and hiding exactly at "cannot see anything" would leave a band where a zombie is
+     * half-visible.
+     */
+    public static final float HIDE_FRACTION = FogData.HIDE_FRACTION;
+
 
     /** The darkening itself; one per level instance, holding the span it was made from. */
     private record Fog(FogData data) implements WorldOverlay {
@@ -119,6 +147,17 @@ public final class FogClientMechanic implements ClientMechanic {
             float bottom = -VERTICAL_MARGIN_CELLS;
             float top = height + VERTICAL_MARGIN_CELLS;
             float span = top - bottom;
+
+            java.util.List<FogMechanic.Reveal> lamps = revealsOf(client.level());
+            if (!lamps.isEmpty()) {
+                // A lamp has to take a *hole* out of the fog, and a hole is not expressible as a
+                // shorter gradient. So the fog is drawn as a grid of small quads whose alpha is
+                // sampled where each one is - the only shape this renderer can build a circle out
+                // of. Only while a lamp is actually standing: the ordinary case keeps the smooth
+                // texture, because banding is the price and most boards should not pay it.
+                renderGrid(client, lamps, width, height);
+                return;
+            }
 
             float darkFrom = Math.min(data.endColumn(), width + RIGHT_MARGIN_CELLS);
             float rampFrom = Math.min(data.startColumn(), darkFrom);
@@ -135,6 +174,34 @@ public final class FogClientMechanic implements ClientMechanic {
                 // until it reaches the boundary rather than being drawn on bare backdrop.
                 client.drawSolid(darkFrom, bottom, width + RIGHT_MARGIN_CELLS - darkFrom, span, Z,
                         0F, 0F, 0F, alpha);
+            }
+        }
+
+        /**
+         * The fog as a grid, for when a lamp is standing in it.
+         *
+         * <p>One eighth of a cell across and half a cell down. The horizontal step is the fine one
+         * because the main ramp runs that way and its stepping is what the eye would catch; the
+         * vertical step only shows around a lamp, where a slightly stepped glow reads as a glow.
+         * Cells the fog does not reach at all are skipped, so an ordinary morning board with one
+         * lamp on it draws a few dozen quads rather than the whole grid.
+         */
+        private void renderGrid(PvzceClient client, java.util.List<FogMechanic.Reveal> lamps,
+                                int width, int height) {
+            float stepX = 1F / 8F;
+            float stepY = 0.5F;
+            float right = width + RIGHT_MARGIN_CELLS;
+            for (float x = 0F; x < right; x += stepX) {
+                float centreX = x + stepX / 2F;
+                for (float y = -VERTICAL_MARGIN_CELLS; y < height + VERTICAL_MARGIN_CELLS;
+                        y += stepY) {
+                    float centreY = y + stepY / 2F;
+                    float alpha = FogMechanic.alphaAt(data, lamps, centreX, centreY);
+                    if (alpha <= 0.004F) {
+                        continue;
+                    }
+                    client.drawSolid(x, y, stepX, stepY, Z, 0F, 0F, 0F, alpha);
+                }
             }
         }
     }

@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:blover",
+  "kind": "plant",
+  "content": "pvzce:blover",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 1800
+  },
+  "icon": "pvzce:textures/gui/cards/blover"
+}

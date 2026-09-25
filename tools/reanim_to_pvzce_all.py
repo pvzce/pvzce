@@ -438,6 +438,121 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=PLANT_BOX,
         animations={"idle": {"mask": "anim_idle", "loop": True}},
     ),
+    # ------------------------------------------------------------------
+    # World 3 and 4, second half
+    #
+    # Nine plants, added in one go. Each is its own reanim with its own masks; the notes below
+    # are only about the ones whose conversion is not the plain "idle + attack" shape.
+    # ------------------------------------------------------------------
+    # The spikeweed: `Caltrop.reanim` is the plant the original names Spikeweed, and the file
+    # that draws it. It has an `anim_attack` mask - the spikes jab - which the spike capability
+    # asks for on every damage tick, so the plant visibly stabs what is standing on it.
+    EntityConfig(
+        output="spikeweed",
+        group="plant/special",
+        reanim="Caltrop.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "attack": {"mask": "anim_attack", "loop": False, "on_end": "idle",
+                       "transition": 0.05},
+        },
+    ),
+    # The torchwood: a stump with a flame, and nothing else. Its whole behaviour is what it
+    # does to a pea that flies through it, which the plant itself does not animate.
+    EntityConfig(
+        output="torchwood",
+        group="plant/special",
+        reanim="Torchwood.reanim",
+        target_box=PLANT_BOX,
+        animations={"idle": {"mask": "anim_idle", "loop": True}},
+    ),
+    # The tall-nut: a wall-nut that is tall. Its `anim_blink_twice` and `anim_blink_thrice`
+    # masks are the two damage poses the original swaps in, and they are driven by the same
+    # `damage` state family the wall-nut's own two are - so they are exported as `idle` only
+    # and the definition borrows the wall-nut's damage-state handling by staying a plain wall.
+    EntityConfig(
+        output="tall_nut",
+        group="plant/defense",
+        reanim="Tallnut.reanim",
+        target_box=PLANT_BOX,
+        animations={"idle": {"mask": "anim_idle", "loop": True}},
+    ),
+    # The sea-shroom: a mushroom that lives in the water. `anim_idle_aquarium` is the
+    # Zen Garden's tank variant and `anim_waterline` is the foam at the water line, which the
+    # *water* idle needs - so the ordinary idle is the mask that draws both.
+    EntityConfig(
+        output="sea_shroom",
+        group="plant/attacker",
+        reanim="SeaShroom.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "sleep": {"mask": "anim_sleep", "loop": True},
+            "shoot": {"mask": "anim_shooting", "loop": False, "on_end": "idle",
+                      "transition": 0.1, "rate": SHOOT_ANIMATION_RATE},
+        },
+    ),
+    # The plantern: a lamp on a stalk. `anim_face` is the lit face and `anim_idle` is the
+    # sway, so the ordinary pair is all there is.
+    EntityConfig(
+        output="plantern",
+        group="plant/special",
+        reanim="Plantern.reanim",
+        target_box=PLANT_BOX,
+        animations={"idle": {"mask": "anim_idle", "loop": True}},
+    ),
+    # The blover: `anim_blow` is the gust, and it is a one-shot that ends back on the idle
+    # loop. `anim_loop` is the same fan turning while it waits, which is the idle.
+    EntityConfig(
+        output="blover",
+        group="plant/special",
+        reanim="Blover.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_loop", "loop": True},
+            "shoot": {"mask": "anim_blow", "loop": False, "on_end": "idle",
+                      "transition": 0.05},
+        },
+    ),
+    # The starfruit: five-pointed, and its `anim_shoot` is one burst. Five shots leave on one
+    # tick, so one clip is the whole gesture.
+    EntityConfig(
+        output="starfruit",
+        group="plant/attacker",
+        reanim="Starfruit.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "shoot": {"mask": "anim_shoot", "loop": False, "on_end": "idle",
+                      "transition": 0.1, "rate": SHOOT_ANIMATION_RATE},
+        },
+    ),
+    # The pumpkin: a shell. One mask, one clip - what it *does* is stand around a plant and
+    # take the bites meant for it, and the art has no gesture for that.
+    EntityConfig(
+        output="pumpkin",
+        group="plant/defense",
+        reanim="Pumpkin.reanim",
+        target_box=PLANT_BOX,
+        animations={"idle": {"mask": "anim_idle", "loop": True}},
+    ),
+    # The magnet-shroom: `anim_nonactive_idle` is the mushroom with nothing to pull (the
+    # idle the player sees almost all the time - there is rarely metal on the lawn), and
+    # `anim_shooting` is the pull itself. The `anim_eyes` family is the Zen Garden's
+    # expression overlays and is deliberately not exported: nothing asks for it.
+    EntityConfig(
+        output="magnet_shroom",
+        group="plant/special",
+        reanim="Magnetshroom.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_nonactive_idle", "loop": True},
+            "shoot": {"mask": "anim_shooting", "loop": False, "on_end": "idle",
+                      "transition": 0.1},
+        },
+    ),
+
     EntityConfig(
         output="potato_mine",
         group="plant/special",

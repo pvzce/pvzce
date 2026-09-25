@@ -1,0 +1,32 @@
+{
+  "id": "pvzce:sea_shroom",
+  "cost": {
+    "resources": {},
+    "cooldown": 1800
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "type": "pvzce:nocturnal",
+      "sleep_in_daylight": true
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/sea_shroom",
+  "render_scale": 0.85,
+  "order": 49
+}

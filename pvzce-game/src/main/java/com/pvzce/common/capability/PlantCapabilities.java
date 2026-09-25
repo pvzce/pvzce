@@ -16,7 +16,13 @@ import com.pvzce.common.capability.plant.MeleeCapability;
 import com.pvzce.common.capability.plant.NocturnalCapability;
 import com.pvzce.common.capability.plant.ProducerCapability;
 import com.pvzce.common.capability.plant.ShooterCapability;
+import com.pvzce.common.capability.plant.BlowAwayCapability;
+import com.pvzce.common.capability.plant.MagnetCapability;
+import com.pvzce.common.capability.plant.RevealCapability;
+import com.pvzce.common.capability.plant.ShellCapability;
+import com.pvzce.common.capability.plant.SpikeCapability;
 import com.pvzce.common.capability.plant.SquashCapability;
+import com.pvzce.common.capability.plant.TorchwoodCapability;
 import com.pvzce.common.capability.plant.ThrowerCapability;
 import com.pvzce.common.capability.plant.WakeBelowCapability;
 import com.mojang.serialization.Codec;
@@ -45,6 +51,24 @@ public final class PlantCapabilities {
      */
     public static final CapabilityType<SquashCapability> SQUASH =
             type("squash", SquashCapability.CODEC);
+    /** Stands on the ground and stabs whatever walks over it (the spikeweed). */
+    public static final CapabilityType<SpikeCapability> SPIKE =
+            type("spike", SpikeCapability.CODEC);
+    /** Sets alight the shots that fly through it (the torchwood). */
+    public static final CapabilityType<TorchwoodCapability> TORCHWOOD =
+            type("torchwood", TorchwoodCapability.CODEC);
+    /** A shell around whatever is in the same cell (the pumpkin). */
+    public static final CapabilityType<ShellCapability> SHELL =
+            type("shell", ShellCapability.CODEC);
+    /** Lights up the fog around itself (the plantern). */
+    public static final CapabilityType<RevealCapability> REVEAL =
+            type("reveal", RevealCapability.CODEC);
+    /** Blows everything in the air off the lawn, once (the blover). */
+    public static final CapabilityType<BlowAwayCapability> BLOW_AWAY =
+            type("blow_away", BlowAwayCapability.CODEC);
+    /** Pulls the armour off a nearby zombie (the magnet-shroom). */
+    public static final CapabilityType<MagnetCapability> MAGNET =
+            type("magnet", MagnetCapability.CODEC);
     public static final CapabilityType<WakeBelowCapability> WAKE_BELOW = type("wake_below", WakeBelowCapability.CODEC);
     /**
      * Eats the gravestone it was planted on.
@@ -109,6 +133,12 @@ public final class PlantCapabilities {
         register(EXPLOSIVE, "explosive");
         register(MELEE, "melee");
         register(SQUASH, "squash");
+        register(SPIKE, "spike");
+        register(TORCHWOOD, "torchwood");
+        register(SHELL, "shell");
+        register(REVEAL, "reveal");
+        register(BLOW_AWAY, "blow_away");
+        register(MAGNET, "magnet");
         register(WAKE_BELOW, "wake_below");
         register(GRAVE_BUSTER, "grave_buster");
         register(CHARM, "charm");

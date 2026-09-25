@@ -124,6 +124,29 @@ public final class PvzceTags {
      */
     public static final TagKey<PlantDef> GRAVE_ONLY =
             plant("grave_only");
+    /**
+     * Plants a zombie walks over instead of stopping to eat (the spikeweed).
+     *
+     * <p>The only plant tag that changes what a zombie <em>does</em> rather than where a plant may
+     * go, and it exists because the alternative was worse: {@code LevelServer.plantAt} is "the
+     * topmost plant in a cell", and a spikeweed registered there would be eaten like a wall-nut by
+     * the first zombie that stepped on it - which is the opposite of what a spikeweed is.
+     *
+     * <p>Read by {@code LevelServer.biteTargetAt}, which the zombie's own walk-or-eat step asks.
+     * Tools keep using {@code plantAt}, so the shovel and the watering can still find a spikeweed
+     * in the cell - it is a plant, it is just not food.
+     */
+    public static final TagKey<PlantDef> WALK_OVER =
+            plant("walk_over");
+    /**
+     * Plants a pole vaulter cannot clear (the tall-nut).
+     *
+     * <p>The original's whole reason the tall-nut exists. Like {@code #c:walk_over} this is a tag
+     * rather than a capability because "can this be vaulted" is a property of the plant, and the
+     * vaulting zombie is the one that asks it.
+     */
+    public static final TagKey<PlantDef> TALL =
+            plant("tall");
 
     /**
      * Every tag the built-in placement rules read. A pack that drops one of

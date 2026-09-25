@@ -55,7 +55,25 @@ public interface LevelAccess {
      */
     List<ZombieEntity> enemiesInRow(int row, Team team);
 
+    /**
+     * Every zombie on the board that belongs to somebody else.
+     *
+     * <p>For the things that are not aiming at a lane: the blover's gust crosses the whole lawn,
+     * and "which of these are mine" is the same team question {@link #enemiesInRow} answers. A
+     * caller that wants every zombie regardless of side keeps using {@code entities()}.
+     */
+    List<ZombieEntity> enemiesOf(Team team);
+
     List<PlantEntity> plantsAt(int column, int row);
+
+    /**
+     * The shots flying through one cell, as a copy.
+     *
+     * <p>For the one plant that acts on a shot already in the air rather than on a zombie: a
+     * torchwood sets alight whatever crosses it. Everything else in the game either fires,
+     * targets or is hit by a projectile; this is the only "touches one in flight" question.
+     */
+    List<com.pvzce.server.entity.ProjectileEntity> projectilesInCell(int column, int row);
 
     /** The topmost plant in a cell (what zombies bite and the shovel removes first). */
     PlantEntity plantAt(int column, int row);

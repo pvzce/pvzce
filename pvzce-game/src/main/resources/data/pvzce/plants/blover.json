@@ -1,0 +1,20 @@
+{
+  "id": "pvzce:blover",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 1800
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:blow_away",
+      "fuse_ticks": 60
+    }
+  ],
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/blover",
+  "render_scale": 0.85,
+  "order": 51
+}

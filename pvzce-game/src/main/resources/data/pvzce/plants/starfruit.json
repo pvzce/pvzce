@@ -1,0 +1,36 @@
+{
+  "id": "pvzce:starfruit",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 1800
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1
+        },
+        {
+          "projectile": "pvzce:pea",
+          "damage": 20,
+          "count": 1,
+          "backward": true
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/starfruit",
+  "render_scale": 0.85,
+  "order": 52
+}

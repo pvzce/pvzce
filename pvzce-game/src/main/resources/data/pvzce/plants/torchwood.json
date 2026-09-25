@@ -1,0 +1,20 @@
+{
+  "id": "pvzce:torchwood",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 175
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:torchwood",
+      "multiplier": 2
+    }
+  ],
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/torchwood",
+  "render_scale": 0.85,
+  "order": 47
+}

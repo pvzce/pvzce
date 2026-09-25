@@ -1,0 +1,24 @@
+{
+  "id": "pvzce:pumpkin",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 1800
+  },
+  "health": 4000,
+  "placement": {
+    "layer": 2,
+    "count": 1,
+    "group": "shell"
+  },
+  "capabilities": [
+    {
+      "type": "pvzce:shell"
+    }
+  ],
+  "animation_dir": "plant/defense",
+  "texture": "pvzce:textures/entities/plant/defense/pumpkin",
+  "render_scale": 0.85,
+  "order": 53
+}

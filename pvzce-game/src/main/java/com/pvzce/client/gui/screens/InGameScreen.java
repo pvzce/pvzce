@@ -1689,7 +1689,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             if (isRising(entity)) {
                 continue;
             }
-            if (com.pvzce.client.mechanic.FogClientMechanic.hides(client.level(), entity.cellX())) {
+            if (com.pvzce.client.mechanic.FogClientMechanic.hides(
+                    client.level(), entity.cellX(), entity.cellY())) {
                 // Inside the part of the fog that hides what is in it. Not drawn at all rather
                 // than drawn dimmed: "a zombie is only drawn once it walks into view" is the
                 // whole behaviour, and a half-visible zombie is one the player will argue about.

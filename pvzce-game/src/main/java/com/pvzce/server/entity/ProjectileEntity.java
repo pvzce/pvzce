@@ -33,7 +33,17 @@ public class ProjectileEntity extends PvzceEntity {
 
     private final ProjectileDef def;
     private final List<Instance> capabilities = new ArrayList<>();
-    private final int damage;
+    /**
+     * What one hit of this shot is worth.
+     *
+     * <p>Not final, because a torchwood upgrades a pea as it flies through it - the one thing in
+     * the game that changes a shot already in the air. The upgrade is guarded by {@link #torched}
+     * so a row of torchwoods cannot stack: the original burns a pea once, whatever it flies
+     * through on the way.
+     */
+    private int damage;
+    /** True once a torchwood has had its way with this shot. */
+    private boolean torched;
     /**
      * Which way this shot travels: {@code +1} down the lawn, {@code -1} back toward the
      * house. A split pea fires both at once, so the direction belongs to the shot
@@ -104,8 +114,43 @@ public class ProjectileEntity extends PvzceEntity {
         return def;
     }
 
+    /** What one hit of this shot is worth, after any torchwood that lit it. */
     public int damage() {
         return damage;
+    }
+
+    /** True once a torchwood has already upgraded this shot. */
+    public boolean torched() {
+        return torched;
+    }
+
+    /** The damage type a hit from this shot uses when a torchwood lit it, or {@code null}. */
+    public com.pvzce.api.util.Identifier torchDamageType() {
+        return torchDamageType;
+    }
+
+    private com.pvzce.api.util.Identifier torchDamageType;
+
+    /**
+     * Sets a flying shot alight: more damage, a burning type, and once only.
+     *
+     * <p>The whole of the torchwood's behaviour on the receiving end. A method on the projectile
+     * rather than something the plant does to the projectile's fields, because the one rule that
+     * matters - "this happens at most once" - is a fact about the shot's history rather than about
+     * any one plant, and a row of torchwoods must not stack.
+     *
+     * @return true when this call is what lit it, false when it was already burning
+     */
+    public boolean torch(int multiplier, com.pvzce.api.util.Identifier burningType) {
+        if (torched) {
+            return false;
+        }
+        torched = true;
+        this.damage = Math.max(1, damage * Math.max(1, multiplier));
+        if (burningType != null) {
+            this.torchDamageType = burningType;
+        }
+        return true;
     }
 
     /** {@code +1} down the lawn, {@code -1} back toward the house. */
@@ -186,7 +231,7 @@ public class ProjectileEntity extends PvzceEntity {
             instance.capability.onHit(this, hit, level);
         }
         if (!replacesDirectHit && hit != null) {
-            hit.damage(def, damage, level);
+            hit.damage(def, damage, level, torchDamageType);
             hitIds.add(hit.id());
         }
         for (Instance instance : capabilities) {

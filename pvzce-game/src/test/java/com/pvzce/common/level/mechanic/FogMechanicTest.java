@@ -181,7 +181,7 @@ class FogMechanicTest {
     void theSpanRoundTripsThroughTheSyncPacket() {
         FogData fog = new FogData(3.5F, 8.25F, 0.87F);
         PacketByteBuf buf = new PacketByteBuf(io.netty.buffer.Unpooled.buffer());
-        FogMechanic.Wire.of(fog).encode(buf);
+        FogMechanic.Wire.of(fog, java.util.List.of()).encode(buf);
         FogMechanic.Wire decoded = FogMechanic.Wire.decode(buf);
         assertEquals(fog.startColumn(), decoded.startColumn(), 0.0001F);
         assertEquals(fog.endColumn(), decoded.endColumn(), 0.0001F);
