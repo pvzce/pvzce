@@ -37,6 +37,16 @@ public final class Mutations {
         register(PvzceIds.MUTATION_SUN_SHOWER, new SunShowerMutation());
 
         register(PvzceIds.MUTATION_SLOT_LOCK, new SlotLockMutation());
+        // The board: the weather, the terrain and what walks on it.
+        register(PvzceIds.MUTATION_FOG_ROLL_IN, new FogRollInMutation());
+        register(PvzceIds.MUTATION_FLOOD_LAWN, new FloodLawnMutation());
+        register(PvzceIds.MUTATION_METEOR_SHOWER, new MeteorShowerMutation());
+        register(PvzceIds.MUTATION_THORN_LAWN, new ThornLawnMutation());
+        register(PvzceIds.MUTATION_ICE_GROUND, new IceGroundMutation());
+        // And the raids: one class, five shapes.
+        for (Mutation raid : RaidMutation.all()) {
+            register(raid.id(), raid);
+        }
         register(PvzceIds.MUTATION_SLOT_ROULETTE, new SlotRouletteMutation());
 
         register(PvzceIds.MUTATION_SLOT_REPLACE, new SlotReplaceMutation());

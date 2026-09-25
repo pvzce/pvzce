@@ -368,6 +368,8 @@ public final class BuiltInRegistries {
                 new GameRuleType.FloatRule(1F, 0.1F, 20F));
         registerRule(PvzceIds.RULE_PLANT_HEALTH_MULTIPLIER,
                 new GameRuleType.FloatRule(1F, 0.1F, 20F));
+        registerRule(PvzceIds.RULE_SLOW_DURATION_MULTIPLIER,
+                new GameRuleType.FloatRule(1F, 0.1F, 10F));
         // 1 = the wave table as written. Bigger is faster: the gap between waves and the gap
         // between the zombies inside one are both divided by it.
         registerRule(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER,

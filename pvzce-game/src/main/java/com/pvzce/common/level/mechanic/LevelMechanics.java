@@ -127,6 +127,23 @@ public final class LevelMechanics {
     }
 
     /**
+     * True when this <em>list</em> of mechanics holds that one.
+     *
+     * <p>The live-list form of {@link #has(LevelDef, Identifier)}: a level's effective list is the
+     * definition's plus whatever a mutation installed at runtime ({@code LevelServer.installMechanic}),
+     * and "does this level have fog" has to be answerable from the list the level is actually
+     * running.
+     */
+    public static boolean has(List<TypedMechanic> mechanics, Identifier mechanicId) {
+        for (TypedMechanic typed : mechanics) {
+            if (typed.is(mechanicId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The data of a mechanic this level runs with, when it is of the expected type.
      *
      * <p>The typed half of {@code def.mechanics()}: callers name the mechanic they care about

@@ -25,8 +25,6 @@ import java.util.List;
  */
 public class PlantEntity extends PvzceEntity {
     private final PlantDef def;
-    /** What this plant's health was when it was planted; see the constructor that takes it. */
-    private int fullHealth;
     private final List<Instance> capabilities = new ArrayList<>();
 
     /**
@@ -110,7 +108,6 @@ public class PlantEntity extends PvzceEntity {
      */
     public PlantEntity(PlantDef def, Team team, int gridX, int gridY, int fullHealth) {
         super(def.id(), team, gridX + 0.5F, gridY + 0.5F, Math.max(1, fullHealth));
-        this.fullHealth = Math.max(1, fullHealth);
         this.def = def;
         for (TypedCapability<PlantCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
@@ -123,7 +120,7 @@ public class PlantEntity extends PvzceEntity {
 
     /** How much health this plant had when it was planted; what {@link #water} heals it to. */
     public int fullHealth() {
-        return fullHealth;
+        return maxHealth();
     }
 
     public int age() {
@@ -154,7 +151,7 @@ public class PlantEntity extends PvzceEntity {
      */
     public Watering water(int ticks, LevelAccess level) {
         int before = health();
-        setHealth(fullHealth);
+        setHealth(maxHealth());
         wateredTicks = Math.max(wateredTicks, Math.max(1, ticks));
         boolean used = false;
         for (Instance instance : capabilities) {
@@ -512,10 +509,6 @@ public class PlantEntity extends PvzceEntity {
     @Override
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
-        // The plant's own maximum, not its definition's: a fragile plant saved and resumed has to
-        // come back with the maximum it was born with, or the next watering would repair it to a
-        // health it never had.
-        tag.putInt("full", fullHealth);
         tag.putInt("age", age);
         tag.putInt("watered", wateredTicks);
         CompoundTag saved = new CompoundTag();
@@ -538,23 +531,11 @@ public class PlantEntity extends PvzceEntity {
      */
     public void restoreStateWithoutPosition(CompoundTag tag) {
         super.restoreStateWithoutPosition(tag);
-        readFullHealth(tag);
         age = tag.getInt("age");
         // A save written before watering existed has no key, and getInt answers 0 - the plant
         // reads back dry, which is what it was.
         wateredTicks = Math.max(0, tag.getInt("watered"));
         restoreCapabilities(tag);
-    }
-
-    /**
-     * Reads the maximum this plant was planted with.
-     *
-     * <p>A save written before the field existed has none, and then the definition's own health is
-     * the right answer - which is what such a plant was planted with, because no mutation could
-     * scale it then.
-     */
-    private void readFullHealth(CompoundTag tag) {
-        fullHealth = Math.max(1, tag.contains("full") ? tag.getInt("full") : def.health());
     }
 
     private void restoreCapabilities(CompoundTag tag) {
@@ -568,7 +549,6 @@ public class PlantEntity extends PvzceEntity {
     @Override
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
-        readFullHealth(tag);
         age = tag.getInt("age");
         wateredTicks = Math.max(0, tag.getInt("watered"));
         restoreCapabilities(tag);

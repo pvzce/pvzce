@@ -81,12 +81,35 @@ public final class FogMechanic implements LevelMechanic<FogData> {
         if (level.tickCount() % CHECK_INTERVAL_TICKS != 0) {
             return;
         }
-        // Asked of the level rather than read from `data`: the buff that shortens the fog is not
-        // this mechanic's to know about, a mutation may have overridden the span outright, and the
-        // lamps standing on the lawn are the plants' business rather than the level file's.
+        publish(level);
+    }
+
+    /**
+     * Sends the fog's current picture if it changed.
+     *
+     * <p>Asked of the level rather than read from the mechanic's own block: the buff that shortens
+     * the fog is not this mechanic's to know about, a mutation may have overridden the span
+     * outright, and the lamps standing on the lawn are the plants' business rather than the level
+     * file's. Public because the fog-roll-in mutation installs this mechanic on a lawn that never
+     * declared fog and wants the new span out on the same tick rather than up to ten ticks later.
+     */
+    public static void publish(LevelServer level) {
+        publish(level, false);
+    }
+
+    /**
+     * The same, optionally sending even when the level's own slot already holds this span.
+     *
+     * <p>{@code onLevelCreated} fills that slot without sending anything - a level that declared fog
+     * gets it in the first snapshot, so there is nobody to tell yet - and the fog-roll-in mutation
+     * installs the mechanic <em>mid-run</em>, where the client is very much listening. Without the
+     * forced send the slot and the wire agree, the comparison below says "nothing changed", and the
+     * lawn stays bright on screen while the server knows it is dark.
+     */
+    public static void publish(LevelServer level, boolean force) {
         Wire next = Wire.of(level.fogData(), level.fogReveals());
         Wire current = level.mechanicState(PvzceIds.MECHANIC_FOG, () -> next);
-        if (!next.equals(current)) {
+        if (force || !next.equals(current)) {
             level.setMechanicState(PvzceIds.MECHANIC_FOG, next);
             level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_FOG, Wire.CODEC, next));
         }

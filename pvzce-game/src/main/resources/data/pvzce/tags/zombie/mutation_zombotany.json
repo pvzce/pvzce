@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "pvzce:zombotany_pea_zombie",
+    "pvzce:zombotany_wallnut_zombie",
+    "pvzce:zombotany_gatling_zombie",
+    "pvzce:zombotany_jalapeno_zombie"
+  ]
+}

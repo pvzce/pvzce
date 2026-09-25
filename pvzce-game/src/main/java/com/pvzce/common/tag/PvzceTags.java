@@ -211,6 +211,18 @@ public final class PvzceTags {
             TagKey.create(PvzceRegistries.ZOMBIES,
                     Identifier.withDefaultNamespace("mutation_crisis"));
 
+    /**
+     * The plant-headed zombies the {@code zombotany} mutation sends.
+     *
+     * <p>A tag of its own rather than four names added to the crisis pool: a crisis rolls
+     * <em>one</em> subject and repeats it, while this is a raid that picks a different head each
+     * time. Folding them together would also let a plain "zombie crisis" roll a plant-headed
+     * zombie, which is another mutation's flavour entirely.
+     */
+    public static final TagKey<ZombieDef> ZOMBIE_MUTATION_ZOMBOTANY =
+            TagKey.create(PvzceRegistries.ZOMBIES,
+                    Identifier.withDefaultNamespace("mutation_zombotany"));
+
     /** Scene elements, for terrain tag queries. */
     public static final RegistryTagView<SceneElementDef> SCENE_ELEMENTS = view(PvzceRegistries.SCENE_ELEMENTS);
     /** Plants, for the placement rules and for content queries. */

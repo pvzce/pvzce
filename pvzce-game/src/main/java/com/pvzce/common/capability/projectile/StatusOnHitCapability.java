@@ -40,7 +40,9 @@ public final class StatusOnHitCapability implements ProjectileCapability {
             return;
         }
         for (StatusEffectDef effect : effects) {
-            zombie.applyStatus(effect.status(), effect.ticks(), effect.magnitude());
+            zombie.applyStatus(effect.status(),
+                    com.pvzce.common.level.StatusDurations.scale(level, effect.ticks()),
+                    effect.magnitude());
         }
     }
 }

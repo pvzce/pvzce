@@ -87,6 +87,16 @@ public final class PvzceIds {
      */
     public static final Identifier VASE_FULL = id("vase_full");
 
+    /**
+     * The water a mutation floods a lawn with, as opposed to the pool's own {@link #WATER}.
+     *
+     * <p>The same surface class - so every rule that reads terrain treats them alike - but with
+     * per-cell art instead of a liquid: the pool draws its surface in one pass on the stage's own
+     * basin frame, so a water cell outside that basin would be drawn inside it and a flooded lawn
+     * would look like grass. See {@code tools/gen_flood_water.py}.
+     */
+    public static final Identifier FLOOD_WATER = id("flood_water");
+
     public static final Identifier RULE_DAY_LENGTH = id("day_length");
     public static final Identifier RULE_NIGHT_LENGTH = id("night_length");
     /**
@@ -154,6 +164,14 @@ public final class PvzceIds {
      * rooted are what the player has.
      */
     public static final Identifier RULE_PLANT_HEALTH_MULTIPLIER = id("plant_health_multiplier");
+    /**
+     * How long a status (a chill, a freeze) lasts, as a multiple of the effect's own duration.
+     *
+     * <p>Read where the status is applied ({@code StatusDurations.scale}), so it covers the snow
+     * pea's hit and the ice-shroom's freeze alike: "the ground is icy, cold lasts twice as long" is
+     * one rule about this lawn rather than a property of either plant.
+     */
+    public static final Identifier RULE_SLOW_DURATION_MULTIPLIER = id("slow_duration_multiplier");
     /**
      * How much faster than written this level's zombies arrive, as a multiplier on the rate.
      *
@@ -504,6 +522,14 @@ public final class PvzceIds {
      * out of a tag instead of naming the one zombie it spawns.
      */
     public static final Identifier TAG_ZOMBIE_MUTATION_CRISIS = id("mutation_crisis");
+
+    /**
+     * The zombies a {@code zombotany} raid may pick from: {@code #pvzce:mutation_zombotany}.
+     *
+     * <p>A tag for the same reason the crisis pool is one: which plant-headed zombies exist is
+     * content, and a pack that ships a fifth should be able to say so without touching code.
+     */
+    public static final Identifier TAG_ZOMBIE_MUTATION_ZOMBOTANY = id("mutation_zombotany");
 
     /**
      * The plants and tools the mutation catalogue names by hand.

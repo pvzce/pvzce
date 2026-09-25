@@ -38,6 +38,7 @@ public abstract class Entity {
      * level sets its own size through {@link #setGridBounds(int, int)} so custom
      * (larger or smaller) levels are never clamped to the default 9x5 board.
      */
+    private int maxHealth;
     private int gridWidth = PvzceConstants.DEFAULT_GRID_WIDTH;
     private int gridHeight = PvzceConstants.DEFAULT_GRID_HEIGHT;
 
@@ -56,6 +57,7 @@ public abstract class Entity {
         this.cellX = cellX;
         this.cellY = cellY;
         this.health = health;
+        this.maxHealth = health;
     }
 
     /** Wire kind; one of the {@link EntityKind} constants. */
@@ -103,6 +105,24 @@ public abstract class Entity {
 
     protected void setHealth(int health) {
         this.health = health;
+    }
+
+    /**
+     * The health this entity was created with: its own maximum.
+     *
+     * <p>Not derivable from the definition, which is why it is kept: a zombie's health is its
+     * definition's scaled by the wave's growth and the level's own health rule, and a plant's is its
+     * definition's scaled by the rule that makes plants fragile. Both are read where the entity is
+     * created and are what "at full health" means for that one entity - what a watering can restores
+     * a plant to, and what a share-of-maximum effect (the thorn lawn) takes its share of.
+     */
+    public int maxHealth() {
+        return maxHealth;
+    }
+
+    /** Writes {@link #maxHealth()}; for a restore, which reads it back from a save. */
+    protected void setMaxHealth(int maxHealth) {
+        this.maxHealth = Math.max(1, maxHealth);
     }
 
     public String animation() {

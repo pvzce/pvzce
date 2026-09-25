@@ -197,7 +197,9 @@ public final class FreezeAllCapability implements PlantCapability {
                     zombie.applyStatus(ZombieStatus.IMMOBILIZED, freezeTicks, 1F);
                 }
                 if (!zombie.isRemoved() && chill != null && chill.ticks() > 0) {
-                    zombie.applyStatus(chill.status(), chill.ticks(), chill.magnitude());
+                    zombie.applyStatus(chill.status(),
+                            com.pvzce.common.level.StatusDurations.scale(level, chill.ticks()),
+                            chill.magnitude());
                 }
                 // The flash is drawn on the zombies, not on the mushroom: they are what the
                 // player is looking at, and a screen-wide effect anchored to one cell reads

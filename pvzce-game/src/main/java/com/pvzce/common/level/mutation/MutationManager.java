@@ -397,20 +397,21 @@ public final class MutationManager {
             if (!entry.isApplied() || !(entry.mutation() instanceof RuleMutation owner)) {
                 continue;
             }
-            Identifier rule = owner.rule();
-            float factor = entry.roll().multiplier();
-            if (!(factor > 0F)) {
-                continue;
+            for (Identifier rule : owner.rules()) {
+                float factor = owner.appliedFactor(rule, entry.roll(), entry.state());
+                if (!(factor > 0F)) {
+                    continue;
+                }
+                // The first entry of a rule starts from the live value; the next one starts from
+                // where the previous left off, which is also what gets written for that rule.
+                Float working = unwound.containsKey(rule) ? unwound.get(rule) : live.get(rule);
+                if (working == null) {
+                    continue;
+                }
+                float without = working / factor;
+                unwound.put(rule, without);
+                forSave.put(rule, without);
             }
-            // The first entry of a rule starts from the live value; the next one starts from
-            // where the previous left off, which is also what gets written for that rule.
-            Float working = unwound.containsKey(rule) ? unwound.get(rule) : live.get(rule);
-            if (working == null) {
-                continue;
-            }
-            float without = working / factor;
-            unwound.put(rule, without);
-            forSave.put(rule, without);
         }
         // The live values are what the caller puts back into memory; `unwound` holds the
         // intermediate values the loop walked through, so the map kept for that is separate.
@@ -445,6 +446,30 @@ public final class MutationManager {
     public interface RuleMutation {
         /** The rule this mutation scales. */
         Identifier rule();
+
+        /**
+         * Every rule this mutation scales, when it owns more than one.
+         *
+         * <p>A mutation whose effect is two rules at once ("the ground is icy: they walk faster
+         * <em>and</em> they stay frozen longer") has to have both divided back out of the save, or a
+         * resumed run compounds one of them for ever. The default is the single rule above, which is
+         * what every numeric mutation needs.
+         */
+        default java.util.List<Identifier> rules() {
+            return java.util.List.of(rule());
+        }
+
+        /**
+         * The factor this mutation really applied to one of its rules.
+         *
+         * <p>Almost always the roll - which is why that is the default - but a mutation whose two
+         * rules use two different factors has to say so, and it can only say it from the state it
+         * applied ({@code apply} returns it). Reading the roll instead left the second factor in the
+         * save file and multiplied it in again on every resume.
+         */
+        default float appliedFactor(Identifier rule, Mutation.Roll roll, Object state) {
+            return roll == null ? 1F : roll.multiplier();
+        }
     }
 
     /**

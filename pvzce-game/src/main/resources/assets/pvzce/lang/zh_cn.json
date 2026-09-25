@@ -663,5 +663,7 @@
   "mutation.pvzce.auto_release": "割草机自走",
   "mutation.pvzce.sun_drain": "阳光流失",
   "pvzce.zombie_health_multiplier": "僵尸血量倍率",
-  "pvzce.plant_health_multiplier": "植物血量倍率"
+  "pvzce.plant_health_multiplier": "植物血量倍率",
+  "pvzce.slow_duration_multiplier": "减速持续倍率",
+  "scene_element.pvzce.flood_water": "淹水"
 }

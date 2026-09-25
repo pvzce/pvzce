@@ -662,5 +662,7 @@
   "mutation.pvzce.auto_release": "Mower Release",
   "mutation.pvzce.sun_drain": "Sun Drain",
   "pvzce.zombie_health_multiplier": "Zombie health multiplier",
-  "pvzce.plant_health_multiplier": "Plant health multiplier"
+  "pvzce.plant_health_multiplier": "Plant health multiplier",
+  "pvzce.slow_duration_multiplier": "Chill duration multiplier",
+  "scene_element.pvzce.flood_water": "Flood water"
 }

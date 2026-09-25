@@ -35,7 +35,16 @@ public enum MutationEffects {
      * <p>Distinct from {@link #DARKNESS}, which is the haze drawn <em>on top</em> of whatever
      * backdrop is in force: a level that is already at night wants the haze without the swap.
      */
-    POOL_NIGHT(1 << 2);
+    POOL_NIGHT(1 << 2),
+    /**
+     * The board is under fog.
+     *
+     * <p>Not how the fog is drawn - the span and the lamps travel on the fog mechanic's own sync -
+     * but how the <em>client</em> learns that it has to look again: the world overlays are built
+     * once per level, and a mutation that rolls fog onto a lawn that had none would otherwise be a
+     * darkening nothing ever draws.
+     */
+    FOG(1 << 3);
 
     private final int mask;
 

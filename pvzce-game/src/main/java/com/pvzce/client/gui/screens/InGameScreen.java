@@ -2464,8 +2464,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (mutations == mutationRevision) {
             return;
         }
+        int before = mutationRevision == null ? 0 : mutationRevision.effects();
         mutationRevision = mutations;
         mutationHud.apply(mutations);
+        // A mutation may have changed what the board looks like in a way the client builds once per
+        // level - the fog it rolls in is a world overlay, and overlays are made when the level
+        // starts. Rebuilt rather than patched: the overlays are cheap to construct and each one
+        // reads the level's current state anyway.
+        if (mutations != null
+                && com.pvzce.common.level.mutation.MutationEffects.FOG
+                        .isSet(mutations.effects() ^ before)) {
+            overlays = null;
+        }
     }
 
     /** World-space overlays the level's mechanics asked for; built once per level. */

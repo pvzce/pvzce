@@ -274,6 +274,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** A fog a mutation installed, or {@code null} while the level's own answer stands. */
     private com.pvzce.api.content.FogData fogOverride;
     private ServerBridge bridge;
+    /**
+     * The last bridge this level was driven with, which is where an unprompted packet goes.
+     *
+     * <p>{@link #bridge} is the <em>ambient</em> one: it is set while a player action or a command
+     * is being handled and cleared afterwards, which is what makes "send this to whoever asked"
+     * safe. But a mutation also acts on its own clock - it floods rows, rolls fog in, spawns a raid -
+     * and those sends have nobody's action to ride on. They used to be dropped in silence, which is
+     * how a flooded lawn stayed green on screen while the server's own state said water.
+     *
+     * <p>Kept as "the last one seen" rather than as a stored connection so a level stays a plain
+     * simulation object: the tick loop hands its bridge in every tick, so the reference is refreshed
+     * continuously and a headless level (a test, the seed chooser's preview) simply has none.
+     */
+    private ServerBridge outbound;
 
     private int tickCount;
     private int nextMusicCueIndex;
@@ -461,7 +475,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         this.envVars = new LevelEnvVars(def.envVars());
 
-        this.mechanics = withPlayerMechanics(LevelMechanics.effective(def));
+        // Mutable on purpose: `installMechanic` lets a mutation add one mid-run (the fog it rolls
+        // in is the level's own `pvzce:fog`), and a `List.copyOf` here is what that used to trip on.
+        this.mechanics = new java.util.ArrayList<>(
+                withPlayerMechanics(LevelMechanics.effective(def)));
         Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
         // The level owns the bar; the card source fills it. A self-dealt level (a conveyor
         // belt) ignores the seed selection, which is why the selection is still passed in:
@@ -611,7 +628,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         for (int x = 0; x < def.width(); x++) {
             SceneElementDef element = scene.get(x, row);
-            if (element != null && PvzceIds.WATER.equals(element.id())) {
+            // The surface class, not the id: "is this row water" is a question about what the
+            // terrain *is*, and a mutation that floods a lawn with its own water element
+            // (`pvzce:flood_water`, which has per-cell art where the pool's has a liquid pass) is
+            // water for every rule that reads this - planting, spawning and swimming alike.
+            if (element != null && PvzceIds.SURFACE_WATER.equals(element.surfaceClass())) {
                 return true;
             }
         }
@@ -1543,12 +1564,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public void sendSceneCell(int x, int y) {
-        if (bridge == null) {
-            return;
-        }
         SceneElementDef element = sceneAt(x, y);
         if (element != null) {
-            bridge.send(SceneSyncS2C.of(x, y, element.id().toString()));
+            // Through `send`, not straight down the ambient bridge: a mutation rewriting the scene
+            // has no ambient bridge at all (see `outbound`).
+            send(SceneSyncS2C.of(x, y, element.id().toString()));
         }
     }
 
@@ -1579,8 +1599,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * already does.
      */
     public void send(PvzcePacket packet) {
-        if (bridge != null) {
-            bridge.send(packet);
+        ServerBridge target = bridge != null ? bridge : outbound;
+        if (target != null) {
+            target.send(packet);
         }
     }
 
@@ -1628,6 +1649,56 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @SuppressWarnings("unchecked")
     public <T> T mechanicState(Identifier mechanicId, java.util.function.Supplier<T> create) {
         return (T) mechanicState.computeIfAbsent(mechanicId, id -> create.get());
+    }
+
+    /**
+     * Installs a mechanic on a level that is already running.
+     *
+     * <p>For a mutation that brings a mechanic with it - the fog it rolls in is the level's own
+     * {@code pvzce:fog} mechanic, and installing it rather than re-implementing it is what keeps
+     * one answer to "where does the fog start" (the mechanic's own tick republishes the span as
+     * the retreat buff and the lamps change it). The mechanic runs its {@code onLevelCreated} hook
+     * immediately, so the client hears about the new state on the same tick.
+     *
+     * <p>Idempotent: a level that already declares the mechanic keeps the block it declared, and
+     * the mutation's override lives on {@link #setFogOverride} instead.
+     *
+     * @return true when the mechanic was added
+     */
+    public boolean installMechanic(com.pvzce.api.content.mechanic.TypedMechanic mechanic) {
+        if (mechanic == null) {
+            return false;
+        }
+        for (TypedMechanic existing : mechanics) {
+            if (existing.type().equals(mechanic.type())) {
+                return false;
+            }
+        }
+        mechanics.add(mechanic);
+        LevelMechanics.onLevelCreated(mechanic, this);
+        return true;
+    }
+
+    /**
+     * Takes a runtime-installed mechanic back off.
+     *
+     * <p>Only for a mechanic {@link #installMechanic} added - a level's own declaration is not a
+     * mutation's to remove. The caller is the mutation that installed it, which is why this takes
+     * the id rather than an index: the list order is the level's.
+     */
+    public boolean removeMechanic(Identifier mechanicId) {
+        for (int i = 0; i < mechanics.size(); i++) {
+            if (mechanics.get(i).type().equals(mechanicId)) {
+                mechanics.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when this level has that mechanic installed, declared or added at runtime. */
+    public boolean hasMechanic(Identifier mechanicId) {
+        return LevelMechanics.has(mechanics, mechanicId);
     }
 
     /** Writes a mechanic's own run state. The counterpart of {@link #mechanicState}. */
@@ -1837,6 +1908,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private <T> T withBridge(ServerBridge bridge, java.util.function.Supplier<T> action) {
         ServerBridge previous = this.bridge;
         this.bridge = bridge;
+        if (bridge != null) {
+            this.outbound = bridge;
+        }
         try {
             return action.get();
         } finally {
@@ -1888,6 +1962,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public void tick(ServerBridge bridge) {
+        if (bridge != null) {
+            // The tick is the one call that happens for the whole life of a run, so it is where the
+            // outbound bridge is refreshed: a mutation acting on its own clock sends through it
+            // (see `outbound`).
+            this.outbound = bridge;
+        }
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }

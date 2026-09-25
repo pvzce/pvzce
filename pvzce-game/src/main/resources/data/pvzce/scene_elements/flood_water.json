@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:flood_water",
+  "surface": "WATER",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/flood_water",
+    "underlay": "pvzce:grass",
+    "width": 1.0,
+    "height": 1.0
+  }
+}

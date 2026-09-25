@@ -51,12 +51,17 @@ class MutationCatalogTest {
                 PvzceIds.MUTATION_BUFF_SHIFT, PvzceIds.MUTATION_APOCALYPSE,
                 PvzceIds.MUTATION_ZOMBIE_BLAST, PvzceIds.MUTATION_PLANT_BLAST,
                 PvzceIds.MUTATION_MENDEL, PvzceIds.MUTATION_KELP_SPREAD,
-                // The second catalogue's first group: the quiet numbers and the card bar.
-                // The board, the raids and the player's own side are registered as their
-                // commits land, and this list grows with them.
+                // The second catalogue, as the commits land (the player's own side is next).
                 PvzceIds.MUTATION_ZOMBIE_HEALTH, PvzceIds.MUTATION_PLANT_FRAGILE,
                 PvzceIds.MUTATION_CARD_COOLDOWN, PvzceIds.MUTATION_SUN_SHOWER,
-                PvzceIds.MUTATION_SLOT_LOCK, PvzceIds.MUTATION_SLOT_ROULETTE);
+                PvzceIds.MUTATION_SLOT_LOCK, PvzceIds.MUTATION_SLOT_ROULETTE,
+                // Group C: the board, and the raids that arrive on it.
+                PvzceIds.MUTATION_FOG_ROLL_IN, PvzceIds.MUTATION_FLOOD_LAWN,
+                PvzceIds.MUTATION_METEOR_SHOWER, PvzceIds.MUTATION_THORN_LAWN,
+                PvzceIds.MUTATION_ICE_GROUND,
+                PvzceIds.MUTATION_ZOMBOTANY, PvzceIds.MUTATION_GARGANTUAR_RAID,
+                PvzceIds.MUTATION_IMP_AIRDROP, PvzceIds.MUTATION_BUNGEE_RAID,
+                PvzceIds.MUTATION_BALLOON_RAID);
         assertEquals(expected.size(), MutationRegistry.all().size(),
                 "the catalogue grew or shrank; update the list and the docs together");
         for (Identifier id : expected) {
