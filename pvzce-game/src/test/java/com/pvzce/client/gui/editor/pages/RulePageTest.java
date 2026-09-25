@@ -40,7 +40,9 @@ class RulePageTest {
     private static List<Identifier> numericRules() {
         List<Identifier> rules = new ArrayList<>();
         for (Identifier id : BuiltInRegistries.GAME_RULES.keySet()) {
-            if (!(BuiltInRegistries.GAME_RULES.get(id) instanceof GameRuleType.BooleanRule)) {
+            GameRuleType<?> type = BuiltInRegistries.GAME_RULES.get(id);
+            // Booleans are a switch and named rules are a list of words: neither has a range.
+            if (!(type instanceof GameRuleType.BooleanRule) && !type.named()) {
                 rules.add(id);
             }
         }

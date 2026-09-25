@@ -19,7 +19,7 @@
 | capabilities | Capability[] | `[]` | 见下方「植物能力」 |
 | behavior | Identifier? | 无 | 可选预设，见文首说明 |
 | sounds | PlantSounds? | 无 | `{place, shoot, explode, produce, melee}`，每项是 sound_event id；缺省回退能力默认音效 |
-| animation | Identifier? | 无 | 整实体动画文件覆盖；相对 `assets/<ns>/animations/`，省略 `.json` |
+| animation | Identifier? | 无 | 整实体动画文件覆盖；相对 `assets/<ns>/animations/`，省略 `.json`。写它就是**借别人的身体**：不必自己画一套图，配 `render_scale` 就能得到"同一具身体、另一套数值"的变体（3-5 的六个 `pvzce:mini_*` 小僵尸就是这样借普通僵尸的文件的，见「渲染缩放」一节） |
 | animations | map<String,Identifier>? | 无 | 按状态覆盖动画文件，如 `{"walk":"mymod:walk_custom"}` |
 
 ### 植物能力
@@ -119,6 +119,8 @@
 | `pvzce:dig` | `speed`(1.5) `emerge_ticks`(60) `sound`? | 潜地穿过草坪后从右侧破土（矿工） |
 | `pvzce:hammer` | `interval`(90) `throws_imp`(false) `imp`(`pvzce:imp`) `imp_interval`(600) `imp_cells_ahead`(3) `sound`? | 一击摧毁所在格植物并可投掷小鬼（巨人） |
 | `pvzce:boss_phases` | `phases`[] `summon_x_offset`(0.6) | `phases` 元素为 `{at_hp, summons[], ability(slam\|charge\|summon)}` |
+| `pvzce:submerge` | `submerged_speed`(0.7) | 在水里且没东西可啃时潜到水下：播 `swim`、地面弹打不到；碰到植物站起来照常挨打（潜水僵尸） |
+| `pvzce:float` | 无 | 只改**播哪条片段**：站在水格里时 `walkState()` 给 `swim`（水中的腿是关的、救生圈换成 in-water 那张、水线多一道尾迹），啃植物时照旧 `eat`。不带任何规则（救生圈三款 + 小号救生圈）。**定义必须自带 `swim` 片段**，否则未知状态会静默回落 `idle` |
 
 ```jsonc
 {
@@ -408,6 +410,9 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 | `{ "type": "pvzce:mower" }` | 同上，显式写出来（编辑器/文档用） |
 | `{ "type": "pvzce:mower", "rows": [0, 4] }` | 只有第 0 行和第 4 行有 |
 | `{ "type": "pvzce:mower", "rows": [] }` | 一辆都没有（原版坚果保龄球就是这样） |
+| `{ "type": "pvzce:mower", "rows": [0,1,4,5], "kinds": [{"row":2,"kind":"pvzce:pool_cleaner","sound":"pvzce:sfx/ambient/pool_cleaner"}] }` | 草坪行是割草机，2、3 行（水池）是泳池清洁器 |
+
+`kinds` 是**哪一行放哪种车**：每一项是 `{row, kind, sound}`，`kind` 是内容 id（默认 `pvzce:lawn_mower`），客户端按 `animations/mechanic/<kind 的 path>.json` 取动画、服务端用 `sound` 当启动音（不写就退回割草机的）。**被 `kinds` 点名的行也算有车**，所以泳池关卡只要写 `rows` 里的草坪行 + `kinds` 里的水行，不必把行号写两遍。两种车共用同一个停靠锚点（棋盘左外侧半格）——原版的泳池清洁器也是停在池沿上的，它的 `idle` 用 `anim_land`（轮子落地、漏斗轻摆），`drive` 才用 `anim_suck`（水里那套、带白色尾迹）。
 
 细节：只有**地面层**的僵尸会触发与被他碾（气球僵尸飞过、矿工在地下时都不受影响，但它们走到房子里照样算输）；碾压**无视护甲**（铁桶也是碾一下就死）；每行的车用掉就不再回来，并且会随关卡存档一起保存。
 
@@ -434,12 +439,13 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 | type | `small` \| `huge` \| `final` | `small` | `huge` 播放大波音效/预警；最后一波自动视为 `final` |
 | delay | int | 必填 | tick；相对上一波生成时刻，第一波相对关卡开始 |
 | warning_ticks | int | 600 | 大波/终波提前预警窗口；仅 huge/final 生效 |
-| entries | `[{id, count}]` | 必填 | 精确僵尸组成；`count` 缺省 1 |
+| entries | `[{id, count, rows}]` | 必填 | 精确僵尸组成；`count` 缺省 1；`rows` 是这只僵尸**只能**出现的行号列表（不写 = 任意行） |
 
 波次节奏：
 
 - 服务端维护波次进度条，上一波生成后按 `delay × lerp(1.0, wave_interval_end_multiplier, 波次进度)` 填充；
 - 进度填满触发下一波；同一波内 entries 展开后随机打乱，每 15 tick 生成一只，行随机且尽量均匀；
+- **`rows` 是"这只僵尸从哪一行来"**，泳池关卡靠它把救生圈僵尸放进水里、把走路的僵尸留在草坪上（陆地僵尸落进水格会淹死）。`LevelValidator` 会报出行号超出棋盘或 `count` 为 0 的条目；
 - 进度条在大波/终波段画旗帜，进入预警窗口时显示"一大波僵尸正在接近！"；
 - 音效：small 静音，huge 播 `pvzce:sfx/ambient/hugewave`，final 播 `pvzce:sfx/effect/awooga` + `pvzce:sfx/ambient/hugewave`。
 
@@ -669,6 +675,8 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 
 它**不进网络包**：客户端本来就会加载同一份数据包，两侧各自从定义里读同一个数。解析只有一处 —— `EntityArt.renderScale`，动画、无动画时的贴图兜底、以及影子都读它。
 
+配上 `animation`（借别人的动画文件）它就是"同一具身体、另一套数值"的做法，3-5 的 `pvzce:mini_*` 六个定义就是这么写的：借普通僵尸的身体 + `render_scale: 0.5` + 一半的血量（原版是四分之一，这里是难度取舍）+ 两倍的速度，**一张新图都没有**，而判定盒照旧（原版的小僵尸也是"缩小但不改判定"）。要注意 `animation` 借的是**整份文件**：骨架、装备轨道、片段全都跟过来，所以父定义改了美术，小号版本一起改 —— 想把血量分区（比如同一具身体的三种血量）只能一份定义一份数值，实体级别的临时血量今天没有这个字段。
+
 ### 大波提示（`warning_ticks`）
 
 `warning_ticks` 是**公告时长**：大波/最后一波到来前的这么多 tick 里，「一大波僵尸正在接近」会闪烁并响一次。它既是持续时间，也是"要不要公告"的开关（0 = 不公告）。内置关卡用 180 tick（3 秒）——足够看见，又不至于变成常驻横幅。
@@ -699,7 +707,7 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 - **`levels` 的卡池字段**：`slots` 是**关卡自己的卡** —— 进入关卡必定发放，玩家不能取消。`max_seed_slots` 是**总卡槽数**；它减去 `slots` 的数量就是玩家能自选的格数（写得比 `slots` 少时会自动抬到 `slots` 的长度）。**不写 `max_seed_slots` 就是"跟随玩家背包"**（新世界 8 格），所以关卡既可以钉死自己的格数，也可以把这件事交给玩家的背包。
 - **`levels` 的小推车**：不用写任何东西——每行默认就有一辆。要改成部分行或干脆没有，才在 `mechanics` 里写 `{"type":"pvzce:mower","rows":[...]}`。
 - `scene_elements`：`id` / `surface`(`GRASS`|`GROUND`|`WATER`|`ROOF`|`ROOF_SLOPE`|`GRAVE`|`CRATER`) / `max_height` / `liquid`(可选，指向一个液体 id)。**没有 `accepts` 字段**：一个瓦片能种什么，完全由它在 `scene_element` 注册表里的标签决定（见下节）
-- `liquids`：`id` / `base_texture` / `shallow_color` / `deep_color` / `opacity` / `depth_scale` / `foam{color,width}` / `wave{speed,amplitude,density}` / `caustics` / `reflect_color` / `fresnel` / `specular` / `specular_power` / `static_frames`（全部可选，颜色用 `#RGB`|`#RRGGBB`|`#RRGGBBAA`）。详见 [rendering.md](rendering.md#水面液体)
+- `liquids`：`id` / `base_texture` / `base_scale`（每格铺几张） / `shallow_color` / `deep_color` / `opacity` / `depth_scale` / `foam{color,width}` / `wave{speed,amplitude,density}` / `caustics` / `reflect_color` / `fresnel` / `specular` / `specular_power` / `static_frames`（全部可选，颜色用 `#RGB`|`#RRGGBB`|`#RRGGBBAA`）。详见 [rendering.md](rendering.md#水面液体)
 
 ---
 
@@ -797,7 +805,7 @@ ESC 跳过整段不会补动画。**每条的动画**只在这条台词开始时
 | ignores_armor | bool | false | `true` = 直接打身体（灰烬类、小推车）；`false` = 僵尸的护甲能力先接（豌豆、保龄球） |
 | ignores_front_armor | bool | false | `true` = **正面那件**（纱门、报纸）不挡这一下，头上的（路障、铁桶、橄榄球面罩）照样吸走（大喷菇的喷雾） |
 
-内置五种：`pvzce:ash`（灰烬类爆炸，`ignores_armor`）、`pvzce:splash`（投手溅射，`ignores_armor`）、`pvzce:mower`（小推车与锤子，`ignores_armor`）、`pvzce:projectile`（普通子弹）、`pvzce:impact`（保龄球、巨人拳）。
+内置六种：`pvzce:ash`（灰烬类爆炸，`ignores_armor`）、`pvzce:splash`（投手溅射，`ignores_armor`）、`pvzce:mower`（小推车与锤子，`ignores_armor`）、`pvzce:drag_under`（缠绕水草把僵尸拖下水，`ignores_armor`）、`pvzce:projectile`（普通子弹）、`pvzce:impact`（保龄球、巨人拳）。
 
 ```jsonc
 // data/mymod/damage_types/poison.json

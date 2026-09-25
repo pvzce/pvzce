@@ -23,7 +23,7 @@
       0.7,
       0.0
     ],
-    "life": 0.6667,
+    "life": 0.45,
     "frames_per_second": 60.0,
     "loop": true,
     "texture": "pvzce:textures/particles/explosion/explosioncloud"

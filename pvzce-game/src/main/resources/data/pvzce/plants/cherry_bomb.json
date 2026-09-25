@@ -20,7 +20,7 @@
         "pvzce:pow",
         "pvzce:pow_flash"
       ],
-      "linger_ticks": 70
+      "linger_ticks": 30
     }
   ],
   "sounds": {

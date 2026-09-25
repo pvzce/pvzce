@@ -81,6 +81,16 @@ public final class PvzceConstants {
      */
     public static final int DEFAULT_BUFF_SLOTS = 5;
     public static final int MAX_BUFF_SLOTS = 12;
+    /**
+     * How long a mutation level waits for its first mutation, in ticks.
+     *
+     * <p>Half a minute: the player has to have planted something before the lawn starts
+     * rewriting itself, and at 地狱 the tier's own interval is thirty seconds - far too short to
+     * double as a grace period. The default for {@code pvzce:mutation_initial_ticks}.
+     */
+    public static final int MUTATION_INITIAL_TICKS = 30 * TICKS_PER_SECOND;
+    /** The default for {@code pvzce:mutation_interval_multiplier}: the tier's interval as written. */
+    public static final float MUTATION_INTERVAL_MULTIPLIER = 1F;
     /** The wallet has no ceiling; the only bound that matters is the 32-bit field it lives in. */
     public static final int COIN_LIMIT = Integer.MAX_VALUE;
 

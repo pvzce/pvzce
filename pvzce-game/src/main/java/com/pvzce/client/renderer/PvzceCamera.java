@@ -17,10 +17,12 @@ public final class PvzceCamera {
     private final int screenHeight;
     private final int columns;
     private final int rows;
+    private final LevelStage.Geometry geometry;
     private final LevelStage.Stage stage;
     private final LevelStage.Board board;
     private final float unitX;
     private final float unitY;
+    private final LevelStage.LiquidFrame liquidFrame;
     private final int viewportX;
     private final int viewportY;
     private final int viewportWidth;
@@ -42,18 +44,32 @@ public final class PvzceCamera {
     private final float panX;
 
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows) {
-        this(screenWidth, screenHeight, columns, rows, 0F);
+        this(screenWidth, screenHeight, columns, rows, LevelStage.YARD, 0F);
     }
 
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows, float panX) {
+        this(screenWidth, screenHeight, columns, rows, LevelStage.YARD, panX);
+    }
+
+    /**
+     * The camera for one level's board, drawn on its own stage.
+     *
+     * <p>The stage is an argument rather than a constant because the pool's board is not
+     * the front lawn's: six 85px lanes instead of five 100px ones, and a water surface the
+     * backdrop puts somewhere other than the water cells. See {@link LevelStage.Geometry}.
+     */
+    public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
+                       LevelStage.Geometry geometry, float panX) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.columns = Math.max(1, columns);
         this.rows = Math.max(1, rows);
+        this.geometry = geometry == null ? LevelStage.YARD : geometry;
         this.stage = LevelStage.cover(screenWidth, screenHeight);
-        this.board = LevelStage.board(screenWidth, screenHeight, this.columns, this.rows);
+        this.board = LevelStage.board(screenWidth, screenHeight, this.columns, this.rows, this.geometry);
         this.unitX = board.cellWidth();
         this.unitY = board.cellHeight();
+        this.liquidFrame = this.geometry.liquid();
         this.viewportX = Math.round(stage.x());
         this.viewportY = Math.round(stage.y());
         this.viewportWidth = Math.max(1, Math.round(stage.width()));
@@ -67,9 +83,26 @@ public final class PvzceCamera {
         this.projection = Matrix4f.ortho(worldLeft, worldRight, worldBottom, worldTop, -10F, 10F);
     }
 
+    /** The stage this board is drawn on. */
+    public LevelStage.Geometry geometry() {
+        return geometry;
+    }
+
+    /**
+     * Where this stage's liquid layer goes, in world cells.
+     *
+     * <p>World cells because that is the space the board is drawn in (the projection maps
+     * them), and what {@link com.pvzce.client.renderer.SceneTileRenderer} hands the liquid
+     * pass. {@link LevelStage.LiquidFrame#CELL} means "the water cells are the surface",
+     * which is every stage but the pool.
+     */
+    public LevelStage.LiquidFrame liquidFrame() {
+        return liquidFrame;
+    }
+
     /** The same camera looking {@code panX} cells further toward the house. */
     public PvzceCamera panned(float panX) {
-        return new PvzceCamera(screenWidth, screenHeight, columns, rows, panX);
+        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX);
     }
 
     /** How far this camera is looking toward the house, in cells. */

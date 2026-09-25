@@ -52,6 +52,13 @@ public final class PvzceSounds {
     public static final Identifier EFFECT_BONK = id("sfx/effect/bonk");
     /** The ice-shroom's freeze: the original's whole-lawn "frozen" sting. */
     public static final Identifier EFFECT_FROZEN = id("sfx/effect/frozen");
+    /**
+     * One pour of the watering can.
+     *
+     * <p>The event existed in the pack from the start - it is the original's own watering sound -
+     * and had no caller until 3-4 handed the can over.
+     */
+    public static final Identifier EFFECT_WATERING = id("sfx/effect/watering");
 
     public static final Identifier AMBIENT_READY_SET_PLANT = id("sfx/ambient/readysetplant");
     public static final Identifier AMBIENT_HUGE_WAVE = id("sfx/ambient/hugewave");

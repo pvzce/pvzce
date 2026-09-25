@@ -76,6 +76,11 @@ public final class RulePage {
             if (type instanceof GameRuleType.BooleanRule booleanRule) {
                 page.field(FieldWidgets.bool(path, label, "开", "关",
                         Optional.of(Boolean.TRUE.equals(booleanRule.defaultValue()))));
+            } else if (type instanceof GameRuleType.EnumRule<?> enumRule) {
+                // A rule whose value is a word gets the words: a slider over a vocabulary would
+                // offer 0..1 for something whose legal values are "easy" and "hell".
+                page.field(FieldWidgets.choice(path, label, enumRule.options(),
+                        String.valueOf(enumRule.defaultValue())));
             } else {
                 float[] range = sliderRange(id, type);
                 float fallback = type.defaultValue() instanceof Number number ? number.floatValue() : range[0];
@@ -94,6 +99,11 @@ public final class RulePage {
      * editable only up to 500.
      */
     static float[] sliderRange(Identifier id, GameRuleType<?> type) {
+        if (type.named()) {
+            // A named rule has no numeric range at all; callers must ask `named()` first. This
+            // guard is what turns "the editor silently clamped the word away" into a message.
+            throw new IllegalStateException("Rule " + id + " is named, not numeric");
+        }
         float[] bounds = type.bounds();
         if (bounds == null) {
             // A numeric rule type with no bounds would silently get a 0..1 slider and clamp away

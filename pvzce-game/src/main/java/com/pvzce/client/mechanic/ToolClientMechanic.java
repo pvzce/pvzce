@@ -18,9 +18,6 @@ import com.pvzce.common.PvzceIds;
  * belongs to the HUD, which is where the rest of the pointer lives.
  */
 final class ToolClientMechanic implements ClientMechanic {
-    /** Where the level's tool blocks are kept between init and the first click. */
-    private static final Identifier STATE_KEY = PvzceIds.id("tool_blocks");
-
     @Override
     public Identifier id() {
         return PvzceIds.MECHANIC_TOOL;
@@ -36,17 +33,39 @@ final class ToolClientMechanic implements ClientMechanic {
         return null;
     }
 
-    /** Every tool block this level declared, in the order the server sent them. */
-    @SuppressWarnings("unchecked")
+    /**
+     * Every tool this run grants: the blocks the level declared, then whatever a mutation handed
+     * over.
+     *
+     * <p>Read fresh rather than cached, because the second half changes while the level runs -
+     * Whack-a-Zombie's mallet arrives with a mutation and leaves with it. The mechanic's own state
+     * map is not used here for exactly that reason: a value computed once would keep the mallet in
+     * the player's hand after the mutation that granted it was evicted.
+     */
     private static java.util.List<ToolData> tools(ClientLevel level) {
-        return level.mechanicState(STATE_KEY, () -> {
-            java.util.List<ToolData> found = new java.util.ArrayList<>();
-            for (com.pvzce.api.content.mechanic.MechanicData data : level.mechanicBlocks(PvzceIds.MECHANIC_TOOL)) {
-                if (data instanceof ToolData tool) {
-                    found.add(tool);
+        java.util.List<ToolData> found = new java.util.ArrayList<>();
+        for (com.pvzce.api.content.mechanic.MechanicData data : level.mechanicBlocks(PvzceIds.MECHANIC_TOOL)) {
+            if (data instanceof ToolData tool) {
+                found.add(tool);
+            }
+        }
+        com.pvzce.common.network.packet.MutationStateS2C mutations = level.mutations();
+        if (mutations != null) {
+            for (com.pvzce.common.network.packet.MutationStateS2C.ToolGrant grant : mutations.tools()) {
+                Identifier toolId = Identifier.tryParse(grant.tool());
+                if (toolId == null) {
+                    continue;
+                }
+                boolean already = found.stream()
+                        .anyMatch(existing -> toolId.equals(existing.tool()));
+                if (!already) {
+                    found.add(new ToolData(toolId, grant.isDefault(),
+                            grant.free() ? 0 : grant.cooldownTicks(),
+                            grant.free() ? java.util.Optional.of(
+                                    com.pvzce.api.content.ResourceCost.FREE) : java.util.Optional.empty()));
                 }
             }
-            return java.util.List.copyOf(found);
-        });
+        }
+        return java.util.List.copyOf(found);
     }
 }

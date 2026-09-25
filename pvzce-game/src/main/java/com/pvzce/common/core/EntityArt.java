@@ -59,10 +59,21 @@ public final class EntityArt {
      * directory - that is the {@code animations/<id.path()>.json} convention, and it
      * is also the correct answer for anything the client cannot look up (a mod's
      * content on a client that never loaded its data pack still gets the old path).
+     *
+     * <p>A definition may also <em>borrow</em> another entity's whole file with
+     * {@code animation} - the little zombies of 3-5 are the normal bodies drawn smaller, so
+     * they declare the normal file and a {@code render_scale} - and then the borrowed file is
+     * the answer, the same one {@code AnimationManager} plays. Only the whole-file override can
+     * be answered here: {@code animations} overrides single states, and this accessor returns
+     * one file.
      */
     public static Identifier animationFile(Identifier defId) {
         if (defId == null) {
             return null;
+        }
+        AnimationBindings bindings = bindings(defId);
+        if (bindings != null && bindings.animation().isPresent()) {
+            return bindings.animation().get();
         }
         return AnimationSource.fileId(defId, animationDir(defId));
     }

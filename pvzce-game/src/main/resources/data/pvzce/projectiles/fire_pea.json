@@ -1,0 +1,16 @@
+{
+  "id": "pvzce:fire_pea",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 4.0
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/effect/explosion"
+  },
+  "texture": "pvzce:textures/entities/projectile/frozen_pea",
+  "render_scale": 1.35,
+  "impact_particle": "pvzce:pea_splat"
+}

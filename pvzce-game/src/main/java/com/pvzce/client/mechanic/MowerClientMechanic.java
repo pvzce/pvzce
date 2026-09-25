@@ -39,6 +39,22 @@ import java.util.Map;
 final class MowerClientMechanic implements ClientMechanic {
     /** The converted {@code LawnMower.reanim}; see {@code tools/reanim_to_pvzce_all.py}. */
     static final Identifier MOWER_ANIMATION = Identifier.withDefaultNamespace("mechanic/lawn_mower");
+
+    /**
+     * The animation file of one mower kind.
+     *
+     * <p>The kind is a content id and its art is the file with the same path under
+     * {@code mechanic/}, which is the same "the id decides the art" rule every entity follows
+     * ({@code EntityArt}). The default kind is therefore the file that has always been drawn,
+     * and a level that names no kind is drawn exactly as before.
+     */
+    private static Identifier animationFor(MowerData.MowerKind kind) {
+        if (kind == null || kind.kind() == null
+                || MowerData.DEFAULT_KIND.equals(kind.kind())) {
+            return MOWER_ANIMATION;
+        }
+        return Identifier.of(kind.kind().namespace(), "mechanic/" + kind.kind().path());
+    }
     /**
      * The clip a parked mower plays, and the one a rolling mower plays.
      *
@@ -160,6 +176,8 @@ final class MowerClientMechanic implements ClientMechanic {
     private static final class MowerOverlay implements WorldOverlay {
         private final Map<Integer, Placement> rows = new LinkedHashMap<>();
         private final Map<Integer, ArtTarget> targets = new HashMap<>();
+        /** What each row's mower is, from the level's own data. */
+        private final Map<Integer, Identifier> rowAnimations = new HashMap<>();
         /** Rows whose mower has been paid out and must no longer be drawn. */
         private final java.util.Set<Integer> consumed = new java.util.HashSet<>();
 
@@ -167,6 +185,7 @@ final class MowerClientMechanic implements ClientMechanic {
             List<Integer> mowerRows = data == null ? List.of() : data.rowsFor(height);
             for (int row : mowerRows) {
                 rows.put(row, new Placement(MowerMechanic.STATE_READY, MowerMechanic.IDLE_X));
+                rowAnimations.put(row, animationFor(data == null ? null : data.kindFor(row)));
             }
         }
 
@@ -227,7 +246,8 @@ final class MowerClientMechanic implements ClientMechanic {
                 }
                 int row = entry.getKey();
                 ArtTarget target = targets.computeIfAbsent(row, key -> {
-                    ArtTarget created = new ArtTarget(MOWER_ANIMATION);
+                    ArtTarget created = new ArtTarget(
+                            rowAnimations.getOrDefault(key, MOWER_ANIMATION));
                     created.attach(animations);
                     return created;
                 });

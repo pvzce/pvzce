@@ -43,6 +43,7 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "kernel_pult": ("idle", 0.0),
     "marigold": ("idle", 0.0),
     "lily_pad": ("idle", 0.0),
+    "tangle_kelp": ("idle", 0.0),
     "flower_pot": ("idle", 0.0),
     "coffee_bean": ("idle", 0.0),
     # The shooter and pult lines added with the original's own art.
@@ -94,6 +95,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "marigold": "plant/producer",
     "wall_nut": "plant/defense",
     "lily_pad": "plant/environment",
+    "tangle_kelp": "plant/environment",
     "flower_pot": "plant/environment",
     "coffee_bean": "plant/environment",
     "cherry_bomb": "plant/special",
@@ -130,6 +132,8 @@ PLANT_ENTITIES = [
     "fume_shroom", "grave_buster", "hypno_shroom",
     # The Night area's last two plants.
     "scaredy_shroom", "ice_shroom",
+    # The pool's own plant: it is drawn from its converted reanim like every other card here.
+    "tangle_kelp",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

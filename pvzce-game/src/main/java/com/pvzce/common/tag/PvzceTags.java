@@ -176,6 +176,18 @@ public final class PvzceTags {
             TagKey.create(PvzceRegistries.ZOMBIES,
                     Identifier.withDefaultNamespace("freeze_immune"));
 
+    /**
+     * The zombies a mutation's crisis may conjure.
+     *
+     * <p>Data rather than a list in code, because "which zombies are a crisis" is a judgement about
+     * content: a pack that ships a zombie should be able to say whether it belongs in the pool, and
+     * a level whose theme is the pool should not be sent Gargantuars by a rule it cannot see. The
+     * mutation rolls its subject out of this tag, so the pool is the only thing to edit.
+     */
+    public static final TagKey<ZombieDef> ZOMBIE_MUTATION_CRISIS =
+            TagKey.create(PvzceRegistries.ZOMBIES,
+                    Identifier.withDefaultNamespace("mutation_crisis"));
+
     /** Scene elements, for terrain tag queries. */
     public static final RegistryTagView<SceneElementDef> SCENE_ELEMENTS = view(PvzceRegistries.SCENE_ELEMENTS);
     /** Plants, for the placement rules and for content queries. */

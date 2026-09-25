@@ -104,12 +104,17 @@ public final class PvzceClientPacketListener implements PacketListener {
             level.setResource(teamId, resourceId, delta.totalAmount());
         } else if (packet instanceof SlotSyncS2C sync) {
             level.upsertSlot(sync.slot());
+        } else if (packet instanceof com.pvzce.common.network.packet.MutationStateS2C mutations) {
+            // The whole set at once: a mutation can be evicted, so the panel cannot be derived
+            // from anything the client already has. See MutationStateS2C.
+            level.setMutations(mutations);
         } else if (packet instanceof MechanicSyncS2C sync) {
             // A mechanic's own state update. Routed by id so the protocol does not have to
             // know what a belt - or any future mechanic - is; see ClientMechanics.
             com.pvzce.client.mechanic.ClientMechanics.applySync(level, sync);
         } else if (packet instanceof GameStateS2C state) {
             level.setGameState(state.state(), state.winTeamId());
+            level.setRunSummary(state.wavesArrived(), state.kills(), state.survivedTicks());
             client.onGameState(state.state(), state.winTeamId());
         } else if (packet instanceof MusicEventS2C music) {
             client.onMusicEvent(music.track(), music.event(), music.loop(), music.stop(),

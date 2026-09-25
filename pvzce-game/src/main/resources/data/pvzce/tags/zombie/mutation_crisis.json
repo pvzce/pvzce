@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "pvzce:basic_zombie",
+    "pvzce:conehead_zombie",
+    "pvzce:buckethead_zombie",
+    "pvzce:flag_zombie",
+    "pvzce:ducky_tube_zombie",
+    "pvzce:ducky_tube_conehead_zombie",
+    "pvzce:ducky_tube_buckethead_zombie"
+  ]
+}

@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       mirror of the simulation, and the simulation must not learn how it is drawn;</li>
  *   <li>{@code client} never imports {@code server} - shared logic belongs in {@code common},
  *       otherwise "server-authoritative" turns into one program with two names;</li>
- *   <li>{@code common -> server} only from a capability or a level mechanic, both of which act on
- *       the concrete entity and the level server;</li>
+ *   <li>{@code common -> server} only from a capability, a level mechanic or a mutation, all three of
+ *       which act on the concrete entity and the level server;</li>
  *   <li>{@code api -> server} and {@code api -> common} only from the definition packages, which
  *       carry behaviour presets naming the capability implementations.</li>
  * </ul>
@@ -52,7 +52,7 @@ class LayerDependencyTest {
 
     /** Where a {@code common -> server} edge may start. */
     private static final List<String> COMMON_TO_SERVER =
-            List.of("common/capability/", "common/level/mechanic/");
+            List.of("common/capability/", "common/level/mechanic/", "common/level/mutation/");
 
     /** Where an {@code api -> server} edge may start. */
     private static final List<String> API_TO_SERVER =

@@ -10,8 +10,10 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.zombie.ArmorCapability;
 import com.pvzce.common.capability.zombie.BossPhasesCapability;
 import com.pvzce.common.capability.zombie.DigCapability;
+import com.pvzce.common.capability.zombie.FloatCapability;
 import com.pvzce.common.capability.zombie.FlyCapability;
 import com.pvzce.common.capability.zombie.HammerCapability;
+import com.pvzce.common.capability.zombie.SubmergeCapability;
 import com.pvzce.common.capability.zombie.SummonDancersCapability;
 import com.pvzce.common.capability.zombie.VaultCapability;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -35,6 +37,27 @@ public final class ZombieCapabilities {
      */
     public static final CapabilityType<SummonDancersCapability> SUMMON_DANCERS =
             type("summon_dancers", SummonDancersCapability.CODEC);
+    /**
+     * Swims submerged and surfaces to eat.
+     *
+     * <p>The snorkel zombie. It is a capability rather than a definition flag because what it
+     * changes is who can hit the zombie, and that question is already asked of capabilities
+     * (see {@code ZombieCapability.canBeHitByGround}): a definition flag would have meant a
+     * second, parallel answer to it.
+     */
+    public static final CapabilityType<SubmergeCapability> SUBMERGE =
+            type("submerge", SubmergeCapability.CODEC);
+    /**
+     * Paddles while it is in water, instead of walking.
+     *
+     * <p>The ducky-tube zombie's water gait, and the smallest capability there is: it changes
+     * no rule, only which clip the walk loop publishes. It is a capability rather than a
+     * definition flag for the same reason {@code submerge} is - "what does this zombie look
+     * like while it walks" is already a capability hook, and a flag would be a second answer
+     * to it.
+     */
+    public static final CapabilityType<FloatCapability> FLOAT =
+            type("float", FloatCapability.CODEC);
 
     public static final Codec<TypedCapability<ZombieCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.ZOMBIE_CAPABILITIES, "zombie");
@@ -52,6 +75,8 @@ public final class ZombieCapabilities {
         register(HAMMER, "hammer");
         register(BOSS_PHASES, "boss_phases");
         register(SUMMON_DANCERS, "summon_dancers");
+        register(SUBMERGE, "submerge");
+        register(FLOAT, "float");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

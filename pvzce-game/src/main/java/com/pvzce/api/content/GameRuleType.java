@@ -12,7 +12,7 @@ import com.mojang.serialization.Codec;
  * (the generic method erases to {@code Object}).
  */
 public sealed interface GameRuleType<T> permits GameRuleType.BooleanRule, GameRuleType.IntRule,
-        GameRuleType.FloatRule {
+        GameRuleType.FloatRule, GameRuleType.EnumRule {
     T defaultValue();
 
     Codec<T> codec();
@@ -33,6 +33,16 @@ public sealed interface GameRuleType<T> permits GameRuleType.BooleanRule, GameRu
 
     /** True when only whole numbers are meaningful - a tick count, a player count. */
     default boolean integral() {
+        return false;
+    }
+
+    /**
+     * True when the value is a name from a fixed list rather than a number.
+     *
+     * <p>Asked by the editor, which draws a slider for the numeric rules and a choice row for
+     * these; asking "is it numeric" by elimination would put a range slider on a word.
+     */
+    default boolean named() {
         return false;
     }
 
@@ -125,6 +135,68 @@ public sealed interface GameRuleType<T> permits GameRuleType.BooleanRule, GameRu
         @Override
         public float[] bounds() {
             return new float[]{min, max};
+        }
+    }
+
+    /**
+     * A rule whose value is one of a fixed list of names.
+     *
+     * <p>Not "numeric": the editor draws a choice row for it rather than a slider, and the value
+     * travels as a string in JSON and over the wire. {@link #options()} is what the editor reads
+     * to build that row - a rule type cannot enumerate an arbitrary {@code T}, so the caller
+     * supplies the names alongside the codec that parses them.
+     */
+    final class EnumRule<T> implements GameRuleType<T> {
+        private final T value;
+        private final Codec<T> codec;
+        private final java.util.List<String> options;
+
+        /**
+         * A rule whose values are a fixed vocabulary written by name.
+         *
+         * @param value the value a level that does not say gets, and what an unrecognised one
+         *              falls back to
+         * @param codec the vocabulary's codec; a rule type cannot enumerate an arbitrary
+         *              {@code T}, so the caller passes the codec that already knows how to parse
+         *              it - {@code MutationDifficulty.CODEC}, for instance
+         */
+        public EnumRule(T value, Codec<T> codec) {
+            this(value, codec, java.util.List.of());
+        }
+
+        /**
+         * @param options the names the editor offers, in the order they should be listed; empty
+         *                means the rule is edited as free text
+         */
+        public EnumRule(T value, Codec<T> codec, java.util.List<String> options) {
+            this.value = value;
+            this.codec = codec;
+            this.options = options == null ? java.util.List.of() : java.util.List.copyOf(options);
+        }
+
+        /** The names this rule accepts, for the editor's choice row. */
+        public java.util.List<String> options() {
+            return options;
+        }
+
+        @Override
+        public boolean named() {
+            return true;
+        }
+
+        @Override
+        public T defaultValue() {
+            return value;
+        }
+
+        @Override
+        public Codec<T> codec() {
+            return codec;
+        }
+
+        @Override
+        public T clamp(T value) {
+            return value == null ? this.value : value;
         }
     }
 

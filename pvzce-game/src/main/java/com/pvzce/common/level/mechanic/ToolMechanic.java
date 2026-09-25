@@ -9,6 +9,7 @@ import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.server.level.LevelServer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +73,24 @@ public final class ToolMechanic implements LevelMechanic<ToolData> {
         for (TypedMechanic typed : def.mechanics()) {
             if (typed.is(PvzceIds.MECHANIC_TOOL) && typed.value() instanceof ToolData data) {
                 tools.add(data);
+            }
+        }
+        return List.copyOf(tools);
+    }
+
+    /**
+     * Every tool a running level grants: the blocks it declared, plus what a mutation handed over.
+     *
+     * <p>Two lists because they arrive at different times - a block is read when the level file is -
+     * and this is the one place they are joined, so the click handler, the client mirror and the
+     * validator cannot disagree about whether the player is holding a mallet.
+     */
+    public static List<ToolData> granted(LevelServer level) {
+        List<ToolData> tools = new ArrayList<>(declared(level.def()));
+        for (ToolData runtime : level.grantedTools()) {
+            boolean already = tools.stream().anyMatch(existing -> existing.tool().equals(runtime.tool()));
+            if (!already) {
+                tools.add(runtime);
             }
         }
         return List.copyOf(tools);

@@ -117,6 +117,18 @@ public final class ServerHarness implements AutoCloseable {
     }
 
     /**
+     * Changes one game rule on the running level, as a console line would.
+     *
+     * <p>Through the real command path, like {@code smokeCommands}: the point of a harness is that
+     * what it does is what a player could do. Queued on the connection, so the server thread
+     * applies it; a caller that needs the change to have landed should wait for something it
+     * causes rather than for a fixed delay.
+     */
+    public void setGameRule(String rule, String value) {
+        send(new com.pvzce.common.network.packet.CommandC2S("gamerule " + rule + " " + value));
+    }
+
+    /**
      * Creates {@code world} and waits for the profile answer.
      *
      * <p>Creation is answered with a message and the profile, never with a level list. Waiting

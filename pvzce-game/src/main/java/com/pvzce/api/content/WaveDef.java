@@ -116,11 +116,33 @@ public record WaveDef(
     }
 
     /** Exact zombie composition of one wave. */
-    public record Entry(Identifier id, int count) {
+    public record Entry(Identifier id, int count, List<Integer> rows) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("id").forGetter(Entry::id),
-                Codec.INT.optionalFieldOf("count", 1).forGetter(Entry::count)
+                Codec.INT.optionalFieldOf("count", 1).forGetter(Entry::count),
+                Codec.INT.listOf().optionalFieldOf("rows", List.of()).forGetter(Entry::rows)
         ).apply(i, Entry::new));
+
+        public Entry(Identifier id, int count) {
+            this(id, count, List.of());
+        }
+
+        public Entry {
+            rows = rows == null ? List.of() : List.copyOf(rows);
+        }
+
+        /**
+         * True when this entry says which lanes it arrives in.
+         *
+         * <p>Unwritten means "any lane", which is what every wave table written before the pool
+         * meant and what the director does by default: it walks a shuffled list of every row.
+         * A pool level is the case that needs the filter - a floatie zombie sent to a grass row
+         * and a land zombie sent into the water are both wrong, and the second one drowns - so
+         * the entry, not the level, is where "where does this one walk" belongs.
+         */
+        public boolean restrictedToRows() {
+            return !rows.isEmpty();
+        }
     }
 
     public static final Codec<WaveDef> CODEC = RecordCodecBuilder.create(i -> i.group(

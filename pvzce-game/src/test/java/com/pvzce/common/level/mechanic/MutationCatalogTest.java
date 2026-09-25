@@ -1,0 +1,204 @@
+package com.pvzce.common.level.mechanic;
+
+import com.pvzce.common.level.mutation.Mutation;
+import com.pvzce.common.level.mutation.MutationDifficulty;
+import com.pvzce.common.level.mutation.MutationLevels;
+import com.pvzce.common.level.mutation.MutationRegistry;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
+import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceConstants;
+import com.pvzce.common.PvzceIds;
+import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.tag.TestContent;
+import com.pvzce.testutil.TestLevels;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The mutation catalogue and the four levels that run it.
+ *
+ * <p>What this pins is the part a player would notice immediately if it were wrong: that every
+ * mutation the code names is registered, that the four tiers differ in exactly the three numbers
+ * the mode is balanced around, and that the levels themselves are built with the twelve-card,
+ * ten-buff, pool-day shape the mode promises.
+ */
+class MutationCatalogTest {
+    @BeforeAll
+    static void load() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+    }
+
+    @Test
+    void everyMutationTheCatalogueNamesIsRegistered() {
+        List<Identifier> expected = List.of(
+                PvzceIds.MUTATION_SLOT_REPLACE, PvzceIds.MUTATION_CONVEYOR,
+                PvzceIds.MUTATION_SUN_RATE, PvzceIds.MUTATION_PLANT_ATTACK_RATE,
+                PvzceIds.MUTATION_ZOMBIE_SPEED, PvzceIds.MUTATION_ZOMBIE_SPAWN_RATE,
+                PvzceIds.MUTATION_PLANT_SUN_COST, PvzceIds.MUTATION_NIGHTFALL,
+                PvzceIds.MUTATION_BOWLING_NUT, PvzceIds.MUTATION_WHACK_A_ZOMBIE,
+                PvzceIds.MUTATION_GRAVE_GROWTH, PvzceIds.MUTATION_ZOMBIE_CRISIS,
+                PvzceIds.MUTATION_BUFF_SHIFT, PvzceIds.MUTATION_APOCALYPSE,
+                PvzceIds.MUTATION_ZOMBIE_BLAST, PvzceIds.MUTATION_PLANT_BLAST,
+                PvzceIds.MUTATION_MENDEL, PvzceIds.MUTATION_KELP_SPREAD);
+        assertEquals(expected.size(), MutationRegistry.all().size(),
+                "the catalogue grew or shrank; update the list and the docs together");
+        for (Identifier id : expected) {
+            assertNotNull(MutationRegistry.get(id), id + " is named in code but not registered");
+            assertTrue(MutationRegistry.get(id).weight() > 0, id + " can never be rolled");
+        }
+    }
+
+    @Test
+    void everyMutationRollsANumberInsideItsTiersRange() {
+        for (Mutation mutation : MutationRegistry.all()) {
+            for (MutationDifficulty tier : MutationDifficulty.values()) {
+                for (int i = 0; i < 200; i++) {
+                    // A tiny stand-in for the level's dice: the roll's own contract is that the
+                    // tier scales both ends, which is checkable without a level.
+                    float rolled = tier.rollNumber(new java.util.Random(i));
+                    assertTrue(rolled >= MutationDifficulty.ROLL_MIN * tier.rollMultiplier() - 0.001F,
+                            mutation.id() + " at " + tier + " rolled below its floor: " + rolled);
+                    assertTrue(rolled <= MutationDifficulty.ROLL_MAX * tier.rollMultiplier() + 0.001F,
+                            mutation.id() + " at " + tier + " rolled above its ceiling: " + rolled);
+                }
+            }
+        }
+    }
+
+    @Test
+    void theFourTiersDifferInAllThreeNumbers() {
+        assertEquals(10, MutationDifficulty.EASY.maxConcurrent());
+        assertEquals(20, MutationDifficulty.NORMAL.maxConcurrent());
+        assertEquals(30, MutationDifficulty.HARD.maxConcurrent());
+        assertEquals(50, MutationDifficulty.HELL.maxConcurrent());
+        assertEquals(120 * PvzceConstants.TICKS_PER_SECOND, MutationDifficulty.EASY.intervalTicks());
+        assertEquals(90 * PvzceConstants.TICKS_PER_SECOND, MutationDifficulty.NORMAL.intervalTicks());
+        assertEquals(60 * PvzceConstants.TICKS_PER_SECOND, MutationDifficulty.HARD.intervalTicks());
+        assertEquals(30 * PvzceConstants.TICKS_PER_SECOND, MutationDifficulty.HELL.intervalTicks());
+        assertEquals(1F, MutationDifficulty.EASY.rollMultiplier());
+        assertEquals(1.5F, MutationDifficulty.NORMAL.rollMultiplier());
+        assertEquals(2F, MutationDifficulty.HARD.rollMultiplier());
+        assertEquals(3F, MutationDifficulty.HELL.rollMultiplier());
+    }
+
+    @Test
+    void aHarderTierRunsAMutationsOwnClockFaster() {
+        // The tier's multiplier scales an interval a mutation keeps for itself, so "more
+        // mutations at once" is not the only way a tier is harder.
+        assertEquals(100, MutationDifficulty.EASY.scaledInterval(100));
+        assertEquals(67, MutationDifficulty.NORMAL.scaledInterval(100));
+        assertEquals(50, MutationDifficulty.HARD.scaledInterval(100));
+        assertEquals(33, MutationDifficulty.HELL.scaledInterval(100));
+    }
+
+    @Test
+    void anUnrecognisedTierNameFallsBackToTheMiddleOne() {
+        assertEquals(MutationDifficulty.HELL, MutationDifficulty.parse("hell"));
+        assertEquals(MutationDifficulty.HELL, MutationDifficulty.parse(" HELL "));
+        assertEquals(MutationDifficulty.DEFAULT, MutationDifficulty.parse("nightmare"));
+        assertEquals(MutationDifficulty.DEFAULT, MutationDifficulty.parse(null));
+        assertTrue(MutationDifficulty.isKnown("easy"));
+        assertTrue(!MutationDifficulty.isKnown("nightmare"));
+    }
+
+    @Test
+    void theFourLevelsAreRegisteredUnderTheEndlessCategory() {
+        List<Identifier> ids = MutationLevels.levelIds();
+        assertEquals(4, ids.size());
+        for (Identifier id : ids) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(id);
+            assertNotNull(def, id + " is missing from the level registry");
+            assertTrue(id.path().startsWith("yard/endless/"),
+                    "the id must put the level on the endless page, was " + id);
+            assertTrue(BuiltInRegistries.LEVEL_CATEGORIES.containsKey(PvzceIds.CATEGORY_ENDLESS),
+                    "the endless category must exist for the level to have a page");
+        }
+    }
+
+    @Test
+    void aMutationLevelIsThePoolDayWithAFixedTwelveCardTenBuffBar() {
+        LevelDef def = BuiltInRegistries.LEVELS.get(
+                MutationLevels.levelIds().get(1));
+        assertNotNull(def);
+        assertEquals(9, def.width());
+        assertEquals(6, def.height());
+        assertEquals(12, def.maxSeedSlots(), "the mode fixes twelve card slots");
+        assertEquals(10, def.buffPlan().maxBuffSlots(), "and ten buff slots");
+        assertEquals(50, def.initialSun());
+        assertEquals(0, def.rules().get(PvzceIds.RULE_DAY_LENGTH).getAsInt(),
+                "the base is the day pool: no day length and no night");
+        assertEquals(-1, def.rules().get(PvzceIds.RULE_NIGHT_LENGTH).getAsInt());
+        assertTrue(def.background().isPresent(), "the pool backdrop");
+        assertTrue(def.background().get().path().contains("background4"),
+                "the pool backdrop, with a night variant a mutation can ask for");
+    }
+
+    @Test
+    void everyTierOfLevelNamesItsOwnDifficultyRule() {
+        for (MutationDifficulty tier : MutationDifficulty.values()) {
+            Identifier id = MutationLevels.levelIds()
+                    .get(tier.ordinal());
+            LevelDef def = BuiltInRegistries.LEVELS.get(id);
+            assertNotNull(def);
+            JsonElement configured = def.rules().get(PvzceIds.RULE_MUTATION_DIFFICULTY);
+            assertNotNull(configured, id + " must fix its tier");
+            assertEquals(tier.tierName(), configured.getAsString());
+            // The grace period is the mode's own number on every tier, not the tier's interval:
+            // a player has to have planted something before the lawn starts rewriting itself.
+            assertEquals(PvzceConstants.MUTATION_INITIAL_TICKS,
+                    def.rules().get(PvzceIds.RULE_MUTATION_INITIAL_TICKS).getAsInt());
+        }
+    }
+
+    @Test
+    void theEndlessTableIsLongInflationaryAndFullOfGapsForTheFloaties() {
+        List<com.pvzce.api.content.WaveDef> waves =
+                com.pvzce.common.level.mechanic.EndlessMechanic.expand(6, 30);
+        assertEquals(30, waves.size());
+        // Cycle 0's first wave is one land zombie and one floatie; cycle 9's is much bigger.
+        com.pvzce.api.content.WaveDef first = waves.get(0);
+        com.pvzce.api.content.WaveDef later = waves.get(29);
+        assertTrue(later.totalZombies() > first.totalZombies(),
+                "the table has to inflate, or 'endless' is a loop");
+        assertTrue(later.delay() < first.delay(), "and to arrive faster");
+        // Every floatie wave must be restricted to the water rows: an ordinary zombie sent into
+        // the pool row is a zombie that drowns.
+        for (com.pvzce.api.content.WaveDef wave : waves) {
+            for (com.pvzce.api.content.WaveDef.Entry entry : wave.entries()) {
+                if (entry.id().path().startsWith("ducky_tube")) {
+                    assertTrue(entry.restrictedToRows(),
+                            "a floatie zombie has to say which rows it uses");
+                }
+            }
+        }
+    }
+
+    /** The rules a test overrides, built the way {@code TestLevels} wants them. */
+    static Map<Identifier, JsonElement> rulesWith(Object... pairs) {
+        Map<Identifier, JsonElement> rules = new LinkedHashMap<>();
+        for (int i = 0; i < pairs.length; i += 2) {
+            rules.put((Identifier) pairs[i], new JsonPrimitive((Number) pairs[i + 1]));
+        }
+        return rules;
+    }
+
+    /** A mutation level with its rules changed, for the manager's own tests. */
+    static LevelDef levelWith(MutationDifficulty tier, Map<Identifier, JsonElement> overrides) {
+        LevelDef source = BuiltInRegistries.LEVELS.get(
+                MutationLevels.levelIds().get(tier.ordinal()));
+        Map<Identifier, JsonElement> rules = new LinkedHashMap<>(source.rules());
+        rules.putAll(overrides);
+        return TestLevels.copy(source).rules(rules).build();
+    }
+}

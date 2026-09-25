@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -150,6 +151,43 @@ class EquipmentArtTest {
         Set<String> bare = visibleBonesAt("pvzce:conehead_zombie", EntityAnimations.WALK, 90, 0);
         assertFalse(bare.contains("outerarm_hand"),
                 "once the cone is gone the arm goes too: " + bare);
+    }
+
+    @Test
+    void aLittleZombieDrawsTheBodyItBorrowed() {
+        // 3-5's crowd is the ordinary zombies drawn smaller, so the little definitions borrow the
+        // parent's whole animation file - `animation`, which is also what EntityArt#animationFile
+        // now answers with - instead of shipping a second copy of the art. Everything the parent
+        // draws therefore has to resolve through the little id: the parent's model, its arm bones,
+        // and the flag's own hand. A definition that named the file wrongly would not fail until a
+        // body-less zombie walked down the pool lane.
+        var bodies = Map.of(
+                "pvzce:mini_basic_zombie", "pvzce:basic_zombie",
+                "pvzce:mini_ducky_tube_zombie", "pvzce:ducky_tube_zombie",
+                "pvzce:mini_snorkel_zombie", "pvzce:snorkel_zombie",
+                "pvzce:mini_conehead_zombie", "pvzce:conehead_zombie",
+                "pvzce:mini_football_zombie", "pvzce:football_zombie",
+                "pvzce:mini_flag_zombie", "pvzce:flag_zombie");
+        for (var pair : bodies.entrySet()) {
+            assertEquals(com.pvzce.common.core.EntityArt.animationFile(Identifier.parse(pair.getValue())),
+                    com.pvzce.common.core.EntityArt.animationFile(Identifier.parse(pair.getKey())),
+                    pair.getKey() + " must draw the body of " + pair.getValue());
+            // `model` itself asserts that the file exists and is a controller model, which is the
+            // real claim - and the skeleton has to come with it, whole. The football zombie's rig
+            // names its arms its own way, so what the two share is the bone *count*, not the names.
+            assertEquals(model(pair.getValue()).bones().size(),
+                    model(pair.getKey()).bones().size(),
+                    pair.getKey() + " must load the whole rig of " + pair.getValue());
+            assertNotNull(model(pair.getKey()).bone("root"),
+                    pair.getKey() + " must have its parent's skeleton");
+        }
+
+        // The flag is the one piece of equipment that hangs off a bone of its own, so it is also
+        // the check that the borrowed model is the *whole* model and not just a walking body.
+        Set<String> visible = visibleBonesAt("pvzce:mini_flag_zombie", EntityAnimations.WALK, 50);
+        assertTrue(visible.contains("flaghand"), "the little flag bearer keeps its hand: " + visible);
+        assertTrue(visible.contains("zombie_flag_1") || visible.contains("zombie_flag_3"),
+                "and its flag: " + visible);
     }
 
     /** Every arm bone the flag zombie's equipment claims as its own. */

@@ -61,6 +61,11 @@ public final class DeckCardSource implements CardSource {
     @Override
     public boolean spend(LevelServer level, LevelServer.ServerBridge bridge, Slot slot, PlantDef plant) {
         int cost = slot.costSun() > 0 ? slot.costSun() : plant.cost().amountOf(PvzceIds.SUN);
+        // The level's `plant_sun_cost_multiplier` - a mutation that halves every price - is
+        // applied at the till rather than on the price the card prints: a bar full of cards has
+        // one price each and the level has one opinion about all of them.
+        cost = cost <= 0 ? 0 : Math.max(1, Math.round(cost
+                * Math.max(0F, level.rules().getFloat(PvzceIds.RULE_PLANT_SUN_COST_MULTIPLIER))));
         if (!player.team().consume(PvzceIds.SUN, cost)) {
             bridge.send(new ServerMessageS2C("阳光不足！"));
             return false;

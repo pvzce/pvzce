@@ -64,17 +64,32 @@ public final class SceneTileRenderer {
     public static void render(PvzceClient client, int width, int height, SceneSource scene,
                               float xScale, float grassMargin) {
         render(client, width, height, scene, xScale, grassMargin, SceneShiftSource.NONE,
-                SceneVisibility.NONE);
+                SceneVisibility.NONE, LevelStage.LiquidFrame.CELL);
     }
 
     public static void render(PvzceClient client, int width, int height, SceneSource scene,
                               float xScale, float grassMargin, SceneShiftSource shifts) {
-        render(client, width, height, scene, xScale, grassMargin, shifts, SceneVisibility.NONE);
+        render(client, width, height, scene, xScale, grassMargin, shifts, SceneVisibility.NONE,
+                LevelStage.LiquidFrame.CELL);
     }
 
     public static void render(PvzceClient client, int width, int height, SceneSource scene,
                               float xScale, float grassMargin, SceneShiftSource shifts,
                               SceneVisibility visibility) {
+        render(client, width, height, scene, xScale, grassMargin, shifts, visibility,
+                LevelStage.LiquidFrame.CELL);
+    }
+
+    /**
+     * Draws the board, with the stage's own frame for its liquid layer.
+     *
+     * <p>{@code liquidFrame} is in world cells and moves the surface away from the cell
+     * grid; {@link LevelStage.LiquidFrame#CELL} is "the water cells are the surface", which
+     * is every stage but the pool. See {@code LevelStage.POOL}.
+     */
+    public static void render(PvzceClient client, int width, int height, SceneSource scene,
+                              float xScale, float grassMargin, SceneShiftSource shifts,
+                              SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame) {
         float scaleX = Math.max(0.0001F, xScale);
         float margin = Math.max(0F, grassMargin);
         if (margin > 0F) {
@@ -90,7 +105,7 @@ public final class SceneTileRenderer {
             // A liquid layer is not drawn tile by tile at all: it is one batched
             // pass that needs the whole body at once, so it is pulled out here and
             // drawn in the layer's own position. See renderLiquidLayer.
-            if (renderLiquidLayer(client, sceneId, scene, width, height)) {
+            if (renderLiquidLayer(client, sceneId, scene, width, height, liquidFrame)) {
                 continue;
             }
             boolean tiled = isTiled(sceneId);
@@ -182,12 +197,12 @@ public final class SceneTileRenderer {
      * which the caller then draws cell by cell as before.
      */
     private static boolean renderLiquidLayer(PvzceClient client, String sceneId, SceneSource scene,
-                                             int width, int height) {
+                                             int width, int height, LevelStage.LiquidFrame liquidFrame) {
         var liquid = LiquidTextures.liquidFor(sceneId);
         if (liquid.isEmpty()) {
             return false;
         }
-        LiquidTextures.renderWorld(client, liquid.get(), sceneId, width, height, scene);
+        LiquidTextures.renderWorld(client, liquid.get(), sceneId, width, height, scene, liquidFrame);
         return true;
     }
 
@@ -206,12 +221,26 @@ public final class SceneTileRenderer {
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight) {
         renderBoard(client, width, height, scene, originX, originY, cellWidth, cellHeight,
-                SceneVisibility.NONE);
+                SceneVisibility.NONE, LevelStage.LiquidFrame.CELL);
     }
 
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight,
                                    SceneVisibility visibility) {
+        renderBoard(client, width, height, scene, originX, originY, cellWidth, cellHeight,
+                visibility, LevelStage.LiquidFrame.CELL);
+    }
+
+    /**
+     * Draws a board into a GUI rectangle, on the stage the level will be played on.
+     *
+     * <p>The liquid frame is in the same GUI pixels as {@code originX}/{@code cellWidth}
+     * (see {@link LevelStage.LiquidFrame#scaledTo}), so the chooser's preview shows the
+     * water where the level itself will.
+     */
+    public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
+                                   float originX, float originY, float cellWidth, float cellHeight,
+                                   SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame) {
         // Collected first, drawn after: a liquid body has to be batched as a whole,
         // and the flat tiles must go down before it so the water covers them. One
         // entry per liquid, so a board with two liquids keeps them separate.
@@ -262,7 +291,7 @@ public final class SceneTileRenderer {
             }
             LiquidTextures.renderGuiBoard(client, liquid.get(), layer.getKey(), width, height, scene,
                     originX, originY, cellWidth, cellHeight,
-                    com.pvzce.client.renderer.RenderSystem.currentProjection());
+                    com.pvzce.client.renderer.RenderSystem.currentProjection(), liquidFrame);
         }
     }
 

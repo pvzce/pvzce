@@ -99,6 +99,27 @@ public final class BeltCardSource implements CardSource {
     }
 
     @Override
+    public void collectSave(CompoundTag target) {
+        // The queue, the ids it has handed out and the clock until the next card. The *pool* is
+        // not saved: it is derived from the player's backpack and this belt's own shape, so
+        // rebuilding it from the same inputs is what makes a resumed belt carry the rules the
+        // player was playing under (a smaller backpack yields a smaller pool, which is correct).
+        target.put("Belt", belt.save());
+    }
+
+    @Override
+    public void applySave(LevelServer level, CompoundTag source) {
+        CompoundTag saved = source == null ? null : source.getCompound("Belt");
+        if (saved == null) {
+            // Nothing to put back (a save from a build that did not write this): the freshly built
+            // belt stands, which is a belt that has just been dealt rather than an empty bar.
+            return;
+        }
+        belt.restore(saved);
+        rebuildBar();
+    }
+
+    @Override
     public boolean dealsItsOwnCards() {
         return true;
     }

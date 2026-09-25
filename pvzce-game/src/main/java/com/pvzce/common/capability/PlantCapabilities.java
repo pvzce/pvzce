@@ -8,6 +8,7 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.capability.plant.BowlCapability;
 import com.pvzce.common.capability.plant.CharmCapability;
 import com.pvzce.common.capability.plant.ConeAttackCapability;
+import com.pvzce.common.capability.plant.DragUnderCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
 import com.pvzce.common.capability.plant.FreezeAllCapability;
 import com.pvzce.common.capability.plant.GraveBusterCapability;
@@ -74,6 +75,14 @@ public final class PlantCapabilities {
      */
     public static final CapabilityType<ConeAttackCapability> CONE =
             type("cone", ConeAttackCapability.CODEC);
+    /**
+     * Pulls the first zombie that walks onto the plant under the water.
+     *
+     * <p>The tangle kelp. Where it may be planted is the {@code #c:water_plant} tag's business,
+     * exactly like the lily pad's; what it does once something is standing over it is here.
+     */
+    public static final CapabilityType<DragUnderCapability> DRAG_UNDER =
+            type("drag_under", DragUnderCapability.CODEC);
 
     public static final Codec<TypedCapability<PlantCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.PLANT_CAPABILITIES, "plant");
@@ -97,6 +106,7 @@ public final class PlantCapabilities {
         register(NOCTURNAL, "nocturnal");
         register(FREEZE_ALL, "freeze_all");
         register(CONE, "cone");
+        register(DRAG_UNDER, "drag_under");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

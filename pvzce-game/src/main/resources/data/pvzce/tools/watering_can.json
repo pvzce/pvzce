@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:watering_can",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 600,
+  "targets": [
+    "plant"
+  ],
+  "effect": "pvzce:water",
+  "uses": -1,
+  "texture": "pvzce:textures/gui/cards/watering_can",
+  "animation_dir": "tool"
+}

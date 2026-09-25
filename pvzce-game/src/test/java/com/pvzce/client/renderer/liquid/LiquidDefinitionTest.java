@@ -40,8 +40,15 @@ class LiquidDefinitionTest {
     void theShippedWaterDefinitionLoadsFromData() {
         LiquidDef water = BuiltInRegistries.LIQUIDS.get(Identifier.withDefaultNamespace("water"));
         assertNotNull(water, "data/pvzce/liquids/water.json must define pvzce:water");
-        assertEquals(LiquidDef.DEFAULT_BASE_TEXTURE, water.resolvedBaseTexture());
-        assertEquals(0.68F, water.opacity(), 0.0001F);
+        // The original's own pool surface rather than the tiling floor, at the one scale that
+        // puts its strip across the yard's nine water columns: see `gen_water_surface.py`.
+        assertEquals(LiquidDef.WATER_SURFACE_TEXTURE, water.resolvedBaseTexture());
+        assertEquals(LiquidDef.WATER_SURFACE_SCALE, water.baseScale(), 1e-6F);
+        // Deliberately a range rather than a number: opacity is the one dial that decides
+        // whether the art or the water colour leads, and the surface art has to lead - at the
+        // 0.68 this shipped with, the strip's clouds were washed into a flat tint.
+        assertTrue(water.opacity() < 0.4F,
+                "the surface drawing leads, the water colour tints it: " + water.opacity());
         assertEquals(1.6F, water.depthScale(), 0.0001F);
         assertEquals(0.04F, water.foam().width(), 0.0001F);
         assertEquals(4, water.staticFrames());
@@ -63,6 +70,8 @@ class LiquidDefinitionTest {
         // and a four-times-wider foam band.
         LiquidDef shipped = BuiltInRegistries.LIQUIDS.get(Identifier.withDefaultNamespace("water"));
         LiquidDef fallback = BuiltInRegistries.builtInWater();
+        assertEquals(fallback.resolvedBaseTexture(), shipped.resolvedBaseTexture());
+        assertEquals(fallback.baseScale(), shipped.baseScale(), 1e-6F);
         assertEquals(fallback.opacity(), shipped.opacity(), 1e-6F);
         assertEquals(fallback.depthScale(), shipped.depthScale(), 1e-6F);
         assertEquals(fallback.caustics(), shipped.caustics(), 1e-6F);
@@ -96,6 +105,65 @@ class LiquidDefinitionTest {
         // an accident of the count being wrong.
         Identifier beyond = water.staticFrameTexture(water.staticFrames());
         assertEquals(water.staticFrameTexture(0), beyond, "the frame index must wrap");
+    }
+
+    /**
+     * The surface art is shipped, and its strip sits where the water actually reads it.
+     *
+     * <p>{@code base_scale} is what puts the original's drawing on the basin, but the phase is
+     * not the obvious one: the shader samples the base texture with {@code v} growing the way the
+     * board's rows are numbered, and a board numbers its rows upward from the bottom while a PNG
+     * is stored top-down - so a fragment at world row Y reads image row {@code 9 - Y} of a
+     * nine-cell tile, and the water rows 2..3 read image rows 5/9..7/9. A marker tile (nine flat
+     * stripes) is how that was measured rather than derived; this test is the same check in code.
+     *
+     * <p>Two claims, because two things can silently go wrong. The band has to be water rather
+     * than an edge or a blank, and its TOP has to be the darker end: the source strip is a
+     * gradient with a dark upper edge, so an asset stored the other way up puts that edge between
+     * the two water rows, where it reads as a line drawn across the middle of the pool - which is
+     * exactly the bug this pins.
+     */
+    @Test
+    void theSurfaceArtIsPhasedOntoTheWaterRows() throws Exception {
+        LiquidDef water = BuiltInRegistries.LIQUIDS.get(Identifier.withDefaultNamespace("water"));
+        Identifier id = water.resolvedBaseTexture();
+        assertEquals(LiquidDef.WATER_SURFACE_TEXTURE, id);
+
+        PvzceResourceManager resources =
+                new PvzceResourceManager(Thread.currentThread().getContextClassLoader());
+        resources.init(Path.of(System.getProperty("java.io.tmpdir"), "pvzce-liquid-surface"));
+        var asset = resources.getResource("assets/" + id.toPath() + ".png")
+                .orElseThrow(() -> new AssertionError("missing surface art: " + id));
+        java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(asset.open());
+        assertNotNull(image, id + " must be a readable PNG");
+        assertTrue(image.getWidth() == image.getHeight(),
+                "the tile must be square: the base texture is sampled isotropically");
+
+        // Where the water reads, mirrored: world rows 2..3 = image rows 5/9..7/9.
+        int top = Math.round(image.getHeight() * 5F / 9F);
+        int bottom = Math.round(image.getHeight() * 7F / 9F);
+        double topMean = luminance(image, top + 2);
+        double middleMean = luminance(image, (top + bottom) / 2);
+        double bottomMean = luminance(image, bottom - 2);
+        assertTrue(topMean > 60 && middleMean > 60 && bottomMean > 60,
+                "the sampled band must be water, not the rip's black edge: top=" + topMean
+                        + " middle=" + middleMean + " bottom=" + bottomMean);
+        assertTrue(topMean < middleMean && bottomMean < middleMean,
+                "the strip's dark edge belongs at the TOP of the band and its shading at the"
+                        + " bottom, or the asset is stored upside down: top=" + topMean
+                        + " middle=" + middleMean + " bottom=" + bottomMean);
+    }
+
+    /** Mean luminance of one image row. */
+    private static double luminance(java.awt.image.BufferedImage image, int y) {
+        double total = 0;
+        int samples = 0;
+        for (int x = 0; x < image.getWidth(); x += 8) {
+            int rgb = image.getRGB(x, y);
+            total += ((rgb >> 16 & 0xFF) * 0.299 + (rgb >> 8 & 0xFF) * 0.587 + (rgb & 0xFF) * 0.114);
+            samples++;
+        }
+        return total / Math.max(1, samples);
     }
 
     @Test

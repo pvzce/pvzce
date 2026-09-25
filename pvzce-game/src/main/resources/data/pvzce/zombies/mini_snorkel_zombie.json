@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:mini_snorkel_zombie",
+  "health": 100,
+  "move_speed": 0.4,
+  "bite_damage": 100,
+  "bite_interval": 30,
+  "render_scale": 0.5,
+  "can_swim": true,
+  "capabilities": [
+    {
+      "type": "pvzce:submerge",
+      "submerged_speed": 0.7
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/zombie_entering_water",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation": "pvzce:zombie/special/snorkel_zombie",
+  "texture": "pvzce:textures/entities/zombie/special/snorkel_zombie",
+  "drops_arm": false,
+  "drops_head": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

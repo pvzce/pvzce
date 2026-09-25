@@ -54,9 +54,20 @@ class WavePacingMetricsTest {
         }
     }
 
-    /** One level's run, as the numbers the report prints. */
+    /**
+     * One level's run, as the numbers the report prints.
+     *
+     * <p>{@code winner} is the team that ended the run, empty while it is still going - noted
+     * because {@code LevelServer} parks <em>every</em> finished run in {@code WON} and names the
+     * winning team separately, so a game state is not an answer to "did the player win". A row
+     * that stops at wave 6 of 10 with {@code pvzce:zombie_team} is a level the profile could not
+     * keep up with, which for a swarm level is a difficulty statement and not a broken table.
+     */
     private record Metrics(String level, String profile, int ticks, int waves, int zombies,
-                           int longestEmpty, int emptyShare, int peakAlive, boolean won) {
+                           int longestEmpty, int emptyShare, int peakAlive, String winner) {
+        boolean finished() {
+            return !winner.isEmpty();
+        }
     }
 
     private static Metrics measure(LevelDef def, String profile, int killInterval) {
@@ -94,9 +105,10 @@ class WavePacingMetricsTest {
             }
         }
         int span = Math.max(1, tick - Math.max(0, started));
+        Identifier winner = level.winner();
         return new Metrics(def.id().toString(), profile, tick, level.currentWave(),
                 bridge.spawns, longestEmpty, Math.round(100F * emptyTicks / span),
-                peakAlive, level.gameState().equals(GameStateS2C.WON));
+                peakAlive, winner == null ? "" : winner.toString());
     }
 
     /** Kills the zombie nearest the house, which is the one the player would shoot first. */
@@ -119,8 +131,9 @@ class WavePacingMetricsTest {
         boolean report = Boolean.getBoolean("pvzce.pacingReport");
         List<String> rows = new ArrayList<>();
         if (report) {
-            rows.add(String.format("%-34s %-7s %7s %6s %8s %9s %7s %6s",
-                    "level", "profile", "ticks", "waves", "zombies", "longestEmpty", "empty%", "peak"));
+            rows.add(String.format("%-34s %-7s %7s %6s %8s %9s %7s %6s %s",
+                    "level", "profile", "ticks", "waves", "zombies", "longestEmpty", "empty%",
+                    "peak", "winner"));
         }
         int unfinished = 0;
         for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
@@ -131,15 +144,16 @@ class WavePacingMetricsTest {
             for (int i = 0; i < KILL_INTERVALS.length; i++) {
                 Metrics metrics = measure(def, PROFILE_NAMES[i], KILL_INTERVALS[i]);
                 if (report) {
-                    rows.add(String.format("%-34s %-7s %7d %6d %8d %9d %6d%% %6d",
+                    rows.add(String.format("%-34s %-7s %7d %6d %8d %9d %6d%% %6d %s",
                             shorten(metrics.level()), metrics.profile(), metrics.ticks(),
                             metrics.waves(), metrics.zombies(), metrics.longestEmpty(),
-                            metrics.emptyShare(), metrics.peakAlive()));
+                            metrics.emptyShare(), metrics.peakAlive(),
+                            metrics.winner().replace("pvzce:", "")));
                 }
-                // Only the slowest profile has to finish: a level the player cannot keep up with
-                // is a difficulty statement, not a broken table - but one that never ends under
-                // any profile is a table that cannot be won.
-                if (i == KILL_INTERVALS.length - 1 && !metrics.won()) {
+                // Only the slowest profile has to finish at all - a level the player cannot keep
+                // up with is a difficulty statement, not a broken table, but one that never ends
+                // is a table nobody can win (or lose).
+                if (i == KILL_INTERVALS.length - 1 && !metrics.finished()) {
                     unfinished++;
                     rows.add("UNFINISHED under the slow profile: " + metrics.level()
                             + " after " + metrics.ticks() + " ticks, wave " + metrics.waves()

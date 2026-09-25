@@ -72,7 +72,25 @@ public final class LiquidTextures {
      */
     public static void renderWorld(PvzceClient client, LiquidDef liquid, String sceneId,
                                    int width, int height, SceneTileRenderer.SceneSource scene) {
-        draw(client, liquid, sceneId, width, height, scene, 0F, 0F, 1F, 1F,
+        renderWorld(client, liquid, sceneId, width, height, scene,
+                com.pvzce.client.renderer.LevelStage.LiquidFrame.CELL);
+    }
+
+    /**
+     * As above, with the stage's own frame for the surface.
+     *
+     * <p>{@code frame} is in world cells and is {@code CELL} for every stage whose water
+     * cells <em>are</em> its surface. The pool is the one that is not: its backdrop paints
+     * the basin two thirds of a lane below its own water rows, so the surface is drawn on a
+     * frame the stage declares. See {@code LevelStage.LiquidFrame}.
+     */
+    public static void renderWorld(PvzceClient client, LiquidDef liquid, String sceneId,
+                                   int width, int height, SceneTileRenderer.SceneSource scene,
+                                   com.pvzce.client.renderer.LevelStage.LiquidFrame frame) {
+        com.pvzce.client.renderer.LevelStage.LiquidFrame surface =
+                frame == null ? com.pvzce.client.renderer.LevelStage.LiquidFrame.CELL : frame;
+        draw(client, liquid, sceneId, width, height, scene,
+                surface.originX(), surface.originY(), surface.cellWidth(), surface.cellHeight(),
                 RenderSystem.currentProjection(),
                 client.worldTintR(), client.worldTintG(), client.worldTintB(),
                 client.worldTintLift(), client.worldNightBlend(),
@@ -94,8 +112,31 @@ public final class LiquidTextures {
                                       float originX, float originY,
                                       float pixelsPerCell, float pixelsPerCellY,
                                       Matrix4f projection) {
-        draw(client, liquid, sceneId, width, height, scene, originX, originY,
+        renderGuiBoard(client, liquid, sceneId, width, height, scene, originX, originY,
                 pixelsPerCell, pixelsPerCellY, projection,
+                com.pvzce.client.renderer.LevelStage.LiquidFrame.CELL);
+    }
+
+    /**
+     * As above, with the stage's frame expressed in the same GUI pixels.
+     *
+     * <p>{@code cellFrame} is the board's own rect and cell size (the pixels the caller
+     * already draws the terrain in); the stage's world-cell frame is scaled onto them, so
+     * the preview and the level it previews cannot disagree about where the water is.
+     */
+    public static void renderGuiBoard(PvzceClient client, LiquidDef liquid, String sceneId,
+                                      int width, int height, SceneTileRenderer.SceneSource scene,
+                                      float originX, float originY,
+                                      float pixelsPerCell, float pixelsPerCellY,
+                                      Matrix4f projection,
+                                      com.pvzce.client.renderer.LevelStage.LiquidFrame stageFrame) {
+        com.pvzce.client.renderer.LevelStage.LiquidFrame cellFrame =
+                stageFrame == null
+                        ? com.pvzce.client.renderer.LevelStage.LiquidFrame.CELL
+                        : stageFrame.scaledTo(originX, originY, pixelsPerCell, pixelsPerCellY);
+        draw(client, liquid, sceneId, width, height, scene,
+                cellFrame.originX(), cellFrame.originY(), cellFrame.cellWidth(), cellFrame.cellHeight(),
+                projection,
                 DAY_ENVIRONMENT[0], DAY_ENVIRONMENT[1], DAY_ENVIRONMENT[2], DAY_ENVIRONMENT[3],
                 DAY_ENVIRONMENT[4],
                 width / 2F, height * 2F, DAY_ENVIRONMENT[5], DAY_ENVIRONMENT[6],

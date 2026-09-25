@@ -51,6 +51,10 @@ public final class LevelMechanics {
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
     public static final GraveFieldMechanic GRAVE_FIELD = new GraveFieldMechanic();
     public static final WavePacingMechanic WAVE_PACING = new WavePacingMechanic();
+    public static final EndlessMechanic ENDLESS = new EndlessMechanic();
+    /** The mutation system's marker; the catalogue lives in {@code common.level.mutation}. */
+    public static final com.pvzce.common.level.mutation.MutationMechanic MUTATION =
+            new com.pvzce.common.level.mutation.MutationMechanic();
 
     public static final Codec<TypedMechanic> CODEC = codec();
     public static final Codec<List<TypedMechanic>> LIST_CODEC = CODEC.listOf();
@@ -65,6 +69,8 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
         register(PvzceIds.MECHANIC_GRAVE_FIELD, GRAVE_FIELD);
         register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
+        register(PvzceIds.MECHANIC_ENDLESS, ENDLESS);
+        register(PvzceIds.MECHANIC_MUTATION, MUTATION);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

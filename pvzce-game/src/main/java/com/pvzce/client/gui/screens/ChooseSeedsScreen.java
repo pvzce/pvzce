@@ -1291,7 +1291,11 @@ public final class ChooseSeedsScreen extends Screen {
         float panMax = Math.max(0F, (stage.width() - guiW) / 2F);
         float panOffset = panProgress() * panMax;
         float stageX = stage.x() - panOffset;
-        LevelStage.Board board = LevelStage.board(guiW, guiH, levelWidth, levelHeight);
+        // The stage the level will be played on: the pool's board is six 85px lanes with
+        // its water drawn on the stage's own frame, and the preview has to show that
+        // board, not the front lawn's. See LevelStage.geometryFor.
+        LevelStage.Geometry geometry = LevelStage.geometryFor(background);
+        LevelStage.Board board = LevelStage.board(guiW, guiH, levelWidth, levelHeight, geometry);
 
         // The board is drawn the way the level will open, night levels included: this screen
         // is a preview of the board, so a 2-1 that turned dark only after "开始游戏" was
@@ -1346,7 +1350,9 @@ public final class ChooseSeedsScreen extends Screen {
         client.clipping().push(boardX, board.y(), board.width(), board.height());
         try {
             SceneTileRenderer.renderBoard(client, levelWidth, levelHeight, this::sceneAt,
-                    boardX, board.y(), board.cellWidth(), board.cellHeight(), sceneVisibility);
+                    boardX, board.y(), board.cellWidth(), board.cellHeight(), sceneVisibility,
+                    LevelStage.geometryFor(background).liquid()
+                            .scaledTo(boardX, board.y(), board.cellWidth(), board.cellHeight()));
         } finally {
             client.clipping().pop();
         }

@@ -439,8 +439,12 @@ public final class WaveDirector {
         openingGateHoldTicks = holdTicks;
 
         WavePacingData.Pace pace = pacing.forWave(waveIndex + 1);
-        List<Identifier> zombies = pace.mode() == WavePacingData.WaveMode.BUDGET
-                ? BudgetPlanner.plan(pace, wave.entries(), host.random())
+        // A budget wave picks its own composition from a pool, so the entries' lane lists do
+        // not apply to it: the planner answers with zombie ids and nothing else.
+        List<QueuedZombie> zombies = pace.mode() == WavePacingData.WaveMode.BUDGET
+                ? BudgetPlanner.plan(pace, wave.entries(), host.random()).stream()
+                        .map(id -> new QueuedZombie(id, List.of()))
+                        .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                 : expandEntries(wave.entries());
         Collections.shuffle(zombies, host.random());
         pendingWaveSpawns.add(new PendingWaveSpawn(zombies, shuffledRows(),
@@ -603,9 +607,9 @@ public final class WaveDirector {
                     continue;
                 }
             }
-            Identifier zombieId = queue.zombies.poll();
-            int row = queue.rows.get(queue.rowIndex++ % queue.rows.size());
-            ZombieEntity spawned = host.spawnZombie(zombieId, host.width() + 0.6F, row);
+            QueuedZombie queued = queue.zombies.poll();
+            int row = queued.rowFor(queue.rows, queue.rowIndex++);
+            ZombieEntity spawned = host.spawnZombie(queued.id(), host.width() + 0.6F, row);
             if (spawned != null) {
                 // Owned here, where the wave is known: the stockpile cap and the survival-ratio
                 // gate both count a wave's own zombies rather than the lawn's.
@@ -657,15 +661,31 @@ public final class WaveDirector {
         return Math.max(1, Math.min(queue.intervalTicks, queue.maxAlive - alive));
     }
 
-    private static List<Identifier> expandEntries(List<WaveDef.Entry> entries) {
-        List<Identifier> zombies = new ArrayList<>();
+    private static List<QueuedZombie> expandEntries(List<WaveDef.Entry> entries) {
+        List<QueuedZombie> zombies = new ArrayList<>();
         for (WaveDef.Entry entry : entries) {
             int count = Math.max(0, entry.count());
             for (int i = 0; i < count; i++) {
-                zombies.add(entry.id());
+                zombies.add(new QueuedZombie(entry.id(), entry.rows()));
             }
         }
         return zombies;
+    }
+
+    /**
+     * One zombie a wave still owes, and the lanes it may arrive in.
+     *
+     * <p>{@code rows} empty means "any lane": the queue then walks its own shuffled list of the
+     * whole board, which is what every wave table written before the pool wanted. A pool level
+     * writes the lanes on the *entry* instead (floaties in the water, walkers on the grass),
+     * and this carries that answer to the spawn rather than making the queue guess.
+     */
+    private record QueuedZombie(Identifier id, List<Integer> rows) {
+        /** The lane to use, given the queue's own shuffled order and how many it has sent. */
+        int rowFor(List<Integer> anyRow, int index) {
+            List<Integer> lanes = rows.isEmpty() ? anyRow : rows;
+            return lanes.get(index % lanes.size());
+        }
     }
 
     private List<Integer> shuffledRows() {
@@ -775,10 +795,19 @@ public final class WaveDirector {
         for (PendingWaveSpawn queue : pendingWaveSpawns) {
             CompoundTag queueTag = new CompoundTag();
             ListTag zombies = new ListTag();
-            for (Identifier zombieId : queue.zombies) {
-                zombies.add(new StringTag(zombieId.toString()));
+            ListTag zombieRows = new ListTag();
+            for (QueuedZombie queued : queue.zombies) {
+                zombies.add(new StringTag(queued.id().toString()));
+                ListTag lanes = new ListTag();
+                for (int lane : queued.rows()) {
+                    lanes.add(new IntTag(lane));
+                }
+                zombieRows.add(lanes);
             }
             queueTag.put("Zombies", zombies);
+            // Parallel to `Zombies`; a save written before a wave could name its lanes has no
+            // such key, and every zombie in it reads back as "any lane" - which is what it was.
+            queueTag.put("ZombieRows", zombieRows);
             ListTag rows = new ListTag();
             for (int row : queue.rows) {
                 rows.add(new IntTag(row));
@@ -885,14 +914,28 @@ public final class WaveDirector {
             if (!(element instanceof CompoundTag queueTag)) {
                 continue;
             }
-            List<Identifier> zombieIds = new ArrayList<>();
-            for (Tag tag : queueTag.getList("Zombies").values()) {
-                if (tag instanceof StringTag stringTag) {
-                    Identifier zombieId = Identifier.tryParse(stringTag.value());
-                    if (zombieId != null) {
-                        zombieIds.add(zombieId);
+            List<Tag> zombieTags = queueTag.getList("Zombies").values();
+            List<Tag> zombieRowTags = queueTag.getList("ZombieRows").values();
+            List<QueuedZombie> zombieIds = new ArrayList<>();
+            for (int index = 0; index < zombieTags.size(); index++) {
+                if (!(zombieTags.get(index) instanceof StringTag stringTag)) {
+                    continue;
+                }
+                Identifier zombieId = Identifier.tryParse(stringTag.value());
+                if (zombieId == null) {
+                    continue;
+                }
+                // The lanes ride beside the id, and a save without them (everything written
+                // before a wave could name its lanes) reads back as "any lane".
+                List<Integer> lanes = new ArrayList<>();
+                if (index < zombieRowTags.size() && zombieRowTags.get(index) instanceof ListTag laneTags) {
+                    for (Tag lane : laneTags.values()) {
+                        if (lane instanceof IntTag intTag) {
+                            lanes.add(intTag.value());
+                        }
                     }
                 }
+                zombieIds.add(new QueuedZombie(zombieId, List.copyOf(lanes)));
             }
             List<Integer> rows = new ArrayList<>();
             for (Tag tag : queueTag.getList("Rows").values()) {
@@ -936,7 +979,7 @@ public final class WaveDirector {
      * already have been removed from the level.
      */
     private static final class PendingWaveSpawn {
-        private final ArrayDeque<Identifier> zombies;
+        private final ArrayDeque<QueuedZombie> zombies;
         private final List<Integer> rows;
         private final int intervalTicks;
         /**
@@ -957,7 +1000,7 @@ public final class WaveDirector {
         /** The zombie this queue is waiting for, or -1 when it is not waiting for one. */
         private int gateZombieId = -1;
 
-        private PendingWaveSpawn(List<Identifier> zombies, List<Integer> rows, int intervalTicks,
+        private PendingWaveSpawn(List<QueuedZombie> zombies, List<Integer> rows, int intervalTicks,
                                  int holdTicks, int waveIndex, int maxAlive, float holdDecay) {
             this.zombies = new ArrayDeque<>(zombies);
             this.rows = rows;

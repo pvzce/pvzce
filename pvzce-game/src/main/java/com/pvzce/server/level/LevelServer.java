@@ -137,7 +137,39 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * <p>This replaced a nullable {@code belt} field plus five {@code belt != null} branches;
      * the branches are now the implementation's own behaviour.
      */
-    private final com.pvzce.server.level.cardsource.CardSource cardSource;
+    private com.pvzce.server.level.cardsource.CardSource cardSource;
+    /**
+     * The mutations this level runs with, or {@code null} for an ordinary level.
+     *
+     * <p>Owned here rather than by the mechanic that declares them, because the list is per-run
+     * state other parts of the level have to read - planting asks it, the placement veto asks it,
+     * and the card-bar handoff is decided by it. The mechanic only says "this level mutates".
+     */
+    private final com.pvzce.common.level.mutation.MutationManager mutations;
+    /**
+     * The cards the player chose, as one immutable list.
+     *
+     * <p>Kept for the card-bar handoff: handing the bar back after a mutation's belt ends needs
+     * "what the player picked" to still exist, and by then the bar holds the belt's cards rather
+     * than the player's.
+     */
+    private final List<Identifier> selectedCards;
+    /**
+     * Which cards the player owns, for the mutations that hand out other ones.
+     *
+     * <p>Answered "everything" when nobody said, which is what a test harness and the editor's
+     * preview want: a level built without a profile has no backpack to consult, and refusing
+     * every replacement would make the mutation look broken rather than unowned.
+     */
+    private final java.util.function.Predicate<Identifier> ownsCard;
+    /**
+     * Tools a mutation granted this run, on top of the ones the level's own blocks declare.
+     *
+     * <p>Separate from the mechanic list because the mechanics are resolved once and cannot change:
+     * this is the runtime half of the same statement, and {@code ToolMechanic.granted} is the one
+     * place the two are read together.
+     */
+    private final List<com.pvzce.api.content.ToolData> grantedTools = new ArrayList<>();
     /**
      * This level's mechanics, with the implicit deck already resolved.
      *
@@ -169,6 +201,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * clicked, eaten or despawned takes its timer with it.
      */
     private final Map<Integer, Integer> autoCollectTimers = new HashMap<>();
+    /**
+     * Zombies killed this run, for the end-of-level summary.
+     *
+     * <p>Counted here rather than asked of the wave director: the director keeps per-wave counts
+     * for its gates and clears its history as waves retire, so "how many did I kill" is not a
+     * question it can answer. Survives a save like the tick count does, because a resumed endless
+     * run's total is the run's, not the session's.
+     */
+    private int zombieKills;
     /** Per-mechanic run state; see {@link #mechanicState}. */
     private final Map<Identifier, Object> mechanicState = new HashMap<>();
     private ServerBridge bridge;
@@ -299,7 +340,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
                        List<Identifier> selectedBuffs) {
+        this(def, selectedSlots, seedContext, selectedBuffs, null);
+    }
+
+    /**
+     * Creates a level that knows which cards the player owns.
+     *
+     * <p>The backpack is a fourth input for the same reason the seed pool is a third: a level
+     * does not know which profile it was started from. The one thing that needs it is a mutation
+     * that replaces cards - "pick another plant the player has" is unanswerable without it - and
+     * the default constructor's answer is "everything is owned", which is what the tests and the
+     * editor's preview want.
+     *
+     * @param ownsCard the player's backpack, or {@code null} for "every card"
+     */
+    public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                       List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard) {
         this.def = def;
+        this.ownsCard = ownsCard == null ? card -> true : ownsCard;
         this.seedContext = seedContext == null ? SeedContext.all(def) : seedContext;
         this.activeBuffs = com.pvzce.server.LevelBuffSelection.resolve(
                 com.pvzce.server.LevelBuffSelection.plan(def, this.seedContext.buffSlots(),
@@ -314,7 +372,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // than a missing value somewhere later.
         this.rules = new GameRules(def.rules());
         this.sunDropClock.reset(this.rules);
-        this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier(),
+        this.waves = new WaveDirector(this, waveTable(def), def.waveIntervalEndMultiplier(),
                 WavePacingMechanic.of(def));
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
         for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
@@ -335,9 +393,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // belt) ignores the seed selection, which is why the selection is still passed in:
         // the source decides what to do with it, not this constructor.
         this.plantPlayer = plantTeam != null ? new PvzcePlayer(plantTeam) : null;
+        this.selectedCards = List.copyOf(selectedSlotsOrDef(selectedSlots));
         this.cardSource = this.plantPlayer != null
                 ? LevelMechanics.createCardSource(def, new com.pvzce.server.level.cardsource.CardSource.Context(
-                        this.plantPlayer, def, selectedSlotsOrDef(selectedSlots), random))
+                        this.plantPlayer, def, this.selectedCards, random))
+                : null;
+        this.mutations = LevelMechanics.has(def, PvzceIds.MECHANIC_MUTATION) && plantTeam != null
+                ? new com.pvzce.common.level.mutation.MutationManager(this)
                 : null;
         if (plantTeam != null) {
             plantTeam.putResource(PvzceIds.SUN, def.initialSun());
@@ -360,6 +422,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // Last: a mechanic that needs to look at the finished board may do so here.
         for (TypedMechanic typed : mechanics) {
             LevelMechanics.onLevelCreated(typed, this);
+        }
+        if (mutations != null) {
+            mutations.start();
         }
         reportLevelProblems();
     }
@@ -386,6 +451,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         problems.addAll(LevelValidator.validateInitialEntities(def));
         problems.addAll(LevelValidator.validateDialogue(def));
         problems.addAll(LevelValidator.validateHints(def));
+        problems.addAll(LevelValidator.validateWaves(def));
         problems.addAll(LevelValidator.validateBuffs(def));
         if (!problems.isEmpty()) {
             LOGGER.warn("Level {} has {} problem(s):", def.id(), problems.size());
@@ -404,6 +470,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private List<Identifier> selectedSlotsOrDef(List<Identifier> selectedSlots) {
         List<Identifier> cards = selectedSlots == null ? def.slots() : selectedSlots;
         return cards == null ? List.of() : cards;
+    }
+
+    /**
+     * The wave table this level runs with, which an endless level generates.
+     *
+     * <p>Read once, here, rather than asked of the director per wave: the expansion is a pure
+     * function of the board's height, and everything downstream - the progress bar, the save, the
+     * stockpile gates - already reads a list.
+     */
+    private static List<com.pvzce.api.content.WaveDef> waveTable(LevelDef def) {
+        if (LevelMechanics.has(def, PvzceIds.MECHANIC_ENDLESS)) {
+            return LevelMechanics.ENDLESS.expand(def.height());
+        }
+        return def.waves();
     }
 
     private static SceneElementDef defaultSceneElement() {
@@ -617,6 +697,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public boolean canPlacePlant(PlantDef def, int x, int y) {
         return inBounds(x, y)
                 && LevelMechanics.canPlacePlant(mechanics, this, def, x, y)
+                && (mutations == null || mutations.canPlacePlant(def, x, y))
                 && PlantPlacement.canPlace(def, placementContext, x, y);
     }
 
@@ -736,12 +817,32 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * command, level JSON and save restore - goes through here.
      */
     public PlantEntity spawnPlant(PlantDef def, Team team, int x, int y) {
+        // Before the entity exists: a mutation that rewrites what a card plants has to rewrite
+        // the definition, because the capabilities are built from it in the constructor and
+        // "the same plant with another behaviour" is not something an entity can be told later.
+        PlantDef planted = def;
+        if (mutations != null) {
+            PlantDef replacement = mutations.replacePlantedPlant(def, x, y);
+            if (replacement != null) {
+                planted = replacement;
+            }
+        }
+        PlantEntity plant = spawnPlantInternal(planted, team, x, y);
+        if (mutations != null) {
+            mutations.onPlantPlaced(plant);
+        }
+        return plant;
+    }
+
+    /** The placement itself, past every rewrite: one entity, one {@code onPlaced}. */
+    private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y) {
         PlantEntity plant = new PlantEntity(def, team, x, y);
         plant.setGridBounds(width(), height());
         if (plantsAt(x, y).stream().anyMatch(LevelServer::isCarrier)) {
             plant.setCellX(plant.cellX() + PlantPlacement.CARRIER_X_OFFSET);
         }
         plant.setHeight(PlantPlacement.placementHeight(placementContext, x, y));
+        plant.setActionSpeedMultiplier(rules.getFloat(PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER));
         addEntity(plant);
         flushPending();
         plant.onPlaced(this);
@@ -769,6 +870,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return;
         }
         addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height()));
+        if (mutations != null) {
+            mutations.onProjectileFired(shot.projectile());
+        }
     }
 
     @Override
@@ -781,6 +885,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         SceneElementDef base = sceneAt(target.gridX(), target.gridY());
         target.setHeight(base == null ? 0F : base.heightAt(target.cellX(), width()));
         addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height(), target));
+        if (mutations != null) {
+            mutations.onProjectileFired(shot.projectile());
+        }
     }
 
     /**
@@ -794,9 +901,37 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * this only rewrites finite ranges and otherwise hands back the original reference.
      */
     private ProjectileRef scaledShot(ProjectileRef ref, PlantEntity source) {
+        ProjectileRef scaled = com.pvzce.common.capability.plant.PlantShots.scaled(ref, source, this);
         // The same helper the shooters aim with - see PlantShots.scaled. Two implementations of
         // this rule is what let the aiming half keep reading the unscaled number.
-        return com.pvzce.common.capability.plant.PlantShots.scaled(ref, source, this);
+        return substituteProjectile(scaled);
+    }
+
+    /**
+     * The bullet a shot really carries, after the mutations that rewrite ammunition.
+     *
+     * <p>Applied here for the same reason the buff's range multiplier is: this is the one place a
+     * projectile is born, so a substitution cannot be bypassed by a plant that fires through a
+     * different capability. The damage number stays the shooter's - "this pea is now a fire pea"
+     * is about what the bullet <em>is</em>, and a mutation that also rewrote the damage would be
+     * two mutations wearing one name.
+     */
+    private ProjectileRef substituteProjectile(ProjectileRef ref) {
+        if (mutations == null) {
+            return ref;
+        }
+        com.pvzce.common.level.mutation.MutationManager mutationManager = mutations;
+        com.pvzce.common.level.mutation.ProjectileSubstitution substitution =
+                mutationManager.projectileSubstitution();
+        if (substitution == null) {
+            return ref;
+        }
+        Identifier replacement = substitution.replacementFor(ref.projectile(), random);
+        if (replacement == null || replacement.equals(ref.projectile())) {
+            return ref;
+        }
+        return new ProjectileRef(replacement, ref.damage(), ref.count(), ref.rowOffset(),
+                ref.backward(), ref.rows(), ref.range(), ref.burstDelay());
     }
 
     @Override
@@ -1266,6 +1401,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             for (TypedMechanic typed : mechanics) {
                 LevelMechanics.tick(typed, this);
             }
+            // After the mechanics and before the waves: a mutation that spawns or rewrites
+            // something does it on the same board the mechanics just settled, and before the
+            // wave director decides what is due this tick.
+            if (mutations != null) {
+                mutations.tick();
+            }
             waves.tick();
             syncWaveAndTime(bridge);
             maybeSpawnSun();
@@ -1291,6 +1432,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // to catch up with it (see PlantEntity.vanishing).
                 if (entity instanceof PlantEntity plant && plant.vanishing()) {
                     continue;
+                }
+                // The plant's last moment, told to the mutations before it leaves the list: an
+                // event hook that fires when the entity is already gone has no position to act
+                // on, and the blast a plant leaves behind belongs where it stood.
+                if (mutations != null && entity instanceof PlantEntity plant) {
+                    mutations.onPlantDied(plant);
                 }
                 pendingRemove.add(entity);
             }
@@ -1355,6 +1502,151 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** Where this level's cards come from; never null while a plant player exists. */
     public com.pvzce.server.level.cardsource.CardSource cardSource() {
         return cardSource;
+    }
+
+    /** The mutations this level runs with, or {@code null} for an ordinary level. */
+    public com.pvzce.common.level.mutation.MutationManager mutations() {
+        return mutations;
+    }
+
+    /** The plant cards the player owns, for the mutations that pick replacements. */
+    public java.util.function.Predicate<Identifier> ownedCards() {
+        return ownsCard;
+    }
+
+    /**
+     * Hands the player a tool the level did not declare.
+     *
+     * <p>For a mutation: Whack-a-Zombie's mallet is a {@code tool} mechanic block when a level
+     * authors it, and a mutation that wants the same thing mid-run cannot add a block to a
+     * definition that is already loaded and shared. This is the same statement made at runtime -
+     * "this run grants that tool" - and {@code ToolMechanic.granted} is where the two lists meet.
+     */
+    public void installTool(com.pvzce.api.content.ToolData tool) {
+        if (tool == null || tool.tool() == null) {
+            return;
+        }
+        for (com.pvzce.api.content.ToolData existing : grantedTools) {
+            if (tool.tool().equals(existing.tool())) {
+                return;
+            }
+        }
+        grantedTools.add(tool);
+    }
+
+    /** Takes back a tool {@link #installTool} granted. A tool the level itself declared stays. */
+    public void removeTool(Identifier toolId) {
+        grantedTools.removeIf(tool -> toolId.equals(tool.tool()));
+    }
+
+    /** The tools this run grants that the level's own blocks do not declare, in grant order. */
+    public List<com.pvzce.api.content.ToolData> grantedTools() {
+        return List.copyOf(grantedTools);
+    }
+
+    /**
+     * The buffs this run plays with, replaced wholesale.
+     *
+     * <p>For the mutation that shifts them. Wholesale rather than add/remove because that is what
+     * the mutation decides - it rolls "one more" or "one fewer" and hands over the result - and
+     * because the level's own pinned buffs have to stay in the list either way.
+     */
+    public void setActiveBuffs(List<com.pvzce.api.content.LevelBuff> buffs) {
+        this.activeBuffs = buffs == null ? List.of() : List.copyOf(buffs);
+    }
+
+    /**
+     * What kind of bar the player is looking at right now.
+     *
+     * <p>Asked by the mutation packet and by the client's bar rebuild, so the two cannot
+     * disagree: a mutation that takes the bar over changes this answer, and both the panel's
+     * "which bar is drawn" bit and the level's own bookkeeping read it rather than each keeping
+     * their own idea.
+     */
+    public String cardSourceKind() {
+        com.pvzce.common.level.mutation.MutationManager mutationManager = mutations;
+        if (mutationManager != null && mutationManager.cardSourceFactory() != null) {
+            return com.pvzce.server.level.cardsource.CardSource.KIND_MUTATED;
+        }
+        return cardSource == null
+                ? com.pvzce.server.level.cardsource.CardSource.KIND_DECK
+                : cardSource.kind();
+    }
+
+    /**
+     * Rebuilds the bar after a mutation took it over or gave it back.
+     *
+     * <p>Called by {@code MutationManager} at the handoff. Three things have to move together:
+     * which source is in force, what is on the bar, and what the client is told - a player whose
+     * bar changed without being told keeps clicking cards that no longer exist, and a player
+     * whose bar was not rebuilt keeps clicking the belt's cards after it is gone.
+     */
+    public void onMutationCardSourceChanged() {
+        if (plantPlayer == null) {
+            return;
+        }
+        com.pvzce.common.level.mutation.MutationCardSource factory = mutations == null
+                ? null : mutations.cardSourceFactory();
+        if (factory != null) {
+            com.pvzce.server.level.cardsource.CardSource created = factory.createCardSource(this,
+                    new com.pvzce.server.level.cardsource.CardSource.Context(
+                            plantPlayer, def, selectedCards, random));
+            if (created != null) {
+                cardSource = created;
+                syncAllSlots();
+                return;
+            }
+        }
+        // No mutation deals the cards any more: the level's own source stands, and the bar goes
+        // back to the cards the player chose.
+        cardSource = LevelMechanics.createCardSource(def,
+                new com.pvzce.server.level.cardsource.CardSource.Context(
+                        plantPlayer, def, selectedCards, random));
+        plantPlayer.replaceSlots(PvzcePlayer.deckSlots(selectedCards));
+        syncAllSlots();
+    }
+
+    /** Pushes the whole bar to the client, for the moments when it is replaced wholesale. */
+    private void syncAllSlots() {
+        if (plantPlayer == null) {
+            return;
+        }
+        for (Slot slot : plantPlayer.slots()) {
+            send(new com.pvzce.common.network.packet.SlotSyncS2C(toSlotInfo(slot)));
+        }
+    }
+
+    /**
+     * Writes one game rule from outside the command layer.
+     *
+     * <p>For mutations, which are the one thing in the game that rewrites a rule while a level
+     * runs: a mutation says "from now on it is night", and it has to be able to say that without
+     * a player typing anything. The value is clamped by the rule's own type, exactly as
+     * {@code /gamerule} is.
+     */
+    public boolean setRule(Identifier id, Object value) {
+        boolean applied = rules.set(id, value);
+        if (applied) {
+            onRuleChanged(id);
+        }
+        return applied;
+    }
+
+    /** The rules whose value is read once per plant rather than per tick, refreshed on change. */
+    private void onRuleChanged(Identifier id) {
+        if (PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER.equals(id)) {
+            float multiplier = rules.getFloat(PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER);
+            for (PvzceEntity entity : entities) {
+                if (entity instanceof PlantEntity plant) {
+                    plant.setActionSpeedMultiplier(multiplier);
+                }
+            }
+        }
+    }
+
+    /** A rule's current value, for the code that has to read one back after writing it. */
+    public Object ruleValue(Identifier id) {
+        return rules.values().get(id);
     }
 
     /** The buffs this run is played with, locked and chosen already resolved. */
@@ -1803,7 +2095,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             gameEndPacketSent = true;
             Team winnerTeam = teams.get(winner);
             LOGGER.info("Game over, winner={}", winner);
-            bridge.send(new GameStateS2C(gameState, winner != null ? winner.toString() : ""));
+            bridge.send(new GameStateS2C(gameState, winner != null ? winner.toString() : "",
+                    completedWaves(), zombieKills, tickCount));
             if (winnerTeam != null) {
                 bridge.send(new ServerMessageS2C(winnerTeam.name() + " 获胜！"));
             }
@@ -1813,6 +2106,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public void zombieReachedLeft(ZombieEntity zombie) {
         markEnd(teams.get(PvzceIds.ZOMBIE_TEAM));
+    }
+
+    /** Zombies killed this run, for the end-of-level summary. */
+    public int zombieKills() {
+        return zombieKills;
+    }
+
+    /** How many full mutation cycles of zombies have arrived: what an endless run counts in. */
+    public int completedWaves() {
+        return waves.currentWave();
     }
 
     /**
@@ -1830,6 +2133,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // what the stockpile cap and the survival-ratio gate read, so a kill it never hears about
         // is a wave that still believes it is being fought.
         waves.zombieDied(zombie.id());
+        zombieKills++;
+        // The mutations hear it before any of the payout paths can return: a blast on death is
+        // part of what killed things this tick, and a mutation that only fired for zombies the
+        // level happened to pay coins for would be a bug nobody could see.
+        if (mutations != null) {
+            mutations.onZombieDied(zombie);
+        }
         // Where it fell, recorded before anything else can return: the end-of-level payout lands
         // on the last kill's cell, and a kill that happened on the same tick the level ended
         // (the level's own win check runs after the entities) would otherwise leave the payout
@@ -2218,6 +2528,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * @return false when the click was refused, so the caller can leave the card ready
      *         instead of charging a cooldown and a use for nothing
      */
+    /**
+     * How long one watering lasts, in ticks: fifteen seconds of the faster clock.
+     *
+     * <p>Long enough to matter for the volley that is already coming and short enough that
+     * keeping a whole lawn watered is a job rather than a one-off purchase - which is the
+     * tension the original's garden has, transplanted onto a lawn.
+     */
+    public static final int WATERED_TICKS = 15 * PvzceConstants.TICKS_PER_SECOND;
+
     private boolean applyToolEffect(ToolDef tool, int x, int y) {
         return switch (tool.effect()) {
             // PVZ original: one shovel click removes exactly one plant, always the
@@ -2279,9 +2598,49 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 }
                 yield hitSomething;
             }
+            case "pvzce:water" -> waterPlant(x, y);
             // An effect this build does not implement: refused, so no use is spent.
             default -> false;
         };
+    }
+
+    /**
+     * One click of the watering can: the plant in the cell is watered.
+     *
+     * <p>What watering means is three things, and all three are data or already-existing state:
+     *
+     * <ul>
+     *   <li><b>it is healed to full</b> - the garden's "watering keeps the plant alive", which on
+     *       a lawn is the one way to repair a half-eaten wall-nut;</li>
+     *   <li><b>it ripens</b> if a capability says so: the producer that has not grown up yet
+     *       grows on the spot ({@code PlantCapability.water}), which is the sun-shroom's whole
+     *       reason to be watered;</li>
+     *   <li><b>it runs a quarter faster for {@value #WATERED_TICKS} ticks</b> - the same
+     *       "well-watered" clock a garden plant's growth is on, and the reason to water
+     *       something that is already grown.</li>
+     * </ul>
+     *
+     * <p>A click on a cell with nothing in it is refused - {@code false} - so it costs neither
+     * the cooldown nor a use, exactly like a mallet swung at empty grass.
+     */
+    private boolean waterPlant(int x, int y) {
+        PlantEntity plant = plantAt(x, y);
+        if (plant == null || plant.isRemoved()) {
+            return false;
+        }
+        PlantEntity.Watering watering = plant.water(WATERED_TICKS, this);
+        // Sound and splash at the plant's own position rather than the clicked cell: the plant
+        // is drawn with its cell's offset (a lily pad rides low, a pot rides high), and a splash
+        // at the cell's floor would come out of the lawn beside it.
+        emitEffect(PvzceParticles.POOL_SPLASH.toString(), plant.cellX(), plant.cellY(),
+                PvzceSounds.EFFECT_WATERING);
+        if (watering.ripened() || watering.healed() > 0) {
+            // A plant that actually did something with the water says so; a plant that was only
+            // thirsty gets the splash alone, which is what keeps "did that work" answerable.
+            emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(),
+                    plant.cellX(), plant.cellY(), PvzceSounds.PLANT_GROW);
+        }
+        return true;
     }
 
     /**
@@ -2438,8 +2797,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (slot == null) {
             return 0;
         }
-        return CardCooldown.effective(slot.cooldownTicks(),
-                rules.getFloat(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER));
+        // Two multipliers, multiplied: the level's own and the mutations'. Kept apart so that
+        // undoing a mutation only has to divide out its own half (see the rule's own doc).
+        float factor = rules.getFloat(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER)
+                * rules.getFloat(PvzceIds.RULE_MUTATION_SEED_COOLDOWN_FACTOR);
+        return CardCooldown.effective(slot.cooldownTicks(), factor);
     }
 
     public List<SlotInfo> slotInfos() {
@@ -2546,6 +2908,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // below): a resumed run has to keep the gap it was in, or continuing a save hands the
         // player a free sun on the first tick.
         sunDropClock.save(root);
+        // The run's own tally, so a resumed endless attempt keeps counting from where it was
+        // rather than from zero.
+        root.putInt("ZombieKills", zombieKills);
 
 
         // Teams, cards, resources and every entity live in one tag; the server no
@@ -2565,6 +2930,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // through its own hook, so the save file grows with the mechanic rather than here.
         for (TypedMechanic typed : mechanics) {
             LevelMechanics.collectSave(typed, this, root);
+        }
+        // And the mutations, which are not mechanics but are per-run state in the same way: the
+        // list, its clock, and whatever each one is counting down.
+        if (mutations != null) {
+            mutations.save(root);
         }
 
         ListTag savedEntities = new ListTag();
@@ -2660,6 +3030,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // A save written before the sky had a countdown has no block here, and then the clock
         // stays at the opening delay this level's own rules gave it (see the constructor).
         sunDropClock.restore(root);
+        // A save written before the tally existed reads zero, which is what a run that had killed
+        // nothing would say.
+        zombieKills = Math.max(0, root.getInt("ZombieKills"));
         clock.setDayTicks(root.getLong("DayTicks"));
         waves.restore(root);
         nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
@@ -2683,6 +3056,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         for (TypedMechanic typed : mechanics) {
             LevelMechanics.applySave(typed, this, root);
+        }
+        // Before the slots: a mutation may be dealing the cards, and then the bar the saved
+        // cooldowns belong to is the mutation's (a belt's queue, rebuilt here) rather than the
+        // deck's. `restoreSlots` matches by card index, so the bar has to be the right one first.
+        if (mutations != null) {
+            mutations.restore(root);
         }
         restoreSlots(root.getList("Slots"));
         restoreEntities(root.getList(KEY_ENTITIES));

@@ -5,6 +5,7 @@ import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.LevelUnlock;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.SceneElementDef;
+import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.ZombieDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -382,6 +383,36 @@ public final class LevelValidator {
         return "fixed deck: the level's " + def.slots().size() + " cards fill all "
                 + slots + " slots, so the player only picks when they unlock more"
                 + " (raise max_seed_slots above " + def.slots().size() + " to leave room)";
+    }
+
+    /**
+     * Checks the parts of a wave table a typo can break silently.
+     *
+     * <p>The wave tables themselves are balance data and are deliberately not judged here (see
+     * {@code WavePacingMetricsTest} for what the pacing is measured against). What is checked is
+     * the two things that are facts rather than tuning: a lane that this board does not have, so
+     * the zombie would arrive nowhere, and an entry that sends nothing at all.
+     */
+    public static List<String> validateWaves(LevelDef def) {
+        List<String> errors = new ArrayList<>();
+        for (int index = 0; index < def.waves().size(); index++) {
+            WaveDef wave = def.waves().get(index);
+            int number = index + 1;
+            for (WaveDef.Entry entry : wave.entries()) {
+                if (entry.count() <= 0) {
+                    errors.add("waves." + number + ": entry '" + entry.id()
+                            + "' asks for " + entry.count() + " zombies, so it sends none");
+                }
+                for (int row : entry.rows()) {
+                    if (row < 0 || row >= def.height()) {
+                        errors.add("waves." + number + ": entry '" + entry.id() + "' names row "
+                                + row + ", which this " + def.height()
+                                + "-row board does not have");
+                    }
+                }
+            }
+        }
+        return errors;
     }
 
     public static List<String> validateScene(LevelDef def) {

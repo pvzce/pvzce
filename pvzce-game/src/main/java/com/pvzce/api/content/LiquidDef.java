@@ -67,9 +67,30 @@ public record LiquidDef(
         float specularPower,
         int staticFrames
 ) {
-    /** Texture used when {@link #baseTexture} is empty, and by the shipped water. */
+    /**
+     * Texture used when {@link #baseTexture} is empty: a tiling pool floor.
+     *
+     * <p>The shipped water names {@link #WATER_SURFACE_TEXTURE} instead - the original's own
+     * surface drawing - so this is what a liquid that says nothing about its base gets, and what
+     * the built-in fallback used before the surface art arrived.
+     */
     public static final Identifier DEFAULT_BASE_TEXTURE =
             Identifier.withDefaultNamespace("textures/scene/water_base");
+
+    /**
+     * The original's pool surface, padded into a square tile by
+     * {@code tools/gen_water_surface.py}.
+     *
+     * <p>It is the whole basin in one drawing: a 705 px strip of soft cyan clouds drawn once
+     * across the water, which {@link #WATER_SURFACE_SCALE} turns into "one tile per nine cells"
+     * so a cell at row 2 samples exactly the strip the original puts there. See that tool for
+     * the arithmetic and for why the rip's own black rim is cropped away.
+     */
+    public static final Identifier WATER_SURFACE_TEXTURE =
+            Identifier.withDefaultNamespace("textures/scene/water_surface");
+
+    /** One tile per nine cells: the strip's width in cells. See {@link #WATER_SURFACE_TEXTURE}. */
+    public static final float WATER_SURFACE_SCALE = 1F / 9F;
 
     /**
      * How many texture tiles fit in one world cell, i.e. the base texture's scale.

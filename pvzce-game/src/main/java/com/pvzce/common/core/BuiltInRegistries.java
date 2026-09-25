@@ -104,6 +104,15 @@ public final class BuiltInRegistries {
      */
     public static final Registry<com.pvzce.api.content.LevelBuff> LEVEL_BUFFS =
             ACCESS.newRegistry(PvzceRegistries.LEVEL_BUFFS);
+    /**
+     * Mutations: the things a {@code pvzce:mutation} level does to itself as it runs.
+     *
+     * <p>Code-registered like the mechanics and the buffs above - a mutation reaches into the
+     * running simulation, so there is no block for a data file to fill in. See
+     * {@link com.pvzce.common.level.mutation.Mutations}.
+     */
+    public static final Registry<com.pvzce.common.level.mutation.Mutation> MUTATIONS =
+            ACCESS.newRegistry(PvzceRegistries.MUTATIONS);
 
     private static volatile boolean bootstrapped;
 
@@ -122,6 +131,7 @@ public final class BuiltInRegistries {
         com.pvzce.api.content.ProjectileBehaviorPresets.bootstrap();
         com.pvzce.common.level.mechanic.LevelMechanics.bootstrap();
         com.pvzce.common.buff.LevelBuffs.bootstrap();
+        com.pvzce.common.level.mutation.Mutations.bootstrap();
 
         registerPlants();
         registerZombies();
@@ -135,6 +145,10 @@ public final class BuiltInRegistries {
         registerSounds();
         registerLevelGroups();
         registerDamageTypes();
+        // Last, and code-defined rather than read from a pack: the mutation levels need the
+        // mutation catalogue, the endless mechanic and the pool's own scene elements, so they are
+        // built after everything they name.
+        com.pvzce.common.level.mutation.MutationLevels.bootstrap();
     }
 
     private static void registerPlants() {
@@ -259,18 +273,18 @@ public final class BuiltInRegistries {
     public static LiquidDef builtInWater() {
         return new LiquidDef(
                 PvzceIds.WATER,
-                Optional.of(LiquidDef.DEFAULT_BASE_TEXTURE),
-                LiquidDef.parseColor("#4FA8C8C8"),
-                LiquidDef.parseColor("#1E6E8C"),
-                0.68F,
+                Optional.of(LiquidDef.WATER_SURFACE_TEXTURE),
+                LiquidDef.parseColor("#5A8A9E"),
+                LiquidDef.parseColor("#54808F"),
+                0.22F,
                 1.6F,
-                LiquidDef.DEFAULT_BASE_SCALE,
+                LiquidDef.WATER_SURFACE_SCALE,
                 new LiquidDef.FoamStyle(LiquidDef.parseColor("#BFE0DE"), 0.04F),
                 new LiquidDef.WaveShape(0.055F, 0.55F, 2F),
-                0.55F,
+                0.22F,
                 LiquidDef.parseColor("#9FC7E8"),
                 0.35F,
-                0.45F,
+                0.35F,
                 72F,
                 4);
     }
@@ -331,6 +345,35 @@ public final class BuiltInRegistries {
                 new GameRuleType.FloatRule(1F, 0.1F, 20F));
         registerRule(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER, new GameRuleType.FloatRule(
                 CardCooldown.DEFAULT_MULTIPLIER, 0F, 5F));
+        // 1 = the plant works at the speed its definition says. Bigger is faster, and this is the
+        // one clock every counting-down capability spends (see PlantEntity.actionStep).
+        registerRule(PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER,
+                new GameRuleType.FloatRule(1F, 0.1F, 20F));
+        // 1 = the sun arrives at the rate the level and the producers wrote. Bigger is faster, and
+        // it scales the sky and the flowers together: "sun rate" is not a thing a player reads as
+        // half of itself.
+        registerRule(PvzceIds.RULE_SUN_RATE_MULTIPLIER, new GameRuleType.FloatRule(1F, 0.1F, 10F));
+        // What a card costs, as a multiple of the plant's own price. Zero is a real answer - a
+        // level may hand every plant over for free - which is why the floor is 0 and not 0.1.
+        registerRule(PvzceIds.RULE_PLANT_SUN_COST_MULTIPLIER,
+                new GameRuleType.FloatRule(1F, 0F, 10F));
+        // The mutation tiers. The vocabulary's codec is the enum's own, so the JSON spelling and
+        // the spelling in code cannot drift.
+        registerRule(PvzceIds.RULE_MUTATION_DIFFICULTY, new GameRuleType.EnumRule<>(
+                com.pvzce.common.level.mutation.MutationDifficulty.DEFAULT,
+                com.pvzce.common.level.mutation.MutationDifficulty.CODEC,
+                java.util.Arrays.stream(com.pvzce.common.level.mutation.MutationDifficulty.values())
+                        .map(com.pvzce.common.level.mutation.MutationDifficulty::tierName)
+                        .toList()));
+        registerRule(PvzceIds.RULE_MUTATION_INITIAL_TICKS, new GameRuleType.IntRule(
+                PvzceConstants.MUTATION_INITIAL_TICKS, 0, 36000));
+        registerRule(PvzceIds.RULE_MUTATION_INTERVAL_MULTIPLIER, new GameRuleType.FloatRule(
+                PvzceConstants.MUTATION_INTERVAL_MULTIPLIER, 0.05F, 10F));
+        // The mutations' own half of the card recharge; the level's half is the rule above it.
+        // 0.5 is the bowling-nut mutation ("the cooldown is halved"), and the floor is low
+        // because "cards come back instantly" is a legitimate mutation to write.
+        registerRule(PvzceIds.RULE_MUTATION_SEED_COOLDOWN_FACTOR,
+                new GameRuleType.FloatRule(1F, 0.05F, 10F));
         registerRule(PvzceIds.id("max_players_per_team"), new GameRuleType.IntRule(8, 1, 64));
         registerRule(PvzceIds.RULE_GRAVES_SPAWN_NIGHT, new GameRuleType.BooleanRule(true));
         registerRule(PvzceIds.RULE_ZOMBIE_RISE_TICKS, new GameRuleType.IntRule(

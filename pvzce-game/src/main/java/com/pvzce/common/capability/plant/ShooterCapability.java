@@ -36,6 +36,16 @@ public final class ShooterCapability implements PlantCapability {
 
     private int cooldown;
     /**
+     * This shooter's own progress clock.
+     *
+     * <p>Per capability rather than per plant: a plant that shoots <em>and</em> produces would
+     * otherwise have one accumulator between them, and whichever ran first would spend the tick's
+     * progress - which is exactly how a Sun-shroom's production and a Peashooter's firing appeared
+     * to stop working when this was a field on the plant.
+     */
+    private final com.pvzce.common.level.RateClock clock =
+            new com.pvzce.common.level.RateClock();
+    /**
      * Projectiles of a volley that are still on their way out, with the ticks left before each.
      *
      * <p>Only a shot with a {@code burst_delay} has any: a single-pea plant spawns its one
@@ -126,7 +136,9 @@ public final class ShooterCapability implements PlantCapability {
             return;
         }
         if (cooldown > 0) {
-            cooldown--;
+            // The plant's own rate: watered counts a quarter faster, and a mutation may have
+            // rewritten how fast plants work at all (see PlantEntity.actionRate).
+            cooldown -= clock.step(plant.actionRate());
             if (cooldown == 0) {
                 plant.setState(EntityAnimations.IDLE);
             }

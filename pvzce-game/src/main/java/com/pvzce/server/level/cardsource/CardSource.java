@@ -26,6 +26,18 @@ import java.util.Random;
  * so {@code LevelServer.plantPlayer} stays the one bar the rest of the server reads.
  */
 public interface CardSource {
+    /** The ordinary deck's short name. */
+    String KIND_DECK = "deck";
+    /**
+     * The name a bar reports while a mutation is dealing it.
+     *
+     * <p>Not the mutation's own name: the client has to choose a card bar to draw, and what it
+     * needs to know is "this is not the level's bar any more" - the panel says which mutation did
+     * it. It also keeps the level's own kind ({@link #kind()}) honest, because the level's
+     * mechanic still declares whatever it declared even while a mutation has taken the bar over.
+     */
+    String KIND_MUTATED = "mutated";
+
     /** The bar, in the order the player sees it. */
     List<Slot> slots();
 
@@ -59,6 +71,26 @@ public interface CardSource {
 
     /** Reads back what {@link #save} wrote. Runs before the deck bar is restored. */
     default void restore(LevelServer level, CompoundTag root) {
+    }
+
+    /**
+     * Writes the state of <em>this bar</em> into a block of its own.
+     *
+     * <p>The difference from {@link #save} is who owns the choice: {@code save} writes whatever
+     * key the source likes into the level's own root, which is fine for the two sources a level
+     * declares - there is at most one of them and the level knows which. A <b>mutation</b> installs
+     * its own source mid-run, and its state has to live inside the mutation's block (a belt's queue
+     * belongs to the mutation that is dealing it, not to the level), so the level needs a pair it
+     * can call on any source and write wherever it is told.
+     *
+     * <p>Both halves default to nothing: the deck's state is the player's own selection and its
+     * cooldowns, which the level already writes.
+     */
+    default void collectSave(CompoundTag target) {
+    }
+
+    /** Reads back what {@link #collectSave} wrote. Must tolerate a missing block. */
+    default void applySave(LevelServer level, CompoundTag source) {
     }
 
     /**

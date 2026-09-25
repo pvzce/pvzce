@@ -41,6 +41,15 @@ public final class PvzceParticles {
      */
     public static final Identifier MELON_IMPACT = id("powie");
     /** Water thrown up by something entering it. */
+    /**
+     * The golden shimmer a garden plant gives off when it has just been tended to.
+     *
+     * <p>Converted with the rest of the Zen Garden's particles for exactly this: the watering
+     * can's "that did something" feedback. Its two siblings (`potted_plant_glow`,
+     * `potted_water_plant_glow`) are still unused - they belong to the garden's own potted
+     * plants, which do not exist yet.
+     */
+    public static final Identifier POTTED_ZEN_GLOW = id("potted_zen_glow");
     public static final Identifier POOL_SPLASH = id("pool_sparkly");
     /** Sparkle left on the water surface. */
     public static final Identifier POOL_SPARKLY = id("pool_sparkly_1");

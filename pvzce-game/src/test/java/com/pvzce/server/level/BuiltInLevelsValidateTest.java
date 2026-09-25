@@ -64,6 +64,10 @@ class BuiltInLevelsValidateTest {
         problems.addAll(LevelValidator.validateInitialEntities(def));
         problems.addAll(LevelValidator.validateDialogue(def));
         problems.addAll(LevelValidator.validateHints(def));
+        problems.addAll(LevelValidator.validateWaves(def));
+        // The server checks this one too; it was the list's one omission, which made the test's
+        // claim of running "the same checks in the same order" quietly false.
+        problems.addAll(LevelValidator.validateBuffs(def));
         return problems;
     }
 }

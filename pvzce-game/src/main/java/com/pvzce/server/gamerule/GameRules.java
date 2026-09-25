@@ -111,6 +111,32 @@ public final class GameRules implements com.pvzce.api.entity.LevelAccess.GameRul
         return type != null && type.defaultValue() instanceof Boolean bool ? bool : false;
     }
 
+    /**
+     * A rule whose vocabulary is a fixed set of names, decoded leniently.
+     *
+     * <p>Deliberately not {@code values.get(id)} cast: the only enum-valued rule is
+     * {@code mutation_difficulty}, and the number of ways it can arrive as something other than
+     * its own type is not zero - a level JSON writes a string, {@code /gamerule} comes through
+     * the command parser, and a hand-edited save can hold anything at all. Anything that is not
+     * the expected type falls back to the type's default, which is the same policy
+     * {@link #getInt} and {@link #getBoolean} already follow.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T getEnum(Identifier id, java.util.function.Function<String, T> parse) {
+        GameRuleType<?> type = BuiltInRegistries.GAME_RULES.get(id);
+        T fallback = type == null ? null : (T) type.defaultValue();
+        Object value = values.get(id);
+        if (value == null) {
+            return fallback;
+        }
+        if (type != null && type.defaultValue() != null
+                && type.defaultValue().getClass().isInstance(value)) {
+            return (T) value;
+        }
+        T parsed = parse.apply(String.valueOf(value));
+        return parsed == null ? fallback : parsed;
+    }
+
     public Map<Identifier, JsonElement> toJson() {
         Map<Identifier, JsonElement> result = new LinkedHashMap<>();
         for (Map.Entry<Identifier, Object> entry : values.entrySet()) {

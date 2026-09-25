@@ -496,6 +496,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * right every time the window changed size would look like a delivery.
      */
     private CardBar cardBar;
+    /**
+     * The mutation announcements: the banner, the list down the right edge, the dark wash.
+     *
+     * <p>Owned by the screen rather than by the level mirror because everything it holds is
+     * presentation state - which banner is on screen and when it started - and the level mirror is
+     * replaced wholesale whenever the client enters a level.
+     */
+    private final com.pvzce.client.gui.hud.MutationHud mutationHud =
+            new com.pvzce.client.gui.hud.MutationHud();
+    /** The mutation packet this screen already reacted to; identity stands in for a revision. */
+    private com.pvzce.common.network.packet.MutationStateS2C mutationRevision;
+    /** Which kind of card bar is currently built, so a mutation's takeover can be noticed. */
+    private String cardBarKind = "";
     /** World-space overlays the level's mechanics ask for (the plantable area's line). */
     private java.util.List<com.pvzce.client.mechanic.ClientMechanic.WorldOverlay> overlays;
     /** The default tool's cursor animation, built on first draw; see {@link #toolCursor}. */
@@ -662,6 +675,20 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 client.sound().play(com.pvzce.common.PvzceSounds.EFFECT_BITE.toString(), 1F, 1F);
             }
         }
+    }
+
+    /**
+     * "存活 N 轮 · 击杀 M · 用时 T" - the three numbers a run leaves behind.
+     *
+     * <p>Waves rather than a score: an endless level has no score, and the wave count is the same
+     * currency an ordinary level's progress bar already uses, so the player has been reading it all
+     * along.
+     */
+    private String runSummary() {
+        int seconds = Math.max(0, client.level().survivedTicks() / 60);
+        String clock = String.format(java.util.Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+        return "存活 " + client.level().wavesArrived() + " 波 · 击杀 " + client.level().kills()
+                + " · 用时 " + clock;
     }
 
     /** True when the level ended with the zombies winning. */
@@ -1267,7 +1294,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // resolve is dropped rather than treated as water: the surface it
                 // meant is not on screen anyway, and drawing one would put a ring in
                 // the middle of a lawn.
-                client.liquidRipples().add(effect.x(), effect.y(), effect.rippleStrength());
+                //
+                // Through the stage's liquid frame, because a ripple is placed in the
+                // surface's space: the pool draws its water two thirds of a lane below
+                // its water rows, and a ring left on the cell grid would float above the
+                // splash that made it.
+                com.pvzce.client.renderer.LevelStage.LiquidFrame frame =
+                        client.camera().liquidFrame();
+                client.liquidRipples().add(frame.x(effect.x()), frame.y(effect.y()),
+                        effect.rippleStrength());
             }
         }
         // Wall-clock delta: particle motion and lifetime must not scale with the
@@ -1282,6 +1317,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         client.level().pruneCollectAnimations(System.nanoTime());
         tickMowerHold();
         tickWaveWarning();
+        applyMutationState();
         int coins = inLevelCoins();
         if (seenCoins < 0) {
             // First look: an empty new level must not flash a receipt for coins that
@@ -1300,9 +1336,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     public void render() {
         renderWorld();
         client.beginGuiView();
+        // Under the HUD and over the board: the wash belongs to the level, and the panel and the
+        // banner are messages about it.
+        mutationHud.renderDarkness(client);
         renderHud();
         renderEntryBanner();
         renderFinalWaveBanner();
+        mutationHud.renderBanner(client);
+        mutationHud.renderPanel(client);
         renderCardBar();
         renderMowerHold();
         renderCollectAnimations();
@@ -1405,19 +1446,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * default tool: this is the tool's own advertisement, not a new HUD element.
      */
     private void renderDefaultToolCursor() {
-        if (selectedCard >= 0 || !client.level().gameState().equals("running")) {
+        if (!client.level().gameState().equals("running")) {
             return;
         }
-        com.pvzce.api.content.ToolData granted =
-                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
-        if (granted == null || granted.tool() == null) {
+        Identifier toolId = cursorToolId();
+        if (toolId == null) {
             return;
         }
         com.pvzce.client.animation.AnimationManager animations = client.animations();
         if (animations == null) {
             return;
         }
-        com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, granted.tool());
+        com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, toolId);
         if (cursor == null) {
             return;
         }
@@ -1470,15 +1510,40 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (animations == null) {
             return;
         }
-        com.pvzce.api.content.ToolData granted =
-                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
-        if (granted == null || granted.tool() == null) {
+        Identifier toolId = cursorToolId();
+        if (toolId == null) {
             return;
         }
-        com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, granted.tool());
+        com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, toolId);
         if (cursor != null) {
             cursor.play(ATTACK_CLIP);
         }
+    }
+
+    /**
+     * Which tool is under the pointer: the card in hand, or the level's own click.
+     *
+     * <p>Two ways to be holding a tool, and the cursor is the same answer for both. A level
+     * that grants one (Whack-a-Zombie's mallet) has it in hand with no card selected; every
+     * other tool is a card the player picked up, which is how the original's shovel and
+     * watering can follow the pointer too - the card is not "a thing that will be used
+     * somewhere", it is what the player is holding.
+     *
+     * <p>Null for a plant card and for a tool card whose art this build has not got: a
+     * missing animation must leave the ordinary pointer alone rather than draw nothing over
+     * it.
+     */
+    private Identifier cursorToolId() {
+        if (selectedCard >= 0) {
+            SlotInfo selected = slotInfo(selectedCard);
+            if (selected == null || !"tool".equals(selected.kind())) {
+                return null;
+            }
+            return Identifier.tryParse(selected.defId());
+        }
+        com.pvzce.api.content.ToolData granted =
+                com.pvzce.client.mechanic.ClientMechanics.defaultTool(client.level());
+        return granted == null ? null : granted.tool();
     }
 
     /**
@@ -1569,7 +1634,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     client.level().sceneShifts()::at,
                     // The level's own backdrop may already contain some of the terrain, so the
                     // elements it hides are not painted - see SceneVisibility.
-                    client.level().sceneVisibility());
+                    client.level().sceneVisibility(),
+                    // Where this stage's water surface goes; see LevelStage.POOL.
+                    camera.liquidFrame());
         } finally {
             client.clipping().pop();
         }
@@ -2307,11 +2374,38 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * seed row is what is left when none of them offers one.
      */
     CardBar cardBar() {
+        com.pvzce.common.network.packet.MutationStateS2C mutations = client.level().mutations();
+        String wanted = mutations == null ? "" : mutations.cardBarKind();
+        if (cardBar != null && !wanted.equals(cardBarKind)) {
+            // The bar changed under the player - a mutation took it over or gave it back - so the
+            // old one goes, along with whatever card was in hand: keeping the held index would
+            // point at a card that is no longer there, and the bar draws that selection as if the
+            // player still had it.
+            cardBar = null;
+            selectedCard = -1;
+        }
         if (cardBar == null) {
             CardBar fromMechanic = com.pvzce.client.mechanic.ClientMechanics.cardBar(client.level(), this);
             cardBar = fromMechanic != null ? fromMechanic : new com.pvzce.client.gui.hud.cardbar.SeedCardBar(this);
+            cardBarKind = wanted;
         }
         return cardBar;
+    }
+
+    /**
+     * Reacts to a new mutation state: the banner and the card bar.
+     *
+     * <p>Identity comparison rather than a revision number in the packet, because the server sends
+     * a fresh record for every update - the same trick {@code mutationRevision} plays for the
+     * banner, and one fewer field on the wire.
+     */
+    private void applyMutationState() {
+        com.pvzce.common.network.packet.MutationStateS2C mutations = client.level().mutations();
+        if (mutations == mutationRevision) {
+            return;
+        }
+        mutationRevision = mutations;
+        mutationHud.apply(mutations);
     }
 
     /** World-space overlays the level's mechanics asked for; built once per level. */
@@ -2781,6 +2875,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     - DEFEAT_CHEW_NANOS) / 1_000_000_000F;
             com.pvzce.client.gui.components.DefeatScreen.render(client, seconds);
             if (com.pvzce.client.gui.components.DefeatScreen.settled(seconds)) {
+                // What the run amounted to, over the screen the original plays for a loss: on an
+                // endless level this is the only score there is, and on an ordinary one it is the
+                // same three numbers.
+                String summary = runSummary();
+                float summaryScale = 1.4F;
+                client.fonts().body().draw(summary,
+                        (width - client.fonts().body().width(summary, summaryScale)) / 2F,
+                        height * 0.16F, summaryScale, 1F, 0.95F, 0.8F, 1F);
                 String hint = "点击任意处返回";
                 float hintScale = 1.2F;
                 client.fonts().body().draw(hint,
@@ -3191,6 +3293,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // the bar greys a selected card that is not ready, and the second click was refused
             // by cardUsable() with the buzzer. The server still answers a drop that follows a
             // lift without charging the card again, so a two-click move still costs one use.
+            // The gesture is played on the click and the answer is not waited for, the same
+            // rule the level's own tool follows (see swingDefaultToolCursor).
+            swingDefaultToolCursor();
             client.connection().send(new UseToolC2S(selectedCard, cellX, cellY));
             selectedCard = -1;
             return;

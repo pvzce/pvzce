@@ -82,6 +82,18 @@ public final class PvzceRegistries {
             LEVEL_BUFFS = key("level_buff");
 
     /**
+     * Registered mutations, keyed by the id a mutation names itself with.
+     *
+     * <p>Code-registered like {@link #LEVEL_MECHANICS} and {@link #LEVEL_BUFFS}, and for a
+     * stronger version of the same reason: a mutation is a piece of behaviour that reaches into
+     * the running level (it writes game rules, moves the card bar, raises graves), which is not
+     * something a data file could describe without a language for it. The catalogue lives in
+     * {@code common.level.mutation.Mutations}.
+     */
+    public static final ResourceKey<Registry<com.pvzce.common.level.mutation.Mutation>>
+            MUTATIONS = key("mutation");
+
+    /**
      * Every data-driven registry, keyed by the name the command layer uses.
      *
      * <p>The command layer used to keep three more hand-typed copies of this list
@@ -118,6 +130,7 @@ public final class PvzceRegistries {
         map.put("projectile_capability", PROJECTILE_CAPABILITIES);
         map.put("level_mechanic", LEVEL_MECHANICS);
         map.put("level_buff", LEVEL_BUFFS);
+        map.put("mutation", MUTATIONS);
         return java.util.Map.copyOf(map);
     }
 

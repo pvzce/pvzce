@@ -1,0 +1,27 @@
+{
+  "id": "pvzce:dolphin_rider_zombie",
+  "health": 200,
+  "move_speed": 0.3,
+  "bite_damage": 100,
+  "bite_interval": 60,
+  "can_swim": true,
+  "capabilities": [
+    {
+      "type": "pvzce:vault",
+      "jump_distance": 1.4
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/dolphin_appears",
+    "hit": "pvzce:sfx/projectile/hit",
+    "special": "pvzce:sfx/zombie/dolphin_before_jumping",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation_dir": "zombie/special",
+  "texture": "pvzce:textures/entities/zombie/special/dolphin_rider_zombie",
+  "drops_arm": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

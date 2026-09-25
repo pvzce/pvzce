@@ -13,6 +13,8 @@
 - 选卡木质面板原图 `SeedChooser_Background.png` 为 465×513；`NinePatch` 使用按原始像素比例的平铺中段九宫格，不会把木纹横向拉宽。
 - 顶部卡槽条中铲子/锤子等工具卡固定显示在最右侧；SunBank 槽不占卡槽条，只在选中时渲染左上 HUD。
 - `LevelStage` 负责将背景 cover 到窗口，并把世界坐标中的棋盘等比映射到裸地区域：9×5 关卡正好铺满裸地；其他尺寸保持格子长宽比不变，按统一比例只填满宽或高其中一条轴（允许放大或缩小），另一方向的空白留在右侧（靠房门锚定）或上下（垂直居中），不再为了同时填满两个方向而拉伸。
+- **棋盘几何由背景图决定**（`LevelStage.geometryFor(background)`）：`background1unsodded`/`background1/2` 是上面那块 9×5 裸地；`background3/4`（白天/夜晚泳池）是原版后院，**九列六行、单格 80×85**，棋盘区 `x=256..976, y=80..590`，中间两行（第 2、3 行）是水。写一个泳池关卡除了 `background` 之外**不需要**声明几何；换一张这个版本不认识的背景就按前院的 9×5 画。
+- 泳池的水面**不**按水格画：背景里的水池内壁是一块占位矩形（`x=253..961, y=295..433`），比两条水行（`y=250..420`）低约三分之一行，所以 `LevelStage.POOL.liquid()` 给了液面一整帧（世界格坐标下的原点与格子尺寸），水面与涟漪都走它。自己画背景时要照着这个思路量一遍。
 - `PvzceCamera` 的 viewport 覆盖整个背景，因此右移出生的僵尸会先渲染在马路区域，再走进草坪；鼠标命中和实体投影均使用同一套棋盘坐标。
 
 ## 水面（液体）
@@ -37,14 +39,15 @@
 // data/<ns>/liquids/water.json —— 渲染参数的唯一出处，每个字段都有默认值
 {
   "id": "pvzce:water",
-  "base_texture": "pvzce:textures/scene/water_base",  // 水底，必须可无缝平铺
-  "shallow_color": "#4FA8C8C8",   // #RGB / #RRGGBB / #RRGGBBAA 都行
-  "deep_color": "#1E6E8C",
-  "opacity": 0.68,                // 水占多少、水底露多少（不是 alpha）
+  "base_texture": "pvzce:textures/scene/water_surface",  // 水底/水面贴图，按世界格连续平铺
+  "base_scale": 0.111111,         // 每格铺几张：1/9 = 一张贴图铺满九格（原版泳池就是九格宽）
+  "shallow_color": "#85A6A0C8",   // #RGB / #RRGGBB / #RRGGBBAA 都行
+  "deep_color": "#5A7E8C",
+  "opacity": 0.22,                // 水占多少、贴图露多少（不是 alpha）
   "depth_scale": 1.6,             // 离岸多少格算"深水"
   "foam":  { "color": "#E8F6F6", "width": 0.085 },  // 宽度单位是格
   "wave":  { "speed": 0.055, "amplitude": 0.55, "density": 2 },
-  "caustics": 0.6,
+  "caustics": 0.45,
   "reflect_color": "#9FC7E8",
   "fresnel": 0.35,
   "specular": 0.45,
@@ -62,7 +65,7 @@
 
 ### 做底图要注意
 
-底图会**按世界格坐标连续平铺**，所以必须**无缝**，否则缝会在水体中间成网格。`tools/gen_water_base.py` 是内置底图的生成器，它从 `refer/im4/underwater.png` 挑一块相邻 2×2 单元、再用周期窗把边缘做成可平铺，并自带接缝的数值验证（要求接缝跳变不大于图像自身的 1 像素步长）。参考图本身**不是**可平铺的——直接拿它当 tile 会在每个接缝出现硬边。
+底图会**按世界格坐标连续平铺**，所以必须**无缝**，否则缝会在水体中间成网格。`tools/gen_water_base.py` 生成的是**水底**版本（从 `refer/im4/underwater.png` 挑一块相邻 2×2 单元、用周期窗把边缘做成可平铺，自带接缝的数值验证：接缝跳变不大于图像自身的 1 像素步长）；`pvzce:water` 现在用的是 `tools/gen_water_surface.py` 生成的**水面**版本——原版 `refer/im7/images/pool_base.jpg` 那张 705×160 的云纹横条。原版是把这张横条**整幅画一遍**在池子上（不是按格铺），而它的宽度正好等于后院水池的九格：所以生成器把它补成正方形、再配 `base_scale: 1/9`，于是第 2、3 行采到的就是原版那一整条，接缝全部落在池沿上。**相位是镜像的**：shader 的 `v` 跟着行号走，而行号从棋盘底部往上数、PNG 却自上而下存，所以世界第 Y 行读的是九格贴图的第 `9-Y` 行（水行 2..3 → 贴图的 5/9..7/9）。自己画这张图时要按这个镜像相位放，换背景尺寸也要重新量；`LiquidDefinitionTest.theSurfaceArtIsPhasedOntoTheWaterRows` 钉住它（它会检查这一段上沿偏暗、中间最亮，贴反了会红）。
 
 ### 涟漪
 

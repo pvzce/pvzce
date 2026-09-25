@@ -62,6 +62,10 @@ public final class ClientLevel {
     /** Cells whose element is out of place right now; see {@link SceneShifts}. */
     private final SceneShifts sceneShifts = new SceneShifts();
     /** The backdrop this level is played on, or {@code null} for the built-in yard. */
+    /** The run's tally, from the state packet; zero until the level ends. */
+    private volatile int wavesArrived;
+    private volatile int kills;
+    private volatile int survivedTicks;
     private volatile Identifier background;
     /** Scene elements this level does not draw; see {@link SceneVisibility}. */
     private volatile SceneVisibility sceneVisibility = SceneVisibility.NONE;
@@ -97,6 +101,16 @@ public final class ClientLevel {
     private volatile long debugAnchorNanos;
     private volatile long debugAnchorTick;
     private volatile boolean initialized;
+    /**
+     * The mutations this level is running with, as the server last sent them.
+     *
+     * <p>Held as the packet rather than unpacked into fields because nothing on the client needs
+     * the pieces separately: the panel draws every entry, and the overlays ask whole-set questions
+     * ("is anything asking for darkness"). A mutation is not a mechanic - it comes and goes while
+     * the level runs - which is why this is its own slot rather than a mechanic block.
+     */
+    private volatile com.pvzce.common.network.packet.MutationStateS2C mutations;
+
     /**
      * Per-mechanic run state, the client's mirror of {@code LevelServer.mechanicState}.
      *
@@ -231,6 +245,7 @@ public final class ClientLevel {
         initialized = false;
         mechanics.clear();
         mechanicState.clear();
+        mutations = null;
         mechanicOrder = List.of();
         mechanicsInOrder = List.of();
         gameState = "running";
@@ -443,6 +458,28 @@ public final class ClientLevel {
     }
 
     /** The ids of this level's mechanics, in the order the level declares them. */
+    /** The mutation state, or {@code null} on a level that does not mutate. */
+    public com.pvzce.common.network.packet.MutationStateS2C mutations() {
+        return mutations;
+    }
+
+    /** Applies one mutation state update; the whole set arrives at once. */
+    public void setMutations(com.pvzce.common.network.packet.MutationStateS2C state) {
+        this.mutations = state;
+    }
+
+    /** True while the server says a mutation is dealing the cards. */
+    public boolean mutatedCardBar() {
+        com.pvzce.common.network.packet.MutationStateS2C state = mutations;
+        return state != null && "mutated".equals(state.cardBarKind());
+    }
+
+    /** The union of the running mutations' client effects, or 0 when none are running. */
+    public int mutationEffects() {
+        com.pvzce.common.network.packet.MutationStateS2C state = mutations;
+        return state == null ? 0 : state.effects();
+    }
+
     public List<Identifier> mechanicIds() {
         return mechanicOrder;
     }
@@ -538,6 +575,28 @@ public final class ClientLevel {
     public void setGameState(String state, String winTeam) {
         this.gameState = state;
         this.winTeam = winTeam;
+    }
+
+    /** The run's tally as the server last reported it: waves, kills, ticks. */
+    public void setRunSummary(int wavesArrived, int kills, int survivedTicks) {
+        this.wavesArrived = wavesArrived;
+        this.kills = kills;
+        this.survivedTicks = survivedTicks;
+    }
+
+    /** How many waves this run released. */
+    public int wavesArrived() {
+        return wavesArrived;
+    }
+
+    /** Zombies killed this run. */
+    public int kills() {
+        return kills;
+    }
+
+    /** How long the run lasted, in ticks. */
+    public int survivedTicks() {
+        return survivedTicks;
     }
 
     public void addMessage(String message) {

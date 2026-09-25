@@ -259,7 +259,9 @@ class DayAreaLevelsTest {
                         "yard/adventure/1_10", "yard/adventure/2_1", "yard/adventure/2_2",
                         "yard/adventure/2_3", "yard/adventure/2_4", "yard/adventure/2_5",
                         "yard/adventure/2_6", "yard/adventure/2_7", "yard/adventure/2_8",
-                        "yard/adventure/2_9", "yard/adventure/2_10"),
+                        "yard/adventure/2_9", "yard/adventure/2_10", "yard/adventure/3_1",
+                        "yard/adventure/3_2", "yard/adventure/3_3", "yard/adventure/3_4",
+                        "yard/adventure/3_5"),
                 adventure, "the list reads as a numbered list: 1-10 before 2-1, then 2-2 onwards");
     }
 

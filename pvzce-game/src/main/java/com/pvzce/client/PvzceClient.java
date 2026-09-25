@@ -19,6 +19,7 @@ import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.client.particle.ParticleEngine;
+import com.pvzce.client.renderer.LevelStage;
 import com.pvzce.client.renderer.Matrix4f;
 import com.pvzce.client.renderer.PvzceCamera;
 import com.pvzce.client.renderer.RenderSystem;
@@ -869,15 +870,21 @@ public final class PvzceClient {
         int height = window.height();
         int columns = Math.max(1, level.width());
         int rows = Math.max(1, level.height());
+        // Part of the key because the backdrop decides the stage: the pool's board is six
+        // 85px lanes with the water drawn on its own frame, the front lawn's is five 100px
+        // ones. A level swapped in at the same window size must not keep the old geometry.
+        LevelStage.Geometry geometry = LevelStage.geometryFor(level.background());
         PvzceCamera cached = this.cachedCamera;
         if (cached == null || cachedWidth != width || cachedHeight != height
-                || cachedColumns != columns || cachedRows != rows) {
-            cached = new PvzceCamera(width, height, columns, rows);
+                || cachedColumns != columns || cachedRows != rows
+                || !geometry.equals(cachedGeometry)) {
+            cached = new PvzceCamera(width, height, columns, rows, geometry, 0F);
             this.cachedCamera = cached;
             this.cachedWidth = width;
             this.cachedHeight = height;
             this.cachedColumns = columns;
             this.cachedRows = rows;
+            this.cachedGeometry = geometry;
         }
         return cached;
     }
@@ -887,6 +894,7 @@ public final class PvzceClient {
     private int cachedHeight = -1;
     private int cachedColumns = -1;
     private int cachedRows = -1;
+    private LevelStage.Geometry cachedGeometry;
 
     /** Horizontal sprite correction so square world-space sprites match the board cell aspect. */
     public float spriteXScale() {

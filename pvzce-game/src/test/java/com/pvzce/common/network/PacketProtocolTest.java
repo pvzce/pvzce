@@ -142,7 +142,24 @@ class PacketProtocolTest {
                 new ResourceCollectS2C(11, "pvzce:sun", 25, 3.5F, 1.5F, 0.4F, "pvzce:textures/resource/sun"),
                 new ResourceDeltaS2C("pvzce:plant_team", "pvzce:redstone", 30),
                 new SlotSyncS2C(new SlotInfo(1, "pvzce:sun", "resource", 0, 0, 0, -1, true)),
-                new GameStateS2C(GameStateS2C.WON, "pvzce:plant_team"),
+                // Non-default summary numbers: an endless run's whole score lives in these
+                // three fields, and a sample of zeros would hide a writer/reader swap.
+                new GameStateS2C(GameStateS2C.LOST, "pvzce:zombie_team", 37, 412, 88_800),
+                // The mutation list with one of each state, a subject and a rolled multiplier,
+                // plus a granted tool: every field of the record is non-default here.
+                new com.pvzce.common.network.packet.MutationStateS2C(
+                        "hell", 50, 1800, 421, 3F, "mutated", 3,
+                        List.of(new com.pvzce.common.network.packet.MutationStateS2C.ToolGrant(
+                                        "pvzce:hammer", true, true, 0),
+                                new com.pvzce.common.network.packet.MutationStateS2C.ToolGrant(
+                                        "pvzce:shovel", false, false, 300)),
+                        List.of(new com.pvzce.common.network.packet.MutationStateS2C.Entry(
+                                        "pvzce:zombie_crisis", "active", 1.75F,
+                                        "pvzce:buckethead_zombie"),
+                                new com.pvzce.common.network.packet.MutationStateS2C.Entry(
+                                        "pvzce:slot_replace", "suppressed", 1F, ""),
+                                new com.pvzce.common.network.packet.MutationStateS2C.Entry(
+                                        "pvzce:kelp_spread", "waiting", 0.75F, ""))),
                 new TeamSyncS2C("pvzce:zombie_team", "僵尸方"),
                 new SuggestionsS2C(7, List.of(new SuggestionsS2C.Suggestion(7, 13, "pvzce:basic_zombie"))),
                 new ServerMessageS2C("+25 阳光"),
@@ -255,7 +272,8 @@ EffectEventS2C:490c70767a63653a73706c617368406000003fc000001570767a63653a7366782
 ResourceCollectS2C:4a0000000b0970767a63653a73756e00000019406000003fc000003ecccccd1b70767a63653a74657874757265732f7265736f757263652f73756e
 ResourceDeltaS2C:4b1070767a63653a706c616e745f7465616d0e70767a63653a72656473746f6e650000001e
 SlotSyncS2C:4c000000010970767a63653a73756e087265736f75726365000000000000000000000000ffffffff01
-GameStateS2C:4d03776f6e1070767a63653a706c616e745f7465616d
+GameStateS2C:4d046c6f73741170767a63653a7a6f6d6269655f7465616d000000250000019c00015ae0
+MutationStateS2C:5b0468656c6c0000003200000708000001a540400000076d75746174656400000003020c70767a63653a68616d6d65720101000000000c70767a63653a73686f76656c00000000012c031370767a63653a7a6f6d6269655f637269736973066163746976653fe000001770767a63653a6275636b6574686561645f7a6f6d6269651270767a63653a736c6f745f7265706c6163650a737570707265737365643f800000001170767a63653a6b656c705f7370726561640777616974696e673f40000000
 TeamSyncS2C:4e1170767a63653a7a6f6d6269655f7465616d09e583b5e5b0b8e696b9
 SuggestionsS2C:4f0000000701000000070000000d1270767a63653a62617369635f7a6f6d626965
 ServerMessageS2C:500a2b323520e998b3e58589

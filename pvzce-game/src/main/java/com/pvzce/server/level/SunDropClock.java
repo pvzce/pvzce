@@ -79,11 +79,12 @@ public final class SunDropClock {
         // A level that wants no head start leaves the rule alone and sets its interval; the
         // boot delay then has to stay inside what that level asked for, or the "prompt first
         // sun" default would be the only sun this clock ever drops early.
-        if (configured > 0) {
-            return clamp(configured);
-        }
-        return Math.max(1, Math.min(clamp(rules.getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN)),
-                clamp(rules.getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX))));
+        int base = configured > 0
+                ? clamp(configured)
+                : Math.max(1, Math.min(clamp(rules.getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN)),
+                        clamp(rules.getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX))));
+        float rate = Math.max(0.1F, rules.getFloat(PvzceIds.RULE_SUN_RATE_MULTIPLIER));
+        return Math.max(1, Math.round(base / rate));
     }
 
     /**
@@ -91,6 +92,11 @@ public final class SunDropClock {
      *
      * <p>Uniform inside {@code [min, max]}, and inclusive of both ends: the author wrote a
      * range, and a roll that could never produce either end would quietly narrow it.
+     *
+     * <p>The {@code sun_rate_multiplier} rule divides the whole gap, so a level whose sun comes
+     * twice as fast gets two suns where the author wrote one rather than one short wait followed
+     * by the original interval. Read here rather than cached, for the same reason the range is: a
+     * mutation rewrites the rule mid-level, and the next gap has to hear about it.
      */
     public static int rollInterval(GameRules rules, Random random) {
         int min = clamp(rules.getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN));
@@ -98,7 +104,11 @@ public final class SunDropClock {
         if (max < min) {
             max = min;
         }
-        return min >= max ? min : min + random.nextInt(max - min + 1);
+        float rate = Math.max(0.1F, rules.getFloat(PvzceIds.RULE_SUN_RATE_MULTIPLIER));
+        int rolled = min >= max ? min : min + random.nextInt(max - min + 1);
+        // Zero stays zero: it is the switch that says the sky drops nothing at all, and dividing
+        // "off" by a rate must not turn it into one sun every tick.
+        return rolled <= 0 ? 0 : Math.max(1, Math.round(rolled / rate));
     }
 
     private int rollInterval(GameRules rules) {

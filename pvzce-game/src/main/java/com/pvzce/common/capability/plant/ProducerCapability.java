@@ -9,6 +9,7 @@ import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceParticles;
 
 import java.util.Optional;
@@ -53,6 +54,9 @@ public final class ProducerCapability implements PlantCapability {
     private final Growth growth;
 
     private int cooldown;
+    /** This producer's own progress clock; see {@code ShooterCapability} for why it is not shared. */
+    private final com.pvzce.common.level.RateClock clock =
+            new com.pvzce.common.level.RateClock();
     /** Ticks until this producer grows, or 0 when it has no growth left to do. */
     private int growTicks;
     /** Ticks of the grow performance left; the plant produces nothing while it plays. */
@@ -195,7 +199,12 @@ public final class ProducerCapability implements PlantCapability {
             return;
         }
         if (cooldown > 0) {
-            cooldown--;
+            // The plant's own clock: a watered plant counts a quarter faster, and the level's
+            // `sun_rate_multiplier` counts it faster still. Read from the live rules rather than
+            // captured at planting time, so a mutation that rewrites the sun rate reaches the
+            // sunflowers that are already standing on the lawn.
+            cooldown -= clock.step(plant.actionRate(
+                    level.rules().getFloat(PvzceIds.RULE_SUN_RATE_MULTIPLIER)));
         }
         if (cooldown > 0) {
             plant.setState(EntityAnimations.IDLE);
@@ -210,6 +219,23 @@ public final class ProducerCapability implements PlantCapability {
         // empty id is what LevelServer already reads as "play nothing".
         level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
                 sound.or(() -> plant.def().sounds().produce()).orElse(null));
+    }
+
+    /**
+     * Watering ripens it: the sun-shroom grows up on the spot.
+     *
+     * <p>The garden's own rule - watering is what makes a plant grow - and the only capability
+     * in the game that answers the watering can with something the player can see. A producer
+     * that has already grown reports that nothing happened, so pouring water on a sunflower
+     * stays a wasted click rather than a second, weaker growth.
+     */
+    @Override
+    public boolean water(PlantEntity plant, LevelAccess level) {
+        if (growth == null || growTicks <= 0) {
+            return false;
+        }
+        growTicks = 1;
+        return true;
     }
 
     @Override

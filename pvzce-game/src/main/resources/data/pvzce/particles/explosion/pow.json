@@ -35,7 +35,7 @@
       ]
     ],
     "aspect": 1.38,
-    "life": 0.8333,
+    "life": 0.45,
     "frames_per_second": 60.0,
     "loop": true,
     "texture": "pvzce:textures/particles/explosion/pow"

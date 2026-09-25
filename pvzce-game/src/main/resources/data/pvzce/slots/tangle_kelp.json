@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:tangle_kelp",
+  "kind": "plant",
+  "content": "pvzce:tangle_kelp",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/tangle_kelp"
+}

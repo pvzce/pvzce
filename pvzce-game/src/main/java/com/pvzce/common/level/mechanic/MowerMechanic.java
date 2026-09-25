@@ -164,7 +164,7 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
         private Rig(LevelServer level, MowerData data) {
             this.width = level.width();
             for (int row : data.rowsFor(level.height())) {
-                mowers.put(row, new Mower(IDLE_X));
+                mowers.put(row, new Mower(IDLE_X, data.kindFor(row)));
             }
         }
 
@@ -176,9 +176,18 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
             private int cloudTimer;
             /** Set by a hand release, whose request has no tick to emit the sound on. */
             private boolean launchSoundPending;
+            /**
+             * Which vehicle this row's mower is.
+             *
+             * <p>Carried rather than looked up at the moment it is needed: the rig outlives the
+             * data it was built from in every way that matters (the level can be reloaded, the
+             * registry repopulated), and "what is standing in this row" is a fact about the rig.
+             */
+            private final MowerData.MowerKind kind;
 
-            private Mower(float x) {
+            private Mower(float x, MowerData.MowerKind kind) {
                 this.x = x;
+                this.kind = kind;
             }
         }
 
@@ -233,7 +242,11 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
                 return;
             }
             mower.launchSoundPending = false;
-            level.emitEffect("", mower.x, row + 0.5F, PvzceSounds.EFFECT_LAWNMOWER);
+            // The kind's own sound when it names one - a pool cleaner does not sound like a
+            // mower - and the ordinary mower's otherwise, so a pack that only ships art still
+            // gets a launch.
+            level.emitEffect("", mower.x, row + 0.5F,
+                    mower.kind.sound().orElse(PvzceSounds.EFFECT_LAWNMOWER));
         }
 
         private void roll(LevelServer level, int row, Mower mower) {

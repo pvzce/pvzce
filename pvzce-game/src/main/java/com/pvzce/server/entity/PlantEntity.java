@@ -39,6 +39,36 @@ public class PlantEntity extends PvzceEntity {
      */
     private int vanishTicks;
 
+    /**
+     * Ticks left of "this plant has just been watered"; zero when it is dry.
+     *
+     * <p>Not a hidden buff: it is the answer to "does this plant work faster right now", and it
+     * is what the watering can buys besides the health. Kept here rather than in each capability
+     * because every capability that counts something down wants the same accelerated clock, and
+     * a per-capability copy would be several answers to one question.
+     */
+    private int wateredTicks;
+
+    /**
+     * How fast this plant works, as a multiplier on the rate.
+     *
+     * <p>Pushed in by the level at planting time (and again when a mutation rewrites the rule)
+     * rather than asked per step, because the rate is read by capabilities that have no level
+     * handle - the shooter and the producer spend it, and neither was written to ask.
+     */
+    private float actionSpeedMultiplier = 1F;
+
+    /** What being watered is worth, as a rate rather than as "a tick every third one". */
+    private static final float WATERED_ACTION_SPEED = 4F / 3F;
+    /**
+     * The clock {@link #actionStep()} spends, for capabilities that keep no clock of their own.
+     *
+     * <p>Sharing one is only safe for capabilities that are the plant's <em>only</em> counting
+     * clock; the shooter and the producer each hold their own, because a plant may have both.
+     */
+    private final com.pvzce.common.level.RateClock sharedClock =
+            new com.pvzce.common.level.RateClock();
+
 
     public PlantEntity(PlantDef def, Team team, int gridX, int gridY) {
         super(def.id(), team, gridX + 0.5F, gridY + 0.5F, def.health());
@@ -54,6 +84,110 @@ public class PlantEntity extends PvzceEntity {
 
     public int age() {
         return age;
+    }
+
+    /** True while this plant is working on the faster clock a watering gives it. */
+    public boolean watered() {
+        return wateredTicks > 0;
+    }
+
+    /** How much longer the watering lasts, in ticks. */
+    public int wateredTicks() {
+        return wateredTicks;
+    }
+
+    /**
+     * Waters this plant: full health, {@code ticks} of the faster clock, and every capability
+     * gets asked whether it has something of its own to do with the water.
+     *
+     * <p>The fan-out lives here rather than at the call site for the same reason {@link #wake}
+     * does: "ask every capability" is the plant's own shape, and a tool that reached into the
+     * capability list would be a second implementation of it. The hook is what makes the
+     * sun-shroom ripen on the spot; a capability that ignores it is untouched.
+     *
+     * <p>To full, not by a number: watering a half-eaten plant is how the original's garden keeps
+     * it alive, and "how much did that restore" is one of the two things the caller reports.
+     */
+    public Watering water(int ticks, LevelAccess level) {
+        int before = health();
+        setHealth(def.health());
+        wateredTicks = Math.max(wateredTicks, Math.max(1, ticks));
+        boolean used = false;
+        for (Instance instance : capabilities) {
+            used |= instance.capability.water(this, level);
+        }
+        return new Watering(health() - before, used);
+    }
+
+    /**
+     * What one watering did: how much health it restored, and whether a capability used it.
+     *
+     * <p>Both halves are feedback the player can see - a plant that was hurt looks repaired, a
+     * producer that ripened plays its growth performance - and the caller needs them apart to
+     * decide which of the two to show.
+     */
+    public record Watering(int healed, boolean ripened) {
+    }
+
+    /**
+     * One tick of progress on whatever this plant is counting down, at the level's default rate.
+     *
+     * <p>What a shooter spends. A capability whose subject has a rate of its own on top of the
+     * plant's - a producer, whose sun arrives at {@code sun_rate_multiplier} as well - passes
+     * that rate to {@link #actionStep(float)} instead.
+     */
+    public float actionRate() {
+        return actionRate(1F);
+    }
+
+    /**
+     * How fast this plant works right now, as steps per tick.
+     *
+     * <p>The level's {@code plant_action_speed_multiplier}, the watering tool's "a quarter faster"
+     * and the caller's own rate folded into one number, which each capability then feeds to its own
+     * {@link com.pvzce.common.level.RateClock}: 1.0 is one step per tick, 2.0 is two, 0.5 is one
+     * every other tick.
+     *
+     * <p>Kept here rather than written out in the shooter and the producer so the two can never
+     * disagree about what either the water or a mutation does - and <em>only</em> here, because
+     * the counting down itself has to be per capability (see {@code RateClock}).
+     *
+     * @param extraRate a further multiplier for this particular clock, e.g. the sun rate a
+     *                  producer's drop arrives at
+     */
+    public float actionRate(float extraRate) {
+        return actionSpeedMultiplier * Math.max(0.1F, extraRate)
+                * (wateredTicks > 0 ? WATERED_ACTION_SPEED : 1F);
+    }
+
+    /**
+     * One tick of progress, for a capability that has no clock of its own.
+     *
+     * <p>Kept as a convenience for the callers that were written against it (the melee plant, the
+     * thrower) and as this plant's shared clock. A capability that needs its own phase - anything
+     * counting a cooldown down next to another one on the same plant - holds a
+     * {@link com.pvzce.common.level.RateClock} and calls {@link #actionRate} instead.
+     */
+    public int actionStep() {
+        return actionStep(1F);
+    }
+
+    /** One tick of progress at a further multiplier, through this plant's shared clock. */
+    public int actionStep(float extraRate) {
+        int gain = sharedClock.step(actionRate(extraRate));
+        return gain;
+    }
+
+    /**
+     * Sets how fast this plant works.
+     *
+     * <p>Called by the level when the plant is placed and again whenever the rule changes, so a
+     * mutation that makes every plant faster reaches the ones already standing on the lawn - a
+     * rule read only at planting time would make the mutation apply to whatever the player
+     * planted after it, which is not what "the plants now work faster" means.
+     */
+    public void setActionSpeedMultiplier(float multiplier) {
+        this.actionSpeedMultiplier = Math.max(0.1F, multiplier);
     }
 
     /**
@@ -137,6 +271,9 @@ public class PlantEntity extends PvzceEntity {
             return;
         }
         age++;
+        if (wateredTicks > 0) {
+            wateredTicks--;
+        }
         // A sleeping plant is not acting: only the capability that puts it to sleep keeps
         // ticking (it is the one publishing the animation). Asking here rather than in each
         // active capability is what makes "asleep" one fact instead of a check every new
@@ -150,6 +287,15 @@ public class PlantEntity extends PvzceEntity {
             if (removed) {
                 break;
             }
+        }
+        if (asleep && !removed) {
+            // The sleeping pose wins, whatever else ticked this tick. A capability that keeps
+            // working while its plant sleeps (a Sun-shroom's producer) publishes its own state as
+            // it goes - `produce`, then `idle_big` - while this plant's sleep is derived rather
+            // than published, so without this the mushroom would be drawn awake on every tick it
+            // happened to produce on. Publishing here rather than suppressing the producer is
+            // deliberate: the sun still has to arrive.
+            setState(com.pvzce.api.entity.EntityAnimations.SLEEP);
         }
     }
 
@@ -323,6 +469,7 @@ public class PlantEntity extends PvzceEntity {
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
         tag.putInt("age", age);
+        tag.putInt("watered", wateredTicks);
         CompoundTag saved = new CompoundTag();
         for (Instance instance : capabilities) {
             CompoundTag capabilityTag = new CompoundTag();
@@ -344,6 +491,9 @@ public class PlantEntity extends PvzceEntity {
     public void restoreStateWithoutPosition(CompoundTag tag) {
         super.restoreStateWithoutPosition(tag);
         age = tag.getInt("age");
+        // A save written before watering existed has no key, and getInt answers 0 - the plant
+        // reads back dry, which is what it was.
+        wateredTicks = Math.max(0, tag.getInt("watered"));
         restoreCapabilities(tag);
     }
 
@@ -359,6 +509,7 @@ public class PlantEntity extends PvzceEntity {
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
         age = tag.getInt("age");
+        wateredTicks = Math.max(0, tag.getInt("watered"));
         restoreCapabilities(tag);
     }
 

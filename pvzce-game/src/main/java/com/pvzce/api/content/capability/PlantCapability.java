@@ -66,6 +66,23 @@ public interface PlantCapability {
     }
 
     /**
+     * Waters this plant, and reports whether that did anything.
+     *
+     * <p>The watering can's whole effect, and deliberately shaped like {@link #wake}: a plant
+     * whose behaviour is about growth answers here, every other plant ignores it, so pouring
+     * water on a wall-nut is a wasted click rather than a special case in the caller.
+     *
+     * <p>"Did anything" is what the feedback keys on - a plant that ripened plays its growth
+     * performance, one that was merely thirsty just gets wet - and it is why the answer is a
+     * boolean rather than a side effect nobody can see.
+     *
+     * @return {@code true} when this capability used the water for something
+     */
+    default boolean water(PlantEntity plant, LevelAccess level) {
+        return false;
+    }
+
+    /**
      * Whether this plant is asleep right now and therefore not acting.
      *
      * <p>Asked by {@code PlantEntity} before it ticks anything: a sleeping plant skips

@@ -40,6 +40,7 @@ import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
 import com.pvzce.common.network.packet.ReleaseMowerC2S;
+import com.pvzce.common.network.packet.MutationStateS2C;
 import com.pvzce.common.network.packet.UseGrantedToolC2S;
 import com.pvzce.common.network.packet.UseToolC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
@@ -136,6 +137,7 @@ public final class PvzcePackets {
     public static final int S2C_LEVEL_REWARD = S2C_BASE + 24;
     public static final int S2C_MECHANIC_SYNC = S2C_BASE + 25;
     public static final int S2C_CARRY_SYNC = S2C_BASE + 26;
+    public static final int S2C_MUTATION_STATE = S2C_BASE + 27;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -199,7 +201,9 @@ public final class PvzcePackets {
             def(S2C_PROFILE, ConnectionDirection.CLIENTBOUND, ProfileS2C.class, ProfileS2C::decode),
             def(S2C_LEVEL_REWARD, ConnectionDirection.CLIENTBOUND, LevelRewardS2C.class, LevelRewardS2C::decode),
             def(S2C_MECHANIC_SYNC, ConnectionDirection.CLIENTBOUND, MechanicSyncS2C.class,
-                    MechanicSyncS2C::decode));
+                    MechanicSyncS2C::decode),
+            def(S2C_MUTATION_STATE, ConnectionDirection.CLIENTBOUND, MutationStateS2C.class,
+                    MutationStateS2C::decode));
 
     private static volatile boolean registered;
 

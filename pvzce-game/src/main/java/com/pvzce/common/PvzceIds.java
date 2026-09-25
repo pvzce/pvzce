@@ -139,6 +139,73 @@ public final class PvzceIds {
      */
     public static final Identifier RULE_SEED_COOLDOWN_MULTIPLIER = id("seed_cooldown_multiplier");
     /**
+     * How fast this level's plants work, as a multiplier on the rate.
+     *
+     * <p>Read by {@code PlantEntity.actionStep}, the one tick of progress every counting-down
+     * capability spends (a shooter's cooldown, a producer's interval, a thrower's lob). Scaling
+     * that single number rather than each capability is what keeps "the plants work twice as
+     * fast" from becoming several answers that can drift apart.
+     *
+     * <p>It does not touch damage: this rule says how often, not how hard.
+     */
+    public static final Identifier RULE_PLANT_ACTION_SPEED_MULTIPLIER =
+            id("plant_action_speed_multiplier");
+    /**
+     * How fast this level's sun arrives, as a multiplier on the rate.
+     *
+     * <p>Both halves of the sun economy in one number, because a player who reads "sun rate"
+     * does not mean "the sky but not the flowers": the sky's countdown ({@code SunDropClock}) and
+     * a producer's interval are both divided by it, so 2.0 is two suns where there was one.
+     * Bigger is faster here, the same direction as every other rate rule.
+     */
+    public static final Identifier RULE_SUN_RATE_MULTIPLIER = id("sun_rate_multiplier");
+    /**
+     * What this level charges for a plant card, as a multiplier on the plant's own price.
+     *
+     * <p>Applied where the sun is actually taken ({@code DeckCardSource.spend}) rather than on
+     * the price a card prints, so one rule covers every card on the bar and no definition has to
+     * be rewritten to say "and now it costs half".
+     */
+    public static final Identifier RULE_PLANT_SUN_COST_MULTIPLIER =
+            id("plant_sun_cost_multiplier");
+    /**
+     * How hard a mutation level is: {@code easy} / {@code normal} / {@code hard} / {@code hell}.
+     *
+     * <p>A string rule rather than four, because the three numbers a tier means (how many
+     * mutations at once, how often, how strong) are one decision - see
+     * {@code common.level.mutation.MutationDifficulty}. An unrecognised value falls back to the
+     * middle tier and is reported by the level validator, the same policy every other rule
+     * follows.
+     */
+    public static final Identifier RULE_MUTATION_DIFFICULTY = id("mutation_difficulty");
+    /**
+     * How long a mutation level waits for its first mutation.
+     *
+     * <p>Its own rule because the opening is the one moment a level is allowed to be gentle: the
+     * player has to plant something before the lawn starts rewriting itself, and the tiers'
+     * intervals are deliberately too short to serve as a grace period on 地狱 (thirty seconds).
+     */
+    public static final Identifier RULE_MUTATION_INITIAL_TICKS = id("mutation_initial_ticks");
+    /**
+     * How shrunken this level's own mutation clock is, as a multiplier on the interval.
+     *
+     * <p>1 is "a mutation every interval the tier says"; 0.5 is twice as often. It exists so a
+     * single level can be a busier mutation run than its tier without a fifth tier.
+     */
+    public static final Identifier RULE_MUTATION_INTERVAL_MULTIPLIER =
+            id("mutation_interval_multiplier");
+    /**
+     * A second multiplier on card recharge, owned by the mutations.
+     *
+     * <p>Deliberately not {@link #RULE_SEED_COOLDOWN_MULTIPLIER}: a level may set that one in its
+     * own file, and a mutation that scaled it would have to remember the level's number and put
+     * it back - which breaks the moment two mutations both touch it. Two rules whose product is
+     * the recharge keeps ownership clean: the level owns one, the mutations own the other, and
+     * undoing a mutation only ever divides out its own half.
+     */
+    public static final Identifier RULE_MUTATION_SEED_COOLDOWN_FACTOR =
+            id("mutation_seed_cooldown_factor");
+    /**
      * Whether this level's graves give up their dead at the last wave.
      *
      * <p>The name is the original rule's; what it means changed from "roll for a zombie on
@@ -186,6 +253,13 @@ public final class PvzceIds {
     public static final Identifier DAMAGE_SPLASH = id("splash");
     public static final Identifier DAMAGE_SPRAY = id("spray");
     public static final Identifier DAMAGE_MOWER = id("mower");
+    /**
+     * A body pulled under the water (the tangle kelp).
+     *
+     * <p>Its own type rather than the mower's, even though both ignore armour: the mower throws a
+     * head and an arm off as it goes over, and a drowned zombie does not.
+     */
+    public static final Identifier DAMAGE_DRAG_UNDER = id("drag_under");
 
     /**
      * Built-in level mechanics, the ids a level's {@code mechanics} list may name.
@@ -252,6 +326,80 @@ public final class PvzceIds {
      * slower player" is a defect rather than a mode.
      */
     public static final Identifier MECHANIC_WAVE_PACING = id("wave_pacing");
+    /**
+     * Waves that never run out: the original's Survival Endless.
+     *
+     * <p>A level with this mechanic cycles its wave table, inflating each round, and has no
+     * victory condition at all - the only way out is a zombie reaching the house. It is the
+     * second half of {@link #MECHANIC_MUTATION}, which needs a level that runs long enough for
+     * its mutations to matter.
+     */
+    public static final Identifier MECHANIC_ENDLESS = id("endless");
+    /**
+     * The mutation system: a level where the rules themselves are rewritten every so often.
+     *
+     * <p>The id of a mechanic with no block of its own (the same shape as
+     * {@link #MECHANIC_DECK}): which mutation appears, when, and how strong is code rather than
+     * level data, so declaring this mechanic is the whole statement. See
+     * {@code common.level.mutation.Mutations} for the catalogue.
+     */
+    public static final Identifier MECHANIC_MUTATION = id("mutation");
+
+    /** The level category the mutation levels live under. */
+    public static final Identifier CATEGORY_ENDLESS = id("endless");
+
+    /**
+     * The built-in mutations, the catalogue {@code common.level.mutation.Mutations} registers.
+     *
+     * <p>One constant per mutation rather than leaving the ids to the classes that implement
+     * them: the level list, the language files and the tests all need to name a mutation, and
+     * "the id a player sees on the panel" is exactly the kind of fact that ends up written
+     * twice. The names are the ids - {@code pvzce.slot_replace} is the whole description, and
+     * the number any one of them rolls is in its own class, not here.
+     */
+    public static final Identifier MUTATION_SLOT_REPLACE = id("slot_replace");
+    public static final Identifier MUTATION_CONVEYOR = id("conveyor");
+    public static final Identifier MUTATION_SUN_RATE = id("sun_rate");
+    public static final Identifier MUTATION_PLANT_ATTACK_RATE = id("plant_attack_rate");
+    public static final Identifier MUTATION_ZOMBIE_SPEED = id("zombie_speed");
+    public static final Identifier MUTATION_ZOMBIE_SPAWN_RATE = id("zombie_spawn_rate");
+    public static final Identifier MUTATION_PLANT_SUN_COST = id("plant_sun_cost");
+    public static final Identifier MUTATION_NIGHTFALL = id("nightfall");
+    public static final Identifier MUTATION_BOWLING_NUT = id("bowling_nut");
+    public static final Identifier MUTATION_WHACK_A_ZOMBIE = id("whack_a_zombie");
+    public static final Identifier MUTATION_GRAVE_GROWTH = id("grave_growth");
+    public static final Identifier MUTATION_ZOMBIE_CRISIS = id("zombie_crisis");
+    public static final Identifier MUTATION_BUFF_SHIFT = id("buff_shift");
+    public static final Identifier MUTATION_APOCALYPSE = id("apocalypse");
+    public static final Identifier MUTATION_ZOMBIE_BLAST = id("zombie_blast");
+    public static final Identifier MUTATION_PLANT_BLAST = id("plant_blast");
+    public static final Identifier MUTATION_MENDEL = id("mendel");
+    public static final Identifier MUTATION_KELP_SPREAD = id("kelp_spread");
+
+    /**
+     * The zombies a {@code zombie_crisis} may pick from: {@code #pvzce:mutation_crisis}.
+     *
+     * <p>A tag rather than a hardcoded list, so a level pack (or a mod) can widen or narrow the
+     * pool without touching code - which is the whole reason the mutation rolls a <em>subject</em>
+     * out of a tag instead of naming the one zombie it spawns.
+     */
+    public static final Identifier TAG_ZOMBIE_MUTATION_CRISIS = id("mutation_crisis");
+
+    /**
+     * The plants and tools the mutation catalogue names by hand.
+     *
+     * <p>Here rather than inline in the mutations for the same reason every other id is: the
+     * content files spell these names, and a mutation that hardcoded {@code "bowling_nut"} would
+     * be a second copy of a string the data pack owns.
+     */
+    public static final Identifier WALL_NUT = id("wall_nut");
+    public static final Identifier BOWLING_NUT = id("bowling_nut");
+    public static final Identifier TANGLE_KELP = id("tangle_kelp");
+    public static final Identifier DOOM_SHROOM = id("doom_shroom");
+    public static final Identifier HAMMER = id("hammer");
+    public static final Identifier PEASHOOTER_PEA = id("pea");
+    public static final Identifier SNOW_PEA = id("snow_pea");
+    public static final Identifier FIRE_PEA = id("fire_pea");
 
     /**
      * Automatic pickup of sun and coins: no clicking.

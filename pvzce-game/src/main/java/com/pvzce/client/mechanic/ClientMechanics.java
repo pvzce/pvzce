@@ -61,8 +61,19 @@ public final class ClientMechanics {
         mechanic.applySync(level, packet.payloadBuffer());
     }
 
-    /** The card bar for a level: the first mechanic that offers one, else the seed bar. */
+    /**
+     * The card bar for a level: the first mechanic that offers one, else the seed bar.
+     *
+     * <p>A running mutation outranks every mechanic: a mutation that took the bar over is dealing
+     * the cards <em>now</em>, whatever the level's own file declared, and the two answers would
+     * otherwise disagree for as long as the mutation lasts. The kind the server published is the
+     * only thing read here - the client does not know or care which mutation it was, because the
+     * panel is where that is written down.
+     */
     public static CardBar cardBar(ClientLevel level, CardBar.Host host) {
+        if (level.mutatedCardBar()) {
+            return new com.pvzce.client.gui.hud.cardbar.BeltCardBar(host);
+        }
         for (Identifier id : level.mechanicIds()) {
             ClientMechanic mechanic = REGISTRY.get(id);
             if (mechanic != null) {

@@ -781,6 +781,19 @@ public final class PvzceServer implements Runnable {
     }
 
     /**
+     * Enters a level from a test, through the same path the menu's own request takes.
+     *
+     * <p>Package-private rather than public because {@link LevelIntent} is private: the questions
+     * "start fresh" and "continue the save" are the whole of what a caller outside this class may
+     * say, and a test that starts a world and then resumes it is saying exactly those two things.
+     * The alternative - driving {@code RestartLevelC2S} through a connection - needs a running
+     * client, which is a much larger harness for the same coverage.
+     */
+    void createLevelForTest(String levelId, String worldName, boolean restart) {
+        createLevel(levelId, worldName, restart);
+    }
+
+    /**
      * The single entry point for "put this level on the server".
      *
      * <p>The intent says whether the save on disk is a run to resume or a leftover to discard,
@@ -870,7 +883,7 @@ public final class PvzceServer implements Runnable {
                 requestedBuffs, profile.autoBuffs(), saveDir, loadSave, profile::ownsBuff);
 
         LevelServer newLevel = new LevelServer(def, seeds,
-                LevelServer.SeedContext.forProfile(def, profile), buffs);
+                LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard);
         // "The buffs I last went in with." Written from the resolved list, so a buff the level
         // refused never becomes a preference and a buff the level pinned joins it for the levels
         // that leave the choice open. Skipped while a save is being loaded: that run's buffs were
@@ -1138,7 +1151,7 @@ public final class PvzceServer implements Runnable {
                 // tool it saw, and a client naming one the level does not grant is refused here.
                 if (current != null) {
                     com.pvzce.api.content.ToolData data =
-                            com.pvzce.common.level.mechanic.ToolMechanic.declared(current.def()).stream()
+                            com.pvzce.common.level.mechanic.ToolMechanic.granted(current).stream()
                                     .filter(block -> block.tool() != null && block.tool().equals(granted.tool()))
                                     .findFirst()
                                     .orElse(null);

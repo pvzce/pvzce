@@ -87,6 +87,14 @@ ZOMBIE_DOOR_EXCLUDE = r"(FLAGHAND|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET|MUSTA
 # One accessory kept, the rest dropped: the same master file holds every zombie hat.
 ZOMBIE_CONE_EXCLUDE = r"(FLAGHAND|SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|BUCKET|MUSTACHE)"
 ZOMBIE_FLAG_EXCLUDE = r"(SCREENDOOR|DUCKYTUBE|WHITEWATER|SNORKLE|CONE|BUCKET|MUSTACHE)"
+# One accessory kept, the rest dropped - the pool's zombies. `Zombie.reanim` carries a
+# `Zombie_duckytube` track (visible in 292 of its 504 frames, so the death masks already drop
+# it), which every land variant removes by image name. Keeping it *is* the ducky-tube zombie:
+# the floatie is authored art in the zombie's own model space, not a sprite the runtime blits,
+# so the ring rides the waist through every clip without a line of code.
+DUCKY_BASE_EXCLUDE = r"(FLAGHAND|SCREENDOOR|WHITEWATER|SNORKLE|CONE|BUCKET|MUSTACHE)"
+DUCKY_CONE_EXCLUDE = r"(FLAGHAND|SCREENDOOR|WHITEWATER|SNORKLE|BUCKET|MUSTACHE)"
+DUCKY_BUCKET_EXCLUDE = r"(FLAGHAND|SCREENDOOR|WHITEWATER|SNORKLE|CONE|MUSTACHE)"
 
 
 @dataclass(frozen=True)
@@ -229,8 +237,12 @@ SHOOT_ANIMATION_RATE = 2.0
 # move, which is a 0.4 s loop - and the fuse is 60 ticks, one second. At authoring speed the
 # bomb swells two and a half times over and then explodes in the middle of the third, which
 # is what "the cherry bomb's animation is wrong" was: 0.4 puts one puff-up exactly on the
-# fuse, so the plant swells once and goes off as it finishes. The explode mask is slowed by
-# the same factor - it is the same 27-frame track, and half of one gesture.
+# fuse, so the plant swells once and goes off as it finishes.
+#
+# It applies to the IDLE ONLY. Slowing the explode mask by the same factor made the blast
+# itself 1.17 s long, which is "the explosion takes too long": a half-second burst that
+# lingers for over a second reads as a fire that will not go out. The burst is the one half
+# of the gesture the original does NOT stretch - 14 frames at 30fps, 0.47 s.
 CHERRY_BOMB_ANIMATION_RATE = 0.4
 
 # All three of the original's death sequences exist in Zombie.reanim. Which one a zombie
@@ -252,7 +264,8 @@ ZOMBIE_DEATH_CLIPS: Dict[str, Dict[str, object]] = {
 
 def zombie_animations(*, walk: bool = True, angry: bool = False,
                       eat_rate: float = ZOMBIE_EAT_RATE,
-                      all_deaths: bool = True) -> Dict[str, Dict[str, object]]:
+                      all_deaths: bool = True,
+                      swim: bool = False) -> Dict[str, Dict[str, object]]:
     """The clip set a zombie sharing Zombie.reanim gets.
 
     Every zombie that wears this body gets the same locomotion, bite and death clips; the
@@ -261,12 +274,22 @@ def zombie_animations(*, walk: bool = True, angry: bool = False,
     on a 1.25 s loop, and the server stopped publishing a hurt state (see
     ZombieEntity.walkOrEat) because holding it froze a walking zombie for an eighth of a
     second on every pea.
+
+    ``swim`` is the floatie zombies' water gait and only they get it: ``anim_swim`` is the
+    same body with the legs hidden, the tube's *in-water* drawing swapped in (the tube track
+    switches image per frame, so the swap is already in the art) and a whitewater wake at the
+    waterline. The original switches to it in code while a ducky-tube zombie floats in a pool
+    - see ``FloatCapability`` - which is exactly why one that only ever walks looks like it is
+    walking on the surface.
     """
     clips: Dict[str, Dict[str, object]] = {
         "idle": {"mask": "anim_idle", "loop": True},
     }
     if walk:
         clips["walk"] = {"mask": "anim_walk", "loop": True,
+                         "reference_speed": ZOMBIE_WALK_REFERENCE_SPEED}
+    if swim:
+        clips["swim"] = {"mask": "anim_swim", "loop": True,
                          "reference_speed": ZOMBIE_WALK_REFERENCE_SPEED}
     clips["eat"] = {"mask": "anim_eat", "loop": True, "rate": eat_rate}
     if angry:
@@ -394,16 +417,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="plant/special",
         reanim="CherryBomb.reanim",
         target_box=PLANT_BOX,
-        # Both clips at CHERRY_BOMB_ANIMATION_RATE: the idle so one puff-up fills the one-second
-        # fuse, the explode so the burst that follows keeps the same speed as the swell that
-        # led into it. See that constant for the arithmetic.
+        # The idle is slowed so one puff-up fills the one-second fuse; the explode is NOT, so the
+        # burst stays the original's half second. See CHERRY_BOMB_ANIMATION_RATE for both halves
+        # of the arithmetic.
         animations={
             "idle": {"mask": "anim_idle", "loop": True, "rate": CHERRY_BOMB_ANIMATION_RATE},
             "explode": {
                 "mask": "anim_explode",
                 "loop": False,
                 "on_end": "hold",
-                "rate": CHERRY_BOMB_ANIMATION_RATE,
                 "transition": 0.05,
                 "force_visible_hidden": True,
             },
@@ -555,6 +577,19 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="LilyPad.reanim",
         target_box=PLANT_BOX,
         animations={"idle": {"mask": "anim_idle", "loop": True}},
+    ),
+    # The pool's one plant that eats a zombie: it drags the first one that walks onto it under
+    # the surface. `anim_grab` is that drag and ends held (the plant is gone the moment it has
+    # pulled something down, and the frames after the grab in the source are the empty pot).
+    EntityConfig(
+        output="tangle_kelp",
+        group="plant/environment",
+        reanim="Tanglekelp.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "grab": {"mask": "anim_grab", "loop": False, "on_end": "hold", "transition": 0.05},
+        },
     ),
     EntityConfig(
         output="flower_pot",
@@ -1066,6 +1101,50 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         },
         animations=zombie_animations(angry=True),
     ),
+    # The pool's three floatie zombies: the plain, cone and bucket bodies, each with the
+    # ducky tube left in. They are separate content ids rather than a per-row variant of the
+    # land zombies because that is what a wave table needs to say: "these four in the water
+    # rows, those four on the grass". See `DUCKY_*_EXCLUDE` above.
+    EntityConfig(
+        output="ducky_tube_zombie",
+        group="zombie/basic",
+        reanim="Zombie.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        exclude_image_regex=DUCKY_BASE_EXCLUDE,
+        force_hidden_bones=r"tongue|hair",
+        animations=zombie_animations(swim=True),
+    ),
+    EntityConfig(
+        output="ducky_tube_conehead_zombie",
+        group="zombie/armored",
+        reanim="Zombie.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        exclude_image_regex=DUCKY_CONE_EXCLUDE,
+        force_hidden_bones=r"tongue|hair",
+        measure_exclude_regex=r"^cone_",
+        damage_states={
+            "cone_1": (("cone_2", "Zombie_cone2.png"),
+                       ("cone_3", "Zombie_cone3.png")),
+        },
+        animations=zombie_animations(angry=True, swim=True),
+    ),
+    EntityConfig(
+        output="ducky_tube_buckethead_zombie",
+        group="zombie/armored",
+        reanim="Zombie.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        exclude_image_regex=DUCKY_BUCKET_EXCLUDE,
+        force_hidden_bones=r"tongue|hair",
+        measure_exclude_regex=r"^bucket_",
+        damage_states={
+            "bucket_1": (("bucket_2", "Zombie_bucket2.png"),
+                         ("bucket_3", "Zombie_bucket3.png")),
+        },
+        animations=zombie_animations(angry=True, swim=True),
+    ),
     EntityConfig(
         output="door_zombie",
         group="zombie/armored",
@@ -1177,6 +1256,47 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                     "reference_speed": 0.47},
             "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.23},
             "fall": {"mask": "anim_pop", "loop": False, "on_end": "walk", "transition": 0.05},
+        },
+    ),
+    # The pool's two swimming zombies. Both files carry a submerged gait of their own, which is
+    # the whole reason they need to be converted rather than borrowed:
+    #
+    #   * the snorkel zombie's `anim_swim` range draws ONLY the head-at-the-waterline sprite and
+    #     its wake (verified against the file: one track plus the whitewater), so "underwater"
+    #     is a clip rather than a height offset - which is why `pvzce:submerge` can publish a
+    #     state and be done;
+    #   * the dolphin rider's `anim_walkdolphin` is the ride and `anim_walk` is what is left of
+    #     it after the dolphin is gone. The engine's vault asks for `run` before the hop and
+    #     `walk` after it, so the two clips map onto those two states and `anim_dolphinjump` is
+    #     the hop itself.
+    EntityConfig(
+        output="snorkel_zombie",
+        group="zombie/special",
+        reanim="Zombie_snorkle.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        # 0.2 cells/s: the original's snorkel is the slow one of the pool, and both of its
+        # gaits are drawn for that speed.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.2},
+            "swim": {"mask": "anim_swim", "loop": True, "reference_speed": 0.2},
+            "idle": {"mask": "anim_idle", "loop": True},
+        },
+    ),
+    EntityConfig(
+        output="dolphin_rider_zombie",
+        group="zombie/special",
+        reanim="Zombie_dolphinrider.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        # 0.3 cells/s on the dolphin and on foot: the original's rider keeps its pace after the
+        # hop, so one number covers both gaits.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "run": {"mask": "anim_walkdolphin", "loop": True, "reference_speed": 0.3},
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.3},
+            "jump": {"mask": "anim_dolphinjump", "loop": False, "on_end": "walk",
+                     "transition": 0.05},
+            "idle": {"mask": "anim_idle", "loop": True},
         },
     ),
     EntityConfig(
@@ -1307,6 +1427,23 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                        "transition": 0.05, "rate": HAMMER_SWING_RATE},
         },
     ),
+    # The watering can: the tool 3-4 hands over, drawn from the Zen Garden's own reanim. Two
+    # clips, because the source file has two: `anim_water` pours on one pot and
+    # `anim_water_area` sweeps across several (the golden can's animation, which the original
+    # only reaches for once the garden is upgraded). The sweep is what a level's watering uses -
+    # the player is watering a plant on a lawn, not a single pot in a greenhouse - and `idle`
+    # is one frozen frame of the pour, the pose the cursor holds between clicks.
+    EntityConfig(
+        output="watering_can",
+        group="tool",
+        reanim="ZenGarden_wateringcan.reanim",
+        target_box=(0.5, 0.5),
+        animations={
+            "idle": {"mask": "anim_water", "range": [7, 7], "loop": True},
+            "attack": {"mask": "anim_water_area", "loop": False, "on_end": "idle",
+                       "transition": 0.05},
+        },
+    ),
     # ------------------------------------------------------------------
     # Level props
     #
@@ -1328,6 +1465,28 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_normal", "range": [0, 0], "loop": True, "transition": 0.05},
             "drive": {"mask": "anim_normal", "loop": True, "transition": 0.05},
+        },
+    ),
+    # The pool's cleaner: the same mechanic as a lawn mower, in a water row. Its reanim has
+    # four masks - on land, floating in water, cleaning in water, cleaning on land - and the
+    # pool uses the middle two.
+    #
+    # The parked pose is `anim_land`, the whole 11-frame range: the original's cleaner waits ON
+    # THE POOLSIDE (the kerb the shared mower anchor already points at) with its wheels down and
+    # its funnel swaying, and that range is where both are drawn - `body` (the wheeled body, not
+    # the in-water sliver), the four wheel tracks, and the funnel turning through about five
+    # degrees while the machine bobs. Its wheels do not turn there (`kx` is 0 all the way across),
+    # so looping the whole range parks it rather than spinning it in place. `anim_water` - no
+    # wheels, the in-water body, the whitewater wake - is the *driving* pose, which is what
+    # `anim_suck` already gives the roll.
+    EntityConfig(
+        output="pool_cleaner",
+        group="mechanic",
+        reanim="PoolCleaner.reanim",
+        target_box=(1.0, 0.62),
+        animations={
+            "idle": {"mask": "anim_land", "loop": True, "transition": 0.05},
+            "drive": {"mask": "anim_suck", "loop": True, "transition": 0.05},
         },
     ),
     EntityConfig(
