@@ -615,5 +615,12 @@
   "plant.pvzce.blover.flavor": "One gust and the sky is clear.",
   "plant.pvzce.starfruit.flavor": "The five points are not decoration: it really does shoot all five ways.",
   "plant.pvzce.pumpkin.flavor": "Hollow, so it fits over a plant. It takes the bites so you can keep shooting.",
-  "plant.pvzce.magnet_shroom.flavor": "Buckets, doors, football helmets - it only cares about metal."
+  "plant.pvzce.magnet_shroom.flavor": "Buckets, doors, football helmets - it only cares about metal.",
+  "zombie.pvzce.bungee_zombie": "Bungee Zombie",
+  "zombie.pvzce.bungee_zombie.desc": "Drops from the sky, takes a plant, and leaves. Cannot be shot while it works.",
+  "zombie.pvzce.bungee_zombie.flavor": "It does not bite. It just takes things.",
+  "zombie.pvzce.zamboni_zombie": "Zomboni",
+  "zombie.pvzce.zamboni_zombie.desc": "Drives across the lawn, crushing what is in its way and leaving ice nothing can be planted in.",
+  "zombie.pvzce.zamboni_zombie.flavor": "The machine is a lot harder to deal with than the zombie driving it.",
+  "scene_element.pvzce.ice": "Ice"
 }

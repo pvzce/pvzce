@@ -615,5 +615,12 @@
   "plant.pvzce.blover.flavor": "一吹，天上就干净了。",
   "plant.pvzce.starfruit.flavor": "五角星形状不是装饰，是真的五个方向都在打。",
   "plant.pvzce.pumpkin.flavor": "空心的，正好罩住一株植物。它先挨咬，你在里面安心输出。",
-  "plant.pvzce.magnet_shroom.flavor": "铁桶、铁门、橄榄球头盔——它只对金属感兴趣。"
+  "plant.pvzce.magnet_shroom.flavor": "铁桶、铁门、橄榄球头盔——它只对金属感兴趣。",
+  "zombie.pvzce.bungee_zombie": "蹦极僵尸",
+  "zombie.pvzce.bungee_zombie.desc": "从天而降，抓走一株植物就飞走。抓取时打不到它。",
+  "zombie.pvzce.bungee_zombie.flavor": "它不咬人，它只是拿走你的东西。",
+  "zombie.pvzce.zamboni_zombie": "雪橇车僵尸",
+  "zombie.pvzce.zamboni_zombie.desc": "开过草坪，碾碎路上的植物，身后留下一道种不了东西的冰面。",
+  "zombie.pvzce.zamboni_zombie.flavor": "这辆车比开着它的那只僵尸难对付多了。",
+  "scene_element.pvzce.ice": "冰面"
 }

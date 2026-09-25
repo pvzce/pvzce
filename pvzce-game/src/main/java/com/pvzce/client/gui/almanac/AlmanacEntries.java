@@ -61,12 +61,16 @@ public final class AlmanacEntries {
             "backup_dancer",                // 10 Backup Dancer
             "ducky_tube_zombie",            // 11 Ducky Tube Zombie
             "snorkel_zombie",               // 12 Snorkel Zombie
-            // 13 Zomboni, 14 Zombie Bobsled Team, 16 Jack-in-the-Box, 19 Pogo Zombie,
-            // 20 Zombie Yeti, 21 Bungee Zombie, 22 Ladder Zombie, 23 Catapult Zombie:
-            // none of these are implemented in this project.
+            // 13 Zomboni and 21 Bungee Zombie are implemented now, and they sit in their own
+            // places in the original's numbering rather than at the end: the table is a reading
+            // order, and a player who knows the original's book expects them here.
+            "zamboni_zombie",               // 13 Zomboni
+            // 14 Zombie Bobsled Team, 16 Jack-in-the-Box, 19 Pogo Zombie, 20 Zombie Yeti,
+            // 22 Ladder Zombie, 23 Catapult Zombie: none of these are implemented.
             "dolphin_rider_zombie",         // 15 Dolphin Rider Zombie
             "balloon_zombie",               // 17 Balloon Zombie
             "miner_zombie",                 // 18 Digger Zombie
+            "bungee_zombie",                // 21 Bungee Zombie
             "gargantuar",                   // 24 Gargantuar
             "imp",                          // 25 Imp
             "zombie_boss",                  // 26 Dr. Zomboss

@@ -138,6 +138,23 @@ public final class EntityAnimations {
      */
     public static final String ARM_RAISE = "armraise";
 
+    /**
+     * The bungee zombie's four beats.
+     *
+     * <p>One state per mask in its own reanim, which is why they are named rather than folded into
+     * an existing one: the file draws a descent, a grab, a hanging hold and an ascent, and the
+     * capability publishes exactly those four as it runs them. A missing clip would fall back to
+     * {@code idle} and the whole raid would look like a zombie hanging in the sky.
+     */
+    public static final String BUNGEE_DROP = "bungee_drop";
+    public static final String BUNGEE_GRAB = "bungee_grab";
+    public static final String BUNGEE_HOLD = "bungee_hold";
+    public static final String BUNGEE_RISE = "bungee_rise";
+
+    /** The zamboni's crunch: the original's two wheelie poses. */
+    public static final String DRIVE = "drive";
+    public static final String WHEELIE = "wheelie";
+
     private EntityAnimations() {
     }
 }

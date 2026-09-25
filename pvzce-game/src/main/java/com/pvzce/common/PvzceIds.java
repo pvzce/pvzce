@@ -69,6 +69,14 @@ public final class PvzceIds {
      */
     public static final Identifier WATER = id("water");
 
+    /**
+     * The ice a zamboni leaves behind.
+     *
+     * <p>A scene element rather than a status: it is the ground, it persists in the save with the
+     * scene, and it is tagged unplantable - which is the whole reason the trail matters.
+     */
+    public static final Identifier ICE = id("ice");
+
     public static final Identifier RULE_DAY_LENGTH = id("day_length");
     public static final Identifier RULE_NIGHT_LENGTH = id("night_length");
     /**

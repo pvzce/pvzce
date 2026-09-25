@@ -10,7 +10,9 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.zombie.ArmorCapability;
 import com.pvzce.common.capability.zombie.BossPhasesCapability;
 import com.pvzce.common.capability.zombie.DigCapability;
+import com.pvzce.common.capability.zombie.BungeeCapability;
 import com.pvzce.common.capability.zombie.FloatCapability;
+import com.pvzce.common.capability.zombie.ZamboniCapability;
 import com.pvzce.common.capability.zombie.FlyCapability;
 import com.pvzce.common.capability.zombie.HammerCapability;
 import com.pvzce.common.capability.zombie.SubmergeCapability;
@@ -59,6 +61,14 @@ public final class ZombieCapabilities {
     public static final CapabilityType<FloatCapability> FLOAT =
             type("float", FloatCapability.CODEC);
 
+    /** The bungee zombie: drops in, takes a plant, leaves with it. */
+    public static final CapabilityType<BungeeCapability> BUNGEE =
+            type("bungee", BungeeCapability.CODEC);
+
+    /** The zamboni: crushes what it drives over and leaves ice behind. */
+    public static final CapabilityType<ZamboniCapability> ZAMBONI =
+            type("zamboni", ZamboniCapability.CODEC);
+
     public static final Codec<TypedCapability<ZombieCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.ZOMBIE_CAPABILITIES, "zombie");
     public static final Codec<List<TypedCapability<ZombieCapability>>> LIST_CODEC = CODEC.listOf();
@@ -77,6 +87,8 @@ public final class ZombieCapabilities {
         register(SUMMON_DANCERS, "summon_dancers");
         register(SUBMERGE, "submerge");
         register(FLOAT, "float");
+        register(BUNGEE, "bungee");
+        register(ZAMBONI, "zamboni");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

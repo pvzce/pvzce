@@ -1403,6 +1403,52 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "jump": {"mask": "anim_jump", "loop": False, "on_end": "walk", "transition": 0.05},
         },
     ),
+    # The bungee zombie: it never walks. Its five masks are the whole life cycle - wait, drop,
+    # grab, hold, rise - and every one of them is a state the server publishes, so the clip names
+    # are the state names rather than anything the animation system has to guess at.
+    #
+    # `anim_idle` is what it does while it hangs off the top of the screen deciding where to go,
+    # and it is also the closest thing the file has to a "being carried" pose, so it is exported
+    # under both names the server can ask for.
+    EntityConfig(
+        output="bungee_zombie",
+        group="zombie/special",
+        reanim="Zombie_bungi.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "walk": {"mask": "anim_idle", "loop": True},
+            "bungee_drop": {"mask": "anim_drop", "loop": False, "on_end": "hold",
+                            "transition": 0.05},
+            "bungee_grab": {"mask": "anim_grab", "loop": False, "on_end": "hold",
+                            "transition": 0.05},
+            "bungee_hold": {"mask": "anim_hold", "loop": True},
+            "bungee_rise": {"mask": "anim_raise", "loop": False, "on_end": "hold",
+                            "transition": 0.05},
+        },
+    ),
+    # The zamboni: a driver on a machine, and the machine is the thing that matters. Three masks
+    # over 30fps - driving, and two wheelie poses - because the original animates the ice machine
+    # rather than the zombie steering it.
+    #
+    # `anim_drive` is the whole of its motion, so `walk` and `drive` are the same clip; the
+    # wheelies are the two states it plays while it is crushing something, which the capability
+    # asks for by name.
+    EntityConfig(
+        output="zamboni_zombie",
+        group="zombie/special",
+        reanim="Zombie_zamboni.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        animations={
+            "idle": {"mask": "anim_drive", "loop": True},
+            "walk": {"mask": "anim_drive", "loop": True},
+            "drive": {"mask": "anim_drive", "loop": True},
+            "wheelie": {"mask": "anim_wheelie1", "loop": False, "on_end": "walk",
+                        "transition": 0.05},
+        },
+    ),
     EntityConfig(
         output="balloon_zombie",
         group="zombie/special",

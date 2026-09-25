@@ -106,9 +106,13 @@ class AlmanacEntriesTest {
                 "the Backup Dancer follows the Dancing Zombie, as in the original");
         assertTrue(paths.indexOf("gargantuar") < paths.indexOf("imp"));
         assertTrue(paths.indexOf("imp") < paths.indexOf("zombie_boss"));
-        // The two dozen the original lists come first, in its order; ours follow.
-        assertEquals("zombie_boss", paths.get(17),
-                "Dr. Zomboss is 26th in the original and last of the zombies it lists");
+        // The original's own list comes first, in its order, and the boss is the last of it;
+        // everything after him is this project's (the other two Ducky Tubes, the mini zombies).
+        // Read from the list rather than from a fixed index, because "how many zombies the
+        // original lists and we have" grows every time one is added - and a hardcoded 17 turned
+        // adding the Zomboni into a failure of a test that is about ordering.
+        assertTrue(paths.indexOf("zombie_boss") < paths.indexOf("mini_basic_zombie"),
+                "the boss ends the original's list and ours follow; got " + paths);
         for (String path : paths) {
             assertTrue(AlmanacEntries.zombieOrderOf(Identifier.withDefaultNamespace(path)) >= 0,
                     path + " is not in the almanac order table");
