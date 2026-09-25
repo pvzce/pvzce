@@ -2,6 +2,7 @@ package com.pvzce.server.level.cardsource;
 
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.PvzcePlayer;
 import com.pvzce.common.core.Slot;
@@ -58,6 +59,20 @@ public interface CardSource {
 
     /** Bookkeeping once the plant exists: the belt rebuilds its bar, the deck does nothing. */
     void afterSpend(LevelServer level, LevelServer.ServerBridge bridge, Slot slot);
+
+    /**
+     * Hands the bar one card from outside the level - a vase the player broke open.
+     *
+     * <p>Asked of the source rather than appended to the bar, because on a level whose bar is a
+     * <em>projection</em> of something else (a conveyor belt) a card appended behind the source's
+     * back is a card the next rebuild drops. A source whose bar is a plain list answers by
+     * appending it, which is the default here.
+     *
+     * @return true when the card reached the player
+     */
+    default boolean receiveCard(LevelServer level, LevelServer.ServerBridge bridge, Identifier cardId) {
+        return level.addCardToBar(cardId);
+    }
 
     /**
      * Writes this source's run state into the level save.

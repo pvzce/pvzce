@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:vase",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 600,
+  "targets": [
+    "plant"
+  ],
+  "effect": "pvzce:vase",
+  "uses": -1,
+  "texture": "pvzce:textures/gui/cards/flower_pot",
+  "animation_dir": "tool"
+}

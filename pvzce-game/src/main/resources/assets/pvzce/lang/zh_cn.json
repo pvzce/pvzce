@@ -636,5 +636,10 @@
   "zombie.pvzce.zombotany_jalapeno_zombie.desc": "倒下时会炸一下，把身边的植物烧掉半条命。",
   "zombie.pvzce.zombotany_jalapeno_zombie.flavor": "解决它的最好时机是它还离你的植物很远的时候。",
   "level_buff.pvzce.kelp_spread": "水草蔓延",
-  "gui.pvzce.shop.item.pvzce:kelp_spread": "水草蔓延"
+  "gui.pvzce.shop.item.pvzce:kelp_spread": "水草蔓延",
+  "scene_element.pvzce.vase": "花瓶",
+  "scene_element.pvzce.vase_full": "花瓶（装了东西）",
+  "tool.pvzce.vase": "花瓶",
+  "tool.pvzce.vase.desc": "零阳光，十秒冷却。放在草地上；选一张植物卡再点它可以把它存进去，空手点它直接砸开。",
+  "slot.pvzce.vase": "花瓶"
 }

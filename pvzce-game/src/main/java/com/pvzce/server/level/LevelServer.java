@@ -349,6 +349,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * the clicks, and the id cannot.
      */
     private int carriedPlantId = -1;
+    /**
+     * The vase the glove is holding, as the packed cell it came from, or {@code -1}.
+     *
+     * <p>A vase is a scene element rather than an entity, so a carried one has nothing to hold on
+     * to: the cell it stood in is cleared when it is lifted and written again when it is put down,
+     * and this pair is what remembers where to put it back if the move is abandoned. The card
+     * inside travels with it, or a vase could be used to launder one out of existence.
+     */
+    private long carriedVaseFrom = -1L;
+    /** What was inside the vase in the glove's hand, or {@code null} when it was empty. */
+    private Identifier carriedVaseCard;
     /** Ticks left before an abandoned carry is put back where it came from. */
     private int carryTimeoutTicks;
     /**
@@ -801,6 +812,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return scene.get(x, y);
     }
 
+    /**
+     * The id of the cell's scene element, or {@code null} off the board.
+     *
+     * <p>For the callers that only want to ask "is this cell a vase / a gravestone", which is a
+     * question about the element's id and nothing else. {@link #sceneAt} hands out the definition
+     * object, so each of them would otherwise repeat the null check and the {@code id()} call.
+     */
+    public Identifier sceneIdAt(int x, int y) {
+        SceneElementDef element = scene.get(x, y);
+        return element == null ? null : element.id();
+    }
+
     public void setScene(int x, int y, Identifier elementId) {
         SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(elementId);
         if (element != null) {
@@ -1077,6 +1100,53 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             mutations.onPlantPlaced(plant);
         }
         return plant;
+    }
+
+    /**
+     * Puts a card on the player's bar at runtime.
+     *
+     * <p>The vase's other half: a plant card that was put inside one comes back out of it, and
+     * "comes back out" means it is playable again. Until this existed the bar was built once, at
+     * level start, from the level's cards and the player's choice - there was no way for anything
+     * that happened <em>during</em> a run to hand the player another card.
+     *
+     * <p>A card the bar already holds is <b>stacked rather than duplicated</b>: two slots with the
+     * same id would be two cards the player cannot tell apart, and the bar's own index rules -
+     * which a belt and a save both read - assume one slot per card. So a second vase holding a
+     * peashooter gives the peashooter card another use, which is what "you have another one of
+     * these" means on a bar that tracks uses.
+     *
+     * @return true when the bar changed
+     */
+    public boolean addCardToBar(Identifier cardId) {
+        if (plantPlayer == null || cardId == null) {
+            return false;
+        }
+        com.pvzce.common.core.SlotResolver.ResolvedCard resolved =
+                com.pvzce.common.core.SlotResolver.resolve(cardId).orElse(null);
+        if (resolved == null) {
+            return false;
+        }
+        for (Slot slot : plantPlayer.slots()) {
+            if (slot.defId().equals(cardId) && slot.kind() == resolved.kind()) {
+                if (slot.usesLeft() != Slot.UNLIMITED_USES && slot.usesLeft() > 0) {
+                    slot.restoreUses(slot.usesLeft() + 1);
+                }
+                send(new SlotSyncS2C(toSlotInfo(slot)));
+                return true;
+            }
+        }
+        List<Slot> slots = new ArrayList<>(plantPlayer.slots());
+        int index = 0;
+        for (Slot slot : slots) {
+            index = Math.max(index, slot.index() + 1);
+        }
+        Slot added = new Slot(index, resolved.kind(), resolved.content(), resolved.costSun(), 0,
+                Slot.UNLIMITED_USES, resolved.cooldownTicks());
+        slots.add(added);
+        plantPlayer.replaceSlots(slots);
+        send(new SlotSyncS2C(toSlotInfo(added)));
+        return true;
     }
 
     /**
@@ -2246,7 +2316,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * removed, so nothing can be lost.
      */
     private void tickCarry() {
-        if (carriedPlantId < 0) {
+        if (!hasCarry()) {
+            return;
+        }
+        if (carriedVaseFrom >= 0L) {
+            // A carried vase has nothing to put back: the cell it came from still holds it, and
+            // only the drop writes anything. So an abandoned carry is just forgotten.
+            if (--carryTimeoutTicks <= 0) {
+                clearCarry();
+            }
             return;
         }
         if (--carryTimeoutTicks <= 0 || plantById(carriedPlantId) == null) {
@@ -2965,6 +3043,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("未知植物 " + slot.defId()));
             return false;
         }
+        // Before the placement rules, because the answer is not "a plant goes here" at all: a
+        // click with a plant card on a vase is the player *storing* that card. Both vase cells come
+        // through here - an empty one stores, a full one is refused by `storeCardInVase` - because
+        // the vase's own cell is unplantable, which is exactly why this branch has to come first.
+        // See `useVase` for the tool half.
+        if (isVaseAt(x, y)) {
+            return storeCardInVase(bridge, slot, plantDef, x, y);
+        }
         if (!canPlacePlant(plantDef, x, y)) {
             bridge.send(new ServerMessageS2C("该格不能种植。"));
             return false;
@@ -3119,7 +3205,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         Slot slot = plantPlayer.slot(slotIndex);
-        if (carriedPlantId >= 0 && slot != null && !isGlove(slot)) {
+        if (hasCarry() && slot != null && !isGlove(slot)) {
             abandonCarry();
         }
         if (slot == null || slot.kind() != Slot.Kind.TOOL) {
@@ -3130,7 +3216,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // click is the other half of the move the first one started, and its cooldown
         // began then. Charging a cooldown for the drop as well would also consume two
         // uses for one move.
-        boolean finishingMove = carriedPlantId >= 0 && isGlove(slot);
+        boolean finishingMove = hasCarry() && isGlove(slot);
         if (!slot.ready() && !finishingMove) {
             bridge.send(new ServerMessageS2C("工具冷却中。"));
             return false;
@@ -3175,7 +3261,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (!awaitingDrop(slot)) {
                 slot.startCooldown(effectiveCooldownTicks(slot));
             }
-        } else if (carriedPlantId < 0) {
+        } else if (!hasCarry()) {
             // That was the drop: the move is over, so this is where its recharge belongs.
             slot.startCooldown(effectiveCooldownTicks(slot));
         }
@@ -3185,7 +3271,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     /** True when this card has just started a move and is still holding the plant. */
     private boolean awaitingDrop(Slot slot) {
-        return carriedPlantId >= 0 && isGlove(slot);
+        return hasCarry() && isGlove(slot);
     }
 
     /**
@@ -3196,7 +3282,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * down somewhere the player was no longer thinking about.
      */
     private void abandonCarry() {
-        if (carriedPlantId >= 0) {
+        if (hasCarry()) {
             clearCarry();
         }
     }
@@ -3279,6 +3365,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 yield hitSomething;
             }
             case "pvzce:water" -> waterPlant(x, y);
+            // The vase: place it, fill it, or smash it. Which of the three depends on the cell and
+            // on what the player is holding, and the rule is the user's own wording ("选一张植物卡
+            // 再点它可以把它存进去，空手点它直接砸开").
+            case "pvzce:vase" -> useVase(x, y);
             // An effect this build does not implement: refused, so no use is spent.
             default -> false;
         };
@@ -3325,6 +3415,184 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // server's copy would be a second translation to keep in step - see `MutationText`, which
         // exists only because a mutation's banner is *built* on the server.
         send(new ServerMessageS2C("铲掉 " + plant.def().id() + "，返还 " + refund + " 阳光"));
+    }
+
+    /**
+     * One click of the vase: put one down, put a card in one, or break one open.
+     *
+     * <p>Three outcomes from one click, and the cell decides which:
+     *
+     * <ul>
+     *   <li><b>an empty cell</b> - a vase is placed, and the cell becomes unplantable, which is
+     *       what makes putting a plant <em>in</em> it mean anything;</li>
+     *   <li><b>a vase</b> - it is smashed, and whatever was inside is the player's again.</li>
+     * </ul>
+     *
+     * <p><b>Putting a card in is not this method's job.</b> The player does it by selecting a
+     * <em>plant</em> card and clicking the vase, which is a placement click rather than a tool
+     * one - so it is answered in {@code placePlantInternal}, where a slot index already travels.
+     * Routing it through the tool as well would need the server to know what the client has
+     * selected, which it deliberately never has.
+     *
+     * <p>The shovel is deliberately not part of this either: a shovel click on a vase digs up a
+     * <em>plant</em>, and a level where the shovel could smash a vase would make the two tools
+     * fight over the same cell. The vase smashes with the vase.
+     */
+    private boolean useVase(int x, int y) {
+        SceneElementDef here = sceneAt(x, y);
+        // A plant in the cell means a vase cannot go there, for the same reason a plant cannot go
+        // into a vase that is already occupied: one cell, one thing standing in it.
+        if (here == null) {
+            return false;
+        }
+        if (!PvzceIds.VASE.equals(here.id()) && !PvzceIds.VASE_FULL.equals(here.id())) {
+            if (plantAt(x, y) != null) {
+                bridge.send(new ServerMessageS2C("这一格已经有东西了。"));
+                return false;
+            }
+            setScene(x, y, PvzceIds.VASE);
+            sendSceneCell(x, y);
+            emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F,
+                    PvzceSounds.PLANT_PLANT);
+            return true;
+        }
+        // Smashed. The cell goes back to whatever a bare lawn is made of, and the card inside -
+        // if there was one - is the player's again.
+        Identifier inside = vaseContents.remove(cellKey(x, y));
+        setScene(x, y, defaultSceneElement().id());
+        sendSceneCell(x, y);
+        emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
+                Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
+        if (inside != null) {
+            // Straight onto the bar rather than onto the ground. The original drops a card the
+            // player walks to; this build has no card-drop entity, and a plant card lying on the
+            // lawn that cannot be picked up would be worse than one that is simply handed over -
+            // see `todo.md`, which keeps the drop as a follow-up.
+            // Asked of the card source rather than appended here: on a conveyor level the bar is a
+            // projection of the belt, and a card added behind the belt's back is dropped by its
+            // next rebuild.
+            boolean delivered = cardSource != null && cardSource.receiveCard(this, bridge, inside);
+            bridge.send(new ServerMessageS2C(delivered
+                    ? "花瓶里掉出了一张卡。"
+                    : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
+        }
+        return true;
+    }
+
+    /**
+     * A plant card put into an empty vase: the click that stores instead of planting.
+     *
+     * <p>Reached from {@link #placePlantInternal}, because that is the packet a plant card travels
+     * on. {@code useVase} documents why: the server deliberately never learns which card the client
+     * has selected, so the only moment it can tell "the player meant a vase" from "the player meant
+     * a plant" is the click that carries both.
+     *
+     * <p><b>The card is paid for now, and comes back free.</b> It goes through the same
+     * {@code spend} the planting path uses, so the sun and the recharge are the price of the card
+     * either way; the difference is only <em>when</em> the plant appears. Charging nothing here and
+     * charging at the second planting would be the same total, but it would also mean a card could
+     * sit in a vase through a mutation that doubles prices and be planted at the old price - the
+     * bar's price is the moment of payment, so payment happens at the click.
+     *
+     * <p>One card per vase. A filled vase refuses, which is what makes the full vase's picture
+     * mean something: the player can see at a glance which vases still have room.
+     */
+    private boolean storeCardInVase(ServerBridge bridge, Slot slot, PlantDef plantDef, int x, int y) {
+        long key = cellKey(x, y);
+        // Asked of the contents rather than of the picture: `vase_full` and "there is a card in
+        // here" are written together and are meant to agree, and if they ever did not, the answer
+        // the player needs is the one that keeps their card.
+        if (vaseContents.containsKey(key)) {
+            bridge.send(new ServerMessageS2C("这个花瓶里已经有东西了。"));
+            return false;
+        }
+        if (cardSource == null || !cardSource.spend(this, bridge, slot, plantDef)) {
+            return false;
+        }
+        vaseContents.put(key, plantDef.id());
+        setScene(x, y, PvzceIds.VASE_FULL);
+        sendSceneCell(x, y);
+        cardSource.afterSpend(this, bridge, slot);
+        // The same glow a ripening plant gets: the click did something the vase's own picture has
+        // to be looked at twice to notice, and the sparkle is what says "that landed".
+        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(), x + 0.5F, y + 0.5F,
+                PvzceSounds.PLANT_PLANT);
+        bridge.send(new ServerMessageS2C("把 " + plantDef.id() + " 存进了花瓶，砸开就能拿回来。"));
+        return true;
+    }
+
+    /**
+     * What is inside each vase, keyed by cell.
+     *
+     * <p>Kept on the level rather than in a mechanic because it is not a mechanic: the vase is a
+     * tool the player owns, not a level that declares something. It survives a save with the rest
+     * of the scene, which is what a vase is.
+     */
+    private final Map<Long, Identifier> vaseContents = new java.util.HashMap<>();
+
+    /**
+     * Stands a filled vase in a cell: the level's own way in, used by {@code pvzce:vase_field}.
+     *
+     * <p>Public because the mechanic that lays a board out is a layer above this one and must not
+     * be able to build a vase cell by hand: a vase the level placed and a vase the player placed
+     * have to be the same two writes (the scene element, and the contents block) in the same order,
+     * or a save taken between them would restore a full vase with nothing in it.
+     *
+     * <p>No packet is sent. This runs while the level is being constructed, before there is a client
+     * to tell - the first snapshot carries the finished board.
+     */
+    public void fillVase(int x, int y, Identifier card) {
+        if (!inBounds(x, y) || card == null) {
+            return;
+        }
+        vaseContents.put(cellKey(x, y), card);
+        setScene(x, y, PvzceIds.VASE_FULL);
+    }
+
+    /** What is inside the vase in this cell, or {@code null} when there is no filled vase. */
+    public Identifier vaseContentAt(int x, int y) {
+        return vaseContents.get(cellKey(x, y));
+    }
+
+    /**
+     * The vases' contents for the save file: one entry per filled vase.
+     *
+     * <p>Only the filled ones. An empty vase is a {@code pvzce:vase} cell in the scene block that
+     * is written next to this one, and a smashed one is a cell that says so - so what is left to
+     * write down is exactly the vases whose picture and contents could disagree.
+     */
+    private ListTag saveVaseContents() {
+        ListTag vases = new ListTag();
+        for (Map.Entry<Long, Identifier> entry : vaseContents.entrySet()) {
+            CompoundTag vaseTag = new CompoundTag();
+            vaseTag.putInt("x", (int) (entry.getKey() >> 32));
+            vaseTag.putInt("y", (int) (long) entry.getKey());
+            vaseTag.putString("card", entry.getValue().toString());
+            vases.add(vaseTag);
+        }
+        return vases;
+    }
+
+    /**
+     * Reads back the vases' contents. Must tolerate a missing block: every save written before the
+     * vase tool existed has none, and then no vase is filled - which is right, because there were
+     * no vases to fill.
+     */
+    private void restoreVaseContents(ListTag vases) {
+        vaseContents.clear();
+        for (Tag element : vases.values()) {
+            if (!(element instanceof CompoundTag vaseTag)) {
+                continue;
+            }
+            Identifier card = Identifier.tryParse(vaseTag.getString("card"));
+            if (card != null) {
+                vaseContents.put(cellKey(vaseTag.getInt("x"), vaseTag.getInt("y")), card);
+            }
+        }
+    }
+
+    private static long cellKey(int x, int y) {
+        return ((long) x << 32) | (y & 0xFFFFFFFFL);
     }
 
     /**
@@ -3382,6 +3650,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * moved potato mine does not re-arm.
      */
     private boolean movePlant(int x, int y) {
+        if (carriedVaseFrom >= 0L) {
+            return dropCarriedVase(x, y);
+        }
         if (carriedPlantId >= 0) {
             PlantEntity carried = plantById(carriedPlantId);
             if (carried == null || carried.isRemoved()) {
@@ -3409,6 +3680,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         PlantEntity plant = plantAt(x, y);
         if (plant == null) {
+            if (isVaseAt(x, y)) {
+                return liftVase(x, y);
+            }
             // The original treats a click on grass as picking up nothing at all: the glove
             // stays in hand, ready for the cell the player meant. Not an error, and not a
             // use spent either.
@@ -3423,6 +3697,73 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return true;
     }
 
+    /** True when this cell's scene is a vase, full or empty. */
+    private boolean isVaseAt(int x, int y) {
+        Identifier id = sceneIdAt(x, y);
+        return PvzceIds.VASE.equals(id) || PvzceIds.VASE_FULL.equals(id);
+    }
+
+    /**
+     * The glove's other carry: a vase, which is a scene element rather than an entity.
+     *
+     * <p>The difference from a plant shows up in what "carrying" means. A plant is an entity and
+     * simply stays where it is until the drop; a vase <em>is</em> its cell, so the cell it came from
+     * has to be written back to bare lawn when it lands somewhere else. Nothing is cleared here, at
+     * the lift, for the reason the plant carry documents: an abandoned move then has nothing to undo
+     * - the vase never left. What travels in the hand is the pair (origin cell, card inside), which
+     * is all the drop needs to move the vase and its contents together.
+     */
+    private boolean liftVase(int x, int y) {
+        carriedVaseFrom = cellKey(x, y);
+        carriedVaseCard = vaseContents.get(carriedVaseFrom);
+        carryTimeoutTicks = CARRY_TIMEOUT_TICKS;
+        // The cursor draws the vase, so what the player is holding is visible; the cell keeps its
+        // own vase until the drop clears it.
+        send(new CarrySyncS2C(PvzceIds.VASE.toString()));
+        emitEffect(PvzceParticles.LANTERN_SHINE.toString(), x + 0.5F, y + 0.5F, PvzceSounds.UI_TAP);
+        bridge.send(new ServerMessageS2C("已拿起花瓶，再点一次放下。"));
+        return true;
+    }
+
+    /**
+     * Puts the carried vase down, and takes it off the cell it came from.
+     *
+     * <p>The same rules a vase is placed under by the tool: a cell that is inside the board and
+     * holds neither a plant nor another vase. The last one is what stops a vase from being dropped
+     * on its own cell and quietly doubling its contents.
+     */
+    private boolean dropCarriedVase(int x, int y) {
+        long from = carriedVaseFrom;
+        if (from == cellKey(x, y)) {
+            // Dropped back where it was: the cell never changed, so there is nothing to move. Asked
+            // before the occupancy check, because its own cell is of course occupied - by the vase
+            // in the player's hand.
+            clearCarry();
+            return true;
+        }
+        if (!inBounds(x, y) || plantAt(x, y) != null || isVaseAt(x, y)) {
+            bridge.send(new ServerMessageS2C("不能放在这里。"));
+            return false;
+        }
+        Identifier card = carriedVaseCard;
+        setScene((int) (from >> 32), (int) from, defaultSceneElement().id());
+        sendSceneCell((int) (from >> 32), (int) from);
+        vaseContents.remove(from);
+        if (card != null) {
+            vaseContents.put(cellKey(x, y), card);
+        }
+        setScene(x, y, card == null ? PvzceIds.VASE : PvzceIds.VASE_FULL);
+        sendSceneCell(x, y);
+        clearCarry();
+        emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.PLANT_PLANT);
+        return true;
+    }
+
+    /** True when the glove is holding something, plant or vase. */
+    private boolean hasCarry() {
+        return carriedPlantId >= 0 || carriedVaseFrom >= 0L;
+    }
+
     /** True when this slot is the glove, by its tool effect rather than its id. */
     private static boolean isGlove(Slot slot) {
         ToolDef tool = BuiltInRegistries.TOOLS.get(slot.defId());
@@ -3430,8 +3771,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     private void clearCarry() {
-        boolean wasCarrying = carriedPlantId >= 0;
+        boolean wasCarrying = hasCarry();
         carriedPlantId = -1;
+        carriedVaseFrom = -1L;
+        carriedVaseCard = null;
         carryTimeoutTicks = 0;
         if (wasCarrying) {
             // The client has to be told even here: a carry that expired (or whose plant was
@@ -3659,6 +4002,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         com.pvzce.server.LevelBuffSelection.writeSaved(root, com.pvzce.server.LevelBuffSelection
                 .resolveIds(activeBuffs));
         root.put("Scene", saveScene());
+        // Which vase holds which card. On the level rather than in a mechanic, so it is saved here
+        // and not through `LevelMechanics.collectSave` - see `vaseContents` for why.
+        root.put("VaseContents", saveVaseContents());
         if (cardSource != null) {
             cardSource.save(root);
         }
@@ -3791,6 +4137,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
         }
         restoreScene(root.getList("Scene"));
+        restoreVaseContents(root.getList("VaseContents"));
         restoreTeams(root.getCompound("Teams"));
         // Before restoreSlots: a self-dealt bar is a projection of the source, so the source
         // has to be restored first or its cards would have nothing to be put back into.

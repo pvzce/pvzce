@@ -77,6 +77,16 @@ public final class PvzceIds {
      */
     public static final Identifier ICE = id("ice");
 
+    /** A vase standing on the lawn, empty. */
+    public static final Identifier VASE = id("vase");
+    /**
+     * The same vase with a card inside.
+     *
+     * <p>A second scene element rather than a flag on the first: a cell holds one id, and the
+     * client draws from it - two ids is how a picture with two states is spelled here.
+     */
+    public static final Identifier VASE_FULL = id("vase_full");
+
     public static final Identifier RULE_DAY_LENGTH = id("day_length");
     public static final Identifier RULE_NIGHT_LENGTH = id("night_length");
     /**
@@ -502,6 +512,16 @@ public final class PvzceIds {
 
     /** The rake as a card: the shop item id and what the profile's unlocked set holds. */
     public static final Identifier RAKE = id("rake");
+
+    /**
+     * The mechanic that stands vases on the lawn at the start of a level.
+     *
+     * <p>Named {@code vase_field} rather than {@code vase} for the same reason the gravestone pair
+     * is {@code grave_field} / {@code grave_spawner}: the bare name belongs to the <em>thing</em>
+     * (the {@code pvzce:vase} scene element, the {@code pvzce:vase} tool card), and a mechanic that
+     * shared it would make "the level declares a vase" and "this cell is a vase" the same string.
+     */
+    public static final Identifier MECHANIC_VASE_FIELD = id("vase_field");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

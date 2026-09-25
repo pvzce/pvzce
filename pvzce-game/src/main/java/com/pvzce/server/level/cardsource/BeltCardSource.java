@@ -2,6 +2,7 @@ package com.pvzce.server.level.cardsource;
 
 import com.pvzce.api.content.LevelBelt;
 import com.pvzce.api.content.PlantDef;
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.mechanic.ConveyorMechanic;
@@ -157,6 +158,22 @@ public final class BeltCardSource implements CardSource {
         }
         belt.restore(saved);
         rebuildBar();
+    }
+
+    @Override
+    public boolean receiveCard(LevelServer level, LevelServer.ServerBridge bridge, Identifier cardId) {
+        // Onto the belt, not beside it: the bar here is a projection of the queue, so a card put
+        // anywhere else is dropped by the next rebuild - and rebuilds happen every time a card
+        // slides forward, which is the next few seconds on a conveyor level. A card the belt
+        // cannot resolve is not a card the player could use, so it is refused rather than queued.
+        if (SlotResolver.resolve(cardId).isEmpty()) {
+            return false;
+        }
+        belt.add(cardId);
+        belt.clearChanged();
+        rebuildBar();
+        bridge.send(syncPacket(level));
+        return true;
     }
 
     @Override

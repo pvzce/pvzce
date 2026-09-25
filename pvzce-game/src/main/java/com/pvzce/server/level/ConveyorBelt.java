@@ -138,6 +138,23 @@ public final class ConveyorBelt {
         changed = true;
     }
 
+    /**
+     * Puts a card onto the belt from somewhere other than the pool - a vase the player broke.
+     *
+     * <p>On the belt rather than beside it because the belt <em>is</em> this level's bar: a card
+     * handed to the player here has to be a card the belt is dealing, or the next rebuild would
+     * drop it (the bar is a projection of this queue). It goes to the front, because the player
+     * just did something and the reward should be the next card they can use; and it does not
+     * count against {@code dealt}, because that tally is what {@code max_count} is measured
+     * against - a broken vase must not use up one of the level's scheduled cards.
+     */
+    public Card add(Identifier cardId) {
+        Card card = new Card(nextId++, cardId);
+        cards.add(0, card);
+        changed = true;
+        return card;
+    }
+
     /** Belt contents belong to the run: leaving and resuming must not refill the queue. */
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();

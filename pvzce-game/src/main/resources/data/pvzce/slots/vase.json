@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:vase",
+  "kind": "tool",
+  "content": "pvzce:vase",
+  "cost": {
+    "resources": {},
+    "cooldown": 600
+  },
+  "icon": "pvzce:textures/gui/cards/flower_pot"
+}

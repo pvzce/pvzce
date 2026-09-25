@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:vase_full",
+  "surface": "GROUND",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/vase_full",
+    "underlay": "pvzce:grass",
+    "width": 1.0,
+    "height": 1.0
+  }
+}

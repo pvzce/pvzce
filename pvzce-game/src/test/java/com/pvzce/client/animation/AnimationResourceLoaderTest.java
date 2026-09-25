@@ -546,6 +546,51 @@ class AnimationResourceLoaderTest {
                 "these action clips make the object disappear for their whole length: " + offenders);
     }
 
+    /**
+     * Every tool that declares art has that art, and the cursor family has both clips.
+     *
+     * <p>A tool card that is selected draws the tool itself under the pointer
+     * ({@code InGameScreen.renderDefaultToolCursor}), and it plays {@code attack} on the click that
+     * used it. Both halves fail quietly: a missing file draws nothing, and a missing clip falls
+     * back to {@code idle} - so a tool whose art was never written is a cursor the player does not
+     * have, and one whose click has no clip looks like the click did nothing. The vase tool shipped
+     * that way (its {@code animation_dir} pointed at a file nobody had written), which is what this
+     * pins.
+     *
+     * <p>{@code attack} is required of the <b>cursor family</b> ({@code animation_dir: "tool"}) and
+     * not of every tool, because the two families are two different objects: {@code tool/} is the
+     * thing under the pointer, which has a gesture, while {@code mechanic/} is a prop that stands on
+     * the lawn (the rake) and is drawn from its {@code idle} at a place the level owns. A rake that
+     * held still in the player's hand is a rake; a vase that did would be a broken cursor.
+     */
+    @Test
+    void everyToolThatDeclaresArtHasTheClipsItPlays() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        List<String> offenders = new ArrayList<>();
+        for (Identifier toolId : com.pvzce.common.core.BuiltInRegistries.TOOLS.keySet()) {
+            String dir = com.pvzce.common.core.EntityArt.animationDir(toolId);
+            if (com.pvzce.common.core.BuiltInRegistries.TOOLS.get(toolId) == null || dir == null) {
+                // No declared directory: this tool is card art only, which is a supported state.
+                continue;
+            }
+            AnimationFile file = readClasspathAnimation(toolId);
+            if (!(file instanceof ControllerFile controller)) {
+                offenders.add(toolId + " declares art in '" + dir + "' but its file is missing");
+                continue;
+            }
+            if (controller.clip("idle").isEmpty()) {
+                offenders.add(toolId + " has no 'idle' clip, so there is nothing to draw");
+            }
+            if ("tool".equals(dir) && controller.clip("attack").isEmpty()) {
+                offenders.add(toolId + " is cursor art with no 'attack' clip, so its click"
+                        + " would look like nothing happened");
+            }
+        }
+        assertTrue(offenders.isEmpty(),
+                "these tools would be drawn as nothing, or would not react to a click: "
+                        + offenders);
+    }
+
     /** The controller form of a clip, or {@code null} when it is a flipbook or missing. */
     private static ControllerClip asControllerClip(AnimationClip clip) {
         return clip instanceof ControllerClip controller ? controller : null;

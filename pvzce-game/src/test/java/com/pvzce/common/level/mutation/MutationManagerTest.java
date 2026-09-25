@@ -483,8 +483,13 @@ class MutationManagerTest {
         level.random().setSeed(20240925L);
         assertNotNull(level.mutations().add(apocalypse, Mutation.Roll.NONE));
         // They go off on the tick they arrive - "summoned" means "happens now" - so the craters
-        // are there after a single tick rather than after a fuse the player would have to wait out.
-        tick(level, 2, new ArrayList<>());
+        // are there within a few ticks rather than after a fuse the player would have to wait out.
+        // A few rather than exactly one: each summoned shroom explodes on its *own* next tick
+        // (`ExplosiveCapability.detonateNow` sets the fuse to zero and the plant's tick does the
+        // rest), so "the whole board has gone off" is a couple of ticks of entity passes and not
+        // a single instant. Two was enough most of the time, which is the kind of fixture that
+        // goes red once in six full-suite runs (see docs/踩坑清单.md).
+        tick(level, 5, new ArrayList<>());
         int cratersBefore = countCraters(level);
         assertTrue(cratersBefore > 0, "the one shot has to have left craters to be worth saving"
                 + " (plants standing: " + level.plantCount() + ")");
@@ -494,6 +499,9 @@ class MutationManagerTest {
         List<PvzcePacket> packets = new ArrayList<>();
         LevelServer resumed = new LevelServer(endless);
         resumed.restore(level.save());
+        // Seeded for the same reason the first half is: a resumed run rolls its own dice for the
+        // next arrival, and the claim here is about the shot that already fired.
+        resumed.random().setSeed(20240925L);
         tick(resumed, 20, packets);
 
         // The same cells that were cratered when the save was written; never more, which is what a

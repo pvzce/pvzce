@@ -50,6 +50,7 @@ public final class LevelMechanics {
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final RakeMechanic RAKE = new RakeMechanic();
+    public static final VaseFieldMechanic VASE_FIELD = new VaseFieldMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
     public static final GraveFieldMechanic GRAVE_FIELD = new GraveFieldMechanic();
     public static final WavePacingMechanic WAVE_PACING = new WavePacingMechanic();
@@ -70,6 +71,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_TOOL, TOOL);
         register(PvzceIds.MECHANIC_FOG, FOG);
         register(PvzceIds.MECHANIC_RAKE, RAKE);
+        register(PvzceIds.MECHANIC_VASE_FIELD, VASE_FIELD);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
         register(PvzceIds.MECHANIC_GRAVE_FIELD, GRAVE_FIELD);
         register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
