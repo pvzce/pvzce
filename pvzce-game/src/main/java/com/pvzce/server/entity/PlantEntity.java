@@ -58,8 +58,16 @@ public class PlantEntity extends PvzceEntity {
      */
     private float actionSpeedMultiplier = 1F;
 
-    /** What being watered is worth, as a rate rather than as "a tick every third one". */
-    private static final float WATERED_ACTION_SPEED = 4F / 3F;
+    /**
+     * What being watered is worth, as a rate rather than as "a tick every third one".
+     *
+     * <p>Three halves rather than four thirds. A third faster was invisible in play - the player
+     * watered a plant, watched it, and could not tell whether anything had happened, which is the
+     * report this answers. The watering can's whole reason to exist is that it makes one plant
+     * visibly better for fifteen seconds, so the number has to be one a player can see: half again
+     * as many shots is a difference you notice inside a single volley.
+     */
+    private static final float WATERED_ACTION_SPEED = 3F / 2F;
     /**
      * The clock {@link #actionStep()} spends, for capabilities that keep no clock of their own.
      *

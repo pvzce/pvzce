@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -420,6 +423,149 @@ class AnimationResourceLoaderTest {
                 Identifier.withDefaultNamespace(defId));
         assertNotNull(fileId, defId + " must resolve to an animation file id");
         return "/assets/" + fileId.namespace() + "/animations/" + fileId.path() + ".json";
+    }
+
+    /**
+     * An attack clip must not rescale the parts the idle clip established.
+     *
+     * <p>The threepeater's reported "the attack animation is very weird": its {@code shoot} clip
+     * held all nine leaf and stem bones at a single keyframe of {@code scale 1.0} parked at an
+     * untransformed pixel position, while {@code idle} animated the same bones at
+     * {@code scale 0.555} around the model's centre. So the instant it fired, the whole plant
+     * ballooned by 1.8x and jumped outward - and snapped back when the clip handed over to idle.
+     *
+     * <p>Every sibling attacker keeps the idle pose for the parts it does not animate during the
+     * attack (a peashooter's leaves do not move when it shoots), so the rule is a property of the
+     * attack family rather than of one file. This walks every plant that has both clips and
+     * compares, bone by bone, wherever the attack clip <em>does</em> have a scale for a bone the
+     * idle clip animates.
+     */
+    @Test
+    void anAttackClipDoesNotRescaleThePartsTheIdleClipEstablished() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        List<String> offenders = new ArrayList<>();
+        for (Identifier plantId : com.pvzce.common.core.BuiltInRegistries.PLANTS.keySet()) {
+            AnimationFile file = readClasspathAnimation(plantId);
+            if (!(file instanceof ControllerFile controller)) {
+                continue;
+            }
+            ControllerClip idle = asControllerClip(controller.clip("idle").orElse(null));
+            ControllerClip shoot = asControllerClip(controller.clip("shoot").orElse(null));
+            if (idle == null || shoot == null) {
+                continue;
+            }
+            for (Map.Entry<String, ControllerClip.BoneTracks> entry : idle.bones().entrySet()) {
+                ControllerClip.BoneTracks idleTracks = entry.getValue();
+                if (idleTracks.scale().maxTime() <= 0F) {
+                    // A bone the idle clip itself parks at one instant: nothing was established
+                    // for the attack clip to preserve.
+                    continue;
+                }
+                ControllerClip.BoneTracks shootTracks = shoot.tracks(entry.getKey());
+                if (shootTracks == null || shootTracks.scale().isEmpty()) {
+                    continue;
+                }
+                float[] idleAtStart = idleTracks.scale().sample(0, null);
+                float[] shootAtStart = shootTracks.scale().sample(0, null);
+                if (idleAtStart == null || shootAtStart == null) {
+                    continue;
+                }
+                float idleScale = idleAtStart[0];
+                float shootScale = shootAtStart[0];
+                float ratio = shootScale / Math.max(0.0001F, idleScale);
+                if (ratio < 0.75F || ratio > 1.25F) {
+                    offenders.add(plantId.path() + "." + entry.getKey() + " idle=" + idleScale
+                            + " shoot=" + shootScale);
+                }
+            }
+        }
+        assertTrue(offenders.isEmpty(),
+                "these bones change size between idle and the attack, which reads as the plant"
+                        + " inflating when it fires: " + offenders);
+    }
+
+    /**
+     * An action clip must not hide, for its whole length, a part the idle clip shows.
+     *
+     * <p>The watering can's reported "the animation is missing": its {@code attack} clip set all
+     * four of the ordinary can's bones to {@code visible: false} for the full 0.85s and switched on
+     * the three <em>gold</em> ones instead. The gold can is the Zen Garden's upgrade and nothing in
+     * the renderer ever asks for a variant, so clicking the can swapped the sprite to a gold can
+     * and back - an animation that plays, but is not the animation of the object the player is
+     * holding. The idle clip shows the ordinary can, so the rule is "whatever the object looks like
+     * standing still, the action clip cannot make all of it disappear".
+     *
+     * <p>Sampled rather than read off the keyframes: "hidden for the whole clip" is a statement
+     * about every instant in it, and the threepeater legitimately hides two of its three heads for
+     * part of each volley.
+     */
+    @Test
+    void anActionClipDoesNotHideEveryBoneTheIdleClipShows() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        List<String> offenders = new ArrayList<>();
+        for (String id : new String[]{"watering_can", "shovel", "glove", "hammer",
+                "pea_shooter", "sunflower", "wall_nut", "threepeater"}) {
+            AnimationFile file = readClasspathAnimation(Identifier.withDefaultNamespace(id));
+            if (!(file instanceof ControllerFile controller)) {
+                continue;
+            }
+            ControllerClip idle = asControllerClip(controller.clip("idle").orElse(null));
+            if (idle == null) {
+                continue;
+            }
+            for (String action : new String[]{"attack", "shoot"}) {
+                ControllerClip clip = asControllerClip(controller.clip(action).orElse(null));
+                if (clip == null || clip.duration() <= 0F) {
+                    continue;
+                }
+                for (Map.Entry<String, ControllerClip.BoneTracks> entry : idle.bones().entrySet()) {
+                    if (!entry.getValue().visible().sample(0F, false)) {
+                        continue;
+                    }
+                    ControllerClip.BoneTracks tracks = clip.tracks(entry.getKey());
+                    if (tracks == null) {
+                        // Absent from the clip: the bone keeps its rest pose, which is visible.
+                        continue;
+                    }
+                    boolean everVisible = false;
+                    for (int step = 0; step <= 16; step++) {
+                        float time = clip.duration() * step / 16F;
+                        if (tracks.visible().sample(time, true)) {
+                            everVisible = true;
+                            break;
+                        }
+                    }
+                    if (!everVisible) {
+                        offenders.add(id + "." + action + " hides " + entry.getKey()
+                                + " for the whole clip");
+                    }
+                }
+            }
+        }
+        assertTrue(offenders.isEmpty(),
+                "these action clips make the object disappear for their whole length: " + offenders);
+    }
+
+    /** The controller form of a clip, or {@code null} when it is a flipbook or missing. */
+    private static ControllerClip asControllerClip(AnimationClip clip) {
+        return clip instanceof ControllerClip controller ? controller : null;
+    }
+
+    /** Resolves a content id to its animation file by parsing it straight off the classpath. */
+    private static AnimationFile readClasspathAnimation(Identifier defId) throws Exception {
+        Identifier fileId = com.pvzce.common.core.EntityArt.animationFile(defId);
+        if (fileId == null) {
+            return null;
+        }
+        String resource = "/assets/" + fileId.namespace() + "/animations/" + fileId.path() + ".json";
+        try (var stream = AnimationResourceLoaderTest.class.getResourceAsStream(resource)) {
+            if (stream == null) {
+                return null;
+            }
+            var reader = new InputStreamReader(stream, StandardCharsets.UTF_8);
+            return AnimationResourceLoader.parse(JsonParser.parseReader(reader).getAsJsonObject(),
+                    fileId);
+        }
     }
 
     @Test

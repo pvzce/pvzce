@@ -3091,12 +3091,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // at the cell's floor would come out of the lawn beside it.
         emitEffect(PvzceParticles.POOL_SPLASH.toString(), plant.cellX(), plant.cellY(),
                 PvzceSounds.EFFECT_WATERING);
-        if (watering.ripened() || watering.healed() > 0) {
-            // A plant that actually did something with the water says so; a plant that was only
-            // thirsty gets the splash alone, which is what keeps "did that work" answerable.
-            emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(),
-                    plant.cellX(), plant.cellY(), PvzceSounds.PLANT_GROW);
-        }
+        // The glow used to be conditional on the watering having healed or ripened something -
+        // which a plant that was already whole and already grown never does, so the commonest case
+        // ("I watered a full-health peashooter") answered with a splash that is over in a quarter of
+        // a second and nothing else. The player's report was exactly "I cannot tell whether it did
+        // anything". The glow is now the answer to "the water landed on a plant": it says the click
+        // was accepted, and the growth sound is what distinguishes the cases where it did more.
+        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(),
+                plant.cellX(), plant.cellY(),
+                watering.ripened() || watering.healed() > 0 ? PvzceSounds.PLANT_GROW : null);
         return true;
     }
 

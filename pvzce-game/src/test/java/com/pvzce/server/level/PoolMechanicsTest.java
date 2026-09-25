@@ -330,6 +330,31 @@ class PoolMechanicsTest {
                 "the sun-shroom had not grown up yet");
         assertTrue(growTicksOf(shroom) instanceof Integer after && after <= 1,
                 "watering ripens it on the spot");
+        // Three halves, not four thirds: a third faster was invisible in play, which is the
+        // half of the report that said "I cannot feel the effect". Read through `actionRate`,
+        // the one place the level's speed rule and the watering are folded together, so this is
+        // the number the shooter and the producer actually spend.
+        assertEquals(1.5F, shroom.actionRate(1F), 0.0001F,
+                "and it works half again as fast while the watering lasts");
+    }
+
+    /**
+     * The can recharges in fifteen seconds, and both copies of that number agree.
+     *
+     * <p>The tool's own recharge and the card's printed one are separate fields; a card whose
+     * sweep counts down to a different moment than the one the server enforces is a player
+     * watching a ready-looking card get refused.
+     */
+    @Test
+    void theWateringCanRechargesInFifteenSeconds() {
+        com.pvzce.api.content.ToolDef tool =
+                BuiltInRegistries.TOOLS.get(Id.of("watering_can"));
+        assertNotNull(tool, "the watering can has to exist");
+        assertEquals(15 * 60, tool.cooldownTicks(), "the tool's own recharge is fifteen seconds");
+        var card = com.pvzce.common.core.SlotResolver.resolve(Id.of("watering_can")).orElse(null);
+        assertNotNull(card, "and it has a card");
+        assertEquals(15 * 60, card.cooldownTicks(),
+                "the card's printed recharge must be the same number");
     }
 
     /** A click on an empty cell is refused, so it costs neither the cooldown nor a use. */

@@ -4,7 +4,7 @@
   "content": "pvzce:watering_can",
   "cost": {
     "resources": {},
-    "cooldown": 600
+    "cooldown": 900
   },
   "icon": "pvzce:textures/gui/cards/watering_can"
 }
