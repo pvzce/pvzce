@@ -84,7 +84,9 @@ class PoolSecondHalfTest {
         assertEquals("pvzce:torchwood", firstRewardId("3_7"));
         assertEquals("pvzce:tall_nut", firstRewardId("3_8"));
         assertEquals("pvzce:kelp_spread", firstRewardId("3_9"));
-        assertEquals("pvzce:plantern", firstRewardId("3_10"));
+        // The original's world 3 ends with the sea-shroom, not the plantern: the plantern is
+        // 4-1's gift, because it is the fog world's first need.
+        assertEquals("pvzce:sea_shroom", firstRewardId("3_10"));
 
         LevelDef nine = level("3_9");
         assertEquals("buff", nine.rewards().firstClear().get(0).type(),
@@ -109,9 +111,12 @@ class PoolSecondHalfTest {
             }
         }
         assertTrue(seen.contains("zamboni_zombie"), "the zamboni has to turn up somewhere");
-        assertTrue(seen.contains("gargantuar"), "and so does the Gargantuar, at the end");
+        assertTrue(seen.contains("bobsled_zombie"), "and the team it tows onto the ice");
         assertTrue(seen.contains("dolphin_rider_zombie"), "the pool's own riders are in the pool");
         assertTrue(seen.contains("snorkel_zombie"), "and the divers");
+        // The Gargantuar is not part of worlds 3 and 4 at all: the original introduces it on
+        // 5-8. It used to close 3-10 here, which was this project's invention.
+        assertFalse(seen.contains("gargantuar"), "no Gargantuar before the roof");
     }
 
     /**

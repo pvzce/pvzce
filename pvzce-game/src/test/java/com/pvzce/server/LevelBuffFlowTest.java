@@ -46,8 +46,14 @@ class LevelBuffFlowTest {
     private static final Identifier RANGE = PvzceIds.BUFF_MUSHROOM_RANGE;
     private static final Identifier PLANT_TEAM = Identifier.withDefaultNamespace("plant_team");
     private static final String WORLD = "buffflow";
-    /** A built-in level that offers the player a choice (the 1-6..1-9 / 2-x group does). */
-    private static final String CHOICE_LEVEL = "pvzce:yard/adventure/1_6";
+    /**
+     * A built-in level that offers the player a choice (the 1-8 onwards / 2-x group does).
+     *
+     * <p>It used to be 1-6, which stopped offering a choice when the first seven levels went
+     * back to the original's "no chooser before level 8" rule - a level with a fixed deck has
+     * no buff page either, which is what these tests were reading.
+     */
+    private static final String CHOICE_LEVEL = "pvzce:yard/adventure/1_8";
     /** A built-in level that fixes its buffs: a conveyor belt has no cards to choose either. */
     private static final String FIXED_LEVEL = "pvzce:yard/adventure/1_5";
     /** A level written before buffs existed: it must be unaffected in every way. */
@@ -295,12 +301,32 @@ class LevelBuffFlowTest {
      * <p>The chain is 1-1 through 1-5; a world that has cleared them is exactly a world that has
      * reached 1-6, and this is the only way to say so without playing five levels.
      */
+    /**
+     * Marks every level the fixture depends on as cleared, by walking the chain it declares.
+     *
+     * <p>Read from the level's own `unlock.requires` rather than written down: the fixture used
+     * to be 1-6 (which wanted 1_1..1_5) and moved to 1-8 when the first seven levels went back
+     * to the original's fixed decks, and a hardcoded chain turns that move into a timeout.
+     */
     private static void clearPrerequisitesOfChoiceLevel(Path dir) throws Exception {
         Path worldDir = com.pvzce.common.util.WorldPaths.worldDir(dir, WORLD);
         com.pvzce.server.WorldStore store = new com.pvzce.server.WorldStore(dir);
-        for (int i = 1; i <= 5; i++) {
-            store.writeCompletion(worldDir, Identifier.parse("pvzce:yard/adventure/1_" + i),
-                    PLANT_TEAM, 0, 0);
+        Identifier next = Identifier.parse(CHOICE_LEVEL);
+        for (int guard = 0; guard < 64 && next != null; guard++) {
+            var def = com.pvzce.common.core.BuiltInRegistries.LEVELS.get(next);
+            if (def == null) {
+                break;
+            }
+            for (var requirement : def.unlock().requires()) {
+                var required = requirement.id();
+                if (required.isEmpty()) {
+                    continue;
+                }
+                store.writeCompletion(worldDir, required.get(), PLANT_TEAM, 0, 0);
+            }
+            next = def.unlock().requires().isEmpty()
+                    ? null
+                    : def.unlock().requires().get(0).id().orElse(null);
         }
     }
 

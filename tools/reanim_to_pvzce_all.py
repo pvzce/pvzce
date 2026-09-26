@@ -1497,6 +1497,24 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "idle": {"mask": "anim_idle", "loop": True},
         },
     ),
+    # The bobsled team. Its file is the team's own gait and nothing else: `anim_walk` is the
+    # slide, `anim_push` is the shove that starts it and `anim_jump` the spill, and `_ground`
+    # marks which of them are on the ice (walk and push, not the spill) - so the ride and the
+    # crash are told apart by the art rather than by a guess. The ride is what this project
+    # plays, and its 47 frames are drawn for the 0.55 cells/s a sled slides at.
+    #
+    # There is no sled sprite in the rip: the original builds the team out of four bodies of
+    # this same art, offset along the lane, which is what `BobsledCapability` does with it.
+    EntityConfig(
+        output="bobsled_zombie",
+        group="zombie/special",
+        reanim="Zombie_bobsled.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.55},
+        },
+    ),
     EntityConfig(
         output="dolphin_rider_zombie",
         group="zombie/special",
@@ -1513,6 +1531,25 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "idle": {"mask": "anim_idle", "loop": True},
         },
     ),
+    # The jack-in-the-box: it limps in winding, and it goes off. Its `pop` mask is the one clip
+    # this zombie cannot do without - the server publishes `pop` by name for the whole of its
+    # 110-tick fuse, and a file without that clip falls back to `idle`, which is an explosion
+    # coming out of a body standing perfectly still. The rate is authored so the 16-frame lid
+    # opening fills exactly those 110 ticks (16 / (12 * 0.7273) = 1.83 s), so the box is fully
+    # open on the frame the blast lands.
+    EntityConfig(
+        output="jack_in_the_box_zombie",
+        group="zombie/special",
+        reanim="Zombie_jackbox.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        # 0.12 cells/s: the original's limp, half an ordinary walk, and the walk cycle is drawn
+        # for it.
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.12},
+            "pop": {"mask": "anim_pop", "loop": False, "on_end": "hold", "rate": 0.7273},
+        },
+    ),
     EntityConfig(
         output="miner_zombie",
         group="zombie/underground",
@@ -1526,6 +1563,27 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                     "reference_speed": 0.3},
             "dig_exit": {"mask": "anim_landing", "loop": False, "on_end": "walk",
                          "transition": 0.1},
+        },
+    ),
+    # The pogo zombie: it bounces over everything, for ever, and the stick is the whole of it.
+    # `anim_pogo` draws the body already up on the stick - `_ground` is false across all eleven
+    # frames of it - so the clip is one bounce and the capability's own 80-tick cycle is the
+    # other half; the rate below puts exactly one bounce on one cycle (11 / (12 * 0.6875) =
+    # 1.33 s). It declares no `reference_speed` on purpose: the bounce is the stick compressing
+    # rather than feet meeting the ground, and a locomotion scale would make it play four times
+    # over while the zombie is sailing across a plant.
+    #
+    # `anim_walk` is what the zombie is left with after a tall-nut snaps the stick, and it is
+    # exported because it then walks that clip for the rest of its life.
+    EntityConfig(
+        output="pogo_zombie",
+        group="zombie/special",
+        reanim="Zombie_pogo.reanim",
+        target_box=ZOMBIE_BOX,
+        fit_height_only=True,
+        animations=zombie_animations(walk=False, all_deaths=False) | {
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.23},
+            "pogo": {"mask": "anim_pogo", "loop": True, "rate": 0.6875},
         },
     ),
     # The dancing zombie and its backup dancers. Two files, one behaviour: the dancer

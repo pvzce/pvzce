@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/3_1",
   "name": "3-1",
-  "description": "泳池的第一关：草坪中间多出了两行水，僵尸也会从水里来——它们套着鸭子救生圈，从池子里划过来。除了莲叶，没有植物能直接种在水上：先把莲叶放进水里，再把射手种在莲叶上。水里的小推车是泳池清洁器，它和割草机一样是每行的最后一道防线。",
+  "description": "泳池的第一关：草坪中间多出两行水，僵尸也会从水里来——它们套着鸭子救生圈划过来，只有莲叶能让植物种在水上。水里的小推车是泳池清洁器；这一关的礼物是窝瓜。",
   "width": 9,
   "height": 6,
   "scene": {
@@ -117,233 +117,191 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 2,
+          "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
-          "rows": [
-            2,
-            3
+            0
           ]
         }
       ],
-      "spawn_interval": 420
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 2565,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3,
+          "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2690,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2985,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2693,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3075,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2506,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
-          "rows": [
-            2,
-            3
+            1
           ]
         }
       ],
-      "spawn_interval": 390
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 2597,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
           "count": 2,
           "rows": [
             0,
-            1,
-            4,
-            5
+            1
           ]
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
-          "rows": [
-            2,
-            3
-          ]
-        }
-      ],
-      "spawn_interval": 360
-    },
-    {
-      "type": "huge",
-      "delay": 1860,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 4,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_conehead_zombie",
-          "count": 2,
-          "rows": [
-            2,
-            3
+            2
           ]
         }
       ],
-      "spawn_interval": 180,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 2917,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
           "count": 2,
           "rows": [
             0,
-            1,
-            4,
-            5
+            1
           ]
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
+          "count": 1,
           "rows": [
-            2,
-            3
+            2
           ]
         }
       ],
-      "spawn_interval": 330
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1680,
+      "delay": 3016,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 5,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
           "count": 3,
           "rows": [
             0,
-            1,
-            4,
-            5
+            1
           ]
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 2,
           "rows": [
             2,
             3
           ]
+        },
+        {
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            5
+          ]
         }
       ],
-      "spawn_interval": 140,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -371,27 +329,26 @@
     "pvzce:grass"
   ],
   "disable_shaders": false,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "水里先放莲叶，再把射手种在莲叶上",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "救生圈僵尸只从水里来",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
   "unlock_resources": {
     "pvzce:sun": true
   },
   "buffs": [
     "pvzce:player_choice"
-  ],
-  "hints": [
-    {
-      "trigger": "on_start",
-      "text": "水里要先放莲叶，植物才能种在水上",
-      "duration_ticks": 600
-    },
-    {
-      "trigger": "on_resource",
-      "text": "救生圈僵尸只从水里来，看好两行水池",
-      "duration_ticks": 600,
-      "resource": "pvzce:sun"
-    },
-    {
-      "trigger": "on_card_refused"
-    }
   ],
   "rewards": {
     "first_clear": [

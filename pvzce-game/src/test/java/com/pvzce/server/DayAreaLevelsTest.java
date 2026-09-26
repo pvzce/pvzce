@@ -146,12 +146,17 @@ class DayAreaLevelsTest {
     }
 
     /**
-     * No built-in deck and no slot cap: the player brings their own cards, up to whatever
-     * their backpack holds.
+     * From 1-8 on there is no built-in deck and no slot cap: the player brings their own cards,
+     * up to whatever their backpack holds.
+     *
+     * <p>1-6 and 1-7 used to be in this list and are not any more. The original has no seed
+     * chooser on the first seven levels at all - the bank is filled with everything the player
+     * owns, in order (`Board::ChooseSeedsOnCurrentLevel` returns false until level 8) - and this
+     * project follows it now, so 1-6 and 1-7 have fixed decks too.
      */
     @Test
-    void thePlayerPicksTheirOwnCards() {
-        for (String name : ADVENTURE.subList(0, 4)) {
+    void thePlayerPicksTheirOwnCardsFromOneEightOn() {
+        for (String name : ADVENTURE.subList(2, 4)) {
             LevelDef def = level(name);
             assertTrue(def.slots().isEmpty(), def.id() + " pins no cards");
             assertFalse(def.declaresMaxSeedSlots(), def.id() + " does not cap the card bar");
@@ -160,6 +165,37 @@ class DayAreaLevelsTest {
                     def.id() + " follows the backpack");
             assertTrue(def.unlockResources().getOrDefault(PvzceIds.SUN, false),
                     def.id() + " must unlock sun, or a chosen sun card could not collect it");
+        }
+    }
+
+    /**
+     * The first seven levels deal the cards themselves, in the original's own order.
+     *
+     * <p>"No chooser" means the bank holds every seed the player owns - which is what the
+     * original does, and what makes 1-1 a one-card level: its bank is the peashooter plus the
+     * sun card, and nothing else has been unlocked yet.
+     */
+    @Test
+    void theFirstSevenLevelsDealTheirOwnCards() {
+        List<List<String>> decks = List.of(
+                List.of("pea_shooter"),
+                List.of("pea_shooter", "sunflower"),
+                List.of("pea_shooter", "sunflower", "cherry_bomb"),
+                List.of("pea_shooter", "sunflower", "cherry_bomb", "wall_nut"),
+                List.of("pea_shooter", "sunflower", "cherry_bomb", "wall_nut", "potato_mine"),
+                List.of("pea_shooter", "sunflower", "cherry_bomb", "wall_nut", "potato_mine",
+                        "snow_pea"));
+        List<String> levels = List.of("1_1", "1_2", "1_3", "1_4", "1_6", "1_7");
+        for (int index = 0; index < levels.size(); index++) {
+            LevelDef def = level(levels.get(index));
+            List<String> expected = new ArrayList<>(decks.get(index));
+            List<String> slots = def.slots().stream().map(Identifier::path).toList();
+            assertEquals(expected.size() + 1, slots.size(),
+                    def.id() + " deals its own cards plus the sun card");
+            for (String card : expected) {
+                assertTrue(slots.contains(card), def.id() + " must deal " + card + ", dealt " + slots);
+            }
+            assertTrue(slots.contains("sun"), def.id() + " must deal the sun card as well");
         }
     }
 

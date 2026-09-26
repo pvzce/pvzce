@@ -27,6 +27,7 @@ import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.level.CardCooldown;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.level.mechanic.ScaryPotterMechanic;
 import com.pvzce.common.level.mechanic.WavePacingMechanic;
 import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.level.SceneGrid;
@@ -639,6 +640,29 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return false;
     }
 
+    /**
+     * True when any cell of {@code row} is the zamboni's ice - what makes a row one a bobsled
+     * team may be dealt into.
+     *
+     * <p>Asked of the terrain, like {@link #rowIsWater}, because that is where the ice is: the
+     * zamboni's trail is a scene element it writes as it drives, so a lane iced halfway through
+     * a level becomes sleddable the moment the first cell of it freezes. Water does not count -
+     * a bobsled on the pool is a bobsled in the water - and neither does anything else a pack
+     * may paint, which is why this is the element's own id rather than a surface class.
+     */
+    public boolean rowHasIce(int row) {
+        if (scene == null) {
+            return false;
+        }
+        for (int x = 0; x < def.width(); x++) {
+            SceneElementDef element = scene.get(x, row);
+            if (element != null && PvzceIds.ICE.equals(element.id())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The rows a zombie that cannot swim may arrive in; every row when the board has no water. */
     public List<Integer> landRows() {
         List<Integer> land = new ArrayList<>();
@@ -673,20 +697,49 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * that conjures a zombie in a random lane, a boss phase that summons in a random lane, a
      * dancer's escort, an imp thrown at a fixed offset - all of them arrive here, and none of them
      * knows which rows are water.
+     *
+     * <p>The bobsled's lane is corrected here for the same reason and in the same shape: a sled is
+     * only a sled on ice (see {@code BobsledCapability}), so a lead that was aimed at a bare lane
+     * is moved to the nearest iced one. A board with no ice at all keeps the lane it was given -
+     * the spawn is not refused, because a wave that is owed a zombie must not lose it, and the
+     * wave director is where "there is nowhere to sled, so send ordinary zombies instead" is
+     * decided (see {@code WaveDirector.spawnQueued}).
      */
     public int spawnRowFor(ZombieDef def, int row) {
-        if (def == null || def.canSwim() || !rowIsWater(row)) {
+        if (def == null) {
             return row;
         }
-        List<Integer> land = landRows();
-        int best = land.get(0);
-        for (int candidate : land) {
+        int resolved = row;
+        if (!def.canSwim() && rowIsWater(resolved)) {
+            resolved = nearestRow(resolved, landRows());
+            LOGGER.debug("A zombie that cannot swim may not walk in water: lane {} becomes {}",
+                    row, resolved);
+        }
+        if (def.capability(com.pvzce.common.capability.zombie.BobsledCapability.class).isPresent()
+                && !rowHasIce(resolved)) {
+            List<Integer> iced = new ArrayList<>();
+            for (int y = 0; y < this.def.height(); y++) {
+                if (rowHasIce(y)) {
+                    iced.add(y);
+                }
+            }
+            if (!iced.isEmpty()) {
+                resolved = nearestRow(resolved, iced);
+                LOGGER.debug("A bobsled may only be dealt onto ice: lane {} becomes {}",
+                        row, resolved);
+            }
+        }
+        return resolved;
+    }
+
+    /** Whichever of {@code candidates} is closest to {@code row}; the first when tied. */
+    private static int nearestRow(int row, List<Integer> candidates) {
+        int best = candidates.get(0);
+        for (int candidate : candidates) {
             if (Math.abs(candidate - row) < Math.abs(best - row)) {
                 best = candidate;
             }
         }
-        LOGGER.debug("A zombie that cannot swim may not walk in water: lane {} becomes {}",
-                row, best);
         return best;
     }
 
@@ -3020,6 +3073,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // with no spot to land on.
         lastKillX = zombie.cellX();
         lastKillY = zombie.cellY();
+        // A zombie that blew itself up (the jack-in-the-box) is a death the wave above had to
+        // hear about and a payout nobody earned: the player did not kill this one, so the sun
+        // and the coin roll would be a reward for standing next to a bomb.
+        if (zombie.selfDestructed()) {
+            return;
+        }
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }
@@ -3121,6 +3180,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * house is being eaten. A level that ends with the zombies winning therefore reports
      * {@code LOST} - which on an endless level is the only way a run can end at all.
      */
+    /**
+     * Ends the run in the plant team's favour: for a level whose own condition is its win.
+     *
+     * <p>{@code checkEnd} wins a level once every wave has been released and the lawn is clear of
+     * hostiles, which can never be true of a level with no waves at all - and 4-5 is exactly that
+     * level. Its Scary Potter mechanic calls this when the last pot's zombie is down; the ending
+     * itself (the packet, the summary, the winner) is the one every other level gets.
+     */
+    public void declareVictory() {
+        markEnd(teams.get(PvzceIds.PLANT_TEAM));
+    }
+
     private void markEnd(Team winnerTeam) {
         if (!gameState.equals(GameStateS2C.RUNNING) || winnerTeam == null) {
             return;
@@ -3460,6 +3531,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
             case "pvzce:glove" -> movePlant(x, y);
             case "pvzce:hammer" -> {
+                // A pot is what this swing is for on a vase level (4-5), and a zombie is what it
+                // is for everywhere else. The cell decides, and a cell holds one of them.
+                if (ScaryPotterMechanic.isPot(this, x, y)) {
+                    yield smashPot(x, y);
+                }
                 // What one swing is worth, and whether armour absorbs it, are the tool's own
                 // numbers (see ToolDef.damage / damage_type) - not this method's. They used to
                 // live here as a 100000-point `pvzce:mower` blow, which made the mallet a lawn
@@ -3601,8 +3677,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // Smashed. The cell goes back to whatever a bare lawn is made of, and the card inside -
         // if there was one - is the player's again.
         Identifier inside = vaseContents.remove(cellKey(x, y));
-        setScene(x, y, defaultSceneElement().id());
-        sendSceneCell(x, y);
+        resetSceneCell(x, y);
         emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
                 Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
         if (inside != null) {
@@ -3613,7 +3688,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // Asked of the card source rather than appended here: on a conveyor level the bar is a
             // projection of the belt, and a card added behind the belt's back is dropped by its
             // next rebuild.
-            boolean delivered = cardSource != null && cardSource.receiveCard(this, bridge, inside);
+            boolean delivered = deliverCard(inside);
             bridge.send(new ServerMessageS2C(delivered
                     ? "花瓶里掉出了一张卡。"
                     : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
@@ -3664,6 +3739,36 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * One swing at a scary pot: it opens, and what is inside is the player's problem.
+     *
+     * <p>A plant pot hands its card over - the same delivery a smashed vase makes - and a zombie
+     * pot puts that zombie on the lawn in the cell the pot was standing in, which is the
+     * original's own arrangement: the pot is the zombie's way in, so it comes out where the pot
+     * was. Either way the pot is forgotten by the mechanic that laid it out, which is what makes
+     * the round advance when the last one goes.
+     */
+    private boolean smashPot(int x, int y) {
+        ScaryPotterMechanic.Contents contents = ScaryPotterMechanic.contentsAt(this, x, y);
+        if (contents == null) {
+            return false;
+        }
+        ScaryPotterMechanic.forget(this, x, y);
+        resetSceneCell(x, y);
+        emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
+                Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
+        if (contents.isPlant()) {
+            boolean delivered = deliverCard(contents.id());
+            bridge.send(new ServerMessageS2C(delivered
+                    ? "花瓶里掉出了一张卡。"
+                    : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
+        } else {
+            spawnZombie(contents.id(), x + 0.5F, y);
+            bridge.send(new ServerMessageS2C("花瓶里跳出了一只僵尸。"));
+        }
+        return true;
+    }
+
+    /**
      * What is inside each vase, keyed by cell.
      *
      * <p>Kept on the level rather than in a mechanic because it is not a mechanic: the vase is a
@@ -3694,6 +3799,31 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** What is inside the vase in this cell, or {@code null} when there is no filled vase. */
     public Identifier vaseContentAt(int x, int y) {
         return vaseContents.get(cellKey(x, y));
+    }
+
+    /**
+     * Puts a cell back to the terrain the board is made of, and tells the client.
+     *
+     * <p>What a smashed vase leaves behind, and what a broken scary pot leaves behind: one write
+     * of the cell and one packet, in that order. It used to be two copies of the same pair, which
+     * is exactly the shape that ends up with one copy forgetting the packet.
+     */
+    public void resetSceneCell(int x, int y) {
+        setScene(x, y, defaultSceneElement().id());
+        sendSceneCell(x, y);
+    }
+
+    /**
+     * Hands one card to whatever is dealing this level's cards.
+     *
+     * <p>The vase's delivery path and the scary pot's: a card that came out of something the
+     * player broke goes onto the bar through the card source - on a conveyor level the bar is the
+     * belt's projection, so a card appended behind the belt's back is dropped by its next rebuild.
+     * {@code false} means there was no room, which the callers turn into a message rather than
+     * into silence.
+     */
+    public boolean deliverCard(Identifier card) {
+        return cardSource != null && cardSource.receiveCard(this, bridge, card);
     }
 
     /**

@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/2_8",
   "name": "2-8",
-  "description": "夜里的第八关：舞王僵尸第一次登场。他会停下来招出四名伴舞僵尸，倒下一个还会再补一个——把整支舞队一起清掉才算完。上一关拿到的寒冰菇正好能把这场舞会冻住。",
+  "description": "舞王僵尸第一次出现，他会召唤四个伴舞从左右两边挤过来。毁灭菇是这一关的礼物——炸掉一大片，顺便在那块地上留一个坑。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -82,121 +82,199 @@
   "mechanics": [
     {
       "type": "pvzce:grave_field",
-      "count": 7
+      "count": 11,
+      "min_x": 4,
+      "max_x": 8
     }
   ],
   "waves": [
     {
       "type": "small",
-      "delay": 960,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1328,
+      "delay": 2845,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 208
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1440,
+      "delay": 2534,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:dancing_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 192
-    },
-    {
-      "type": "huge",
-      "delay": 1056,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 5
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:dancing_zombie",
-          "count": 1
-        }
-      ],
-      "spawn_interval": 96,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1520,
+      "delay": 2566,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 5
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:dancing_zombie",
-          "count": 1
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 176
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3025,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2896,
+      "entries": [
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2666,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3096,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2501,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1106,
+      "delay": 3035,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 6
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 3
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:dancing_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 74,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -277,9 +355,27 @@
     "pvzce:grass"
   ],
   "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "舞王僵尸会一直补伴舞，先打他",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "毁灭菇留下的坑这一局不能再种",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
   "unlock_resources": {
     "pvzce:sun": true
   },
+  "buffs": [
+    "pvzce:player_choice"
+  ],
   "rewards": {
     "first_clear": [
       {
@@ -296,8 +392,5 @@
     "coin_drop": "pvzce:coin_silver",
     "coin_drop_chance": 0.25,
     "coin_drop_amount": 1
-  },
-  "buffs": [
-    "pvzce:player_choice"
-  ]
+  }
 }

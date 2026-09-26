@@ -165,12 +165,19 @@ class PoolAreaLevelsTest {
                             name + " wave " + (index + 1) + ": " + entry.id() + " names no lanes");
                     ZombieDef zombie = BuiltInRegistries.ZOMBIES.get(entry.id());
                     assertNotNull(zombie, entry.id() + " must be a registered zombie");
-                    boolean water = entry.rows().contains(2);
-                    assertEquals(water, zombie.canSwim(),
-                            name + " wave " + (index + 1) + ": " + entry.id()
-                                    + (water ? " is sent into the pool and must swim"
-                                             : " walks the lawn and must not be a swimmer"));
                     assertFalse(entry.rows().isEmpty(), entry.id() + " must name rows");
+                    // Per row, not per entry: an entry is one zombie type in the lanes it was
+                    // dealt into, and the wave tables are per-lane now (the original's own row
+                    // picker, replayed) - so a swimming zombie's entry may name only row 3, and
+                    // asking "does this entry mention row 2" would call that a land zombie.
+                    for (int row : entry.rows()) {
+                        boolean poolRow = row == 2 || row == 3;
+                        assertEquals(poolRow, zombie.canSwim(),
+                                name + " wave " + (index + 1) + ": " + entry.id()
+                                        + (poolRow ? " is sent into the pool and must swim"
+                                                   : " walks the lawn and must not be a swimmer")
+                                        + " (row " + row + ")");
+                    }
                 }
             }
         }
@@ -261,6 +268,7 @@ class PoolAreaLevelsTest {
                 "mini_conehead_zombie", "conehead_zombie",
                 "mini_football_zombie", "football_zombie",
                 "mini_ducky_tube_zombie", "ducky_tube_zombie",
+                "mini_ducky_tube_conehead_zombie", "ducky_tube_conehead_zombie",
                 "mini_snorkel_zombie", "snorkel_zombie");
         for (var pair : pairs.entrySet()) {
             ZombieDef little = BuiltInRegistries.ZOMBIES.get(PvzceIds.id(pair.getKey()));

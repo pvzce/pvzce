@@ -38,7 +38,7 @@ public final class AlmanacEntries {
     /**
      * The order the zombie page reads in, by path.
      *
-     * <p>The first eighteen are the original's own almanac numbers, with the numbers the original
+     * <p>The first twenty are the original's own almanac numbers, with the numbers the original
      * gives the zombies this project does not have left as comments - so {@code gargantuar} is 24
      * here because it is 24 there, and the gap is visible rather than papered over.
      *
@@ -61,15 +61,18 @@ public final class AlmanacEntries {
             "backup_dancer",                // 10 Backup Dancer
             "ducky_tube_zombie",            // 11 Ducky Tube Zombie
             "snorkel_zombie",               // 12 Snorkel Zombie
-            // 13 Zomboni and 21 Bungee Zombie are implemented now, and they sit in their own
-            // places in the original's numbering rather than at the end: the table is a reading
-            // order, and a player who knows the original's book expects them here.
+            // The original's own numbers are the reading order, and the zombies this project has
+            // implemented sit under theirs rather than at the end of the list: a player who knows
+            // the original's book expects the sled team to follow the Zomboni.
             "zamboni_zombie",               // 13 Zomboni
-            // 14 Zombie Bobsled Team, 16 Jack-in-the-Box, 19 Pogo Zombie, 20 Zombie Yeti,
-            // 22 Ladder Zombie, 23 Catapult Zombie: none of these are implemented.
+            "bobsled_zombie",               // 14 Zombie Bobsled Team
+            // 20 Zombie Yeti, 22 Ladder Zombie, 23 Catapult Zombie: none of these are
+            // implemented.
             "dolphin_rider_zombie",         // 15 Dolphin Rider Zombie
+            "jack_in_the_box_zombie",       // 16 Jack-in-the-Box Zombie
             "balloon_zombie",               // 17 Balloon Zombie
             "miner_zombie",                 // 18 Digger Zombie
+            "pogo_zombie",                  // 19 Pogo Zombie
             "bungee_zombie",                // 21 Bungee Zombie
             "gargantuar",                   // 24 Gargantuar
             "imp",                          // 25 Imp
@@ -88,6 +91,7 @@ public final class AlmanacEntries {
             "mini_flag_zombie",
             "mini_conehead_zombie",
             "mini_ducky_tube_zombie",
+            "mini_ducky_tube_conehead_zombie",
             "mini_football_zombie",
             "mini_snorkel_zombie"
     );

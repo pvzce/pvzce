@@ -88,6 +88,23 @@ public final class PvzceIds {
     public static final Identifier VASE_FULL = id("vase_full");
 
     /**
+     * A scary pot with a question mark on it: one of 4-5's vases, contents unknown.
+     *
+     * <p>Scary Potter's pots are the original's own drawings (`Scary_Pot.png`, cut by
+     * `tools/gen_scary_pots.py`), and they are a different object from {@link #VASE}: a vase is
+     * the tool the player owns, a pot is the level's. Two ids is how the engine keeps them from
+     * being mistaken for each other when a hammer is swung at one.
+     */
+    public static final Identifier POT_QUESTION = id("pot_question");
+    /**
+     * The same pot with a leaf on it: the one the player can see holds a plant.
+     *
+     * <p>`ScaryPotterChangePotType` turns a handful of a round's plant pots green, which is the
+     * level's only hint - every other pot has to be opened to find out.
+     */
+    public static final Identifier POT_LEAF = id("pot_leaf");
+
+    /**
      * The water a mutation floods a lawn with, as opposed to the pool's own {@link #WATER}.
      *
      * <p>The same surface class - so every rule that reads terrain treats them alike - but with
@@ -619,6 +636,15 @@ public final class PvzceIds {
      * shared it would make "the level declares a vase" and "this cell is a vase" the same string.
      */
     public static final Identifier MECHANIC_VASE_FIELD = id("vase_field");
+
+    /**
+     * The mechanic that fills a lawn with pots, in rounds, for the original's Scary Potter.
+     *
+     * <p>Distinct from {@link #MECHANIC_VASE_FIELD}: a vase field is a fixed handful of vases
+     * holding cards, and a scary potter level is rounds of scattered pots holding cards
+     * <em>or zombies</em>, with the level's end tied to the last one.
+     */
+    public static final Identifier MECHANIC_SCARY_POTTER = id("scary_potter");
 
     /** Scene element surface classes (compare with {@link #GRASS}-style element ids). */
     public static final String SURFACE_GRASS = "GRASS";

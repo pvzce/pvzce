@@ -4,6 +4,7 @@ import com.pvzce.api.content.LevelBelt;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.PlacementZone;
+import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.plant.BowlCapability;
 import com.pvzce.common.PvzceIds;
@@ -174,9 +175,14 @@ class MiniGameTest {
                 spawned++;
             }
         }
-        // The level throws half the zombies it used to - the pacing was retuned to "waves
-        // 1.5x as often, half as many, moving 1.5x as fast" - so the floor moved with it.
-        assertTrue(spawned >= 110, "a wall-nut bowling level is a horde, not a handful; got " + spawned);
+        // The claim is two things: every zombie the table writes actually arrives (a wave table
+        // and a spawner that disagree is the failure this catches), and the table is a horde.
+        // The number used to be a literal 110 for a hand-written table; 1-5 is the original's
+        // own now - eight waves at four times the usual points - which is 44 bodies.
+        int written = oneFive.waves().stream().mapToInt(WaveDef::totalZombies).sum();
+        assertTrue(spawned >= written,
+                "every zombie the table writes has to arrive: wrote " + written + ", got " + spawned);
+        assertTrue(written >= 40, "a wall-nut bowling level is a horde, not a handful; got " + written);
         assertEquals(GameStateS2C.WON, level.gameState(), "the last wave has to end the level");
     }
 

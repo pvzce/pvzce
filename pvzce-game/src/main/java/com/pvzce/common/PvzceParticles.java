@@ -114,6 +114,20 @@ public final class PvzceParticles {
     public static final Identifier MOWER_CLOUD_POWIE = id("mower_cloud_powie_big_clouds");
 
     /**
+     * The jack-in-the-box's own two-piece blast, converted with the rest of the original's
+     * emitters and unused until the zombie itself existed.
+     *
+     * <p>They are the original's cloud and the spring that comes out of the box, in that order.
+     * Its third one - {@code jack_explode_jack_small_clouds} - is deliberately not named here:
+     * the converter read its {@code ParticleScale .5,60 0} as a size of <b>zero</b> (the same
+     * "two numbers" bug that hid the powie cloud), so the renderer skips every particle in it.
+     * A hand-written definition would fix it; emitting an invisible effect instead would look
+     * exactly like the bug it is.
+     */
+    public static final Identifier JACK_EXPLODE_BIG_CLOUD = id("jack_explode_jack_explode_big_cloud");
+    public static final Identifier JACK_EXPLODE_SPROING = id("jack_explode_jack_explode_sproing");
+
+    /**
      * The three puffs of a sleeping mushroom's breath, smallest first.
      *
      * <p>Three sizes rather than one scaled puff because a particle's size is a number in its
@@ -132,7 +146,8 @@ public final class PvzceParticles {
                 ZOMBIE_HELMET, ZOMBIE_TRAFFIC_CONE, ZOMBIE_PAIL, ZOMBIE_DOOR, ZOMBIE_NEWSPAPER,
                 ZOMBIE_FLAG, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
                 LANTERN_SHINE, MOWERED_ZOMBIE_HEAD, MOWERED_ZOMBIE_ARM, MOWER_CLOUD,
-                MOWER_CLOUD_POWIE, id("zzz_1"), id("zzz_2"), id("zzz_3"));
+                MOWER_CLOUD_POWIE, JACK_EXPLODE_BIG_CLOUD, JACK_EXPLODE_SPROING,
+                id("zzz_1"), id("zzz_2"), id("zzz_3"));
     }
 
     public static Identifier id(String path) {

@@ -112,16 +112,17 @@ class ContentFoundationTest {
         // 1-1 is the original's opening level: one lane, one plant card plus the sun
         // card, and the level fixes both so the player has nothing to choose.
         assertEquals(1, level1.height());
-        assertEquals(50, level1.initialSun());
+        assertEquals(150, level1.initialSun());
         assertEquals(2, level1.slots().size());
         assertEquals(2, level1.maxSeedSlots());
-        assertEquals(3, level1.waves().size());
+        // The original's own count for its first level, and its own opening delay.
+        assertEquals(4, level1.waves().size());
         assertEquals(1.0F, level1.waveIntervalEndMultiplier(), 0.0001F);
         assertEquals("small", level1.waves().get(0).type().name().toLowerCase());
-        assertEquals(1500, level1.waves().get(0).delay());
+        assertEquals(1800, level1.waves().get(0).delay());
         assertEquals(1, level1.waves().get(0).entries().get(0).count());
-        assertEquals("final", level1.waves().get(2).type().name().toLowerCase());
-        assertEquals(2, level1.waves().get(2).entries().get(0).count());
+        assertEquals("final", level1.waves().get(3).type().name().toLowerCase());
+        assertEquals(2, level1.waves().get(3).entries().get(0).count());
         assertEquals(4, demo.waves().size());
         assertTrue(level1.previewZombieIds().contains("pvzce:basic_zombie"));
         assertTrue(demo.previewZombieIds().contains("pvzce:basic_zombie"));
@@ -146,20 +147,33 @@ class ContentFoundationTest {
         assertEquals(1, level1.height());
         assertEquals(3, level2.height());
         assertEquals(3, level3.height());
+        // 1-1 is the original's tutorial and the only level that starts with 150 sun; every
+        // other level starts with 50.
+        assertEquals(150, level1.initialSun(), "1-1 is the tutorial's richer start");
+        for (LevelDef level : List.of(level2, level3)) {
+            assertEquals(50, level.initialSun(), level.id() + " starts with the original's 50 sun");
+        }
+
+        // The first seven levels deal their own cards, in the original's order
+        // (`ChooseSeedsOnCurrentLevel` has no chooser before level 8), so the deck *is* what
+        // the player owns: the peashooter at 1-1, sunflower at 1-2 (awarded by 1-1), cherry
+        // bomb at 1-3, and the sun card always.
+        assertEquals(List.of("pvzce:pea_shooter", "pvzce:sun"), cardIds(level1));
+        assertEquals(List.of("pvzce:pea_shooter", "pvzce:sunflower", "pvzce:sun"), cardIds(level2));
+        assertEquals(List.of("pvzce:pea_shooter", "pvzce:sunflower", "pvzce:cherry_bomb",
+                "pvzce:sun"), cardIds(level3));
         for (LevelDef level : List.of(level1, level2, level3)) {
             assertEquals(9, level.width(), level.id() + " keeps the nine columns");
-            assertEquals(50, level.initialSun(), level.id() + " starts with the original's 50 sun");
-            assertEquals(List.of("pvzce:pea_shooter", "pvzce:sun"),
-                    level.slots().stream().map(Identifier::toString).toList(), level.id().toString());
             assertTrue(level.rewards().hasCoinDrops(), level.id().toString());
             assertEquals("pvzce:coin_silver", level.rewards().coinDrop().toString());
         }
-        // The bar grows as the player's collection does: 1-1 is a fixed deck; 1-2 leaves
-        // room for sunflower and the shovel; 1-3, after 1-2 handed over the cherry bomb,
-        // is the original's "three plants plus the shovel" (plus the sun card).
         assertEquals(2, level1.maxSeedSlots());
         assertEquals(4, level2.maxSeedSlots());
         assertEquals(5, level3.maxSeedSlots());
+    }
+
+    private static List<String> cardIds(LevelDef def) {
+        return def.slots().stream().map(Identifier::toString).toList();
     }
 
     @Test

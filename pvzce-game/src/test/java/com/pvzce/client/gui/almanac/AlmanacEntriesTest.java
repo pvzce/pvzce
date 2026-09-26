@@ -135,7 +135,9 @@ class AlmanacEntriesTest {
         List<String> ours = paths.stream()
                 .filter(p -> p.startsWith("mini_") || p.startsWith("zombotany_"))
                 .toList();
-        assertEquals(10, ours.size(), "six mini zombies of 3-5 and the ZomBotany four");
+        assertEquals(11, ours.size(),
+                "seven mini zombies of 3-5 (the pool's little conehead included) and the"
+                        + " ZomBotany four");
         for (String path : ours) {
             assertTrue(paths.indexOf(path) > boss,
                     path + " is this project's own and has to read after the original's list");

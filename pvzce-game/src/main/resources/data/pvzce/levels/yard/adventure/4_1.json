@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/4_1",
   "name": "4-1 起雾了",
-  "description": "起雾了。右边那一片看不清，僵尸要走到亮处才现形——海蘑菇是这一关的礼物，它不要阳光，只能种在水里。",
+  "description": "起雾了。右边那一片看不清，僵尸要走到亮处才现形——路灯花是这一关的礼物，它照亮的范围里雾会散开。玩偶匣僵尸也第一次来了：它走到半路会停下，然后炸开。",
   "width": 9,
   "height": 6,
   "scene": {
@@ -82,17 +82,13 @@
   ],
   "rules": {
     "pvzce:day_length": 0,
-    "pvzce:night_length": -1,
-    "pvzce:sun_spawn_interval_min": 480,
-    "pvzce:sun_spawn_interval_max": 720,
-    "pvzce:sun_spawn_initial_ticks": 300
+    "pvzce:night_length": 360000,
+    "pvzce:sun_spawn_interval_min": 0,
+    "pvzce:sun_spawn_interval_max": 0
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [],
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
   "initial_sun": 50,
   "mechanics": [
     {
@@ -118,7 +114,7 @@
     },
     {
       "type": "pvzce:fog",
-      "start_column": 5.5,
+      "start_column": 6.0,
       "end_column": 9.0,
       "max_alpha": 0.94
     }
@@ -126,377 +122,197 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1200,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 6,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
-          "rows": [
-            2,
-            3
+            0
           ]
         }
       ],
-      "spawn_interval": 300
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1475,
+      "delay": 2833,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 7,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:snorkel_zombie",
-          "count": 1,
-          "rows": [
-            2,
-            3
+            0
           ]
         }
       ],
-      "spawn_interval": 286
-    },
-    {
-      "type": "huge",
-      "delay": 1850,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 8,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:snorkel_zombie",
-          "count": 1,
-          "rows": [
-            2,
-            3
-          ]
-        }
-      ],
-      "spawn_interval": 232,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1425,
+      "delay": 2580,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 9,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:snorkel_zombie",
           "count": 1,
           "rows": [
-            2,
-            3
+            0
           ]
         }
       ],
-      "spawn_interval": 258
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1400,
+      "delay": 2690,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 10,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
           "count": 2,
           "rows": [
             0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 5,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:snorkel_zombie",
-          "count": 2,
-          "rows": [
-            2,
-            3
+            1
           ]
         }
       ],
-      "spawn_interval": 244
+      "spawn_interval": 15
     },
     {
-      "type": "huge",
-      "delay": 1775,
+      "type": "small",
+      "delay": 2715,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2581,
+      "entries": [
+        {
+          "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
+            0
           ]
-        },
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2746,
+      "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 11,
+          "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
+            0
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 5,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:snorkel_zombie",
-          "count": 2,
-          "rows": [
-            2,
-            3
+            1
           ]
         }
       ],
-      "spawn_interval": 190,
-      "warning_ticks": 180
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2992,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2947,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1600,
+      "delay": 2610,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 18,
+          "count": 2,
           "rows": [
             0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 6,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 3,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
+            1
           ]
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 10,
+          "count": 2,
           "rows": [
             2,
             3
           ]
         },
         {
-          "id": "pvzce:ducky_tube_buckethead_zombie",
+          "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            2,
-            3
+            0
           ]
         },
         {
-          "id": "pvzce:snorkel_zombie",
-          "count": 4,
+          "id": "pvzce:jack_in_the_box_zombie",
+          "count": 1,
           "rows": [
-            2,
-            3
+            1
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
           ]
         }
       ],
-      "spawn_interval": 140,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -504,7 +320,7 @@
       {
         "at_tick": 0,
         "track": "background",
-        "event": "pvzce:music/watery_graves",
+        "event": "pvzce:music/rigor_mormist",
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
@@ -524,24 +340,32 @@
     "pvzce:grass"
   ],
   "disable_shaders": false,
-  "buffs": [
-    "pvzce:player_choice"
-  ],
   "hints": [
     {
       "trigger": "on_start",
-      "text": "右边一片浓雾，僵尸走到亮处才看得见——那不代表它们不在那里",
+      "text": "右边的浓雾里，僵尸要走近才看得见——那不代表它们不在那里",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "玩偶匣僵尸会自己炸开，别在它旁边堆植物",
       "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
     }
   ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "buffs": [
+    "pvzce:player_choice"
+  ],
   "rewards": {
     "first_clear": [
       {
         "type": "unlock",
-        "id": "pvzce:sea_shroom"
+        "id": "pvzce:plantern"
       }
     ],
     "repeat": [

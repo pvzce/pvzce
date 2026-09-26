@@ -349,23 +349,36 @@ class NightAreaSecondHalfTest {
      */
     @Test
     void everyNightLawnScattersTheOriginalsGraves() {
-        var expected = java.util.Map.of("2_1", 4, "2_4", 7, "2_6", 7, "2_7", 11, "2_8", 7,
-                "2_9", 11, "2_10", 13);
+        // `Board::AddGraveStones` per level: the count, and the column its leftmost grave may be
+        // in. The original writes one call per column (2-1 gets one in column 6, one in 7 and two
+        // in 8); the level file carries the total and the left edge.
+        var expected = java.util.Map.of(
+                "2_1", new int[]{4, 6},
+                "2_2", new int[]{4, 6},
+                "2_3", new int[]{4, 6},
+                "2_4", new int[]{7, 5},
+                "2_6", new int[]{7, 5},
+                "2_7", new int[]{11, 4},
+                "2_8", new int[]{11, 4},
+                "2_9", new int[]{11, 4},
+                "2_10", new int[]{13, 3});
         for (var entry : expected.entrySet()) {
             LevelDef def = level(entry.getKey());
             GraveFieldData field = LevelMechanics
                     .dataOf(def, PvzceIds.MECHANIC_GRAVE_FIELD, GraveFieldData.class)
                     .orElseThrow(() -> new AssertionError(entry.getKey() + " scatters no graves"));
-            assertEquals(entry.getValue(), field.count(), entry.getKey() + "'s grave count");
+            assertEquals(entry.getValue()[0], field.count(), entry.getKey() + "'s grave count");
+            assertEquals(entry.getValue()[1], field.minX(), entry.getKey() + "'s leftmost column");
             assertEquals(9 * 5, def.scene().get(PvzceIds.GRASS).size(),
                     entry.getKey() + " paints the whole lawn and lays the graves on it");
 
             LevelServer level = board(entry.getKey());
             var graves = level.graveCells();
-            assertEquals(entry.getValue(), graves.size(),
+            assertEquals(entry.getValue()[0], graves.size(),
                     entry.getKey() + " stands its graves up when it is built: " + graves);
             for (var cell : graves) {
-                assertTrue(cell.x() >= 4, entry.getKey() + " put a grave at column " + cell.x());
+                assertTrue(cell.x() >= entry.getValue()[1],
+                        entry.getKey() + " put a grave at column " + cell.x());
                 assertTrue(PvzceIds.SURFACE_GRAVE.equals(cell.value().surfaceClass()));
             }
         }

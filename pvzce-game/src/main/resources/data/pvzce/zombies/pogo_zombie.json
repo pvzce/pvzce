@@ -1,0 +1,27 @@
+{
+  "id": "pvzce:pogo_zombie",
+  "health": 200,
+  "move_speed": 0.23,
+  "capabilities": [
+    {
+      "type": "pvzce:bounce",
+      "jump_distance": 1.4,
+      "jump_ticks": 80,
+      "clearance": 0.75,
+      "sound": "pvzce:sfx/zombie/pogo_zombie"
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop",
+    "special": "pvzce:sfx/zombie/pogo_zombie"
+  },
+  "animation_dir": "zombie/special",
+  "texture": "pvzce:textures/entities/zombie/special/pogo_zombie",
+  "drops_arm": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "pvzce:pot_leaf",
+  "surface": "GROUND",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/pot_leaf",
+    "underlay": "pvzce:grass",
+    "width": 1.0,
+    "height": 1.0
+  }
+}

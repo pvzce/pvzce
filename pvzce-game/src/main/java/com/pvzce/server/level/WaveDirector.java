@@ -4,6 +4,7 @@ import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.WavePacingData;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
+import com.pvzce.common.capability.zombie.BobsledCapability;
 import com.pvzce.common.level.mechanic.BudgetPlanner;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.FloatTag;
@@ -82,6 +83,18 @@ public final class WaveDirector {
          * scene, and the scene is not fixed for the life of a level - a flood mutation rewrites it.
          */
         boolean rowIsWater(int row);
+
+        /**
+         * True when any cell of this row is the zamboni's ice.
+         *
+         * <p>The lane chooser's second question, and the same kind of fact as the first: a sled
+         * needs a frozen lane the way a walker needs a dry one, and "which rows are iced" is a
+         * fact about the level's scene that the director cannot see for itself. A host with no
+         * ice answers {@code false} for every row, which is what a lawn level means.
+         */
+        default boolean rowHasIce(int row) {
+            return false;
+        }
 
         /**
          * The wave this round holds at this index, generated or read from the level's table.
@@ -757,8 +770,7 @@ public final class WaveDirector {
             }
             QueuedZombie queued = queue.zombies.poll();
             int row = rowFor(queued, queue);
-            ZombieEntity spawned = host.spawnZombie(queued.id(), host.width() + 0.6F, row,
-                    queued.healthScale());
+            ZombieEntity spawned = spawnQueued(queued, row);
             if (spawned != null) {
                 // Owned here, where the wave is known: the stockpile cap and the survival-ratio
                 // gate both count a wave's own zombies rather than the lawn's.
@@ -837,6 +849,45 @@ public final class WaveDirector {
     }
 
     /**
+     * One zombie of a wave, which for a bobsled may be four ordinary ones.
+     *
+     * <p>The original's {@code Board::CanAddBobSled} rule, kept where the wave is: a bobsled team
+     * needs ice under it, and a lane that has none gets the team's worth of plain walkers instead
+     * - four of them, because that is what the entry is worth, and staggered along x so they
+     * arrive as a group rather than stacked on one point. The alternative the original rejects and
+     * so does this: spawn nothing, and leave a wave that believes it is still owed a zombie.
+     *
+     * <p>Asked of the <em>chosen</em> lane rather than of the board, because the invariant is
+     * "a sled is only ever dealt onto ice" - {@link #rowFor} has already preferred an iced lane
+     * where one was available, so a lane without ice here means there was nowhere to sled.
+     *
+     * @return the entity the wave should follow (its gate zombie), which is the first of the four
+     */
+    private ZombieEntity spawnQueued(QueuedZombie queued, int row) {
+        BobsledCapability sled = bobsledOf(queued.id());
+        if (sled != null && !host.rowHasIce(row)) {
+            ZombieEntity first = null;
+            for (int position = 0; position <= sled.riders(); position++) {
+                ZombieEntity walker = host.spawnZombie(sled.fallback(),
+                        host.width() + 0.6F + position * sled.spacing(), row, queued.healthScale());
+                if (first == null) {
+                    first = walker;
+                }
+            }
+            return first;
+        }
+        return host.spawnZombie(queued.id(), host.width() + 0.6F, row, queued.healthScale());
+    }
+
+    /** This zombie's bobsled capability, or {@code null} when it is not a sled. */
+    private static BobsledCapability bobsledOf(Identifier id) {
+        com.pvzce.api.content.ZombieDef def =
+                com.pvzce.common.core.BuiltInRegistries.ZOMBIES.get(id);
+        return def == null ? null
+                : def.capability(BobsledCapability.class).orElse(null);
+    }
+
+    /**
      * The lane one zombie arrives in.
      *
      * <p>An entry that names its lanes gets exactly those (that is what {@code rows} is for, and a
@@ -845,6 +896,11 @@ public final class WaveDirector {
      * actually use</em>: a walker skips the water rows and a swimmer prefers them. Without that
      * narrowing the shuffle dealt walkers into the pool - they spawned off the right edge, which
      * clamps to the last column, and drowned on their first tick.
+     *
+     * <p>A bobsled is narrowed the same way and for the same reason: it is dealt into an iced lane
+     * when one of the lanes it may use is iced. When none is, the lanes are left alone, because the
+     * spawn itself substitutes four ordinary zombies (see {@link #spawnQueued}) and refusing to
+     * pick a lane would leave the wave owing one for ever.
      *
      * <p>Narrowing a shuffled list rather than reshuffling keeps the order: the same seed still
      * deals the same lanes to the same zombies, which is what makes a recorded run replay.
@@ -867,6 +923,17 @@ public final class WaveDirector {
             // that is nothing but pool drowns - the level's problem, not this method's.
             if (!usable.isEmpty()) {
                 lanes = usable;
+            }
+            if (def.capability(BobsledCapability.class).isPresent()) {
+                List<Integer> iced = new ArrayList<>();
+                for (int lane : lanes) {
+                    if (host.rowHasIce(lane)) {
+                        iced.add(lane);
+                    }
+                }
+                if (!iced.isEmpty()) {
+                    lanes = iced;
+                }
             }
         }
         return lanes.get(queue.rowIndex++ % lanes.size());

@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/1_3",
   "name": "1-3",
-  "description": "冒险模式第三关：铁桶僵尸来了。它的路障头能顶住好几发豌豆。",
+  "description": "路障僵尸第一次出现：头上那顶路障比普通僵尸多挨一倍。这一关之后，坚果墙归你。",
   "width": 9,
   "height": 3,
   "scene": {
@@ -54,106 +54,159 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": -1,
-    "pvzce:sun_spawn_interval_min": 420,
-    "pvzce:sun_spawn_interval_max": 660,
+    "pvzce:sun_spawn_interval_min": 480,
+    "pvzce:sun_spawn_interval_max": 720,
     "pvzce:sun_spawn_initial_ticks": 300
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
+  "slots": [
+    "pvzce:pea_shooter",
+    "pvzce:sunflower",
+    "pvzce:cherry_bomb",
+    "pvzce:sun"
+  ],
+  "initial_sun": 50,
+  "mechanics": [],
   "waves": [
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 600
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 2684,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 1
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 600
+      "spawn_interval": 15
     },
     {
-      "type": "huge",
-      "delay": 1500,
-      "warning_ticks": 180,
+      "type": "small",
+      "delay": 2896,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3023,
+      "entries": [
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2531,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2659,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2627,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
         },
         {
           "id": "pvzce:basic_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 600
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1500,
-      "warning_ticks": 180,
+      "delay": 2928,
       "entries": [
         {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
           "id": "pvzce:flag_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
-  "slots": [
-    "pvzce:pea_shooter",
-    "pvzce:sun"
-  ],
-  "max_seed_slots": 5,
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
-  "initial_sun": 50,
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:wall_nut"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 100
-      }
-    ],
-    "coin_drop": "pvzce:coin_silver",
-    "coin_drop_chance": 0.25,
-    "coin_drop_amount": 1
-  },
   "music": {
     "cues": [
       {
@@ -166,23 +219,6 @@
       }
     ]
   },
-  "unlock": {
-    "requires": [
-      {
-        "type": "level",
-        "id": "pvzce:yard/adventure/1_2"
-      }
-    ]
-  },
-  "hints": [
-    {
-      "trigger": "on_start",
-      "text": "路障僵尸的护甲很硬，多打几下"
-    },
-    {
-      "trigger": "on_card_refused"
-    }
-  ],
   "dialogue": {
     "lines": [
       {
@@ -243,9 +279,48 @@
       }
     ]
   },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/1_2"
+      }
+    ]
+  },
   "background": "pvzce:textures/gui/screen/level/background1_3row",
-  "disable_shaders": true,
   "hidden_scene_elements": [
     "pvzce:grass"
-  ]
+  ],
+  "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "路障僵尸要多打几下才倒",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "max_seed_slots": 5,
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:wall_nut"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 100
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }

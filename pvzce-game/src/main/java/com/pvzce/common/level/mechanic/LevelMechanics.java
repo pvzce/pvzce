@@ -53,6 +53,7 @@ public final class LevelMechanics {
     public static final VaseFieldMechanic VASE_FIELD = new VaseFieldMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
     public static final GraveFieldMechanic GRAVE_FIELD = new GraveFieldMechanic();
+    public static final ScaryPotterMechanic SCARY_POTTER = new ScaryPotterMechanic();
     public static final WavePacingMechanic WAVE_PACING = new WavePacingMechanic();
     public static final EndlessMechanic ENDLESS = new EndlessMechanic();
     /** The mutation system's marker; the catalogue lives in {@code common.level.mutation}. */
@@ -74,6 +75,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_VASE_FIELD, VASE_FIELD);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
         register(PvzceIds.MECHANIC_GRAVE_FIELD, GRAVE_FIELD);
+        register(PvzceIds.MECHANIC_SCARY_POTTER, SCARY_POTTER);
         register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
         register(PvzceIds.MECHANIC_ENDLESS, ENDLESS);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);

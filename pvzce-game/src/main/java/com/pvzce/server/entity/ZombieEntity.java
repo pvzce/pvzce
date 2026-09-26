@@ -296,6 +296,37 @@ public class ZombieEntity extends PvzceEntity {
 
     private float blowAwayDirection;
 
+    /**
+     * Kills this body with its own blast: a death, but not a kill (the jack-in-the-box).
+     *
+     * <p>It dies the ordinary death - the corpse, the clip, the wave director hearing about it -
+     * because everything downstream of "a zombie stopped being alive" has to happen or a wave
+     * gated on this zombie's death waits for ever. What it does not do is <em>pay</em>: the
+     * player did not kill it, so the sun and the coin roll a kill is worth would be a reward for
+     * standing next to a bomb (see {@code LevelServer.zombieDied}).
+     *
+     * @see #selfDestructed()
+     */
+    public void selfDestruct(LevelAccess level) {
+        if (!isAlive()) {
+            return;
+        }
+        selfDestructed = true;
+        damageBody(health(), level, false);
+    }
+
+    /**
+     * True when this body died of its own explosion rather than of anything the player did.
+     *
+     * <p>Read by the level's payout path and by nothing else; the flag is not saved, because it
+     * is only ever read on the tick the body dies.
+     */
+    public boolean selfDestructed() {
+        return selfDestructed;
+    }
+
+    private boolean selfDestructed;
+
     /** True when this zombie is still wearing anything. */
     public boolean hasArmor() {
         com.pvzce.common.capability.zombie.ArmorCapability armor =

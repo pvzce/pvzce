@@ -125,19 +125,25 @@ class ZombieSpawnSpeedTest {
                 "and the interval is halved too (" + normalFourth + " -> " + fastFourth + ")");
     }
 
-    /** The rule is one number on the level, and the two conveyor levels that use it say 2. */
+    /**
+     * The rule is one number on a level, and no shipped adventure level declares it any more.
+     *
+     * <p>1-10 and 2-10 used to say 2: this build's stand-in for "a mini-boss level is denser than
+     * its wave table". The original does not double a clock - it triples the points every wave is
+     * allowed to spend (`IsMiniBossLevel`) - and the rebuilt tables carry that density themselves,
+     * so the two finales stopped using this. The rule itself stays, because the endless modes and
+     * the mutations do declare it (see the fixtures above).
+     */
     @Test
-    void theConveyorFinalesRunAtDoubleSpeed() {
-        for (String name : List.of("1_10", "2_10")) {
-            LevelDef def = com.pvzce.common.core.BuiltInRegistries.LEVELS
-                    .get(PvzceIds.id("yard/adventure/" + name));
-            assertEquals(2F, def.rules().get(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER).getAsFloat(),
-                    0.0001F, name + " runs its wave table at twice the written speed");
+    void noShippedAdventureLevelRunsItsTableAtDoubleSpeed() {
+        for (Identifier id : com.pvzce.common.core.BuiltInRegistries.LEVELS.keySet()) {
+            if (!id.path().startsWith("yard/adventure/")) {
+                continue;
+            }
+            LevelDef def = com.pvzce.common.core.BuiltInRegistries.LEVELS.get(id);
+            assertTrue(!def.rules().containsKey(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER),
+                    def.id() + " declares a spawn-speed multiplier, which the original's own"
+                            + " pacing has no equivalent of");
         }
-        // And a level that says nothing keeps the authored pacing, exactly.
-        LevelDef ordinary = com.pvzce.common.core.BuiltInRegistries.LEVELS
-                .get(PvzceIds.id("yard/adventure/2_7"));
-        assertTrue(!ordinary.rules().containsKey(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER),
-                "a level that does not mention the rule is untouched by it");
     }
 }

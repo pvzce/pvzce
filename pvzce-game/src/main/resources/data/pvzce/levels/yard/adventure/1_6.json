@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/1_6",
   "name": "1-6",
-  "description": "撑杆僵尸会用撑杆跳过第一株植物，别把整条防线都堆在门口。",
+  "description": "撑杆僵尸第一次出现——它会直接跳过你种下的第一株植物。这一关的卡槽是发满的：打完它，寒冰射手归你。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -78,138 +78,226 @@
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
-  "slots": [],
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
+  "slots": [
+    "pvzce:pea_shooter",
+    "pvzce:sunflower",
+    "pvzce:cherry_bomb",
+    "pvzce:wall_nut",
+    "pvzce:potato_mine",
+    "pvzce:sun"
+  ],
   "initial_sun": 50,
+  "mechanics": [
+    {
+      "type": "pvzce:wave_pacing",
+      "early_wave_kill_ratio": 0.6,
+      "clear_reward_grace_ticks": 600,
+      "waves": [
+        {
+          "waves": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "mode": "survival_ratio",
+          "kill_ratio": 0.6
+        }
+      ]
+    }
+  ],
   "waves": [
     {
       "type": "small",
-      "delay": 800,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 960,
+      "delay": 2640,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 960,
+      "delay": 2555,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:pole_vaulter_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
-    },
-    {
-      "type": "huge",
-      "delay": 1056,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:pole_vaulter_zombie",
-          "count": 1
-        }
-      ],
-      "spawn_interval": 96,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1248,
+      "delay": 2912,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2826,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:pole_vaulter_zombie",
-          "count": 1
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 192
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3066,
+      "entries": [
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2510,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2777,
+      "entries": [
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2887,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1184,
+      "delay": 2723,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 3
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:pole_vaulter_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 80,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:snow_pea"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 150
-      }
-    ],
-    "coin_drop": "pvzce:coin_silver",
-    "coin_drop_chance": 0.25,
-    "coin_drop_amount": 1
-  },
   "music": {
     "cues": [
       {
@@ -235,25 +323,34 @@
     "pvzce:grass"
   ],
   "disable_shaders": true,
-  "buffs": [
-    "pvzce:player_choice"
-  ],
-  "mechanics": [
+  "hints": [
     {
-      "type": "pvzce:wave_pacing",
-      "early_wave_kill_ratio": 0.6,
-      "waves": [
-        {
-          "waves": [
-            4,
-            5,
-            6
-          ],
-          "mode": "survival_ratio",
-          "kill_ratio": 0.6
-        }
-      ],
-      "clear_reward_grace_ticks": 600
+      "trigger": "on_start",
+      "text": "撑杆僵尸会跳过最前面的一株植物，把它种在第二排",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
     }
-  ]
+  ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:snow_pea"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 150
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }

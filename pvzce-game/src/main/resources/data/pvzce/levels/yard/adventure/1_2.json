@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/1_2",
   "name": "1-2",
-  "description": "冒险模式第二关：草坪扩到三行，僵尸也多了起来。种向日葵攒阳光，旗帜僵尸领着一大波来了。",
+  "description": "草坪宽成三行。天上会掉阳光，向日葵把阳光变成更多的阳光——这一关之后，你就有稳定的经济了。打完它，樱桃炸弹归你。",
   "width": 9,
   "height": 3,
   "scene": {
@@ -54,83 +54,116 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": -1,
-    "pvzce:sun_spawn_interval_min": 420,
-    "pvzce:sun_spawn_interval_max": 660,
+    "pvzce:sun_spawn_interval_min": 480,
+    "pvzce:sun_spawn_interval_max": 720,
     "pvzce:sun_spawn_initial_ticks": 300
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
+  "slots": [
+    "pvzce:pea_shooter",
+    "pvzce:sunflower",
+    "pvzce:sun"
+  ],
+  "initial_sun": 50,
+  "mechanics": [],
   "waves": [
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 5000,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 600
+      "spawn_interval": 15
     },
     {
-      "type": "huge",
-      "delay": 1500,
-      "warning_ticks": 180,
+      "type": "small",
+      "delay": 3098,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 600
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2731,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2684,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2783,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1500,
-      "warning_ticks": 180,
+      "delay": 2896,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1
+          ]
         },
         {
-          "id": "pvzce:basic_zombie",
-          "count": 4
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
         }
       ],
-      "spawn_interval": 600
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
-  "slots": [
-    "pvzce:pea_shooter",
-    "pvzce:sun"
-  ],
-  "max_seed_slots": 4,
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
-  "initial_sun": 50,
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:cherry_bomb"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 100
-      }
-    ],
-    "coin_drop": "pvzce:coin_silver",
-    "coin_drop_chance": 0.25,
-    "coin_drop_amount": 1
-  },
   "music": {
     "cues": [
       {
@@ -140,14 +173,6 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
-      }
-    ]
-  },
-  "unlock": {
-    "requires": [
-      {
-        "type": "level",
-        "id": "pvzce:yard/adventure/1_1"
       }
     ]
   },
@@ -190,18 +215,48 @@
       }
     ]
   },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/1_1"
+      }
+    ]
+  },
+  "background": "pvzce:textures/gui/screen/level/background1_3row",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
   "hints": [
     {
       "trigger": "on_start",
-      "text": "选择植物卡片，然后种在草坪上"
+      "text": "向日葵种在靠房子的一侧，前面留给射手",
+      "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
     }
   ],
-  "background": "pvzce:textures/gui/screen/level/background1_3row",
-  "disable_shaders": true,
-  "hidden_scene_elements": [
-    "pvzce:grass"
-  ]
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "max_seed_slots": 4,
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:cherry_bomb"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 100
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }

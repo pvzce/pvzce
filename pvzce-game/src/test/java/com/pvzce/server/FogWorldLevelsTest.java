@@ -25,17 +25,18 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * World 4: ten fog levels, and the two rewards that are not cards.
+ * World 4: ten levels of fog, and the two rewards that are not cards.
  *
- * <p>What is worth pinning here is what a player would notice if it broke. The fog ramp is the
- * world's difficulty curve and lives in ten numbers in ten files, so it is asserted as a curve
- * rather than as ten numbers. 4-4's vases are the level's only source of plants, so a 4-4 that
- * lost them is a level the player cannot play at all. And 4-9's reward is the buff that shortens
- * the fog the world is about - a reward that has to be visible in the fog the very next level
- * draws.
+ * <p>What is worth pinning here is what a player would notice if it broke. The fog is the world's
+ * difficulty curve and lives in ten files, so it is asserted as a curve rather than as ten
+ * numbers. 4-5 is the original's Scary Potter level - a night lawn of vases with no waves at all,
+ * so a 4-5 that lost them would be an empty level rather than a hard one. And 4-9's reward is the
+ * buff that shortens the fog the world is about - a reward that has to be visible in the fog the
+ * very next level draws.
  */
 class FogWorldLevelsTest {
     private static final List<String> LEVELS = List.of(
@@ -52,12 +53,24 @@ class FogWorldLevelsTest {
         return def;
     }
 
-    /** All ten are there, they are the pool, and every one of them is foggy. */
+    /** Nine of the ten are the foggy pool; 4-5 is the original's night-lawn vase level. */
     @Test
-    void theTenLevelsAreTheFoggyPool() {
+    void theFogLevelsAreTheFoggyPoolAndFourFiveIsTheNightLawn() {
         for (String path : LEVELS) {
             LevelDef def = level(path);
             assertEquals(9, def.width(), path + " is nine columns");
+            if (path.equals("4_5")) {
+                // `PickBackground` sends a Scary Potter level back to the night lawn: five rows,
+                // no water, and no fog either.
+                assertEquals(5, def.height(), "4-5 is a five-lane lawn");
+                assertFalse(def.scene().containsKey(PvzceIds.WATER), "and has no pool");
+                assertEquals(Identifier.withDefaultNamespace(
+                                "textures/gui/screen/level/background2"),
+                        def.background().orElseThrow(),
+                        "4-5 is played on the night lawn");
+                assertNull(LevelMechanics.fogData(def), "and has no fog to speak of");
+                continue;
+            }
             assertEquals(6, def.height(), path + " is six rows, because the pool is");
             assertTrue(def.scene().containsKey(PvzceIds.WATER), path + " has water");
             assertEquals(Identifier.withDefaultNamespace(
@@ -70,20 +83,21 @@ class FogWorldLevelsTest {
     }
 
     /**
-     * The fog walks right to left, and 4-10 steps back.
+     * The fog's edge only ever walks towards the house, in the original's three steps.
      *
-     * <p>The curve is the world's whole difficulty ramp beyond the wave tables, and 4-9 is the
-     * level that pays out the buff which shortens it - so the ramp is not monotonic by accident:
-     * 4-10's step backwards is the reward being visible. Written as a claim about the sequence
-     * rather than as ten numbers, because ten numbers in a test is a second copy of the data that
-     * can agree with itself while the levels say something else.
+     * <p>`Board::LeftFogColumn`: 4-1 hides the last three columns, 4-2 to 4-6 hide four, and 4-7
+     * onwards hide five. Written as a claim about the sequence rather than as ten numbers, because
+     * ten numbers in a test is a second copy of the data that can agree with itself while the
+     * levels say something else.
      */
     @Test
     void theFogRampOnlyEverMovesTowardsTheHouse() {
-        // 4-1 to 4-9: the ramp proper. 4-10 is the step back, asserted below.
         float previous = Float.MAX_VALUE;
-        for (String path : LEVELS.subList(0, 9)) {
+        for (String path : LEVELS) {
             FogData fog = LevelMechanics.fogData(level(path));
+            if (path.equals("4_5")) {
+                continue; // the vase level is played on the clear night lawn
+            }
             assertNotNull(fog, path + " has fog");
             assertTrue(fog.startColumn() <= previous,
                     path + " starts its fog at " + fog.startColumn()
@@ -92,13 +106,10 @@ class FogWorldLevelsTest {
                     path + " declares a fog span that is inside the board");
             previous = fog.startColumn();
         }
-        // The one deliberate move back, and it is the reward of the level before it.
-        assertTrue(LevelMechanics.fogData(level("4_10")).startColumn()
-                        > LevelMechanics.fogData(level("4_9")).startColumn(),
-                "4-9 hands out the retreat buff, so 4-10 has to be the level where the fog is"
-                        + " visibly further away");
-        assertTrue(LevelMechanics.fogData(level("4_9")).startColumn() < 2.6F,
-                "and 4-9 is the worst of them, or 'the fog recedes' would mean nothing");
+        assertEquals(6F, LevelMechanics.fogData(level("4_1")).startColumn(), 0.001F,
+                "4-1 is the original's first fog step");
+        assertEquals(4F, LevelMechanics.fogData(level("4_10")).startColumn(), 0.001F,
+                "and the last level is the deepest one, with no step back");
     }
 
     /** The chain runs 3-10 → 4-1 → … → 4-10 with no gap. */
@@ -123,16 +134,19 @@ class FogWorldLevelsTest {
      */
     @Test
     void theRewardsAreWhatEachLevelIsAbout() {
-        assertEquals("pvzce:sea_shroom", firstRewardId("4_1"));
-        assertEquals("pvzce:blover", firstRewardId("4_2"));
-        assertEquals("pvzce:cactus", firstRewardId("4_3"));
+        // The original's own chain through the fog: the plantern first, because the dark is what
+        // this world is about, and the cabbage-pult last, because it is the first plant of the
+        // roof world the player is about to unlock.
+        assertEquals("pvzce:plantern", firstRewardId("4_1"));
+        assertEquals("pvzce:cactus", firstRewardId("4_2"));
+        assertEquals("pvzce:blover", firstRewardId("4_3"));
         assertEquals("pvzce:vase", firstRewardId("4_4"));
-        assertEquals("pvzce:starfruit", firstRewardId("4_5"));
-        assertEquals("pvzce:pumpkin", firstRewardId("4_6"));
-        assertEquals("pvzce:magnet_shroom", firstRewardId("4_7"));
-        assertEquals("pvzce:split_pea", firstRewardId("4_8"));
+        assertEquals("pvzce:split_pea", firstRewardId("4_5"));
+        assertEquals("pvzce:starfruit", firstRewardId("4_6"));
+        assertEquals("pvzce:pumpkin", firstRewardId("4_7"));
+        assertEquals("pvzce:magnet_shroom", firstRewardId("4_8"));
         assertEquals("pvzce:fog_retreat", firstRewardId("4_9"));
-        assertEquals("pvzce:coffee_bean", firstRewardId("4_10"));
+        assertEquals("pvzce:cabbage_pult", firstRewardId("4_10"));
 
         assertEquals("unlock", level("4_4").rewards().firstClear().get(0).type(),
                 "4-4 unlocks a card: the vase tool is what the player carries out of it");
@@ -144,31 +158,25 @@ class FogWorldLevelsTest {
     }
 
     /**
-     * 4-4's plants are all in vases.
+     * 4-5 is the original's vase level: three rounds of pots, and no waves at all.
      *
-     * <p>The level hands out no cards and gives the player fifty sun, so the vases are the only way
-     * to put a plant on the lawn: a 4-4 that lost them is not a hard level, it is an impossible one.
+     * <p>Its plants, and half its zombies, are inside the pots - so a 4-5 that lost them would be
+     * a level with nothing in it, which is exactly what an empty wave table looks like when a
+     * mechanic goes missing.
      */
     @Test
-    void fourFourArmsThePlayerOutOfVases() {
-        LevelDef def = level("4_4");
-        VaseFieldData field = null;
-        for (TypedMechanic mechanic : def.mechanics()) {
-            if (mechanic.is(PvzceIds.MECHANIC_VASE_FIELD)
-                    && mechanic.value() instanceof VaseFieldData data) {
-                field = data;
-            }
-        }
-        assertNotNull(field, "4-4 has to declare its vases");
-        assertEquals(8, field.vases().size(), "one vase per card the level intends to hand out");
-        assertTrue(field.validate(def.width(), def.height()).isEmpty(),
-                "the block has to be well formed: " + field.validate(def.width(), def.height()));
-        for (VaseFieldData.Vase vase : field.vases()) {
-            assertFalse(level("4_4").scene().getOrDefault(PvzceIds.WATER, List.of())
-                            .contains(vase.x() + "," + vase.y()),
-                    "a vase in the pool would be a vase the player cannot plant behind");
-        }
-        assertFalse(def.unlockResources().isEmpty(), "and the level does still unlock sun");
+    void fourFiveArmsThePlayerOutOfVases() {
+        LevelDef def = level("4_5");
+        assertTrue(def.waves().isEmpty(), "a vase level has no waves: nothing walks in");
+        var rounds = LevelMechanics.dataOf(def, Identifier.parse("pvzce:scary_potter"),
+                com.pvzce.api.content.ScaryPotterData.class);
+        assertTrue(rounds.isPresent(), "4-5 has to declare its pots");
+        assertEquals(3, rounds.orElseThrow().rounds().size(),
+                "the original's adventure vase level is three rounds");
+        assertEquals(List.of(6, 5, 4), rounds.orElseThrow().rounds().stream()
+                        .map(com.pvzce.api.content.ScaryPotterData.Round::fromColumn).toList(),
+                "and each round reaches one column further towards the house");
+        assertEquals(1, def.slots().size(), "the player is handed one card: a cherry bomb");
     }
 
     /** Every wave names its lanes, and every level ends on a final wave. */
@@ -176,6 +184,9 @@ class FogWorldLevelsTest {
     void everyWaveSendsSomething() {
         for (String path : LEVELS) {
             LevelDef def = level(path);
+            if (path.equals("4_5")) {
+                continue; // the vase level: its zombies come out of the pots
+            }
             assertFalse(def.waves().isEmpty(), path + " has waves");
             for (int index = 0; index < def.waves().size(); index++) {
                 var wave = def.waves().get(index);
@@ -207,8 +218,11 @@ class FogWorldLevelsTest {
             }
         }
         assertTrue(seen.contains("balloon_zombie"), "the balloon arrives out of the fog");
-        assertTrue(seen.contains("snorkel_zombie"), "and the pool's divers are in the pool");
-        assertTrue(seen.contains("gargantuar"), "with the Gargantuar at the end of the world");
+        assertTrue(seen.contains("jack_in_the_box_zombie"), "the jack-in-the-box debuts here");
+        assertTrue(seen.contains("miner_zombie"), "and the digger comes up behind the lawn");
+        assertTrue(seen.contains("pogo_zombie"), "with the pogo zombie to finish the world");
+        assertFalse(seen.contains("snorkel_zombie"), "the divers stay in world 3");
+        assertFalse(seen.contains("gargantuar"), "and no Gargantuar before the roof");
     }
 
     /**

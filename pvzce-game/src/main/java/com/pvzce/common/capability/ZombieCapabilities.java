@@ -8,6 +8,7 @@ import com.pvzce.api.content.capability.ZombieCapability;
 import com.pvzce.api.registry.Registry;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.zombie.ArmorCapability;
+import com.pvzce.common.capability.zombie.BobsledCapability;
 import com.pvzce.common.capability.zombie.BossPhasesCapability;
 import com.pvzce.common.capability.zombie.DigCapability;
 import com.pvzce.common.capability.zombie.BungeeCapability;
@@ -17,6 +18,7 @@ import com.pvzce.common.capability.zombie.DeathBlastCapability;
 import com.pvzce.common.capability.zombie.ZombieShooterCapability;
 import com.pvzce.common.capability.zombie.FlyCapability;
 import com.pvzce.common.capability.zombie.HammerCapability;
+import com.pvzce.common.capability.zombie.JackInTheBoxCapability;
 import com.pvzce.common.capability.zombie.SubmergeCapability;
 import com.pvzce.common.capability.zombie.SummonDancersCapability;
 import com.pvzce.common.capability.zombie.VaultCapability;
@@ -28,6 +30,17 @@ import java.util.List;
 public final class ZombieCapabilities {
     public static final CapabilityType<ArmorCapability> ARMOR = type("armor", ArmorCapability.CODEC);
     public static final CapabilityType<VaultCapability> VAULT = type("vault", VaultCapability.CODEC);
+    /**
+     * The vault on a cycle: the pogo zombie's stick.
+     *
+     * <p>The same implementation under a second name, which is the point - the airborne window,
+     * the eased travel and the tall-nut rule are one motion, and a pogo that had its own copy of
+     * them would be the copy that drifts. What the type says is what the content asked for:
+     * {@code vault} is "over this plant, once", {@code bounce} is "over whatever is in the way,
+     * for as long as I last".
+     */
+    public static final CapabilityType<VaultCapability> BOUNCE =
+            type("bounce", VaultCapability.BOUNCE_CODEC);
     public static final CapabilityType<FlyCapability> FLY = type("fly", FlyCapability.CODEC);
     public static final CapabilityType<DigCapability> DIG = type("dig", DigCapability.CODEC);
     public static final CapabilityType<HammerCapability> HAMMER = type("hammer", HammerCapability.CODEC);
@@ -71,6 +84,14 @@ public final class ZombieCapabilities {
     public static final CapabilityType<ZamboniCapability> ZAMBONI =
             type("zamboni", ZamboniCapability.CODEC);
 
+    /** The bobsled team: a lead and its riders, on ice only. */
+    public static final CapabilityType<BobsledCapability> BOBSLED =
+            type("bobsled", BobsledCapability.CODEC);
+
+    /** The jack-in-the-box: a fuse measured in ground covered, and then a blast. */
+    public static final CapabilityType<JackInTheBoxCapability> JACK_IN_THE_BOX =
+            type("jack_in_the_box", JackInTheBoxCapability.CODEC);
+
     /** A zombie that shoots back (the ZomBotany line). */
     public static final CapabilityType<ZombieShooterCapability> ZOMBIE_SHOOTER =
             type("zombie_shooter", ZombieShooterCapability.CODEC);
@@ -90,6 +111,7 @@ public final class ZombieCapabilities {
     public static void bootstrap() {
         register(ARMOR, "armor");
         register(VAULT, "vault");
+        register(BOUNCE, "bounce");
         register(FLY, "fly");
         register(DIG, "dig");
         register(HAMMER, "hammer");
@@ -99,6 +121,8 @@ public final class ZombieCapabilities {
         register(FLOAT, "float");
         register(BUNGEE, "bungee");
         register(ZAMBONI, "zamboni");
+        register(BOBSLED, "bobsled");
+        register(JACK_IN_THE_BOX, "jack_in_the_box");
         register(ZOMBIE_SHOOTER, "zombie_shooter");
         register(DEATH_BLAST, "death_blast");
     }

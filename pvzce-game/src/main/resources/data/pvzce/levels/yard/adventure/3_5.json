@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/3_5",
   "name": "3-5 小僵尸大麻烦",
-  "description": "泳池的第五关，也是这一段的奖励关：植物由传送带免费送来——豌豆射手、樱桃炸弹、坚果墙和莲叶，莲叶一共只发十八张，正好够把两行水池铺满。来的是原版那关的小僵尸：身体被缩掉一半，血量减半，可是走得更快、啃得也更快，一群涌上来照样能把整条防线吃穿。樱桃炸弹是这一关真正的输出，别舍不得用。",
+  "description": "原版的小僵尸大麻烦：传送带只送四张卡，来的全是被缩小的小僵尸——血少、跑得快、数量是平常的四倍。打完它，火爆辣椒归你。",
   "width": 9,
   "height": 6,
   "scene": {
@@ -141,73 +141,140 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1200,
+      "delay": 1800,
       "entries": [
-        {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 8,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 4,
-          "rows": [
-            2,
-            3
-          ]
-        }
-      ],
-      "spawn_interval": 300
-    },
-    {
-      "type": "small",
-      "delay": 1200,
-      "entries": [
-        {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 10,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 5,
-          "rows": [
-            2,
-            3
-          ]
-        }
-      ],
-      "spawn_interval": 270
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 11,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
         {
           "id": "pvzce:mini_conehead_zombie",
           "count": 2,
           "rows": [
             0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2542,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2793,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            4
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2818,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            5
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2910,
+      "entries": [
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2588,
+      "entries": [
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 1,
+          "rows": [
+            5
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2728,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
             1,
             4,
             5
@@ -215,111 +282,147 @@
         },
         {
           "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 5,
+          "count": 1,
           "rows": [
-            2,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 1,
+          "rows": [
             3
           ]
         },
         {
-          "id": "pvzce:mini_snorkel_zombie",
+          "id": "pvzce:mini_basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2501,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2801,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "huge",
+      "delay": 2877,
+      "entries": [
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
           "count": 2,
           "rows": [
             2,
             3
           ]
-        }
-      ],
-      "spawn_interval": 240
-    },
-    {
-      "type": "huge",
-      "delay": 1860,
-      "entries": [
+        },
         {
           "id": "pvzce:mini_flag_zombie",
           "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 13,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 7,
-          "rows": [
-            2,
-            3
+            0
           ]
         },
         {
           "id": "pvzce:mini_snorkel_zombie",
-          "count": 4,
+          "count": 1,
           "rows": [
-            2,
             3
           ]
-        }
-      ],
-      "spawn_interval": 180,
-      "warning_ticks": 180
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": [
+        },
         {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 13,
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 3,
           "rows": [
             0,
-            1,
             4,
             5
           ]
         },
         {
           "id": "pvzce:mini_football_zombie",
-          "count": 2,
+          "count": 1,
           "rows": [
-            0,
-            1,
-            4,
             5
           ]
         },
         {
-          "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 7,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:mini_snorkel_zombie",
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
           "count": 2,
           "rows": [
             2,
@@ -327,20 +430,62 @@
           ]
         }
       ],
-      "spawn_interval": 210
+      "spawn_interval": 15,
+      "warning_ticks": 750
     },
     {
       "type": "small",
-      "delay": 1500,
+      "delay": 4500,
       "entries": [
         {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 15,
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 2,
           "rows": [
             0,
-            1,
-            4,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
             5
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2663,
+      "entries": [
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 1,
+          "rows": [
+            2
           ]
         },
         {
@@ -349,76 +494,323 @@
           "rows": [
             0,
             1,
-            4,
             5
           ]
         },
         {
           "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 8,
+          "count": 3,
           "rows": [
             2,
             3
           ]
         },
         {
-          "id": "pvzce:mini_snorkel_zombie",
-          "count": 4,
+          "id": "pvzce:mini_basic_zombie",
+          "count": 2,
           "rows": [
-            2,
-            3
+            1,
+            4
           ]
-        }
-      ],
-      "spawn_interval": 180
-    },
-    {
-      "type": "huge",
-      "delay": 1860,
-      "entries": [
+        },
         {
-          "id": "pvzce:mini_flag_zombie",
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2555,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 2,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 2,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 4,
+          "rows": [
             0,
             1,
             4,
             5
           ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2793,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
         },
         {
           "id": "pvzce:mini_basic_zombie",
-          "count": 15,
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3036,
+      "entries": [
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 2,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2851,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            5
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2540,
+      "entries": [
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 3,
           "rows": [
             0,
             1,
-            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 2,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2924,
+      "entries": [
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 1,
+          "rows": [
             5
           ]
         },
         {
           "id": "pvzce:mini_conehead_zombie",
+          "count": 1,
+          "rows": [
+            5
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2531,
+      "entries": [
+        {
+          "id": "pvzce:mini_basic_zombie",
           "count": 4,
           "rows": [
             0,
             1,
-            4,
-            5
+            4
           ]
         },
         {
           "id": "pvzce:mini_football_zombie",
-          "count": 2,
+          "count": 1,
           "rows": [
-            0,
-            1,
-            4,
-            5
+            1
           ]
         },
         {
           "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 9,
+          "count": 3,
           "rows": [
             2,
             3
@@ -430,145 +822,25 @@
           "rows": [
             2,
             3
-          ]
-        }
-      ],
-      "spawn_interval": 150,
-      "warning_ticks": 180
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 17,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_football_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 9,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:mini_snorkel_zombie",
-          "count": 4,
-          "rows": [
-            2,
-            3
-          ]
-        }
-      ],
-      "spawn_interval": 150
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:mini_basic_zombie",
-          "count": 18,
-          "rows": [
-            0,
-            1,
-            4,
-            5
           ]
         },
         {
           "id": "pvzce:mini_conehead_zombie",
-          "count": 4,
+          "count": 1,
           "rows": [
-            0,
-            1,
-            4,
             5
-          ]
-        },
-        {
-          "id": "pvzce:mini_football_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 9,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:mini_snorkel_zombie",
-          "count": 4,
-          "rows": [
-            2,
-            3
           ]
         }
       ],
-      "spawn_interval": 140
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1680,
+      "delay": 2501,
       "entries": [
         {
-          "id": "pvzce:mini_flag_zombie",
-          "count": 1,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
           "id": "pvzce:mini_basic_zombie",
-          "count": 22,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_conehead_zombie",
-          "count": 4,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:mini_football_zombie",
-          "count": 3,
+          "count": 8,
           "rows": [
             0,
             1,
@@ -578,23 +850,53 @@
         },
         {
           "id": "pvzce:mini_ducky_tube_zombie",
-          "count": 11,
+          "count": 2,
           "rows": [
             2,
             3
           ]
         },
         {
-          "id": "pvzce:mini_snorkel_zombie",
-          "count": 6,
+          "id": "pvzce:mini_flag_zombie",
+          "count": 1,
+          "rows": [
+            5
+          ]
+        },
+        {
+          "id": "pvzce:mini_ducky_tube_conehead_zombie",
+          "count": 3,
           "rows": [
             2,
             3
           ]
+        },
+        {
+          "id": "pvzce:mini_football_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:mini_snorkel_zombie",
+          "count": 3,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:mini_conehead_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            5
+          ]
         }
       ],
-      "spawn_interval": 120,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -622,18 +924,23 @@
     "pvzce:grass"
   ],
   "disable_shaders": false,
-  "buffs": [
-    "pvzce:auto_collect"
-  ],
   "hints": [
     {
       "trigger": "on_start",
-      "text": "传送带免费送卡，小僵尸又小又快",
+      "text": "小僵尸血少但快，别让它们堆起来",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "莲叶不够就先把水里的路堵上",
       "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
     }
+  ],
+  "buffs": [
+    "pvzce:auto_collect"
   ],
   "rewards": {
     "first_clear": [

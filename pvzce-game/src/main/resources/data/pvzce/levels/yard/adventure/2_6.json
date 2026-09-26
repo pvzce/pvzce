@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/2_6",
   "name": "2-6",
-  "description": "夜里的第六关：橄榄球僵尸第一次上场——它比普通僵尸快将近一倍，脸上那副面罩还能扛住一千四百点伤害。刚拿到的魅惑菇是这一关最好的答案：让它替你撞开后面的一整排。",
+  "description": "橄榄球僵尸第一次出现：戴着橄榄球头盔，跑得比普通僵尸快一倍，血也厚。胆小菇是这一关的礼物，离得远它才敢开枪。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -82,121 +82,193 @@
   "mechanics": [
     {
       "type": "pvzce:grave_field",
-      "count": 7
+      "count": 7,
+      "min_x": 5,
+      "max_x": 8
     }
   ],
   "waves": [
     {
       "type": "small",
-      "delay": 800,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 912,
+      "delay": 2726,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 208
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1248,
+      "delay": 2959,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 192
-    },
-    {
-      "type": "huge",
-      "delay": 992,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1
-        }
-      ],
-      "spawn_interval": 96,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1344,
+      "delay": 2879,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3081,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2611,
+      "entries": [
+        {
+          "id": "pvzce:football_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2675,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2636,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 176
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3004,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1008,
+      "delay": 3072,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 5
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:football_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 80,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -318,9 +390,27 @@
     "pvzce:grass"
   ],
   "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "橄榄球僵尸冲得快，用土豆雷和寒冰射手拦它",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "胆小菇离僵尸太近就会缩起来",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
   "unlock_resources": {
     "pvzce:sun": true
   },
+  "buffs": [
+    "pvzce:player_choice"
+  ],
   "rewards": {
     "first_clear": [
       {
@@ -337,8 +427,5 @@
     "coin_drop": "pvzce:coin_silver",
     "coin_drop_chance": 0.25,
     "coin_drop_amount": 1
-  },
-  "buffs": [
-    "pvzce:player_choice"
-  ]
+  }
 }

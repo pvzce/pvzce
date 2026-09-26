@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/2_1",
   "name": "2-1",
-  "description": "夜晚的第一关：天上不会掉阳光，墓碑会占住格子。僵尸里多了一种拿报纸的——报纸被打烂之后它会发怒，走得比谁都快。",
+  "description": "夜里的第一关：天上不再掉阳光，墓碑占住格子，僵尸里多了拿报纸的——报纸被打烂之后，它会跑得比谁都快。打完它，阳光菇归你。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -78,125 +78,183 @@
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [],
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
   "initial_sun": 50,
+  "mechanics": [
+    {
+      "type": "pvzce:grave_field",
+      "count": 4,
+      "min_x": 6,
+      "max_x": 8
+    }
+  ],
   "waves": [
     {
       "type": "small",
-      "delay": 800,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 960,
+      "delay": 3047,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:newspaper_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1056,
+      "delay": 2814,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:newspaper_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 192
-    },
-    {
-      "type": "huge",
-      "delay": 992,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:newspaper_zombie",
-          "count": 2
-        }
-      ],
-      "spawn_interval": 96,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1056,
+      "delay": 2815,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:newspaper_zombie",
-          "count": 2
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 192
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2761,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2551,
+      "entries": [
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2644,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2985,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2850,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 896,
+      "delay": 2977,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
-          "id": "pvzce:basic_zombie",
-          "count": 4
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:newspaper_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 80,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:sun_shroom"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 200
-      }
-    ],
-    "coin_drop": "pvzce:coin_silver",
-    "coin_drop_chance": 0.25,
-    "coin_drop_amount": 1
-  },
   "music": {
     "cues": [
       {
@@ -206,14 +264,6 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
-      }
-    ]
-  },
-  "unlock": {
-    "requires": [
-      {
-        "type": "level",
-        "id": "pvzce:yard/adventure/1_10"
       }
     ]
   },
@@ -312,18 +362,55 @@
       }
     ]
   },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/1_10"
+      }
+    ]
+  },
   "background": "pvzce:textures/gui/screen/level/background2",
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
   "disable_shaders": true,
-  "mechanics": [
+  "hints": [
     {
-      "type": "pvzce:grave_field",
-      "count": 4
+      "trigger": "on_start",
+      "text": "墓碑占住的格子种不下东西，绕开它",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "夜里的阳光只能靠向日葵和阳光菇",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
     }
   ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
   "buffs": [
     "pvzce:player_choice"
-  ]
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:sun_shroom"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 200
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }

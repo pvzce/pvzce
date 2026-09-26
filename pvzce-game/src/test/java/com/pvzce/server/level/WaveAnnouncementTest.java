@@ -169,8 +169,12 @@ class WaveAnnouncementTest {
         }
         assertEquals(1, bridge.countOf("pvzce:sfx/effect/awooga"),
                 "the final wave's siren, once: " + bridge.sounds());
-        assertEquals(2, bridge.countOf("pvzce:sfx/ambient/hugewave"),
-                "1-2 has two huge waves: " + bridge.sounds());
+        // 1-2 has six waves, so its own flag wave is the last one - and that is where the
+        // banner goes up. (The original counts waves per flag the same way: a level with fewer
+        // than ten waves flags its last wave and nothing else.) The other sound a flag wave
+        // makes is the awooga above, which belongs to the arrival.
+        assertEquals(1, bridge.countOf("pvzce:sfx/ambient/hugewave"),
+                "one flag wave, one banner: " + bridge.sounds());
     }
 
     /** The resource drops currently on the field, in the order they were added. */

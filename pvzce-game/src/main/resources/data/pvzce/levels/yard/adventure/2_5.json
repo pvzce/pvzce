@@ -1,46 +1,46 @@
 {
   "id": "pvzce:yard/adventure/2_5",
   "name": "2-5 打地鼠",
-  "description": "打地鼠：这一关没有种子卡，鼠标就是锤子。僵尸从墓碑里钻出来，被砸掉的墓碑还会再长回来——墓碑破坏者能清掉它们，土豆雷和樱桃炸弹能救急。",
+  "description": "原版的打地鼠：这一关没有僵尸从路上走进来，它们全部从墓碑里钻出来，锤子是你的主业。卡槽里只有土豆雷、墓碑吞噬者和樱桃炸弹；打完它，催眠菇归你。",
   "width": 9,
   "height": 5,
   "scene": {
     "pvzce:grass": [
       "0,0",
-      "0,1",
-      "0,2",
-      "0,3",
-      "0,4",
       "1,0",
-      "1,1",
-      "1,2",
-      "1,3",
-      "1,4",
       "2,0",
-      "2,1",
-      "2,2",
-      "2,3",
-      "2,4",
       "3,0",
-      "3,1",
-      "3,2",
-      "3,3",
-      "3,4",
       "4,0",
-      "4,1",
-      "4,2",
-      "4,3",
-      "4,4",
-      "5,1",
-      "5,3",
-      "5,4",
       "6,0",
-      "6,2",
-      "6,4",
-      "7,1",
-      "7,3",
       "8,0",
+      "0,1",
+      "1,1",
+      "2,1",
+      "3,1",
+      "4,1",
+      "5,1",
+      "7,1",
+      "0,2",
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "6,2",
       "8,2",
+      "0,3",
+      "1,3",
+      "2,3",
+      "3,3",
+      "4,3",
+      "5,3",
+      "7,3",
+      "0,4",
+      "1,4",
+      "2,4",
+      "3,4",
+      "4,4",
+      "5,4",
+      "6,4",
       "8,4"
     ],
     "pvzce:grave": [
@@ -90,14 +90,11 @@
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
-    "pvzce:grave_buster",
     "pvzce:potato_mine",
-    "pvzce:cherry_bomb",
-    "pvzce:sun"
+    "pvzce:grave_buster",
+    "pvzce:cherry_bomb"
   ],
-  "max_seed_slots": 4,
-  "unlock_resources": {},
-  "initial_sun": 50,
+  "initial_sun": 0,
   "mechanics": [
     {
       "type": "pvzce:grave_spawner",
@@ -130,35 +127,52 @@
   "waves": [
     {
       "type": "small",
-      "delay": 900,
-      "entries": []
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": []
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": []
-    },
-    {
-      "type": "huge",
       "delay": 1800,
       "entries": [],
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1500,
-      "entries": []
+      "delay": 2000,
+      "entries": [],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "entries": [],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "entries": [],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "entries": [],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "entries": [],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "entries": [],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1680,
+      "delay": 2000,
       "entries": [],
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -226,6 +240,37 @@
       }
     ]
   },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/2_4"
+      }
+    ]
+  },
+  "background": "pvzce:textures/gui/screen/level/background2",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "僵尸从墓碑里冒出来，先锤再种",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "墓碑吞噬者清掉一块地，土豆雷守着它",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "buffs": [
+    "pvzce:auto_collect"
+  ],
   "rewards": {
     "first_clear": [
       {
@@ -242,21 +287,5 @@
     "coin_drop": "pvzce:coin_silver",
     "coin_drop_chance": 0.25,
     "coin_drop_amount": 1
-  },
-  "unlock": {
-    "requires": [
-      {
-        "type": "level",
-        "id": "pvzce:yard/adventure/2_4"
-      }
-    ]
-  },
-  "background": "pvzce:textures/gui/screen/level/background2",
-  "hidden_scene_elements": [
-    "pvzce:grass"
-  ],
-  "disable_shaders": true,
-  "buffs": [
-    "pvzce:auto_collect"
-  ]
+  }
 }

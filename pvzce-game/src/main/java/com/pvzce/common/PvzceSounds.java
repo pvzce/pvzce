@@ -52,6 +52,16 @@ public final class PvzceSounds {
     public static final Identifier ZOMBIE_IMP = id("sfx/zombie/imp");
     /** The dancing zombie's call: the original's own sting for the backup dancers. */
     public static final Identifier ZOMBIE_DANCER = id("sfx/zombie/dancer");
+    /** The pogo stick: the boing of a bounce, and the bonk of one that meets a tall-nut. */
+    public static final Identifier ZOMBIE_POGO = id("sfx/zombie/pogo_zombie");
+    /**
+     * The jack-in-the-box's crank and its lid coming up.
+     *
+     * <p>Two events because the zombie makes two noises and they mean different things: the
+     * crank is the 110 ticks the player has to answer it in, and the surprise is the blast.
+     */
+    public static final Identifier ZOMBIE_JACK_IN_THE_BOX = id("sfx/zombie/jackinthebox");
+    public static final Identifier ZOMBIE_JACK_SURPRISE = id("sfx/zombie/jack_surprise");
 
     public static final Identifier EFFECT_EXPLOSION = id("sfx/effect/explosion");
     public static final Identifier EFFECT_BITE = id("sfx/effect/bite");

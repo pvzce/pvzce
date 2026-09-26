@@ -155,6 +155,27 @@ public final class EntityAnimations {
     public static final String DRIVE = "drive";
     public static final String WHEELIE = "wheelie";
 
+    /**
+     * A pogo zombie up on its stick.
+     *
+     * <p>A named state rather than a bare string for the same reason the bungee's four are: the
+     * server publishes it for the whole of every bounce, and a file without the clip falls back
+     * to {@code idle} - which is a zombie standing still while the simulation sails it across a
+     * plant. The original keeps it in its own model ({@code Zombie_pogo.reanim}), where the
+     * stick is drawn for the eleven frames of this mask and for no other.
+     */
+    public static final String POGO = "pogo";
+
+    /**
+     * The jack-in-the-box's lid coming up.
+     *
+     * <p>Its own state because it is its own event: the zombie stands still for the whole of it
+     * (see {@code JackInTheBoxCapability}), and the file's {@code anim_pop} mask is the lid, the
+     * spring and the clown's head - art that appears in no other clip. A definition missing it
+     * falls back to {@code idle}, which is the explosion arriving out of a body that never moved.
+     */
+    public static final String POP = "pop";
+
     private EntityAnimations() {
     }
 }

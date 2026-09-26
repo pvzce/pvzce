@@ -567,8 +567,15 @@ class WaveSystemTest {
      * {@link #theNextWaveWaitsForThePreviousOneToFinishReleasing}'s job.
      */
     @Test
-    void theOpeningWavesOfTheFirstLevelsAreTenSecondsApart() throws Exception {
+    void theOpeningWavesOfTheFirstLevelsComeOneAtATime() throws Exception {
         TestContent.loadBuiltInContentAndTags();
+        // The gentleness of the opening used to be a `spawn_interval` of ten seconds per
+        // zombie, written into 1-2 and 1-3 by hand. The wave tables are the original's own
+        // replay now, and the original dumps a wave rather than trickling it: what makes 1-2
+        // and 1-3 gentle is that their early waves *are* one zombie, plus the opening-wave
+        // gate (`WaveDef.holdUntilDead`) that holds the second one until the first is dealt
+        // with. Asserted as that shape, so a table that quietly grew its first waves fails
+        // here rather than in a playthrough.
         for (String path : List.of("1_2", "1_3")) {
             LevelDef def = BuiltInRegistries.LEVELS.get(
                     Identifier.withDefaultNamespace("yard/adventure/" + path));
@@ -576,10 +583,18 @@ class WaveSystemTest {
             List<WaveDef> waves = def.waves();
             assertTrue(waves.size() >= 3, path + " should have at least three waves");
             for (int i = 0; i < 3; i++) {
-                assertEquals(600, waves.get(i).spawnInterval(),
-                        path + " wave " + i + " should release one zombie every ten seconds");
+                assertEquals(1, waves.get(i).totalZombies(),
+                        path + " wave " + i + " opens the level with a single zombie");
             }
+            assertTrue(waves.get(0).delay() >= 1800,
+                    path + " gives the player a first breath before anything walks in");
         }
+        // 1-2's opening breath is the tutorial's own: five seconds of nothing while the player
+        // reads the level. Every other level opens after the original's 1800.
+        assertEquals(5000, BuiltInRegistries.LEVELS
+                .get(Identifier.withDefaultNamespace("yard/adventure/1_2")).waves().get(0).delay());
+        assertEquals(1800, BuiltInRegistries.LEVELS
+                .get(Identifier.withDefaultNamespace("yard/adventure/1_3")).waves().get(0).delay());
     }
 
     private static void tick(LevelServer level, LevelServer.ServerBridge bridge, int ticks) {

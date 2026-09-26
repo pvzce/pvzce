@@ -27,7 +27,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The vase tool, and the vases 4-4 stands on the lawn.
+ * The vase tool: one object, three clicks, and a vase field written in code.
+ *
+ * <p>4-4 used to be the level that stood vases up; it is an ordinary fog level now, because the
+ * original has no vase field - its vase level is 4-5, and that one is Scary Potter
+ * (`ScaryPotterTest`). The {@code pvzce:vase_field} mechanic stays, so the fixture here writes one
+ * itself: a level, its vases and a bar to hold cards.
  *
  * <p>One object, three clicks, and all three are worth pinning because they are the same click
  * arriving at three different handlers: the tool places a vase in an empty cell, <em>smashes</em>
@@ -75,9 +80,8 @@ class VaseTest {
 
     /** The level declares its vases, and a live level has them standing where it said. */
     @Test
-    void fourFourStartsWithItsVases() {
-        LevelDef def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/4_4"));
-        assertNotNull(def, "4-4 is the vase level");
+    void aVaseFieldStandsUpWhereTheLevelSaid() {
+        LevelDef def = vaseFixture();
         VaseFieldData data = vaseField(def);
         assertEquals(8, data.vases().size(), "eight vases, one per card the level hands out");
 
@@ -98,7 +102,7 @@ class VaseTest {
      */
     @Test
     void aVaseCellIsNotPlantable() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
         assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(PEA), vase.x(), vase.y()),
                 "a plant in a vase cell would be the plant and the vase in one cell");
@@ -107,7 +111,7 @@ class VaseTest {
     /** Every card a vase holds is a card the bar could actually deal. */
     @Test
     void everyVaseHoldsARealCard() {
-        for (VaseFieldData.Vase vase : vaseField(level4_4Def()).vases()) {
+        for (VaseFieldData.Vase vase : vaseField(vaseFixture()).vases()) {
             assertTrue(SlotResolver.resolve(vase.card()).isPresent(),
                     vase.card() + " has to resolve to a card, or breaking that vase gives nothing");
         }
@@ -120,7 +124,7 @@ class VaseTest {
     /** Click one: an empty cell gets a vase. */
     @Test
     void theToolPutsAVaseDown() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         int x = 6;
         int y = 0;
@@ -133,7 +137,7 @@ class VaseTest {
     /** Click two: a plant card on that vase stores the card. */
     @Test
     void aPlantCardClickedOnAVaseGoesInsideIt() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         int x = 6;
         int y = 0;
@@ -153,7 +157,7 @@ class VaseTest {
     /** One card per vase, and the second one is refused with a message rather than swallowed. */
     @Test
     void aFullVaseRefusesASecondCard() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         int x = 6;
         int y = 0;
@@ -173,7 +177,7 @@ class VaseTest {
     /** Click three: an empty-handed click smashes it, and the card lands on the bar. */
     @Test
     void smashingAVaseReturnsItsCardToTheBar() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
         assertFalse(hasCard(level, vase.card()), "the fixture has to start without that card");
@@ -189,7 +193,7 @@ class VaseTest {
     /** An empty vase smashes to nothing, and says so rather than pretending it dropped a card. */
     @Test
     void smashingAnEmptyVaseYieldsNothing() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         useVaseTool(level, bridge, 6, 0);
         bridge.packets.clear();
@@ -205,7 +209,7 @@ class VaseTest {
      */
     @Test
     void theCardThatComesBackCanBePlanted() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         int x = 6;
         int y = 0;
@@ -233,7 +237,7 @@ class VaseTest {
     /** A vase and its card survive a save and come back together. */
     @Test
     void vaseContentsSurviveASave() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(2);
         CompoundTag save = level.save();
@@ -254,7 +258,7 @@ class VaseTest {
     /** The glove moves a vase and the card inside it together. */
     @Test
     void theGloveMovesAVaseAndItsCard() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
         int toX = 6;
@@ -273,7 +277,7 @@ class VaseTest {
     /** Dropping a lifted vase on something else is refused, and the vase is still in hand. */
     @Test
     void aVaseCannotBeDroppedOnAnOccupiedCell() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
         VaseFieldData.Vase other = vaseField(level.def()).vases().get(1);
@@ -295,7 +299,7 @@ class VaseTest {
      */
     @Test
     void aVaseDroppedBackWhereItCameFromStays() {
-        LevelServer level = fourFour();
+        LevelServer level = fixture();
         Bridge bridge = new Bridge();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
         assertTrue(useGlove(level, bridge, vase.x(), vase.y()));
@@ -308,9 +312,9 @@ class VaseTest {
     // Fixtures
     // ------------------------------------------------------------------
 
-    /** 4-4 with no waves: the board, the vase tool and a bar to hold cards, and nothing else. */
-    private static LevelServer fourFour() {
-        LevelDef def = level4_4Def();
+    /** A fog board with a vase field on it, no waves, the vase tool and a bar for cards. */
+    private static LevelServer fixture() {
+        LevelDef def = vaseFixture();
         LevelServer level = new LevelServer(def, List.of());
         // Deliberately not every card a vase holds: "smashing a vase puts its card on the bar" is
         // only a claim if the card was not there before. A test whose bar already had the card
@@ -321,10 +325,30 @@ class VaseTest {
         return level;
     }
 
-    private static LevelDef level4_4Def() {
+    /**
+     * The eight vases 4-4 used to stand up, written here instead.
+     *
+     * <p>Two columns of four on the lawn nearest the house, one card each. They are written rather
+     * than rolled (the original's vases are a gift, not a dice roll), and the cells avoid the pool
+     * rows - a vase in the water would be a vase the player cannot plant behind.
+     */
+    private static final List<VaseFieldData.Vase> VASES = List.of(
+            new VaseFieldData.Vase(1, 0, Identifier.withDefaultNamespace("sunflower")),
+            new VaseFieldData.Vase(2, 0, Identifier.withDefaultNamespace("pea_shooter")),
+            new VaseFieldData.Vase(1, 1, Identifier.withDefaultNamespace("wall_nut")),
+            new VaseFieldData.Vase(2, 1, Identifier.withDefaultNamespace("snow_pea")),
+            new VaseFieldData.Vase(1, 4, Identifier.withDefaultNamespace("repeater")),
+            new VaseFieldData.Vase(2, 4, Identifier.withDefaultNamespace("tall_nut")),
+            new VaseFieldData.Vase(1, 5, Identifier.withDefaultNamespace("cherry_bomb")),
+            new VaseFieldData.Vase(2, 5, Identifier.withDefaultNamespace("jalapeno")));
+
+    /** 4-4 - an ordinary fog level now - with a vase field added in code. */
+    private static LevelDef vaseFixture() {
         LevelDef base = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/4_4"));
         assertNotNull(base);
-        return TestLevels.copy(base).waves(List.of()).build();
+        List<TypedMechanic> mechanics = new ArrayList<>(base.mechanics());
+        mechanics.add(TypedMechanic.of(PvzceIds.MECHANIC_VASE_FIELD, new VaseFieldData(VASES)));
+        return TestLevels.copy(base).mechanics(mechanics).waves(List.of()).build();
     }
 
     private static VaseFieldData vaseField(LevelDef def) {

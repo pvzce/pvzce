@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/1_5",
-  "name": "1-5",
-  "description": "坚果保龄球：传送带会送来坚果，把它放在红线左边，它就会滚出去撞翻整排僵尸。撞到僵尸会斜着弹开，弹得越多拿到的硬币越多。天上不会掉阳光，这一关也不用阳光。",
+  "name": "1-5 坚果保龄球",
+  "description": "原版的坚果保龄球：传送带只送坚果，把它放在左边四列，它会自己滚出去把撞到的僵尸一起带翻，弹得越多硬币越多。打完它，土豆雷归你。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -106,210 +106,192 @@
   "waves": [
     {
       "type": "small",
-      "delay": 240,
+      "delay": 1800,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 4
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 60
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 600,
+      "delay": 3034,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 6
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 50
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 600,
+      "delay": 2730,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            2
+          ]
         }
       ],
-      "spawn_interval": 45
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 600,
+      "delay": 2625,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 6
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            3,
+            4
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 3
+          "count": 2,
+          "rows": [
+            0,
+            2
+          ]
         }
       ],
-      "spawn_interval": 40
-    },
-    {
-      "type": "huge",
-      "delay": 600,
-      "warning_ticks": 180,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 7
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 4
-        }
-      ],
-      "spawn_interval": 40
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 600,
+      "delay": 3073,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 6
+          "count": 2,
+          "rows": [
+            0,
+            4
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 4
+          "count": 3,
+          "rows": [
+            1,
+            2,
+            3
+          ]
         }
       ],
-      "spawn_interval": 40
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 600,
+      "delay": 2623,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 7
+          "count": 4,
+          "rows": [
+            0,
+            2,
+            3,
+            4
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 5
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 35
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 600,
+      "delay": 3019,
       "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 6
-        },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 5
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 1
-        }
-      ],
-      "spawn_interval": 35
-    },
-    {
-      "type": "huge",
-      "delay": 600,
-      "warning_ticks": 180,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
+          "count": 4,
+          "rows": [
+            0,
+            2,
+            3,
+            4
+          ]
         },
         {
           "id": "pvzce:basic_zombie",
-          "count": 7
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 5
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 2
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2
+          ]
         }
       ],
-      "spawn_interval": 30
-    },
-    {
-      "type": "small",
-      "delay": 600,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 6
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 5
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 2
-        }
-      ],
-      "spawn_interval": 30
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 600,
-      "warning_ticks": 180,
+      "delay": 2558,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            2,
+            4
+          ]
         },
         {
-          "id": "pvzce:basic_zombie",
-          "count": 8
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 6
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 2
+          "count": 4,
+          "rows": [
+            1,
+            2,
+            3,
+            4
+          ]
         }
       ],
-      "spawn_interval": 30
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:potato_mine"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 250
-      }
-    ],
-    "coin_drop": "pvzce:coin_silver",
-    "coin_drop_chance": 0.05,
-    "coin_drop_amount": 1
-  },
   "music": {
     "cues": [
       {
@@ -319,14 +301,6 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
-      }
-    ]
-  },
-  "unlock": {
-    "requires": [
-      {
-        "type": "level",
-        "id": "pvzce:yard/adventure/1_4"
       }
     ]
   },
@@ -411,18 +385,52 @@
       }
     ]
   },
-  "hints": [
-    {
-      "trigger": "on_start",
-      "text": "传送带会送来植物，把它们种在左边四列"
-    }
-  ],
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/1_4"
+      }
+    ]
+  },
   "background": "pvzce:textures/gui/screen/level/background1",
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
   "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "坚果放在左边的放置区里才会滚出去",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "传送带发牌是免费的，不用管阳光",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
   "buffs": [
     "pvzce:auto_collect"
-  ]
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:potato_mine"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 250
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }

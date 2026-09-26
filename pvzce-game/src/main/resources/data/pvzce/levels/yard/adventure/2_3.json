@@ -1,63 +1,55 @@
 {
   "id": "pvzce:yard/adventure/2_3",
   "name": "2-3",
-  "description": "夜里的第三关：纱门僵尸第一次上场——它举着纱门挡子弹，正面打不动，只有大喷菇的喷雾能穿透。",
+  "description": "铁门僵尸第一次出现：那面纱门挡得住豌豆，得先打掉它。墓碑吞噬者可以把墓碑吃干净，那一格就能种东西了。",
   "width": 9,
   "height": 5,
   "scene": {
     "pvzce:grass": [
       "0,0",
-      "0,1",
-      "0,2",
-      "0,3",
-      "0,4",
       "1,0",
-      "1,1",
-      "1,2",
-      "1,3",
-      "1,4",
       "2,0",
-      "2,1",
-      "2,2",
-      "2,3",
-      "2,4",
       "3,0",
-      "3,1",
-      "3,2",
-      "3,3",
-      "3,4",
       "4,0",
-      "4,1",
-      "4,2",
-      "4,3",
-      "4,4",
       "5,0",
-      "5,1",
-      "5,2",
-      "5,3",
-      "5,4",
       "6,0",
-      "6,1",
-      "6,2",
-      "6,3",
-      "6,4",
-      "7,1",
-      "7,2",
-      "7,4",
+      "7,0",
       "8,0",
+      "0,1",
+      "1,1",
+      "2,1",
+      "3,1",
+      "4,1",
+      "5,1",
+      "6,1",
+      "7,1",
       "8,1",
-      "8,3"
-    ],
-    "pvzce:grave": [
-      "7,0"
-    ],
-    "pvzce:grave_cross": [
-      "8,2"
-    ],
-    "pvzce:grave_slab": [
-      "7,3"
-    ],
-    "pvzce:grave_wide": [
+      "0,2",
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2",
+      "7,2",
+      "8,2",
+      "0,3",
+      "1,3",
+      "2,3",
+      "3,3",
+      "4,3",
+      "5,3",
+      "6,3",
+      "7,3",
+      "8,3",
+      "0,4",
+      "1,4",
+      "2,4",
+      "3,4",
+      "4,4",
+      "5,4",
+      "6,4",
+      "7,4",
       "8,4"
     ]
   },
@@ -86,183 +78,204 @@
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [],
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
   "initial_sun": 50,
+  "mechanics": [
+    {
+      "type": "pvzce:grave_field",
+      "count": 4,
+      "min_x": 6,
+      "max_x": 8
+    }
+  ],
   "waves": [
     {
       "type": "small",
-      "delay": 800,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 960,
+      "delay": 2858,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 864,
+      "delay": 2756,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 192
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1168,
+      "delay": 2734,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
           "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 176
-    },
-    {
-      "type": "huge",
-      "delay": 1056,
-      "entries": [
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 2
-        }
-      ],
-      "spawn_interval": 96,
-      "warning_ticks": 180
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1344,
+      "delay": 2807,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 2
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         }
       ],
-      "spawn_interval": 176
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1728,
+      "delay": 2752,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2784,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 1,
+          "rows": [
+            0
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:newspaper_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 160
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2577,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2725,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1328,
+      "delay": 2966,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
           "id": "pvzce:basic_zombie",
-          "count": 5
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
         },
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 3
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:door_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            0
+          ]
         },
         {
-          "id": "pvzce:newspaper_zombie",
-          "count": 2
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
         }
       ],
-      "spawn_interval": 80,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:grave_buster"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 200
-      }
-    ],
-    "coin_drop": "pvzce:coin_silver",
-    "coin_drop_chance": 0.25,
-    "coin_drop_amount": 1
-  },
   "music": {
     "cues": [
       {
@@ -355,7 +368,42 @@
     "pvzce:grass"
   ],
   "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "铁门僵尸的盾要打掉才伤得到它",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "墓碑占住的格子这一局都种不下东西，绕着排",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
   "buffs": [
     "pvzce:player_choice"
-  ]
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:grave_buster"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 200
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }

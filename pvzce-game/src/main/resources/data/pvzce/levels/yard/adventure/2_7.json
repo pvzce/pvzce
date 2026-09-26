@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/2_7",
   "name": "2-7",
-  "description": "夜里的第七关：草坪上站着十一个墓碑，是夜晚最多的一关——清不掉的墓碑会在最后一波一起开门。铁门僵尸和橄榄球僵尸同时上场。刚拿到的胆小菇射得远，可僵尸一靠近就会缩回去，把它种在后排。",
+  "description": "二十波的夜仗，铁门和橄榄球一起来。寒冰菇是这一关的礼物：冻住全场。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -82,156 +82,430 @@
   "mechanics": [
     {
       "type": "pvzce:grave_field",
-      "count": 11
+      "count": 11,
+      "min_x": 4,
+      "max_x": 8
     }
   ],
   "waves": [
     {
       "type": "small",
-      "delay": 960,
+      "delay": 1800,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 224
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1328,
+      "delay": 2976,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 208
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1440,
+      "delay": 2933,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 192
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2594,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2978,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2965,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2729,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2800,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2553,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "huge",
-      "delay": 1248,
+      "delay": 2942,
       "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
         {
           "id": "pvzce:flag_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 5
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 96,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     },
     {
       "type": "small",
-      "delay": 1520,
+      "delay": 4500,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 1
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1
+          "count": 1,
+          "rows": [
+            2
+          ]
         }
       ],
-      "spawn_interval": 176
+      "spawn_interval": 15
     },
     {
       "type": "small",
-      "delay": 1728,
+      "delay": 2890,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2653,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2736,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2775,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2511,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            3
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 3
-        },
-        {
-          "id": "pvzce:door_zombie",
-          "count": 2
-        },
-        {
-          "id": "pvzce:football_zombie",
-          "count": 1
+          "count": 2,
+          "rows": [
+            1,
+            2
+          ]
         }
       ],
-      "spawn_interval": 160
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2709,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2952,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3093,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 15
     },
     {
       "type": "final",
-      "delay": 1330,
+      "delay": 2760,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
         },
         {
-          "id": "pvzce:basic_zombie",
-          "count": 6
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            3
+          ]
         },
         {
           "id": "pvzce:door_zombie",
-          "count": 3
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:football_zombie",
-          "count": 2
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ],
-      "spawn_interval": 74,
-      "warning_ticks": 180
+      "spawn_interval": 15,
+      "warning_ticks": 750
     }
   ],
   "music": {
@@ -326,9 +600,22 @@
     "pvzce:grass"
   ],
   "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "寒冰菇冻住全场，是最值钱的一次喘息",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
   "unlock_resources": {
     "pvzce:sun": true
   },
+  "buffs": [
+    "pvzce:player_choice"
+  ],
   "rewards": {
     "first_clear": [
       {
@@ -345,8 +632,5 @@
     "coin_drop": "pvzce:coin_silver",
     "coin_drop_chance": 0.25,
     "coin_drop_amount": 1
-  },
-  "buffs": [
-    "pvzce:player_choice"
-  ]
+  }
 }

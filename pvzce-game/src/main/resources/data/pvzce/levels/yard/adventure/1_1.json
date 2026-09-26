@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/1_1",
   "name": "1-1",
-  "description": "冒险模式第一关：只有一行草坪，你只带了豌豆射手。撑过几只普通僵尸，就能获得向日葵。",
+  "description": "冒险模式的第一关：只有一条草坪，你手上只有豌豆射手。撑过几只普通僵尸，向日葵就是你的。",
   "width": 9,
   "height": 1,
   "scene": {
@@ -36,74 +36,76 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": -1,
-    "pvzce:sun_spawn_interval_min": 420,
-    "pvzce:sun_spawn_interval_max": 660,
+    "pvzce:sun_spawn_interval_min": 480,
+    "pvzce:sun_spawn_interval_max": 720,
     "pvzce:sun_spawn_initial_ticks": 300
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
-  "waves": [
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 1
-        }
-      ],
-      "spawn_interval": 420
-    },
-    {
-      "type": "small",
-      "delay": 1500,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 2
-        }
-      ],
-      "spawn_interval": 300
-    },
-    {
-      "type": "final",
-      "delay": 1500,
-      "warning_ticks": 180,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 2
-        }
-      ],
-      "spawn_interval": 300
-    }
-  ],
   "slots": [
     "pvzce:pea_shooter",
     "pvzce:sun"
   ],
-  "max_seed_slots": 2,
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
-  "initial_sun": 50,
-  "rewards": {
-    "first_clear": [
-      {
-        "type": "unlock",
-        "id": "pvzce:sunflower"
-      }
-    ],
-    "repeat": [
-      {
-        "type": "coins",
-        "amount": 100
-      }
-    ],
-    "coin_drop_chance": 0.25,
-    "coin_drop_amount": 1,
-    "coin_drop": "pvzce:coin_silver"
-  },
+  "initial_sun": 150,
+  "mechanics": [],
+  "waves": [
+    {
+      "type": "small",
+      "delay": 1800,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2920,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2549,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "final",
+      "delay": 2570,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    }
+  ],
   "music": {
     "cues": [
       {
@@ -183,24 +185,46 @@
       }
     ]
   },
+  "unlock": {},
+  "background": "pvzce:textures/gui/screen/level/background1_1row",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
   "hints": [
     {
       "trigger": "on_start",
-      "text": "点击阳光可以收集",
-      "duration_ticks": 0
+      "text": "把豌豆射手种在草坪上，它会一直往前打",
+      "duration_ticks": 600
     },
     {
-      "trigger": "on_resource",
-      "resource": "pvzce:sun",
-      "text": "你需要收集阳光种植植物"
+      "trigger": "on_start",
+      "text": "僵尸走到最左边之前打掉它",
+      "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
     }
   ],
-  "background": "pvzce:textures/gui/screen/level/background1_1row",
-  "disable_shaders": true,
-  "hidden_scene_elements": [
-    "pvzce:grass"
-  ]
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "max_seed_slots": 2,
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "unlock",
+        "id": "pvzce:sunflower"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 100
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
 }
