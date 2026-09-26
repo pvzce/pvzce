@@ -382,6 +382,18 @@ Wayland（自接 `wl_touch`）、Windows 与 X11/Xorg 都能用手指玩了，�
 Windows"长按=右键"排先后）、**屏内键盘**（控制台/编辑器/玩家名在触控设备上需要外接键盘：
 GLFW 不会告诉系统"输入框获得焦点"）。
 影响：触控设备目前可以正常玩主线，但上面的场景要么做不到、要么要用鼠标键盘补。
+### Wayland 上不能拖动标题栏移动窗口
+
+标题栏（`client/gui/WindowTitleBar`）的三大按键与双击最大化都能用，但**按住空白处拖动窗口**没有实现：
+Wayland 客户端不允许自己设位置（`glfwSetWindowPos` 直接返回 "The platform does not support setting
+the window position"），唯一正规做法是 `xdg_toplevel.move(seat, serial)`，而它需要 GLFW 私有的
+`xdg_toplevel` 与一个输入 serial——GLFW 两个都不对外暴露（libdecor 那条路因为 GTK 插件在 JVM 里拒载
+也走不通，见 `踩坑清单.md` 第 118/119 条）。
+影响：窗口位置只能由合成器决定；GNOME 下仍可用 Super+拖动 或 Alt+F7 移动，所以不是死路。
+怎么做：等 GLFW 把 `glfwSetWindowPos` 在 Wayland 上实现（上游 issue），或我们自己接一版
+`xdg_toplevel`/`xdg_toplevel_drag_manager_v1`（本机 registry 有后者）——无论哪条都要先有不靠猜偏移量
+拿到 toplevel 的办法。
+
 ### HiDPI 缩放屏上点击会整体偏移
 
 仓库里没有一处 `glfwGetContentScale` / `glfwGetWindowSize`：`guiMouseX` 拿 **framebuffer 宽度**去除
