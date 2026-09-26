@@ -187,29 +187,36 @@ class BobsledJackPogoTest {
     }
 
     /**
-     * A jack-in-the-box a pot releases goes off on the spot, and leaves nothing behind.
+     * A jack-in-the-box a pot releases opens its box at once, winds up, and then goes off.
      *
-     * <p>Its fuse is the ground it has covered, and a zombie that comes out of a vase in the middle
-     * of the board has covered none - so the pot's jack is a trap. It used to open the box and blast
-     * 110 ticks later, and the user's report was that the blast never came: the plants around the
-     * pot killed it inside that window. The report also asked for the body to go with it, which is
-     * the second half of this test.
+     * <p>The user's own wording: "从瓶出来的时候，应该先留个 1~2s 的时候，让它播放音乐盒要爆炸的
+     * 动画，动画播完才炸". The wind-up is the same {@code pop_ticks} a walking one gets - the crank,
+     * the lid coming up - and the walk before it is what the pot skips.
      */
     @Test
-    void theBoxAPotReleasedGoesOffOnTheSpot() {
+    void theBoxAPotReleasedWindsUpAndThenGoesOff() {
         LevelServer level = lawn(List.of());
-        // A plant beside it, so "it exploded" is visible in the world and not only in the flag.
         PlantEntity beside = place(level, "wall_nut", 4, 2);
         ZombieEntity released = spawn(level, JACK_IN_THE_BOX, 4.5F, 2);
         JackInTheBoxCapability fuse = released.capability(JackInTheBoxCapability.class);
         assertNotNull(fuse);
-        assertFalse(fuse.hasExploded(), "a freshly spawned one has not gone off");
-        assertFalse(fuse.isPopping(), "and is still walking");
+        assertFalse(fuse.isPopping(), "a freshly spawned one is still walking");
 
         released.onReleased(level);
-        level.flushPending(packet -> { });
 
-        assertTrue(fuse.hasExploded(), "the pot's one is a trap: it goes off where it appears");
+        assertTrue(fuse.isPopping(), "the pot's one opens its box where it appeared");
+        assertEquals(4.5F, released.cellX(), 0.0001F, "without walking a step of its fuse");
+        assertFalse(beside.isRemoved(), "and the blast is not until the box has finished opening");
+        int windUp = fuse.popTicks();
+        assertTrue(windUp >= 60 && windUp <= 120,
+                "the wind-up is the 1~2 seconds the user asked for, was " + windUp + " ticks");
+        tick(level, windUp - 1);
+        assertTrue(released.isAlive(), "still there through the whole animation");
+        assertFalse(beside.isRemoved(), "and nothing has gone off yet");
+
+        tick(level, 2);
+
+        assertTrue(fuse.hasExploded(), "the blast lands when the box finishes opening");
         assertTrue(beside.isRemoved(), "and takes what was standing beside it");
         assertTrue(released.isRemoved(),
                 "and leaves no corpse: the blast is the whole funeral (the user: 爆炸后还会原地留下"

@@ -199,23 +199,19 @@ public final class JackInTheBoxCapability implements ZombieCapability {
     }
 
     /**
-     * Out of a pot: it goes off on the spot.
+     * Out of a pot: the box opens at once, and the blast follows {@code pop_ticks} later.
      *
-     * <p>The fuse is the ground it has covered and a zombie a pot released has covered none of it,
-     * so the pot's jack is a <em>trap</em>: it appears and detonates, with no lane walked and no
-     * {@code pop_ticks} to be shot in. That window is what a walking one gets - the player sees it
-     * coming down the lane and has 1.8 seconds to spend something on it - and a zombie that
-     * appears in the middle of the board has no walk to shorten and nothing to warn about.
-     *
-     * <p>It used to open the box here and blast 110 ticks later. The user reported the result as
-     * "小丑僵尸爆炸的时候，缺少'啊？'的一声和爆炸效果" - the plants around the pot killed it inside
-     * that window, so the pot's jack usually died without ever going off, leaving nothing but a
-     * corpse. (The same report asked for the corpse to go, which {@code explode} now does.)
+     * <p>The fuse is the ground it has covered, and a zombie a pot released has covered none of it -
+     * so the walk is over before it starts and the box opens where it appeared. What it does
+     * <em>not</em> lose is the wind-up: the user's own wording is "从瓶出来的时候，应该先留个 1~2s
+     * 的时候，让它播放音乐盒要爆炸的动画，动画播完才炸", which is exactly {@code pop_ticks} (110
+     * ticks, 1.83s) - the crank, the lid coming up, and then the blast. The player has those two
+     * seconds to spend something on it, which is the same warning a walking jack-in-the-box gets.
      */
     @Override
     public void onReleased(ZombieEntity zombie, LevelAccess level) {
-        if (!exploded) {
-            explode(zombie, level);
+        if (!exploded && popTicksLeft <= 0) {
+            openTheBox(zombie, level);
         }
     }
 
@@ -257,6 +253,12 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         DamageTypeDef type = ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT);
         // No source team: a bomb on the lawn does not have a side. See the class doc.
         level.damageArea(type, x, y, zombieRadius, BLAST_DAMAGE, null);
+        // The pots around it break open, which is the whole reason a jack-in-the-box is the
+        // scariest thing in the vase level: it does not just kill what is standing there, it
+        // spills whatever the pots beside it were holding. The user: "小丑僵尸炸的时候应该会炸开
+        // 周围的花瓶". Done after the two damage passes, so a zombie that comes out of one of those
+        // pots is not immediately killed by the blast that released it.
+        level.breakContainers(x, y, plantRadius);
         // And the box takes its owner with it: no corpse, no head, gone this tick. Every other
         // death leaves a body for `CORPSE_TICKS` so the death clip can be read, and a body that
         // blew itself up has nothing left to read - the cloud below is the whole funeral. The

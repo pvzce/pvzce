@@ -149,6 +149,21 @@ public interface LevelAccess {
     ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row);
 
     /**
+     * Opens every container within {@code radius} cells of a point.
+     *
+     * <p>"Container" is the vase level's vocabulary: one of its scary pots, or one of the player's
+     * own garden vases. What comes out is whatever was inside - a card as a packet on the lawn, a
+     * zombie, a bundle of sun - exactly as if the player had clicked it open.
+     *
+     * <p>Its one caller is the jack-in-the-box zombie's blast, which is the original's own rule:
+     * a jack-in-the-box that goes off among the pots takes them with it, and that is what makes
+     * "which pot do I break first" the level's decision. Everyone else who wants a container open
+     * has a player standing there to click it.
+     */
+    default void breakContainers(float centerX, float centerY, float radius) {
+    }
+
+    /**
      * Hits every zombie within {@code radius} cells of a point with one damage type.
      *
      * <p>The type is the caller's declaration of what kind of hit this is, and it is

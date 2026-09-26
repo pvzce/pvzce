@@ -675,6 +675,53 @@ class ScaryPotterTest {
         }
     }
 
+    /**
+     * A jack-in-the-box going off opens the pots around it.
+     *
+     * <p>The user: "小丑僵尸炸的时候应该会炸开周围的花瓶". It is the original's own rule and the
+     * reason the level's pot order matters: the blast does not only kill what is standing there, it
+     * spills whatever the pots beside it were holding - which is how one bad swing turns into three
+     * zombies.
+     */
+    @Test
+    void aJackInTheBoxBlastOpensThePotsAroundIt() {
+        // A pot field of this test's own: one round, one pot, laid out where the level says.
+        LevelDef base = level();
+        java.util.List<TypedMechanic> mechanics = new java.util.ArrayList<>();
+        for (TypedMechanic mechanic : base.mechanics()) {
+            if (!(mechanic.value() instanceof ScaryPotterData)) {
+                mechanics.add(mechanic);
+            }
+        }
+        mechanics.add(TypedMechanic.of(PvzceIds.MECHANIC_SCARY_POTTER,
+                new ScaryPotterData(java.util.List.of(new ScaryPotterData.Round(6, 0,
+                        java.util.List.of(new ScaryPotterData.Pot(
+                                ScaryPotterData.KIND_ZOMBIE, PvzceIds.id("basic_zombie"), 1)))))));
+        LevelServer level = new LevelServer(TestLevels.copy(base).mechanics(mechanics).build());
+        Bridge bridge = new Bridge();
+        List<int[]> standing = pots(level);
+        assertEquals(1, standing.size(), "one pot, one zombie inside it");
+        int[] pot = standing.get(0);
+
+        // The jack appears beside it and opens its box; the walk is what a pot skips.
+        ZombieEntity jack = level.spawnZombie(PvzceIds.id("jack_in_the_box_zombie"),
+                level.team(PvzceIds.ZOMBIE_TEAM), pot[0] + 0.5F, pot[1]);
+        level.flushPending(bridge);
+        assertNotNull(jack);
+        jack.onReleased(level);
+
+        // Through the wind-up, and then the blast.
+        for (int i = 0; i < 400 && ScaryPotterMechanic.isPot(level, pot[0], pot[1]); i++) {
+            level.tick(bridge);
+        }
+
+        assertFalse(ScaryPotterMechanic.isPot(level, pot[0], pot[1]),
+                "the blast opens the pot beside it");
+        assertEquals(1, level.hostileZombieCount(),
+                "and the zombie that was inside is out on the lawn, alive: the blast that released"
+                        + " it is not also what kills it");
+    }
+
     /** The seed packet lying in a cell, or {@code null} when there is none. */
     private static CardDropEntity cardDropAt(LevelServer level, int x, int y) {
         for (var entity : level.entities()) {

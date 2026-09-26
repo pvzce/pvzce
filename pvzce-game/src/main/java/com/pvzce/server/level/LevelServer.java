@@ -1511,6 +1511,32 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         };
     }
 
+    /**
+     * Opens every container the blast covers: the scary pots, and the player's own vases.
+     *
+     * <p>Both kinds go through the same two methods a click goes through ({@link #smashPot} and
+     * {@link #smashVase}), so a pot opened by a blast delivers exactly what it would have delivered
+     * to a swing - its card, its zombie, or its sun - and the messages the player sees are the same
+     * ones. The footprint is the blast's own, one cell of reach per radius unit, which is the same
+     * measure {@link #killPlantsAround} uses for the plants standing there.
+     */
+    @Override
+    public void breakContainers(float centerX, float centerY, float radius) {
+        float limit = Math.max(0F, radius);
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                if (Math.abs(x + 0.5F - centerX) > limit || Math.abs(y + 0.5F - centerY) > limit) {
+                    continue;
+                }
+                if (ScaryPotterMechanic.isPot(this, x, y)) {
+                    smashPot(x, y);
+                } else if (isVaseAt(x, y)) {
+                    smashVase(x, y);
+                }
+            }
+        }
+    }
+
     @Override
     public void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius, int damage,
                            Team sourceTeam, boolean square) {
