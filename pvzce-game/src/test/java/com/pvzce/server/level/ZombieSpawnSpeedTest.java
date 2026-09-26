@@ -52,9 +52,11 @@ class ZombieSpawnSpeedTest {
      */
     private static LevelDef level(float spawnSpeed) {
         WaveDef first = new WaveDef(WaveDef.WaveType.SMALL, 120, 0, List.of(
-                new WaveDef.Entry(PvzceIds.id("basic_zombie"), 4)), 240, Optional.of(0));
+                new WaveDef.Entry(PvzceIds.id("basic_zombie"), 4)),
+                Optional.of(240), Optional.of(0));
         WaveDef second = new WaveDef(WaveDef.WaveType.FINAL, 480, 0, List.of(
-                new WaveDef.Entry(PvzceIds.id("basic_zombie"), 1)), 240, Optional.of(0));
+                new WaveDef.Entry(PvzceIds.id("basic_zombie"), 1)),
+                Optional.of(240), Optional.of(0));
         Map<Identifier, JsonElement> rules = spawnSpeed == 1F
                 ? Map.of()
                 : Map.of(PvzceIds.RULE_ZOMBIE_SPAWN_SPEED_MULTIPLIER,

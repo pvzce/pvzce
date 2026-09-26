@@ -419,7 +419,7 @@ class BobsledJackPogoTest {
     /** One wave, one zombie, arriving at once - the three tests below are about what it becomes. */
     private static List<WaveDef> waves(Identifier zombie) {
         return List.of(new WaveDef(WaveDef.WaveType.SMALL, 1, 0,
-                List.of(new WaveDef.Entry(zombie, 1)), 15, Optional.of(0)));
+                List.of(new WaveDef.Entry(zombie, 1)), Optional.of(15), Optional.of(0)));
     }
 
     /** The zamboni's trail, painted directly: what the bobsled's lane rule reads. */

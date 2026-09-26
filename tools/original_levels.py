@@ -57,6 +57,15 @@ ZOMBIE_COUNTDOWN_BEFORE_FLAG = 4500
 SECOND_LEVEL_FIRST_WAVE = 5000
 #: A mini-boss level (`IsMiniBossLevel`: 1-10, 2-10, 3-10) opens almost immediately.
 MINI_BOSS_FIRST_WAVE = 100
+#: This project's own opening for a conveyor level (1-5, 2-5, 3-5, 4-10), in ticks.
+#:
+#: The original's 1800 is a *setup* wait: the player has a lawn to plant and a sun economy to
+#: start, and the thirty seconds are what being ready costs. A conveyor level has neither - its
+#: cards arrive off the belt by themselves and there is nothing to save up for - so the same
+#: thirty seconds is half a minute of empty lawn with nothing to do. Twenty is long enough to
+#: watch the belt arrive and place the first card. The three mini-boss levels keep the original's
+#: 100: their opening is part of what makes them one.
+CONVEYOR_FIRST_WAVE = 1200
 #: How long before a flag wave the game raises the banner (``mHugeWaveCountDown = 750``).
 HUGE_WAVE_WARNING_TICKS = 750
 #: Waves per flag for a level with ten waves or more; a shorter level flags its last wave only.
@@ -284,6 +293,13 @@ class LevelFacts:
     #: (three rounds of vases, no waves at all).
     whack_a_zombie: bool
     scary_potter: bool
+    #: 4-10 is the game's one thunderstorm: the lawn is black and lightning is the only light.
+    #:
+    #: A flag of its own rather than "level 40" written into the level builder, because what was
+    #: missed about this level is not a number but a *kind*: it is a conveyor level, and while the
+    #: card table is keyed by level number, the fact that says "this level deals cards at all" is
+    #: this one - a conveyor table nobody reads is exactly how 4-10 shipped as an ordinary level.
+    storm: bool = False
 
     @property
     def name(self) -> str:
@@ -314,8 +330,13 @@ class LevelFacts:
 
     @property
     def conveyor(self) -> bool:
-        """``HasConveyorBeltSeedBank`` for adventure levels."""
-        return self.mini_boss or self.wallnut_bowling or self.little_trouble
+        """``HasConveyorBeltSeedBank`` for adventure levels.
+
+        The storm is in this list rather than only in the card table: the original's 4-10 hands
+        the player its cards off a belt like the other area finales, and the area's own table
+        (``CONVEYORS[40]`` in the level writer) is what it deals.
+        """
+        return self.mini_boss or self.wallnut_bowling or self.little_trouble or self.storm
 
     @property
     def fog_column(self) -> Optional[float]:
@@ -334,6 +355,8 @@ class LevelFacts:
             return MINI_BOSS_FIRST_WAVE
         if self.number == 2:
             return SECOND_LEVEL_FIRST_WAVE
+        if self.conveyor:
+            return CONVEYOR_FIRST_WAVE
         return ZOMBIE_COUNTDOWN_FIRST_WAVE
 
     @property
@@ -434,6 +457,7 @@ def level_facts(number: int) -> LevelFacts:
         mini_boss=number in (10, 20, 30),
         whack_a_zombie=number == 15,
         scary_potter=number == 35,
+        storm=number == 40,
     )
 
 

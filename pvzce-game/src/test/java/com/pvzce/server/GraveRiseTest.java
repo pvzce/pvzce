@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 
@@ -68,7 +69,8 @@ class GraveRiseTest {
      */
     private static LevelDef withFinalWaveOnly(LevelDef source) {
         List<WaveDef> waves = List.of(new WaveDef(WaveDef.WaveType.FINAL, 1, 0,
-                List.of(new WaveDef.Entry(PvzceIds.id("basic_zombie"), 1)), 15));
+                List.of(new WaveDef.Entry(PvzceIds.id("basic_zombie"), 1)),
+                Optional.of(15), Optional.empty()));
         return withRulesAndWaves(source, source.rules(), waves);
     }
 

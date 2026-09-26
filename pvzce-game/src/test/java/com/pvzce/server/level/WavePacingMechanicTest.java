@@ -89,7 +89,7 @@ class WavePacingMechanicTest {
     private static WaveDef wave(WaveDef.WaveType type, int delay, int count) {
         return new WaveDef(type, delay, 0, List.of(
                 new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), count)),
-                30, Optional.of(0));
+                Optional.of(30), Optional.of(0));
     }
 
     /** Kills every zombie on the lawn, the way a player's plants do. */

@@ -141,7 +141,7 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1800,
+      "delay": 1200,
       "entries": [
         {
           "id": "pvzce:mini_conehead_zombie",

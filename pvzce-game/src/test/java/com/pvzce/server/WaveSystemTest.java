@@ -250,9 +250,11 @@ class WaveSystemTest {
     void eachWaveReleasesAtItsOwnInterval() {
         LevelDef def = testLevel(1F, List.of(
                 new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)), 5),
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)),
+                        Optional.of(5), Optional.empty()),
                 new WaveDef(WaveDef.WaveType.FINAL, 30, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)), 300)));
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)),
+                        Optional.of(300), Optional.empty())));
         LevelServer level = new LevelServer(def);
         CapturingBridge bridge = new CapturingBridge();
 
@@ -372,33 +374,34 @@ class WaveSystemTest {
     }
 
     /**
-     * Only the first two waves pace themselves by the player's kills; the third pours.
+     * A wave that wrote its interval pours on that clock, alive or not.
      *
-     * <p>The pacing is for the opening, where the player is still building - and it stops there.
-     * A wave that kept waiting for each death would turn a five-zombie wave into five waits, and
-     * a level into a slog; this is the boundary, on one level, with the field left standing so
-     * nothing but the gate decides when the next zombie comes.
+     * <p>Writing {@code spawn_interval} is the wave saying how fast it wants to be, so the
+     * opening death gate - whose whole job is to answer that question with the player's kills -
+     * does not apply to it (see {@link WaveDef#holdUntilDead(int)}). These three waves all say,
+     * so the field is left standing door to door and the arrivals have to land on the numbers
+     * written rather than on a twenty-second wait.
      */
     @Test
-    void theThirdWaveReleasesOnItsIntervalInsteadOfWaitingForKills() {
+    void aWaveThatWritesItsIntervalReleasesOnItInsteadOfWaitingForKills() {
         LevelDef def = gatedLevel(1F, List.of(
                 new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)), 300),
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)),
+                        Optional.of(300), Optional.empty()),
                 new WaveDef(WaveDef.WaveType.SMALL, 20, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)), 300),
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)),
+                        Optional.of(300), Optional.empty()),
                 new WaveDef(WaveDef.WaveType.SMALL, 30, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3)), 60)));
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3)),
+                        Optional.of(60), Optional.empty())));
         LevelServer level = new LevelServer(def);
         CapturingBridge bridge = new CapturingBridge();
 
-        // The first zombie arrives; nothing kills it, so the gate holds the second one on the
-        // next wave for twenty seconds and then lets go (the cap). Measured as a gap, not as an
-        // absolute tick: the cap and the wave's own delay both contribute, and which of them
-        // the arrival lands on is not what this test is about.
+        // Nothing kills the first zombie, so a gated wave 2 would hold its own arrival for the
+        // twenty-second cap. It arrives on its written 20-tick delay instead.
         assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
-        int afterFirstGate = tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2);
-        assertTrue(afterFirstGate >= 10 + WaveDef.DEFAULT_EARLY_HOLD_TICKS,
-                "wave 2 waited on the cap (" + afterFirstGate + "), not on the wave's interval");
+        assertEquals(30, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2),
+                "wave 2 is on its own 20-tick delay, not on the gate's cap");
 
         // Wave 3's own zombies come out on its 60-tick interval, whether or not the field is
         // still occupied - that is what "later waves do not wait" has to mean to be worth
@@ -521,7 +524,7 @@ class WaveSystemTest {
         LevelDef def = gatedLevel(1F, List.of(
                 new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
                         new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 2)),
-                        15, Optional.of(0)),
+                        Optional.of(15), Optional.of(0)),
                 new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
                         new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
         LevelServer level = new LevelServer(def);
@@ -537,7 +540,8 @@ class WaveSystemTest {
     void aHugeOpeningWaveIsNotGated() {
         LevelDef def = gatedLevel(1F, List.of(
                 new WaveDef(WaveDef.WaveType.HUGE, 10, 5, List.of(
-                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3)), 15),
+                        new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 3)),
+                        Optional.of(15), Optional.empty()),
                 new WaveDef(WaveDef.WaveType.FINAL, 20, 5, List.of(
                         new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1)))));
         LevelServer level = new LevelServer(def);

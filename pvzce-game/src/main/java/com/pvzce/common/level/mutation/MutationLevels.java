@@ -250,7 +250,7 @@ public final class MutationLevels {
             }
             // (type, delay, warning, entries, spawn interval): a slow trickle, so each line has
             // time to be read between two zombies.
-            waves.add(new WaveDef(last ? WaveDef.WaveType.FINAL : WaveDef.WaveType.SMALL,
+            waves.add(WaveDef.declaringSpawnInterval(last ? WaveDef.WaveType.FINAL : WaveDef.WaveType.SMALL,
                     1500, last ? 180 : 0, entries, 300));
         }
         return List.copyOf(waves);

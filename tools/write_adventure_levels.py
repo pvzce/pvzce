@@ -64,6 +64,11 @@ MUSIC_PUZZLE = "pvzce:music/cerebrawl"
 LAND_ROWS = [0, 1, 4, 5]
 WATER_ROWS = [2, 3]
 
+#: ``WaveDef.DEFAULT_SPAWN_INTERVAL_TICKS``, the one number this script mirrors from Java: a wave
+#: that leaves ``spawn_interval`` out is paced by it *and* keeps the engine's opening death gate.
+#: Nothing here wants the default, so every wave this script writes says its interval out loud.
+DEFAULT_SPAWN_INTERVAL = 300
+
 #: Rule overrides that are this project's own tuning rather than the original's: the two
 #: minigame levels run their zombies faster than the original's walk, and Whack-a-Zombie keeps
 #: its own grave clock and sun-drop rate. Written here so a regeneration cannot silently drop
@@ -136,7 +141,29 @@ CONVEYORS: Dict[int, dict] = {
                    ("pvzce:snow_pea", 3), ("pvzce:torchwood", 2), ("pvzce:tall_nut", 2),
                    ("pvzce:spikeweed", 2), ("pvzce:jalapeno", 1),
                    ("pvzce:lily_pad", 4), ("pvzce:tangle_kelp", 2)]},
+    # 4-10, the fog world's finale and the game's one storm level: the original deals the eight
+    # plants world 4 handed out, including the two the player has just been given (the cactus
+    # that answers balloons and the split pea that answers diggers). Interval and capacity are
+    # the two long belt levels' - a finale's pressure is meant to come from the dark, not from
+    # the belt being slower than the player can plant.
+    40: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
+         "cards": [("pvzce:lily_pad", 25), ("pvzce:starfruit", 25), ("pvzce:cactus", 15),
+                   ("pvzce:sea_shroom", 10), ("pvzce:pumpkin", 10), ("pvzce:blover", 5),
+                   ("pvzce:split_pea", 5), ("pvzce:magnet_shroom", 5)]},
 }
+
+#: The one storm in the adventure: 4-10. Five seconds between strikes, 1.6 seconds of them.
+#:
+#: The interval is the level's difficulty knob and it is the level's *only* one - the wave table is
+#: the original's, the belt is the original's, and what the player has to survive is not being able
+#: to see. Five seconds is the longest gap that still lets a player who is watching the whole board
+#: act on what one strike showed them.
+#:
+#: `flash_ticks` is how long the storm has the board, not how long the board is bright: the strike's
+#: own shape (`StormState.PATTERNS`) decides how much of that span is light, and it is deliberately
+#: uneven - two or three spikes with the light dying between them. It was 30 ticks of one bright
+#: instant, which the player reported as "有光的时间太短了，且太均匀了".
+STORM = {"interval_ticks": 300, "flash_ticks": 96, "max_alpha": 0.94}
 
 #: The original's Scary Potter level (4-5): three rounds of vases, each round reaching one
 #: column further towards the house, each vase holding a plant or a zombie. Straight out of
@@ -368,10 +395,13 @@ PROSE: Dict[int, tuple] = {
     39: ("4-9 迷雾退缩",
         "雾最浓的一关。这一关不给新植物，给的是迷雾退缩：打完它，雾的边界会往右退一列半。",
         ["雾退了之后，看得见的格子就多了"]),
-    40: ("4-10 雾散",
-        "雾里的最后一夜：气球、矿工、玩偶匣、跳跳，全都来一遍。打完这一关，卷心菜投手就是你的——"
+    40: ("4-10 雷雨",
+        "雾里的最后一夜，也是这场雾的去处：雷雨压下来，草坪全黑，只有闪电亮起的那半秒看得见"
+        "僵尸在哪。卡片由传送带送来，不用管阳光。打完这一关，卷心菜投手就是你的——"
         "它是下一片草坪的第一株植物，也是唯一能越过屋顶障碍的投手。",
-        ["气球和矿工一起从雾里来，前后都要留人"]),
+        ["雷雨里草坪是全黑的，闪电亮起时才看得见僵尸在哪里",
+         "传送带免费送卡，不用管阳光",
+         "闪电亮的那一下是唯一的预警：看一眼哪几行有人，先补哪几行"]),
 }
 
 CARD_REFUSED = {"trigger": "on_card_refused"}
@@ -552,6 +582,14 @@ def mechanics_for(facts: original.LevelFacts) -> List[dict]:
     if machine_rig is not None:
         out.append(machine_rig)
 
+    # 4-10 has no fog: the original's storm level is the one fog-area level with none ("there is
+    # not actually any fog in this level, despite being on the Fog stage" - the fog of the nine
+    # levels before it is what the storm comes out of). Its darkness comes from the storm below,
+    # which covers the whole board instead of the right-hand side.
+    if facts.storm:
+        out.append(dict(STORM, type="pvzce:storm"))
+        return out
+
     fog_block = fog(facts)
     if fog_block is not None:
         out.append(fog_block)
@@ -614,7 +652,17 @@ def rules_for(facts: original.LevelFacts) -> dict:
     return rules
 
 
-def music_for(facts: original.LevelFacts) -> str:
+def music_for(facts: original.LevelFacts) -> Optional[str]:
+    """The level's background track, or ``None`` for the one level that has none.
+
+    A storm level is silent on purpose: in the original, 4-10 is the only level in the game
+    without background music, and what plays instead is the rain (see the `pvzce:storm` mechanic).
+    The level file says so by declaring no cues at all, which is also why the block is written as
+    an empty cue list rather than left out - "this level has no music" is a statement, and an
+    absent block would be indistinguishable from a level that forgot to set one.
+    """
+    if facts.storm:
+        return None
     if facts.mini_boss:
         return MUSIC_MINI_BOSS
     if facts.whack_a_zombie or facts.number in (5, 25):
@@ -622,6 +670,15 @@ def music_for(facts: original.LevelFacts) -> str:
     if facts.scary_potter:
         return MUSIC_PUZZLE
     return MUSIC[facts.kind]
+
+
+def cues_for(facts: original.LevelFacts) -> List[dict]:
+    """The level's music block: one loop at tick zero, or nothing at all for the storm."""
+    track = music_for(facts)
+    if track is None:
+        return []
+    return [{"at_tick": 0, "track": "background", "event": track,
+             "loop": True, "volume": 0.85, "fade_seconds": 1.0}]
 
 
 def background_for(facts: original.LevelFacts) -> str:
@@ -668,8 +725,13 @@ def waves_for(facts: original.LevelFacts) -> List[dict]:
             "type": wave.type,
             "delay": delay,
             "entries": [] if facts.whack_a_zombie else entries,
-            "spawn_interval": wave.spawn_interval,
         }
+        # Written only when it is not the engine's default, and *not written* means something the
+        # engine reads: a wave with no interval of its own hands its opening pace to the player's
+        # kills (`WaveDef.holdUntilDead`). These tables do say, so they get the interval they mean
+        # and no death gate.
+        if wave.spawn_interval != DEFAULT_SPAWN_INTERVAL:
+            body["spawn_interval"] = wave.spawn_interval
         if wave.warning_ticks is not None:
             body["warning_ticks"] = wave.warning_ticks
         out.append(body)
@@ -720,10 +782,7 @@ def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
         "initial_sun": facts.sun,
         "mechanics": mechanics_for(facts),
         "waves": waves_for(facts),
-        "music": {"cues": [{
-            "at_tick": 0, "track": "background", "event": music_for(facts),
-            "loop": True, "volume": 0.85, "fade_seconds": 1.0,
-        }]},
+        "music": {"cues": cues_for(facts)},
         "unlock": unlock_for(facts),
         "background": background_for(facts),
         "hidden_scene_elements": ["pvzce:grass"],
@@ -748,6 +807,32 @@ def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
         level["max_seed_slots"] = len(level["slots"])
         # Nothing to choose and no buff page to choose it on: the level starts as soon as it is
         # picked from the list, without the card screen (`seed_screen: false`).
+        level["seed_screen"] = False
+    elif facts.whack_a_zombie:
+        # 2-5 is the other level that enters without a card screen, and it did not say so for the
+        # first year of its life: it declares three plants, so the chooser had nothing on it but a
+        # "start" button - and the player was shown it every time, because `seed_screen` defaults
+        # to true and only Scary Potter had ever been marked false. The screen is not merely
+        # redundant here, it is wrong: a fixed deck is the level's whole shape ("卡槽里只有土豆雷、
+        # 墓碑吞噬者和樱桃炸弹"), and a chooser says the opposite.
+        #
+        # The sun card belongs on the bar and is written here rather than derived: `deck` names the
+        # three plants because those are the cards the original's `Board::InitLevel` hands over,
+        # while the card bar is this project's own idea of where a resource is collected from. Level
+        # 2-5 has no sky sun and no producer, so the sun off the zombies is the level's only income -
+        # and without the card in the bar that income is refused ("没有对应资源卡，无法收集"), the
+        # bank HUD never draws, and the level cannot be finished. The other sunless levels get the
+        # same treatment by the generic `facts.sun > 0` rule below; this one has no starting sun
+        # either, so it has to be asked for by name.
+        if "pvzce:sun" not in level["slots"]:
+            level["slots"] = ["pvzce:sun"] + list(level["slots"])
+        # `max_seed_slots` is pinned to the fixed cards as well, and it is the half that decides
+        # what the bar actually holds: left unwritten the bar follows the backpack, and the server
+        # fills the leftover room from the player's own card pool (`SeedSelection.defaultFor`), so
+        # a player who had unlocked more plants would be dealt them into a level that says it hands
+        # out four cards. Counted with the sun card, which is on the bar but not drawn as one
+        # (`SeedCardBar.orderCardSlots` skips it - it is the bank HUD).
+        level["max_seed_slots"] = len(level["slots"])
         level["seed_screen"] = False
     elif facts.number == 1:
         level["max_seed_slots"] = 2

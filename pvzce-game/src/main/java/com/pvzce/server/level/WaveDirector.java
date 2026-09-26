@@ -353,19 +353,31 @@ public final class WaveDirector {
             return;
         }
         if (waveIndex < roundWaves) {
-            // A wave's delay is the gap *between waves*, so it starts once the previous
-            // wave has finished releasing, not the moment it was triggered. Counting
-            // from the trigger let two waves' release queues run at once, and zombies
-            // from different waves then arrived a few seconds apart instead of on
-            // the pacing their own wave asked for - the "they all come out together" of a
-            // level whose first waves are authored ten seconds apart.
+            // A wave's delay counts from the tick the previous wave *triggered*, and the
+            // counter is only frozen while that wave is still putting its zombies out. Both
+            // halves are load-bearing:
+            //
+            // * From the trigger, because that is the moment every shipped wave table's delay
+            //   is written against (see `docs/架构-服务端.md` §4.7.2): the original resets its
+            //   countdown the tick a wave spawns, so its release window runs *inside* the gap.
+            //   Arming the countdown after the release instead charged every wave the release
+            //   time a second time - and a level's 20-30 zombie waves release for four to six
+            //   seconds each, which is where "waiting forever between waves" came from.
+            // * Frozen while it releases, because counting through the release let two waves'
+            //   queues run at once, and zombies from different waves then arrived a few seconds
+            //   apart instead of on the pacing their own wave asked for - the "they all come
+            //   out together" of a level whose first waves are authored ten seconds apart.
+            //
+            // What that leaves is `release window + max(delay - release window, 0)`: never an
+            // overlap, and never a wait longer than the author wrote plus the time their own
+            // wave takes to walk in.
             //
             // The counter is frozen rather than held at its target so the warning window
             // stays a property of the gap the author wrote: the warning shows for
             // `warning_ticks` before the wave arrives, and the arrival is this countdown
             // reaching its target.
             boolean firstWave = waveIndex == 0;
-            if (firstWave || !waveStillReleasing()) {
+            if (firstWave || !currentWaveStillReleasing()) {
                 // Two things can make this countdown shorter than written, and both are the
                 // answer to "I killed everything and the level is making me stand here": a
                 // cleared lawn (see `clearRewardApplies`) and a wave the player has already
@@ -384,10 +396,10 @@ public final class WaveDirector {
             // while the player fights, so clearing the field early never costs the gap the
             // level asked for - it only ever costs the *arrival* of a wave that is already due.
             //
-            // `waveIntervalTicks > 0` is what says a countdown has actually run: the counter is
-            // frozen at zero while the previous wave is still releasing, and a "due" test that
-            // read that zero as "the wait is over" arrived every following wave on the tick the
-            // one before it was triggered.
+            // `waveIntervalTicks > 0` is what says a countdown has actually run: the counter sits
+            // at zero on the tick a wave triggers - and stays there for as long as that wave is
+            // still putting its zombies out - so a "due" test that read that zero as "the wait is
+            // over" arrived every following wave on the tick the one before it was triggered.
             boolean due = waveIntervalTicks > 0 && waveIntervalTicks >= nextWaveTargetTicks;
             waveArrivalHeld = due && openingWaveStillOnTheField();
             if (due && !waveArrivalHeld) {
@@ -521,10 +533,13 @@ public final class WaveDirector {
     }
 
     /**
-     * True while any queue still holds zombies: the wave is on the field but not yet
-     * fully announced, and the next wave's countdown has to wait for it.
+     * True while the wave that just triggered still holds zombies to release.
+     *
+     * <p>At most one queue is ever mid-release: a wave only triggers once the one before it has
+     * emptied (see {@code tick}), so this is the current wave's own queue - which is why the flag
+     * it feeds is named for the current wave rather than for "some queue somewhere".
      */
-    private boolean waveStillReleasing() {
+    private boolean currentWaveStillReleasing() {
         for (PendingWaveSpawn queue : pendingWaveSpawns) {
             if (!queue.zombies.isEmpty()) {
                 return true;
@@ -548,14 +563,16 @@ public final class WaveDirector {
      *
      * <p>The other half of {@link WaveDef#holdUntilDead(int)}: the zombies of an opening wave
      * come one at a time, and the wave after them does not walk into the back of the last one.
-     * Only the *arrival* waits - the delay has already run, so a player who clears the field
-     * before the wave is due sees exactly the pacing the level asked for, and one who is still
-     * fighting gets the wave as soon as the field is clear. The wait is capped like the
-     * per-zombie one: a player who is losing the opening should meet the second wave late, not
-     * never.
+     * Only the *arrival* waits - the gap has already run from the trigger (see {@code tick}), so
+     * a player who clears the field before the wave is due sees exactly the pacing the level
+     * asked for, and one who is still fighting gets the wave as soon as the field is clear. The
+     * wait is capped like the per-zombie one: a player who is losing the opening should meet the
+     * second wave late, not never.
      *
-     * <p>The counter is the number of ticks already spent held, and the flag is cleared once the
-     * wait is over (either way), so a level only ever pays for this once per opening wave.
+     * <p>The counter is the number of ticks already spent held - it is only advanced on the ticks
+     * this method was actually asked, which are the ticks the wave was due - and the flag is
+     * cleared once the wait is over (either way), so a level only ever pays for this once per
+     * opening wave.
      *
      * @return true while a due wave must be held back
      */

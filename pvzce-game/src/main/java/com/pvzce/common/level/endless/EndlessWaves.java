@@ -127,8 +127,8 @@ public final class EndlessWaves {
         int zombies = entries.stream().mapToInt(WaveDef.Entry::count).sum();
         int delay = ramp.delayFor(zombies, interval);
         return huge
-                ? new WaveDef(WaveDef.WaveType.HUGE, delay, HUGE_WARNING_TICKS, entries, interval)
-                : new WaveDef(WaveDef.WaveType.SMALL, delay, 0, entries, interval);
+                ? WaveDef.declaringSpawnInterval(WaveDef.WaveType.HUGE, delay, HUGE_WARNING_TICKS, entries, interval)
+                : WaveDef.declaringSpawnInterval(WaveDef.WaveType.SMALL, delay, 0, entries, interval);
     }
 
     /**
