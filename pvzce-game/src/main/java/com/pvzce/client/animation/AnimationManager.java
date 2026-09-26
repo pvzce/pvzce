@@ -469,57 +469,6 @@ public final class AnimationManager {
     }
 
     /**
-     * A single texture that stands for this content when a full render is not wanted.
-     *
-     * <p>Used by list rows and palette entries. The old sprites under
-     * {@code textures/entities/<id>.png} are the pre-controller art and look nothing like
-     * what the game draws, so a list built from them showed art the player never sees.
-     * This picks the largest part of a controller model (the body, usually) or the first
-     * flipbook frame, which is the art the game actually uses.
-     *
-     * @return the texture id, or empty when this content has no animation resource
-     */
-    public Optional<Identifier> iconTexture(Identifier id) {
-        if (id == null) {
-            return Optional.empty();
-        }
-        Optional<AnimationFile> file = load(id);
-        if (file.isEmpty()) {
-            return Optional.empty();
-        }
-        if (file.get() instanceof ControllerFile controller) {
-            ControllerModel.Part best = null;
-            float bestArea = -1F;
-            for (ControllerModel.Bone bone : controller.model().renderOrder()) {
-                if (bone.restPose() != null && !bone.restPose().visible()) {
-                    continue;
-                }
-                for (ControllerModel.Part part : bone.parts()) {
-                    if (part.texture() == null) {
-                        continue;
-                    }
-                    float area = Math.abs(part.sizeX() * part.sizeY());
-                    if (area > bestArea) {
-                        bestArea = area;
-                        best = part;
-                    }
-                }
-            }
-            return best == null ? Optional.empty() : Optional.of(best.texture());
-        }
-        if (file.get() instanceof FlipbookFile flipbook) {
-            // clip() is typed to the AnimationClip interface, so narrow before reading frames.
-            AnimationClip idle = flipbook.clip("idle").orElse(null);
-            FlipbookClip chosen = idle instanceof FlipbookClip f ? f
-                    : flipbook.clips().values().stream().findFirst().orElse(null);
-            if (chosen != null && !chosen.frames().isEmpty()) {
-                return Optional.of(chosen.frames().get(0));
-            }
-        }
-        return Optional.empty();
-    }
-
-    /**
      * Visual reference size in world cells for the entity's current
      * animation, or {@code null} when the entity has no animation resource.
      */

@@ -8,7 +8,6 @@ import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.GuiText;
 import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
-import com.pvzce.client.gui.components.PaletteList;
 import com.pvzce.client.gui.editor.EditorContext;
 import com.pvzce.client.gui.screens.ListEditorSupport;
 import com.pvzce.client.gui.editor.EditorPage;
@@ -298,11 +297,18 @@ public final class CardsPage implements EditorPage {
         Identifier parsed = Identifier.tryParse(id);
         AbstractSelectionList<?> list = inAvailable ? availableList : poolList;
         int rowH = list == null ? 30 : list.entryHeight();
-        Identifier icon = PaletteList.iconFor(renderClient, PaletteList.Kind.ENTITY, parsed);
+        // The card's own picture, asked of the same painter the bar and the lawn packets use: a
+        // slot declares its icon, and the editor used to ask the *entity* chain instead - which is
+        // one of the two reasons this page drew a missing-texture tile for 44 of its 48 rows.
+        Identifier icon = com.pvzce.client.gui.hud.cardbar.CardPainter.icon(id);
         int iconSize = Math.max(18, (int) (rowH * 0.7F));
-        if (icon != null) {
+        if (icon != null && renderClient.hasTexture(icon)) {
             renderClient.drawTexture(icon, x, y + (rowH - iconSize) / 2F, iconSize, iconSize,
                     0.1F, 1F, 1F, 1F, 1F);
+        } else {
+            // A slot with no art of its own keeps the row's shape rather than a checkerboard.
+            SpriteRenderer.solid(x, y + (rowH - iconSize) / 2F, iconSize, iconSize, 0.1F,
+                    0.28F, 0.34F, 0.42F, 1F);
         }
         float textX = x + iconSize + 6;
         renderClient.fonts().body().draw(GuiLang.name("slot", parsed), textX, y + rowH / 2F + 1F, 0.78F, 1F, 1F, 1F, 1F);

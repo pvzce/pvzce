@@ -96,15 +96,22 @@ public final class PackScreen extends Screen {
                 ROW_HEIGHT, this::renderRow);
         addWidget(packList);
 
-        // The detail pane's two actions, along its bottom, and the page's back button in the
-        // footer. All three are placed by the canvas, so they sit in the same place relative to
-        // the panels at every window size - and the pair starts inside the frame's own border,
+        // The detail pane's three actions along its bottom, and the page's back button in the
+        // footer. All of them are placed by the canvas, so they sit in the same place relative to
+        // the panels at every window size - and the row starts inside the frame's own border,
         // which is 9 source pixels wide, rather than at the panel's outer edge.
-        float actionWidth = (RIGHT_W - 18F) / 2F;
+        //
+        // Three rather than two: "where is this pack on disk" is the question a player asks right
+        // after "why is it not loading", and the answer was previously a relative directory name
+        // in the detail line and nothing to click.
+        float actionWidth = (RIGHT_W - 18F - 16F) / 3F;
         toggleButton = canvas.widgetAt(client, RIGHT_X + 9F + actionWidth / 2F, PANEL_BOTTOM - 52F,
                 actionWidth, FOOTER_BUTTON_H, "", this::applyToggle);
         addWidget(toggleButton);
         addWidget(canvas.widgetAt(client, RIGHT_X + 9F + actionWidth * 1.5F + 8F,
+                PANEL_BOTTOM - 52F, actionWidth, FOOTER_BUTTON_H,
+                GuiLang.raw("gui.pvzce.packs.open_folder", "打开文件夹"), this::openSelectedFolder));
+        addWidget(canvas.widgetAt(client, RIGHT_X + 9F + actionWidth * 2.5F + 16F,
                 PANEL_BOTTOM - 52F, actionWidth, FOOTER_BUTTON_H,
                 GuiLang.raw("gui.pvzce.packs.reload", "重新加载"), this::requestReload));
         addWidget(canvas.widgetAt(client, MenuPageCanvas.NATIVE_WIDTH / 2F, FOOTER_Y,
@@ -286,6 +293,28 @@ public final class PackScreen extends Screen {
     }
 
     /** The toggle button: writes the list, then asks the server to rebuild its side. */
+    /**
+     * The "open folder" button: hands the selected pack's directory to the desktop.
+     *
+     * <p>The built-in pack has no directory - it is the classpath - so it says so instead of
+     * opening something unrelated. A failure to launch is reported on the page rather than
+     * swallowed, because "the button does nothing" is the report that would follow.
+     */
+    private void openSelectedFolder() {
+        if (selected == null) {
+            return;
+        }
+        if (selected.path() == null) {
+            showNotice(GuiLang.raw("gui.pvzce.packs.builtin_no_folder",
+                    "内置包在游戏里，没有可打开的文件夹"));
+            return;
+        }
+        if (!com.pvzce.client.gui.OSFolder.open(selected.path())) {
+            showNotice(GuiLang.raw("gui.pvzce.packs.open_failed", "打不开文件夹：")
+                    + selected.path());
+        }
+    }
+
     private void applyToggle() {
         if (selected == null) {
             return;

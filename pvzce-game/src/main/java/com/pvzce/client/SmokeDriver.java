@@ -63,6 +63,17 @@ final public class SmokeDriver {
     private final String smokeNewEditor = System.getProperty("pvzce.smokeNewEditor", "");
     /** Which editor page to switch to, by its lang key suffix (rule/wave/info/...). */
     private final String smokeEditorPage = System.getProperty("pvzce.smokeEditorPage", "");
+    /**
+     * Several editor pages in one launch: {@code pvzce.smokeEditorPages=<frame>:<page>,…}.
+     *
+     * <p>The editor's pages are the only place three of the four content palettes live, and one
+     * launch is allowed per change - so "look at the plant palette and the zombie palette and the
+     * card list" has to be one run. Same shape as {@code pvzce.smokeAlmanacShots}, and for the
+     * same reason: the page has to be switched from {@code beforeFrame} so that frame's PNG is
+     * the page it names.
+     */
+    private final String smokeEditorPages = System.getProperty("pvzce.smokeEditorPages", "");
+    private final java.util.Set<Long> smokeEditorPagesDone = new java.util.HashSet<>();
     /** Opens the wave table on top of the editor. */
     private final boolean smokeWaveEditor = Boolean.getBoolean("pvzce.smokeWaveEditor");
     /**
@@ -379,8 +390,15 @@ final public class SmokeDriver {
             // to render it - winning a level to reach it would make the screen
             // unreachable for a screenshot run. Same spirit as the "create" key below,
             // which posts a real dialog with a stub confirm callback.
+            //
+            // One of each kind of grant, in the page's own priority order: that is the shape the
+            // page exists for ("what did I get", with a sentence per thing), and a single card
+            // would not show the list, the descriptions or the demoted coin line.
             client.setScreenReplacing(new com.pvzce.client.gui.screens.AwardScreen(client,
-                    new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462, "pvzce:sunflower")));
+                    new LevelRewardS2C("pvzce:yard/adventure/1_1", 12, 100, 462,
+                            LevelRewardS2C.grantsOf("pvzce:sunflower", "pvzce:auto_collect",
+                                    "pvzce:diamond", 2),
+                            Float.NaN, Float.NaN, 0, 0)));
         } else if ("award_money".equals(smokeScreen)) {
             // The other branch: nothing unlocked, so the frame shows the money bag.
             client.setScreenReplacing(new com.pvzce.client.gui.screens.AwardScreen(client,
@@ -526,6 +544,7 @@ final public class SmokeDriver {
         // swapped, so a page turned in afterFrame would be one frame late in the PNG.
         applyAlmanacShots(client.currentScreen(), clientTick);
         applySmokePages(clientTick);
+        applySmokeEditorPages(clientTick);
         // Before the level request and never after: everything this hook exists to change (which
         // cards the world owns, whether it has a rake) is read when the level is built.
         if (!smokeSetup.isBlank() && !smokeSetupSent && clientTick > 2) {
@@ -627,6 +646,37 @@ final public class SmokeDriver {
                     smokeEditorHookDone = true;
                 }
             }
+        }
+    }
+
+    /**
+     * {@code pvzce.smokeEditorPages=<frame>:<page>,…}: turn the editor to a page on a frame.
+     *
+     * <p>Runs in {@code beforeFrame} like {@code smokePages}, so the frame it names is the frame
+     * the PNG shows. The page has to be re-initialised after the switch or the outgoing page's
+     * widgets are the ones drawn.
+     */
+    private void applySmokeEditorPages(long clientTick) {
+        if (smokeEditorPages.isBlank() || !(client.currentScreen() instanceof EditorScreen editor)) {
+            return;
+        }
+        for (String item : smokeEditorPages.split(",")) {
+            String[] parts = item.trim().split(":");
+            if (parts.length < 2) {
+                continue;
+            }
+            long frame;
+            try {
+                frame = Long.parseLong(parts[0].trim());
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            if (clientTick != frame || !smokeEditorPagesDone.add(frame)) {
+                continue;
+            }
+            String page = parts[1].trim();
+            editor.showPageForSmoke(page);
+            System.out.println("[SMOKE] editor frame " + frame + " -> page " + page);
         }
     }
 

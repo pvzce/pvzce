@@ -156,6 +156,23 @@ public abstract class Screen {
         public float mapY(float textureYFromTop, float textureHeight) {
             return offsetY + (textureHeight - textureYFromTop) * scale;
         }
+
+        /**
+         * The inverse: GUI x back to background-image pixels.
+         *
+         * <p>For a page that has to place authored content relative to something the
+         * <em>window</em> decides - a line just above a button that sits at the bottom edge, say -
+         * rather than relative to the art. Written here rather than at the call site so the two
+         * directions cannot drift apart.
+         */
+        public float textureX(float guiX) {
+            return scale == 0F ? 0F : (guiX - offsetX) / scale;
+        }
+
+        /** The inverse of {@link #mapY}: GUI y (bottom-up) back to top-down image pixels. */
+        public float textureY(float guiY, float textureHeight) {
+            return scale == 0F ? 0F : textureHeight - (guiY - offsetY) / scale;
+        }
     }
 
     /**

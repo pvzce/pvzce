@@ -118,7 +118,10 @@ public final class PvzcePackets {
     // 35: the shop is reachable without opening the level list, and the profile used to travel
     // only with that list - so a fresh session drew a zero wallet until a level was started and
     // left. RequestProfileC2S is the client asking for the profile on its own.
-    public static final int PROTOCOL_VERSION = 36;
+    // 36: the award packet carries every card, buff and object a clear handed over, as a list,
+    // rather than one field each - a clear can pay several, and the award page lists them all
+    // with their own descriptions instead of describing the first and silently dropping the rest.
+    public static final int PROTOCOL_VERSION = 37;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

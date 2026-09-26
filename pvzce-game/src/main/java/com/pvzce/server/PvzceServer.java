@@ -1192,10 +1192,7 @@ public final class PvzceServer implements Runnable {
         // The award screen is presentation; the wallet is already written above, so
         // a client that never renders the screen still got its coins.
         connection.send(new LevelRewardS2C(id.toString(), payout.collected(), payout.bonus(),
-                profile.coins(),
-                payout.unlocked() == null ? "" : payout.unlocked().toString(),
-                payout.unlockedBuff() == null ? "" : payout.unlockedBuff().toString(),
-                payout.item() == null ? "" : payout.item().toString(), payout.itemAmount(),
+                profile.coins(), payout.grants(),
                 current.lastKillX(), current.lastKillY(), payout.mowers(), payout.mowerCoins()));
         connection.send(profilePacket(profile));
         // The finished level's row must stop saying "进行中" without a round trip. The

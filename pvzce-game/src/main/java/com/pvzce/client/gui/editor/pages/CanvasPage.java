@@ -298,6 +298,15 @@ public final class CanvasPage implements EditorPage {
     }
 
     @Override
+    public void onClosed(EditorContext context) {
+        // The palette holds a live rig per row it has drawn; leaving the page has to drop them,
+        // or the animation manager keeps ticking forty plants nobody is looking at.
+        if (palette != null) {
+            palette.releasePreviews();
+        }
+    }
+
+    @Override
     public void render(EditorContext context) {
         renderBoard(context);
         // The tab's own hint, under the side panel's buttons; it was the canvas arm of the
@@ -334,8 +343,8 @@ public final class CanvasPage implements EditorPage {
     private void buildPalette(EditorContext context) {
         EditorContext.Rect area = context.palette();
         int rowH = MathUtil.clamp(context.content().height() / 10, 32, 48);
-        palette = context.own(new PaletteList(area.x(), area.y(), area.width(), area.height(),
-                rowH, view.paletteKind()));
+        palette = context.own(new PaletteList(context.client(), area.x(), area.y(), area.width(),
+                area.height(), rowH, view.paletteKind()));
         List<PaletteList.Item> items = switch (view.paletteKind()) {
             // Grass last, i.e. at the bottom row: the list is drawn bottom-up, and the
             // bottom row is the one nearest the board an author is painting.

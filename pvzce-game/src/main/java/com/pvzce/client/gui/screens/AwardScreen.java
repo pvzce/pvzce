@@ -49,6 +49,15 @@ public final class AwardScreen extends Screen {
     private static final float WINDOW_RIGHT = 552F;
     private static final float WINDOW_BOTTOM = 292F;
     private static final float NOTE_TOP = 342F;
+    /**
+     * The foot of the note.
+     *
+     * <p>The parchment strip the original prints its three lines on ends here. A receipt with more
+     * than three lines uses the board below it as well - the art has a wide empty plank there, and
+     * the alternative is a list that either runs into the "continue" button or stops after one
+     * entry.
+     */
+    private static final float NOTE_BOTTOM = 470F;
 
     private static final long DROP_NANOS = 620_000_000L;
     /**
@@ -61,6 +70,15 @@ public final class AwardScreen extends Screen {
     private static final long FADE_IN_NANOS = 420_000_000L;
     private static final long COIN_LIFE_NANOS = 1_500_000_000L;
     private static final int COINS_PER_BURST = 18;
+    /**
+     * How many grants the parchment describes in full.
+     *
+     * <p>A clear pays one or two in practice, and the strip has room for a handful of name +
+     * sentence pairs. Past that the page says how many more there were rather than running the
+     * last description off the bottom of the art: a receipt that is cut off is worse than one
+     * that counts.
+     */
+    private static final int MAX_LISTED_GRANTS = 4;
 
     /** One spraying coin: pure presentation, so it lives on the wall clock. */
     private record Sprinkled(float x, float y, float vx, float vy, long startNanos) {
@@ -86,6 +104,14 @@ public final class AwardScreen extends Screen {
     private final long startNanos = System.nanoTime();
     private final List<Sprinkled> coins = new ArrayList<>();
     private final Random random = new Random();
+    /**
+     * The top edge of the "continue" button, in GUI units.
+     *
+     * <p>Set by {@link #init()} because the button's height depends on the window, and the note
+     * above it has to stop there whatever the window is. Zero before the first {@code init}, which
+     * is why nothing that reads it runs earlier than the first frame.
+     */
+    private float continueTop;
 
     /**
      * The opening coin shower, played once.
@@ -166,6 +192,7 @@ public final class AwardScreen extends Screen {
         int buttonWidth = Math.min(200, client.guiWidth() - 16);
         int buttonHeight = Math.max(30, Math.min(56, client.guiHeight() / 13));
         int y = Math.max(6, (int) (client.guiHeight() * 0.06F));
+        continueTop = y + buttonHeight;
         // The wooden chooser button, not the default chrome one: this page is a wooden
         // board, and the blue button belongs to the dialogs.
         addWidget(new Button(centerX(buttonWidth), y, buttonWidth, buttonHeight,
@@ -358,40 +385,124 @@ public final class AwardScreen extends Screen {
      */
     private void renderNote(CoverFit fit, float fade) {
         float centerX = fit.mapX((WINDOW_LEFT + WINDOW_RIGHT) / 2F);
-        float scale = Math.max(0.9F, Math.min(1.5F, client.guiHeight() / 160F));
+        float scale = Math.max(0.85F, Math.min(1.35F, client.guiHeight() / 180F));
+        float width = fit.mapX(ART_WIDTH - 96F) - fit.mapX(96F);
+        // The coin line is anchored just above the continue button rather than to the art: the
+        // button is the one thing on this page the player must be able to press, and a note whose
+        // length depends on what the level paid would otherwise grow straight into it.
+        float line = client.fonts().body().lineHeight(scale);
+        // Two anchors, and the lower of the two wins: the art's own note band, and the strip just
+        // above the continue button. The button is the one thing on this page the player must be
+        // able to press, and a note whose length depends on what the level paid would otherwise
+        // grow straight into it; the 4:3 art is cropped top and bottom by a 16:9 window, so the
+        // band the original drew its three lines in is not always below the button.
+        float coinY = Math.max(fit.mapY(NOTE_BOTTOM, ART_HEIGHT), continueTop + 10F);
         float y = fit.mapY(NOTE_TOP + 8F, ART_HEIGHT);
-        if (reward.hasUnlock()) {
-            y = drawCentered(GuiLang.raw("pvzce.award.new_card", "获得新植物！"),
-                    centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
-            y = drawCentered(unlockedName, centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
-        } else if (showsBuff()) {
-            // Its own wording, because "获得新植物！" over a buff would be a lie - and the coin
-            // lines below still state what the wallet gained, since it gained nothing here.
-            y = drawCentered(GuiLang.raw("pvzce.award.new_buff", "获得关卡增益！"),
-                    centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
-            y = drawCentered(buffName, centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
-            y = drawCentered(GuiLang.raw("pvzce.award.buff_hint", "选卡时可以带上它"),
-                    centerX, y - 2F, scale * 0.82F, 0.42F, 0.3F, 0.12F);
-        } else if (showsItem()) {
-            // The object by name and count, so the receipt says what the frame is showing -
-            // and the coin lines below still state what it was worth, because the wallet is
-            // the only thing that actually changed.
-            y = drawCentered(GuiLang.raw("pvzce.award.new_item", "获得战利品！"),
-                    centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
-            y = drawCentered(rewardItemName + " ×" + rewardItemAmount,
-                    centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
-        } else {
-            // Not "click the bag to collect": there is no bag here any more, and the coins
-            // were collected on the board. This line states what the run was worth.
+        if (!reward.hasGrants()) {
+            // Nothing was handed over: the level paid coins, and the page says so. Not "click the
+            // bag to collect": there is no bag here any more, and the coins were collected on the
+            // board. These three lines state what the run was worth.
+            y = Math.max(y, coinY + line * 2F + 6F);
             y = drawCentered(GuiLang.raw("pvzce.award.coins_collected", "本局收集的金币"),
                     centerX, y, scale, 0.35F, 0.22F, 0.05F);
+            y = drawCentered(GuiLang.raw("pvzce.award.coins", "金币 +{0}")
+                            .replace("{0}", String.valueOf(reward.awardedCoins())),
+                    centerX, y - 4F, scale, 0.5F, 0.34F, 0.06F);
+            drawCentered(GuiLang.raw("pvzce.award.total", "金币总数：{0}")
+                            .replace("{0}", String.valueOf(reward.totalCoins())),
+                    centerX, y - 4F, scale * 0.9F, 0.5F, 0.34F, 0.06F);
+            return;
         }
-        y = drawCentered(GuiLang.raw("pvzce.award.coins", "金币 +{0}")
+        // Something new: the page's subject is *what*, not how much. Each thing gets its name and
+        // its own one-line description - the same sentences the almanac shows - because "获得新植物！"
+        // over an unfamiliar name tells a player nothing about what they just earned. The coins
+        // are what the wallet gained rather than the news, so they drop to one small line at the
+        // foot.
+        //
+        // The list is bounded twice: by how many entries are worth spelling out, and by the room
+        // between the heading and that coin line. It fills greedily one line at a time - a name
+        // always beats a sentence, so the player learns *what* they were given even when there is
+        // only room for the names, and whatever still does not fit is counted rather than clipped.
+        float listFloor = coinY + line + 6F;
+        y = drawCentered(headingFor(reward.grants().get(0)), centerX, y, scale * 1.15F,
+                0.35F, 0.22F, 0.05F);
+        int listed = 0;
+        for (LevelRewardS2C.Grant grant : reward.grants()) {
+            if (listed >= MAX_LISTED_GRANTS || y - line < listFloor) {
+                break;
+            }
+            y = drawCentered(nameOf(grant), centerX, y - 6F, scale, 0.45F, 0.3F, 0.08F);
+            listed++;
+            String description = descriptionOf(grant);
+            if (!description.isEmpty() && y - line >= listFloor) {
+                y = drawCenteredWrapped(description, centerX, y, width, scale * 0.78F,
+                        0.42F, 0.3F, 0.12F);
+            }
+        }
+        if (reward.grants().size() > listed) {
+            drawCentered(GuiLang.raw("pvzce.award.more_items", "还有 {0} 件")
+                            .replace("{0}", String.valueOf(reward.grants().size() - listed)),
+                    centerX, listFloor, scale * 0.85F, 0.45F, 0.32F, 0.1F);
+        }
+        drawCentered(GuiLang.raw("pvzce.award.coins", "金币 +{0}")
                         .replace("{0}", String.valueOf(reward.awardedCoins())),
-                centerX, y - 10F, scale, 0.5F, 0.34F, 0.06F);
-        drawCentered(GuiLang.raw("pvzce.award.total", "金币总数：{0}")
-                        .replace("{0}", String.valueOf(reward.totalCoins())),
-                centerX, y - 6F, scale * 0.9F, 0.5F, 0.34F, 0.06F);
+                centerX, coinY, scale * 0.85F, 0.5F, 0.34F, 0.06F);
+    }
+
+    /** The heading over a grant: which registry it came from decides the wording. */
+    private static String headingFor(LevelRewardS2C.Grant grant) {
+        return switch (grant.kind()) {
+            case CARD -> GuiLang.raw("pvzce.award.new_card", "获得新植物！");
+            case BUFF -> GuiLang.raw("pvzce.award.new_buff", "获得关卡增益！");
+            case ITEM -> GuiLang.raw("pvzce.award.new_item", "获得战利品！");
+        };
+    }
+
+    /** The language category a grant's id is named through. */
+    private static String categoryOf(LevelRewardS2C.Grant grant) {
+        return switch (grant.kind()) {
+            case CARD -> {
+                var card = SlotResolver.resolve(Identifier.tryParse(grant.id())).orElse(null);
+                yield card == null ? "plant" : SlotResolver.languageCategory(card.kind());
+            }
+            case BUFF -> "level_buff";
+            case ITEM -> "resource";
+        };
+    }
+
+    /** A grant's display name, with its count when it has one. */
+    private static String nameOf(LevelRewardS2C.Grant grant) {
+        String name = GuiLang.name(categoryOf(grant), Identifier.tryParse(grant.id()));
+        return grant.kind() == LevelRewardS2C.Grant.Kind.ITEM && grant.amount() > 1
+                ? name + " ×" + grant.amount()
+                : name;
+    }
+
+    /**
+     * A grant's own sentence, from the content's language entry.
+     *
+     * <p>The almanac's line, not a second one written for this page: "what does this plant do" has
+     * one answer in this project, and a receipt that paraphrased it would be the second place to
+     * update when a plant changes.
+     */
+    private static String descriptionOf(LevelRewardS2C.Grant grant) {
+        return GuiLang.contentOr(categoryOf(grant), Identifier.tryParse(grant.id()), "desc", "");
+    }
+
+    /**
+     * Centred text that wraps to the parchment's width.
+     *
+     * <p>{@link #drawCentered} is one line; a plant's description is a sentence, and one line of
+     * it would run off the strip. The return value is the next baseline, the same contract.
+     */
+    private float drawCenteredWrapped(String text, float centerX, float y, float maxWidth,
+                                      float scale, float r, float g, float b) {
+        for (String line : client.fonts().body().wrapLines(text, maxWidth, scale)) {
+            client.fonts().body().draw(line,
+                    centerX - client.fonts().body().width(line, scale) / 2F, y, scale, r, g, b, 1F);
+            y -= client.fonts().body().lineHeight(scale) - 1F;
+        }
+        return y;
     }
 
     /**

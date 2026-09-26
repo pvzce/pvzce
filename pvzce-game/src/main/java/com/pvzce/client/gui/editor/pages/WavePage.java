@@ -88,6 +88,17 @@ public final class WavePage implements EditorPage {
     }
 
     @Override
+    public void onClosed(EditorContext context) {
+        // Both zombie lists hold a live rig each for the rows they have drawn.
+        if (waveEntryList != null) {
+            waveEntryList.releasePreviews();
+        }
+        if (waveZombieList != null) {
+            waveZombieList.releasePreviews();
+        }
+    }
+
+    @Override
     public void build(EditorContext context) {
         EditorContext.Rect area = context.fullContent();
         int x = area.x();
@@ -145,10 +156,11 @@ public final class WavePage implements EditorPage {
         int listBottom = y + rowH + pad + 22;
         int listH = Math.max(50, listTop - listBottom);
         int listW = Math.max(80, (detailW - pad * 2 - gap) / 2);
-        waveEntryList = context.own(new PaletteList(detailX, listBottom, listW, listH,
-                MathUtil.clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
-        waveZombieList = context.own(new PaletteList(detailX + listW + gap, listBottom, listW, listH,
-                MathUtil.clamp(listH / 5, 26, 34), PaletteList.Kind.ENTITY));
+        int rowHeight = MathUtil.clamp(listH / 5, 26, 34);
+        waveEntryList = context.own(new PaletteList(context.client(), detailX, listBottom,
+                listW, listH, rowHeight, PaletteList.Kind.ENTITY));
+        waveZombieList = context.own(new PaletteList(context.client(), detailX + listW + gap,
+                listBottom, listW, listH, rowHeight, PaletteList.Kind.ENTITY));
         waveZombieList.setItems(BuiltInRegistries.ZOMBIES.keySet().stream()
                 .sorted()
                 .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, "zombie", id, null))

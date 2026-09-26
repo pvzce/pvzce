@@ -8,6 +8,8 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.server.level.LevelServer;
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,8 +39,16 @@ final class RewardSettlement {
      * @param mowerCoins  what those mowers are worth, sent beside {@code bonus} so the page can
      *                    show coins flying without recomputing a price
      */
+    /**
+     * What the run paid, in the one shape the receipt is built from.
+     *
+     * <p>{@code grants} is every card, buff and object handed over, in the award page's own
+     * priority order - see {@code LevelRewardS2C.Grant}. It is a list because a clear can pay
+     * more than one: the three single-valued fields this replaces could only ever report the
+     * first of each kind, and the rest were paid with nothing on screen to say so.
+     */
     record Payout(int collected, int bonus, int mowers, int mowerCoins,
-                  Identifier unlocked, Identifier unlockedBuff, Identifier item, int itemAmount) {
+                  List<com.pvzce.common.network.packet.LevelRewardS2C.Grant> grants) {
         /** Coins the wallet is given: what the run picked up, plus the bonus. */
         int totalCoins() {
             return collected + bonus;
@@ -59,21 +69,57 @@ final class RewardSettlement {
         int collected = collectedCoins(current);
         Outcome outcome = plantWin
                 ? applyLevelRewards(id, current.def().rewards(), firstClear, profile)
-                : new Outcome(0, null, null, null, 0);
+                : Outcome.NOTHING;
         int mowers = plantWin ? current.readyMowerCount() : 0;
         int mowerCoins = mowers * mowerCoinValue();
         profile.grantCoins(collected + outcome.bonus() + mowerCoins);
         return new Payout(collected, outcome.bonus() + mowerCoins, mowers, mowerCoins,
-                outcome.unlocked(), outcome.unlockedBuff(), outcome.item(), outcome.itemAmount());
+                outcome.grants());
     }
 
     /**
-     * What one payout granted: the coin bonus, the first card it unlocked, the first buff it
-     * unlocked, and the first resource it paid out (with how many). All three of the last are
-     * "what the award page draws instead of cash", and the page takes the first one that is set.
+     * What one payout granted: the coin bonus, and every card, buff and object it handed over.
+     *
+     * <p>All of the grants are "what the award page draws instead of cash". The list is in the
+     * page's priority order - cards, then buffs, then objects - so the head of it is the one the
+     * frame draws and the rest are lines under it.
      */
-    record Outcome(int bonus, Identifier unlocked, Identifier unlockedBuff, Identifier item,
-                   int itemAmount) {
+    record Outcome(int bonus,
+                   List<com.pvzce.common.network.packet.LevelRewardS2C.Grant> grants) {
+        /** A run that granted nothing: a loss, or a level that pays only coins. */
+        static final Outcome NOTHING = new Outcome(0, List.of());
+
+        /** The first card granted, or {@code null}; the first of each kind is what the frame draws. */
+        Identifier unlocked() {
+            return first(com.pvzce.common.network.packet.LevelRewardS2C.Grant.Kind.CARD);
+        }
+
+        /** The first buff granted, or {@code null}. */
+        Identifier unlockedBuff() {
+            return first(com.pvzce.common.network.packet.LevelRewardS2C.Grant.Kind.BUFF);
+        }
+
+        /** The first object granted, or {@code null}. */
+        Identifier item() {
+            return first(com.pvzce.common.network.packet.LevelRewardS2C.Grant.Kind.ITEM);
+        }
+
+        /** How many of that object, or zero. */
+        int itemAmount() {
+            return grants.stream()
+                    .filter(grant -> grant.kind()
+                            == com.pvzce.common.network.packet.LevelRewardS2C.Grant.Kind.ITEM)
+                    .mapToInt(com.pvzce.common.network.packet.LevelRewardS2C.Grant::amount)
+                    .findFirst().orElse(0);
+        }
+
+        private Identifier first(com.pvzce.common.network.packet.LevelRewardS2C.Grant.Kind kind) {
+            return grants.stream()
+                    .filter(grant -> grant.kind() == kind)
+                    .map(grant -> Identifier.tryParse(grant.id()))
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst().orElse(null);
+        }
     }
 
     /**
@@ -104,10 +150,9 @@ final class RewardSettlement {
     static Outcome applyLevelRewards(Identifier id, LevelRewards rewards, boolean firstClear,
                                      PlayerProfile profile) {
         int bonus = 0;
-        Identifier unlocked = null;
-        Identifier unlockedBuff = null;
-        Identifier rewardItem = null;
-        int rewardItemAmount = 0;
+        List<com.pvzce.common.network.packet.LevelRewardS2C.Grant> cards = new ArrayList<>();
+        List<com.pvzce.common.network.packet.LevelRewardS2C.Grant> buffs = new ArrayList<>();
+        List<com.pvzce.common.network.packet.LevelRewardS2C.Grant> items = new ArrayList<>();
         // Buffs first, and from the *first clear* block only, for the same reason cards are: a
         // rule the player may switch on is news, while repeat coins are a stipend.
         for (LevelRewards.Reward reward : rewards.firstClear()) {
@@ -126,8 +171,8 @@ final class RewardSettlement {
                         + " The reward does nothing.", id, buff);
                 continue;
             }
-            if (profile.unlockBuff(buff) && unlockedBuff == null) {
-                unlockedBuff = buff;
+            if (profile.unlockBuff(buff)) {
+                buffs.add(com.pvzce.common.network.packet.LevelRewardS2C.Grant.buff(buff.toString()));
             }
         }
         for (LevelRewards.Reward reward : rewards.firstClear()) {
@@ -146,8 +191,8 @@ final class RewardSettlement {
                         + " The reward does nothing.", id, card);
                 continue;
             }
-            if (profile.unlock(card) && unlocked == null) {
-                unlocked = card;
+            if (profile.unlock(card)) {
+                cards.add(com.pvzce.common.network.packet.LevelRewardS2C.Grant.card(card.toString()));
             }
         }
         for (LevelRewards.Reward reward : firstClear ? rewards.firstClear() : rewards.repeat()) {
@@ -158,16 +203,19 @@ final class RewardSettlement {
                 ResourceDef def = BuiltInRegistries.RESOURCES.get(resource);
                 int worth = def == null ? 0 : Math.max(0, def.defaultValue());
                 bonus += worth * Math.max(0, reward.amount());
-                if (rewardItem == null) {
-                    // The page's frame holds one object, so the first entry is the one drawn -
-                    // the same convention ``unlock`` already follows with its cards. A second
-                    // entry is still paid; it just has no picture of its own.
-                    rewardItem = resource;
-                    rewardItemAmount = reward.amount();
-                }
+                // Every entry is reported, not just the first: a level that pays two objects
+                // hands over two, and the page lists what it was actually given.
+                items.add(com.pvzce.common.network.packet.LevelRewardS2C.Grant.item(
+                        resource.toString(), Math.max(0, reward.amount())));
             }
         }
-        return new Outcome(bonus, unlocked, unlockedBuff, rewardItem, rewardItemAmount);
+        // The page's order, not the granting order: the frame holds the head of this list.
+        List<com.pvzce.common.network.packet.LevelRewardS2C.Grant> grants = new ArrayList<>(
+                cards.size() + buffs.size() + items.size());
+        grants.addAll(cards);
+        grants.addAll(buffs);
+        grants.addAll(items);
+        return new Outcome(bonus, List.copyOf(grants));
     }
 
     /**
