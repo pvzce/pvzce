@@ -136,14 +136,21 @@ public final class PvzceWindow implements AutoCloseable {
         setVsync(config.vsync());
         GL.createCapabilities();
         com.pvzce.client.renderer.RenderSystem.enableDebugOutput();
-        if (config.fullscreen()) {
-            setFullscreen(true);
-        }
         GL20.glViewport(0, 0, width, height);
         // Consume and report startup errors here rather than letting the frame loop's single
         // glGetError attribute them to a frame that had nothing to do with them.
         com.pvzce.client.renderer.RenderSystem.checkGlError("窗口初始化");
         GLFW.glfwShowWindow(handle);
+        // ★ Show before going fullscreen, and on Wayland that order is the whole ballgame: GLFW
+        // creates the xdg_surface/xdg_toplevel in `glfwShowWindow` (wl_window.c: "The XDG surface and
+        // role are created here"), and its fullscreen request is `xdg_toplevel_set_fullscreen` guarded
+        // by `window->wl.xdg.toplevel != NULL`. Asking while the window is still hidden therefore
+        // sends nothing, leaves GLFW's own state saying "fullscreen" (and the idle inhibitor set), and
+        // the game renders at the monitor size while the compositor was never told - a window that
+        // never appears is what that looks like on a Wayland desktop.
+        if (config.fullscreen()) {
+            setFullscreen(true);
+        }
     }
 
     public boolean shouldClose() {
@@ -229,6 +236,21 @@ public final class PvzceWindow implements AutoCloseable {
             GLFW.glfwGetWindowSize(handle, w, h);
             return h.get(0);
         }
+    }
+
+    /**
+     * The primary monitor's video mode as {@code WxH@R}, or {@code "?"} when there is none.
+     *
+     * <p>Part of the startup line: on a multi-monitor desktop "which monitor did fullscreen land on,
+     * and at what size" is the first question a "the window is not there" report needs answered.
+     */
+    public String monitorMode() {
+        long monitor = GLFW.glfwGetPrimaryMonitor();
+        if (monitor == MemoryUtil.NULL) {
+            return "?";
+        }
+        GLFWVidMode mode = GLFW.glfwGetVideoMode(monitor);
+        return mode == null ? "?" : mode.width() + "x" + mode.height() + "@" + mode.refreshRate();
     }
 
     /** The display's content scale for this window: 1.0 on an unscaled desktop. */

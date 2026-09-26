@@ -307,10 +307,11 @@ public final class PvzceClient {
         // One line that answers most of "the window is wrong / the clicks are off" reports: which
         // platform, what size the window really is, what the framebuffer is, and whether the display
         // is scaled (screen coordinates and framebuffer pixels only agree at scale 1).
-        LOGGER.info("[启动] platform={} 窗口={}x{} framebuffer={}x{} contentScale={}x{} guiScale={} 全屏={}",
+        LOGGER.info("[启动] platform={} 窗口={}x{} framebuffer={}x{} contentScale={}x{} guiScale={} 全屏={}"
+                        + " 主显示器={}",
                 GLFW.glfwGetPlatform(), window.screenWidth(), window.screenHeight(),
                 window.width(), window.height(), window.contentScaleX(), window.contentScaleY(),
-                guiScale(), window.isFullscreen());
+                guiScale(), window.isFullscreen(), window.monitorMode());
         // Seed the shader gate from the config as well as setting it in
         // beginWorldView, because the boards that render OUTSIDE a running level -
         // the seed chooser's preview and the editor's canvas - never call
