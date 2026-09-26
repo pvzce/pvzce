@@ -103,6 +103,40 @@ public final class PvzceConstants {
     /** The wallet has no ceiling; the only bound that matters is the 32-bit field it lives in. */
     public static final int COIN_LIMIT = Integer.MAX_VALUE;
 
+    /**
+     * How many suns one of the vase level's sun pots pays out: three, 75 sun.
+     *
+     * <p>The user's own number, and the original's: a pot that holds sun drops a bundle of three
+     * rather than a single sun. It is not a rounding detail - the first round of 4-5 holds two
+     * sun pots, and three suns each is exactly the 150 the level's one plant (a cherry bomb)
+     * costs, which is what makes the round's economy add up.
+     *
+     * <p>A pot's contents say <em>which</em> resource it holds ({@code kind: "sun"}); how much of
+     * it comes out is this constant, shared by the mechanic that breaks the pot and the client
+     * that draws the bundle.
+     */
+    public static final int SCARY_POT_SUN_DROPS = 3;
+    /**
+     * How far apart the suns of one bundle sit, in cells, either side of the pot's own cell.
+     *
+     * <p>Three suns dropped at one point stack into what looks like a single sun until they are
+     * collected one at a time. The gap has to be read against the size of a sun: it is drawn
+     * {@code 0.8} cells wide plus the sun's own {@code render_scale} of {@code 1.2}, so nearly a
+     * whole cell - which is why "slightly apart" is 0.42 and not 0.1.
+     */
+    public static final float SCARY_POT_SUN_SPREAD = 0.42F;
+    /**
+     * How long a seed packet a broken container dropped lies on the lawn, in ticks.
+     *
+     * <p>Twenty seconds, then it is gone. The packet is a plant the player was given and has not
+     * picked up yet, so the clock is what makes "break the pot" and "use the plant" two
+     * decisions rather than one - and the flash in the last
+     * {@link #CARD_DROP_FLASH_TICKS} is what says the second one is running out.
+     */
+    public static final int CARD_DROP_LIFETIME_TICKS = 20 * TICKS_PER_SECOND;
+    /** How long before a seed packet expires it starts flashing, in ticks. */
+    public static final int CARD_DROP_FLASH_TICKS = 5 * TICKS_PER_SECOND;
+
     private PvzceConstants() {
     }
 }

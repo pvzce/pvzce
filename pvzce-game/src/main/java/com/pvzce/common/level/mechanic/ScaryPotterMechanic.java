@@ -110,8 +110,16 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
             level.declareVictory();
             return;
         }
+        // The original sweeps the lawn between rounds, and the sweep is what makes the next
+        // round's pots fit: they are laid out over the round's whole width of columns, and
+        // leaving the player's plants standing there used to mean the pots that did not fit
+        // were silently dropped - round two could come out with no zombie pots at all, which
+        // is a round nobody can lose. Clearing is also the honest reading of the round: each
+        // one is a fresh puzzle, not a continuation of the last board.
+        int swept = level.clearPlants();
         layOutRound(level, data, state);
         level.emitEffect("", level.width() / 2F, level.height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE);
+        level.announceRound(state.round + 1, data.rounds().size(), swept);
     }
 
     @Override
@@ -196,8 +204,7 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
     }
 
     /** True when this cell holds a pot of the vase level. */
-    public static boolean isPot(LevelServer level, int x, int y) {
-        var element = level.sceneAt(x, y);
+    public static boolean isPot(LevelServer level, int x, int y) {        var element = level.sceneAt(x, y);
         return element != null
                 && (PvzceIds.POT_QUESTION.equals(element.id())
                     || PvzceIds.POT_LEAF.equals(element.id()));

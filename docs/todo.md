@@ -315,12 +315,15 @@ TCP 骨架（`TcpPacketTransport`）在清理轮删除：它已修好语义但�
 三件明确不做，做了才有必要改这一页：`.zip` / `.jar` 形式的包；`pack.mcmeta` 的依赖解析与 `pack_format` 校验
 （现在只读它的 `description`）；**世界级**数据包目录（`saves/<world>/datapacks`）—— 今天只有 `gameDir/datapacks`。
 
-### 砸花瓶掉的是"直接进卡槽的卡"，不是地上可以捡的卡片实体
+### 种子包没有拾取/落地的声音与光效
 
-用户的原话是「在原地掉落一个植物卡片，可以捡起来种植」，这一轮做成了**直接进卡槽**（`CardSource.receiveCard`）：
-本 build 没有卡牌掉落物实体，而一张躺在草坪上捡不起来的卡比直接递给玩家更糟。要做成原版那样得新增
-`CardDropEntity`（照 `ResourceDropEntity` 的形状：`collectResource` 的兄弟、渲染走卡面图标、`SaveSystem` 的一条
-`entityKind`），`LevelServer.useVase` 里那一次 `receiveCard` 换成 `spawnCardDrop(...)`。
+种子包（`CardDropEntity`）现在只有卡面本身与一句服务端消息：落地没有音效、捡起来没有闪光、种下去用的是
+植物自己的种植音。原版这几下都有反馈。要补的话走现成的 `emitEffect` + `PvzceSounds`，不必开新通道。
+
+### 回合之间清场没有逐株植物的消失表现
+
+`ScaryPotterMechanic` 进入下一回合时调 `LevelServer.clearPlants()`，玩家的植物是**整片瞬间消失**的，
+只有一句播报。要做得像样：逐株播一个枯萎/被拔掉的表现（或一小段错开的延迟），并给一声提示音。
 
 ### 花瓶里的卡不会因为"这一关发不了这张卡"而换成别的
 

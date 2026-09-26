@@ -4,6 +4,7 @@ import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.core.SeedOptions;
+import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.NbtIo;
 import org.slf4j.Logger;
@@ -64,13 +65,41 @@ public final class SeedSelection {
         }
         List<Identifier> seeds = requested == null ? null : sanitize(def, requested, profile);
         if (loadSave) {
-            // Continuing a save restores the exact card bar the player had.
+            // Continuing a save restores the exact card bar the player had - see `sanitizeSaved`
+            // for why that is not the same question `sanitize` answers.
             List<Identifier> savedSeeds = readSaved(saveDir);
             if (savedSeeds != null) {
-                seeds = sanitize(def, savedSeeds, profile);
+                seeds = sanitizeSaved(savedSeeds);
             }
         }
         return seeds == null ? defaultFor(def, profile) : seeds;
+    }
+
+    /**
+     * The bar a continued run comes back with: the one the save wrote, whole.
+     *
+     * <p><b>Not {@link #sanitize}.</b> That method answers "which of these picks may the player
+     * take into a level", and it does three things a restored bar must not have done to it: it
+     * puts the level's own cards first, it drops cards the profile does not own, and - the one
+     * that bit - it stops at {@code max_seed_slots}. A run's bar is not a set of picks: it is the
+     * bar that run is playing with, and cards can enter it without going through the chooser at
+     * all. 4-5 is the case that found this: its bar is fixed at two cards, its pots hand plants
+     * over, and on the next continue every plant the player had collected was gone, because the
+     * saved bar had been re-cut to the level's two fixed cards. The player's report was "no vase
+     * drops a plant card"; the cards had dropped, and the resume took them away.
+     *
+     * <p>What is still filtered is only what could not be put on a bar at all: an id that no
+     * longer resolves to a card (a data pack that was removed between the save and the resume).
+     * Everything else is the run's own state and comes back as written.
+     */
+    public static List<Identifier> sanitizeSaved(List<Identifier> savedSeeds) {
+        List<Identifier> result = new ArrayList<>();
+        for (Identifier seed : savedSeeds) {
+            if (seed != null && SlotResolver.resolve(seed).isPresent() && !result.contains(seed)) {
+                result.add(seed);
+            }
+        }
+        return List.copyOf(result);
     }
 
     /**

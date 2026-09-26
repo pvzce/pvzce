@@ -176,6 +176,58 @@ class SeedSelectionTest {
         assertTrue(bar.contains(SHOVEL), "nothing was saved, so the pick stands");
     }
 
+    /**
+     * A run's bar comes back whole, however it grew.
+     *
+     * <p>The bug this pins is the shape of 4-5: a level that fixes its own two cards, and pots
+     * that hand the player plants. The saved bar was re-cut to the level's {@code max_seed_slots}
+     * on every continue, so every plant the pots had handed over was gone by the next session -
+     * the player's report was "no vase drops a plant card", and the vase had dropped it and the
+     * resume had taken it away. A bar beyond the level's own card count is a state a run can be in,
+     * not a request to be filtered.
+     */
+    @Test
+    void aContinuedSaveKeepsACardTheLevelDoesNotDeal(@TempDir Path gameDir) throws Exception {
+        Path saveDir = gameDir.resolve("levels/vase_level");
+        java.nio.file.Files.createDirectories(saveDir);
+        CompoundTag save = new CompoundTag();
+        ListTag slots = new ListTag();
+        // What 4-5 hands out: the level's own two cards, plus a plant a pot gave the player.
+        for (Identifier card : List.of(SUN, PEA, SUNFLOWER)) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("def", card.toString());
+            slots.add(entry);
+        }
+        save.put("Slots", slots);
+        NbtIo.writeCompressed(save, saveDir.resolve("level.dat"));
+
+        // A two-slot level whose own cards are the whole bar: exactly the vase level's shape.
+        LevelDef def = level(List.of(SUN, PEA), 2);
+        List<Identifier> bar = SeedSelection.plan(def, profileOwning(), List.of(), saveDir, true, false);
+        assertEquals(List.of(SUN, PEA, SUNFLOWER), bar,
+                "the run's bar comes back as it was, not re-cut to max_seed_slots");
+    }
+
+    /** A card a continued save names that no longer resolves is dropped; the rest stays. */
+    @Test
+    void aContinuedSaveDropsACardThatNoLongerExists(@TempDir Path gameDir) throws Exception {
+        Path saveDir = gameDir.resolve("levels/gone");
+        java.nio.file.Files.createDirectories(saveDir);
+        CompoundTag save = new CompoundTag();
+        ListTag slots = new ListTag();
+        for (Identifier card : List.of(SUN, Identifier.withDefaultNamespace("card_that_left"))) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("def", card.toString());
+            slots.add(entry);
+        }
+        save.put("Slots", slots);
+        NbtIo.writeCompressed(save, saveDir.resolve("level.dat"));
+
+        LevelDef def = level(List.of(SUN), 2);
+        List<Identifier> bar = SeedSelection.plan(def, profileOwning(), List.of(), saveDir, true, false);
+        assertEquals(List.of(SUN), bar, "a card the data pack no longer has cannot be put on a bar");
+    }
+
     /** The bar size is the level's declaration, or the backpack's when it declares none. */
     @Test
     void theBarSizeFollowsTheLevelThenTheBackpack() {

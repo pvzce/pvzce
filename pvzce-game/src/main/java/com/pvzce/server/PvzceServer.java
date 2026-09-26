@@ -1286,6 +1286,21 @@ public final class PvzceServer implements Runnable {
                 if (current != null) {
                     current.collectResource(bridge, collect.entityId());
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.PickUpCardC2S pickUp) {
+                // A click on a seed packet on the lawn. The client decides which packet is under
+                // the cursor (it draws them) and the server decides whether it is still there and
+                // whether the player's hand is free - the same split every other click has.
+                if (current != null) {
+                    current.pickUpCardDrop(bridge, pickUp.entityId());
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.PlantHeldCardC2S plantHeld) {
+                if (current != null) {
+                    current.plantHeldCard(bridge, plantHeld.gridX(), plantHeld.gridY());
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.ReleaseHeldCardC2S) {
+                if (current != null) {
+                    current.releaseHeldCard(bridge);
+                }
             } else if (packet instanceof com.pvzce.common.network.packet.ReleaseMowerC2S mower) {
                 if (current != null) {
                     current.releaseMower(mower.row());

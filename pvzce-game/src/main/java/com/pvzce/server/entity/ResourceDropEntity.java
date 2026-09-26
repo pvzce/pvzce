@@ -65,9 +65,12 @@ public class ResourceDropEntity extends PvzceEntity {
      * @param motion overrides the resource's own {@code drop_motion}, or {@code null} to
      *               use it. A sunflower's sun is the case: the resource is "a sun", but
      *               this particular one came out of a flower.
-     * @param driftX how far sideways a {@code RISE} arc throws this drop, in cells. Rolled by
+     * @param driftX how far sideways this drop sits from its cell's centre, in cells. Rolled by
      *               the caller from the level's own {@code Random} - entities never allocate
      *               one - so a drop keeps the throw it was given, including across a save.
+     *               A {@code RISE} arc travels it while it floats up; a {@code FALL} drop simply
+     *               starts there, which is how one pot's bundle of suns lands side by side
+     *               instead of stacked on one point.
      */
     public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount,
                               ResourceDef.DropMotion motion, float driftX) {
@@ -88,7 +91,10 @@ public class ResourceDropEntity extends PvzceEntity {
                 ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE
                 : renderScale;
         switch (motion()) {
-            case FALL -> setHeight(START_HEIGHT);
+            case FALL -> {
+                setHeight(START_HEIGHT);
+                setCellX(cellX() + driftX);
+            }
             case RISE, LANDED -> {
                 setHeight(0F);
                 landed = motion() == ResourceDef.DropMotion.LANDED;

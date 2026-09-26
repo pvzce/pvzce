@@ -57,6 +57,19 @@ public final class EntityVisuals {
      */
     private static final Visuals DROP = new Visuals(0.38F, 0.8F, 0.8F, 0.4F, 0.38F, 0.35F, 30);
     /**
+     * A seed packet lying on the lawn.
+     *
+     * <p>Its own row rather than {@link #DROP}'s: the packet is drawn from the card's own art (a
+     * fixed-size picture of a seed packet, not an animation), and it is a cell tall - the drop's
+     * numbers would draw it as a square. Same layer and bucket as a drop, because it is the same
+     * thing to the player: something on the lawn that has to be clicked.
+     *
+     * <p>Centred on the cell it fell in rather than standing on the cell's floor like a plant: a
+     * card lying on the grass is not something with feet, and the anchor a plant is drawn from put
+     * it in the cell above the one the pot stood in.
+     */
+    private static final Visuals CARD_DROP = new Visuals(0F, 0.72F, 1.0F, 0.36F, 0.5F, 0.35F, 30);
+    /**
      * The size, in cells, that a drop's own art is authored at.
      *
      * <p>A drop is drawn exactly as big as its model says (times
@@ -176,6 +189,7 @@ public final class EntityVisuals {
             case EntityKind.ZOMBIE -> ZOMBIE;
             case EntityKind.PROJECTILE -> PROJECTILE;
             case EntityKind.RESOURCE -> DROP;
+            case EntityKind.CARD_DROP -> CARD_DROP;
             default -> DEFAULT;
         };
     }
@@ -248,7 +262,8 @@ public final class EntityVisuals {
      * depth testing is off.
      */
     private static boolean isAboveTheLawn(String kind) {
-        return EntityKind.RESOURCE.equals(kind) || EntityKind.PROJECTILE.equals(kind);
+        return EntityKind.RESOURCE.equals(kind) || EntityKind.PROJECTILE.equals(kind)
+                || EntityKind.CARD_DROP.equals(kind);
     }
 
     private EntityVisuals() {

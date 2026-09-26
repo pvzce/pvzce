@@ -12,6 +12,7 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.tag.TestContent;
+import com.pvzce.server.entity.CardDropEntity;
 import com.pvzce.server.entity.ResourceDropEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
@@ -336,42 +337,290 @@ class ScaryPotterTest {
     }
 
     /**
-     * A sun pot pays the player, in the cell it stood in.
+     * A sun pot pays the player a bundle of three, in the cell it stood in.
      *
      * <p>The level's whole economy: no sky, no producers, one 150-sun card. A pot that broke into
      * nothing would leave the level's only card unplayable, which is what it was before the pots
-     * held anything but plants and zombies.
+     * held anything but plants and zombies - and one sun per pot (the first shape of this) left
+     * round one 50 sun short of the bomb it hands out. Three suns is the user's own number and the
+     * original's.
      */
     @Test
-    void breakingASunPotDropsItsResource() {
+    void breakingASunPotDropsItsBundleOfSuns() {
         LevelServer level = new LevelServer(level());
         Bridge bridge = new Bridge();
-        int[] sunPot = null;
+        List<int[]> sunPots = new ArrayList<>();
         for (int[] cell : pots(level)) {
             ScaryPotterMechanic.Contents contents =
                     ScaryPotterMechanic.contentsAt(level, cell[0], cell[1]);
             if (contents != null && contents.isResource()) {
-                sunPot = cell;
-                break;
+                sunPots.add(cell);
             }
         }
-        assertNotNull(sunPot, "the level hands out sun, so some pot has to hold one");
-
-        assertTrue(swingAt(level, bridge, sunPot[0], sunPot[1]), "the swing opens the pot");
+        assertEquals(2, sunPots.size(), "round one's two sun pots are the level's whole economy");
+        for (int[] cell : sunPots) {
+            assertTrue(swingAt(level, bridge, cell[0], cell[1]), "the swing opens the pot");
+        }
         level.flushPending(bridge);
 
-        ResourceDropEntity drop = null;
+        List<ResourceDropEntity> suns = new ArrayList<>();
         for (var entity : level.entities()) {
-            if (entity instanceof ResourceDropEntity candidate
-                    && PvzceIds.SUN.equals(candidate.def().id())) {
-                drop = candidate;
+            if (entity instanceof ResourceDropEntity drop && PvzceIds.SUN.equals(drop.def().id())) {
+                suns.add(drop);
+            }
+        }
+        int perPot = com.pvzce.common.PvzceConstants.SCARY_POT_SUN_DROPS;
+        assertEquals(perPot * sunPots.size(), suns.size(), "a sun pot drops a bundle, not one sun");
+        int total = 0;
+        for (ResourceDropEntity drop : suns) {
+            assertEquals(25, drop.amount(), "each worth what the resource says one sun is worth");
+            total += drop.amount();
+        }
+        assertEquals(150, total, "75 a pot: round one's two are exactly a cherry bomb");
+
+        for (int[] pot : sunPots) {
+            List<ResourceDropEntity> bundle = new ArrayList<>();
+            for (ResourceDropEntity drop : suns) {
+                // A bundle at the board's right-hand edge is shifted inward by the spread, so one
+                // sun of it stands in the neighbouring cell. Nothing else moves it.
+                if (drop.gridY() == pot[1] && Math.abs(drop.gridX() - pot[0]) <= 1) {
+                    bundle.add(drop);
+                }
+            }
+            assertEquals(perPot, bundle.size(), "the pot at " + pot[0] + "," + pot[1] + " dropped "
+                    + bundle.size() + " suns");
+            float min = Float.MAX_VALUE;
+            float max = -Float.MAX_VALUE;
+            for (ResourceDropEntity drop : bundle) {
+                min = Math.min(min, drop.cellX());
+                max = Math.max(max, drop.cellX());
+            }
+            // Spread, not stacked: three suns at one point look like one sun until they are
+            // collected one at a time, which is what the first version of this did.
+            assertEquals(2 * com.pvzce.common.PvzceConstants.SCARY_POT_SUN_SPREAD, max - min, 0.001F,
+                    "the bundle is spread rather than stacked on one point");
+        }
+        // A pot that is not against the right-hand edge keeps its whole bundle in its own cell -
+        // the cell the player was looking at when they swung at it.
+        for (int[] pot : sunPots) {
+            if (pot[0] >= level.width() - 1) {
+                continue;
+            }
+            for (ResourceDropEntity drop : suns) {
+                if (drop.gridY() == pot[1] && Math.abs(drop.gridX() - pot[0]) <= 1) {
+                    assertEquals(pot[0], drop.gridX(),
+                            "a bundle that fits stays in the pot's own cell");
+                }
+            }
+        }
+    }
+
+    /**
+     * A plant pot drops a seed packet where it stood, and the packet is the plant.
+     *
+     * <p>The player's own words for what a pot should do: "在原地掉落一个植物卡片，可以捡起来种植".
+     * It used to go straight onto the bar, which made a pot of a plant the player already had look
+     * like a pot that dropped nothing at all.
+     */
+    @Test
+    void breakingAPlantPotDropsASeedPacket() {
+        LevelServer level = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        int[] plantPot = null;
+        Identifier card = null;
+        for (int[] cell : pots(level)) {
+            ScaryPotterMechanic.Contents contents =
+                    ScaryPotterMechanic.contentsAt(level, cell[0], cell[1]);
+            if (contents != null && contents.isPlant()) {
+                plantPot = cell;
+                card = contents.id();
                 break;
             }
         }
-        assertNotNull(drop, "a sun has to be lying there to be collected");
-        assertEquals(25, drop.amount(), "worth what the resource says one sun is worth");
-        assertEquals(sunPot[0], drop.gridX(), "and it lands in the cell the pot stood in");
-        assertEquals(sunPot[1], drop.gridY());
+        assertNotNull(plantPot, "round one has to hold some plants");
+        int slotsBefore = level.plantPlayer().slots().size();
+
+        assertTrue(swingAt(level, bridge, plantPot[0], plantPot[1]), "the swing opens the pot");
+        level.flushPending(bridge);
+        assertEquals(slotsBefore, level.plantPlayer().slots().size(),
+                "no card appears on the bar: the packet on the lawn is the card");
+
+        CardDropEntity packet = cardDropAt(level, plantPot[0], plantPot[1]);
+        assertNotNull(packet, "the plant is lying where the pot stood");
+        assertEquals(card, packet.card());
+        assertNull(ScaryPotterMechanic.contentsAt(level, plantPot[0], plantPot[1]),
+                "and the pot is gone from the mechanic's bookkeeping");
+
+        // Picking it up puts the plant in the player's hand, and planting it is free: the pot was
+        // the payment.
+        int sunBefore = level.team(PLANT_TEAM).resourcesOf(PvzceIds.SUN);
+        assertTrue(level.pickUpCardDrop(bridge::send, packet.id()), "the packet is clickable");
+        assertEquals(card, level.heldCard(), "and the card is in the player's hand now");
+        assertTrue(level.plantHeldCard(bridge::send, 0, 0), "the next click plants it");
+        assertEquals(1, level.plantCount());
+        assertEquals(sunBefore, level.team(PLANT_TEAM).resourcesOf(PvzceIds.SUN),
+                "planting what a pot handed over costs no sun");
+        assertNull(level.heldCard(), "and the hand is empty again");
+    }
+
+    /**
+     * A packet nobody picks up is gone after twenty seconds, and flashes before it goes.
+     *
+     * <p>Which is the whole reason the packet has a clock: the plant is the player's from the
+     * moment the pot breaks, and a lawn that keeps every unclaimed packet forever is a lawn with
+     * no reason to watch it.
+     */
+    @Test
+    void anUnclaimedPacketExpires() {
+        LevelServer level = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        int[] plantPot = null;
+        for (int[] cell : pots(level)) {
+            ScaryPotterMechanic.Contents contents =
+                    ScaryPotterMechanic.contentsAt(level, cell[0], cell[1]);
+            if (contents != null && contents.isPlant()) {
+                plantPot = cell;
+                break;
+            }
+        }
+        assertNotNull(plantPot);
+        assertTrue(swingAt(level, bridge, plantPot[0], plantPot[1]));
+        level.flushPending(bridge);
+        CardDropEntity packet = cardDropAt(level, plantPot[0], plantPot[1]);
+        assertNotNull(packet);
+
+        int lifetime = com.pvzce.common.PvzceConstants.CARD_DROP_LIFETIME_TICKS;
+        assertEquals(lifetime, packet.ticksLeft(), "a fresh packet has its whole life ahead of it");
+        for (int tick = 0; tick < lifetime - com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS;
+                tick++) {
+            packet.tick(level);
+        }
+        assertFalse(packet.isRemoved(), "it is still there at 15 seconds");
+        assertTrue(packet.ticksLeft() <= com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS,
+                ".. and it is inside the flash window, so the client can show it is going");
+        for (int tick = 0; tick < com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS; tick++) {
+            packet.tick(level);
+        }
+        assertTrue(packet.isRemoved(), "and at twenty seconds it is gone");
+    }
+
+    /**
+     * A packet in hand does not expire, and a second one cannot be picked up.
+     *
+     * <p>The clock is the time the player has to notice the packet where it fell, not a deadline on
+     * using a plant they are already holding - and one hand holds one plant.
+     */
+    @Test
+    void aHeldPacketIsOffTheClockAndOneAtATime() {
+        LevelServer level = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        List<int[]> plantPots = new ArrayList<>();
+        for (int[] cell : pots(level)) {
+            ScaryPotterMechanic.Contents contents =
+                    ScaryPotterMechanic.contentsAt(level, cell[0], cell[1]);
+            if (contents != null && contents.isPlant()) {
+                plantPots.add(cell);
+            }
+        }
+        assertTrue(plantPots.size() >= 2, "two plant pots, so a second packet exists");
+        for (int[] cell : plantPots.subList(0, 2)) {
+            assertTrue(swingAt(level, bridge, cell[0], cell[1]));
+        }
+        level.flushPending(bridge);
+        CardDropEntity first = cardDropAt(level, plantPots.get(0)[0], plantPots.get(0)[1]);
+        CardDropEntity second = cardDropAt(level, plantPots.get(1)[0], plantPots.get(1)[1]);
+        assertNotNull(first);
+        assertNotNull(second);
+
+        assertTrue(level.pickUpCardDrop(bridge::send, first.id()));
+        int left = first.ticksLeft();
+        for (int tick = 0; tick < com.pvzce.common.PvzceConstants.CARD_DROP_LIFETIME_TICKS; tick++) {
+            first.tick(level);
+        }
+        assertFalse(first.isRemoved(), "the packet in hand is off the clock");
+        assertEquals(left, first.ticksLeft(), "and it has not lost any of its time either");
+        assertFalse(level.pickUpCardDrop(bridge::send, second.id()),
+                "one hand holds one plant");
+        assertTrue(bridge.messages().stream().anyMatch(line -> line.contains("手上")),
+                "and the refusal says so: " + bridge.messages());
+
+        // Right-click puts it back where it fell, with the time it had left.
+        assertTrue(level.releaseHeldCard(bridge::send));
+        assertNull(level.heldCard());
+        assertEquals(left, second.ticksLeft(), "the other packet never moved");
+        assertEquals(left, first.ticksLeft(), "and the released one keeps its time");
+        assertFalse(first.held());
+        assertEquals(plantPots.get(0)[0], first.gridX(), "back in the cell it fell in");
+    }
+
+    /**
+     * Every pot of a round hands over something, and the round after a sweep is complete.
+     *
+     * <p>The full run: all three rounds, every pot broken, and the plants the pots handed over
+     * planted in the way - which is exactly the board that used to make the next round's pots
+     * silently disappear (round two came out with no zombie pots at all). The lawn is swept at the
+     * round boundary, so every round stands up the count it declares.
+     */
+    @Test
+    void everyRoundStandsUpItsWholeBoardEvenWithPlantsInTheWay() {
+        LevelDef def = level();
+        LevelServer level = new LevelServer(def);
+        Bridge bridge = new Bridge();
+        ScaryPotterData data = data(def);
+
+        for (int round = 0; round < data.rounds().size(); round++) {
+            List<int[]> standing = pots(level);
+            assertEquals(data.rounds().get(round).potCount(), standing.size(),
+                    "round " + (round + 1) + " stands up every pot it declares");
+            int[] pot = standing.get(0);
+            assertTrue(swingAt(level, bridge, pot[0], pot[1]));
+            level.flushPending(bridge);
+            ScaryPotterMechanic.Contents first =
+                    ScaryPotterMechanic.contentsAt(level, pot[0], pot[1]);
+            // Whatever the first pot held, the round goes on: break the rest, kill what came out.
+            for (int index = 1; index < standing.size(); index++) {
+                int[] cell = standing.get(index);
+                assertTrue(swingAt(level, bridge, cell[0], cell[1]),
+                        "the swing opens the pot at " + cell[0] + "," + cell[1]);
+                level.flushPending(bridge);
+            }
+            for (var entity : new ArrayList<>(level.entities())) {
+                if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                    zombie.damage(zombie.health() + zombie.armor() + 1,
+                            ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), level);
+                }
+            }
+            level.flushPending(bridge);
+            // What the round handed over is planted on the lawn, in the next round's own columns:
+            // the board a player who uses their plants would have.
+            for (int x = 0; x < level.width(); x++) {
+                for (int y = 0; y < level.height(); y++) {
+                    if (level.plantAt(x, y) == null) {
+                        level.spawnPlant(
+                                BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter")),
+                                level.plantPlayer().team(), x, y);
+                        break;
+                    }
+                }
+            }
+            first = null;
+            level.tick(bridge);
+        }
+        assertTrue(bridge.messages().stream().anyMatch(line -> line.contains("场地已清理")),
+                "the sweep is announced, or plants vanishing reads as a bug: " + bridge.messages());
+        assertTrue(ScaryPotterMechanic.stateOf(level).orElseThrow().cleared(),
+                "and three clean rounds is the level won");
+    }
+
+    /** The seed packet lying in a cell, or {@code null} when there is none. */
+    private static CardDropEntity cardDropAt(LevelServer level, int x, int y) {
+        for (var entity : level.entities()) {
+            if (entity instanceof CardDropEntity drop && !drop.isRemoved()
+                    && drop.gridX() == x && drop.gridY() == y) {
+                return drop;
+            }
+        }
+        return null;
     }
 
     /** A pot the board lost under a record that still counts it is stood back up. */

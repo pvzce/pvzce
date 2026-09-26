@@ -27,7 +27,26 @@ public final class EntityKind {
      */
     public static final String RESOURCE = "resource";
 
-    /** Registry name of the definition backing each kind ({@code pvzce:<registry>}). */
+    /**
+     * A seed packet lying on the lawn: the plant a broken container held.
+     *
+     * <p>Its own kind rather than a {@link #RESOURCE} drop, because what it carries is a
+     * <em>card</em> and picking it up does not add anything to a team's bank - it puts the plant
+     * in the player's hand (see {@code LevelServer.pickUpCardDrop}). A kind is a category, and
+     * "a card on the ground" is not a resource: the resource kind's drops are worth an amount of
+     * something, are collected for a team, and are drawn as a glowing pickup, all three of which
+     * are wrong for a packet.
+     */
+    public static final String CARD_DROP = "card_drop";
+
+    /**
+     * Registry name of the definition backing each kind ({@code pvzce:<registry>}).
+     *
+     * <p>A card drop's definition is a card rather than a content file of its own, so it has no
+     * registry here; the kind falls through to the resource registry, which callers that only
+     * want "is there a definition" do not ask about for a packet (the card is resolved through
+     * {@code SlotResolver} instead).
+     */
     public static Identifier definitionRegistry(String kind) {
         return switch (kind) {
             case PLANT, ZOMBIE, PROJECTILE -> Identifier.withDefaultNamespace(kind);

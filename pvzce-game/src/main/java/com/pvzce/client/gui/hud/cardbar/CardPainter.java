@@ -101,7 +101,22 @@ public final class CardPainter {
      * slot itself does not (a card's id and the plant it grants need not be the same string).
      */
     public static Identifier icon(SlotInfo slot) {
-        Identifier slotId = Identifier.tryParse(slot.defId());
+        return icon(slot.defId());
+    }
+
+    /**
+     * The same sprite, for a card that is not in the bar.
+     *
+     * <p>A seed packet on the lawn carries a card id and no slot, and the picture it has to draw
+     * is the one that card would have drawn in the bar - a question with an answer a few lines
+     * above. Asking it twice is how "the card in the bar shows the plant, the packet on the lawn
+     * shows a missing-texture tile" happens.
+     */
+    public static Identifier icon(String cardId) {
+        if (cardId == null || cardId.isEmpty()) {
+            return EntityTextures.forEntity(cardId);
+        }
+        Identifier slotId = Identifier.tryParse(cardId);
         if (slotId != null) {
             SlotDef slotDef = BuiltInRegistries.SLOT_TYPES.get(slotId);
             if (slotDef != null && slotDef.icon().isPresent()) {
@@ -109,9 +124,9 @@ public final class CardPainter {
             }
             return SlotResolver.resolve(slotId)
                     .flatMap(SlotResolver.ResolvedCard::icon)
-                    .orElseGet(() -> EntityTextures.forEntity(slot.defId()));
+                    .orElseGet(() -> EntityTextures.forEntity(cardId));
         }
-        return EntityTextures.forEntity(slot.defId());
+        return EntityTextures.forEntity(cardId);
     }
 
     private CardPainter() {

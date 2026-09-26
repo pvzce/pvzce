@@ -25,6 +25,7 @@ import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
+import com.pvzce.common.network.packet.HeldCardS2C;
 import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
@@ -72,6 +73,8 @@ public final class PvzceClientPacketListener implements PacketListener {
             }
         } else if (packet instanceof CarrySyncS2C carry) {
             level.setCarriedPlant(carry.plantId());
+        } else if (packet instanceof HeldCardS2C held) {
+            level.setHeldCard(held.entityId(), held.cardId());
         } else if (packet instanceof SceneSyncS2C scene) {
             level.applyScene(scene.cells());
         } else if (packet instanceof EntitySpawnS2C spawn) {

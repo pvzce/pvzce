@@ -350,6 +350,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     /** The carry state the last frame saw, so a *change* in it can be noticed; see syncCarry. */
     private String lastCarried = "";
+    /** The seed-packet-in-hand state the last frame saw; part of the same change detection. */
+    private boolean lastHoldingPacket;
     /**
      * When each sleeping plant last breathed a Zzz, and which size is due next.
      *
@@ -1851,17 +1853,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private void renderCarriedPlant() {
         syncCarry();
         String carried = client.level().carriedPlant();
-        if (carried.isEmpty() || !client.level().gameState().equals("running")) {
+        // The glove's carry and a picked-up seed packet are the same picture to the player: one
+        // plant, riding the cursor until the next click puts it down. Which of the two it is only
+        // decides where the art comes from - a bar card, or the packet's own card id.
+        Identifier art = carried.isEmpty()
+                ? (client.level().holdingCard()
+                        ? com.pvzce.client.gui.hud.cardbar.CardPainter.icon(client.level().heldCard())
+                        : null)
+                : carriedPlantArt(carried);
+        if (art == null || !client.level().gameState().equals("running")) {
             return;
         }
-        SlotInfo slot = cardGranting(carried);
-        if (slot == null) {
-            return;
-        }
-        // The card bar's own icon lookup, so the thing in hand is the picture the player
-        // clicked: a plant's art is an animation and its definition names no single sprite, so
-        // resolving a path from the id answered the missing-texture tile.
-        Identifier art = com.pvzce.client.gui.hud.cardbar.CardPainter.icon(slot);
         float size = Math.max(20F, client.guiHeight() * 0.09F);
         float centerX = (float) client.guiMouseX(client.window().cursorX());
         // Lifted clear of the pointer, so the art is beside the arrow rather than under it.
@@ -1873,6 +1875,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         } finally {
             client.beginGuiView();
         }
+    }
+
+    /**
+     * The bar icon of the plant a glove is holding.
+     *
+     * <p>The card bar's own icon lookup, so the thing in hand is the picture the player clicked: a
+     * plant's art is an animation and its definition names no single sprite, so resolving a path
+     * from the id answered the missing-texture tile.
+     */
+    private Identifier carriedPlantArt(String carried) {
+        SlotInfo slot = cardGranting(carried);
+        return slot == null ? null : com.pvzce.client.gui.hud.cardbar.CardPainter.icon(slot);
     }
 
     /**
@@ -1890,10 +1904,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      */
     private void syncCarry() {
         String carried = client.level().carriedPlant();
-        if (carried.equals(lastCarried)) {
+        boolean holdingPacket = client.level().holdingCard();
+        if (carried.equals(lastCarried) && holdingPacket == lastHoldingPacket) {
             return;
         }
         lastCarried = carried;
+        lastHoldingPacket = holdingPacket;
+        if (holdingPacket) {
+            // A packet in hand takes the hand: a bar card left selected would light up a second
+            // plant that is not the one the next click plants.
+            selectedCard = -1;
+            return;
+        }
         if (carried.isEmpty()) {
             // The move finished (dropped, eaten or timed out): let the card go too. This is the
             // path that catches a carry the player did not finish with a click of their own.
@@ -1961,11 +1983,26 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     private void renderPlacementPreview() {
-        if (selectedCard < 0 || !client.level().gameState().equals("running")) {
+        if (!client.level().gameState().equals("running")) {
             return;
         }
-        SlotInfo selected = slotInfo(selectedCard);
-        if (selected == null || !com.pvzce.api.entity.EntityKind.PLANT.equals(selected.kind())) {
+        // The plant in hand is one plant, whichever way it got there: a bar card the player
+        // selected, or a packet they picked up. The ghost, the hover tint and "can this cell take
+        // it" are the same question for both.
+        String defId;
+        if (client.level().holdingCard()) {
+            defId = heldCardPlantId();
+        } else if (selectedCard >= 0) {
+            SlotInfo selected = slotInfo(selectedCard);
+            if (selected == null
+                    || !com.pvzce.api.entity.EntityKind.PLANT.equals(selected.kind())) {
+                return;
+            }
+            defId = selected.defId();
+        } else {
+            return;
+        }
+        if (defId.isEmpty()) {
             return;
         }
         PvzceCamera camera = client.camera();
@@ -1980,7 +2017,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 || cellY < 0 || cellY >= client.level().height()) {
             return;
         }
-        ClientEntity preview = placementPreview(selected.defId());
+        ClientEntity preview = placementPreview(defId);
         if (preview == null) {
             return;
         }
@@ -2264,6 +2301,107 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
+     * A seed packet lying on the lawn: the card a broken container handed over.
+     *
+     * <p>Drawn as the card itself - the same chrome and icon the bar would draw - because that is
+     * what it is, and because "a plant is lying there" is what the player has to see to know the
+     * pot gave them something. Nothing about it is an animation, so it goes through
+     * {@code SeedCardRenderer} rather than the entity art path; its price footer prints nothing,
+     * which is the truth (the container was the payment).
+     *
+     * <p>While it is in the player's hand it is not drawn here at all: the cursor carries it (see
+     * {@link #renderCarriedPlant}), and drawing both would show the same plant twice.
+     *
+     * <p>The flash is the server's clock rather than a local one: the entity's health is the ticks
+     * it has left, so a packet restored from a save flashes when <em>it</em> is nearly out of time,
+     * not when this client happened to hear about it.
+     */
+    private void drawCardDrop(ClientEntity entity) {
+        if (entity.id() == client.level().heldCardEntityId()) {
+            return;
+        }
+        com.pvzce.client.renderer.EntityVisuals.Visuals visuals =
+                com.pvzce.client.renderer.EntityVisuals.of(entity.kind());
+        float width = visuals.spriteWidth();
+        float height = visuals.spriteHeight();
+        float brightness = 1F;
+        if (entity.health() <= com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS) {
+            // A square wave rather than a fade: "this is about to go" is a warning, and one that
+            // dims smoothly reads as a packet that is merely in shadow.
+            double phase = (System.nanoTime() / 1_000_000_000.0) * 6.0;
+            brightness = Math.sin(phase) > 0 ? 1F : 0.45F;
+        }
+        com.pvzce.client.gui.SeedCardRenderer.CardModel model =
+                new com.pvzce.client.gui.SeedCardRenderer.CardModel(
+                        com.pvzce.client.gui.hud.cardbar.CardPainter.icon(entity.defIdString()),
+                        com.pvzce.client.gui.SeedCardRenderer.CardKind.PLANT,
+                        com.pvzce.common.network.packet.SlotInfo.NO_PRICE,
+                        brightness, 1F, true, 0F, false, null, false);
+        com.pvzce.client.gui.SeedCardRenderer.draw(client, model,
+                entity.visualCellX() - width / 2F,
+                entity.visualCellY() - visuals.spriteOffsetY(),
+                width, height);
+    }
+
+    /**
+     * The seed packet under the cursor, or {@code null}.
+     *
+     * <p>Tested as a box rather than by a radius: a packet is a card lying on the lawn, and the
+     * thing the player aims at is the picture of it. The nearest centre wins, so two packets in one
+     * cell (two containers broken a moment apart) do not flicker between frames.
+     */
+    private ClientEntity cardDropAt(double rawMouseX, double rawMouseY) {
+        PvzceCamera camera = client.camera();
+        float worldX = camera.worldX(rawMouseX, rawMouseY);
+        float worldY = camera.worldY(rawMouseX, rawMouseY);
+        com.pvzce.client.renderer.EntityVisuals.Visuals visuals =
+                com.pvzce.client.renderer.EntityVisuals.of(
+                        com.pvzce.api.entity.EntityKind.CARD_DROP);
+        ClientEntity best = null;
+        float bestDistance = Float.MAX_VALUE;
+        for (ClientEntity entity : client.level().entities().values()) {
+            if (!com.pvzce.api.entity.EntityKind.CARD_DROP.equals(entity.kind())
+                    || entity.id() == client.level().heldCardEntityId()) {
+                continue;
+            }
+            float dx = entity.cellX() - worldX;
+            // The same box the packet is drawn in: it is centred on its cell, one cell tall.
+            float dy = entity.cellY() + visuals.spriteHeight() / 2F - visuals.spriteOffsetY() - worldY;
+            if (Math.abs(dx) > visuals.spriteWidth() / 2F
+                    || Math.abs(dy) > visuals.spriteHeight() / 2F) {
+                continue;
+            }
+            float distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+                best = entity;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * The plant the seed packet in hand would plant: what the card grants.
+     *
+     * <p>Asked through the resolver, because a packet's card id and the plant it grants need not
+     * be the same string (a vase field may hold a slot id) - and the server resolves it the same
+     * way when the plant is actually placed.
+     */
+    private String heldCardPlantId() {
+        String card = client.level().heldCard();
+        if (card.isEmpty()) {
+            return "";
+        }
+        Identifier id = Identifier.tryParse(card);
+        if (id == null) {
+            return card;
+        }
+        return com.pvzce.common.core.SlotResolver.resolve(id)
+                .map(resolved -> resolved.content().toString())
+                .orElse(card);
+    }
+
+    /**
      * The entity's own art: its animation when it has one, otherwise its sprite.
      *
      * <p>Split out of {@code renderEntity} so the placement preview draws the very same
@@ -2271,6 +2409,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * does this plant look like" that this renderer spent a refactor removing.
      */
     private void drawEntityArt(ClientEntity entity) {
+        if (com.pvzce.api.entity.EntityKind.CARD_DROP.equals(entity.kind())) {
+            drawCardDrop(entity);
+            return;
+        }
         Identifier texture = entityTexture(entity);
         boolean underground = entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND;
         if (!underground && client.animations() != null && client.animations().render(entity)) {
@@ -3257,6 +3399,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 collectDrop(drop);
                 return;
             }
+            // A seed packet is picked up one click at a time rather than swept over: it is a
+            // plant the player is choosing, and a sweep across a lawn of packets would pick one
+            // up by accident and then refuse the next (a hand holds one plant).
+            ClientEntity packet = cardDropAt(rawX, rawY);
+            if (packet != null) {
+                client.connection().send(
+                        new com.pvzce.common.network.packet.PickUpCardC2S(packet.id()));
+                return;
+            }
         }
 
         if (!camera.inBoard(rawX, rawY)) {
@@ -3272,7 +3423,23 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
 
         if (button == 1) {
+            // A packet in hand is put back where it fell, rather than the click being ignored:
+            // without it, a packet picked up by accident could only be spent somewhere.
+            if (client.level().holdingCard()) {
+                client.connection().send(
+                        new com.pvzce.common.network.packet.ReleaseHeldCardC2S());
+                return;
+            }
             cancelSelection();
+            return;
+        }
+        // The packet in hand is planted by the next click on a cell, before any bar card is
+        // consulted: the player is holding one plant and the click is where it goes. The server
+        // answers whether the cell can take it (a refused cell keeps it in hand).
+        if (client.level().holdingCard()) {
+            selectedCard = -1;
+            client.connection().send(
+                    new com.pvzce.common.network.packet.PlantHeldCardC2S(cellX, cellY));
             return;
         }
         // A plant in hand is a move in progress: the click puts it down, whichever card is

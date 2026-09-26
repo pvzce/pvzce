@@ -41,6 +41,7 @@ import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.CarrySyncS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
+import com.pvzce.common.network.packet.HeldCardS2C;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelPayload;
@@ -387,6 +388,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private Identifier carriedVaseCard;
     /** Ticks left before an abandoned carry is put back where it came from. */
     private int carryTimeoutTicks;
+    /**
+     * The seed packet the player is carrying, or {@code -1}.
+     *
+     * <p>The second thing a plant can be "in hand" as, and a different thing from the glove's
+     * carry above: a packet is an entity of its own ({@link com.pvzce.server.entity.CardDropEntity}),
+     * so the hand is the id of the packet the player picked up and the card is read back from it -
+     * one fact, one place. It is planted for free, because the container that dropped it is what
+     * paid for the plant (see {@link #plantHeldCard}).
+     */
+    private int heldCardDropId = -1;
     /**
      * How long an unfinished move waits before it is abandoned (15s at 60tps).
      *
@@ -3782,17 +3793,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
                 Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
         if (inside != null) {
-            // Straight onto the bar rather than onto the ground. The original drops a card the
-            // player walks to; this build has no card-drop entity, and a plant card lying on the
-            // lawn that cannot be picked up would be worse than one that is simply handed over -
-            // see `todo.md`, which keeps the drop as a follow-up.
-            // Asked of the card source rather than appended here: on a conveyor level the bar is a
-            // projection of the belt, and a card added behind the belt's back is dropped by its
-            // next rebuild.
-            boolean delivered = deliverCard(inside);
-            bridge.send(new ServerMessageS2C(delivered
-                    ? "花瓶里掉出了一张卡。"
-                    : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
+            // A packet on the lawn rather than a card on the bar, which is what the original
+            // does and what the pot's plant does: the player clicks it up and plants it. The
+            // card used to be handed over directly, and a plant the player already had then
+            // looked exactly like a vase that was empty.
+            spawnCardDrop(inside, x, y);
+            bridge.send(new ServerMessageS2C("花瓶里掉出了一张卡。"));
         }
         return true;
     }
@@ -3888,17 +3894,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
                 Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
         if (contents.isPlant()) {
-            boolean delivered = deliverCard(contents.id());
-            bridge.send(new ServerMessageS2C(delivered
-                    ? "花瓶里掉出了一张卡。"
-                    : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
+            // A packet on the lawn, not a card on the bar - the same delivery a smashed vase
+            // makes. See `spawnCardDrop`.
+            spawnCardDrop(contents.id(), x, y);
+            bridge.send(new ServerMessageS2C("花瓶里掉出了一张卡。"));
         } else if (contents.isResource()) {
             // The vase level's economy: the pots are where its sun comes from, so a level with no
-            // sky and no producers still pays for the one card it hands out.
+            // sky and no producers still pays for the one card it hands out. A sun pot pays a
+            // bundle rather than a single sun - see SCARY_POT_SUN_DROPS - spread across the cell
+            // it stood in, so the bundle reads as three objects rather than one.
             ResourceDef resource = BuiltInRegistries.RESOURCES.get(contents.id());
             if (resource != null) {
-                spawnResource(contents.id(), resource.defaultValue(), x, y,
-                        teams.get(PvzceIds.PLANT_TEAM));
+                spawnResourceBundle(contents.id(), resource, x, y);
             }
             bridge.send(new ServerMessageS2C("花瓶里掉出了阳光。"));
         } else {
@@ -3909,6 +3916,34 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * Drops one container's sun: {@link PvzceConstants#SCARY_POT_SUN_DROPS} suns in one cell.
+     *
+     * <p>Spread either side of the cell's centre by
+     * {@link PvzceConstants#SCARY_POT_SUN_SPREAD}, so the bundle reads as three objects rather than
+     * as one sun that has to be clicked three times. Every one of them still counts as standing in
+     * the cell the pot was in (a drop's pickup radius is under half a cell, and the offsets are
+     * written out rather than rolled: three suns are a bundle, not three independent drops, and the
+     * same pot has to look the same on every attempt).
+     *
+     * <p>A bundle dropped in the last column is shifted inward by the same amount, because half of
+     * a sun is nearly half a cell: without it, one sun of every bundle from the board's right-hand
+     * edge hangs over the road. The shift keeps all three on the lawn and the middle one in the
+     * pot's own cell - a drop's own grid cell is what the collection and the save read, and it is
+     * the pot's cell either way.
+     */
+    private void spawnResourceBundle(Identifier resourceId, ResourceDef resource, int x, int y) {
+        int drops = Math.max(1, PvzceConstants.SCARY_POT_SUN_DROPS);
+        float spread = PvzceConstants.SCARY_POT_SUN_SPREAD;
+        float shift = x >= width() - 1 ? -spread : 0F;
+        for (int index = 0; index < drops; index++) {
+            float offset = (index - (drops - 1) / 2F) * spread + shift;
+            addEntity(new com.pvzce.server.entity.ResourceDropEntity(
+                    resource, teams.get(PvzceIds.PLANT_TEAM), x, y, resource.defaultValue(),
+                    null, offset));
+        }
+    }
+
+    /**
      * What is inside each vase, keyed by cell.
      *
      * <p>Kept on the level rather than in a mechanic because it is not a mechanic: the vase is a
@@ -3916,6 +3951,49 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * of the scene, which is what a vase is.
      */
     private final Map<Long, Identifier> vaseContents = new java.util.HashMap<>();
+
+    /**
+     * Sweeps every plant off the board, and answers how many there were.
+     *
+     * <p>What the vase level does between rounds (see {@code ScaryPotterMechanic.tick}), and the
+     * one place that removes plants without a player asking: the shovel digs up what the player
+     * points at, and this is the lawn being cleared for a board that is laid out over the cells
+     * the plants were standing on. Carriers go with their riders, because both are entities in
+     * the same cell - the same "one cell, several entities" the shovel's digging rule is written
+     * against.
+     *
+     * <p>Removal is the plain kind ({@code PlantEntity.remove}), deliberately: a sweep is not
+     * twenty shovels, so nothing here refunds sun, triggers a death effect or leaves a drop. Last
+     * round's plants are the last round's.
+     */
+    public int clearPlants() {
+        int removed = 0;
+        for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
+                plant.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            flushPending();
+        }
+        return removed;
+    }
+
+    /**
+     * Tells the player a new round's pots are up, and that the lawn was swept to make room.
+     *
+     * <p>Says the sweep out loud when it happened: plants disappearing on their own is the kind
+     * of thing a player has to be told about, or it reads as a bug.
+     */
+    public void announceRound(int round, int rounds, int sweptPlants) {
+        if (bridge == null) {
+            return;
+        }
+        String swept = sweptPlants > 0 ? "，清掉了 " + sweptPlants + " 株植物" : "";
+        bridge.send(new ServerMessageS2C("第 " + round + "/" + rounds + " 回合：场地已清理"
+                + swept + "，新的花瓶出现了。"));
+    }
 
     /**
      * Stands a filled vase in a cell: the level's own way in, used by {@code pvzce:vase_field}.
@@ -3965,6 +4043,189 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public boolean deliverCard(Identifier card) {
         return cardSource != null && cardSource.receiveCard(this, bridge, card);
     }
+
+    /**
+     * Drops a seed packet where a broken container stood.
+     *
+     * <p>What a scary pot's plant and a smashed full vase hand over: the card stops being the
+     * level's and becomes an object on the lawn the player has to pick up. It used to go straight
+     * into the bar, which is why a second pot of a plant the player already had looked like a pot
+     * that dropped nothing at all - there was nothing to see, and the bar had no room to show it.
+     *
+     * @param card  the card the container held; a plant id for the pots, and whatever a vase was
+     *              filled with for the vase tool
+     * @param x     the cell the container stood in
+     */
+    public void spawnCardDrop(Identifier card, int x, int y) {
+        if (card == null || !inBounds(x, y)) {
+            return;
+        }
+        addEntity(new com.pvzce.server.entity.CardDropEntity(card, teams.get(PvzceIds.PLANT_TEAM), x, y));
+    }
+
+    /** The card the player is carrying, or {@code null} when their hand is empty. */
+    public Identifier heldCard() {
+        com.pvzce.server.entity.CardDropEntity drop = heldCardDrop();
+        return drop == null ? null : drop.card();
+    }
+
+    /** The packet the player is carrying, or {@code null}; one lookup for the state above. */
+    private com.pvzce.server.entity.CardDropEntity heldCardDrop() {
+        if (heldCardDropId < 0) {
+            return null;
+        }
+        for (PvzceEntity entity : entities) {
+            if (entity.id() == heldCardDropId
+                    && entity instanceof com.pvzce.server.entity.CardDropEntity drop
+                    && !drop.isRemoved()) {
+                return drop;
+            }
+        }
+        // The packet is gone from under the hand (the level was rebuilt, or it was picked up
+        // twice): forget the hand rather than holding an id that answers nothing.
+        heldCardDropId = -1;
+        return null;
+    }
+
+    /**
+     * Picks a seed packet up: the plant goes into the player's hand, and is planted by the next
+     * click on a cell.
+     *
+     * <p><b>A plant is held; anything else goes to the bar.</b> A container may hold a card this
+     * build cannot plant (a tool, in a vase an author filled by hand), and "held" would then be a
+     * plant that can never be put down. The bar is where every card that is not a plant belongs,
+     * and the packet that carried it is consumed either way.
+     */
+    public boolean pickUpCardDrop(ServerBridge bridge, int entityId) {
+        return withBridge(bridge, () -> {
+            if (!gameState.equals(GameStateS2C.RUNNING) || plantPlayer == null) {
+                return false;
+            }
+            com.pvzce.server.entity.CardDropEntity drop = null;
+            for (PvzceEntity entity : entities) {
+                if (entity.id() == entityId
+                        && entity instanceof com.pvzce.server.entity.CardDropEntity candidate
+                        && !candidate.isRemoved()) {
+                    drop = candidate;
+                    break;
+                }
+            }
+            if (drop == null || drop.held()) {
+                return false;
+            }
+            if (hasCarry()) {
+                bridge.send(new ServerMessageS2C("手上已经拿着一株植物了。"));
+                return false;
+            }
+            if (heldCardDrop() != null) {
+                bridge.send(new ServerMessageS2C("手上已经有一株植物了，先把它种下去。"));
+                return false;
+            }
+            PlantDef plant = heldPlantOf(drop.card());
+            if (plant == null) {
+                // Not a plant: the card the container held goes onto the bar the way it used to,
+                // and the packet is spent. Nothing else can be put into a hand that plants.
+                boolean delivered = deliverCard(drop.card());
+                drop.remove();
+                bridge.send(new ServerMessageS2C(delivered
+                        ? "捡起了一张卡，已经放进卡槽。"
+                        : "捡起了一张卡，但卡槽已经放不下了。"));
+                return true;
+            }
+            drop.setHeld(true);
+            heldCardDropId = drop.id();
+            bridge.send(new HeldCardS2C(drop.id(), drop.card().toString()));
+            bridge.send(new ServerMessageS2C("捡起了 " + plant.id() + "，点草坪把它种下去。"));
+            return true;
+        });
+    }
+
+    /**
+     * Plants the card in the player's hand on a cell.
+     *
+     * <p><b>Free.</b> The sun and the cooldown a card costs are what the bar charges for handing
+     * a plant over; a packet is one the player has already earned by breaking the container it was
+     * in, so the price was paid there. The plant appears the way any other does - the same
+     * {@code spawnPlant}, so its own effects (a squash's fuse, a cherry bomb's blast) are the
+     * plant's business rather than this method's.
+     *
+     * <p>A refused cell keeps the plant in hand and says why, which is the same shape every other
+     * refused click has: the click cost nothing.
+     */
+    public boolean plantHeldCard(ServerBridge bridge, int x, int y) {
+        return withBridge(bridge, () -> {
+            com.pvzce.server.entity.CardDropEntity drop = heldCardDrop();
+            if (drop == null) {
+                return false;
+            }
+            PlantDef plant = heldPlantOf(drop.card());
+            if (plant == null) {
+                return false;
+            }
+            if (!inBounds(x, y)) {
+                bridge.send(new ServerMessageS2C("不能在草坪外种植。"));
+                return false;
+            }
+            if (isVaseAt(x, y)) {
+                // The vase's own rule: a plant card on a vase is *stored*, not planted. A packet
+                // in hand is one plant and one use, so storing it would have to put a use back in
+                // the vase - more bookkeeping than the mechanic is worth, and the pot's plant is
+                // meant to be planted.
+                bridge.send(new ServerMessageS2C("手里这株植物不能放进花瓶。"));
+                return false;
+            }
+            if (!canPlacePlant(plant, x, y)) {
+                bridge.send(new ServerMessageS2C("该格不能种植。"));
+                return false;
+            }
+            spawnPlant(plant, plantPlayer.team(), x, y);
+            drop.remove();
+            clearHeldCard(bridge);
+            return true;
+        });
+    }
+
+    /**
+     * Puts a carried packet back on the lawn, where it fell.
+     *
+     * <p>The way out of a pick-up the player did not mean: without it, a packet picked up by
+     * accident could only be spent somewhere, and a plant the level handed out would be planted
+     * wherever the player finally gave up looking. Putting it back is one flag - the packet never
+     * left its cell while it was in hand (the client is what draws it at the cursor) - and it keeps
+     * the time it had left, because the clock was never running while it was held.
+     */
+    public boolean releaseHeldCard(ServerBridge bridge) {
+        return withBridge(bridge, () -> {
+            com.pvzce.server.entity.CardDropEntity drop = heldCardDrop();
+            if (drop == null) {
+                return false;
+            }
+            drop.setHeld(false);
+            clearHeldCard(bridge);
+            return true;
+        });
+    }
+
+    /** Empties the hand and tells the client, which is what stops it drawing the ghost. */
+    private void clearHeldCard(ServerBridge bridge) {
+        heldCardDropId = -1;
+        bridge.send(HeldCardS2C.NONE);
+    }
+
+    /**
+     * The plant a container's card grants, or {@code null} when it grants something else.
+     *
+     * <p>Asked through the card resolver rather than by looking the id up among the plants: a
+     * container may hold a <em>slot</em> id (the vase field's own {@code card} is one), and the
+     * plant it grants is the slot's content. Resolving also answers "is this a plant at all",
+     * which is the question that decides between the hand and the bar.
+     */
+    private static PlantDef heldPlantOf(Identifier card) {
+        var resolved = com.pvzce.common.core.SlotResolver.resolve(card).orElse(null);
+        Identifier content = resolved == null ? card : resolved.content();
+        return BuiltInRegistries.PLANTS.get(content);
+    }
+
 
     /**
      * The vases' contents for the save file: one entry per filled vase.
@@ -4062,6 +4323,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * moved potato mine does not re-arm.
      */
     private boolean movePlant(int x, int y) {
+        // One hand, not two: the glove may not start a lift while a seed packet is in it. Checked
+        // before the move that is already in progress, because a carry of the glove's own has to
+        // be finishable either way.
+        if (heldCardDropId >= 0 && carriedPlantId < 0 && carriedVaseFrom < 0L
+                && heldCardDrop() != null) {
+            bridge.send(new ServerMessageS2C("手上已经有一株植物了，先把它种下去。"));
+            return false;
+        }
         if (carriedVaseFrom >= 0L) {
             return dropCarriedVase(x, y);
         }
@@ -4328,6 +4597,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         for (PvzceEntity entity : entities) {
             bridge.send(entity.spawnPacket());
         }
+        // After the entities, so a client that joins a run whose player is carrying a packet
+        // learns both where the packet was and that it is in the hand rather than on the lawn.
+        Identifier inHand = heldCard();
+        bridge.send(inHand == null ? HeldCardS2C.NONE
+                : new HeldCardS2C(heldCardDropId, inHand.toString()));
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             bridge.send(new GameStateS2C(gameState, winner != null ? winner.toString() : ""));
         }
@@ -4665,6 +4939,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 yield def == null ? null : new ProjectileEntity(def, null, teams.get(PvzceIds.PLANT_TEAM),
                         tag.getFloat("x"), tag.getFloat("y"), tag.getFloat("height"));
             }
+            // A seed packet is the one drop that is restored rather than dropped with the save:
+            // it is a plant the player earned by breaking a container, and losing it to a quit
+            // would be losing a card. A sun lying on the lawn is worth 25 and is not.
+            case com.pvzce.api.entity.EntityKind.CARD_DROP ->
+                    new com.pvzce.server.entity.CardDropEntity(defId,
+                            teams.get(PvzceIds.PLANT_TEAM),
+                            (int) Math.floor(tag.getFloat("x")), (int) Math.floor(tag.getFloat("y")));
             default -> null;
         };
     }
@@ -4674,6 +4955,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         entities.clear();
         pendingAdd.clear();
         pendingRemove.clear();
+        // The hand is part of the entity list, so it goes with it: a restored run starts empty
+        // handed and the packet comes back lying where it fell (see CardDropEntity).
+        heldCardDropId = -1;
     }
 
 }

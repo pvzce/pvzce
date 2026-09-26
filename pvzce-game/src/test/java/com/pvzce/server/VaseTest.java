@@ -11,6 +11,7 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.tag.TestContent;
+import com.pvzce.server.entity.CardDropEntity;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.TestLevels;
 
@@ -174,9 +175,15 @@ class VaseTest {
                 "and it says so: " + bridge.messages());
     }
 
-    /** Click three: an empty-handed click smashes it, and the card lands on the bar. */
+    /**
+     * Click three: an empty-handed click smashes it, and the card lands on the lawn as a packet.
+     *
+     * <p>It used to go straight onto the bar, and the difference is the point: a plant the player
+     * already had then looked exactly like a vase that was empty. A packet is a thing the player
+     * can see, pick up and plant.
+     */
     @Test
-    void smashingAVaseReturnsItsCardToTheBar() {
+    void smashingAVaseDropsItsCardAsASeedPacket() {
         LevelServer level = fixture();
         Bridge bridge = new Bridge();
         VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
@@ -186,8 +193,17 @@ class VaseTest {
         assertEquals(PvzceIds.GRASS, level.sceneIdAt(vase.x(), vase.y()),
                 "a smashed vase leaves ordinary lawn behind");
         assertNull(level.vaseContentAt(vase.x(), vase.y()), "and it is not holding anything");
-        assertTrue(hasCard(level, vase.card()),
-                "the card inside is the player's - on the bar, ready to be planted");
+        CardDropEntity packet = cardDropAt(level, vase.x(), vase.y());
+        assertNotNull(packet, "the card inside is the player's, and it is lying where the vase was");
+        assertEquals(vase.card(), packet.card(), "the packet holds the card the vase held");
+        assertFalse(hasCard(level, vase.card()),
+                "and it is not on the bar: the player picks it up and plants it themselves");
+
+        assertTrue(level.pickUpCardDrop(bridge::send, packet.id()), "clicking it picks it up");
+        assertEquals(vase.card(), level.heldCard(), "and the plant is in the player's hand");
+        assertTrue(level.plantHeldCard(bridge::send, 6, 0), "so the next click plants it");
+        assertEquals(1, level.plantCount());
+        assertNull(level.heldCard(), "and the hand is empty again");
     }
 
     /** An empty vase smashes to nothing, and says so rather than pretending it dropped a card. */
@@ -204,30 +220,35 @@ class VaseTest {
     }
 
     /**
-     * The stored card comes back as a card the player can plant, and planting it is what charges
-     * the sun - the vase moved <em>when</em> the plant appears, not how much it costs in total.
+     * The stored card comes back as a plant the player can plant, and it is free.
+     *
+     * <p>Storing it cost the card's sun and started its recharge - that is what keeps the vase
+     * from banking a discount. What comes out is one plant and no second bill: the packet is what
+     * the player paid for, and planting it charges nothing (see {@code LevelServer.plantHeldCard}).
      */
     @Test
-    void theCardThatComesBackCanBePlanted() {
+    void theCardThatComesBackCanBePlantedForFree() {
         LevelServer level = fixture();
         Bridge bridge = new Bridge();
         int x = 6;
         int y = 0;
         useVaseTool(level, bridge, x, y);
-        assertTrue(level.placePlant(bridge::send, giveCard(level, PEA), x, y));
+        level.team(PLANT_TEAM).putResource(PvzceIds.SUN, 500);
+        int slot = giveCard(level, PEA);
+        assertTrue(level.placePlant(bridge::send, slot, x, y));
+        int sunAfterStoring = level.team(PLANT_TEAM).resourcesOf(PvzceIds.SUN);
         assertTrue(useVaseTool(level, bridge, x, y), "smash it open again");
 
-        int slot = slotOf(level, PEA);
-        assertTrue(slot >= 0, "the card is on the bar");
-        level.team(PLANT_TEAM).putResource(PvzceIds.SUN, 500);
-        // The card's own recharge is still running - it started when the card was stored, and a
-        // vase does not hand out a free recharge any more than it hands out free sun. That is not
-        // what this test is about, so the clock is cleared rather than waited out.
-        level.plantPlayer().slot(slot).clearCooldown();
+        CardDropEntity packet = cardDropAt(level, x, y);
+        assertNotNull(packet, "the card is on the lawn, not on the bar");
+        assertEquals(PEA, packet.card());
+        assertTrue(level.pickUpCardDrop(bridge::send, packet.id()));
         // A different cell: the smashed one is the cell the plant would go back into, and it is
         // free again - but planting there would test nothing about the vase.
-        assertTrue(level.placePlant(bridge::send, slot, 7, 0), "and it plants like any other card");
+        assertTrue(level.plantHeldCard(bridge::send, 7, 0), "and it plants like any other plant");
         assertEquals(1, level.plantCount());
+        assertEquals(sunAfterStoring, level.team(PLANT_TEAM).resourcesOf(PvzceIds.SUN),
+                "planting what came out of the vase costs nothing: the vase was the payment");
     }
 
     // ------------------------------------------------------------------
@@ -388,9 +409,23 @@ class VaseTest {
         return level.useTool(bridge::send, slot, x, y);
     }
 
+    /** The seed packet lying in a cell, or {@code null} when there is none. */
+    private static CardDropEntity cardDropAt(LevelServer level, int x, int y) {
+        // The level queues what it spawns and flushes it on its own tick; a test that reads the
+        // board right after a click has to ask for that flush itself, the same way the pot tests
+        // do after a swing.
+        level.flushPending();
+        for (var entity : level.entities()) {
+            if (entity instanceof CardDropEntity drop && !drop.isRemoved()
+                    && drop.gridX() == x && drop.gridY() == y) {
+                return drop;
+            }
+        }
+        return null;
+    }
+
     /** Puts one spare card of this kind on the bar and returns its slot index. */
-    private static int giveCard(LevelServer level, Identifier cardId) {
-        int existing = slotOf(level, cardId);
+    private static int giveCard(LevelServer level, Identifier cardId) {        int existing = slotOf(level, cardId);
         if (existing >= 0) {
             return existing;
         }

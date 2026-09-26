@@ -73,6 +73,17 @@ public final class ClientLevel {
     private volatile boolean shadersDisabled;
     /** The plant a glove is holding, or empty; see {@code CarrySyncS2C}. */
     private volatile String carriedPlant = "";
+    /**
+     * The seed packet the player is carrying: its entity id and the card it is, or {@code -1} and
+     * empty when their hand is free.
+     *
+     * <p>Separate from {@link #carriedPlant} rather than folded into it, because the two carries
+     * are answered differently - a carried plant goes back down through the glove card and a
+     * carried packet through its own request - and because a packet keeps its entity: the id is
+     * what tells the board to stop drawing it where it fell. See {@code HeldCardS2C}.
+     */
+    private volatile int heldCardEntityId = -1;
+    private volatile String heldCardId = "";
     private volatile String levelId = "";
     private volatile int width = 9;
     private volatile int height = 5;
@@ -257,6 +268,8 @@ public final class ClientLevel {
         sceneVisibility = SceneVisibility.NONE;
         shadersDisabled = false;
         carriedPlant = "";
+        heldCardEntityId = -1;
+        heldCardId = "";
         initialized = false;
         mechanics.clear();
         mechanicState.clear();
@@ -811,6 +824,32 @@ public final class ClientLevel {
     /** Applies the server's carry state; see {@code CarrySyncS2C}. */
     public void setCarriedPlant(String plantId) {
         carriedPlant = plantId == null ? "" : plantId;
+    }
+
+    /**
+     * The card of the seed packet in the player's hand, or empty.
+     *
+     * <p>While it is set, the board draws that packet's card at the cursor and the packet's own
+     * entity is skipped where it fell; a click on the lawn asks the server to plant it.
+     */
+    public String heldCard() {
+        return heldCardId;
+    }
+
+    /** The entity the held packet is, or {@code -1}: the one the lawn must not draw. */
+    public int heldCardEntityId() {
+        return heldCardEntityId;
+    }
+
+    /** True when a seed packet is in the player's hand. */
+    public boolean holdingCard() {
+        return !heldCardId.isEmpty();
+    }
+
+    /** Applies the server's held-packet state; see {@code HeldCardS2C}. */
+    public void setHeldCard(int entityId, String cardId) {
+        this.heldCardEntityId = cardId == null || cardId.isEmpty() ? -1 : entityId;
+        this.heldCardId = cardId == null ? "" : cardId;
     }
 
     /**

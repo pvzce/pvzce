@@ -30,7 +30,11 @@ import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.OpenEditorS2C;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.ProfileS2C;
+import com.pvzce.common.network.packet.HeldCardS2C;
 import com.pvzce.common.network.packet.PickCardC2S;
+import com.pvzce.common.network.packet.PickUpCardC2S;
+import com.pvzce.common.network.packet.PlantHeldCardC2S;
+import com.pvzce.common.network.packet.ReleaseHeldCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
@@ -106,7 +110,11 @@ public final class PvzcePackets {
     // 33: a click with nothing in hand on a vase or one of the vase level's pots is its own
     // request (SmashContainerC2S). The mallet stopped being a tool the level grants, so the
     // swing's target - not the tool - is what travels.
-    public static final int PROTOCOL_VERSION = 33;
+    // 34: a card a broken container held is a seed packet on the lawn rather than a card that
+    // appeared in the bar. Picking one up (PickUpCardC2S) puts the plant in the player's hand,
+    // which the client is told about (HeldCardS2C) and answers with its own two requests -
+    // plant it (PlantHeldCardC2S) or put it back (ReleaseHeldCardC2S).
+    public static final int PROTOCOL_VERSION = 34;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -160,6 +168,8 @@ public final class PvzcePackets {
     public static final int S2C_LEVEL_REWARD = S2C_BASE + 24;
     public static final int S2C_MECHANIC_SYNC = S2C_BASE + 25;
     public static final int S2C_CARRY_SYNC = S2C_BASE + 26;
+    /** The seed packet in the player's hand, or nothing: the card drop's own carry state. */
+    public static final int S2C_HELD_CARD = S2C_BASE + 30;
     public static final int S2C_MUTATION_STATE = S2C_BASE + 27;
     /** Where an endless run stands: the round, its length, and that round's wave list. */
     public static final int S2C_ROUND_SYNC = S2C_BASE + 28;
@@ -179,6 +189,12 @@ public final class PvzcePackets {
     public static final int C2S_RELOAD_PACKS = 22;
     /** A click on a container (a vase, or one of the vase level's pots): break it open. */
     public static final int C2S_SMASH_CONTAINER = 23;
+    /** A click on a seed packet lying on the lawn: pick it up. */
+    public static final int C2S_PICK_UP_CARD = 24;
+    /** A click on a cell while a picked-up seed packet is in hand: plant it there. */
+    public static final int C2S_PLANT_HELD_CARD = 25;
+    /** A right-click while a seed packet is in hand: put it back where it fell. */
+    public static final int C2S_RELEASE_HELD_CARD = 26;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -214,6 +230,12 @@ public final class PvzcePackets {
                     UseGrantedToolC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
+            def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,
+                    PickUpCardC2S::decode),
+            def(C2S_PLANT_HELD_CARD, ConnectionDirection.SERVERBOUND, PlantHeldCardC2S.class,
+                    PlantHeldCardC2S::decode),
+            def(C2S_RELEASE_HELD_CARD, ConnectionDirection.SERVERBOUND, ReleaseHeldCardC2S.class,
+                    ReleaseHeldCardC2S::decode),
 
             def(S2C_LEVEL_INIT, ConnectionDirection.CLIENTBOUND, LevelInitS2C.class, LevelInitS2C::decode),
             def(S2C_LEVEL_LIST, ConnectionDirection.CLIENTBOUND, LevelListS2C.class, LevelListS2C::decode),
@@ -227,6 +249,7 @@ public final class PvzcePackets {
                     EntityDespawnS2C::decode),
             def(S2C_EFFECT_EVENT, ConnectionDirection.CLIENTBOUND, EffectEventS2C.class, EffectEventS2C::decode),
             def(S2C_CARRY_SYNC, ConnectionDirection.CLIENTBOUND, CarrySyncS2C.class, CarrySyncS2C::decode),
+            def(S2C_HELD_CARD, ConnectionDirection.CLIENTBOUND, HeldCardS2C.class, HeldCardS2C::decode),
             def(S2C_RESOURCE_COLLECT, ConnectionDirection.CLIENTBOUND, ResourceCollectS2C.class,
                     ResourceCollectS2C::decode),
             def(S2C_RESOURCE_DELTA, ConnectionDirection.CLIENTBOUND, ResourceDeltaS2C.class,
