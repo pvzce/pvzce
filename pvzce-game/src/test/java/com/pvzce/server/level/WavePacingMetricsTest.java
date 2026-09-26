@@ -81,6 +81,13 @@ class WavePacingMetricsTest {
         int lastSpawnTick = 0;
         int tick = 0;
         for (; tick < TICK_BUDGET && level.gameState().equals(GameStateS2C.RUNNING); tick++) {
+            if (level.isPreparing()) {
+                // A preparation level waits for the player. This loop *is* the player - it already
+                // models one who kills a zombie every N ticks - so it presses start on the first
+                // tick rather than letting the phase run out its budget and reporting the level as
+                // unfinishable (which is exactly what it did before this line existed).
+                level.beginWaves();
+            }
             level.tick(bridge);
             int alive = (int) level.aliveZombieCount();
             if (alive > 0 && started < 0) {

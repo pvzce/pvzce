@@ -2767,8 +2767,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         waveWarningShown = active;
     }
 
+    /**
+     * True when the sun bank is drawn.
+     *
+     * <p>The SunBank card is one reason to draw it - collecting sun is what that card buys - but
+     * not the only one: a level that hands the player a budget and then takes the sky away (谁笑到最后,
+     * and every rhythm level) has no SunBank card and still has sun to spend, and without this the
+     * player would be arranging a defence against a number they cannot see. So: the card, or a
+     * balance that is not zero. A belt level has neither (its sun is always 0), which is why it
+     * still draws no bank.
+     */
     public boolean hasSunBank() {
-        return hasSunBank(client.level().slots());
+        return hasSunBank(client.level().slots()) || client.level().sun() > 0;
     }
 
     /**
