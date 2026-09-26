@@ -94,12 +94,12 @@ public final class TorchwoodCapability implements PlantCapability {
             }
         }
         if (lit) {
-            // Nothing in the art changes; the flame is the plant's idle. What the flag is for is
-            // the *report*: a torchwood that lit something this tick is a fact worth being able to
-            // test, and a capability with no observable output is one nobody can pin down.
+            // The plant's own art does not change - the flame is its idle - so the report is the
+            // sound and the flag: the original's ignite, which is a different thing from the pea
+            // hitting something and used to be played as the mallet's knock by mistake.
             litThisTick = true;
             level.emitEffect("", plant.cellX(), plant.cellY(),
-                    com.pvzce.common.PvzceSounds.EFFECT_BONK);
+                    com.pvzce.common.PvzceSounds.PLANT_FIREPEA);
         } else {
             litThisTick = false;
         }

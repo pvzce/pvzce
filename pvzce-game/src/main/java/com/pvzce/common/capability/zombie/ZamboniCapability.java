@@ -32,12 +32,17 @@ import java.util.Optional;
  * with the rest of the scene and a mutation or a level can clear it the same way it clears a
  * crater.
  *
+ * <p>It is terrain with a clock, though, not a scar: every frozen cell melts back into lawn after
+ * the level's {@code ice_melt} (thirty seconds by default), and a fire blast - the cherry bomb's or
+ * the jalapeno's - takes it off the lawn at once. That timing lives on the level rather than here
+ * because by the time the ice is old, the machine that made it is usually dead: see
+ * {@code LevelServer.tickScene}.
+ *
  * <h2>What it does not do</h2>
  *
  * <p>It does not freeze zombies. The original's zamboni leaves a trail and is a hazard on its own;
  * the "everything nearby freezes when it dies" reading is the ice-shroom's ice, and borrowing it
- * would make one zombie a second ice-shroom. What dies with it is the machine - and what it left
- * behind stays.
+ * would make one zombie a second ice-shroom.
  */
 public final class ZamboniCapability implements ZombieCapability {
     /** How far ahead of its own centre it crushes, in cells. */
@@ -106,22 +111,36 @@ public final class ZamboniCapability implements ZombieCapability {
         return false;
     }
 
-    /** Freezes one cell, unless it is already ice or is not ground at all. */
+    /** Freezes one cell, unless it is already ice or is not bare ground. */
     private static void leaveIce(LevelServer level, int column, int row) {
         var scene = level.sceneAt(column, row);
         if (scene == null) {
             return;
         }
         Identifier id = scene.id();
-        if (PvzceIds.ICE.equals(id) || PvzceIds.WATER.equals(id)) {
-            // Water does not freeze over from a vehicle driving past it, and re-writing a cell
-            // that is already ice would send a scene packet every tick for no change.
+        if (PvzceIds.ICE.equals(id)) {
+            // Already frozen. `setScene` would be a no-op, but this early return is what keeps the
+            // packet below to one per cell: a zamboni sits on the same cell for ticks on end, and
+            // re-sending it every tick would be a packet per tick for no change.
+            return;
+        }
+        // Bare ground only, the same list the vase tool works off: the trail melts back into lawn
+        // (the level's ice clock writes the cell's default terrain), so freezing a gravestone, a
+        // pot or a crater would quietly delete it thirty seconds later. Water is not ground a
+        // vehicle leaves a trail on either.
+        if (!PvzceIds.GRASS.equals(id) && !PvzceIds.GROUND.equals(id)
+                && !PvzceIds.ROOF_FLAT.equals(id) && !PvzceIds.ROOF_SLOPE.equals(id)) {
             return;
         }
         level.setScene(column, row, PvzceIds.ICE);
+        // Writing the cell is only half of it: the client draws what it was last told, and the
+        // scene mirror is what it was told. Without this the lane stayed green on screen while the
+        // server had it frozen - and the zamboni levels hide `pvzce:grass`, so the cell showed the
+        // backdrop and read as "nothing happened here at all".
+        level.sendSceneCell(column, row);
     }
 
-    /** The machine is spent with the zombie; what it left is not. */
+    /** The machine is spent with the zombie; its trail is the lawn's business now. */
     @Override
     public void onDeath(ZombieEntity zombie, LevelAccess level) {
         if (level instanceof LevelServer server) {

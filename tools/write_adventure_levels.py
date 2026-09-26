@@ -73,6 +73,10 @@ EXTRA_RULES: Dict[int, dict] = {
     5: {"pvzce:zombie_speed_multiplier": 1.5},
     15: {"pvzce:graves_spawn_night": True, "pvzce:zombie_speed_multiplier": 2.6,
          "pvzce:zombie_sun_drop_chance": 0.05, "pvzce:zombie_rise_ticks": 40},
+    # Scary Potter's second economy: what the vases do not hold, the zombies that came out of them
+    # drop. Ten percent of three suns is what a level with no sky and no producers can pay without
+    # the player simply planting everything the pots hand over.
+    35: {"pvzce:zombie_sun_drop_chance": 0.1},
 }
 
 #: Levels whose unlock block is not just "the level before it". 1-4 is the shop's own demo: it
@@ -139,24 +143,31 @@ CONVEYORS: Dict[int, dict] = {
 #: `Challenge::ScaryPotterPopulate`.
 #: `leaf_count` is the original's `ScaryPotterChangePotType`: round 2 turns two of its seed pots
 #: green and round 3 turns three, so the player is told where a few of the plants are.
+#: The vase level's pots, in three rounds. The `sun` pots are the level's economy: there is no
+#: sky here (`sun_spawn_interval_*` are both 0) and none of the plants that come out of the pots
+#: produces anything, so without them the one card the player is handed - a 150-sun cherry bomb -
+#: could never be planted. Eight pots of 25 sun plus what the zombies drop is about two bombs.
 SCARY_POTTER_ROUNDS = [
     {"from_column": 6, "leaf_count": 0, "pots": [
-        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 5},
+        {"kind": "sun", "id": "pvzce:sun", "count": 2},
+        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 4},
         {"kind": "plant", "id": "pvzce:squash", "count": 5},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 4},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 3},
         {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 1}]},
     {"from_column": 5, "leaf_count": 2, "pots": [
-        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 4},
-        {"kind": "plant", "id": "pvzce:snow_pea", "count": 5},
+        {"kind": "sun", "id": "pvzce:sun", "count": 3},
+        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 3},
+        {"kind": "plant", "id": "pvzce:snow_pea", "count": 4},
         {"kind": "plant", "id": "pvzce:squash", "count": 4},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 5},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 4},
         {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 1},
         {"kind": "zombie", "id": "pvzce:football_zombie", "count": 1}]},
     {"from_column": 4, "leaf_count": 3, "pots": [
-        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 5},
-        {"kind": "plant", "id": "pvzce:snow_pea", "count": 5},
+        {"kind": "sun", "id": "pvzce:sun", "count": 3},
+        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 4},
+        {"kind": "plant", "id": "pvzce:snow_pea", "count": 4},
         {"kind": "plant", "id": "pvzce:hypno_shroom", "count": 5},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 6},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 5},
         {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 2},
         {"kind": "zombie", "id": "pvzce:dancing_zombie", "count": 1},
         {"kind": "zombie", "id": "pvzce:jack_in_the_box_zombie", "count": 1}]},
@@ -281,9 +292,10 @@ PROSE: Dict[int, tuple] = {
         ["小僵尸血少但快，别让它们堆起来",
          "莲叶不够就先把水里的路堵上"]),
     26: ("3-6 地刺上阵",
-        "雪橇车僵尸第一次开过来：它不咬植物，直接碾过去，还把压过的地面冻成一层种不下东西的冰。"
-        "冰面上还会滑出雪橇小队。地刺是它的反面——长在草里，僵尸从它身上走过去一直受伤。",
-        ["雪橇车碾过的地面结冰，那一格这一局种不下东西",
+        "雪橇车僵尸第一次开过来：它不咬植物，直接碾过去，还把压过的地面冻成一层种不下东西的冰"
+        "（三十秒化开，火爆辣椒和樱桃炸弹能立刻融掉）。冰面上还会滑出雪橇小队。"
+        "地刺是它的反面——长在草里，僵尸从它身上走过去一直受伤。",
+        ["雪橇车碾过的地面结冰，那一格一时种不下东西——三十秒后会化开",
          "地刺种在草里，僵尸会从它身上走过"]),
     27: ("3-7 火炬树桩",
         "水里的潜水僵尸和草地上的铁桶一起来，雪橇车也在这条路上。火炬树桩是这一关的礼物："
@@ -322,11 +334,12 @@ PROSE: Dict[int, tuple] = {
         "可以把一张植物卡塞进花瓶里存着，也可以随时砸开拿回来。",
         ["花瓶工具能存卡，也能把存进去的卡拿回来"]),
     35: ("4-5 恐怖花瓶",
-        "原版的恐怖花瓶：没有僵尸从雾里走过来，草坪上摆满了花瓶。砸开绿色叶子的，里面是一株植物；"
-        "砸开画着问号的，里面可能是植物，也可能是一只僵尸——包括会炸的玩偶匣。三个回合，"
-        "一回合比一回合靠里。打完它，分裂豌豆归你。",
-        ["锤子砸花瓶：绿叶瓶里是植物，问号瓶里不一定",
-         "砸光所有花瓶、清掉僵尸，就进下一个回合"]),
+        "原版的恐怖花瓶：没有僵尸从雾里走过来，草坪上摆满了花瓶。点一下花瓶就有一把锤子砸下去："
+        "砸开绿色叶子的，里面是一株植物；砸开画着问号的，里面可能是植物，也可能是僵尸，还可能是"
+        "这一关唯一的阳光——天上不掉阳光，能种的东西全在这些瓶子里。三个回合，一回合比一回合靠里。"
+        "打完它，分裂豌豆归你。",
+        ["点花瓶就有锤子砸下去：绿叶瓶里是植物，问号瓶里不一定",
+         "阳光也在瓶子里，砸光所有花瓶、清掉僵尸，就进下一个回合"]),
     36: ("4-6 杨桃",
         "矿工僵尸第一次出现：他从右边挖地道，从你防线的背后钻出来。杨桃是这一关的礼物，"
         "五个方向都能打，站在中间就不用管僵尸从哪一边来。",
@@ -484,7 +497,11 @@ def mechanics_for(facts: original.LevelFacts) -> List[dict]:
                 for rnd in SCARY_POTTER_ROUNDS
             ],
         })
-        out.append(tool("hammer"))
+        # No hammer either, and that is the whole of "点花瓶就有锤子砸下去": the mallet is a
+        # gesture the client plays over the vase that was clicked (`SmashContainerC2S`), so a
+        # level that granted the tool would ALSO get a mallet cursor, a price and a cooldown for
+        # a swing that is not a tool. The pots break in every level, this one included.
+        #
         # Declared, not left out: a level that says nothing about mowers gets one per row
         # (`LevelMechanics.effective`), and the original's Scary Potter has none - a vase level
         # is not lost by letting a zombie through, it is lost by running out of lawn.
@@ -711,7 +728,16 @@ def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
     # one cherry bomb and nothing else, and everything else arrives out of the pots
     # (`CardSource.receiveCard` appends past the cap, so the freed cards still fit).
     if facts.scary_potter:
-        level["max_seed_slots"] = len(slots)
+        # The sun card is part of the level's own bar, like every other level's: without it in the
+        # bar the resource is not collectible at all (`collectible_without_card: false`), so the
+        # sun out of the pots and the sun off the zombies would both be dead drops - and the bank
+        # HUD, which draws only when the card is in the bar, would never appear either.
+        if "pvzce:sun" not in level["slots"]:
+            level["slots"] = ["pvzce:sun"] + list(level["slots"])
+        level["max_seed_slots"] = len(level["slots"])
+        # Nothing to choose and no buff page to choose it on: the level starts as soon as it is
+        # picked from the list, without the card screen (`seed_screen: false`).
+        level["seed_screen"] = False
     elif facts.number == 1:
         level["max_seed_slots"] = 2
     elif facts.number == 2:

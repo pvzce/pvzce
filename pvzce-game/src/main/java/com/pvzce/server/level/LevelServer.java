@@ -146,6 +146,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     private final List<PvzceEntity> awaitSpawnPacket = new ArrayList<>();
     private final Map<Integer, Integer> craterTimers = new HashMap<>();
+    /**
+     * How long each frozen cell has been frozen, keyed by cell.
+     *
+     * <p>The ice trail's own clock, read by {@link #tickScene}: a cell freezes when the zamboni
+     * drives over it and melts on its own {@code ice_melt} count from there, so a trail disappears
+     * from the end the machine started at. Not saved, exactly like {@link #craterTimers} - a
+     * resumed run gets a fresh clock on the ice it restored, which is the same forgiveness a
+     * resumed run gives a crater.
+     */
+    private final Map<Integer, Integer> iceTimers = new HashMap<>();
     private final Random random = new Random();
 
     /**
@@ -2627,10 +2637,26 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // A recovery shorter than the fade would spend its whole life fading, so the fade is
         // clamped to the recovery rather than allowed to outlast it.
         int fadeFrom = Math.max(0, recovery - Math.min(CRATER_FADE_TICKS, recovery));
+        int iceMelt = rules.getInt(PvzceIds.RULE_ICE_MELT);
         for (int x = 0; x < width(); x++) {
             for (int y = 0; y < height(); y++) {
                 SceneElementDef element = scene.get(x, y);
                 if (element == null) {
+                    continue;
+                }
+                if (PvzceIds.ICE.equals(element.id())) {
+                    // The zamboni's trail: terrain with a clock rather than a permanent scar.
+                    // Counted here, on the level, because by the time the ice is old the machine
+                    // that made it is usually dead - "how long has this cell been frozen" is a
+                    // fact about the lawn, and the lawn is what owns it.
+                    if (iceMelt <= 0) {
+                        continue;
+                    }
+                    int key = y * width() + x;
+                    if (iceTimers.merge(key, 1, Integer::sum) >= iceMelt) {
+                        // The timer is dropped inside `meltIceCell`, which the fire path shares.
+                        meltIceCell(x, y);
+                    }
                     continue;
                 }
                 if (!PvzceIds.SURFACE_CRATER.equals(element.surfaceClass())) {
@@ -2648,6 +2674,57 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     setScene(x, y, PvzceIds.CRATER_FADING);
                     sendSceneCell(x, y);
                 }
+            }
+        }
+    }
+
+    /** One cell of ice back to the lawn it was: bare ground again, and the client told. */
+    private void meltIceCell(int x, int y) {
+        iceTimers.remove(y * width() + x);
+        // The same write a broken vase makes, for the same reason: whatever this cell was before
+        // the ice (lawn, bare dirt) is what "not ice" means, and `resetSceneCell` already owns
+        // that answer plus its scene packet.
+        resetSceneCell(x, y);
+    }
+
+    /**
+     * Melts the ice a fire blast covered, immediately.
+     *
+     * <p>The cherry bomb's and the jalapeno's second effect, and the original's own answer to a
+     * zamboni that has just closed a lane: fire takes the trail back off the lawn, so a lane the
+     * machine took is a lane a bomb can re-open. The ice's own clock on that cell is dropped with
+     * it - a timer left running under a lawn would melt the *next* ice to land there.
+     *
+     * <p>Not every blast: {@code melts_ice} is opt-in content, because a potato mine and a
+     * jack-in-the-box are explosions too and neither is fire.
+     */
+    @Override
+    public void meltIce(float centerX, float centerY, float radius, boolean square) {
+        float limit = square ? radius + 0.5F : radius;
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                if (Math.abs(x + 0.5F - centerX) > limit || Math.abs(y + 0.5F - centerY) > limit) {
+                    continue;
+                }
+                SceneElementDef element = scene.get(x, y);
+                if (element == null || !PvzceIds.ICE.equals(element.id())) {
+                    continue;
+                }
+                meltIceCell(x, y);
+            }
+        }
+    }
+
+    /** The same, for the one explosive whose blast is a whole row rather than a circle. */
+    @Override
+    public void meltIceRow(int row) {
+        if (row < 0 || row >= height()) {
+            return;
+        }
+        for (int x = 0; x < width(); x++) {
+            SceneElementDef element = scene.get(x, row);
+            if (element != null && PvzceIds.ICE.equals(element.id())) {
+                meltIceCell(x, row);
             }
         }
     }
@@ -3687,8 +3764,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     PvzceSounds.PLANT_PLANT);
             return true;
         }
-        // Smashed. The cell goes back to whatever a bare lawn is made of, and the card inside -
-        // if there was one - is the player's again.
+        return smashVase(x, y);
+    }
+
+    /**
+     * Breaks the vase standing in a cell open.
+     *
+     * <p>Reached two ways, and they are the same act: the vase tool clicked on a vase, and a
+     * click with nothing in hand (see {@link #smashContainer}). What is inside is the player's
+     * again either way.
+     */
+    private boolean smashVase(int x, int y) {
+        // The cell goes back to whatever a bare lawn is made of, and the card inside - if there
+        // was one - is the player's again.
         Identifier inside = vaseContents.remove(cellKey(x, y));
         resetSceneCell(x, y);
         emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
@@ -3707,6 +3795,36 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
         }
         return true;
+    }
+
+    /**
+     * A click with nothing in hand on a vase or one of the vase level's pots: the swing that
+     * breaks it.
+     *
+     * <p>The mallet in this build is an animation, not a tool (see {@code InGameScreen}'s summoned
+     * swing), so the server's half is the answer to "what did that click break": a pot of the
+     * vase level, a vase the player placed, or nothing at all. The two kinds of container live in
+     * different books - the pots are the {@code pvzce:scary_potter} mechanic's, a vase is the
+     * player's own - which is why this is the one place that asks both.
+     *
+     * <p>Refused for any other cell rather than treated as "a swing at the lawn": a click that
+     * breaks nothing must not spend anything, and there is nothing here to spend.
+     */
+    public boolean smashContainer(ServerBridge bridge, int x, int y) {
+        return withBridge(bridge, () -> {
+            if (!gameState.equals(GameStateS2C.RUNNING) || !inBounds(x, y)) {
+                return false;
+            }
+            if (ScaryPotterMechanic.isPot(this, x, y)) {
+                return smashPot(x, y);
+            }
+            SceneElementDef here = sceneAt(x, y);
+            if (here != null && (PvzceIds.VASE.equals(here.id())
+                    || PvzceIds.VASE_FULL.equals(here.id()))) {
+                return smashVase(x, y);
+            }
+            return false;
+        });
     }
 
     /**
@@ -3774,6 +3892,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C(delivered
                     ? "花瓶里掉出了一张卡。"
                     : "花瓶里掉出了一张卡，但卡槽已经放不下了。"));
+        } else if (contents.isResource()) {
+            // The vase level's economy: the pots are where its sun comes from, so a level with no
+            // sky and no producers still pays for the one card it hands out.
+            ResourceDef resource = BuiltInRegistries.RESOURCES.get(contents.id());
+            if (resource != null) {
+                spawnResource(contents.id(), resource.defaultValue(), x, y,
+                        teams.get(PvzceIds.PLANT_TEAM));
+            }
+            bridge.send(new ServerMessageS2C("花瓶里掉出了阳光。"));
         } else {
             spawnZombie(contents.id(), x + 0.5F, y);
             bridge.send(new ServerMessageS2C("花瓶里跳出了一只僵尸。"));
@@ -4230,6 +4357,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         entities.clear();
         waves.clearQueues();
         craterTimers.clear();
+        iceTimers.clear();
     }
 
     // ------------------------------------------------------------------

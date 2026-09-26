@@ -176,7 +176,13 @@ class FogWorldLevelsTest {
         assertEquals(List.of(6, 5, 4), rounds.orElseThrow().rounds().stream()
                         .map(com.pvzce.api.content.ScaryPotterData.Round::fromColumn).toList(),
                 "and each round reaches one column further towards the house");
-        assertEquals(1, def.slots().size(), "the player is handed one card: a cherry bomb");
+        // Two cards, and the second one is the *bar* rather than a plant: without the sun card in
+        // it the resource is not collectible at all (`collectible_without_card: false`), so the
+        // sun out of the pots and the sun off the zombies would both be dead drops - and the bank
+        // HUD, which draws only for a bar that carries the card, would never appear either.
+        assertEquals(List.of("pvzce:sun", "pvzce:cherry_bomb"),
+                def.slots().stream().map(Identifier::toString).toList(),
+                "the player is handed the sun card and one plant: a cherry bomb");
     }
 
     /** Every wave names its lanes, and every level ends on a final wave. */

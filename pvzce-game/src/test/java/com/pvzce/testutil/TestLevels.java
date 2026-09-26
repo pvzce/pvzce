@@ -85,6 +85,7 @@ public final class TestLevels {
         private List<String> hiddenSceneElements;
         private boolean disableShaders;
         private LevelDef.LevelBuffPlan buffPlan = LevelDef.LevelBuffPlan.NONE;
+        private boolean seedScreen = true;
 
         private Builder(LevelDef def) {
             this.id = def.id();
@@ -114,6 +115,8 @@ public final class TestLevels {
             this.background = def.background();
             this.hiddenSceneElements = def.hiddenSceneElements();
             this.disableShaders = def.disableShaders();
+            this.buffPlan = def.buffPlan();
+            this.seedScreen = def.seedScreen();
         }
 
         public Builder id(Identifier value) {
@@ -231,11 +234,18 @@ public final class TestLevels {
             return this;
         }
 
+        /** False for a level that starts without showing the card screen; see LevelDef. */
+        public Builder seedScreen(boolean value) {
+            this.seedScreen = value;
+            return this;
+        }
+
         public LevelDef build() {
             return new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules,
                     envVars, waves, waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     music, initialEntities, maxSeedSlots, rewards, unlock, mechanics, dialogue,
-                    hints, playableTeams, background, hiddenSceneElements, disableShaders, buffPlan);
+                    hints, playableTeams, background, hiddenSceneElements, disableShaders, buffPlan,
+                    seedScreen);
         }
     }
 }

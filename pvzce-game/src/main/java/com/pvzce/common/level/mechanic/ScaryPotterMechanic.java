@@ -66,6 +66,11 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
                         errors.add(where + " holds a plant, but no card or plant of that id"
                                 + " exists, so breaking it would give the player nothing");
                     }
+                } else if (pot.isResource()) {
+                    if (BuiltInRegistries.RESOURCES.get(pot.id()) == null) {
+                        errors.add(where + " holds a resource that does not exist, so breaking it"
+                                + " would drop nothing");
+                    }
                 } else if (!BuiltInRegistries.ZOMBIES.containsKey(pot.id())) {
                     errors.add(where + " holds a zombie that does not exist");
                 }
@@ -161,6 +166,11 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
     public record Contents(String kind, Identifier id) {
         public boolean isPlant() {
             return ScaryPotterData.KIND_PLANT.equals(kind);
+        }
+
+        /** True when this pot holds a resource drop rather than a card or a zombie. */
+        public boolean isResource() {
+            return ScaryPotterData.KIND_SUN.equals(kind);
         }
     }
 

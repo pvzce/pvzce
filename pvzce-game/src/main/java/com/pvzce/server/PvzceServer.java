@@ -1247,6 +1247,14 @@ public final class PvzceServer implements Runnable {
                 if (current != null) {
                     current.useTool(bridge, tool.slotIndex(), tool.gridX(), tool.gridY());
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.SmashContainerC2S smash) {
+                // A bare click on a vase or one of the vase level's pots. The client decides
+                // whether there is anything to hit (it draws the board, so it knows what is in
+                // the cell) and the server decides whether it broke - the same split every other
+                // click has.
+                if (current != null) {
+                    current.smashContainer(bridge, smash.gridX(), smash.gridY());
+                }
             } else if (packet instanceof com.pvzce.common.network.packet.UseGrantedToolC2S granted) {
                 // A tool the level hands over rather than a card the player holds. Which tool
                 // that is comes from the level's own block, found by id - the client names the

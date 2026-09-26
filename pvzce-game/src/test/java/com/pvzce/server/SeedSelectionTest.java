@@ -8,6 +8,7 @@ import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.NbtIo;
 import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.tag.TestContent;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -98,6 +99,30 @@ class SeedSelectionTest {
         LevelDef def = level(List.of(PEA, SUN), 2);
         assertEquals(List.of(PEA, SUN),
                 SeedSelection.sanitize(def, List.of(SHOVEL), profileOwning(SHOVEL)));
+    }
+
+    /**
+     * A level that never shows the card screen gets its default bar, not an empty one.
+     *
+     * <p>The vase level is the case: it enters straight into the run ({@code seed_screen: false}),
+     * so the request that arrives with it is empty - there was no screen to make a choice on.
+     * Read as "the player picked nothing" the bar came out as the fixed cards alone, which is a
+     * run whose sun card was missing while the level handed out sun. Read as "nobody was asked" it
+     * comes out as the same bar the chooser's own default would have produced.
+     */
+    @Test
+    void aLevelWithNoCardScreenTreatsAnEmptyRequestAsNoChoice(@TempDir Path gameDir) {
+        PlayerProfile profile = profileOwning(PEA, SUN, SHOVEL);
+        LevelDef chooser = level(List.of(PEA), 3);
+        LevelDef straightIn = TestLevels.copy(chooser).seedScreen(false).build();
+
+        assertEquals(List.of(PEA), SeedSelection.plan(chooser, profile, List.of(), gameDir,
+                        false, false),
+                "a level with a chooser and an empty request keeps only what it fixed");
+        List<Identifier> bar = SeedSelection.plan(straightIn, profile, List.of(), gameDir,
+                false, false);
+        assertEquals(3, bar.size(), "a level with no chooser gets the default bar: " + names(bar));
+        assertEquals(PEA, bar.get(0), "its own card first, as always");
     }
 
     /** A conveyor level deals its own cards: any selection it was sent is thrown away. */

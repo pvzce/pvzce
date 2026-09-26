@@ -8,9 +8,9 @@
     }
   ],
   "sounds": {
-    "impact": "pvzce:sfx/effect/explosion"
+    "impact": "pvzce:sfx/projectile/hit"
   },
-  "texture": "pvzce:textures/entities/projectile/frozen_pea",
-  "render_scale": 1.35,
+  "animation_dir": "projectile",
+  "texture": "pvzce:textures/entities/projectile/fire_pea",
   "impact_particle": "pvzce:pea_splat"
 }

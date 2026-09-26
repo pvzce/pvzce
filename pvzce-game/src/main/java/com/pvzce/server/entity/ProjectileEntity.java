@@ -4,6 +4,7 @@ import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ProjectileRef;
 import com.pvzce.api.content.capability.ProjectileCapability;
 import com.pvzce.api.content.capability.TypedCapability;
+import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.entity.EntityLayers;
 import com.pvzce.api.util.Identifier;
@@ -150,6 +151,12 @@ public class ProjectileEntity extends PvzceEntity {
         if (burningType != null) {
             this.torchDamageType = burningType;
         }
+        // The art follows the fact, and this is the only place the fact exists. A shot that is
+        // burning is drawn as the original's fire pea - its own reanim, flames and all - so the
+        // state goes out with the next entity sync. Nothing else about the shot changes: the
+        // definition stays the pea's (same motion, same impact sound), which is why the swap is a
+        // state and not a second projectile.
+        setAnimation(EntityAnimations.LIT);
         return true;
     }
 

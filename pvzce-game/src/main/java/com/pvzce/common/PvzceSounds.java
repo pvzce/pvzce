@@ -30,6 +30,14 @@ public final class PvzceSounds {
 
     public static final Identifier PROJECTILE_HIT = id("sfx/projectile/hit");
     /**
+     * A torchwood lighting a pea as it goes through.
+     *
+     * <p>The original's own ignite, and the sound this project had a file for and no caller: it
+     * was wired to {@link #EFFECT_BONK} instead, so the player heard the mallet's knock when a
+     * pea caught fire and reasonably read it as a hit.
+     */
+    public static final Identifier PLANT_FIREPEA = id("sfx/plant/firepea");
+    /**
      * A bowled nut hitting a zombie.
      *
      * <p>Two ids because a nut caroming through a crowd hits about every 100 ms and the client

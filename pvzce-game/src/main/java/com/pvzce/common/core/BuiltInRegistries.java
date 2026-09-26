@@ -347,6 +347,8 @@ public final class BuiltInRegistries {
         registerRule(PvzceIds.RULE_SUN_SPAWN_INITIAL_TICKS, new GameRuleType.IntRule(
                 PvzceConstants.SUN_SPAWN_INITIAL_TICKS, 0, 36000));
         registerRule(PvzceIds.RULE_CRATER_RECOVERY, new GameRuleType.IntRule(6000, 0, Integer.MAX_VALUE));
+        registerRule(PvzceIds.RULE_ICE_MELT, new GameRuleType.IntRule(
+                PvzceConstants.ICE_MELT_TICKS, 0, Integer.MAX_VALUE));
         registerRule(PvzceIds.RULE_SUN_VALUE, new GameRuleType.IntRule(
                 PvzceConstants.SUN_VALUE, 1, 10000));
         registerRule(PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE, new GameRuleType.FloatRule(0F, 0F, 1F));

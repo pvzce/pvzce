@@ -158,21 +158,31 @@ class AnimationResourceLoaderTest {
     }
 
     /**
-     * The threepeater draws three heads standing still, and one head at a time firing.
+     * The threepeater draws three heads, standing still and mid-volley.
      *
      * <p>Its three heads live on three timelines that never overlap in the source (head 1's face
-     * on frames 4..41, head 3's on 45..82, head 2's on 86..123), so no single frame of the file
-     * shows the plant. The converter's rescue rule forces the head group on for the standing
-     * pose - and it is matched with {@code fullmatch} against de-duplicated names, so a pattern
-     * that named the family without allowing the {@code _2}/{@code _3} suffixes silently dropped
-     * two of the three heads and every headleaf. A threepeater at rest drew one head on three
-     * stems, and mid-volley it drew all three faces on the same pixel.
+     * on frames 4..41, head 3's on 45..82, head 2's on 86..123), so the converter's rescue rule
+     * forces the head group on for the standing pose - and it is matched with {@code fullmatch}
+     * against de-duplicated names, so a pattern that named the family without allowing the
+     * {@code _2}/{@code _3} suffixes silently dropped two of the three heads and every headleaf.
      *
-     * <p>Both halves are pinned here because they fail in opposite directions: the idle clip has
-     * to show <em>every</em> head, and the shoot clip has to show exactly one per volley.
+     * <p>The volley clip is those three timelines laid end to end, and the pair of facts it has to
+     * hold at once is what this pins: <em>every</em> head is drawn for the whole clip, and no two
+     * heads ever share a pixel. They fail in opposite directions and each has shipped:
+     *
+     * <ul>
+     *   <li>hiding a head while another one fires - what the source file does with its own masks,
+     *       and what the clip used to copy - reads as "the heads sprout one at a time and fly
+     *       in";</li>
+     *   <li>forcing all three on without re-posing them draws the two that are not acting at the
+     *       same unset pixel, which is three faces stacked in the middle of the plant.</li>
+     * </ul>
+     *
+     * <p>Each head still gets its own turn: the volley is three 0.5s windows, and the bones of one
+     * head leave their rest pose in each.
      */
     @Test
-    void theThreepeaterDrawsThreeHeadsIdleAndOneAtATimeFiring() throws Exception {
+    void theThreepeaterDrawsThreeHeadsThroughTheVolley() throws Exception {
         ControllerFile controller = (ControllerFile) parseClasspath("threepeater");
         String[] heads = {"head", "head_2", "head_3"};
         String[] mouths = {"mouth", "mouth_2", "mouth_3"};
@@ -187,31 +197,46 @@ class AnimationResourceLoaderTest {
             assertTrue(idlePose.get(mouth).visible(), mouth + " belongs to a head that is up");
         }
 
-        // The volley: three shooting masks laid end to end, one head per phase. The invariant is
-        // "never two at once" over every frame, plus "all three get a turn" - the defect being
-        // guarded is three faces drawn on the same pixel, and a sampling scheme that only looked
-        // at three guessed moments would have missed it.
         ControllerClip shoot = (ControllerClip) controller.clip("shoot").orElseThrow();
         // Three masks of 13 source frames each, laid end to end with no dead time: the clip's
         // length is their sum, not the 95-frame span they live in.
         assertEquals(3.25D, shoot.duration(), 0.001D,
                 "the three volleys back to back, not the whole span they sit in");
-        java.util.Set<String> fired = new java.util.HashSet<>();
+        boolean[] moved = new boolean[heads.length];
+        float[][] parked = new float[heads.length][];
+        for (int i = 0; i < heads.length; i++) {
+            parked[i] = shoot.samplePose(controller.model(), 0D).get(heads[i]).translation();
+        }
+        // Sampled rather than read off the keyframes: "drawn at every instant" is a statement
+        // about every instant, and the defect being guarded is a head missing for a whole window.
         for (int step = 0; step <= 200; step++) {
             double at = shoot.duration() * step / 200.0;
             var pose = shoot.samplePose(controller.model(), at);
-            int up = 0;
-            for (String head : heads) {
-                if (pose.get(head).visible()) {
-                    up++;
-                    fired.add(head);
+            for (int i = 0; i < heads.length; i++) {
+                assertTrue(pose.get(heads[i]).visible(),
+                        heads[i] + " is not drawn at " + at + "s; a firing threepeater keeps all"
+                                + " three heads and only the one firing moves");
+                assertTrue(pose.get(mouths[i]).visible(),
+                        mouths[i] + " belongs to a head that is up");
+                float[] fired = pose.get(heads[i]).translation();
+                if (Math.abs(fired[0] - parked[i][0]) > 0.01F
+                        || Math.abs(fired[1] - parked[i][1]) > 0.01F) {
+                    moved[i] = true;
                 }
             }
-            assertTrue(up <= 1,
-                    "two heads were drawn at once at " + at + "s; the volley fires one at a time");
+            for (int i = 0; i < heads.length; i++) {
+                for (int j = i + 1; j < heads.length; j++) {
+                    float[] a = pose.get(heads[i]).translation();
+                    float[] b = pose.get(heads[j]).translation();
+                    assertTrue(Math.abs(a[0] - b[0]) > 0.01F || Math.abs(a[1] - b[1]) > 0.01F,
+                            heads[i] + " and " + heads[j] + " are drawn on the same pixel at "
+                                    + at + "s; a head that is not firing holds its own pose");
+                }
+            }
         }
-        assertEquals(3, fired.size(),
-                "every head takes its turn over one clip, saw " + fired);
+        for (int i = 0; i < heads.length; i++) {
+            assertTrue(moved[i], heads[i] + " never leaves its rest pose: every head takes a turn");
+        }
     }
 
     @Test
@@ -549,8 +574,9 @@ class AnimationResourceLoaderTest {
      * standing still, the action clip cannot make all of it disappear".
      *
      * <p>Sampled rather than read off the keyframes: "hidden for the whole clip" is a statement
-     * about every instant in it, and the threepeater legitimately hides two of its three heads for
-     * part of each volley.
+     * about every instant in it, and a part that is only hidden for part of a clip is a different
+     * thing - the threepeater's heads used to be exactly that, and the fix is pinned in
+     * {@link #theThreepeaterDrawsThreeHeadsThroughTheVolley}.
      */
     @Test
     void anActionClipDoesNotHideEveryBoneTheIdleClipShows() throws Exception {

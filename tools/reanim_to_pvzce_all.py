@@ -400,6 +400,34 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         },
     ),
     # ------------------------------------------------------------------
+    # Projectiles
+    #
+    # One, and it is the one the original draws as an animation rather than as a sprite: every
+    # other shot in the game is a single PNG (`ProjectilePea.png`, `ProjectileSnowPea.png`, ...),
+    # which is why their content definitions point straight at a texture. A pea that has been
+    # through a torchwood is a body with a flame and three sparks over it, so its `FirePea.reanim`
+    # is the whole of its art.
+    #
+    # The file has no `anim_*` mask tracks at all - all five tracks are drawn for all 25 frames -
+    # so the clip is `range: all` rather than a mask, and the same 25 frames answer to both state
+    # names the runtime asks for: a shot that is simply flying (`idle`) and one that is burning
+    # (`lit`, which is what a torched pea is set to and the name its own definition binds it to).
+    # ------------------------------------------------------------------
+    EntityConfig(
+        output="fire_pea",
+        group="projectile",
+        reanim="FirePea.reanim",
+        target_box=(0.24, 0.24),
+        # The pea is the part that has to be the size of a pea. The flame is drawn wider than the
+        # body and the sparks fly off it, so measuring the whole model would fit the *fire* to a
+        # cell and leave a pea two thirds the size of the one next to it.
+        measure_exclude_regex=r"flame|spark",
+        animations={
+            "idle": {"range": "all", "loop": True},
+            "lit": {"range": "all", "loop": True},
+        },
+    ),
+    # ------------------------------------------------------------------
     # Plants
     # ------------------------------------------------------------------
     EntityConfig(
@@ -992,10 +1020,18 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             # belong to other phases of the same 149-frame file - playing the span would spend
             # two and a half of its three seconds on a plant with no head drawn.
             #
-            # Every head is claimed by the window of the phase it fires in, so exactly one head
-            # and one mouth are up at a time. Without that the converter draws whatever each
-            # bone's source state was at the top of the clip, and all three faces land on the
-            # same pixel - which is the "three heads stacked" the plant used to show.
+            # Every head is claimed by the window of the phase it fires in. Two things follow
+            # from that claim, and together they are "a threepeater fires three times without
+            # ever losing a head":
+            #
+            # * the head stays on screen for the whole clip. The source hides it while another
+            #   head fires, because there its own timeline is the one running - read into one
+            #   end-to-end clip, that turns the plant into a single head that sprouts and flies
+            #   in, twice, on every volley;
+            # * outside its own window it holds the idle pose. Its track sits at the unset pose
+            #   (scale 1.0, off-model pixel) while another head is firing, and drawing *that* for
+            #   the whole clip puts two faces on the same pixel - the "three heads stacked" the
+            #   plant showed before the windows existed.
             #
             # `head_2` is head 3's face and `head_3` is head 2's: the suffixes come from the
             # order the images are discovered in, not from the heads' own numbering. The images
@@ -1016,21 +1052,29 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "transition": 0.1,
                 "force_visible_hidden": True,
                 "force_visible_exclude_prefixes": ["blink"],
-                "visibility_windows": [
+                "phase_windows": [
                     # Every pattern is anchored, because these are de-duplicated names and a
                     # prefix is not a head: `head` prefixes `head_2` and `head_3` (the other two
-                    # faces), and `headleaf_1` prefixes `headleaf_1_2` and `headleaf_1_3` (the
-                    # other two heads' third leaves). An unanchored pattern puts two heads'
-                    # faces up at once, which is the defect this whole window list exists for.
-                    # Which leaf belongs to which head is the model's own answer: head 1 has
-                    # headleaf_1/2/3, head 3 has headleaf_1_2 and headleaf_2_2, head 2 has
-                    # headleaf_1_3.
+                    # faces), and `headleaf_1` prefixes `headleaf_1_2` and `headleaf_1_3` (two
+                    # more leaves). An unanchored pattern puts two heads' faces up at once.
+                    #
+                    # Which leaf belongs to which head is the *source track's* answer, not the
+                    # bone name's: the head art is three images repeated, so a bone's suffix
+                    # counts the de-duplication, not the head. The frames each track's image
+                    # starts on are the giveaway - head 1's parts appear at frame 1..4, head 3's
+                    # at 42..45, head 2's at 83..86 - and the masks line up with them
+                    # (`anim_face1` 4..41, `anim_face3` 45..82, `anim_face2` 86..123).
+                    #
+                    # Getting this wrong is quiet: a leaf claimed by the wrong phase simply
+                    # holds the idle pose while its own head fires, which reads as "one leaf
+                    # does not move" rather than as a missing part.
                     {"mask": "anim_shooting1",
-                     "bones": r"headleaf_[123]$|head$|mouth$|blink_1$|blink_2$"},
+                     "bones": r"headleaf_1$|head$|mouth$|blink_1$|blink_2$"},
                     {"mask": "anim_shooting3",
-                     "bones": r"head_2$|mouth_2$|headleaf_1_2$|headleaf_2_2$|blink_1_2|blink_2_2"},
+                     "bones": r"headleaf_3$|headleaf_2$|headleaf_1_2$|head_2$|mouth_2$"
+                              r"|blink_1_2|blink_2_2"},
                     {"mask": "anim_shooting2",
-                     "bones": r"head_3$|mouth_3$|headleaf_1_3$|blink_1_3|blink_2_3"},
+                     "bones": r"headleaf_2_2$|headleaf_1_3$|head_3$|mouth_3$|blink_1_3|blink_2_3"},
                 ],
             },
         },
@@ -2190,62 +2234,64 @@ def excluded_from_rescue(name: str, prefixes: Sequence[str]) -> bool:
     )
 
 
-def build_visibility_windows(
+def build_phase_windows(
     spec: Dict[str, object],
     tracks: Sequence[core.Track],
     fps: float,
     frames: Sequence[int],
     config: EntityConfig,
 ) -> List[Tuple["re.Pattern", int, int, str]]:
-    """Compiles a clip's ``visibility_windows`` into ``(bone pattern, from, to)``.
+    """Compiles a clip's ``phase_windows`` into ``(bone pattern, from, to)``.
 
-    <p>A window names a mask track and the bones that belong to it, and means "these bones are
-    drawn exactly while that mask is visible" - in the clip's own frame numbering, so a window
-    written against a composite ``range`` lines up with the phase it names.
+    <p>A window names a mask track and the bones that belong to it, and means "this is the
+    stretch of the clip in which these bones act" - in the clip's own frame numbering, so a
+    window written against a composite ``range`` lines up with the phase it names. A bone a
+    window claims is drawn for the <em>whole</em> clip and borrows the idle pose outside its own
+    stretch; see ``build_animation`` for why that is the pair that has to go together.
 
-    This exists because a reanim can split one pose across several masks that never overlap, and
-    the converter's other two visibility knobs cannot express "in turn":
+    This exists because a reanim can split one character across several masks that never overlap,
+    and the converter's other two visibility knobs cannot express "in turn":
 
     * ``force_visible_bones`` forces a bone on for the whole clip, which is what a standing pose
       wants and what the threepeater's three heads need for ``idle``;
     * ``force_visible_hidden`` only rescues bones hidden in *every* frame, so it cannot say
-      "head 2 is drawn during head 2's turn and not during head 1's".
+      "head 2 acts during head 2's turn and not during head 1's".
 
     Without it, a clip built over a composite range draws every phase at once: the threepeater's
     ``shoot`` had all three heads firing on top of each other, at the same position, in the first
     volley's window.
     """
-    raw = spec.get("visibility_windows")
+    raw = spec.get("phase_windows")
     if raw is None:
         return []
     if not isinstance(raw, (list, tuple)):
         raise SystemExit(f"{config.output}/{spec.get('mask') or spec.get('range')}:"
-                         " visibility_windows must be a list")
+                         " phase_windows must be a list")
     windows: List[Tuple["re.Pattern", int, int, str]] = []
     for entry in raw:
         if not isinstance(entry, dict) or "mask" not in entry or "bones" not in entry:
-            raise SystemExit(f"{config.output}: each visibility window needs 'mask' and 'bones'")
+            raise SystemExit(f"{config.output}: each phase window needs 'mask' and 'bones'")
         mask_name = str(entry["mask"])
         track = next((candidate for candidate in tracks if candidate.name == mask_name), None)
         if track is None:
-            raise SystemExit(f"{config.output}: visibility window names mask {mask_name!r},"
+            raise SystemExit(f"{config.output}: phase window names mask {mask_name!r},"
                              " which is not in the reanim")
         ranges = core.visible_ranges(track)
         if not ranges:
-            raise SystemExit(f"{config.output}: visibility window mask {mask_name!r} is never"
+            raise SystemExit(f"{config.output}: phase window mask {mask_name!r} is never"
                              " visible, so the bones it claims would never be drawn")
         mask_start, mask_end = ranges[0]
         trim = int(entry.get("trim_end", 0))
         if trim > 0:
             mask_end = max(mask_start, mask_end - trim)
         if mask_start not in frames or mask_end not in frames:
-            raise SystemExit(f"{config.output}: visibility window {mask_name!r} covers source"
+            raise SystemExit(f"{config.output}: phase window {mask_name!r} covers source"
                              f" frames {mask_start}..{mask_end}, which the clip's own range does"
                              " not play; the window would never be on")
         try:
             pattern = re.compile(str(entry["bones"]), re.IGNORECASE)
         except re.error as exc:
-            raise SystemExit(f"{config.output}: visibility window {mask_name!r} has an invalid"
+            raise SystemExit(f"{config.output}: phase window {mask_name!r} has an invalid"
                              f" bone pattern: {exc}") from exc
         windows.append((pattern, frames.index(mask_start), frames.index(mask_end), mask_name))
     return windows
@@ -2254,8 +2300,8 @@ def build_visibility_windows(
 def window_for(
     windows: Sequence[Tuple["re.Pattern", int, int, str]],
     bone_name: str,
-):
-    """The predicate for a bone that a window claims, or ``None``.
+) -> Optional[Tuple[int, int]]:
+    """The clip positions a bone's own phase covers, or ``None`` when no window claims it.
 
     <p>Matched with ``search`` against the bone's name, because the names a window has to reach
     are the de-duplicated ones: three heads drawn from three images become ``head``, ``head_2``
@@ -2268,14 +2314,10 @@ def window_for(
         return None
     if len(claimed) > 1:
         names = ", ".join(f"{window[3]!r}" for window in claimed)
-        raise SystemExit(f"Bone {bone_name!r} is claimed by {len(claimed)} visibility windows"
+        raise SystemExit(f"Bone {bone_name!r} is claimed by {len(claimed)} phase windows"
                          f" ({names}); a bone can only belong to one phase")
     _, first, last, _ = claimed[0]
-
-    def visible(frame: int, first: int = first, last: int = last) -> bool:
-        return first <= frame <= last
-
-    return visible
+    return first, last
 
 
 def build_animation(
@@ -2306,7 +2348,7 @@ def build_animation(
     # not permanently hidden and were still dropped.
     clip_visible_re = (re.compile(str(spec["force_visible"]), re.IGNORECASE)
                        if isinstance(spec.get("force_visible"), str) else None)
-    windows = build_visibility_windows(spec, tracks, fps, frames, config)
+    windows = build_phase_windows(spec, tracks, fps, frames, config)
 
     host_bone = None
     if attached_bones and config.extra_bone_host:
@@ -2345,7 +2387,24 @@ def build_animation(
         rescued = force_visible and permanently_hidden \
             and not excluded_from_rescue(bone.name, exclude_prefixes) \
             and idle_pose_frame is not None
-        pose_frame = (lambda frame: idle_pose_frame) if rescued else (lambda frame: frame)
+        # The bone's own phase, in clip positions, when a phase window claims it.
+        phase = window_for(windows, bone.name)
+
+        def pose_frame(frame: int, position: int) -> int:
+            """Which source frame this bone is drawn *as* at clip position ``position``.
+
+            <p>A bone outside its own phase borrows the idle clip's pose, exactly like a
+            rescued bone does and for the same reason: a reanim that splits one character
+            across several masks leaves the tracks of the parts it is not currently showing
+            at their unset values, and those values are only meaningful to a renderer that is
+            not drawing them. The threepeater is the case: head 2 and head 3 sit at the same
+            off-model pixel while another head fires, so a clip that simply forced them
+            visible drew all three faces on top of each other.
+            """
+            if phase is not None:
+                return frame if phase[0] <= position <= phase[1] else idle_pose_frame
+            return idle_pose_frame if rescued else frame
+
         visibility: List[bool] = []
         for position, frame in enumerate(frames):
             is_visible = bool(source.visibility[frame])
@@ -2355,15 +2414,16 @@ def build_animation(
                 is_visible = True
             if clip_visible_re is not None and clip_visible_re.search(bone.name):
                 is_visible = True
-            window = window_for(windows, bone.name)
-            if window is not None:
-                # A scoped override, and it wins over everything above but `bone.hidden`:
-                # this bone belongs to one of the clip's phases and is drawn exactly while
-                # that phase runs. See ``visibility_windows``.
+            if phase is not None:
+                # A bone one of the clip's phases claims is drawn for the whole clip: the
+                # source only hides it while some *other* phase's timeline is the one
+                # running, and a clip that lays those timelines end to end is not "a plant
+                # with one head" - it is one plant firing three times. What moves is the
+                # bone's pose (see ``pose_frame``), not whether the head is there.
                 #
-                # The window counts in CLIP frames, which is what an author reads off the
+                # The phase counts in CLIP frames, which is what an author reads off the
                 # exported clip; `position` is where this source frame sits in that clip.
-                is_visible = window(position)
+                is_visible = True
             if force_hidden_re is not None and force_hidden_re.fullmatch(bone.name):
                 is_visible = False
             if bone.hidden:
@@ -2380,8 +2440,8 @@ def build_animation(
         # The host's rest position, which is the pivot a welded bone swings around.
         weld_pivot = weld(frames[0]) if weld is not None else None
 
-        def translation_at(frame: int) -> List[float]:
-            state_data = bone.states[pose_frame(frame)]
+        def translation_at(frame: int, position: int) -> List[float]:
+            state_data = bone.states[pose_frame(frame, position)]
             center_x, center_y = core.model_center_px(state_data, bone.asset, bbox)
             value = [center_x * scale, center_y * scale]
             if weld is not None:
@@ -2403,15 +2463,15 @@ def build_animation(
             return [core.round_float(value[0]), core.round_float(value[1])]
 
 
-        def rotation_at(frame: int) -> List[float]:
+        def rotation_at(frame: int, position: int) -> List[float]:
             # The piece's own drawn shear, untouched. It already carries the same swing the host
             # does - the art was drawn as one animation - so tilting it by the host's delta
             # rotates the pole twice about a pivot it is already positioned against.
-            state_data = bone.states[pose_frame(frame)]
+            state_data = bone.states[pose_frame(frame, position)]
             return [core.round_float(state_data.kx), core.round_float(state_data.ky), 0.0]
 
-        def scale_at(frame: int) -> List[float]:
-            state_data = bone.states[pose_frame(frame)]
+        def scale_at(frame: int, position: int) -> List[float]:
+            state_data = bone.states[pose_frame(frame, position)]
             if weld is not None:
                 # The piece is held *in* the hand, so it is drawn at the hand's size rather than
                 # at whatever the source happened to draw it at. The flagpole is the case: the
@@ -2431,7 +2491,7 @@ def build_animation(
             # composite range is several runs laid end to end), and both the key's time and the
             # "is this a gap worth closing with a hold key" question are about the clip.
             for position, frame in enumerate(frames):
-                value = value_at(frame)
+                value = value_at(frame, position)
                 if last_value is None or not values_close(value, last_value):
                     if (last_key_position is not None and last_key_position < position - 1
                             and last_key_value is not None):

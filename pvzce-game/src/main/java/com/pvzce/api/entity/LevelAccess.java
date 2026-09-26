@@ -202,6 +202,22 @@ public interface LevelAccess {
      */
     void leaveCraters(float centerX, float centerY, float radius, boolean square);
 
+    /**
+     * Takes the ice off the lawn a fire blast covered.
+     *
+     * <p>The other half of the zamboni's trail: ice is terrain with a clock (the level's
+     * {@code ice_melt} rule), and fire ends that clock early. Read with the same footprint
+     * {@link #leaveCraters} uses, so what burns is what the blast reached.
+     *
+     * <p>Its own entry point rather than a flag on {@code leaveCraters} because the two are
+     * opposite statements about the same cells - a hole is the lawn gone, a melt is the lawn
+     * coming back - and only fire makes the second one.
+     */
+    void meltIce(float centerX, float centerY, float radius, boolean square);
+
+    /** The same, for a blast whose shape is one whole row rather than a circle (the jalapeno). */
+    void meltIceRow(int row);
+
     void emitEffect(String particle, float x, float y, Identifier sound);
 
     /**

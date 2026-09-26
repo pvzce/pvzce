@@ -134,10 +134,17 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ```java
 if (info.hasRunningSave())        requestLevel(id, false);        // ① 有存档：直接进，服务端弹框
 else if (offersTeamChoice(info))  openScreen(LevelSetupScreen);   // ② 关卡有两方以上可玩：先问阵营
-else                              openSeedSelection(info, false); // ③ 其余：选卡页
+else if (skipsSeedScreen(info))   startLevelWithSeedsAndBuffs(…);  // ③ 关卡说它没有选卡这一问：直接开局
+else                              openSeedSelection(info, false); // ④ 其余：选卡页
 ```
 
-**③ 里的"选卡页"有两种形态，由关卡决定**：有卡可选就是真正的选卡；卡组没得选（关卡的固定卡填满卡槽，
+**③ 是关卡自己说的话**（`LevelDef.seedScreen`，JSON 里写 `"seed_screen": false`；今天只有 4-5 写着），
+判据 `PvzceClient.skipsSeedScreen(info)` = 关卡声明了不弹 **且** 它没有可挑的增益页（有增益页就还得开，
+那一页是真正的问题）。**它不与"固定卡组"划等号**：1-1 与 2-5 也固定卡，但它们要那一屏 —— 一个要在
+那里播开场对话，一个要让玩家挑剩下的槽。服务端配合的一条：没有选卡页的关卡收到空的选择请求时按
+"没人问过"处理（`SeedSelection.plan`），于是卡组是默认卡组而不是"只有固定卡"。
+
+**④ 里的"选卡页"有两种形态，由关卡决定**：有卡可选就是真正的选卡；卡组没得选（关卡的固定卡填满卡槽，
 或者这一关的卡由它自己发 —— 传送带）就是**仅预览过场**（`ChooseSeedsScreen.previewOnly`：不画面板、不画卡池、
 点击直接落到草坪上，播完开场对话后 2.1 秒自动开局）。**传送带关卡以前是直接进关的**：那样连"这一关会来哪些僵尸"
 都看不到 —— 关卡列表与选卡页之外没有第三处显示僵尸预览，所以它们现在也走这一屏（只是没得选）。
@@ -150,7 +157,7 @@ else                              openSeedSelection(info, false); // ③ 其余�
 |---|---|---|---|
 | 1 | 关卡列表「继续游戏/下一步」 | `LevelSelectScreen.openSetup()` | 转发给 `enterLevelFromMenu`（与②③④同一决策） |
 | 2 | 关卡准备「开始游戏」 | `LevelSetupScreen.startGame()` | 转发给 `enterLevelFromMenu`（同一决策，第二份调用） |
-| 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（`onBack` 回到提示框）；取不到关卡信息时回落到 `RestartLevelC2S` |
+| 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（`onBack` 回到提示框）；取不到关卡信息、或这一关声明了 `seed_screen: false` 时回落到 `RestartLevelC2S`（重开不是一次选卡） |
 | 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()` | `LeaveLevelC2S` → 清状态 → 选卡页（`onBack = showLevelList`；没得选的关卡是仅预览过场，会自己开始） |
 | 5 | 编辑器「测试」 | `PvzceClient.testEditedLevel()` | `/reload` → 等 `LevelListS2C` → `enterLevelFromMenu`（`setLevelList` 里续上） |
 

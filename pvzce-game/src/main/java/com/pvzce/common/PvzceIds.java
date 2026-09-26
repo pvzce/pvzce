@@ -83,11 +83,29 @@ public final class PvzceIds {
      *
      * <p>A scene element rather than a status: it is the ground, it persists in the save with the
      * scene, and it is tagged unplantable - which is the whole reason the trail matters.
+     *
+     * <p>Not permanent, though: every frozen cell melts back into lawn after the level's
+     * {@code ice_melt} (thirty seconds by default), and a fire blast melts it at once. See
+     * {@link #RULE_ICE_MELT}.
      */
     public static final Identifier ICE = id("ice");
 
     /** A vase standing on the lawn, empty. */
     public static final Identifier VASE = id("vase");
+    /**
+     * True for the scene elements a click with nothing in hand breaks open.
+     *
+     * <p>Two families, and they are deliberately different objects: the vase tool's own
+     * {@link #VASE}/{@link #VASE_FULL}, and the vase level's {@link #POT_QUESTION}/{@link #POT_LEAF}
+     * (see {@code ScaryPotterMechanic} for why the level's pots are not vases). What they share is
+     * the interaction - click one and a mallet comes down on it - so the client has one answer to
+     * "is there something here to hit" and the server one answer to "what did that break". Kept
+     * here rather than in either half because both ask it.
+     */
+    public static boolean isSmashableContainer(Identifier id) {
+        return VASE.equals(id) || VASE_FULL.equals(id)
+                || POT_QUESTION.equals(id) || POT_LEAF.equals(id);
+    }
     /**
      * The same vase with a card inside.
      *
@@ -164,6 +182,19 @@ public final class PvzceIds {
      */
     public static final Identifier RULE_ZOMBIE_SUN_DROP_COUNT = id("zombie_sun_drop_count");
     public static final Identifier RULE_CRATER_RECOVERY = id("crater_recovery");
+    /**
+     * How long the zamboni's ice stays before it melts, in ticks.
+     *
+     * <p>Zero means never, which is the switch a level uses to keep a lane frozen for the whole
+     * run. The default is the original's own number: an ice trail is a hazard with a clock rather
+     * than a permanent change to the lawn - thirty seconds is long enough that the lane is lost
+     * while the zamboni is still driving down it, and short enough that the player gets the ground
+     * back.
+     *
+     * <p>Counted per cell from the moment that cell froze (see {@code LevelServer.tickScene}), so
+     * a trail melts from its start rather than all at once.
+     */
+    public static final Identifier RULE_ICE_MELT = id("ice_melt");
     public static final Identifier RULE_ZOMBIE_DAMAGE_MULTIPLIER = id("zombie_damage_multiplier");
     public static final Identifier RULE_ZOMBIE_SPEED_MULTIPLIER = id("zombie_speed_multiplier");
     public static final Identifier RULE_PLANT_DAMAGE_MULTIPLIER = id("plant_damage_multiplier");

@@ -80,6 +80,33 @@ class LevelEntryFlowTest {
                 "entering an in-progress level asks the server to load it, never to restart it");
     }
 
+    /**
+     * A level that says its card screen is not a question goes straight into the run.
+     *
+     * <p>4-5 is the one that does: its bar is two cards the level chose (the sun bank and a cherry
+     * bomb), it offers no buffs, and there is nothing to preview on a board with no waves. It used
+     * to be shown the screen anyway - as a pass-through with no panel - and then be stopped by its
+     * own "no sun card" confirmation, which asked about a card the player was never offered. The
+     * flag is the level's own statement ({@code "seed_screen": false}), so this asks the real
+     * level rather than a fixture.
+     */
+    @Test
+    void aLevelThatDeclaresNoCardScreenGoesStraightIn() throws Exception {
+        com.pvzce.common.tag.TestContent.loadBuiltInContentAndTags();
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:yard/adventure/4_5", "");
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "the vase level has no cards to choose, so nothing may ask it to");
+        assertTrue(fixture.sentPackets().stream()
+                        .anyMatch(com.pvzce.common.network.packet.PlayLevelC2S.class::isInstance),
+                "and the run is asked for right away, with the bar the server resolves");
+    }
+
     /** A level with nothing to resume still picks its cards first, exactly as before. */
     @Test
     void aFreshLevelStillGoesThroughTheSeedChooser() throws Exception {

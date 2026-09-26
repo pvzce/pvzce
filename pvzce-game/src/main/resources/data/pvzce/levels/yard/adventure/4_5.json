@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/4_5",
   "name": "4-5 恐怖花瓶",
-  "description": "原版的恐怖花瓶：没有僵尸从雾里走过来，草坪上摆满了花瓶。砸开绿色叶子的，里面是一株植物；砸开画着问号的，里面可能是植物，也可能是一只僵尸——包括会炸的玩偶匣。三个回合，一回合比一回合靠里。打完它，分裂豌豆归你。",
+  "description": "原版的恐怖花瓶：没有僵尸从雾里走过来，草坪上摆满了花瓶。点一下花瓶就有一把锤子砸下去：砸开绿色叶子的，里面是一株植物；砸开画着问号的，里面可能是植物，也可能是僵尸，还可能是这一关唯一的阳光——天上不掉阳光，能种的东西全在这些瓶子里。三个回合，一回合比一回合靠里。打完它，分裂豌豆归你。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -73,11 +73,13 @@
     "pvzce:day_length": 0,
     "pvzce:night_length": 360000,
     "pvzce:sun_spawn_interval_min": 0,
-    "pvzce:sun_spawn_interval_max": 0
+    "pvzce:sun_spawn_interval_max": 0,
+    "pvzce:zombie_sun_drop_chance": 0.1
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
+    "pvzce:sun",
     "pvzce:cherry_bomb"
   ],
   "initial_sun": 0,
@@ -90,9 +92,14 @@
           "leaf_count": 0,
           "pots": [
             {
+              "kind": "sun",
+              "id": "pvzce:sun",
+              "count": 2
+            },
+            {
               "kind": "plant",
               "id": "pvzce:pea_shooter",
-              "count": 5
+              "count": 4
             },
             {
               "kind": "plant",
@@ -102,7 +109,7 @@
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 4
+              "count": 3
             },
             {
               "kind": "zombie",
@@ -116,14 +123,19 @@
           "leaf_count": 2,
           "pots": [
             {
+              "kind": "sun",
+              "id": "pvzce:sun",
+              "count": 3
+            },
+            {
               "kind": "plant",
               "id": "pvzce:pea_shooter",
-              "count": 4
+              "count": 3
             },
             {
               "kind": "plant",
               "id": "pvzce:snow_pea",
-              "count": 5
+              "count": 4
             },
             {
               "kind": "plant",
@@ -133,7 +145,7 @@
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 5
+              "count": 4
             },
             {
               "kind": "zombie",
@@ -152,14 +164,19 @@
           "leaf_count": 3,
           "pots": [
             {
+              "kind": "sun",
+              "id": "pvzce:sun",
+              "count": 3
+            },
+            {
               "kind": "plant",
               "id": "pvzce:pea_shooter",
-              "count": 5
+              "count": 4
             },
             {
               "kind": "plant",
               "id": "pvzce:snow_pea",
-              "count": 5
+              "count": 4
             },
             {
               "kind": "plant",
@@ -169,7 +186,7 @@
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 6
+              "count": 5
             },
             {
               "kind": "zombie",
@@ -189,15 +206,6 @@
           ]
         }
       ]
-    },
-    {
-      "type": "pvzce:tool",
-      "tool": "pvzce:hammer",
-      "default": true,
-      "cooldown": 0,
-      "cost": {
-        "resources": {}
-      }
     },
     {
       "type": "pvzce:mower",
@@ -233,19 +241,20 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "锤子砸花瓶：绿叶瓶里是植物，问号瓶里不一定",
+      "text": "点花瓶就有锤子砸下去：绿叶瓶里是植物，问号瓶里不一定",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "砸光所有花瓶、清掉僵尸，就进下一个回合",
+      "text": "阳光也在瓶子里，砸光所有花瓶、清掉僵尸，就进下一个回合",
       "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
     }
   ],
-  "max_seed_slots": 1,
+  "max_seed_slots": 2,
+  "seed_screen": false,
   "buffs": [
     "pvzce:auto_collect"
   ],

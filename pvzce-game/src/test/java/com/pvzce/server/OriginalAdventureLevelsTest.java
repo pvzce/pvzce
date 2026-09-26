@@ -389,7 +389,10 @@ class OriginalAdventureLevelsTest {
         LevelDef potter = level(35);
         assertEquals(0, potter.waves().size(), "4-5 has no waves at all");
         assertEquals(5, potter.height(), "4-5 is a night lawn, not the fog pool");
-        assertEquals(1, potter.slots().size(), "4-5 hands the player exactly one card");
+        assertEquals(java.util.List.of("pvzce:sun", "pvzce:cherry_bomb"),
+                potter.slots().stream().map(Identifier::toString).toList(),
+                "4-5 hands the player the sun card and one plant - the sun card because nothing"
+                        + " in the level is collectable without it");
     }
 
     @Test

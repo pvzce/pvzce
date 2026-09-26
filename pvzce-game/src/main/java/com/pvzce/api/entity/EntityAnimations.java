@@ -42,6 +42,15 @@ public final class EntityAnimations {
      * clip of its own, and a clip named {@code hit} is still perfectly readable.
      */
     public static final String HIT = "hit";
+    /**
+     * A shot a torchwood has lit.
+     *
+     * <p>A visual state, not a behaviour one: the damage was already applied by the time this is
+     * set, and what the name buys is the fire pea the client draws in place of the pea. The
+     * binding lives on the projectile's own definition ({@code pea.json}'s
+     * {@code animations.lit}), so a projectile that has no burning art keeps whatever it had.
+     */
+    public static final String LIT = "lit";
     public static final String ANGRY = "angry";
     public static final String DEATH = "death";
     /**

@@ -2,18 +2,18 @@ package com.pvzce.server;
 
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.ScaryPotterData;
-import com.pvzce.api.content.ToolData;
 import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.ScaryPotterMechanic;
-import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.tag.TestContent;
+import com.pvzce.server.entity.ResourceDropEntity;
+import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
@@ -119,9 +119,16 @@ class ScaryPotterTest {
         return found;
     }
 
-    private static ToolData mallet(LevelDef def) {
-        return ToolMechanic.defaultTool(def)
-                .orElseThrow(() -> new AssertionError("4-5's click has to be the hammer"));
+    /**
+     * One swing at a cell: what a bare click on a pot sends.
+     *
+     * <p>The mallet used to be a tool this level granted ({@code pvzce:tool} with
+     * {@code default: true}) and these tests drove {@code useGrantedTool}. It is not one any
+     * more: the swing is the client's own animation over the clicked cell, so the request that
+     * reaches the server names the cell and nothing else.
+     */
+    private static boolean swingAt(LevelServer level, Bridge bridge, int x, int y) {
+        return level.smashContainer(bridge, x, y);
     }
 
     @Test
@@ -142,8 +149,25 @@ class ScaryPotterTest {
         assertTrue(pots.validate(def.width(), def.height()).isEmpty(),
                 "the block has to be well formed: " + pots.validate(def.width(), def.height()));
 
-        assertEquals(1, def.slots().size(), "the player is handed one card: a cherry bomb");
-        assertEquals(0, def.initialSun(), "and no sun falls, so the pots are the whole economy");
+        // Two cards in the bar, and only one of them is a plant. The sun card is part of *every*
+        // level's bar for the same reason it is part of this one: sun is not collectable without it
+        // (`collectible_without_card: false`), so a level that hands out sun - and this one hands
+        // out all of it - would be handing out dead drops and drawing no bank.
+        assertEquals(List.of("pvzce:sun", "pvzce:cherry_bomb"),
+                def.slots().stream().map(Identifier::toString).toList(),
+                "the player is handed the sun card and one plant: a cherry bomb");
+        assertEquals(0, def.initialSun(), "and no sun falls from the sky");
+        int sunPots = 0;
+        for (ScaryPotterData.Round round : pots.rounds()) {
+            for (ScaryPotterData.Pot pot : round.pots()) {
+                if (pot.isResource()) {
+                    sunPots += pot.count();
+                }
+            }
+        }
+        assertTrue(sunPots > 0,
+                "so the pots are the economy: some of them hold the sun the one plant is paid for"
+                        + " with, and 150 of it is a cherry bomb");
         assertTrue(LevelMechanics.dataOf(def, PvzceIds.MECHANIC_MOWER,
                         com.pvzce.api.content.MowerData.class).orElseThrow()
                         .none(def.height()),
@@ -174,8 +198,6 @@ class ScaryPotterTest {
     void breakingAPlantPotHandsThePlayerItsCard() {
         LevelServer level = new LevelServer(level());
         Bridge bridge = new Bridge();
-        ToolData mallet = mallet(level.def());
-
         int[] plantPot = null;
         for (int[] cell : pots(level)) {
             ScaryPotterMechanic.Contents contents =
@@ -188,8 +210,7 @@ class ScaryPotterTest {
         assertNotNull(plantPot, "round one has to hold some plants");
         Identifier card = ScaryPotterMechanic.contentsAt(level, plantPot[0], plantPot[1]).id();
 
-        assertTrue(level.useGrantedTool(bridge, mallet, plantPot[0], plantPot[1]),
-                "the mallet opens the pot");
+        assertTrue(swingAt(level, bridge, plantPot[0], plantPot[1]), "the swing opens the pot");
         assertFalse(ScaryPotterMechanic.isPot(level, plantPot[0], plantPot[1]),
                 "and the cell is lawn again");
         assertNull(ScaryPotterMechanic.contentsAt(level, plantPot[0], plantPot[1]),
@@ -220,8 +241,7 @@ class ScaryPotterTest {
         assertNotNull(zombiePot, "round one has to hold some zombies");
         assertEquals(0, level.hostileZombieCount(), "and none of them are on the lawn yet");
 
-        assertTrue(level.useGrantedTool(bridge, mallet(level.def()), zombiePot[0], zombiePot[1]),
-                "the mallet opens the pot");
+        assertTrue(swingAt(level, bridge, zombiePot[0], zombiePot[1]), "the swing opens the pot");
         level.flushPending(bridge);
         assertEquals(1, level.hostileZombieCount(),
                 "and what was inside is now standing in that cell: " + zombie);
@@ -232,7 +252,6 @@ class ScaryPotterTest {
         LevelDef def = level();
         LevelServer level = new LevelServer(def);
         Bridge bridge = new Bridge();
-        ToolData mallet = mallet(def);
         ScaryPotterData data = data(def);
 
         for (int round = 0; round < data.rounds().size(); round++) {
@@ -240,22 +259,23 @@ class ScaryPotterTest {
             assertEquals(data.rounds().get(round).potCount(), standing.size(),
                     "round " + (round + 1) + " stands up its own pots");
             for (int[] cell : standing) {
-                assertTrue(level.useGrantedTool(bridge, mallet, cell[0], cell[1]),
-                        "the mallet opens the pot at " + cell[0] + "," + cell[1]);
+                assertTrue(swingAt(level, bridge, cell[0], cell[1]),
+                        "the swing opens the pot at " + cell[0] + "," + cell[1]);
                 level.flushPending(bridge);
             }
             // Whatever came out has to die before the round can end - the original's own
-            // condition is "every pot broken and no zombies left" - and a buckethead takes more
-            // than one swing. The mallet is swung over the whole board (no ticks pass, so
-            // nothing has walked anywhere) until the lawn is clear.
-            for (int guard = 0; guard < 200 && level.hostileZombieCount() > 0; guard++) {
-                for (int x = 0; x < level.width(); x++) {
-                    for (int y = 0; y < level.height(); y++) {
-                        level.useGrantedTool(bridge, mallet, x, y);
-                    }
+            // condition is "every pot broken and no zombies left". Killing them is the plants'
+            // job in this level (there is no mallet in it any more), and what this test is about
+            // is the round advancing rather than how a zombie dies, so they are killed outright.
+            // Ash, because it ignores armour: an impact hit is eaten by a bucket before it
+            // reaches the head, which is one swing per layer and not what this test is about.
+            for (var entity : new ArrayList<>(level.entities())) {
+                if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                    zombie.damage(zombie.health() + zombie.armor() + 1,
+                            ZombieEntity.damageType(PvzceIds.DAMAGE_ASH), level);
                 }
-                level.flushPending(bridge);
             }
+            level.flushPending(bridge);
             assertEquals(0, level.hostileZombieCount(), "the lawn is clear at the end of the round");
             level.tick(bridge);
         }
@@ -266,11 +286,15 @@ class ScaryPotterTest {
                 "and that is what wins it: this level has no wave to do it");
     }
 
-    /** The vase level is not a card-picking level, and says so by filling its own bar. */
+    /** The vase level is not a card-picking level, and says so twice. */
     @Test
     void theVaseLevelHasNothingToChoose() {
         LevelDef def = level();
-        assertEquals(1, def.maxSeedSlots(), "one slot, filled by the level's own card");
+        assertEquals(2, def.maxSeedSlots(),
+                "two slots, both filled by the level's own cards (the sun card and the bomb)");
+        assertFalse(def.seedScreen(),
+                "and the level says outright that the card screen is not a question it has, so"
+                        + " entering it goes straight into the run");
         assertTrue(com.pvzce.common.core.SeedOptions.hasNothingToChoose(
                         com.pvzce.common.core.SeedOptions.forLevel(def),
                         def.effectiveMaxSeedSlots(com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS),
@@ -311,6 +335,45 @@ class ScaryPotterTest {
                 "with what was inside it still there");
     }
 
+    /**
+     * A sun pot pays the player, in the cell it stood in.
+     *
+     * <p>The level's whole economy: no sky, no producers, one 150-sun card. A pot that broke into
+     * nothing would leave the level's only card unplayable, which is what it was before the pots
+     * held anything but plants and zombies.
+     */
+    @Test
+    void breakingASunPotDropsItsResource() {
+        LevelServer level = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        int[] sunPot = null;
+        for (int[] cell : pots(level)) {
+            ScaryPotterMechanic.Contents contents =
+                    ScaryPotterMechanic.contentsAt(level, cell[0], cell[1]);
+            if (contents != null && contents.isResource()) {
+                sunPot = cell;
+                break;
+            }
+        }
+        assertNotNull(sunPot, "the level hands out sun, so some pot has to hold one");
+
+        assertTrue(swingAt(level, bridge, sunPot[0], sunPot[1]), "the swing opens the pot");
+        level.flushPending(bridge);
+
+        ResourceDropEntity drop = null;
+        for (var entity : level.entities()) {
+            if (entity instanceof ResourceDropEntity candidate
+                    && PvzceIds.SUN.equals(candidate.def().id())) {
+                drop = candidate;
+                break;
+            }
+        }
+        assertNotNull(drop, "a sun has to be lying there to be collected");
+        assertEquals(25, drop.amount(), "worth what the resource says one sun is worth");
+        assertEquals(sunPot[0], drop.gridX(), "and it lands in the cell the pot stood in");
+        assertEquals(sunPot[1], drop.gridY());
+    }
+
     /** A pot the board lost under a record that still counts it is stood back up. */
     @Test
     void aPotTheBoardLostComesBack() {
@@ -328,38 +391,9 @@ class ScaryPotterTest {
             assertTrue(ScaryPotterMechanic.isPot(level, pot[0], pot[1]),
                     "the run still counted it, so it has to be on the lawn to be broken (was "
                             + leftover + ")");
-            assertTrue(level.useGrantedTool(bridge, mallet(level.def()), pot[0], pot[1]),
+            assertTrue(swingAt(level, bridge, pot[0], pot[1]),
                     "and it can be broken again");
         }
-    }
-
-    /**
-     * The mallet is still a mallet on a pot cell.
-     *
-     * <p>A swing opens the pot it lands on <em>and</em> hits whatever is standing within its
-     * reach. It used to do only the first - the pot branch returned before the zombie loop - so a
-     * zombie one cell from a pot took nothing from a swing aimed at the pot beside it.
-     */
-    @Test
-    void theMalletOpensAPotAndStillHitsWhatIsBesideIt() {
-        LevelDef def = level();
-        LevelServer level = new LevelServer(def);
-        Bridge bridge = new Bridge();
-        // A pot on the left edge of the round's columns, so the cell beside it is bare lawn
-        // rather than another pot.
-        int[] pot = pots(level).stream().filter(cell -> cell[0] == 6).findFirst().orElseThrow();
-        int neighbour = pot[0] - 1;
-        var zombie = level.spawnZombie(PvzceIds.id("basic_zombie"),
-                level.team(PvzceIds.ZOMBIE_TEAM), neighbour + 0.5F, pot[1]);
-        level.flushPending(bridge);
-        assertNotNull(zombie);
-        assertFalse(ScaryPotterMechanic.isPot(level, neighbour, pot[1]));
-        float before = zombie.health();
-
-        assertTrue(level.useGrantedTool(bridge, mallet(def), pot[0], pot[1]));
-        assertFalse(ScaryPotterMechanic.isPot(level, pot[0], pot[1]), "the pot opened");
-        assertTrue(zombie.health() < before, "and the zombie beside it was hit too: " + before
-                + " -> " + zombie.health());
     }
 
     /** The pots a run has left are the run's, not the level's: a save brings the same board back. */
@@ -372,7 +406,7 @@ class ScaryPotterTest {
         // Open the first two, so the restored board has to differ from a fresh one.
         for (int index = 0; index < 2; index++) {
             int[] cell = standing.get(index);
-            level.useGrantedTool(bridge, mallet(def), cell[0], cell[1]);
+            swingAt(level, bridge, cell[0], cell[1]);
         }
         assertEquals(13, pots(level).size());
 

@@ -1647,12 +1647,43 @@ public final class PvzceClient {
             // The level names more than one side, so which one to play is a real question and
             // this is the screen that asks it. The screen forwards back here when answered.
             openScreen(new com.pvzce.client.gui.screens.LevelSetupScreen(this, info));
+        } else if (skipsSeedScreen(info)) {
+            // Nothing to choose and nothing to preview: straight in, with the bar the server
+            // resolves for a run nobody chose cards for (see SeedSelection.defaultFor).
+            startLevelWithSeedsAndBuffs(info.id(), false, List.of(), List.of());
         } else {
             // Including the levels that deal their own cards: the chooser is a pass-through
             // for those (nothing to pick, nothing drawn), and it is where a level's lawn,
             // opening conversation and zombie line-up are shown before it starts.
             openSeedSelection(info, false);
         }
+    }
+
+    /**
+     * True when this level says its card screen is not a question it has.
+     *
+     * <p>The level's own flag ({@code "seed_screen": false}) and nothing else: a fixed deck on
+     * its own is not enough, because 1-1 and 2-5 also fix their cards and still want the screen -
+     * one for its opening conversation, the other because the player picks the rest of the bar.
+     *
+     * <p>The buff page has a veto. A level that offers buffs is asking a real question, and the
+     * page it is asked on is the screen this would skip; a level that wants both writes
+     * {@code seed_screen: true} or offers no buffs.
+     */
+    public boolean skipsSeedScreen(LevelListS2C.LevelInfo info) {
+        return info != null && !seedScreenFor(info.id()) && !offersBuffChoice(info);
+    }
+
+    /** The level's own answer to "is the card screen part of entering me", default true. */
+    private boolean seedScreenFor(String levelId) {
+        Identifier id = Identifier.tryParse(levelId);
+        LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
+        return def == null || def.seedScreen();
+    }
+
+    /** True when the level's payload has a buff page with something on it to pick. */
+    private static boolean offersBuffChoice(LevelListS2C.LevelInfo info) {
+        return info.payload().maxBuffSlots() > 0 && !info.payload().buffPool().isEmpty();
     }
 
     /**
@@ -1929,6 +1960,12 @@ public final class PvzceClient {
             // server-side restart, which is the same thing minus the page. Levels whose cards
             // are not the player's to pick (a fixed deck, a conveyor belt) go through the
             // chooser as a pass-through instead - that page is also the level's preview.
+            connection.send(new RestartLevelC2S(prompt.levelId(), prompt.worldName(), List.of()));
+            return;
+        }
+        if (skipsSeedScreen(info)) {
+            // The same level that would not show the screen on the way in does not show it on
+            // the way back in either: restarting it is not a card choice.
             connection.send(new RestartLevelC2S(prompt.levelId(), prompt.worldName(), List.of()));
             return;
         }

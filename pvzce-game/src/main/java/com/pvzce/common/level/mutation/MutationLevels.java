@@ -187,7 +187,10 @@ public final class MutationLevels {
                 List.of(PvzceIds.GRASS.toString()),
                 false,
                 new LevelDef.LevelBuffPlan(List.of(LevelDef.LevelBuffPlan.PLAYER_CHOICE),
-                        BUFF_SLOTS));
+                        BUFF_SLOTS),
+                // The card screen is where a mutation run is decided, so both of these levels
+                // want it: see LevelDef#seedScreen.
+                true);
     }
 
     /** The tutorial's board: the front lawn, all grass. */
@@ -336,7 +339,10 @@ public final class MutationLevels {
                 List.of(PvzceIds.GRASS.toString()),
                 false,
                 new LevelDef.LevelBuffPlan(List.of(LevelDef.LevelBuffPlan.PLAYER_CHOICE),
-                        BUFF_SLOTS));
+                        BUFF_SLOTS),
+                // The card screen is where a mutation run is decided, so both of these levels
+                // want it: see LevelDef#seedScreen.
+                true);
     }
 
     /**

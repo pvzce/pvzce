@@ -88,7 +88,23 @@ public record LevelDef(
          * compact value in JSON ({@code "buffs": [...]} beside {@code "max_buff_slots": n}) while
          * the tail struct stays two fields short of DFU's limit.
          */
-        LevelBuffPlan buffPlan
+        LevelBuffPlan buffPlan,
+        /**
+         * False when this level starts without showing the card screen at all.
+         *
+         * <p>The card screen is two pages - the pool and the buffs - and for most levels it is
+         * where a run is decided. A level whose deck is entirely its own has nothing on either
+         * page: the player would be shown a lawn, a locked row and a button that says "start",
+         * which is a screen with no question on it. {@code "seed_screen": false} is that level
+         * saying so, and the entry flow then goes straight from the level list into the run.
+         *
+         * <p>Its own field rather than a rule derived from {@code max_seed_slots}, because "my
+         * deck is fixed" and "do not show me the screen" are different statements: 1-1 fixes its
+         * two cards and still wants its preview (that is where the tutorial's opening exchange
+         * plays), and 2-5 fixes three of its players' six. Unwritten is true - every level
+         * written before this field wants the screen.
+         */
+        boolean seedScreen
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
@@ -126,6 +142,9 @@ public record LevelDef(
         hiddenSceneElements = hiddenSceneElements == null ? List.of() : List.copyOf(hiddenSceneElements);
         buffPlan = buffPlan == null ? LevelBuffPlan.NONE : buffPlan;
     }
+
+    /** The field's name in a level file, spelled once for the codec and the validator. */
+    public static final String SEED_SCREEN_FIELD = "seed_screen";
 
     /** True when this level declares its own slot count rather than following the backpack. */
     public boolean declaresMaxSeedSlots() {
@@ -178,7 +197,7 @@ public record LevelDef(
                 // backpack. A caller that wants a specific bar passes one.
                 UNSET_MAX_SEED_SLOTS, LevelRewards.DEFAULT, LevelUnlock.NONE,
                 List.<TypedMechanic>of(), LevelDialogue.EMPTY, List.of(), List.of(),
-                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE, true);
     }
 
     /** As above, but with an explicit slot count and the standard rewards block. */
@@ -191,7 +210,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, LevelRewards.DEFAULT, LevelUnlock.NONE, List.of(),
-                LevelDialogue.EMPTY, List.of(), List.of(), Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
+                LevelDialogue.EMPTY, List.of(), List.of(), Optional.empty(), List.of(), false, LevelBuffPlan.NONE, true);
     }
 
     /**
@@ -210,7 +229,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, rewards, unlock, List.of(), LevelDialogue.EMPTY, List.of(), List.of(),
-                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE, true);
     }
 
     /**
@@ -231,7 +250,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, rewards, unlock, mechanics, dialogue, List.of(), List.of(),
-                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE, true);
     }
 
     /**
@@ -251,7 +270,7 @@ public record LevelDef(
         this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
                 waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
                 maxSeedSlots, rewards, unlock, mechanics, dialogue, hints, List.of(),
-                Optional.empty(), List.of(), false, LevelBuffPlan.NONE);
+                Optional.empty(), List.of(), false, LevelBuffPlan.NONE, true);
     }
 
     public static final Codec<LevelDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -283,12 +302,12 @@ public record LevelDef(
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
                     tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints(),
                     tail.playableTeams(), tail.background(), tail.hiddenSceneElements(),
-                    tail.disableShaders(), tail.buffPlan())));
+                    tail.disableShaders(), tail.buffPlan(), tail.seedScreen())));
 
     public LevelTail tail() {
         return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics,
                 dialogue, hints, playableTeams, background, hiddenSceneElements, disableShaders,
-                buffPlan);
+                buffPlan, seedScreen);
     }
 
     /**
@@ -332,7 +351,7 @@ public record LevelDef(
                             LevelDialogue dialogue, List<LevelHint> hints,
                             List<Identifier> playableTeams, Optional<Identifier> background,
                             List<String> hiddenSceneElements, boolean disableShaders,
-                            LevelBuffPlan buffPlan) {
+                            LevelBuffPlan buffPlan, boolean seedScreen) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -362,7 +381,11 @@ public record LevelDef(
                         // Written flat on purpose: a level's buff block is two ordinary fields
                         // beside ``slots`` and ``max_seed_slots``, not a nested object that only
                         // looks like one. See {@link LevelBuffPlan}.
-                        RecordCodecBuilder.of(LevelTail::buffPlan, LevelBuffPlan.mapCodec())
+                        RecordCodecBuilder.of(LevelTail::buffPlan, LevelBuffPlan.mapCodec()),
+                        // Unwritten = the screen is shown, which is what every level written
+                        // before it means. See {@link LevelDef#seedScreen}.
+                        Codec.BOOL.optionalFieldOf(LevelDef.SEED_SCREEN_FIELD, true)
+                                .forGetter(LevelTail::seedScreen)
                 ).apply(i, LevelTail::new));
 
         public LevelTail {

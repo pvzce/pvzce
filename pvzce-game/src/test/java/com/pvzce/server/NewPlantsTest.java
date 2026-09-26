@@ -117,10 +117,19 @@ class NewPlantsTest {
                 "a vaulter that met a tall-nut stops in front of it, was at " + vaulter.cellX());
     }
 
-    /** A torchwood doubles a pea that crosses it, and only once. */
+    /**
+     * A torchwood doubles a pea that crosses it, and only once - and says so with the right two
+     * signals.
+     *
+     * <p>The two signals are worth pinning beside the damage, because both were wrong in ways the
+     * damage could not show: the shot was left in its ordinary state, so the client kept drawing a
+     * green pea with no fire on it at all, and the ignite was reported as the mallet's own bonk -
+     * which the player hears as "it hit something" rather than "it caught fire".
+     */
     @Test
     void aPeaThroughATorchwoodBurns() {
         LevelServer level = lawn();
+        java.util.List<com.pvzce.common.network.PvzcePacket> sent = new java.util.ArrayList<>();
         place(level, "torchwood", 2, 2);
         // A real source: the projectile scales its range and its damage by the plant that fired
         // it, so a shot with no owner is not a thing this engine can make.
@@ -130,7 +139,7 @@ class NewPlantsTest {
                         Identifier.withDefaultNamespace("pea"), 20, 1, 0, false, 1,
                         com.pvzce.api.content.ProjectileRef.UNLIMITED_RANGE, 0),
                 2.1F, 2.5F, source);
-        level.flushPending(packet -> { });
+        level.flushPending(sent::add);
         ProjectileEntity pea = null;
         for (var entity : level.entities()) {
             if (entity instanceof ProjectileEntity shot) {
@@ -141,11 +150,31 @@ class NewPlantsTest {
         assertNotNull(pea, "the shot has to exist");
         int before = pea.damage();
 
-        tick(level, 6);
+        for (int i = 0; i < 6; i++) {
+            level.tick(sent::add);
+        }
         assertTrue(pea.torched(), "the shot has to have been lit");
         assertEquals(before * 2, pea.damage(), "and be worth twice as much");
         assertFalse(pea.torch(2, null), "and only once, however many torchwoods it crosses");
         assertEquals(before * 2, pea.damage());
+        assertEquals(com.pvzce.api.entity.EntityAnimations.LIT, pea.animation(),
+                "and the client is told to draw it as a fire pea, or it keeps the green sprite");
+        assertTrue(soundPlayed(sent, "sfx/plant/firepea"),
+                "the ignite is the original's own sound, which this project had a file for and"
+                        + " never played");
+        assertFalse(soundPlayed(sent, "effect/bonk"),
+                "and not the mallet's knock, which is what it used to play");
+    }
+
+    private static boolean soundPlayed(
+            java.util.List<com.pvzce.common.network.PvzcePacket> packets, String needle) {
+        for (com.pvzce.common.network.PvzcePacket packet : packets) {
+            if (packet instanceof com.pvzce.common.network.packet.EffectEventS2C event
+                    && event.sound().contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A pumpkin takes the bites meant for the plant inside it. */

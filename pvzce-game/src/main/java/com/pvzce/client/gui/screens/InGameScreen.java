@@ -138,6 +138,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * scale is 1, so the model lands in the box at exactly the size the converter authored it.
      */
     private static final float CURSOR_HALF_CELLS = 0.25F;
+    /**
+     * How long a summoned swing stays on the board, in nanoseconds.
+     *
+     * <p>The hammer's own {@code attack} clip: 0.75 s of keyframes played at the clip's rate of
+     * 2.5, and then the file hands itself back to its held pose. A swing is forgotten when that
+     * beat is over, because unlike the cursor it has nothing to go back to - the mallet was called
+     * up to hit one thing and is not something the player is holding.
+     */
+    private static final long MALLET_SWING_NANOS = 300_000_000L;
+
+    /** The mallet a summoned swing is drawn from: the same tool the cursor uses. */
+    private static final Identifier HAMMER_ID = Identifier.withDefaultNamespace("hammer");
 
     /**
      * The picture the board is played on: the level's own backdrop, or the built-in yard.
@@ -531,8 +543,33 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private java.util.List<com.pvzce.client.mechanic.ClientMechanic.WorldOverlay> overlays;
     /** The default tool's cursor animation, built on first draw; see {@link #toolCursor}. */
     private com.pvzce.client.animation.ArtTarget toolCursor;
+    /**
+     * The mallets called up by clicking vases, in the order they were swung.
+     *
+     * <p>Client-side and short-lived, and that is the whole design of the interaction: a click on
+     * a container is a request to the server ({@code SmashContainerC2S}) plus a gesture the client
+     * plays over the cell. Nothing about the mallet travels, which is why the vase level no longer
+     * has to grant a hammer for its pots to be breakable - the swing exists in every level.
+     *
+     * <p>A list rather than one mallet, because a player clearing a row of pots clicks faster than
+     * one swing lasts and the second must not cut the first short.
+     */
+    private final java.util.List<MalletSwing> malletSwings = new java.util.ArrayList<>();
     /** Which tool {@link #toolCursor} was built for, so a changed tool rebuilds it. */
     private Identifier toolCursorTool;
+
+    /** One summoned swing: where it lands, when it started, and the art playing it. */
+    private static final class MalletSwing {
+        final int cellX;
+        final int cellY;
+        final long startNanos = System.nanoTime();
+        com.pvzce.client.animation.ArtTarget target;
+
+        MalletSwing(int cellX, int cellY) {
+            this.cellX = cellX;
+            this.cellY = cellY;
+        }
+    }
 
     public InGameScreen(PvzceClient client) {
         this(client, com.pvzce.api.content.LevelDialogue.EMPTY);
@@ -1781,6 +1818,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         renderPlacementPreview();
         renderCarriedPlant();
         client.particles().render(client);
+        // Last of the board's own layers, so a summoned mallet is drawn over the burst it just
+        // caused. It used to be drawn under the particles, and the pot's own POW is a
+        // three-quarter-second cloud - the swing is a third of a second, so the gesture the
+        // player asked for was entirely hidden behind the hit it made.
+        renderMalletSwings();
     }
 
     /**
@@ -3269,6 +3311,89 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             swingDefaultToolCursor();
             client.connection().send(new com.pvzce.common.network.packet.UseGrantedToolC2S(
                     granted.tool(), cellX, cellY));
+            return;
+        }
+        // Nothing in hand and no tool to swing: a container under the pointer is what a bare click
+        // breaks. The mallet is called up over that cell (see {@link #summonMallet}) - a gesture
+        // and a request, not a tool, so this works in every level rather than only where a level
+        // remembered to grant one.
+        if (containerAt(cellX, cellY)) {
+            summonMallet(cellX, cellY);
+        }
+    }
+
+    /** True when this cell holds something a bare click breaks open: a vase, or a scary pot. */
+    private boolean containerAt(int cellX, int cellY) {
+        return com.pvzce.common.PvzceIds.isSmashableContainer(
+                Identifier.tryParse(client.level().sceneAt(cellX, cellY)));
+    }
+
+    /**
+     * Calls the mallet down on a cell: the gesture now, the answer when it comes.
+     *
+     * <p>Played on the click rather than on the server's reply, exactly like the cursor's own
+     * swing - the reply is a round trip away, and a mallet that waits for it feels broken on the
+     * pots that were already broken. The client knows there is something in the cell (it draws the
+     * board), so the gesture is not a guess; whether the pot was really there to break is the
+     * server's answer, and a swing at a pot that is already gone costs nothing.
+     */
+    private void summonMallet(int cellX, int cellY) {
+        malletSwings.add(new MalletSwing(cellX, cellY));
+        client.connection().send(
+                new com.pvzce.common.network.packet.SmashContainerC2S(cellX, cellY));
+    }
+
+    /**
+     * Draws the summoned mallets, and forgets the ones whose swing is over.
+     *
+     * <p>In world space at the cell rather than as a cursor: this mallet is a thing happening on
+     * the lawn, and it is the same animation the cursor uses - the hammer's own file, its
+     * {@code attack} clip - so the two read as the same object being swung.
+     */
+    private void renderMalletSwings() {
+        if (malletSwings.isEmpty()) {
+            return;
+        }
+        com.pvzce.client.animation.AnimationManager animations = client.animations();
+        if (animations == null) {
+            malletSwings.clear();
+            return;
+        }
+        long now = System.nanoTime();
+        // A dropped target has to be stopped as well as forgotten: playbacks are keyed by target,
+        // so one that is simply dropped leaves its playback behind in the manager.
+        malletSwings.removeIf(swing -> {
+            if (now - swing.startNanos < MALLET_SWING_NANOS) {
+                return false;
+            }
+            if (swing.target != null) {
+                swing.target.stopAnimation();
+            }
+            return true;
+        });
+        for (MalletSwing swing : malletSwings) {
+            if (swing.target == null) {
+                Identifier file = com.pvzce.common.core.EntityArt.animationFile(HAMMER_ID);
+                if (file == null) {
+                    continue;
+                }
+                swing.target = new com.pvzce.client.animation.ArtTarget(file);
+                swing.target.attach(animations);
+                // Asked once: the file's own `on_end: idle` is what hands the clip back, and
+                // re-asking every frame is what would restart the swing it is in the middle of.
+                swing.target.play(ATTACK_CLIP);
+            }
+            com.pvzce.client.animation.AnimationPlayback playback = animations.playback(swing.target);
+            if (playback == null) {
+                continue;
+            }
+            playback.render(client, swing.cellX + 0.5F,
+                    swing.cellY + 0.5F
+                            - com.pvzce.client.renderer.EntityVisuals.anchorLift(
+                                    com.pvzce.api.entity.EntityKind.PLANT),
+                    com.pvzce.client.renderer.EntityVisuals.baseZ(
+                            com.pvzce.api.entity.EntityKind.PLANT),
+                    client.spriteXScale(), 1F);
         }
     }
 

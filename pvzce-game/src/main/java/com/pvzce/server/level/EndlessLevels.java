@@ -190,7 +190,9 @@ public final class EndlessLevels {
                 List.of(PvzceIds.GRASS.toString()),
                 false,
                 new LevelDef.LevelBuffPlan(List.of(LevelDef.LevelBuffPlan.PLAYER_CHOICE),
-                        mutating ? MUTATION_BUFF_SLOTS : BUFF_SLOTS));
+                        mutating ? MUTATION_BUFF_SLOTS : BUFF_SLOTS),
+                // The endless chooser is where the run's deck is decided: see LevelDef#seedScreen.
+                true);
     }
 
     /** Forty-five grass cells: the front lawn has no water to paint. */
@@ -298,7 +300,10 @@ public final class EndlessLevels {
                 List.of(PvzceIds.GRASS.toString()),
                 false,
                 new LevelDef.LevelBuffPlan(List.of(LevelDef.LevelBuffPlan.PLAYER_CHOICE),
-                        BUFF_SLOTS));
+                        BUFF_SLOTS),
+                // The card screen is where a mutation run is decided, so both of these levels
+                // want it: see LevelDef#seedScreen.
+                true);
     }
 
     /** Grass on the four land rows, water on the middle two, the grass hidden behind the art. */

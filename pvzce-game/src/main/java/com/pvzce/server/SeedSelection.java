@@ -54,6 +54,14 @@ public final class SeedSelection {
         if (selfDealt) {
             return List.of();
         }
+        // A level that never shows the card screen has no way for a choice to be expressed, so an
+        // empty request from it means "nobody was asked" rather than "I picked nothing" - and the
+        // bar is then the same one the chooser's own default would have produced. Without this the
+        // vase level, which enters straight into the run, started with a bar holding nothing but
+        // its own fixed cards while the sun it hands out went uncollectable.
+        if (!def.seedScreen() && (requested == null || requested.isEmpty())) {
+            requested = null;
+        }
         List<Identifier> seeds = requested == null ? null : sanitize(def, requested, profile);
         if (loadSave) {
             // Continuing a save restores the exact card bar the player had.

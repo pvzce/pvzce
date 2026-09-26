@@ -155,6 +155,11 @@ public final class ChooseSeedsScreen extends Screen {
      */
     private final boolean previewOnly;
     /**
+     * True when the level's own card source deals the bar (a conveyor belt), so nothing on this
+     * page - or off it - is a card the player chose.
+     */
+    private final boolean dealsItsOwnCards;
+    /**
      * The level buffs the player may switch on, and the level's own buffs.
      *
      * <p>Separate from {@link #options} because a buff is not a card and the two pages are never
@@ -437,6 +442,7 @@ public final class ChooseSeedsScreen extends Screen {
         // fixed - but "nothing to choose" is now a statement about *both* pages: a level that
         // fixes its whole deck and still offers buffs is a real screen the player has to be able
         // to use, and auto-starting past it would silently drop their buffs.
+        this.dealsItsOwnCards = dealsItsOwnCards;
         this.previewOnly = dealsItsOwnCards
                 || (hasNothingToChoose() && !offersBuffChoice()
                         && selectedBuffs.isEmpty() && lockedBuffs.isEmpty());
@@ -951,7 +957,13 @@ public final class ChooseSeedsScreen extends Screen {
      * <p>A bar with no sun card in it is the one choice this page can make that the player
      * cannot fix afterwards: nothing on the lawn collects sun without that card, and on most
      * levels the sky alone does not pay for a defence. So the first click asks - once - and the
-     * player who meant it (a conveyor level, a level that pays for kills) starts anyway.
+     * player who meant it starts anyway.
+     *
+     * <p>Only when the bar is the player's to decide, though ({@link #deckIsThePlayers}): a
+     * conveyor level deals its own cards and a level that fills every slot with its own has
+     * nothing to pick, so warning either of them about a card they were never offered is a
+     * question with no answer. Both used to be stopped here - the vase level could not start at
+     * all until the player dismissed a box about a card the level never gave them.
      *
      * <p>Asked here rather than in {@link #finishStart} because the exit animation plays on the
      * first click: by the time the packet is due the player has watched the level start, and a
@@ -961,11 +973,22 @@ public final class ChooseSeedsScreen extends Screen {
         if (exitNanos != 0L || startSent) {
             return;
         }
-        if (!onBuffPage() && !hasSunCard()) {
+        if (!onBuffPage() && !hasSunCard() && deckIsThePlayers()) {
             client.currentScreen().showDialog(ConfirmDialog.startWithoutSun(client, this::beginStart, null));
             return;
         }
         beginStart();
+    }
+
+    /**
+     * True when the bar this run starts with is the player's own doing.
+     *
+     * <p>False for the two decks nobody chose: a level that deals its own cards (the belt fills
+     * the bar itself) and one whose own cards already fill every slot. The question "where is
+     * your sun card" only has an answer when there was a screen to put one on.
+     */
+    private boolean deckIsThePlayers() {
+        return !dealsItsOwnCards && !hasNothingToChoose();
     }
 
     /** True when the bar the player is about to start with has the sun card in it. */

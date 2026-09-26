@@ -4,6 +4,7 @@ import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
@@ -142,11 +143,17 @@ class BungeeAndZamboniTest {
     }
 
     /**
-     * The zamboni crushes what it drives over and leaves ice behind.
+     * The zamboni crushes what it drives over and leaves ice behind, and the client is told.
      *
      * <p>The trail is the half worth testing: a zamboni that only destroyed plants would be a fast
      * zombie, and it is the unplantable lane it leaves that makes it a problem the player has to
      * answer rather than repair.
+     *
+     * <p>The packet is asserted as well as the grid, because for a while the packet was the half
+     * that was missing: {@code leaveIce} wrote the cell with {@code setScene} and never called
+     * {@code sendSceneCell}, so the server had ice and the player saw lawn - and on the zamboni
+     * levels, which hide {@code pvzce:grass}, not even that: the lane showed the backdrop. The
+     * grid-only assertion below stayed green through all of it.
      */
     @Test
     void theZamboniCrushesAndLeavesIce() {
@@ -156,9 +163,12 @@ class BungeeAndZamboniTest {
                 Identifier.withDefaultNamespace("zamboni_zombie"),
                 level.team(ZOMBIE_TEAM), 6F, 2);
         assertNotNull(zamboni);
-        level.flushPending(packet -> { });
+        List<com.pvzce.common.network.PvzcePacket> sent = new java.util.ArrayList<>();
+        level.flushPending(sent::add);
 
-        tick(level, 900);
+        for (int i = 0; i < 900; i++) {
+            level.tick(sent::add);
+        }
 
         assertTrue(victim.isRemoved(), "the plant in its way is crushed");
         assertEquals(PvzceIds.ICE, level.sceneAt(5, 2).id(),
@@ -167,5 +177,89 @@ class BungeeAndZamboniTest {
                         BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace("pea_shooter")),
                         5, 2),
                 "which nothing can be planted in");
+        assertTrue(sent.stream().anyMatch(packet -> packet instanceof SceneSyncS2C sync
+                        && sync.cells().stream().anyMatch(cell ->
+                                cell.x() == 5 && cell.y() == 2
+                                        && PvzceIds.ICE.toString().equals(cell.elementId()))),
+                "and the client was told that cell is ice, or it draws grass over it forever");
+    }
+
+    /**
+     * The trail is terrain with a clock: every frozen cell melts back into lawn.
+     *
+     * <p>The original's own thirty seconds. It is a rule rather than a hardcoded constant because
+     * a lane the zamboni took is a lane the *player* lost, not one the level lost: a level that
+     * wants the old permanent reading writes {@code ice_melt: 0}.
+     */
+    @Test
+    void theIceMeltsBackIntoLawnOnTheLevelsClock() {
+        LevelServer level = lawn();
+        level.spawnZombie(Identifier.withDefaultNamespace("zamboni_zombie"),
+                level.team(ZOMBIE_TEAM), 6F, 2);
+        tick(level, 200);
+        int lastFrozen = -1;
+        for (int x = 0; x < 9; x++) {
+            if (PvzceIds.ICE.equals(level.sceneAt(x, 2).id())) {
+                lastFrozen = x;
+            }
+        }
+        assertTrue(lastFrozen >= 0, "the zamboni laid a trail to melt");
+        final int frozen = lastFrozen;
+
+        List<com.pvzce.common.network.PvzcePacket> sent = new java.util.ArrayList<>();
+        int meltTicks = level.rules().getInt(PvzceIds.RULE_ICE_MELT);
+        assertTrue(meltTicks > 0, "the shipped default melts");
+        for (int i = 0; i < meltTicks; i++) {
+            level.tick(sent::add);
+        }
+
+        assertEquals(PvzceIds.GRASS, level.sceneAt(frozen, 2).id(),
+                "a cell that has been frozen for the whole clock is lawn again");
+        assertTrue(sent.stream().anyMatch(packet -> packet instanceof SceneSyncS2C sync
+                        && sync.cells().stream().anyMatch(cell ->
+                                cell.x() == frozen && cell.y() == 2
+                                        && PvzceIds.GRASS.toString().equals(cell.elementId()))),
+                "and the client is told, the same way it was told about the ice");
+    }
+
+    /**
+     * Fire takes the trail back: a cherry bomb melts the ice it covered, a jalapeno its whole row.
+     *
+     * <p>The two shapes are the two blasts. The ice outside them is the control: if a bomb melted
+     * the lawn it did not cover, "fire melts ice" would be indistinguishable from "ice melts".
+     */
+    @Test
+    void fireMeltsTheIceItCovers() {
+        LevelServer level = lawn();
+        freeze(level, 4, 2);
+        freeze(level, 8, 2);
+        place(level, "cherry_bomb", 4, 1);
+
+        tick(level, 80);
+
+        assertEquals(PvzceIds.GRASS, level.sceneAt(4, 2).id(),
+                "the cell the blast covered is lawn again");
+        assertEquals(PvzceIds.ICE, level.sceneAt(8, 2).id(),
+                "and the ice four cells away is not; fire melts what it reached");
+
+        LevelServer rowLevel = lawn();
+        freeze(rowLevel, 1, 2);
+        freeze(rowLevel, 8, 2);
+        freeze(rowLevel, 4, 3);
+        place(rowLevel, "jalapeno", 4, 2);
+
+        tick(rowLevel, 80);
+
+        assertEquals(PvzceIds.GRASS, rowLevel.sceneAt(1, 2).id(),
+                "the jalapeno burns its whole row, one end to the other");
+        assertEquals(PvzceIds.GRASS, rowLevel.sceneAt(8, 2).id(), "both ends of it");
+        assertEquals(PvzceIds.ICE, rowLevel.sceneAt(4, 3).id(),
+                "and nothing in the row next door");
+    }
+
+    /** Freezes one cell the way the zamboni does, packet included. */
+    private static void freeze(LevelServer level, int x, int y) {
+        level.setScene(x, y, PvzceIds.ICE);
+        level.sendSceneCell(x, y);
     }
 }

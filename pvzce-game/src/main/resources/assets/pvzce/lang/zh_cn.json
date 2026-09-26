@@ -205,6 +205,7 @@
   "pvzce.conveyor": "传送带",
   "pvzce.cooldown": "冷却中",
   "pvzce.crater_recovery": "弹坑恢复时间",
+  "pvzce.ice_melt": "冰面融化时间",
   "pvzce.create_world": "创建世界",
   "pvzce.day_length": "白昼时长",
   "pvzce.deck": "普通卡组",

@@ -50,6 +50,15 @@ public final class PvzceConstants {
      */
     public static final int ZOMBIE_RISE_TICKS = 60;
     /**
+     * How long the zamboni's ice trail lasts before it melts, in ticks.
+     *
+     * <p>The default for the {@code pvzce:ice_melt} rule, and the original's own number: half a
+     * minute. Kept here rather than in the zamboni because the ice is terrain the level owns by
+     * the time it exists - the zombie that made it may already be dead, and the cells it left
+     * melt on the level's clock, not on the machine's.
+     */
+    public static final int ICE_MELT_TICKS = 30 * TICKS_PER_SECOND;
+    /**
      * How far below its cell a zombie starts when it climbs out of a grave, in cells.
      *
      * <p>Shared rather than owned by the server because it is the unit the climb is

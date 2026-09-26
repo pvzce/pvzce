@@ -25,9 +25,9 @@ import java.util.List;
  *                 { "kind": "zombie", "id": "pvzce:basic_zombie", "count": 4 } ] } ] }
  * </pre>
  *
- * <p>What a pot holds is written as a {@code kind} rather than inferred from the id, because the
- * two do different things when the pot breaks: a plant pot hands the player a card, and a zombie
- * pot puts a zombie on the lawn in that cell.
+ * <p>What a pot holds is written as a {@code kind} rather than inferred from the id, because they
+ * do different things when the pot breaks: a plant pot hands the player a card, a zombie pot puts
+ * a zombie on the lawn in that cell, and a sun pot drops that resource where the pot stood.
  *
  * <p>{@code leaf_count} is the original's {@code ScaryPotterChangePotType}: that many of the
  * round's plant pots are drawn as the green leaf vase, which tells the player they hold a plant.
@@ -41,6 +41,16 @@ public record ScaryPotterData(List<Round> rounds) implements MechanicData {
     public static final String KIND_PLANT = "plant";
     /** A pot holding a zombie: breaking it puts that zombie on the lawn. */
     public static final String KIND_ZOMBIE = "zombie";
+    /**
+     * A pot holding a resource drop: breaking it drops that resource on the cell.
+     *
+     * <p>The original's own answer to "how does the player pay for the cherry bomb in a level
+     * with no sky and no producers": some of the vases hold sun. A level that wants the player to
+     * have nothing to spend writes none of these, which is what the shipped tables did before
+     * this kind existed - and a level whose plants all come out of pots is a level where the
+     * player otherwise cannot plant anything at all.
+     */
+    public static final String KIND_SUN = "sun";
 
     public static final MapCodec<ScaryPotterData> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Round.CODEC.listOf().optionalFieldOf("rounds", List.of()).forGetter(ScaryPotterData::rounds)
@@ -85,8 +95,8 @@ public record ScaryPotterData(List<Round> rounds) implements MechanicData {
     /**
      * One stack of pots with the same contents.
      *
-     * @param kind  {@link #KIND_PLANT} or {@link #KIND_ZOMBIE}
-     * @param id    the plant (a card) or the zombie inside
+     * @param kind  {@link #KIND_PLANT}, {@link #KIND_ZOMBIE} or {@link #KIND_SUN}
+     * @param id    the plant (a card), the zombie, or the resource inside
      * @param count how many pots hold it
      */
     public record Pot(String kind, Identifier id, int count) {
@@ -98,6 +108,11 @@ public record ScaryPotterData(List<Round> rounds) implements MechanicData {
 
         public boolean isPlant() {
             return KIND_PLANT.equals(kind);
+        }
+
+        /** True when this pot holds a resource rather than a card or a zombie. */
+        public boolean isResource() {
+            return KIND_SUN.equals(kind);
         }
     }
 
@@ -132,9 +147,11 @@ public record ScaryPotterData(List<Round> rounds) implements MechanicData {
             }
             int plantPots = 0;
             for (Pot pot : round.pots()) {
-                if (!KIND_PLANT.equals(pot.kind()) && !KIND_ZOMBIE.equals(pot.kind())) {
+                if (!KIND_PLANT.equals(pot.kind()) && !KIND_ZOMBIE.equals(pot.kind())
+                        && !KIND_SUN.equals(pot.kind())) {
                     errors.add(where + " has a pot of kind '" + pot.kind() + "', and the only"
-                            + " kinds are '" + KIND_PLANT + "' and '" + KIND_ZOMBIE + "'");
+                            + " kinds are '" + KIND_PLANT + "', '" + KIND_ZOMBIE + "' and '"
+                            + KIND_SUN + "'");
                 }
                 if (pot.count() <= 0) {
                     errors.add(where + " asks for " + pot.count() + " of " + pot.id());

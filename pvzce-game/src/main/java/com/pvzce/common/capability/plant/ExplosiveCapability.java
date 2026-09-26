@@ -128,6 +128,8 @@ public final class ExplosiveCapability implements PlantCapability {
     private final float triggerRange;
     private final boolean square;
     private final boolean leavesCrater;
+    /** True when this blast is fire, and therefore takes the zamboni's ice off the lawn. */
+    private final boolean meltsIce;
     private final Optional<Identifier> sound;
     private final Identifier damageType;
     /** The pieces of this blast's effect, emitted in order at the plant's cell. */
@@ -153,6 +155,21 @@ public final class ExplosiveCapability implements PlantCapability {
                                boolean square, boolean leavesCrater, Optional<Identifier> sound,
                                Identifier damageType, java.util.List<Identifier> particles,
                                int lingerTicks) {
+        this(trigger, fuseTicks, radius, damage, triggerRange, square, leavesCrater, sound,
+                damageType, particles, lingerTicks, false);
+    }
+
+    /**
+     * @param meltsIce true when this blast is fire: the blast then also melts the ice a zamboni
+     *                 left, on top of whatever it damaged. Opt-in content rather than a property
+     *                 of "explosion", because a potato mine and a jack-in-the-box are explosions
+     *                 too and neither of them is fire - the original only lets the cherry bomb
+     *                 and the jalapeno clear a frozen lane.
+     */
+    public ExplosiveCapability(Trigger trigger, int fuseTicks, float radius, int damage, float triggerRange,
+                               boolean square, boolean leavesCrater, Optional<Identifier> sound,
+                               Identifier damageType, java.util.List<Identifier> particles,
+                               int lingerTicks, boolean meltsIce) {
         this.trigger = trigger;
         this.fuseTicks = Math.max(0, fuseTicks);
         this.radius = Math.max(0F, radius);
@@ -160,6 +177,7 @@ public final class ExplosiveCapability implements PlantCapability {
         this.triggerRange = Math.max(0F, triggerRange);
         this.square = square;
         this.leavesCrater = leavesCrater;
+        this.meltsIce = meltsIce;
         this.sound = sound;
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         // An empty list has to mean the default rather than "draw nothing": the codec reads a
@@ -201,7 +219,11 @@ public final class ExplosiveCapability implements PlantCapability {
             // How long the plant stays on the field after the blast. Has to cover its own
             // `explode` clip or the animation is cut off mid-gesture.
             Codec.INT.optionalFieldOf("linger_ticks", DEFAULT_LINGER_TICKS)
-                    .forGetter(ExplosiveCapability::lingerTicks)
+                    .forGetter(ExplosiveCapability::lingerTicks),
+            // The fire half of the crater idea, and last because that is where the constructor
+            // takes it: only a blast that *is* fire takes the zamboni's ice back off the lawn,
+            // and "is this fire" cannot be derived from "is this a blast".
+            Codec.BOOL.optionalFieldOf("melts_ice", false).forGetter(ExplosiveCapability::meltsIce)
     ).apply(i, ExplosiveCapability::new));
 
     private static Trigger parseTrigger(String name) {
@@ -243,6 +265,11 @@ public final class ExplosiveCapability implements PlantCapability {
     /** True when this plant's blast leaves its footprint as a crater. */
     public boolean leavesCrater() {
         return leavesCrater;
+    }
+
+    /** True when this plant's blast is fire, and so melts the ice a zamboni left. */
+    public boolean meltsIce() {
+        return meltsIce;
     }
 
     public Optional<Identifier> sound() {
@@ -290,7 +317,7 @@ public final class ExplosiveCapability implements PlantCapability {
     @Override
     public PlantCapability instantiate() {
         return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, square,
-                leavesCrater, sound, damageType, particles, lingerTicks);
+                leavesCrater, sound, damageType, particles, lingerTicks, meltsIce);
     }
 
     /**
@@ -396,6 +423,16 @@ public final class ExplosiveCapability implements PlantCapability {
         } else {
             level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
                     blastRadius, damage, plant.team(), square);
+        }
+        if (meltsIce) {
+            // Fire takes the zamboni's lane back. The shape follows the blast the same way the
+            // damage did: a jalapeno burns one whole row and a cherry bomb burns the nine cells
+            // around itself, so the ice that goes is the ice that was in the fire.
+            if (trigger == Trigger.ROW) {
+                level.meltIceRow(plant.gridY());
+            } else {
+                level.meltIce(plant.cellX(), plant.cellY(), blastRadius, square);
+            }
         }
         if (leavesCrater) {
             // The hole the plant made, in its own cell - not the footprint of the blast. See

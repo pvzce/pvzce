@@ -47,6 +47,7 @@ import com.pvzce.common.network.packet.ReleaseMowerC2S;
 import com.pvzce.common.network.packet.ReloadPacksC2S;
 import com.pvzce.common.network.packet.DiscardLevelSaveC2S;
 import com.pvzce.common.network.packet.MutationStateS2C;
+import com.pvzce.common.network.packet.SmashContainerC2S;
 import com.pvzce.common.network.packet.UseGrantedToolC2S;
 import com.pvzce.common.network.packet.UseToolC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
@@ -102,7 +103,10 @@ public final class PvzcePackets {
     // which is what the tutorial's timed dialogue lines are written against.
     // 32: the client can ask the server to rebuild its side of the pack stack after the player
     // switched a pack off (ReloadPacksC2S), which is the first half of a hot reload.
-    public static final int PROTOCOL_VERSION = 32;
+    // 33: a click with nothing in hand on a vase or one of the vase level's pots is its own
+    // request (SmashContainerC2S). The mallet stopped being a tool the level grants, so the
+    // swing's target - not the tool - is what travels.
+    public static final int PROTOCOL_VERSION = 33;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -173,6 +177,8 @@ public final class PvzcePackets {
     public static final int C2S_BUY_SHOP_ITEM = 21;
     /** The pack list changed on disk; the server reloads its side before the client reloads its own. */
     public static final int C2S_RELOAD_PACKS = 22;
+    /** A click on a container (a vase, or one of the vase level's pots): break it open. */
+    public static final int C2S_SMASH_CONTAINER = 23;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -250,7 +256,9 @@ public final class PvzcePackets {
             def(C2S_RESELECT_CARDS, ConnectionDirection.SERVERBOUND, ReselectCardsC2S.class,
                     ReselectCardsC2S::decode),
             def(C2S_DISCARD_SAVE, ConnectionDirection.SERVERBOUND, DiscardLevelSaveC2S.class,
-                    DiscardLevelSaveC2S::decode));
+                    DiscardLevelSaveC2S::decode),
+            def(C2S_SMASH_CONTAINER, ConnectionDirection.SERVERBOUND, SmashContainerC2S.class,
+                    SmashContainerC2S::decode));
 
     private static volatile boolean registered;
 

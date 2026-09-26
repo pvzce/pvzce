@@ -11,5 +11,8 @@
     "impact": "pvzce:sfx/projectile/hit"
   },
   "texture": "pvzce:textures/entities/projectile/pea",
+  "animations": {
+    "lit": "pvzce:projectile/fire_pea"
+  },
   "impact_particle": "pvzce:pea_splat"
 }
