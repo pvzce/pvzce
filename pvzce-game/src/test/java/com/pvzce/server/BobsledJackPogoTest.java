@@ -187,31 +187,33 @@ class BobsledJackPogoTest {
     }
 
     /**
-     * A jack-in-the-box a pot releases opens on the spot instead of walking its fuse first.
+     * A jack-in-the-box a pot releases goes off on the spot, and leaves nothing behind.
      *
-     * <p>Its fuse is the ground it has covered (6.5 cells), and a zombie that comes out of a vase
-     * in the middle of the board has covered none - so the pot has to say "this one was let out"
-     * rather than let it stroll. The opening is still the warning: the lid comes up, and the blast
-     * follows {@code pop_ticks} later, which is the player's chance to spend something on it.
+     * <p>Its fuse is the ground it has covered, and a zombie that comes out of a vase in the middle
+     * of the board has covered none - so the pot's jack is a trap. It used to open the box and blast
+     * 110 ticks later, and the user's report was that the blast never came: the plants around the
+     * pot killed it inside that window. The report also asked for the body to go with it, which is
+     * the second half of this test.
      */
     @Test
-    void theBoxAPotReleasedOpensAtOnce() {
+    void theBoxAPotReleasedGoesOffOnTheSpot() {
         LevelServer level = lawn(List.of());
+        // A plant beside it, so "it exploded" is visible in the world and not only in the flag.
+        PlantEntity beside = place(level, "wall_nut", 4, 2);
         ZombieEntity released = spawn(level, JACK_IN_THE_BOX, 4.5F, 2);
         JackInTheBoxCapability fuse = released.capability(JackInTheBoxCapability.class);
         assertNotNull(fuse);
-        assertFalse(fuse.isPopping(), "a freshly spawned one is still walking");
+        assertFalse(fuse.hasExploded(), "a freshly spawned one has not gone off");
+        assertFalse(fuse.isPopping(), "and is still walking");
 
         released.onReleased(level);
+        level.flushPending(packet -> { });
 
-        assertTrue(fuse.isPopping(), "the pot's one has its lid up immediately");
-        assertEquals(4.5F, released.cellX(), 0.0001F, "and it has not walked anywhere");
-        // And the blast is still pop_ticks away, not instant: that is the answer to "the player
-        // gets a warning", and it is what makes the pot a decision rather than a tax.
-        tick(level, fuse.popTicks() - 1);
-        assertTrue(released.isAlive(), "it is still standing for the whole wind-up");
-        tick(level, 2);
-        assertFalse(released.isAlive(), "and then the box goes off");
+        assertTrue(fuse.hasExploded(), "the pot's one is a trap: it goes off where it appears");
+        assertTrue(beside.isRemoved(), "and takes what was standing beside it");
+        assertTrue(released.isRemoved(),
+                "and leaves no corpse: the blast is the whole funeral (the user: 爆炸后还会原地留下"
+                        + "一个小丑僵尸的动画，要过几秒才会消失)");
     }
 
     /**

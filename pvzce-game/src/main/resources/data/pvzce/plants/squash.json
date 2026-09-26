@@ -13,11 +13,12 @@
       "trigger_range": 1.0,
       "fuse_ticks": 75,
       "damage": 1800,
-      "damage_type": "pvzce:crush"
+      "damage_type": "pvzce:crush",
+      "sound": "pvzce:sfx/plant/squash_hmm"
     }
   ],
   "sounds": {
-    "explode": "pvzce:sfx/plant/squash_hmm"
+    "explode": "pvzce:sfx/plant/squash_hmm2"
   },
   "animation_dir": "plant/special",
   "texture": "pvzce:textures/entities/plant/special/squash",

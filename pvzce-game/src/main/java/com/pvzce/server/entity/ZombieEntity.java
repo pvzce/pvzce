@@ -858,7 +858,10 @@ public class ZombieEntity extends PvzceEntity {
             // Exactly one head per body. The lawn mower throws its own (a mowed zombie loses
             // its head and arm *to the mower*, and `pvzce:mower` says so with `dismembers`),
             // and a burnt body is drawn without one - both used to get a second head here.
-            if (!burns) {
+            // A body that blew itself up leaves no head behind: it is not there at all (see
+            // `JackInTheBoxCapability.explode`, which removes it), and a head popping out of a
+            // cloud the zombie was standing at the centre of reads as a second, unrelated death.
+            if (!burns && !selfDestructed) {
                 Identifier deathSound = def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP);
                 String head = dismembered
                         ? PvzceParticles.MOWERED_ZOMBIE_HEAD.toString()

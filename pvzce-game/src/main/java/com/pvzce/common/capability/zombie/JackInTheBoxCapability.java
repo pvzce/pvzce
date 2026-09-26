@@ -199,18 +199,23 @@ public final class JackInTheBoxCapability implements ZombieCapability {
     }
 
     /**
-     * Out of a pot: the box opens on the spot.
+     * Out of a pot: it goes off on the spot.
      *
-     * <p>The fuse is the ground it has covered, and a zombie a pot released has covered none of
-     * it - so a jack-in-the-box that comes out of a vase would otherwise stroll most of the lane
-     * before doing anything, which is not the trap the level is built around. It opens here
-     * instead, and the opening is still the {@code pop_ticks} warning it always was: the player
-     * who breaks that pot has the length of the lid coming up to save the plants around it.
+     * <p>The fuse is the ground it has covered and a zombie a pot released has covered none of it,
+     * so the pot's jack is a <em>trap</em>: it appears and detonates, with no lane walked and no
+     * {@code pop_ticks} to be shot in. That window is what a walking one gets - the player sees it
+     * coming down the lane and has 1.8 seconds to spend something on it - and a zombie that
+     * appears in the middle of the board has no walk to shorten and nothing to warn about.
+     *
+     * <p>It used to open the box here and blast 110 ticks later. The user reported the result as
+     * "小丑僵尸爆炸的时候，缺少'啊？'的一声和爆炸效果" - the plants around the pot killed it inside
+     * that window, so the pot's jack usually died without ever going off, leaving nothing but a
+     * corpse. (The same report asked for the corpse to go, which {@code explode} now does.)
      */
     @Override
     public void onReleased(ZombieEntity zombie, LevelAccess level) {
-        if (!exploded && popTicksLeft <= 0) {
-            openTheBox(zombie, level);
+        if (!exploded) {
+            explode(zombie, level);
         }
     }
 
@@ -252,6 +257,13 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         DamageTypeDef type = ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT);
         // No source team: a bomb on the lawn does not have a side. See the class doc.
         level.damageArea(type, x, y, zombieRadius, BLAST_DAMAGE, null);
+        // And the box takes its owner with it: no corpse, no head, gone this tick. Every other
+        // death leaves a body for `CORPSE_TICKS` so the death clip can be read, and a body that
+        // blew itself up has nothing left to read - the cloud below is the whole funeral. The
+        // user's half of the report was "爆炸后还会原地留下一个小丑僵尸的动画，要过几秒才会消失".
+        // Removed here rather than inside `selfDestruct`: the blast above still has to find the
+        // neighbours, and the level flushes removals at the end of its tick either way.
+        zombie.remove();
         // The original's own two effects, converted with the rest of its particle set: the
         // cloud, and the spring that came out of the box.
         level.emitEffect(PvzceParticles.JACK_EXPLODE_BIG_CLOUD.toString(), x, y,

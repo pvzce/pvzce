@@ -173,6 +173,48 @@ class ExplosiveBoundsTest {
         assertFalse(squash.isRemoved(), "so it stays where it is, waiting");
     }
 
+    /**
+     * The leap is a jump: it leaves the ground, and it travels sideways a tick at a time.
+     *
+     * <p>The user's report: "目前的跳动画也不对，它只是平移了，正常应该要飞起来一点". The art's own
+     * jump is drawn in place (its vertical travel converts to about a tenth of a cell), so the arc
+     * is the entity's height - and the sideways travel has to be spread over the wind-up rather
+     * than written in one go on the landing tick, which is what "只是平移" was.
+     */
+    @Test
+    void theSquashLeapsInAnArc() {
+        LevelServer level = lawn(List.of(SQUASH));
+        PlantEntity squash = level.spawnPlant(BuiltInRegistries.PLANTS.get(SQUASH),
+                level.team(PLANT_TEAM), 3, 2);
+        level.flushPending(packet -> { });
+        ZombieEntity victim = level.spawnZombie(BASIC, level.team(ZOMBIE_TEAM), 4.4F, 2);
+        level.flushPending(packet -> { });
+
+        float restingHeight = squash.height();
+        float startX = squash.cellX();
+        float highest = restingHeight;
+        float farthest = startX;
+        int airborneTicks = 0;
+        // The glance, then the whole leap: one tick at a time, so a teleport cannot hide in it.
+        for (int i = 0; i < 200 && !squash.isRemoved(); i++) {
+            tick(level, 1);
+            if (squash.height() > restingHeight + 0.01F) {
+                airborneTicks++;
+            }
+            highest = Math.max(highest, squash.height());
+            farthest = Math.max(farthest, squash.cellX());
+        }
+
+        assertTrue(highest >= restingHeight + com.pvzce.common.capability.plant.SquashCapability
+                        .JUMP_HEIGHT * 0.9F,
+                "the leap has to get off the ground, peaked at " + highest);
+        assertTrue(airborneTicks > 10, "and stay up for a while, was " + airborneTicks + " ticks");
+        assertTrue(farthest > startX, "and carry it towards the zombie");
+        assertTrue(!victim.isAlive(), "which is where it lands");
+        assertEquals(restingHeight, squash.height(), 0.001F,
+                "and it comes back down to the height it started at");
+    }
+
     /** A squash notices nothing and stays put when the lane is empty. */
     @Test
     void aSquashWithNothingInRangeWaits() {
