@@ -218,6 +218,11 @@ class MutationGroupOneTest {
         LevelServer level = levelWithMutations();
         Mutation roulette = MutationRegistry.get(PvzceIds.MUTATION_SLOT_ROULETTE);
         assertNotNull(roulette);
+        // Seeded, because every swap is two dice: *which* card changes, and *what* it becomes.
+        // "The bar is supposed to change" is therefore a coin flip without a seed - the roulette
+        // may legitimately pick the card that is already in that slot, and an unseeded fixture
+        // that fails once in a few runs makes "all green" useless as a signal (see 踩坑清单 58).
+        level.random().setSeed(20240925L);
         level.mutations().add(roulette, Mutation.Roll.NONE);
         List<Identifier> chosen = cardIds(level);
 
