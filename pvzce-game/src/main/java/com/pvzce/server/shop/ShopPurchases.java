@@ -19,9 +19,9 @@ import java.util.List;
  * <h2>Ownership is derived, never counted</h2>
  *
  * <p>There is no purchase counter. How many card slots a world has bought <em>is</em> how much
- * wider its backpack is than it starts; whether it owns the rake <em>is</em> whether the rake card
- * is in its unlocked set; whether it owns the sun shovel <em>is</em> whether that buff is in its
- * buff set. A counter next to the thing it counts is a second copy of one fact, and this project
+ * wider its backpack is than it starts; whether it owns the rake <em>is</em> whether the rake is in
+ * its unlocked set; whether it owns the sun shovel <em>is</em> whether that buff is in its buff
+ * set. A counter next to the thing it counts is a second copy of one fact, and this project
  * already has an operator door ({@code /profile slots}, {@code /profile buff}) that can change the
  * first copy without touching the second. The cost of deriving it is that a purchase has to move
  * the thing itself rather than a number - which is exactly what the server does.
@@ -69,7 +69,7 @@ public final class ShopPurchases {
                         : "";
             }
             case BUFF -> profile.unlockBuff(item.id()) ? "" : "这个增益已经有了。";
-            case TOOL -> profile.unlock(item.id()) ? "" : "这个工具已经有了。";
+            case UNLOCK -> profile.unlock(item.id()) ? "" : "这个东西已经有了。";
         };
     }
 

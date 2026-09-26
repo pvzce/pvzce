@@ -98,6 +98,10 @@
   "initial_sun": 0,
   "mechanics": [
     {
+      "type": "pvzce:rake",
+      "rows": []
+    },
+    {
       "type": "pvzce:grave_spawner",
       "zombies": [
         "pvzce:basic_zombie",

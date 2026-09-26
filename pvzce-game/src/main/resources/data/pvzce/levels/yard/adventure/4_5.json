@@ -85,6 +85,10 @@
   "initial_sun": 0,
   "mechanics": [
     {
+      "type": "pvzce:rake",
+      "rows": []
+    },
+    {
       "type": "pvzce:scary_potter",
       "rounds": [
         {

@@ -29,6 +29,12 @@ import java.util.Optional;
  * a sun economy of its own. The order in the table is the order the page lists them: cheapest
  * first, which is also the order a new player can afford them.
  *
+ * <p><b>The rake is not a card.</b> It used to be sold as a tool, which made it a card in the
+ * player's backpack whose effect id nothing implemented - a card whose click did nothing. The
+ * original's rake is a lawn fixture Crazy Dave lays down for you, so buying one now only marks the
+ * profile as owning it: {@link #STANDALONE_UNLOCKS} is the list of purchases that name no card, and
+ * {@code LevelServer} reads that same set to decide whether to lay one down.
+ *
  * <p><b>The table only.</b> "How many of these has this world bought" is a question about a
  * profile, so it lives next to the profile in {@code server.shop.ShopPurchases}: this class is in
  * {@code common}, and {@code common} does not reach into {@code server} (see
@@ -40,8 +46,18 @@ public final class ShopItems {
     public static final Identifier CARD_SLOT = PvzceIds.SHOP_CARD_SLOT;
     /** The sun shovel: digging a plant up returns a fifth of what it cost. */
     public static final Identifier SUN_SHOVEL = PvzceIds.BUFF_SUN_SHOVEL;
-    /** The rake: one zombie per level, flattened before it reaches the house. */
+    /** The rake: one zombie per level, flattened near the far end of the lawn. */
     public static final Identifier RAKE = PvzceIds.RAKE;
+
+    /**
+     * Purchases that unlock something which is <em>not</em> a card.
+     *
+     * <p>Everything else in the shop names a card the seed chooser can offer, so "what did I just
+     * buy" is answered by the slot registry. The rake is a lawn fixture the level lays down for a
+     * player who owns one, so there is no slot to resolve - and the validator's job is to catch an
+     * item that names nothing at all, which would be a purchase that silently grants nothing.
+     */
+    public static final List<Identifier> STANDALONE_UNLOCKS = List.of(RAKE);
 
     private ShopItems() {
     }
@@ -61,8 +77,14 @@ public final class ShopItems {
             CARD_SLOTS,
             /** Grants a level buff the player did not have. */
             BUFF,
-            /** Grants the rake, which every level then places by itself. */
-            TOOL
+            /**
+             * Grants one id into the profile's unlocked set.
+             *
+             * <p>Which covers both halves of what the shop sells besides the two above: a purple
+             * card (a plant the chooser then offers), and a standalone unlock such as the rake
+             * (something the game reads out of the same set but that is not a card at all).
+             */
+            UNLOCK
         }
     }
 
@@ -70,7 +92,7 @@ public final class ShopItems {
     public static final List<Item> ITEMS = List.of(
             // 200: an early purchase a player can afford after two or three levels, and cheap
             // enough that "I will save it for later" is not the obvious answer.
-            new Item(RAKE, 200, 1, Item.Kind.TOOL),
+            new Item(RAKE, 200, 1, Item.Kind.UNLOCK),
             // 1000: four of these take the backpack from 8 to 12, which is the ceiling. Priced so
             // that the whole set is a long-term goal rather than a shopping trip.
             new Item(CARD_SLOT, 1000, com.pvzce.common.PvzceConstants.MAX_SEED_SLOTS
@@ -95,7 +117,7 @@ public final class ShopItems {
             case CARD_SLOTS -> Math.max(0,
                     seedSlots - com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS);
             case BUFF -> unlockedBuffs != null && unlockedBuffs.contains(item.id()) ? 1 : 0;
-            case TOOL -> unlocked != null && unlocked.contains(item.id()) ? 1 : 0;
+            case UNLOCK -> unlocked != null && unlocked.contains(item.id()) ? 1 : 0;
         };
     }
 

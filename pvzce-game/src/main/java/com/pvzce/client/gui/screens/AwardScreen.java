@@ -107,7 +107,9 @@ public final class AwardScreen extends Screen {
         // The category comes from the resolved card, not from the id: a level may award a plant
         // or a tool, and the two are named through different registries.
         this.unlockedName = reward.hasUnlock()
-                ? GuiLang.name(card == null ? null : cardCategory(card.kind()), Identifier.tryParse(reward.unlockedCard()))
+                ? GuiLang.name(card == null ? null
+                        : com.pvzce.common.core.SlotResolver.languageCategory(card.kind()),
+                        Identifier.tryParse(reward.unlockedCard()))
                 : "";
         // A buff takes the frame after a card and before an object, in the same order the drop on
         // the lawn asks it, so the two cannot disagree about what was paid. It is drawn in the
@@ -127,15 +129,6 @@ public final class AwardScreen extends Screen {
                 : (itemDef != null ? itemDef.icon() : com.pvzce.common.core.EntityArt.sprite(itemId));
         this.rewardItemName = item ? GuiLang.name("resource", itemId) : "";
         this.rewardItemAmount = item ? reward.rewardItemAmount() : 0;
-    }
-
-    /** The language category a card kind names; see {@link com.pvzce.common.core.Slot.Kind}. */
-    private static String cardCategory(com.pvzce.common.core.Slot.Kind kind) {
-        return switch (kind) {
-            case PLANT -> "plant";
-            case TOOL -> "tool";
-            case RESOURCE -> "resource";
-        };
     }
 
     /** True when the frame shows a new card rather than the run's coin payout. */

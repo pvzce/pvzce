@@ -277,6 +277,21 @@ final public class SmokeDriver {
      */
     private final String smokeCommands = System.getProperty("pvzce.smokeCommands", "");
     private boolean smokeCommandsSent;
+    /**
+     * Commands to run <em>before</em> the automatic level request, on whatever screen is up.
+     *
+     * <p>{@link #smokeCommands} fires once a level is running, which is too late for anything a
+     * level is built from: the world's profile decides which cards the level offers, whether the
+     * player's rake is laid down, and what the level list looks like, and all of that is read at
+     * level creation. A screenshot of "the board a world that owns the rake gets" therefore needs
+     * the world changed first, and this is that hook. Send order is the guarantee: a command goes
+     * through the server's command queue, which is drained at the top of the server frame, and the
+     * level request travels the packet connection, drained after it - in the same frame.
+     *
+     * <p>Same {@code +}-for-space rule as {@link #smokeCommands}.
+     */
+    private final String smokeSetup = System.getProperty("pvzce.smokeSetup", "");
+    private boolean smokeSetupSent;
     /** A dialog button to click, found by its label. */
     private final String smokeClickLabel = System.getProperty("pvzce.smokeClickLabel", "");
     private boolean smokeClickDone;
@@ -479,6 +494,29 @@ final public class SmokeDriver {
         }
     }
 
+    /**
+     * Sends a {@code |}-separated list of console commands, one packet each.
+     *
+     * <p>One reader for both command hooks, so the {@code +}-for-space rule and the
+     * drop-the-leading-slash rule cannot drift between them.
+     */
+    private void sendCommands(String commands) {
+        for (String command : commands.split("\\|")) {
+            // ``pvzce.smoke`` is split on whitespace, so a command's own spaces are
+            // written as '+': the alternative is a Gradle property that silently
+            // truncates every command at its first argument.
+            String line = command.trim().replace('+', ' ');
+            // And no leading slash: a console line is the command without one, so
+            // "/spawn ..." would reach the parser as "//spawn ...".
+            while (line.startsWith("/")) {
+                line = line.substring(1);
+            }
+            if (!line.isBlank()) {
+                client.connection().send(new CommandC2S(line));
+            }
+        }
+    }
+
     void beforeFrame() {
         long clientTick = client.clientTick();
         applySmokeHold(clientTick);
@@ -488,6 +526,12 @@ final public class SmokeDriver {
         // swapped, so a page turned in afterFrame would be one frame late in the PNG.
         applyAlmanacShots(client.currentScreen(), clientTick);
         applySmokePages(clientTick);
+        // Before the level request and never after: everything this hook exists to change (which
+        // cards the world owns, whether it has a rake) is read when the level is built.
+        if (!smokeSetup.isBlank() && !smokeSetupSent && clientTick > 2) {
+            smokeSetupSent = true;
+            sendCommands(smokeSetup);
+        }
         // Development smoke hook: request a level automatically so CI can
         // render gameplay without driving the title/level screens.
         if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
@@ -527,20 +571,7 @@ final public class SmokeDriver {
         if (!smokeCommands.isBlank() && !smokeCommandsSent
                 && client.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen) {
             smokeCommandsSent = true;
-            for (String command : smokeCommands.split("\\|")) {
-                // ``pvzce.smoke`` is split on whitespace, so a command's own spaces are
-                // written as '+': the alternative is a Gradle property that silently
-                // truncates every command at its first argument.
-                String line = command.trim().replace('+', ' ');
-                // And no leading slash: a console line is the command without one, so
-                // "/spawn ..." would reach the parser as "//spawn ...".
-                while (line.startsWith("/")) {
-                    line = line.substring(1);
-                }
-                if (!line.isBlank()) {
-                    client.connection().send(new CommandC2S(line));
-                }
-            }
+            sendCommands(smokeCommands);
         }
         // Development smoke hook for the editor: the editor is four screens deep
         // (title -> world -> level list -> editor), which no smoke run could

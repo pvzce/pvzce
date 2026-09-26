@@ -49,17 +49,22 @@ class LevelMechanicTest {
     }
 
     @Test
-    void theBowlingLevelDeclaresBothOfItsMechanics() {
-        // The file's own blocks: the belt, the red line and the mower rows - which is how a
-        // level says "this one has no mowers" (the original's Wall-nut Bowling has none).
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
-                        PvzceIds.MECHANIC_MOWER),
+    void theBowlingLevelDeclaresAllFourOfItsMechanics() {
+        // The file's own blocks: the belt, the red line, an explicit "no rake" and the mower rows -
+        // which is how a level says "this one has no mowers" and "this one has no rake" (the
+        // original's Wall-nut Bowling has neither: the nuts do the killing, not the lawn).
+        assertEquals(List.of(PvzceIds.MECHANIC_RAKE, PvzceIds.MECHANIC_CONVEYOR,
+                        PvzceIds.MECHANIC_PLACEMENT_ZONE, PvzceIds.MECHANIC_MOWER),
                 bowling.mechanics().stream()
                         .map(com.pvzce.api.content.mechanic.TypedMechanic::type).toList());
         assertEquals(List.of(), LevelMechanics
                         .dataOf(bowling, PvzceIds.MECHANIC_MOWER, com.pvzce.api.content.MowerData.class)
                         .orElseThrow().rowsFor(bowling.height()),
                 "and an explicitly empty row list means none at all");
+        assertEquals(List.of(), LevelMechanics
+                        .dataOf(bowling, PvzceIds.MECHANIC_RAKE, com.pvzce.api.content.RakeData.class)
+                        .orElseThrow().rowsFor(bowling.height()),
+                "the same three-state shape turns the player's rake off for this level");
 
         LevelBelt belt = LevelMechanics.dataOf(bowling, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class)
                 .orElseThrow();
@@ -99,8 +104,9 @@ class LevelMechanicTest {
         assertEquals(java.util.Optional.empty(), LevelMechanics.dataOf(
                         ordinary, PvzceIds.MECHANIC_PLACEMENT_ZONE, PlacementZone.class),
                 "no zone means no mechanic, and the server reads that as the whole board");
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
-                        PvzceIds.MECHANIC_MOWER, PvzceIds.MECHANIC_WAVE_PACING),
+        assertEquals(List.of(PvzceIds.MECHANIC_RAKE, PvzceIds.MECHANIC_CONVEYOR,
+                        PvzceIds.MECHANIC_PLACEMENT_ZONE, PvzceIds.MECHANIC_MOWER,
+                        PvzceIds.MECHANIC_WAVE_PACING),
                 LevelMechanics.effective(bowling).stream()
                         .map(com.pvzce.api.content.mechanic.TypedMechanic::type).toList(),
                 "a level that declares the mower itself gets no implicit copy of it, but the"
@@ -280,20 +286,29 @@ class LevelMechanicTest {
     @Test
     void theWirePayloadsCarryEveryEffectiveMechanicAndDecodeBack() {
         var bowlingPayloads = LevelMechanics.payloads(bowling);
-        // The declared card source and the plantable area, plus the implicit mower and wave
-        // pacing: what the client is told is what the server runs, whether or not the file
-        // mentions it.
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
-                        PvzceIds.MECHANIC_MOWER, PvzceIds.MECHANIC_WAVE_PACING),
+        // The declared card source, the plantable area and the explicit "no rake", plus the
+        // implicit mower and wave pacing: what the client is told is what the server runs,
+        // whether or not the file mentions it.
+        assertEquals(List.of(PvzceIds.MECHANIC_RAKE, PvzceIds.MECHANIC_CONVEYOR,
+                        PvzceIds.MECHANIC_PLACEMENT_ZONE, PvzceIds.MECHANIC_MOWER,
+                        PvzceIds.MECHANIC_WAVE_PACING),
                 bowlingPayloads.stream()
                         .map(com.pvzce.common.network.packet.LevelPayload.MechanicPayload::type).toList());
         assertEquals(LevelMechanics.dataOf(bowling, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class).orElseThrow(),
-                LevelMechanics.decodeBlock(PvzceIds.MECHANIC_CONVEYOR, bowlingPayloads.get(0).block())
+                LevelMechanics.decodeBlock(PvzceIds.MECHANIC_CONVEYOR, bowlingPayloads.get(1).block())
                         .orElseThrow());
         assertEquals(LevelMechanics.dataOf(bowling, PvzceIds.MECHANIC_PLACEMENT_ZONE, PlacementZone.class)
                         .orElseThrow(),
-                LevelMechanics.decodeBlock(PvzceIds.MECHANIC_PLACEMENT_ZONE, bowlingPayloads.get(1).block())
+                LevelMechanics.decodeBlock(PvzceIds.MECHANIC_PLACEMENT_ZONE, bowlingPayloads.get(2).block())
                         .orElseThrow());
+        // "This level has no rake" has to survive the wire too: the client registers an overlay
+        // for every mechanic it is told about, and one that decoded to something else would draw
+        // a rake nobody asked for.
+        assertEquals(List.of(), LevelMechanics
+                        .decodeBlock(PvzceIds.MECHANIC_RAKE, bowlingPayloads.get(0).block())
+                        .filter(com.pvzce.api.content.RakeData.class::isInstance)
+                        .map(com.pvzce.api.content.RakeData.class::cast)
+                        .orElseThrow().rowsFor(bowling.height()));
 
         var ordinaryPayloads = LevelMechanics.payloads(ordinary);
         assertEquals(List.of(PvzceIds.MECHANIC_DECK, PvzceIds.MECHANIC_MOWER,

@@ -64,11 +64,13 @@ final class RakeClientMechanic implements ClientMechanic {
     /** The rake itself; one per level instance, shared by the sync handler and the renderer. */
     private static final class RakeOverlay implements WorldOverlay {
         private int row = -1;
+        private float x;
         private boolean spent;
         private ArtTarget target;
 
         void apply(RakeMechanic.State state) {
             this.row = state.row();
+            this.x = state.x();
             this.spent = state.spent();
         }
 
@@ -92,7 +94,7 @@ final class RakeClientMechanic implements ClientMechanic {
             if (playback == null) {
                 return;
             }
-            playback.render(client, RakeMechanic.IDLE_X + 0.5F,
+            playback.render(client, x,
                     row + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
                     EntityVisuals.baseZ(EntityKind.PLANT),
                     client.spriteXScale() * RENDER_SCALE, RENDER_SCALE);

@@ -27,6 +27,7 @@ import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.level.CardCooldown;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.level.mechanic.RakeMechanic;
 import com.pvzce.common.level.mechanic.ScaryPotterMechanic;
 import com.pvzce.common.level.mechanic.WavePacingMechanic;
 import com.pvzce.common.level.mechanic.ToolMechanic;
@@ -682,6 +683,29 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         return false;
+    }
+
+    /**
+     * The lane the run's opening zombie has to arrive in, or -1.
+     *
+     * <p>The rake's lane, while that rake is still lying there. It is one of the original's small
+     * guarantees - the rake is laid in the lane the first zombie comes down, so a bought rake is
+     * never a purchase that silently did nothing - and it is answered from the rig rather than
+     * derived from the level file because which lane the rake landed in is decided at level
+     * creation, from the level's own dice.
+     *
+     * <p>The caller still checks that the zombie can use the lane; this only answers where the rake
+     * is.
+     */
+    @Override
+    public int forcedOpeningLane(Identifier zombieId) {
+        for (TypedMechanic mechanic : mechanics) {
+            if (PvzceIds.MECHANIC_RAKE.equals(mechanic.type())
+                    && mechanic.value() instanceof com.pvzce.api.content.RakeData rake) {
+                return RakeMechanic.rig(this, rake).armedLane();
+            }
+        }
+        return -1;
     }
 
     /** The rows a zombie that cannot swim may arrive in; every row when the board has no water. */
@@ -2040,7 +2064,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     slots, com.pvzce.server.LevelBuffSelection.chooserPool(def, buffOwns),
                     def.effectiveMaxBuffSlots(buffSlots), buffSlots,
                     profile == null ? List.of() : profile.autoBuffs(), List.of(), buffOwns,
-                    profile != null && profile.unlocked().contains(PvzceIds.RAKE));
+                    profile != null && profile.ownsRake());
         }
     }
 
@@ -2500,13 +2524,25 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * <p>{@code sceneCells} travels as the <strong>opening board</strong>, mechanics included -
      * see {@link #openingBoard}. It used to be the level's authored map, which is why a preview
      * of a night level showed an empty lawn: the tombstones are not in the file.
+     *
+     * <p>The mechanic list is a parameter, and the running level passes {@link #mechanics()} rather
+     * than the file's own list: a level has one more source of mechanics than its file does (the
+     * player's rake), and a client that is not told about one runs a board it cannot draw. The
+     * level-list caller has no instance and passes the file's answer, which is what a preview
+     * needs - there is nothing to preview about a rake whose lane is rolled at level creation.
      */
     public static LevelPayload payloadFor(LevelDef def, SeedContext seeds) {
+        return payloadFor(def, seeds, LevelMechanics.effective(def));
+    }
+
+    /** As above, with the mechanic list the caller wants the client to know about. */
+    public static LevelPayload payloadFor(LevelDef def, SeedContext seeds,
+                                          List<TypedMechanic> resolvedMechanics) {
         // The resolved bar size, not the raw field: a level with no max_seed_slots of its
         // own is sized by the backpack, and the payload is where the client learns which.
         return new LevelPayload(def.width(), def.height(), seeds.pool(), seeds.maxSeedSlots(),
                 def.previewZombieIds(), openingBoard(def, seeds), seeds.lockedSlotIds(),
-                LevelMechanics.payloads(def),
+                LevelMechanics.payloads(resolvedMechanics),
                 // The backdrop travels as its texture id rather than as a field the client
                 // looks up in its own copy of the level file: the board it draws has to be the
                 // one this server is running, even for a level that client has never seen.
@@ -4694,7 +4730,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     public void sendFullState(ServerBridge bridge) {
         Team plantTeam = plantPlayer != null ? plantPlayer.team() : null;
-        LevelPayload payload = payloadFor(def, seedContext);
+        // The running level's own list, not the file's: it is the only one that knows about a
+        // mechanic the *player* brought, and the overlay the client draws from it.
+        LevelPayload payload = payloadFor(def, seedContext, mechanics);
         bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waves.roundWaveTypes(), payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
         withBridge(bridge, () -> {

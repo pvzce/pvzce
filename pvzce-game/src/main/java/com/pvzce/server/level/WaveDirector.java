@@ -109,6 +109,23 @@ public final class WaveDirector {
         }
 
         /**
+         * The lane the very first zombie of the run must arrive in, or {@code -1} for "deal as
+         * usual".
+         *
+         * <p>Asked once per run, for one spawn. It exists for the rake: the original guarantees
+         * that the rake's lane is the lane the first zombie walks down, because a rake the first
+         * zombie never reaches is a purchase that silently did nothing. The level answers with its
+         * rake's lane while that rake is still lying there and {@code -1} otherwise, so a level
+         * with no rake - or a run resumed after one sprang - deals lanes exactly as before.
+         *
+         * <p>{@code zombieId} is passed so the host can decline when the lane would be wrong for
+         * this particular zombie, rather than the director having to know what a rake is.
+         */
+        default int forcedOpeningLane(Identifier zombieId) {
+            return -1;
+        }
+
+        /**
          * The wave this round holds at this index, generated or read from the level's table.
          *
          * <p>The one thing the director cannot know for itself: a level with a wave table
@@ -217,6 +234,15 @@ public final class WaveDirector {
     private int openingGateTicks;
     private int openingGateHoldTicks;
     private boolean waveArrivalHeld;
+    /**
+     * True once the run's first zombie has been dealt a lane.
+     *
+     * <p>The one spawn the host gets a say in ({@link Host#forcedOpeningLane}): the rake's lane is
+     * the lane the first zombie walks down, and "first" is counted here rather than by the host
+     * because the host cannot tell a fresh run from a resumed one. In memory only, like the rest of
+     * the director's clocks - a run resumed before its first zombie simply offers the lane again.
+     */
+    private boolean firstSpawnDealt;
     /**
      * True from the moment the round's last wave is fully released until the level acknowledges
      * it: the run is between rounds, and no wave is owed until the player has picked their cards.
@@ -939,7 +965,7 @@ public final class WaveDirector {
                 }
             }
             QueuedZombie queued = queue.zombies.poll();
-            int row = rowFor(queued, queue);
+            int row = laneFor(queued, queue);
             ZombieEntity spawned = spawnQueued(queued, row);
             if (spawned != null) {
                 // Owned here, where the wave is known: the stockpile cap and the survival-ratio
@@ -1093,34 +1119,72 @@ public final class WaveDirector {
      * picking the right lane in the first place rather than about being the only guard.
      */
     private int rowFor(QueuedZombie queued, PendingWaveSpawn queue) {
-        List<Integer> lanes = queued.rows().isEmpty() ? queue.rows : queued.rows();
-        com.pvzce.api.content.ZombieDef def =
-                com.pvzce.common.core.BuiltInRegistries.ZOMBIES.get(queued.id());
-        if (def != null) {
-            List<Integer> usable = new ArrayList<>();
-            for (int lane : lanes) {
-                if (host.rowIsWater(lane) == def.canSwim()) {
-                    usable.add(lane);
-                }
-            }
-            // Nowhere of its own kind to go: a ducky tube on a lawn walks, and a walker on a board
-            // that is nothing but pool drowns - the level's problem, not this method's.
-            if (!usable.isEmpty()) {
-                lanes = usable;
-            }
-            if (def.capability(BobsledCapability.class).isPresent()) {
-                List<Integer> iced = new ArrayList<>();
-                for (int lane : lanes) {
-                    if (host.rowHasIce(lane)) {
-                        iced.add(lane);
-                    }
-                }
-                if (!iced.isEmpty()) {
-                    lanes = iced;
+        List<Integer> lanes = usableLanes(queued, queued.rows().isEmpty() ? queue.rows : queued.rows());
+        return lanes.get(queue.rowIndex++ % lanes.size());
+    }
+
+    /**
+     * The lane one spawn arrives in: the host's forced lane for the run's opening zombie, or the
+     * ordinary deal.
+     *
+     * <p>The forced lane is <em>offered</em> rather than imposed. It is taken only when the zombie
+     * could have been dealt that lane anyway - the same "a walker is not sent into the pool" rule
+     * {@link #rowFor} applies to every other spawn - so a level whose rake ended up somewhere a
+     * zombie cannot walk gets the ordinary deal rather than a drowned zombie. The lane is not
+     * counted against {@code rowIndex}: nothing about the queue's rotation changed, and a forced
+     * lane that also advanced it would silently re-deal every later zombie of that wave.
+     */
+    private int laneFor(QueuedZombie queued, PendingWaveSpawn queue) {
+        if (!firstSpawnDealt) {
+            firstSpawnDealt = true;
+            int forced = host.forcedOpeningLane(queued.id());
+            if (forced >= 0) {
+                List<Integer> lanes = queued.rows().isEmpty() ? queue.rows : queued.rows();
+                if (usableLanes(queued, lanes).contains(forced)) {
+                    return forced;
                 }
             }
         }
-        return lanes.get(queue.rowIndex++ % lanes.size());
+        return rowFor(queued, queue);
+    }
+
+    /**
+     * The lanes of {@code lanes} this zombie could actually be dealt, in order.
+     *
+     * <p>A walker skips the water rows and a swimmer prefers them; a bobsled prefers a lane with
+     * ice when one of the lanes it may use has any. Narrowing a list rather than reshuffling keeps
+     * the order: the same seed still deals the same lanes to the same zombies, which is what makes
+     * a recorded run replay. When nothing of its own kind is left the list is returned unchanged -
+     * a ducky tube on a lawn walks, and a walker on a board that is nothing but pool drowns; that
+     * is the level's problem, not this method's.
+     */
+    private List<Integer> usableLanes(QueuedZombie queued, List<Integer> lanes) {
+        com.pvzce.api.content.ZombieDef def =
+                com.pvzce.common.core.BuiltInRegistries.ZOMBIES.get(queued.id());
+        if (def == null) {
+            return lanes;
+        }
+        List<Integer> usable = new ArrayList<>();
+        for (int lane : lanes) {
+            if (host.rowIsWater(lane) == def.canSwim()) {
+                usable.add(lane);
+            }
+        }
+        if (!usable.isEmpty()) {
+            lanes = usable;
+        }
+        if (def.capability(BobsledCapability.class).isPresent()) {
+            List<Integer> iced = new ArrayList<>();
+            for (int lane : lanes) {
+                if (host.rowHasIce(lane)) {
+                    iced.add(lane);
+                }
+            }
+            if (!iced.isEmpty()) {
+                lanes = iced;
+            }
+        }
+        return lanes;
     }
 
     /** The whole board, shuffled: the lane pool an entry that names no lanes draws from. */

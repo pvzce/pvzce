@@ -12,18 +12,21 @@ import java.util.Optional;
 /**
  * The rake: a one-shot guard that flattens the first zombie to walk into it.
  *
- * <p>The original's shop item, and this one: a rake lies on the lawn a little way out from the
- * house, the first zombie to reach it is destroyed, and the rake is spent. It buys one zombie's
- * worth of time in one lane - the cheapest way to survive a bad opening.
+ * <p>The original's shop item, and this one: a rake lies on the lawn in the second column from the
+ * right, the first zombie to reach it is destroyed - 1800 damage, so armour does not save it and a
+ * Gargantuar does - and the rake is spent. It buys one zombie's worth of time in one lane, which is
+ * the cheapest way to survive a bad opening.
  *
  * <p>The block of the {@code pvzce:rake} level mechanic, which is <b>implicit</b>: a world whose
  * profile owns the rake gets one on every level that does not declare this mechanic, placed at
  * random. A level that wants to decide for itself declares the block, and a level that wants no
  * rake at all writes {@code "rows": []} - the same three-way shape {@code MowerData} uses, and for
- * the same reason.
+ * the same reason. A level where a free kill would be off the point (a bowling alley, a whack-a-
+ * zombie lawn, a chart you are supposed to play) says so that way.
  *
- * @param rows which lanes a rake may appear in; empty means "one random lane", and an entry that
- *             is present but empty ({@code "rows": []}, or {@link #NONE}) means "nowhere"
+ * @param rows which lanes a rake may appear in; empty means "one ground lane, picked at random",
+ *             and an entry that is present but empty ({@code "rows": []}, or {@link #NONE}) means
+ *             "nowhere"
  */
 public record RakeData(Optional<List<Integer>> rows) implements MechanicData {
     /** Absent rows: one rake, in a lane the level picks at random. */
@@ -47,7 +50,13 @@ public record RakeData(Optional<List<Integer>> rows) implements MechanicData {
         rows = rows == null ? Optional.empty() : rows;
     }
 
-    /** The lanes a rake may use on a board this tall, or an empty list for "nowhere". */
+    /**
+     * The lanes a rake may use on a board this tall, or an empty list for "nowhere".
+     *
+     * <p>Pure, so it knows nothing about the terrain: a lane named here that turns out to be water
+     * is dropped by the rig that places the rake, because "which lanes are water" is a fact about
+     * the board and this is a fact about the file.
+     */
     public List<Integer> rowsFor(int height) {
         if (rows.isEmpty()) {
             List<Integer> all = new ArrayList<>(Math.max(0, height));

@@ -489,26 +489,47 @@ public final class ShopScreen extends Screen {
      * <p>The two numbers that make each sentence true come from where they live: the card-slot
      * ceiling from {@code PvzceConstants}, the shovel's refund from the buff. A page that wrote
      * "20%" itself would be the second place to change when balance moves.
+     *
+     * <p>An {@code UNLOCK} item describes itself, because there is no per-kind sentence that is
+     * true of both things sold that way: a plant bought here is described by the plant (the same
+     * {@code .desc} the almanac shows), and the rake, which is not a card, has its own line in the
+     * shop's table. This used to be a per-kind branch, which meant a second item of the same kind
+     * printed the first one's sentence.
      */
     private String descriptionOf(ShopItems.Item item) {
         return switch (item.kind()) {
-            case TOOL -> GuiLang.raw("gui.pvzce.shop.desc.rake",
-                    "每一关压扁第一只僵尸，保护你的房子");
             case CARD_SLOTS -> GuiLang.raw("gui.pvzce.shop.desc.card_slot", "每副卡组多带一张卡，上限 ")
                     + PvzceConstants.MAX_SEED_SLOTS
                     + GuiLang.raw("gui.pvzce.shop.desc.card_slot_suffix", " 张");
             case BUFF -> GuiLang.raw("gui.pvzce.shop.desc.sun_shovel", "铲掉植物时返还 ")
                     + Math.round(BuiltInBuffs.SUN_SHOVEL_REFUND * 100F)
                     + GuiLang.raw("gui.pvzce.shop.desc.sun_shovel_suffix", "% 的阳光");
+            case UNLOCK -> unlockDescriptionOf(item);
         };
     }
 
+    /** The sentence for something bought into the unlocked set: its own, or the content's. */
+    private String unlockDescriptionOf(ShopItems.Item item) {
+        var card = com.pvzce.common.core.SlotResolver.resolve(item.id());
+        if (card.isPresent()) {
+            String content = GuiLang.contentOr(
+                    com.pvzce.common.core.SlotResolver.languageCategory(card.get().kind()),
+                    item.id(), "desc", "");
+            if (!content.isEmpty()) {
+                return content;
+            }
+        }
+        return GuiLang.raw("gui.pvzce.shop.desc." + item.id().path(), item.id().path());
+    }
+
     /**
-     * The item's own art: a buff's icon, or the tool's card face.
+     * The item's own art: a buff's icon, the card's declared icon, or the shop's own convention.
      *
-     * <p>Both are what the player will see again in the buff row or on the bar, which is what makes
-     * the shop legible. The buff ships as a 1254x1254 sheet, so it is fitted to the row rather than
-     * stretched by it - the same reason the seed chooser draws it through {@code SeedCardRenderer}.
+     * <p>All three are what the player will see again in the buff row or on the bar, which is what
+     * makes the shop legible. The buff ships as a 1254x1254 sheet, so it is fitted to the row rather
+     * than stretched by it - the same reason the seed chooser draws it through
+     * {@code SeedCardRenderer}. The convention path is the last resort for an item that names
+     * neither a buff nor a card (the rake, whose art is a card face nobody plants).
      */
     private Identifier iconFor(ShopItems.Item item) {
         if (item.kind() == ShopItems.Item.Kind.BUFF) {
@@ -516,6 +537,10 @@ public final class ShopScreen extends Screen {
             if (buff != null && buff.icon() != null) {
                 return buff.icon().texture();
             }
+        }
+        var card = com.pvzce.common.core.SlotResolver.resolve(item.id());
+        if (card.isPresent() && card.get().icon().isPresent()) {
+            return card.get().icon().get();
         }
         return Identifier.withDefaultNamespace("textures/gui/cards/" + item.id().path());
     }

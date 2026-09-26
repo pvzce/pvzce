@@ -98,6 +98,22 @@ public final class SlotResolver {
         return java.util.List.copyOf(cards);
     }
 
+    /**
+     * The language category a card kind is named through.
+     *
+     * <p>One answer for "which registry does this card's display name live in", shared by the
+     * award page and the shop: a card may be a plant, a tool or a resource, and a page that guessed
+     * would show a plant's sentence for a tool. It is a {@code switch} over the kind rather than a
+     * string on the enum so that adding a kind (a zombie card) is a compile error here.
+     */
+    public static String languageCategory(Slot.Kind kind) {
+        return switch (kind) {
+            case PLANT -> "plant";
+            case TOOL -> "tool";
+            case RESOURCE -> "resource";
+        };
+    }
+
     /** True when the level's slot list can actually be turned into cards. */
     public static boolean isResolvable(Identifier slotId) {
         return BuiltInRegistries.SLOT_TYPES.containsKey(slotId) || BuiltInRegistries.PLANTS.containsKey(slotId);

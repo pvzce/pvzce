@@ -82,6 +82,10 @@
   "initial_sun": 0,
   "mechanics": [
     {
+      "type": "pvzce:rake",
+      "rows": []
+    },
+    {
       "type": "pvzce:conveyor",
       "interval_ticks": 150,
       "capacity": 6,

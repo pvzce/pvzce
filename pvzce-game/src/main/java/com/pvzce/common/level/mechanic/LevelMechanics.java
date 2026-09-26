@@ -305,10 +305,21 @@ public final class LevelMechanics {
      * <p>The implicit deck is included, so the client sees the same list the server runs
      * with - including the entry that says "the ordinary rules apply" for a level whose file
      * says nothing at all.
+     *
+     * <p>This is the <em>file's</em> answer. A running level has one more source of mechanics than
+     * the file does - the player's own, added by {@code LevelServer.withPlayerMechanics} - so the
+     * packet that starts a run goes through {@link #payloads(List)} with the list the simulation is
+     * actually running. Sending this one instead was why a bought rake killed a zombie nobody could
+     * see: the mechanic ran on the server and the client was never told it existed.
      */
     public static List<LevelPayload.MechanicPayload> payloads(LevelDef def) {
+        return payloads(effective(def));
+    }
+
+    /** As above, from a list a caller has already resolved (the level instance's own). */
+    public static List<LevelPayload.MechanicPayload> payloads(List<TypedMechanic> resolved) {
         List<LevelPayload.MechanicPayload> payloads = new ArrayList<>();
-        for (TypedMechanic typed : effective(def)) {
+        for (TypedMechanic typed : resolved) {
             LevelMechanic<?> mechanic = get(typed.type());
             if (mechanic == null) {
                 continue;

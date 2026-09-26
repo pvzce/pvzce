@@ -54,13 +54,17 @@ class ClientMechanicTest {
     void theServersMechanicsArriveAsDecodedData() {
         ClientLevel level = levelWith(bowlingMechanics());
 
-        assertEquals(List.of(PvzceIds.MECHANIC_CONVEYOR, PvzceIds.MECHANIC_PLACEMENT_ZONE,
-                        PvzceIds.MECHANIC_MOWER, PvzceIds.MECHANIC_WAVE_PACING),
+        assertEquals(List.of(PvzceIds.MECHANIC_RAKE, PvzceIds.MECHANIC_CONVEYOR,
+                        PvzceIds.MECHANIC_PLACEMENT_ZONE, PvzceIds.MECHANIC_MOWER,
+                        PvzceIds.MECHANIC_WAVE_PACING),
                 level.mechanicIds());
         assertTrue(level.hasMechanic(PvzceIds.MECHANIC_CONVEYOR));
         assertEquals(List.of(), level.mechanicData(PvzceIds.MECHANIC_MOWER,
                         com.pvzce.api.content.MowerData.class).rowsFor(level.height()),
                 "Wall-nut Bowling declares its rows explicitly, and the list is empty");
+        assertEquals(List.of(), level.mechanicData(PvzceIds.MECHANIC_RAKE,
+                        com.pvzce.api.content.RakeData.class).rowsFor(level.height()),
+                "and it declares its rake off the same way, so a bought rake never bowls for you");
         assertEquals(6, level.mechanicData(PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class).capacity());
         assertTrue(level.placementZone().contains(3, 0));
         assertFalse(level.inPlacementZone(4, 0), "the red line is where the server says it is");

@@ -666,24 +666,28 @@ public final class PvzceIds {
      * The shop's one item that is nothing but a shop item.
      *
      * <p>The other two are not repeated here: the sun shovel's item id <em>is</em>
-     * {@link #BUFF_SUN_SHOVEL}, and the rake's is the tool card {@code pvzce:rake}. An item id
-     * that shadowed the thing it grants would be a second name for one fact, and "do I own this"
-     * would have two answers.
+     * {@link #BUFF_SUN_SHOVEL}, and the rake's <em>is</em> {@link #RAKE} - the same id the mechanic
+     * is registered under. An item id that shadowed the thing it grants would be a second name for
+     * one fact, and "do I own this" would have two answers.
      */
     public static final Identifier SHOP_CARD_SLOT = id("card_slot");
 
     /**
      * The rake: a one-shot guard that flattens the first zombie to reach it.
      *
-     * <p>Two registries share the name, on purpose. The <em>card</em> {@code pvzce:rake} is what
-     * the shop grants and what "do I own the rake" is asked about (a player's backpack is a set of
-     * card ids, tools included); this is the <em>mechanic</em> that places one at the start of a
-     * level that did not say otherwise. A second id for the card would be a second answer to the
-     * same question.
+     * <p>Two registries share the name, on purpose, and they are the two halves of one purchase.
+     * {@link #RAKE} is what the shop grants and what "do I own the rake" is asked about (a player's
+     * profile holds a set of unlocked ids); this is the <em>mechanic</em> that lays one down at the
+     * start of a level that did not say otherwise. A second id for the ownership flag would be a
+     * second answer to the same question.
+     *
+     * <p>Neither is a card. The rake used to be one - a tool card with an effect id nothing
+     * implemented - and removing it is what makes "the rake is not a tool" true in the data rather
+     * than only in the intent.
      */
     public static final Identifier MECHANIC_RAKE = id("rake");
 
-    /** The rake as a card: the shop item id and what the profile's unlocked set holds. */
+    /** The rake as a purchase: the shop item id and what the profile's unlocked set holds. */
     public static final Identifier RAKE = id("rake");
 
     /**

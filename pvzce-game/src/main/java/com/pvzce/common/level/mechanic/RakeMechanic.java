@@ -26,32 +26,49 @@ import java.util.List;
  * is the whole difference between a last line of defence and a head start.
  *
  * <p><b>Whose rake it is.</b> The mechanic is only ever installed for a world whose profile bought
- * it; {@code LevelServer} adds a {@link RakeData#RANDOM} block when the player owns the rake card
- * and the level did not declare one. So the level file's block means "this level decides", an
- * absent block means "the player's rake, if they have one", and an explicit empty row set means
- * "not here" - the same three-way shape {@code MowerData} uses.
+ * it; {@code LevelServer} adds a {@link RakeData#RANDOM} block when the player owns the rake and the
+ * level did not declare one. So the level file's block means "this level decides", an absent block
+ * means "the player's rake, if they have one", and an explicit empty row set means "not here" - the
+ * same three-way shape {@code MowerData} uses.
  *
- * <p><b>Where it stands.</b> The same anchor a parked mower uses, half a cell left of the first
- * column, and the same trigger line. That is not a coincidence to be preserved for its own sake:
- * both are "at the house", and a rake a quarter of a cell further out would kill a zombie the
- * mower would have let through, which is a difference nobody could see and everybody would feel.
+ * <p><b>Where it stands.</b> In the second column from the right of the lawn, which is where the
+ * original's rake is laid down: far enough out that the zombie which trips it dies before it has
+ * crossed the board, and late enough that the player sees the lane they will have to defend. The
+ * rake is a fixture, not an occupant - a plant may be planted on that cell, and the rake is drawn
+ * under it like the terrain it lies on.
+ *
+ * <p><b>What it is worth.</b> 1800 damage, the original's number: enough for every ordinary
+ * zombie, armour included, and not enough for a Gargantuar. The damage type is the mower's, for the
+ * two properties the original's rake also has - it ignores armour (a buckethead dies as fast as a
+ * basic zombie) and it takes the zombie apart.
+ *
+ * <p><b>The lane it is on is the lane the first zombie comes down.</b> The original guarantees it,
+ * so that a rake which could not be reached would not be a purchase that silently does nothing;
+ * {@link LevelServer} answers {@code forcedOpeningLane} from this rig and the wave director asks it
+ * for the first spawn of the run. A lane with no rake (or a spent one) answers -1 and the wave
+ * director deals as it always did.
  *
  * <p><b>What it does not touch.</b> Fliers and diggers, for the mower's reason: the predicate is
  * the zombie's own layer. A balloon zombie flies over the rake exactly as it flies over a mower.
  */
 public final class RakeMechanic implements LevelMechanic<RakeData> {
-    /** Where a rake lies: the mower's own idle anchor, half a cell left of column 0. */
-    public static final float IDLE_X = MowerMechanic.IDLE_X;
-    /** The zombie position that trips it; the mower's own line, so the two agree. */
-    public static final float TRIGGER_X = MowerMechanic.TRIGGER_X;
+    /**
+     * Which column the rake lies in, counted from the right.
+     *
+     * <p>Two, so a nine-column lawn puts it in column 7. This is the only place in the codebase
+     * that knows where a rake stands: the client draws the {@code x} the server sends it, and the
+     * trigger is that same {@code x}.
+     */
+    public static final int COLUMNS_FROM_RIGHT = 2;
     /**
      * What one rake is worth.
      *
-     * <p>Read from the mower's own constant rather than declared again: a rake "kills the zombie
-     * that reaches it", and the mower's number is what that sentence already means in this build.
-     * A second constant would be a second answer to "how hard is a lawn fixture".
+     * <p>The original's 1800: every ordinary zombie dies, armour and all (a buckethead is 1100
+     * points of bucket over 200 points of zombie), and a Gargantuar's 3000 is out of reach. That
+     * boundary is the whole reason the number is a number rather than "kill it": a rake is a head
+     * start, not a mower.
      */
-    private static final int RAKE_DAMAGE = 100_000;
+    public static final int RAKE_DAMAGE = 1800;
     /** The NBT key this mechanic's run state is written under. */
     private static final String KEY_RAKE = "Rake";
 
@@ -83,7 +100,10 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
             return;
         }
         for (ZombieEntity zombie : Rig.groundZombiesInRow(level, rig.row)) {
-            if (zombie.cellX() <= TRIGGER_X) {
+            // Reaching the rake's own x rather than a grid line: the rake lies in the middle of a
+            // cell, and the zombie's position is continuous, so this fires on the tick its feet
+            // get there - the same "asked of the point, not of the cell" rule the hammer follows.
+            if (zombie.cellX() <= rig.x) {
                 rig.spring(level, zombie);
                 return;
             }
@@ -112,12 +132,22 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
         }
         rig.row = tag.getInt("Row");
         rig.spent = tag.getInt("Spent") != 0;
+        // The column is derived from the board rather than saved, so a level whose width changed
+        // under a save gets a rake in the right place rather than one off the edge.
+        rig.x = columnX(level);
         rig.dirty = true;
+    }
+
+    /** Where a rake lies on this board: the centre of {@link #COLUMNS_FROM_RIGHT} from the right. */
+    public static float columnX(LevelServer level) {
+        int column = Math.max(0, level.width() - COLUMNS_FROM_RIGHT);
+        return column + 0.5F;
     }
 
     /** One level's rake. */
     public static final class Rig {
         private int row = -1;
+        private float x;
         private boolean spent;
         private boolean dirty;
 
@@ -125,14 +155,28 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
          * Lays the rake down, once, on a lane the level allows.
          *
          * <p>The lane is picked from the level's dice rather than from a fresh one, so a run
-         * watched twice from the same seed has its rake in the same place.
+         * watched twice from the same seed has its rake in the same place. Water lanes are not
+         * candidates whatever the level wrote: a rake lies on grass, and a rake the first zombie
+         * could not walk to would be worse than no rake at all.
          */
         private void place(LevelServer level, RakeData data) {
-            List<Integer> lanes = data.rowsFor(level.height());
+            List<Integer> lanes = new ArrayList<>();
+            for (int lane : data.rowsFor(level.height())) {
+                if (!level.rowIsWater(lane)) {
+                    lanes.add(lane);
+                }
+            }
             if (lanes.isEmpty()) {
+                // "Nowhere" is announced rather than left unsaid: the client has an overlay either
+                // way, and a level that deliberately has no rake should say so rather than relying
+                // on the absence of a packet a late-joining client never saw. The row stays -1,
+                // which is what "no rake here" already means everywhere else.
+                row = -1;
+                dirty = true;
                 return;
             }
             row = lanes.get(level.random().nextInt(lanes.size()));
+            x = columnX(level);
             spent = false;
             dirty = true;
         }
@@ -142,9 +186,14 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
             return row >= 0 && !spent;
         }
 
-        /** The lane it is on, or -1 when the level has none. */
+        /** The lane it is on, or -1 when the level has none or it has sprung. */
         public int row() {
             return row;
+        }
+
+        /** The lane the next zombie must take, or -1 when the rake is not waiting for one. */
+        public int armedLane() {
+            return armed() ? row : -1;
         }
 
         /** Kills the zombie that walked into it, and is spent. */
@@ -157,7 +206,7 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
         }
 
         private State state() {
-            return new State(row, spent);
+            return new State(x, row, spent);
         }
 
         /** Ground-layer zombies of one row, as a copy: springing one removes it. */
@@ -179,17 +228,20 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
     }
 
     /**
-     * What the client draws from.
+     * The rake as the client sees it.
      *
      * <p>{@code row} of -1 means "this level has no rake", which a level that wrote an empty row
-     * set reports. A whole-state replacement rather than an incremental update: there are two
-     * facts and they change together.
+     * set reports. {@code x} travels rather than being derived on the client, so "where a rake
+     * stands" is one fact in one place - the server's {@link #columnX}. A whole-state replacement
+     * rather than an incremental update: there are three facts and they change together.
      */
-    public record State(int row, boolean spent) {
+    public record State(float x, int row, boolean spent) {
         public static final PacketStruct.Codec<State> CODEC = PacketStruct.<State>builder()
+                .field(State::x, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
                 .field(State::row, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                 .field(State::spent, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
-                .build(values -> new State((Integer) values.get(0), (Boolean) values.get(1)));
+                .build(values -> new State((Float) values.get(0), (Integer) values.get(1),
+                        (Boolean) values.get(2)));
 
         public void encode(PacketByteBuf buf) {
             CODEC.encode(this, buf);

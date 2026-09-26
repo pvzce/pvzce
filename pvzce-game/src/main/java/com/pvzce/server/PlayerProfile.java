@@ -258,6 +258,17 @@ public final class PlayerProfile {
         return SlotResolver.owns(unlocked, unlockAll, card);
     }
 
+    /**
+     * True when this world owns the rake, so every level lays one down for it.
+     *
+     * <p>The rake is a shop purchase rather than a card, so it is asked about by name - but it is
+     * still something a world <em>owns</em>, and the sandbox flag means "owns everything". Asking
+     * the raw set instead made a sandbox world the one world where a rake could never be seen.
+     */
+    public boolean ownsRake() {
+        return unlockAll || unlocked.contains(com.pvzce.common.PvzceIds.RAKE);
+    }
+
     /** The buffs levels have handed this player. */
     public Set<Identifier> unlockedBuffs() {
         return Collections.unmodifiableSet(unlockedBuffs);

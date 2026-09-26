@@ -75,9 +75,30 @@ class ShopTest {
             assertTrue(item.maxOwned() >= 1, item.id() + " has to be buyable at least once");
             assertTrue(BuiltInRegistries.LEVEL_BUFFS.get(item.id()) != null
                             || com.pvzce.common.core.SlotResolver.resolve(item.id()).isPresent()
+                            || ShopItems.STANDALONE_UNLOCKS.contains(item.id())
                             || item.kind() == ShopItems.Item.Kind.CARD_SLOTS,
                     item.id() + " names nothing the game knows about, so `apply` could not grant it");
         }
+    }
+
+    /**
+     * The rake is a purchase, not a card.
+     *
+     * <p>It used to be sold as a tool, which put it in the player's backpack as a card whose effect
+     * id nothing implemented - a card whose click did nothing at all. Nothing about the rake is a
+     * card: it is laid on the lawn by the level for a player who owns one, and the whole of the
+     * purchase is that flag. This pins the absence, because "the rake should not be a tool" is a
+     * statement about the data and the data is what would grow it back.
+     */
+    @Test
+    void theRakeIsNotACard() {
+        assertTrue(ShopItems.byId(ShopItems.RAKE).isPresent(), "the shop still sells a rake");
+        assertTrue(com.pvzce.common.core.SlotResolver.resolve(ShopItems.RAKE).isEmpty(),
+                "and it is not a card, so the chooser can never offer it");
+        assertFalse(BuiltInRegistries.TOOLS.keySet().contains(ShopItems.RAKE),
+                "nor a tool, so there is no cursor art and no effect id to implement");
+        assertTrue(ShopItems.STANDALONE_UNLOCKS.contains(ShopItems.RAKE),
+                "the catalogue knows it is one of the unlocks that names no card");
     }
 
     /**
