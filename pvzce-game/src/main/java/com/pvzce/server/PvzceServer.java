@@ -715,6 +715,37 @@ public final class PvzceServer implements Runnable {
         return "世界 " + safeWorld + " 已切换为沙盒：全部卡与全部关卡解锁";
     }
 
+    /**
+     * Says one line from the player, into whatever the message log is attached to.
+     *
+     * <p>Trimmed and cut rather than refused: a chat line too long to store is a player holding a
+     * key down, not an attack, and dropping it silently would look like the key did nothing. Blank
+     * lines are dropped - the client refuses to send them, and a modified one that does gets
+     * nothing said back.
+     */
+    private void say(String text) {
+        if (text == null) {
+            return;
+        }
+        String line = text.strip();
+        if (line.isEmpty()) {
+            return;
+        }
+        if (line.length() > com.pvzce.common.network.packet.ChatC2S.MAX_LENGTH) {
+            line = line.substring(0, com.pvzce.common.network.packet.ChatC2S.MAX_LENGTH);
+        }
+        String said = WorldPaths.sanitize(menuWorld()) + "：" + line;
+        LevelServer running = level;
+        if (running == null) {
+            connection.send(new com.pvzce.common.network.packet.ServerMessageS2C(said));
+            return;
+        }
+        // `send`, not `sendMessage`: the latter needs the bridge a *tick* installs, and a command
+        // runs between ticks - so the line was accepted and dropped. `send` falls back to the
+        // level's own outbound channel, which is the same one every other packet uses.
+        running.send(new com.pvzce.common.network.packet.ServerMessageS2C(said));
+    }
+
     /** The menu world's tier; what {@code /difficulty} reports with no level running. */
     public com.pvzce.common.level.Difficulty menuDifficulty() {
         return worlds.profileFor(WorldPaths.sanitize(menuWorld())).difficulty();
@@ -1297,6 +1328,8 @@ public final class PvzceServer implements Runnable {
                 int speedIndex = Math.max(1, Math.min(3, speed.speedIndex()));
                 tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE * speedIndex);
                 connection.send(new GameSpeedS2C(tickRate.tickRate()));
+            } else if (packet instanceof com.pvzce.common.network.packet.ChatC2S chat) {
+                say(chat.text());
             } else if (packet instanceof SetDifficultyC2S difficulty) {
                 setDifficulty(difficulty.difficulty());
             } else if (packet instanceof PauseGameC2S pause) {

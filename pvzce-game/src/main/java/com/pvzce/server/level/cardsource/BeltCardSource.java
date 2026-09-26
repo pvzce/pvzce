@@ -38,6 +38,14 @@ import java.util.Random;
 public final class BeltCardSource implements CardSource {
     public static final String KIND = "conveyor";
 
+    /**
+     * Where the index of a card the belt did not take over starts.
+     *
+     * <p>Belt cards keep their own belt id as their slot index (see {@code spend}), so the two
+     * ranges have to be disjoint - see {@code rebuildBar} for what a collision did.
+     */
+    static final int KEPT_SLOT_BASE = 1 << 20;
+
     private final PvzcePlayer player;
     private final ConveyorBelt belt;
     private final Random random;
@@ -46,6 +54,15 @@ public final class BeltCardSource implements CardSource {
         this.player = context.player();
         this.random = context.random();
         this.belt = new ConveyorBelt(def, this.random);
+        // The bar the first rebuild reads back has to exist first. `rebuildBar` keeps whatever is
+        // already on the bar that a belt cannot deal (`nonPlantSlots`) - and the bar is empty at
+        // this point for a belt level, because the seed plan hands a level that deals its own
+        // cards an empty selection (`SeedSelection.plan`). So the shovel such a level declares in
+        // `slots` was never put anywhere: the client's "the cards the belt did not take over"
+        // row had nothing to lay out and the level's own shovel could not be clicked or hotkeyed.
+        // An empty selection means "the level's own cards", the same rule `DeckCardSource` uses.
+        player.replaceSlots(PvzcePlayer.deckSlots(
+                context.selectedSlots().isEmpty() ? context.def().slots() : context.selectedSlots()));
         rebuildBar();
     }
 
@@ -207,7 +224,21 @@ public final class BeltCardSource implements CardSource {
             rebuilt.add(new Slot(card.id(), resolved.kind(), resolved.content(), 0, 0,
                     Slot.UNLIMITED_USES, 0));
         }
-        rebuilt.addAll(nonPlantSlots());
+        // The cards the belt did not take over are numbered *above* the belt's own ids.
+        //
+        // A belt card's slot index is its belt id - `spend` hands it straight to `belt.take` - and
+        // the deck numbers its cards from 0. A bar that both held a kept card at index 0 and had
+        // the belt deliver its first card (id 0) therefore carried **two slots with index 0**, and
+        // every lookup by index (`PvzcePlayer.slot`, which answers with the first match) resolved
+        // to the belt card: the shovel a belt level keeps beside the tray selected whatever plant
+        // had just slid in, and the server answered "该格不能种植" for a click the player made
+        // holding a tool. The ranges only have to stay apart, so the kept cards start far above
+        // any id a belt can hand out in a run (a million deliveries).
+        int index = KEPT_SLOT_BASE;
+        for (Slot slot : nonPlantSlots()) {
+            rebuilt.add(new Slot(index++, slot.kind(), slot.defId(), slot.costSun(),
+                    slot.cooldownLeft(), slot.usesLeft(), slot.cooldownTicks()));
+        }
         player.replaceSlots(rebuilt);
     }
 

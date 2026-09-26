@@ -110,6 +110,15 @@ public final class PvzceClientConfig {
     private int waterQuality = DEFAULT_WATER_QUALITY;
     private boolean storyEnabled = DEFAULT_STORY_ENABLED;
     private String lastWorld = DEFAULT_WORLD;
+    /**
+     * The player's key bindings, by action name.
+     *
+     * <p>Stored as GLFW key codes: they are what the poll loop compares against, and the names a
+     * player reads are derived from them for display. A file written by an older build simply has
+     * fewer entries, and {@code KeyBindings.from} falls back per action.
+     */
+    private com.pvzce.client.input.KeyBindings keyBindings =
+            com.pvzce.client.input.KeyBindings.defaults();
     private Path file;
 
     public static PvzceClientConfig load(Path gameDir) {
@@ -134,6 +143,7 @@ public final class PvzceClientConfig {
                         getInt(toml, "water_quality", DEFAULT_WATER_QUALITY));
                 config.storyEnabled = getBoolean(toml, "story", DEFAULT_STORY_ENABLED);
                 config.lastWorld = WorldPaths.sanitize(getString(toml, "last_world", DEFAULT_WORLD));
+                config.keyBindings = com.pvzce.client.input.KeyBindings.from(readKeys(toml));
             } else {
                 config.save();
             }
@@ -141,6 +151,29 @@ public final class PvzceClientConfig {
             LOGGER.warn("Failed to read the config; using the defaults.", e);
         }
         return config;
+    }
+
+    /**
+     * The {@code [keys]} table, as action name to GLFW code.
+     *
+     * <p>Read as a table rather than as flat keys because the file's top half is a fixed list of
+     * settings and this half grows with every action - one more flat key per action would have made
+     * the flat section the bulk of the file.
+     */
+    private static java.util.Map<String, Integer> readKeys(Toml toml) {
+        java.util.Map<String, Integer> keys = new java.util.LinkedHashMap<>();
+        Toml section = toml.getTable("keys");
+        if (section == null) {
+            return keys;
+        }
+        for (com.pvzce.client.input.KeyBindings.Action action
+                : com.pvzce.client.input.KeyBindings.Action.values()) {
+            Long value = section.getLong(action.key());
+            if (value != null) {
+                keys.put(action.key(), value.intValue());
+            }
+        }
+        return keys;
     }
 
     private static float getFloat(Toml toml, String key, float fallback) {
@@ -186,11 +219,27 @@ public final class PvzceClientConfig {
                     + "\nshaders_enabled = " + shadersEnabled
                     + "\nwater_quality = " + waterQuality
                     + "\nstory = " + storyEnabled
-                    + "\nlast_world = \"" + lastWorld + "\"\n";
+                    + "\nlast_world = \"" + lastWorld + "\"\n"
+                    + "\n[keys]\n"
+                    + keyBinds();
             Files.writeString(file, content);
         } catch (IOException e) {
             LOGGER.error("Failed to write the config", e);
         }
+    }
+
+    /** The {@code [keys]} section's body: one {@code action = code} line per action. */
+    private String keyBinds() {
+        StringBuilder body = new StringBuilder();
+        for (java.util.Map.Entry<String, Integer> entry : keyBindings.asMap().entrySet()) {
+            body.append(entry.getKey()).append(" = ").append(entry.getValue()).append('\n');
+        }
+        return body.toString();
+    }
+
+    /** The player's key bindings; never null. */
+    public com.pvzce.client.input.KeyBindings keyBindings() {
+        return keyBindings;
     }
 
     public float masterVolume() {

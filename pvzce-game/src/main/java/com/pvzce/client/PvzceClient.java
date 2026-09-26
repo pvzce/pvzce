@@ -287,6 +287,22 @@ public final class PvzceClient {
     };
     private char suppressNextChar;
     private boolean debugOverlayEnabled;
+    /**
+     * Set by the F2 action and consumed after the frame is drawn.
+     *
+     * <p>A flag rather than a capture at the key: input runs before {@code render()}, so reading the
+     * framebuffer there would save the previous frame - the exact bug the smoke driver's own hook
+     * documents.
+     */
+    private boolean screenshotPending;
+    /**
+     * F10: draw a health bar over everything that is not at full health.
+     *
+     * <p>Read by the level's renderer, which is the only thing that knows where an entity is.
+     */
+    private boolean healthBarsEnabled;
+    /** When F10 was last pressed, so the game can say which way it went. */
+    private long healthBarsChangedAtNanos;
     /** Set from {@code pvzce.dumpFontAtlas}: where to write the glyph atlases, once. */
     private java.nio.file.Path dumpFontAtlasTo;
     private boolean savePromptOpen;
@@ -603,6 +619,64 @@ public final class PvzceClient {
 
     // ---------- input ----------
 
+    /**
+     * Runs a bound action that is the same wherever the player is.
+     *
+     * <p>Window, diagnostic and panel actions only: everything that depends on what is on screen is
+     * asked of the screen itself (see {@code InGameScreen.keyAction}), because "what does the chat
+     * key do" has a different answer on the title screen and in a level.
+     *
+     * @return true when the action was handled and the key must not travel further
+     */
+    private boolean handleBoundAction(com.pvzce.client.input.KeyBindings.Action action) {
+        switch (action) {
+            case FULLSCREEN -> {
+                setFullscreen(!window.isFullscreen());
+                return true;
+            }
+            case DEBUG_OVERLAY -> {
+                debugOverlayEnabled = !debugOverlayEnabled;
+                if (debugOverlayEnabled && fonts != null) {
+                    LOGGER.info("[fonts]\n{}", fonts.debugInfo());
+                }
+                return true;
+            }
+            case SCREENSHOT -> {
+                // Taken after the frame is drawn, not here: this runs before render(), so reading
+                // the framebuffer now would save the *previous* frame.
+                screenshotPending = true;
+                return true;
+            }
+            case HEALTH_BARS -> {
+                healthBarsEnabled = !healthBarsEnabled;
+                healthBarsChangedAtNanos = System.nanoTime();
+                // Said on the message log rather than drawn as a banner: it is a state the player
+                // turned on, and the line that says so is the same channel every other "this
+                // changed" note uses. Nothing on screen would otherwise move when no entity is hurt.
+                level.addMessage(healthBarsEnabled ? "血量显示：开" : "血量显示：关");
+                return true;
+            }
+            case COMMAND -> {
+                if (overlay == null && !currentScreen().hasTextInputFocused()) {
+                    suppressNextChar = '/';
+                    openConsole("/");
+                    return true;
+                }
+                return false;
+            }
+            case CHAT, TOOL_SHOVEL, TOOL_GLOVE, TOOL_HAMMER, TOOL_WATERING_CAN, TOOL_VASE -> {
+                // Not the window's business: the chat line and the tool hotkeys need whatever is on
+                // screen, so they travel on and the in-game screen answers them (see
+                // `InGameScreen.keyAction`). T used to open an empty console here, which is what
+                // made "chat" and "command" the same key with the same panel.
+                return false;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
     private void pollInput() {
         Screen screen = currentScreen();
         if (overlay != null) {
@@ -612,19 +686,16 @@ public final class PvzceClient {
         }
         Integer key;
         while ((key = window.pollKey()) != null) {
-            if (key == GLFW.GLFW_KEY_F11) {
-                setFullscreen(!window.isFullscreen());
+            // The bound actions first, and before the overlay: fullscreen and the diagnostic panels
+            // are about the *window*, not about whatever is on it, so they work over the console
+            // exactly as they worked when they were literals here.
+            com.pvzce.client.input.KeyBindings.Action action =
+                    config.keyBindings().actionFor(key.intValue());
+            if (action != null && handleBoundAction(action)) {
                 continue;
             }
-            if (key == GLFW.GLFW_KEY_F3) {
-                debugOverlayEnabled = !debugOverlayEnabled;
-                if (debugOverlayEnabled && fonts != null) {
-                    LOGGER.info("[fonts]\n{}", fonts.debugInfo());
-                }
-                continue;
-            }
-            // An open overlay owns the keyboard, console shortcuts included: the console
-            // itself must not be able to open a second console, and ESC belongs to it.
+            // An open overlay owns the rest of the keyboard, console shortcuts included: the
+            // console itself must not be able to open a second console, and ESC belongs to it.
             if (overlay != null) {
                 overlay.keyPressed(key);
                 continue;
@@ -636,17 +707,11 @@ public final class PvzceClient {
                 screen = currentScreen();
                 continue;
             }
-            if (!screen.hasTextInputFocused()) {
-                if (key == GLFW.GLFW_KEY_SLASH) {
-                    suppressNextChar = '/';
-                    openConsole("/");
-                    continue;
-                }
-                if (key == GLFW.GLFW_KEY_T) {
-                    suppressNextChar = 't';
-                    openConsole("");
-                    continue;
-                }
+            // A tool hotkey or a chat line needs the level's own screen, so the in-game screen
+            // gets first refusal on every bound action it knows how to answer.
+            if (!screen.hasTextInputFocused() && screen instanceof InGameScreen inGame
+                    && inGame.keyAction(action, key.intValue())) {
+                continue;
             }
             screen.keyPressed(key);
         }
@@ -893,6 +958,28 @@ public final class PvzceClient {
         }
     }
 
+    /** The player's key bindings; the settings page edits this and everything else reads it. */
+    public com.pvzce.client.input.KeyBindings keyBindings() {
+        return config.keyBindings();
+    }
+
+    /** Writes the key bindings out; called once per change, not once per frame. */
+    public void saveKeyBindings() {
+        config.save();
+    }
+
+    /** True while F10's health bars are on. */
+    public boolean healthBarsEnabled() {
+        return healthBarsEnabled;
+    }
+
+    /** Opens the chat line over the current screen. */
+    public void openChat() {
+        if (overlay == null) {
+            overlay = new com.pvzce.client.gui.ChatOverlay(this);
+        }
+    }
+
     /**
      * Closes {@code expected}, if it is still the open overlay.
      *
@@ -1049,6 +1136,10 @@ public final class PvzceClient {
         // One-shot atlas dump: the glyph atlas is uploaded from memory rather than
         // decoded from a PNG, so when text renders wrong there is otherwise no file to
         // look at. `-Dpvzce.dumpFontAtlas=<dir>` writes it after the first drawn frame.
+        if (screenshotPending) {
+            screenshotPending = false;
+            writeScreenshot();
+        }
         if (dumpFontAtlasTo != null) {
             fonts.dumpAtlases(dumpFontAtlasTo);
             LOGGER.info("[fonts] atlases written to {}", dumpFontAtlasTo);
@@ -1058,6 +1149,34 @@ public final class PvzceClient {
         // leave the scissor test enabled for the rest of the session.
         clipping.reset();
         RenderSystem.checkGlError("frame");
+    }
+
+    /**
+     * F2: writes the frame that was just drawn to {@code <gameDir>/screenshots/}.
+     *
+     * <p>The directory is created on demand and the name carries the wall clock, so two shots in a
+     * row cannot overwrite each other. Failure is reported on the status line rather than thrown: a
+     * read-only game directory should not take the game down when the player presses a screenshot
+     * key.
+     */
+    private void writeScreenshot() {
+        String name = "pvzce-" + java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".png";
+        Path directory = gameDir.resolve("screenshots");
+        Path target = directory.resolve(name);
+        try {
+            Files.createDirectories(directory);
+        } catch (IOException e) {
+            level.addMessage("截图目录建不出来：" + directory);
+            LOGGER.warn("Could not create the screenshot directory", e);
+            return;
+        }
+        if (FramebufferCapture.writePng(target.toString(), window.width(), window.height())) {
+            level.addMessage("已保存截图：" + target);
+            LOGGER.info("[screenshot] {}", target);
+        } else {
+            level.addMessage("截图保存失败：" + target);
+        }
     }
 
     /**

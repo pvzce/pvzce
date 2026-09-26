@@ -14,9 +14,16 @@ import com.pvzce.common.network.PvzcePacket;
  * height 0 for up to three ticks. The grid column/row are deliberately absent:
  * both sides derive them from the cell position and the level's own size through
  * the shared entity base, so sending them would be a second, divergent source.
+ *
+ * <p><b>{@code maxHealth} is the health this entity spawned with, not the content
+ * definition's number.</b> The definition is not the ceiling: a wave may grow it
+ * ({@code healthScale}) and the world's difficulty tier multiplies it, so a client
+ * that drew a health bar against the definition would show a hell-tier buckethead as
+ * permanently full. It travels once, here, because it cannot change while the entity
+ * lives - and it is what makes "show me the health bars" honest (F10).
  */
 public record EntitySpawnS2C(int entityId, String entityKind, String defId, String teamId,
-                             float cellX, float cellY, int layer, int health,
+                             float cellX, float cellY, int layer, int health, int maxHealth,
                              String animation, float height, int armor,
                              boolean chilled, float scale) implements PvzcePacket {
     /**
@@ -49,6 +56,9 @@ public record EntitySpawnS2C(int entityId, String entityKind, String defId, Stri
             .field(EntitySpawnS2C::cellY, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
             .field(EntitySpawnS2C::layer, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(EntitySpawnS2C::health, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+            // What it spawned with: the ceiling for a health bar, and a number the content
+            // definition cannot answer (wave growth x difficulty tier).
+            .field(EntitySpawnS2C::maxHealth, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(EntitySpawnS2C::animation, PacketByteBuf::writeString, PacketByteBuf::readString)
             .field(EntitySpawnS2C::height, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
             .field(EntitySpawnS2C::armor, PacketByteBuf::writeInt, PacketByteBuf::readInt)
@@ -57,8 +67,8 @@ public record EntitySpawnS2C(int entityId, String entityKind, String defId, Stri
             .build(values -> new EntitySpawnS2C((Integer) values.get(0), (String) values.get(1),
                     (String) values.get(2), (String) values.get(3), (Float) values.get(4),
                     (Float) values.get(5), (Integer) values.get(6), (Integer) values.get(7),
-                    (String) values.get(8), (Float) values.get(9), (Integer) values.get(10),
-                    (Boolean) values.get(11), (Float) values.get(12)));
+                    (Integer) values.get(8), (String) values.get(9), (Float) values.get(10),
+                    (Integer) values.get(11), (Boolean) values.get(12), (Float) values.get(13)));
 
     @Override
     public ConnectionDirection direction() {

@@ -51,7 +51,7 @@ public final class SettingsScreen extends Screen {
      * the count, and a row added to one list but not the other used to be a button drawn off the
      * bottom of the window.
      */
-    private static final String[] LABELS = {"音量设置", "视频设置", "难度", "完成"};
+    private static final String[] LABELS = {"音量设置", "视频设置", "难度", "快捷键", "完成"};
 
     /** One row's action, as a function of the screen so the table can be static. */
     private interface Row {
@@ -62,6 +62,7 @@ public final class SettingsScreen extends Screen {
             screen -> () -> screen.client().openScreen(screen.client().buildSettingsConfig()),
             screen -> () -> screen.client().openScreen(new VideoSettingsScreen(screen.client())),
             screen -> () -> screen.client().openScreen(new DifficultyScreen(screen.client())),
+            screen -> () -> screen.client().openScreen(new KeybindScreen(screen.client())),
             screen -> screen::requestClose
     };
 

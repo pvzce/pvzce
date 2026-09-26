@@ -23,6 +23,24 @@ public interface CardBar {
     /** The cards in the bar's own order: belt order for a belt, seed order for a deck. */
     List<SlotInfo> slots();
 
+    /**
+     * The tool cards a tool hotkey may fire, in bar order.
+     *
+     * <p>Deliberately not "the tools inside {@link #slots()}": a belt deals plants only and keeps
+     * the tools it did not take over <em>outside</em> its tray (see {@code BeltCardBar.sideSlots}),
+     * so looking in {@code slots()} alone answers "no such card" in exactly the levels where the
+     * shovel is drawn a few pixels to the right of the tray and clicking it works. The two lookups
+     * have to agree with the hit test - {@code slotAt} already tests both halves.
+     */
+    default List<SlotInfo> toolSlots() {
+        return slots().stream().filter(CardBar::isTool).toList();
+    }
+
+    /** True for a tool card, asked the way every bar spells the kind on the wire. */
+    static boolean isTool(SlotInfo slot) {
+        return slot != null && "tool".equals(slot.kind());
+    }
+
     /** Advances anything that moves with time. Called once per screen tick. */
     void tick();
 

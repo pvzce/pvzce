@@ -9,11 +9,7 @@ import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
-import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.stb.STBImageWrite;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -247,6 +243,8 @@ final public class SmokeDriver {
      * frame, because a screen that rebuilds itself can lose a one-shot move.
      */
     private final double[] smokeHoverAt = parsePoint(System.getProperty("pvzce.smokeHover", ""));
+    /** {@code pvzce.smokeHoverCell=<x>,<y>}: the same, for a board cell rather than a GUI point. */
+    private final int[] smokeHoverCellAt = parseIntPair(System.getProperty("pvzce.smokeHoverCell", ""));
     private final int smokeHoverFrame = Integer.getInteger("pvzce.smokeHoverFrame", 3);
     private final int smokeClickFrame = Integer.getInteger("pvzce.smokeClickFrame", 45);
     /**
@@ -303,6 +301,23 @@ final public class SmokeDriver {
      */
     private final String smokeSetup = System.getProperty("pvzce.smokeSetup", "");
     private boolean smokeSetupSent;
+    /**
+     * Keys to press, as {@code pvzce.smokeKeys=<frame>:<GLFW code>,…}.
+     *
+     * <p>Queued into the window's own press queue rather than dispatched at the handler, so what a
+     * run proves is the whole input path - the bound-action table, the overlay, the screen - and not
+     * just the last method in it.
+     */
+    private final String smokeKeys = System.getProperty("pvzce.smokeKeys", "");
+    private final java.util.Set<Long> smokeKeysDone = new java.util.HashSet<>();
+    /**
+     * Text to type, as {@code pvzce.smokeType=<frame>:<text>,…}.
+     *
+     * <p>One character per frame, which is what a person does and what an {@code EditBox} expects:
+     * it appends per char event and has no notion of a pasted string.
+     */
+    private final String smokeType = System.getProperty("pvzce.smokeType", "");
+    private final java.util.Set<Long> smokeTypeDone = new java.util.HashSet<>();
     /** A dialog button to click, found by its label. */
     private final String smokeClickLabel = System.getProperty("pvzce.smokeClickLabel", "");
     private boolean smokeClickDone;
@@ -337,6 +352,8 @@ final public class SmokeDriver {
             client.setScreenReplacing(new com.pvzce.client.gui.mods.ModsScreen(client));
         } else if ("settings".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.SettingsScreen(client));
+        } else if ("keybinds".equals(smokeScreen)) {
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.KeybindScreen(client));
         } else if ("difficulty".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.DifficultyScreen(client));
         } else if ("shop".equals(smokeScreen)) {
@@ -547,6 +564,8 @@ final public class SmokeDriver {
         applyAlmanacShots(client.currentScreen(), clientTick);
         applySmokePages(clientTick);
         applySmokeEditorPages(clientTick);
+        applySmokeKeys(clientTick);
+        applySmokeType(clientTick);
         // Before the level request and never after: everything this hook exists to change (which
         // cards the world owns, whether it has a rake) is read when the level is built.
         if (!smokeSetup.isBlank() && !smokeSetupSent && clientTick > 2) {
@@ -652,6 +671,85 @@ final public class SmokeDriver {
     }
 
     /**
+     * True while a level is on screen.
+     *
+     * <p>The frame counter the hooks count in restarts when a level is entered - it is the client's
+     * own tick - so a hook numbered {@code 150} fires once before the level and once after it, and
+     * a burst meant for the level (typing into the chat line, say) lands in the loading screen and
+     * is dropped. Gating on "a level is up" makes those numbers level-relative and therefore mean
+     * what a script author expects.
+     */
+    private boolean inLevel() {
+        return client.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen;
+    }
+
+    /**
+     * {@code pvzce.smokeKeys=<frame>:<code>,…}: queue key presses on the frames named.
+     *
+     * <p>A frame may carry more than one press, separated by {@code +} - which is how a run types a
+     * word into an open text box (the box consumes the callbacks, so a burst is the same as a
+     * person typing fast).
+     */
+    private void applySmokeKeys(long clientTick) {
+        if (smokeKeys.isBlank() || !inLevel()) {
+            return;
+        }
+        for (String item : smokeKeys.split(",")) {
+            String[] parts = item.trim().split(":", 2);
+            if (parts.length < 2) {
+                continue;
+            }
+            long frame;
+            try {
+                frame = Long.parseLong(parts[0].trim());
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            if (clientTick != frame || !smokeKeysDone.add(frame)) {
+                continue;
+            }
+            for (String code : parts[1].trim().split("\\+")) {
+                try {
+                    client.window().injectKey(Integer.parseInt(code.trim()));
+                } catch (NumberFormatException e) {
+                    System.out.println("[SMOKE] not a key code: " + code);
+                }
+            }
+        }
+    }
+
+    /** {@code pvzce.smokeType=<frame>:<text>,…}: one character per frame from the frame named. */
+    private void applySmokeType(long clientTick) {
+        if (smokeType.isBlank() || !inLevel()) {
+            return;
+        }
+        for (String item : smokeType.split(",")) {
+            String[] parts = item.trim().split(":", 2);
+            if (parts.length < 2) {
+                continue;
+            }
+            long frame;
+            try {
+                frame = Long.parseLong(parts[0].trim());
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            if (clientTick != frame || !smokeTypeDone.add(frame)) {
+                continue;
+            }
+            String text = parts[1];
+            for (int i = 0; i < text.length(); i++) {
+                char ch = text.charAt(i);
+                if (ch == '~') {
+                    // A space, because the property itself is whitespace-separated.
+                    ch = ' ';
+                }
+                client.window().injectChar(ch);
+            }
+        }
+    }
+
+    /**
      * {@code pvzce.smokeEditorPages=<frame>:<page>,…}: turn the editor to a page on a frame.
      *
      * <p>Runs in {@code beforeFrame} like {@code smokePages}, so the frame it names is the frame
@@ -734,7 +832,23 @@ final public class SmokeDriver {
                 client.deliverRawClick(rawX, rawY, 0);
             }
         }
-        if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
+        if (smokeHoverCellAt != null && clientTick >= smokeHoverFrame) {
+            // A board cell by its grid coordinates: the camera is the only thing that knows where a
+            // cell is on screen, and guessing those pixels is how a hover hook ends up pointing at
+            // the wrong row and proving nothing.
+            //
+            // `screenY` answers in the board's own space - bottom-up framebuffer pixels, the same
+            // space `worldY` and `inBoard` flip out of - while the pointer it is fed to is top-down.
+            // Without the flip the hover lands half a board lower than it says: on a 5x9 lawn
+            // `smokeHoverCell=4,2` put the cursor over row 3, and a tool hotkey aimed at the plant
+            // in row 2 was refused for an empty cell. (The board is vertically centred, so the two
+            // mistakes cancel *exactly* at the middle row - which is why a row-2 probe looked
+            // right in a screenshot while the click was one row off.)
+            com.pvzce.client.renderer.PvzceCamera camera = client.camera();
+            double rawX = camera.screenX(smokeHoverCellAt[0] + 0.5F);
+            double rawY = client.window().height() - camera.screenY(smokeHoverCellAt[1] + 0.5F);
+            client.window().warpCursor(rawX, rawY);
+        } else if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
             // The same conversion smokeClick uses, and for the same reason: the cursor is
             // reported top-down while GUI Y grows upwards, so a point that is 40% up the
             // GUI is 60% down the window. Getting this backwards points the "hover" at the
@@ -964,19 +1078,10 @@ final public class SmokeDriver {
     }
 
     private void capture(String path) {
-        int w = client.window().width();
-        int h = client.window().height();
-        ByteBuffer pixels = BufferUtils.createByteBuffer(w * h * 4);
-        GL11.glReadPixels(0, 0, w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
-        ByteBuffer flipped = BufferUtils.createByteBuffer(w * h * 4);
-        byte[] row = new byte[w * 4];
-        for (int y = h - 1; y >= 0; y--) {
-            pixels.get(w * y * 4, row, 0, w * 4);
-            flipped.put(row);
-        }
-        flipped.flip();
-        STBImageWrite.stbi_flip_vertically_on_write(false);
-        if (!STBImageWrite.stbi_write_png(path, w, h, 4, flipped, w * 4)) {
+        // The reader is shared with the F2 key: the flip from the framebuffer's bottom-left origin
+        // to a PNG's top-left one is the part every first attempt gets wrong, and two copies of it
+        // would be two chances to get it wrong.
+        if (!FramebufferCapture.writePng(path, client.window().width(), client.window().height())) {
             System.out.println("[SMOKE] failed to write screenshot " + path);
         }
     }
@@ -1000,6 +1105,15 @@ final public class SmokeDriver {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /** The same shape as {@link #parsePoint}, for a pair of board coordinates. */
+    private static int[] parseIntPair(String raw) {
+        double[] point = parsePoint(raw);
+        if (point == null) {
+            return null;
+        }
+        return new int[] {(int) point[0], (int) point[1]};
     }
 
     private static double[] parsePoint(String raw) {

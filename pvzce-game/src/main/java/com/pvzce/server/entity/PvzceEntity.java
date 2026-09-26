@@ -95,7 +95,7 @@ public abstract class PvzceEntity extends Entity {
     public EntitySpawnS2C spawnPacket() {
         return new EntitySpawnS2C(id(), entityKind(), defId().toString(),
                 team == null ? "" : team.id().toString(),
-                cellX(), cellY(), layer(), health(), animation(), height(), armor(),
+                cellX(), cellY(), layer(), health(), maxHealth(), animation(), height(), armor(),
                 chilled(), renderScale());
     }
 

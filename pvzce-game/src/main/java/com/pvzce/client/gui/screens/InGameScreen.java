@@ -40,6 +40,12 @@ import java.util.List;
 
 /** The playable level: board rendering + card bar + HUD. */
 public final class InGameScreen extends Screen implements com.pvzce.client.gui.hud.cardbar.CardBar.Host {
+
+    /** How wide a health bar is, in cells, and how far above the entity it sits. */
+    private static final float HEALTH_BAR_CELLS = 0.72F;
+    private static final float HEALTH_BAR_GAP = 0.12F;
+    /** Above the entities and their shadows, below the HUD (which is drawn in GUI space). */
+    private static final float HEALTH_BAR_Z = 0.62F;
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/InGame");
     private static final Identifier SUN_BANK = Identifier.withDefaultNamespace("textures/gui/hud/sun_bank");
@@ -2279,6 +2285,39 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             drawFrozenSpikes(entity);
         }
         drawEntityArt(entity);
+        drawHealthBar(entity);
+    }
+
+    /**
+     * F10: a bar over anything that is not at full health.
+     *
+     * <p><b>Only what is hurt</b>, which is what makes the key useful rather than noisy: a bar over
+     * every plant and zombie would be a second lawn drawn on top of the first one, and the reading
+     * a player wants from it is "which of these is about to fall". The ceiling is the packet's
+     * {@code maxHealth} rather than the content definition's number, because a wave may grow a
+     * zombie's health and the world's difficulty tier multiplies it - against the definition, a
+     * hell-tier buckethead would read as untouched.
+     *
+     * <p>Drawn in world cells through {@code drawSolid}, the same way the underground mound is: it
+     * has to follow the entity, and a bar is geometry rather than art.
+     */
+    private void drawHealthBar(ClientEntity entity) {
+        if (!client.healthBarsEnabled() || entity.health() >= entity.maxHealth()) {
+            return;
+        }
+        boolean zombie = com.pvzce.api.entity.EntityKind.ZOMBIE.equals(entity.kind());
+        if (!zombie && !com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())) {
+            return;
+        }
+        float width = HEALTH_BAR_CELLS;
+        float height = HEALTH_BAR_CELLS * 0.16F;
+        float x = entity.visualCellX() - width * 0.5F;
+        float y = entity.visualCellY() + entity.visualHeight() + HEALTH_BAR_GAP;
+        float ratio = MathUtil.clamp01(entity.health() / (float) Math.max(1, entity.maxHealth()));
+        client.drawSolid(x, y, width, height, HEALTH_BAR_Z, 0F, 0F, 0F, 0.75F);
+        // Green to red as it empties, so the bar can be read at a glance without comparing lengths.
+        client.drawSolid(x, y, width * ratio, height, HEALTH_BAR_Z, 1F - ratio,
+                0.1F + 0.9F * ratio, 0.15F, 0.95F);
     }
 
     /**
@@ -4028,6 +4067,115 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // The row runs left to right, so dragging it right and wheeling up both mean "show the cards
         // before these" - the two readings coincide on a horizontal region.
         return ScrollRegion.dragsContent(ScrollRegion.Axis.HORIZONTAL, cardBar().scrollStep());
+    }
+
+    /**
+     * A bound key, offered to the level before the screen's ordinary key handling.
+     *
+     * <p>Only the level can answer these: a tool hotkey means "use this tool on the cell under the
+     * cursor", which needs the board, and the chat line is the level's own overlay. Everything else
+     * returns false and carries on to {@link #keyPressed}.
+     *
+     * @return true when the level acted on the key
+     */
+    public boolean keyAction(com.pvzce.client.input.KeyBindings.Action action, int code) {
+        if (action == null) {
+            return false;
+        }
+        if (action.isTool()) {
+            return useToolHotkey(action.toolId());
+        }
+        if (action == com.pvzce.client.input.KeyBindings.Action.CHAT) {
+            client.openChat();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * A tool hotkey: use that tool on the cell under the cursor, right now.
+     *
+     * <p><b>The key is the tool's, not the bar's.</b> "1 is the shovel" in every level, whether the
+     * shovel is the first card, the fifth or absent - a key that meant a different tool in every
+     * level would be worse than no key at all. The three refusals are the click path's own: no such
+     * card in this level's bar, the card is not usable, or the cursor is not over the board. The
+     * first two buzz and shake the card exactly as a refused click does, because "I pressed it and
+     * nothing happened" is the report that follows silence.
+     *
+     * <p>A tool that is not in this level's bar at all is consumed quietly: the key belongs to the
+     * tool, the tool is not here, and buzzing at a card that is not on screen would have nothing to
+     * shake.
+     */
+    private boolean useToolHotkey(String toolId) {
+        // Development diagnostic, the same one the click path uses (`-Dpvzce.traceInput=true`):
+        // every refusal below is silent by design, so without this "I pressed it and nothing
+        // happened" has four indistinguishable causes - the wrong screen, a bar without that tool,
+        // a card that is not ready, and a cursor that is not over the board.
+        boolean trace = Boolean.getBoolean("pvzce.traceInput");
+        if (toolId == null || !client.level().gameState().equals("running") || paused) {
+            if (trace) {
+                System.out.println("[SMOKE] tool " + toolId + " ignored: state="
+                        + client.level().gameState() + " paused=" + paused);
+            }
+            return true;
+        }
+        int slot = -1;
+        // The bar's *tool* cards, which on a belt are the ones it keeps beside the tray: asking
+        // `slots()` would answer "no such card" exactly where clicking the drawn shovel works.
+        for (SlotInfo info : cardBar().toolSlots()) {
+            if (toolId.equals(info.defId())) {
+                slot = info.index();
+                break;
+            }
+        }
+        if (slot < 0) {
+            if (trace) {
+                System.out.println("[SMOKE] tool " + toolId + " is not in this bar: "
+                        + cardBar().toolSlots().stream().map(SlotInfo::defId).toList());
+            }
+            return true;
+        }
+        SlotInfo card = slotInfo(slot);
+        if (card == null || (!cardUsable(card) && !gloveCard(card))) {
+            if (trace) {
+                System.out.println("[SMOKE] tool " + toolId + " slot " + slot
+                        + " is not usable: " + card);
+            }
+            refuseCard(slot);
+            return true;
+        }
+        int[] cell = cursorCell();
+        if (trace) {
+            System.out.println("[SMOKE] tool " + toolId + " slot=" + slot + " cell="
+                    + (cell == null ? "off-board" : cell[0] + "," + cell[1]));
+        }
+        if (cell == null) {
+            // Off the board: the tool stays in hand, exactly as a click outside the lawn leaves
+            // the selected card alone. The key is still consumed - it named a tool, not a card.
+            return true;
+        }
+        selectedCard = slot;
+        spendSelectedCard(cell[0], cell[1]);
+        return true;
+    }
+
+    /** The cell under the cursor, or {@code null} when the cursor is not over the board. */
+    private int[] cursorCell() {
+        PvzceCamera camera = client.camera();
+        // The window's cursor is already in framebuffer pixels, which is the space the camera
+        // hit-tests in - the same two numbers `onMouseReleased` converts a GUI click into.
+        double rawX = client.window().cursorX();
+        double rawY = client.window().cursorY();
+        if (!camera.inBoard(rawX, rawY)) {
+            return null;
+        }
+        int cellX = camera.cellX(rawX, rawY);
+        int cellY = camera.cellY(rawX, rawY);
+        if (cellX < 0 || cellX >= client.level().width()
+                || cellY < 0 || cellY >= client.level().height()) {
+            return null;
+        }
+        return new int[] {cellX, cellY};
     }
 
     @Override

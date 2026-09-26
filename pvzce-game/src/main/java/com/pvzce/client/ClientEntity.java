@@ -109,9 +109,15 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
 
     /** Rebuilds a client entity from a full-state spawn packet. */
     public static ClientEntity from(EntitySpawnS2C spawn) {
-        return new ClientEntity(spawn.entityId(), spawn.entityKind(), spawn.defId(), spawn.cellX(),
-                spawn.cellY(), spawn.health(), spawn.layer(), spawn.animation(), spawn.height(),
-                spawn.teamId(), spawn.armor(), spawn.chilled(), spawn.scale());
+        ClientEntity entity = new ClientEntity(spawn.entityId(), spawn.entityKind(), spawn.defId(),
+                spawn.cellX(), spawn.cellY(), spawn.health(), spawn.layer(), spawn.animation(),
+                spawn.height(), spawn.teamId(), spawn.armor(), spawn.chilled(), spawn.scale());
+        // What it spawned with, which is not the same as what it has: the base class records the
+        // spawn health as the ceiling, and the packet carries the real one (wave growth x the
+        // world's difficulty tier). A health bar drawn against the wrong ceiling shows a
+        // hell-tier buckethead as permanently full.
+        entity.setMaxHealth(spawn.maxHealth());
+        return entity;
     }
 
     /** Remaining armour; {@link EntitySpawnS2C#NO_ARMOR} when this entity wears none. */

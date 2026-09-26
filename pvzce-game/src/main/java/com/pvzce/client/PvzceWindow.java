@@ -385,6 +385,22 @@ public final class PvzceWindow implements AutoCloseable {
         return cursorY;
     }
 
+    /**
+     * Queues one key press as if the platform had delivered it.
+     *
+     * <p>For the smoke hooks: the whole input path - the bound-action table, the overlays, the
+     * screens - is downstream of this queue, so a synthetic press exercises exactly what a real one
+     * does. A test that called the handlers directly would skip the part most likely to be wrong.
+     */
+    public void injectKey(int key) {
+        pressedKeys.add(key);
+    }
+
+    /** Queues one typed character, as the platform's char callback would. */
+    public void injectChar(int codepoint) {
+        typedChars.add(codepoint);
+    }
+
     public Integer pollTypedChar() {
         return typedChars.poll();
     }

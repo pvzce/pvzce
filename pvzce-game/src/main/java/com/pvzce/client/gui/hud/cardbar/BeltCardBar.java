@@ -97,6 +97,12 @@ public final class BeltCardBar implements CardBar {
     }
 
     @Override
+    public List<SlotInfo> toolSlots() {
+        // From the side, not from `slots()`: the belt deals plants and nothing else.
+        return split(host.client().level().slots()).tools();
+    }
+
+    @Override
     public List<SlotInfo> slots() {
         // Belt order *is* the information: the card on the left has been waiting longest
         // and is the one the next delivery will sit behind. The chooser's "resources, then
@@ -132,6 +138,16 @@ public final class BeltCardBar implements CardBar {
      * HUD bank rather than as a card - is in neither.
      */
     record Split(List<SlotInfo> belt, List<SlotInfo> side) {
+        /**
+         * The tools among the cards the belt did not take over: what a tool hotkey may fire here.
+         *
+         * <p>The side list can hold a non-plant, non-tool card (a resource other than the sun), and
+         * a hotkey names a tool - so the kind is filtered rather than the whole side list handed
+         * back.
+         */
+        List<SlotInfo> tools() {
+            return side.stream().filter(CardBar::isTool).toList();
+        }
     }
 
     static Split split(List<SlotInfo> all) {

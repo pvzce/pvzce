@@ -41,6 +41,27 @@ class BeltCardBarTest {
                 "the sun card is drawn as the bank, not as a belt card");
         assertTrue(split.side().stream().noneMatch(slot -> "pvzce:sun".equals(slot.defId())),
                 "and it is not drawn beside the tray either");
+        assertEquals(List.of(shovel, wateringCan), split.tools(),
+                "a tool hotkey looks here, not in the belt: '1 is the shovel' has to find the card "
+                        + "the player can also click next to the tray");
+    }
+
+    /**
+     * A non-tool card the belt did not take over is not a hotkey target.
+     *
+     * <p>The side list is "everything that is not a plant", which is wider than "a tool" - the
+     * hotkeys name tools, so the filter is on the kind and not on the list.
+     */
+    @Test
+    void theSideListIsWiderThanTheHotkeyTargets() {
+        SlotInfo sun = card(0, "pvzce:sun", "resource");
+        SlotInfo bacon = card(1, "pvzce:bacon", "resource");
+        SlotInfo shovel = card(2, "pvzce:shovel", "tool");
+
+        BeltCardBar.Split split = BeltCardBar.split(List.of(sun, bacon, shovel));
+
+        assertEquals(List.of(bacon, shovel), split.side());
+        assertEquals(List.of(shovel), split.tools());
     }
 
     /** A bar with only tools still lays them out; the belt simply deals nothing. */

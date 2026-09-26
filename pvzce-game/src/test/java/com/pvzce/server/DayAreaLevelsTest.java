@@ -13,6 +13,7 @@ import com.pvzce.common.capability.plant.NocturnalCapability;
 import com.pvzce.common.capability.plant.ShooterCapability;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.level.LevelServer;
 import org.junit.jupiter.api.BeforeAll;
@@ -237,6 +238,30 @@ class DayAreaLevelsTest {
         // would be unwinnable for anyone who leaks one zombie.
         LevelServer level = new LevelServer(def);
         assertEquals(level.height(), level.readyMowerCount(), "one mower per row");
+    }
+
+    /**
+     * The tool a belt level declares stays on the bar, beside the tray.
+     *
+     * <p>The seed plan hands a level that deals its own cards an empty selection, and the bar the
+     * belt source reads at construction was therefore empty too - so the shovel 1-10 declares in
+     * `slots` was never put on the bar, the client's "the cards the belt did not take over" row
+     * had nothing to lay out, and the level's own shovel could be neither clicked nor hotkeyed.
+     * The bar is built with the level's own cards when nothing was chosen, the rule the ordinary
+     * deck already follows.
+     */
+    @Test
+    void theFinalesShovelStaysOnTheBarBesideTheBelt() {
+        LevelDef def = level("1_10");
+        LevelServer level = new LevelServer(def, List.of(), LevelServer.SeedContext.all(def));
+        List<String> bar = level.slotInfos().stream().map(SlotInfo::defId).toList();
+
+        assertTrue(bar.contains("pvzce:shovel"),
+                "the shovel is on the bar: a belt takes over the plant cards, not the tools");
+        LevelBelt belt = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class)
+                .orElseThrow(() -> new AssertionError("1-10 must declare a conveyor"));
+        assertTrue(belt.cards().stream().noneMatch(card -> "shovel".equals(card.card().path())),
+                "and it is not a belt card: it is there because the level declared it in `slots`");
     }
 
     /**

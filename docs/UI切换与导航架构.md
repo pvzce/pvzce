@@ -30,7 +30,7 @@
 | 层 | 载体 | 谁负责分发 | 切换单位 |
 |---|---|---|---|
 | 屏幕栈 | `gui/ScreenStack`（`PvzceClient.screens`） | `PvzceClient.run()` 每帧 | 整屏 |
-| 覆盖层 | `PvzceClient.overlay`（`gui/Overlay`） | 同上，**不进栈** | 浮层（今天的唯一实现是控制台） |
+| 覆盖层 | `PvzceClient.overlay`（`gui/Overlay`） | 同上，**不进栈** | 浮层（控制台、聊天行） |
 | 对话框栈 | `Screen.widgets` 里的 `Dialog` | `Screen.mouseXxx`（`final`，先给模态） | 屏内面板 |
 | 控件 | `Screen.widgets` 里的 `AbstractWidget` | 同上 | 按钮/输入框/列表 |
 
@@ -122,7 +122,8 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
    └────────────────────────────────────────────┘
 ```
 
-> 控制台（`ConsoleOverlay`）不在图里：它是覆盖层（§8），`/` 或 `T` 打开，不参与导航。
+> 控制台（`ConsoleOverlay`）与聊天行（`ChatOverlay`）不在图里：它们是覆盖层（§8），
+> `/` 与 `T` 分别打开，都不参与导航。
 
 ---
 
@@ -313,14 +314,16 @@ if (overlay != null) {                 // 覆盖层开着时，键盘整个归�
 其余界面走 `requestClose()`，默认实现就是 `client.navigateBack()`，
 `AwardScreen` / `ChooseSeedsScreen` / `LevelSelectScreen` 各自覆写。
 
-`/` 与 `T` 在**没有文本输入焦点**时打开控制台（`openConsole`），并抑制紧随其后的字符事件。
+`/` 与 `T` 在**没有文本输入焦点**时各开一个覆盖层：`/` 开控制台（`openConsole`，预填一个 `/`），
+`T` 开聊天行（`openChat`）。两者都抑制紧随其后的那一个字符事件（`suppressNextChar`），
+因为打开它们的那个按键同时也会产生一个字符。
 
 ---
 
-## 8. 覆盖层：控制台
+## 8. 覆盖层：控制台与聊天行
 
-`ConsoleOverlay`（`client/gui/ConsoleOverlay.java`，`Overlay` 的子类）是唯一一个"浮在别的屏上面"
-的界面，它**不在屏幕栈里**：
+`ConsoleOverlay`（`client/gui/ConsoleOverlay.java`）与 `ChatOverlay`（`client/gui/ChatOverlay.java`）
+是"浮在别的屏上面"的两种界面，它们**不在屏幕栈里**：
 
 ```java
 // PvzceClient：一个槽位，一个分发规则
@@ -340,7 +343,12 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 3. 再加第二个覆盖层就要再加两处特判。
 
 现在加一个覆盖层 = 写一个 `Overlay` 子类 + 在 `PvzceClient` 里给它一个打开入口，
-帧循环一行都不用改。
+帧循环一行都不用改 —— 聊天行就是这么加进来的：它是第二个实现，`PvzceClient` 里只多了
+`openChat()` 一个入口和"哪种浮层用哪个键"的两个分支。
+
+> 两者的分工是**键与形状**，不是同一件的两份：控制台是一个面板（工具，开着待一会儿），
+> 聊天行是屏幕底部的一条（说一句就忘）。它们画的是同一份消息表（`ClientLevel.messages()`），
+> 因为服务端说的话只有一份。
 
 ---
 
