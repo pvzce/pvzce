@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/adventure/4_10",
-  "name": "4-10 雾散",
-  "description": "雾里的最后一夜：气球、矿工、玩偶匣、跳跳，全都来一遍。打完这一关，卷心菜投手就是你的——它是下一片草坪的第一株植物，也是唯一能越过屋顶障碍的投手。",
+  "name": "4-10 雷雨",
+  "description": "雾里的最后一夜，也是这场雾的去处：雷雨压下来，草坪全黑，只有闪电亮起的那半秒看得见僵尸在哪。卡片由传送带送来，不用管阳光。打完这一关，卷心菜投手就是你的——它是下一片草坪的第一株植物，也是唯一能越过屋顶障碍的投手。",
   "width": 9,
   "height": 6,
   "scene": {
@@ -89,8 +89,48 @@
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [],
-  "initial_sun": 50,
+  "initial_sun": 0,
   "mechanics": [
+    {
+      "type": "pvzce:conveyor",
+      "interval_ticks": 240,
+      "capacity": 6,
+      "initial_cards": 3,
+      "cards": [
+        {
+          "id": "pvzce:lily_pad",
+          "weight": 25
+        },
+        {
+          "id": "pvzce:starfruit",
+          "weight": 25
+        },
+        {
+          "id": "pvzce:cactus",
+          "weight": 15
+        },
+        {
+          "id": "pvzce:sea_shroom",
+          "weight": 10
+        },
+        {
+          "id": "pvzce:pumpkin",
+          "weight": 10
+        },
+        {
+          "id": "pvzce:blover",
+          "weight": 5
+        },
+        {
+          "id": "pvzce:split_pea",
+          "weight": 5
+        },
+        {
+          "id": "pvzce:magnet_shroom",
+          "weight": 5
+        }
+      ]
+    },
     {
       "type": "pvzce:mower",
       "rows": [
@@ -113,16 +153,16 @@
       ]
     },
     {
-      "type": "pvzce:fog",
-      "start_column": 4.0,
-      "end_column": 9.0,
-      "max_alpha": 0.94
+      "interval_ticks": 300,
+      "flash_ticks": 96,
+      "max_alpha": 0.94,
+      "type": "pvzce:storm"
     }
   ],
   "waves": [
     {
       "type": "small",
-      "delay": 1800,
+      "delay": 600,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -591,16 +631,7 @@
     }
   ],
   "music": {
-    "cues": [
-      {
-        "at_tick": 0,
-        "track": "background",
-        "event": "pvzce:music/rigor_mormist",
-        "loop": true,
-        "volume": 0.85,
-        "fade_seconds": 1.0
-      }
-    ]
+    "cues": []
   },
   "unlock": {
     "requires": [
@@ -618,18 +649,25 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "气球和矿工一起从雾里来，前后都要留人",
+      "text": "雷雨里草坪是全黑的，闪电亮起时才看得见僵尸在哪里",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "传送带免费送卡，不用管阳光",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "闪电亮的那一下是唯一的预警：看一眼哪几行有人，先补哪几行",
       "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
     }
   ],
-  "unlock_resources": {
-    "pvzce:sun": true
-  },
   "buffs": [
-    "pvzce:player_choice"
+    "pvzce:auto_collect"
   ],
   "rewards": {
     "first_clear": [

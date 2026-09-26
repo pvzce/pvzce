@@ -1767,6 +1767,9 @@ public final class PvzceClient {
         if (music != null) {
             music.startLevel("pvzce:music/grasswalk");
         }
+        // A storm level's weather starts here rather than with its overlay: this is the one
+        // place that means "a level began", while overlays are rebuilt on a resize.
+        com.pvzce.client.mechanic.StormClientMechanic.startWeather(this);
         // Only a run that skipped the seed chooser still owes the player its opening
         // conversation; one that went through the chooser has already shown it.
         String levelId = level.levelId();
@@ -2397,6 +2400,11 @@ public final class PvzceClient {
         directDialogueLevelId = null;
         if (music != null) {
             music.leaveLevel();
+        }
+        // The storm's rain is weather, not a cue: it has no end of its own, so leaving the
+        // level is the only thing that stops it.
+        if (sound != null) {
+            sound.stopAmbient();
         }
         particles.clear();
         liquidRipples.clear();

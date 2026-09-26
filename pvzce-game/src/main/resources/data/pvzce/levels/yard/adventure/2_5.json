@@ -90,6 +90,7 @@
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
+    "pvzce:sun",
     "pvzce:potato_mine",
     "pvzce:grave_buster",
     "pvzce:cherry_bomb"
@@ -268,6 +269,8 @@
       "trigger": "on_card_refused"
     }
   ],
+  "max_seed_slots": 4,
+  "seed_screen": false,
   "buffs": [
     "pvzce:auto_collect"
   ],

@@ -15,12 +15,14 @@ import com.pvzce.common.network.PacketByteBuf;
  * <p>Two jobs, and they are the two halves of "you cannot see what is over there":
  *
  * <ul>
- *   <li><b>Draw the darkening.</b> A gradient quad from the fog's start column to its end, then
- *       flat darkness to the right edge. The engine has no per-vertex colour
- *       ({@code SpriteRenderer.textured} takes one tint for all four corners) and no matrix stack
- *       to build a ramp out of, so the ramp is a <em>texture</em> whose alpha goes 0 to 255 across
- *       its width - {@code assets/pvzce/textures/gui/screen/fog_alpha.png}, baked by
- *       {@code tools/gen_fog_gradient.py} from the same curve {@link FogData#alphaAt} uses.</li>
+ *   <li><b>Draw the darkening.</b> The original's own fog sprite
+ *       ({@code assets/pvzce/textures/gui/screen/fog_cloud.png}, baked by
+ *       {@code tools/gen_fog_texture.py} from the rip's fog bitmap) across the whole band, and on
+ *       top of it the opacity ramp as a stair-step of black quads. The engine has no per-vertex
+ *       colour ({@code SpriteRenderer.textured} takes one tint for all four corners) and no
+ *       matrix stack to build a ramp out of, so a ramp has to be built out of quads - and the
+ *       fog's own shape has to be a <em>picture</em>, because a uniform gradient with no cloud in
+ *       it reads as a black rectangle with a soft edge rather than as weather.</li>
  *   <li><b>Hide what is inside it.</b> An entity past {@link FogData#hidingColumn()} is not drawn
  *       at all. This is the half the player actually asked for - "a zombie is only drawn once it
  *       walks into view" - and it is why the fog is not merely a translucent sheet over
@@ -30,6 +32,9 @@ import com.pvzce.common.network.PacketByteBuf;
  *
  * <p>The span comes from the server (the level's block, a mutation, or the fog-retreat buff) and
  * the lamps come from the plants the client is already drawing, so nothing here re-derives either.
+ * The ramp is drawn as {@link #RAMP_STEPS} quads rather than as a texture because the texture is
+ * now the clouds: the two used to be the same thing, and one sprite cannot be both the shape and
+ * the picture.
  *
  * <h2>What is deliberately not hidden</h2>
  *
@@ -53,8 +58,19 @@ public final class FogClientMechanic implements ClientMechanic {
     /** Above the board and below the HUD; between the lawn's own layers and the cards. */
     private static final float Z = 0.30F;
 
-    private static final Identifier GRADIENT =
-            Identifier.withDefaultNamespace("textures/gui/screen/fog_alpha");
+    private static final Identifier CLOUD =
+            Identifier.withDefaultNamespace("textures/gui/screen/fog_cloud");
+
+    /**
+     * How many quads the opacity ramp is built from.
+     *
+     * <p>The ramp runs the length of a fog span - four or five columns on a yard level - and each
+     * quad is flat, so this is the resolution the boundary's softness is drawn at. Sixteen steps
+     * over four columns is a step every 16 device pixels, and the ramp's own curve is applied
+     * inside each step (`FogData.alphaAt` at the step's far edge), so the stair reads as a ramp
+     * rather than as a staircase.
+     */
+    private static final int RAMP_STEPS = 16;
 
     @Override
     public Identifier id() {
@@ -143,7 +159,6 @@ public final class FogClientMechanic implements ClientMechanic {
         public void render(PvzceClient client, PvzceCamera camera) {
             int width = client.level().width();
             int height = client.level().height();
-            float alpha = data.maxAlpha();
             float bottom = -VERTICAL_MARGIN_CELLS;
             float top = height + VERTICAL_MARGIN_CELLS;
             float span = top - bottom;
@@ -161,19 +176,45 @@ public final class FogClientMechanic implements ClientMechanic {
 
             float darkFrom = Math.min(data.endColumn(), width + RIGHT_MARGIN_CELLS);
             float rampFrom = Math.min(data.startColumn(), darkFrom);
+            float right = width + RIGHT_MARGIN_CELLS;
+            // The clouds first, across the whole band. Drawn under the ramp rather than instead
+            // of it: the sprite is what the fog looks like and the ramp is how dark it is, and
+            // the deep end is where the two meet - a flat fill at `max_alpha` over a cloud
+            // sprite leaves the cloud showing through at a few percent, which is the difference
+            // between "the fog is thick here" and "a black rectangle was pasted on".
+            client.drawTexture(CLOUD, rampFrom, bottom, right - rampFrom, span, Z,
+                    1F, 1F, 1F, data.maxAlpha());
             if (darkFrom > rampFrom) {
-                // The ramp: the gradient sprite's own alpha goes 0 at its left edge to 1 at its
-                // right, so the tint's alpha is the fog's ceiling and the texture supplies the
-                // shape. The two must agree with FogData.alphaAt or the boundary is drawn at a
-                // different place than the hiding test uses - see the class doc.
-                client.drawTexture(GRADIENT, rampFrom, bottom, darkFrom - rampFrom, span, Z,
-                        0F, 0F, 0F, alpha);
+                renderRamp(client, rampFrom, darkFrom, bottom, span, data);
             }
-            if (width + RIGHT_MARGIN_CELLS > darkFrom) {
-                // Flat darkness past the ramp's end, so a zombie walking in is behind solid fog
-                // until it reaches the boundary rather than being drawn on bare backdrop.
-                client.drawSolid(darkFrom, bottom, width + RIGHT_MARGIN_CELLS - darkFrom, span, Z,
-                        0F, 0F, 0F, alpha);
+            if (right > darkFrom) {
+                // Past the ramp the fog is at its ceiling, and so is the hiding rule: everything
+                // standing there is already not being drawn, so this fill is the boundary the
+                // player reads rather than a layer over anything.
+                client.drawSolid(darkFrom, bottom, right - darkFrom, span, Z + 0.01F,
+                        0F, 0F, 0F, data.maxAlpha());
+            }
+        }
+
+        /**
+         * The opacity ramp, as a stair-step of black quads over the clouds.
+         *
+         * <p>Each step is drawn at the alpha {@link FogData#alphaAt} answers for its far edge, so
+         * the darkest part of the ramp is exactly the ceiling the deep fill uses and there is no
+         * seam where the two meet. The alpha the player sees at a point is therefore the cloud
+         * sprite at the ramp's own opacity, which is what makes the boundary soft and the fog
+         * inside it cloudy at the same time.
+         */
+        private void renderRamp(PvzceClient client, float from, float to, float bottom,
+                                float span, FogData data) {
+            float step = (to - from) / RAMP_STEPS;
+            for (int i = 0; i < RAMP_STEPS; i++) {
+                float x = from + step * i;
+                float alpha = data.alphaAt(x + step);
+                if (alpha <= 0.004F) {
+                    continue;
+                }
+                client.drawSolid(x, bottom, step + 0.01F, span, Z + 0.01F, 0F, 0F, 0F, alpha);
             }
         }
 
@@ -185,22 +226,32 @@ public final class FogClientMechanic implements ClientMechanic {
          * vertical step only shows around a lamp, where a slightly stepped glow reads as a glow.
          * Cells the fog does not reach at all are skipped, so an ordinary morning board with one
          * lamp on it draws a few dozen quads rather than the whole grid.
+         *
+         * <p>The clouds are drawn first, across the fogged part of the band in one quad, and the
+         * grid is the <em>darkening</em> over them - the same split the ordinary path uses, at a
+         * resolution fine enough to build a hole out of. Each cell's alpha is the fold of the
+         * level's own ramp and every lamp standing in it, so a lamp genuinely lights what is under
+         * it rather than merely replacing the dark with a brighter flat colour.
          */
         private void renderGrid(PvzceClient client, java.util.List<FogMechanic.Reveal> lamps,
                                 int width, int height) {
             float stepX = 1F / 8F;
             float stepY = 0.5F;
+            float left = Math.min(data.startColumn(), width + RIGHT_MARGIN_CELLS);
             float right = width + RIGHT_MARGIN_CELLS;
-            for (float x = 0F; x < right; x += stepX) {
+            float bottom = -VERTICAL_MARGIN_CELLS;
+            float span = height + VERTICAL_MARGIN_CELLS * 2F;
+            client.drawTexture(CLOUD, left, bottom, right - left, span, Z,
+                    1F, 1F, 1F, data.maxAlpha());
+            for (float x = left; x < right; x += stepX) {
                 float centreX = x + stepX / 2F;
-                for (float y = -VERTICAL_MARGIN_CELLS; y < height + VERTICAL_MARGIN_CELLS;
-                        y += stepY) {
+                for (float y = bottom; y < height + VERTICAL_MARGIN_CELLS; y += stepY) {
                     float centreY = y + stepY / 2F;
                     float alpha = FogMechanic.alphaAt(data, lamps, centreX, centreY);
                     if (alpha <= 0.004F) {
                         continue;
                     }
-                    client.drawSolid(x, y, stepX, stepY, Z, 0F, 0F, 0F, alpha);
+                    client.drawSolid(x, y, stepX, stepY, Z + 0.01F, 0F, 0F, 0F, alpha);
                 }
             }
         }

@@ -435,6 +435,15 @@ public final class PvzceIds {
      * simulation consults it, which is what makes the whole feature a presentation one.
      */
     public static final Identifier MECHANIC_FOG = id("fog");
+    /**
+     * A thunderstorm over the whole board (4-10, the original's own storm level).
+     *
+     * <p>The fog's sibling and its opposite: the fog darkens one side of the lawn and stays
+     * there, while a storm blackens the whole board and lifts it again with every lightning
+     * strike. Both are presentation - no rule, hit test or spawn reads either - and both hide
+     * what stands where they are dark, through the same render-layer test.
+     */
+    public static final Identifier MECHANIC_STORM = id("storm");
 
     /** The plantern's capability id; named here because the level's fog bookkeeping looks it up. */
     public static final Identifier PLANT_CAPABILITY_REVEAL = id("reveal");

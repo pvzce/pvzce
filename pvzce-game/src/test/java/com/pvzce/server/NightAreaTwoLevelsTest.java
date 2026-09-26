@@ -434,7 +434,14 @@ class NightAreaTwoLevelsTest {
      * A dying zombie can leave sun, and 2-5 is a level that needs it.
      *
      * <p>Its cards are three plants and no producer, and no sun falls from its sky, so without
-     * this the player has the 50 sun they started with and nothing else.
+     * this the level has no income at all - it starts at zero sun and its three plants are a
+     * potato mine, a grave buster and a cherry bomb.
+     *
+     * <p>The sun <em>card</em> is what makes that income reachable, and it is asserted here
+     * because the two facts are one feature: a resource with {@code collectible_without_card:
+     * false} cannot be picked up by a player whose bar does not hold its card ("没有对应资源卡，
+     * 无法收集"), and the bank HUD draws only when the card is on the bar. 2-5 lost the card
+     * during a regeneration once, and the symptom was a level whose only income is invisible.
      *
      * <p>A kill that pays pays {@code zombie_sun_drop_count} suns, and they land where the zombie
      * died rather than falling in from the sky: the drop is the kill's, so it belongs where the
@@ -448,6 +455,10 @@ class NightAreaTwoLevelsTest {
         assertTrue(chance > 0F && chance < 0.5F, "a small chance, not a fountain: " + chance);
         assertEquals(0, def.rules().get(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX).getAsInt(),
                 "the sky still drops nothing - this is the level's only income");
+        assertTrue(def.slots().contains(PvzceIds.SUN),
+                "the sun card has to be on the bar or the sun the kills drop cannot be picked up");
+        assertEquals(def.slots().size(), def.maxSeedSlots(),
+                "and the bar is exactly the level's own cards: 2-5 is a fixed deck");
 
         // Certain drops for the test, so the roll is not what is under test.
         LevelServer level = running(withRule(def, PvzceIds.RULE_ZOMBIE_SUN_DROP_CHANCE, 1F));

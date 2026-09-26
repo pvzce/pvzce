@@ -91,6 +91,17 @@ public final class PvzceSounds {
     public static final Identifier AMBIENT_READY_SET_PLANT = id("sfx/ambient/readysetplant");
     public static final Identifier AMBIENT_HUGE_WAVE = id("sfx/ambient/hugewave");
     public static final Identifier EFFECT_AWOOGA = id("sfx/effect/awooga");
+    /**
+     * The rain a storm level falls under, looped rather than fired.
+     *
+     * <p>The one ambient event that plays for minutes at a time: it is the weather of the board
+     * rather than a cue, so it starts with the level and ends with it, and the level's own
+     * silent music block is what makes room for it. In the original's 4-10 this <em>is</em> the
+     * soundtrack - it is the one level in the game with no background music.
+     */
+    public static final Identifier AMBIENT_RAIN = id("sfx/ambient/rain");
+    /** The clap that lands with each lightning strike of a storm. */
+    public static final Identifier EFFECT_THUNDER = id("sfx/effect/thunder");
 
     public static final Identifier UI_COLLECT = id("sfx/ui/collect");
     public static final Identifier UI_CLICK = id("sfx/ui/click");

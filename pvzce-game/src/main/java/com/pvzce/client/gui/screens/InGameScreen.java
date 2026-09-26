@@ -1818,6 +1818,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // whole behaviour, and a half-visible zombie is one the player will argue about.
                 continue;
             }
+            if (com.pvzce.client.mechanic.StormClientMechanic.hides(client.level())) {
+                // The storm's half of the same rule, and the whole of the original's storm
+                // level: between strikes the lawn is black and nothing standing on it is drawn.
+                // No position is consulted - a storm has no edge.
+                continue;
+            }
             renderEntity(entity);
         }
         renderPlacementPreview();

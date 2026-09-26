@@ -59,6 +59,19 @@ public final class SoundEngine implements AutoCloseable {
     private long traceWindowStart = System.nanoTime();
     private final int[] sfxSources = new int[MAX_SFX_SOURCES];
     private final int[] musicSources = new int[MUSIC_SOURCE_COUNT];
+    /**
+     * The one looping ambient player: the weather of a level (see {@code StormClientMechanic}).
+     *
+     * <p>Its own source rather than a slot in the one-shot ring, for the same reason the music
+     * tracks have theirs: the ring recycles players, and {@link #play} stops and rebinds
+     * whatever it finds - a loop living in the ring is a loop the next pea shot kills. One is
+     * enough because a board has one weather.
+     */
+    private int ambientSource;
+    /** The event the ambient player is looping, or {@code null}; what makes a restart a no-op. */
+    private String ambientEvent;
+    /** The volume the ambient loop was asked for, kept so a volume change can re-apply it. */
+    private float ambientVolume = 1F;
     private long device;
     private long context;
     private int cursor;
@@ -92,6 +105,7 @@ public final class SoundEngine implements AutoCloseable {
             for (int i = 0; i < MUSIC_SOURCE_COUNT; i++) {
                 musicSources[i] = AL10.alGenSources();
             }
+            ambientSource = AL10.alGenSources();
             enabled = true;
         } catch (Throwable t) {
             LOGGER.warn("Sound engine unavailable; the game runs silently.", t);
@@ -105,6 +119,7 @@ public final class SoundEngine implements AutoCloseable {
 
     public void setMasterVolume(float volume) {
         this.masterVolume = MathUtil.clamp01(volume);
+        refreshAmbientVolume();
     }
 
     public void setMusicVolume(float volume) {
@@ -113,6 +128,28 @@ public final class SoundEngine implements AutoCloseable {
 
     public void setSfxVolume(float volume) {
         this.sfxVolume = MathUtil.clamp01(volume);
+        refreshAmbientVolume();
+    }
+
+    /**
+     * Applies the current master and effect volumes to the running ambient loop.
+     *
+     * <p>The loop can be minutes long, so it cannot wait for its next start to pick up a volume
+     * the player just changed; without this, dragging the volume slider during a storm does
+     * nothing until the level is re-entered.
+     */
+    private void refreshAmbientVolume() {
+        if (!enabled || ambientEvent == null) {
+            return;
+        }
+        if (AL10.alGetSourcei(ambientSource, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
+            return;
+        }
+        SoundVariant variant = pickVariant(definition(eventPath(ambientEvent)));
+        if (variant != null) {
+            AL10.alSourcef(ambientSource, AL10.AL_GAIN,
+                    masterVolume * sfxVolume * ambientVolume * variant.volume());
+        }
     }
 
     public float masterVolume() {
@@ -267,6 +304,90 @@ public final class SoundEngine implements AutoCloseable {
         if (enabled && musicSourceIndex >= 0 && musicSourceIndex < MUSIC_SOURCE_COUNT) {
             AL10.alSourceStop(musicSources[musicSourceIndex]);
         }
+    }
+
+    /**
+     * Starts the level's looping ambient sound - the rain of a storm.
+     *
+     * <p>Idempotent, because the caller is a per-level overlay built while the level is being
+     * entered and the question "is the rain already falling" has no good answer on the client:
+     * a restart, a resize or a second entry would each start it again, and layered copies of a
+     * rain loop are the sound of a broken engine. Asking for the event that is already playing
+     * is therefore a no-op.
+     *
+     * <p>Deliberately outside the music controller: the rain is not a track. It does not
+     * crossfade, it has no cue timeline, and it plays while the music track is silent - which is
+     * exactly the arrangement the original's storm level has.
+     */
+    public void playAmbient(String soundId, float volume) {
+        if (!enabled || soundId == null || soundId.isEmpty()) {
+            return;
+        }
+        if (soundId.equals(ambientEvent)
+                && AL10.alGetSourcei(ambientSource, AL10.AL_SOURCE_STATE) == AL10.AL_PLAYING) {
+            return;
+        }
+        String path = eventPath(soundId);
+        SoundVariant variant = pickVariant(definition(path));
+        if (variant == null) {
+            return;
+        }
+        int buffer = bufferForFile(variant.file());
+        if (buffer == 0) {
+            return;
+        }
+        // Stop before rebinding: the loop flag sticks to the source rather than to the buffer,
+        // and a source that was ever asked to loop loops whatever is bound to it next.
+        AL10.alSourceStop(ambientSource);
+        AL10.alSourcei(ambientSource, AL10.AL_LOOPING, AL10.AL_TRUE);
+        AL10.alSourcei(ambientSource, AL10.AL_BUFFER, buffer);
+        ambientVolume = MathUtil.clamp01(volume);
+        AL10.alSourcef(ambientSource, AL10.AL_GAIN,
+                masterVolume * sfxVolume * ambientVolume * variant.volume());
+        AL10.alSourcef(ambientSource, AL10.AL_PITCH, variant.pitch());
+        AL10.alSourcePlay(ambientSource);
+        ambientEvent = soundId;
+        traceAmbient("started " + soundId + " (" + bufferSamples(buffer) + " frames)");
+    }
+
+    /** Stops the ambient loop, if one is playing. Called when the player leaves the level. */
+    public void stopAmbient() {
+        if (!enabled) {
+            return;
+        }
+        if (ambientEvent != null) {
+            traceAmbient("stopped " + ambientEvent);
+        }
+        AL10.alSourceStop(ambientSource);
+        // The flag is cleared as well, so the next level's one-shot sounds cannot inherit a
+        // looping source even if something rebinds it without going through `playAmbient`.
+        AL10.alSourcei(ambientSource, AL10.AL_LOOPING, AL10.AL_FALSE);
+        ambientEvent = null;
+    }
+
+    /** The event currently looping on the ambient player, or {@code null}. Diagnostics and tests. */
+    public String ambientEvent() {
+        return ambientEvent;
+    }
+
+    /**
+     * One line per ambient start and stop, for {@code -Dpvzce.traceAmbient}.
+     *
+     * <p>Because "the loop is choppy" has two completely different causes that sound alike: the
+     * <em>asset</em> not being loopable (the seam every few seconds), and the <em>engine</em>
+     * restarting the loop (a player that stops and starts, which needs the caller looked at). The
+     * line says which one it is - a start per level is the asset, a start every few seconds is a
+     * caller.
+     */
+    private static void traceAmbient(String what) {
+        if (Boolean.getBoolean("pvzce.traceAmbient")) {
+            LOGGER.info("ambient trace: {}", what);
+        }
+    }
+
+    /** How many frames a buffer holds, or -1 when the driver will not say. Diagnostics only. */
+    private static int bufferSamples(int buffer) {
+        return AL10.alGetBufferi(buffer, AL10.AL_SIZE) / 2;
     }
 
     public void setMusicSourceVolume(int musicSourceIndex, float volume) {

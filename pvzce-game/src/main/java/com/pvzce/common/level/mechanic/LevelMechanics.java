@@ -49,6 +49,7 @@ public final class LevelMechanics {
     public static final MowerMechanic MOWER = new MowerMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
+    public static final StormMechanic STORM = new StormMechanic();
     public static final RakeMechanic RAKE = new RakeMechanic();
     public static final VaseFieldMechanic VASE_FIELD = new VaseFieldMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
@@ -71,6 +72,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_MOWER, MOWER);
         register(PvzceIds.MECHANIC_TOOL, TOOL);
         register(PvzceIds.MECHANIC_FOG, FOG);
+        register(PvzceIds.MECHANIC_STORM, STORM);
         register(PvzceIds.MECHANIC_RAKE, RAKE);
         register(PvzceIds.MECHANIC_VASE_FIELD, VASE_FIELD);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
@@ -107,6 +109,27 @@ public final class LevelMechanics {
             if (mechanic.type().equals(PvzceIds.MECHANIC_FOG)
                     && mechanic.value() instanceof com.pvzce.api.content.FogData fog) {
                 return fog;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The storm a level declares, or {@code null} when it declares none.
+     *
+     * <p>The fog helper's twin, and asked of a definition for the same reason: the level list, the
+     * renderer's registration and any test want to know "is this board a storm" without a running
+     * level.
+     */
+    public static com.pvzce.api.content.StormData stormData(
+            com.pvzce.api.content.LevelDef def) {
+        if (def == null) {
+            return null;
+        }
+        for (com.pvzce.api.content.mechanic.TypedMechanic mechanic : effective(def)) {
+            if (mechanic.type().equals(PvzceIds.MECHANIC_STORM)
+                    && mechanic.value() instanceof com.pvzce.api.content.StormData storm) {
+                return storm;
             }
         }
         return null;

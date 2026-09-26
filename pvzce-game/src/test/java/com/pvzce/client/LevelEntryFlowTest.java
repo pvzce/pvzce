@@ -134,6 +134,64 @@ class LevelEntryFlowTest {
                 "the run is restarted on the server instead, without leaving and coming back");
     }
 
+    /**
+     * 2-5 fixes its whole deck, so its card screen is not a question either.
+     *
+     * <p>Reported by the player: "2-5 本来默认只应该选择阳光资源卡和另外三个植物，但是却弹出了选卡页面".
+     * The level declares four cards and no buffs, which is the same shape as the vase level - but
+     * `seed_screen` defaults to true and only 4-5 had ever been marked false, so the whack-a-zombie
+     * level was shown a chooser with nothing on it but a "start" button. What makes it a defect
+     * rather than a formality is that the bar was not the level's own either: with `max_seed_slots`
+     * unwritten the server fills the leftover room from the player's card pool, so a player with
+     * plants unlocked was dealt cards into a level whose whole shape is "卡槽里只有土豆雷、
+     * 墓碑吞噬者和樱桃炸弹".
+     *
+     * <p>Both halves are asserted here, because either one alone leaves the bug: the flag is what
+     * skips the screen, and the pinned bar size is what makes the bar the level's.
+     */
+    @Test
+    void aLevelWithAFixedDeckSkipsTheSeedChooser() throws Exception {
+        com.pvzce.common.tag.TestContent.loadBuiltInContentAndTags();
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:yard/adventure/2_5", "");
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "2-5 hands over its own four cards, so nothing may ask the player to pick any");
+        assertTrue(fixture.sentPackets().stream()
+                        .anyMatch(com.pvzce.common.network.packet.PlayLevelC2S.class::isInstance),
+                "and the run is asked for right away, with the bar the server resolves");
+    }
+
+    /**
+     * 4-10 deals its own cards, so it keeps the preview screen - and it is the <em>only</em>
+     * reason that screen is allowed to appear for a level with nothing to pick.
+     *
+     * <p>The conveyor levels go through the chooser in its preview-only mode: no panel, no pool,
+     * 2.1 seconds and in. It is not a formality for them - that screen is the only place in the
+     * whole interface that shows which zombies a level sends (see {@code UI切换与导航架构.md}
+     * §4) - and 4-10 was the conveyor level that did not go through it, because it was not a
+     * conveyor level at all.
+     */
+    @Test
+    void aConveyorLevelStillShowsThePreviewBeforeItsRun() throws Exception {
+        com.pvzce.common.tag.TestContent.loadBuiltInContentAndTags();
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:yard/adventure/4_10", "");
+        client.setLevelList(List.of(info));
+
+        client.enterLevelFromMenu(info);
+
+        assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen(),
+                "4-10 is a conveyor level: the chooser is its pass-through preview, not a question");
+        assertTrue(client.dealsItsOwnCards("pvzce:yard/adventure/4_10"),
+                "and it deals those cards itself, from the level's own belt");
+    }
+
     /** A level with nothing to resume still picks its cards first, exactly as before. */
     @Test
     void aFreshLevelStillGoesThroughTheSeedChooser() throws Exception {

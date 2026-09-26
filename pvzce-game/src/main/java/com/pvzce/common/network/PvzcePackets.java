@@ -118,7 +118,7 @@ public final class PvzcePackets {
     // 35: the shop is reachable without opening the level list, and the profile used to travel
     // only with that list - so a fresh session drew a zero wallet until a level was started and
     // left. RequestProfileC2S is the client asking for the profile on its own.
-    public static final int PROTOCOL_VERSION = 35;
+    public static final int PROTOCOL_VERSION = 36;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

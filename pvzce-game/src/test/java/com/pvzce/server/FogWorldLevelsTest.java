@@ -53,7 +53,16 @@ class FogWorldLevelsTest {
         return def;
     }
 
-    /** Nine of the ten are the foggy pool; 4-5 is the original's night-lawn vase level. */
+    /**
+     * Nine of the ten are the foggy pool; 4-5 is the night-lawn vase level and 4-10 is the storm.
+     *
+     * <p>Both exceptions are the original's own, and both are cases of a level in the Fog area
+     * that is not a foggy night pool: `PickBackground` sends Scary Potter back to the night lawn,
+     * and 4-10 - the area's finale - is the game's one thunderstorm, with no fog in it at all
+     * ("there is not actually any fog in this level, despite being on the Fog stage"). What the
+     * player sees there is the storm's own darkness, which covers the whole board rather than its
+     * right-hand side.
+     */
     @Test
     void theFogLevelsAreTheFoggyPoolAndFourFiveIsTheNightLawn() {
         for (String path : LEVELS) {
@@ -78,8 +87,38 @@ class FogWorldLevelsTest {
                     def.background().orElseThrow(),
                     path + " uses the night pool backdrop, which is what tells LevelStage how to"
                             + " draw it");
+            if (path.equals("4_10")) {
+                assertNull(LevelMechanics.fogData(def),
+                        "4-10 is the storm level: the fog of the nine before it is what the storm"
+                                + " comes out of, and the level itself has none");
+                continue;
+            }
             assertNotNull(LevelMechanics.fogData(def), path + " has to declare fog: that is world 4");
         }
+    }
+
+    /**
+     * 4-10 is the storm the world's fog was building up to, and it is still a conveyor level.
+     *
+     * <p>Both halves are one bug. The level was rebuilt from the original's own tables in a pass
+     * that keyed the conveyor on "is this a mini-boss or a minigame", 4-10 is neither, and it
+     * shipped as an ordinary level: a card chooser for a level that deals its own cards, a wave
+     * table walking in off the road, a `music` block playing the night theme, and a fog span that
+     * claimed to be the deepest in the world. What the original has there is the one storm level
+     * in the game, and it is a conveyor level with no fog - so this asserts the four facts
+     * together, because any one of them alone still reads as a different level.
+     */
+    @Test
+    void fourTenIsTheStormAndItDealsItsOwnCards() {
+        LevelDef def = level("4_10");
+        assertNotNull(LevelMechanics.stormData(def), "4-10 declares the storm mechanic");
+        assertNull(LevelMechanics.fogData(def), "and no fog: the storm is the darkness");
+        assertTrue(LevelMechanics.dealsItsOwnCards(def),
+                "its cards come off a belt, like the other three area finales'");
+        assertTrue(def.slots().isEmpty(), "a belt level carries no deck of its own");
+        assertTrue(def.music().cues().isEmpty(),
+                "and it has no background music: in the original this is the one level whose"
+                        + " soundtrack is the rain, and the level data says so by saying nothing");
     }
 
     /**
@@ -95,8 +134,8 @@ class FogWorldLevelsTest {
         float previous = Float.MAX_VALUE;
         for (String path : LEVELS) {
             FogData fog = LevelMechanics.fogData(level(path));
-            if (path.equals("4_5")) {
-                continue; // the vase level is played on the clear night lawn
+            if (path.equals("4_5") || path.equals("4_10")) {
+                continue; // neither is a foggy board: the vase level and the storm
             }
             assertNotNull(fog, path + " has fog");
             assertTrue(fog.startColumn() <= previous,
@@ -108,8 +147,9 @@ class FogWorldLevelsTest {
         }
         assertEquals(6F, LevelMechanics.fogData(level("4_1")).startColumn(), 0.001F,
                 "4-1 is the original's first fog step");
-        assertEquals(4F, LevelMechanics.fogData(level("4_10")).startColumn(), 0.001F,
-                "and the last level is the deepest one, with no step back");
+        assertEquals(4F, LevelMechanics.fogData(level("4_9")).startColumn(), 0.001F,
+                "and 4-9 is the deepest fog the world has: `Board::LeftFogColumn` stops at 4.0, and"
+                        + " 4-10 - which the old ramp claimed was deeper still - has no fog at all");
     }
 
     /** The chain runs 3-10 → 4-1 → … → 4-10 with no gap. */
@@ -235,12 +275,17 @@ class FogWorldLevelsTest {
      * The retreat buff moves the fog, on a real level and with nothing else changed.
      *
      * <p>Fog is presentation, so the number this test reads is the number the renderer reads -
-     * there is no second copy of "how far in is the fog" anywhere in the simulation. 4-10 is the
-     * level the buff is meant to be seen on, so it is the level the test runs on.
+     * there is no second copy of "how far in is the fog" anywhere in the simulation.
+     *
+     * <p>Run on 4-9, the level the buff is the reward for: the player carries it out of 4-9 and
+     * sees it on the next level they play, which is any of the fog levels they replay. It used to
+     * run on 4-10, and that is one of the ways the level's real shape stayed hidden - a level with
+     * no fog cannot show anything about fog, and the test that "proved" the buff moved the fog was
+     * reading a span that should not have been there at all.
      */
     @Test
     void theRetreatBuffPushesTheFogBack() {
-        LevelDef def = TestLevels.copy(level("4_10")).waves(List.of()).build();
+        LevelDef def = TestLevels.copy(level("4_9")).waves(List.of()).build();
         LevelServer without = new LevelServer(def);
         LevelServer with = new LevelServer(def);
         with.setActiveBuffs(List.of(BuiltInBuffs.FOG_RETREAT));

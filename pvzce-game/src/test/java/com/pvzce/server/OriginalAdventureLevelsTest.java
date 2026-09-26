@@ -344,7 +344,10 @@ class OriginalAdventureLevelsTest {
                     name + " must " + (skySun ? "" : "not ") + "have sun falling from the sky");
 
             FogData fog = LevelMechanics.fogData(def);
-            if (number >= 31 && number != 35) {
+            // The two area-4 levels that are not foggy boards: 4-5 is the vase level on the night
+            // lawn, and 4-10 is the storm - the level the fog world spends nine levels building up
+            // to, and the one level in the original's Fog area with no fog in it.
+            if (number >= 31 && number != 35 && number != 40) {
                 assertNotNull(fog, name + " is a fog level");
                 float expectedFog = number == 31 ? 6F : number <= 36 ? 5F : 4F;
                 assertEquals(expectedFog, fog.startColumn(), 0.001F,
@@ -363,14 +366,21 @@ class OriginalAdventureLevelsTest {
     }
 
     /**
-     * `HasConveyorBeltSeedBank` for adventure levels: the three mini-bosses and two minigames.
+     * `HasConveyorBeltSeedBank` for adventure levels: the three mini-bosses, the two minigames
+     * and the storm.
      *
      * <p>Not the same list as "levels whose cards are not chosen" - Whack-a-Zombie and Scary
      * Potter have fixed little decks instead of a belt - which is why this is spelled out rather
      * than derived from `LevelFacts.deck`.
+     *
+     * <p><b>4-10 is the entry that was missing.</b> The original's storm level deals its cards off
+     * a belt like the other three area finales, and the level was rebuilt from the original's own
+     * tables in a pass that asked "is this a mini-boss or a minigame" - 4-10 is neither, so it
+     * fell through to the ordinary path and shipped with a card chooser instead of a belt.
      */
     private static boolean isConveyor(int number) {
-        return number == 5 || number == 10 || number == 20 || number == 25 || number == 30;
+        return number == 5 || number == 10 || number == 20 || number == 25 || number == 30
+                || number == 40;
     }
 
     @Test
