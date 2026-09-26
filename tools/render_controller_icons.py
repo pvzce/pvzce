@@ -66,6 +66,8 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     # The purple packets: idle for the three that stand still, and the spikerock's own idle
     # (its `attack` is a lunge whose card would show a rock halfway through a stab).
     "twin_sunflower": ("idle", 0.0),
+    "giant_nut": ("idle", 0.0),
+    "explosive_nut": ("idle", 0.0),
     "gloom_shroom": ("idle", 0.0),
     "cattail": ("idle", 0.0),
     "spikerock": ("idle", 0.0),
@@ -101,6 +103,8 @@ ANIMATION_DIRS: Dict[str, str] = {
     "marigold": "plant/producer",
     # The purple packets, in the group the converter wrote their animation to.
     "twin_sunflower": "plant/producer",
+    "giant_nut": "plant/defense",
+    "explosive_nut": "plant/defense",
     "gloom_shroom": "plant/attacker",
     "cattail": "plant/attacker",
     "spikerock": "plant/special",
@@ -165,6 +169,9 @@ PLANT_ENTITIES = [
     # The purple packets. Same painter as every other card: the packet they are drawn in is the
     # only thing that differs, and that is `CardPainter`'s business rather than this tool's.
     "twin_sunflower", "gloom_shroom", "cattail", "spikerock",
+    # The bowling line's two new nuts, both drawn from the wall-nut's model (the giant is the
+    # same drawing enlarged; the explosive one is the generated red variant).
+    "giant_nut", "explosive_nut",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.
@@ -350,9 +357,22 @@ def draw_quad(canvas: np.ndarray, source: np.ndarray, points, uvs) -> None:
                 canvas[py, px, 3] = alpha + canvas[py, px, 3] * (1.0 - alpha)
 
 
+#: Entities that have no model of their own and borrow another's outright.
+#:
+#: The giant bowling nut is the wall-nut drawn bigger (`render_scale` is a plant's own field, and
+#: the *game* reads the nut's definition rather than a file), so there is no `giant_nut.json` to
+#: render from - and there should not be one, because a second copy of the same eight part textures
+#: is exactly the kind of duplicate that goes stale. Its card is the wall-nut's card, which is also
+#: what the original's bowling line shows.
+MODEL_ALIASES: Dict[str, str] = {
+    "giant_nut": "wall_nut",
+}
+
+
 def render_entity(entity: str, resources: Path, namespace: str) -> Path:
+    model_name = MODEL_ALIASES.get(entity, entity)
     animation_path = (resources / "assets" / namespace / "animations"
-                      / ANIMATION_DIRS.get(entity, "") / f"{entity}.json")
+                      / ANIMATION_DIRS.get(model_name, "") / f"{model_name}.json")
     if not animation_path.is_file():
         raise SystemExit(f"Missing animation JSON: {animation_path}")
     data = json.loads(animation_path.read_text(encoding="utf-8"))

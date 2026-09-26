@@ -1,0 +1,438 @@
+{
+  "id": "pvzce:yard/minigame/wallnut_bowling_2",
+  "name": "坚果保龄球2",
+  "description": "原版的坚果保龄球2：传送带只送两种坚果 —— 巨大坚果一路碾过去，红色爆炸坚果撞到第一只僵尸就炸开一片。",
+  "width": 9,
+  "height": 5,
+  "scene": {
+    "pvzce:grass": [
+      "0,0",
+      "1,0",
+      "2,0",
+      "3,0",
+      "4,0",
+      "5,0",
+      "6,0",
+      "7,0",
+      "8,0",
+      "0,1",
+      "1,1",
+      "2,1",
+      "3,1",
+      "4,1",
+      "5,1",
+      "6,1",
+      "7,1",
+      "8,1",
+      "0,2",
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2",
+      "7,2",
+      "8,2",
+      "0,3",
+      "1,3",
+      "2,3",
+      "3,3",
+      "4,3",
+      "5,3",
+      "6,3",
+      "7,3",
+      "8,3",
+      "0,4",
+      "1,4",
+      "2,4",
+      "3,4",
+      "4,4",
+      "5,4",
+      "6,4",
+      "7,4",
+      "8,4"
+    ]
+  },
+  "teams": [
+    {
+      "id": "pvzce:plant_team",
+      "name": "植物方",
+      "win_condition": "survive_waves"
+    },
+    {
+      "id": "pvzce:zombie_team",
+      "name": "僵尸方",
+      "win_condition": "plant_side_lost"
+    }
+  ],
+  "win_team": "pvzce:plant_team",
+  "playable_teams": [
+    "pvzce:plant_team"
+  ],
+  "rules": {
+    "pvzce:day_length": 0,
+    "pvzce:night_length": -1,
+    "pvzce:sun_spawn_interval_min": 0,
+    "pvzce:sun_spawn_interval_max": 0,
+    "pvzce:zombie_speed_multiplier": 1.5
+  },
+  "env_vars": {},
+  "wave_interval_end_multiplier": 1.0,
+  "slots": [],
+  "initial_sun": 0,
+  "mechanics": [
+    {
+      "type": "pvzce:conveyor",
+      "interval_ticks": 140,
+      "capacity": 6,
+      "initial_cards": 3,
+      "cards": [
+        {
+          "id": "pvzce:giant_nut",
+          "weight": 1
+        },
+        {
+          "id": "pvzce:explosive_nut",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "type": "pvzce:placement_zone",
+      "min_x": 0,
+      "max_x": 3
+    },
+    {
+      "type": "pvzce:mower",
+      "rows": []
+    }
+  ],
+  "waves": [
+    {
+      "type": "small",
+      "delay": 600,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3034,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2730,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2625,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3073,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 2623,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "small",
+      "delay": 3019,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 15
+    },
+    {
+      "type": "final",
+      "delay": 2558,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 12,
+          "rows": [
+            0,
+            1,
+            2,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:flag_zombie",
+          "count": 2,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ],
+      "spawn_interval": 15,
+      "warning_ticks": 750
+    }
+  ],
+  "music": {
+    "cues": [
+      {
+        "at_tick": 0,
+        "track": "background",
+        "event": "pvzce:music/loon_boon",
+        "loop": true,
+        "volume": 0.85,
+        "fade_seconds": 1.0
+      }
+    ]
+  },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "哇！你好厉害喵！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "已经战胜了这么多僵尸了呢",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "blush",
+        "text": "看得咱都有点...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "panic",
+        "text": "诶诶诶！才不是你想的那样！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "嗯哼，回到正题",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "你要不要试试打保龄球喵？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "就是...用坚果，然后，通通通！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "就这样，僵尸们就被解决啦！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "confused",
+        "text": "诶不过，为什么要用坚果呢？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "confused",
+        "text": "我也不知道嘿嘿，你去问戴夫喵",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "去战斗吧，杂鱼~",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/1_5"
+      }
+    ]
+  },
+  "background": "pvzce:textures/gui/screen/level/background1",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "坚果放在左边的放置区里才会滚出去",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "传送带发牌是免费的，不用管阳光",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "buffs": [
+    "pvzce:auto_collect"
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "coins",
+        "amount": 600
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 450
+      }
+    ],
+    "coin_drop": "pvzce:coin_gold"
+  }
+}

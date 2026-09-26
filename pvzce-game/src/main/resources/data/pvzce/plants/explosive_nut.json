@@ -1,0 +1,46 @@
+{
+  "id": "pvzce:explosive_nut",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "health": 4000,
+  "capabilities": [
+    {
+      "type": "pvzce:bowl",
+      "speed": 5.0,
+      "damage": 650,
+      "hit_radius": 0.45,
+      "coin_from_hit": 2,
+      "ricochet": false,
+      "explode_on_hit": true
+    },
+    {
+      "type": "pvzce:explosive",
+      "trigger": "timed",
+      "fuse_ticks": 36000,
+      "radius": 1.0,
+      "square": true,
+      "damage": 1800,
+      "melts_ice": true,
+      "linger_ticks": 30,
+      "particles": [
+        "pvzce:powie",
+        "pvzce:pow",
+        "pvzce:pow_flash"
+      ]
+    }
+  ],
+  "sounds": {
+    "explode": "pvzce:sfx/plant/cherrybomb"
+  },
+  "placement": {
+    "layer": 1,
+    "count": 1,
+    "group": "plantable"
+  },
+  "animation_dir": "plant/defense",
+  "texture": "pvzce:textures/entities/plant/defense/explosive_nut",
+  "render_scale": 1.1,
+  "order": 59
+}

@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:explosive_nut",
+  "kind": "plant",
+  "content": "pvzce:explosive_nut",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/explosive_nut"
+}

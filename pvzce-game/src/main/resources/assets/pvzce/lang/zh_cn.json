@@ -797,5 +797,13 @@
   "pvzce.preparation.hint": "准备阶段：只能用初始阳光，摆好再开始",
   "pvzce.preparation.sun": "可用阳光",
   "pvzce.mechanic.preparation.field.manual": "手动开始（关掉则按下面的时长自动开始）",
-  "pvzce.mechanic.preparation.field.ticks": "准备时长（tick，仅自动时有意义）"
+  "pvzce.mechanic.preparation.field.ticks": "准备时长（tick，仅自动时有意义）",
+  "plant.pvzce.giant_nut": "巨大坚果",
+  "plant.pvzce.giant_nut.desc": "保龄球坚果的加大版：一路碾过去，撞到什么都不会停。",
+  "plant.pvzce.giant_nut.flavor": "「保龄球场上没有第二次机会。」",
+  "slot.pvzce.giant_nut": "巨大坚果",
+  "plant.pvzce.explosive_nut": "爆炸坚果",
+  "plant.pvzce.explosive_nut.desc": "保龄球坚果的爆炸版：撞到第一只僵尸就炸开一片。",
+  "plant.pvzce.explosive_nut.flavor": "「保龄球场上没有第二次机会。」",
+  "slot.pvzce.explosive_nut": "爆炸坚果"
 }

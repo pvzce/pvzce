@@ -33,6 +33,12 @@ TEXTURES = ASSETS / "textures" / "entities" / "plant" / "defense"
 
 SOURCE_NAME = "wall_nut"
 OUTPUT_NAME = "explosive_nut"
+#: The giant nut has no art of its own either - it is the wall-nut at a larger `render_scale` -
+#: but the *engine* resolves a plant's model by entity id (`animations/<animation_dir>/<id>.json`),
+#: so "the same drawing" still needs a file. It gets a byte-for-byte copy rather than an `animation`
+#: binding to the wall-nut's, because a copy cannot accidentally inherit a change meant for the
+#: ordinary nut's art (and the two cards are meant to look identical anyway).
+COPY_NAME = "giant_nut"
 
 #: The tint: the wall-nut's browns sit around 25 degrees, and 355 (a red) is far enough from
 #: every other nut on the lawn to be unmistakable at a glance.
@@ -68,7 +74,31 @@ def main() -> int:
         json.dumps(model, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {ANIMATIONS.relative_to(REPO_ROOT)}/{OUTPUT_NAME}.json")
     print(f"wrote {out_dir.relative_to(REPO_ROOT)}/ ({len(list(out_dir.iterdir()))} files)")
+
+    _copy_for_giant(Image)
     return 0
+
+
+def _copy_for_giant(Image) -> None:
+    """The giant nut's model and textures: the wall-nut's, under its own name."""
+    model = json.loads((ANIMATIONS / f"{SOURCE_NAME}.json").read_text(encoding="utf-8"))
+    out_dir = TEXTURES / COPY_NAME
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True)
+    old_prefix = f"pvzce:textures/entities/plant/defense/{SOURCE_NAME}/"
+    new_prefix = f"pvzce:textures/entities/plant/defense/{COPY_NAME}/"
+    for bone in model["model"]["bones"]:
+        for part in bone.get("parts", []) or []:
+            texture = part.get("texture", "")
+            if texture.startswith(old_prefix):
+                name = texture[len(old_prefix):]
+                part["texture"] = new_prefix + name
+                shutil.copyfile(TEXTURES / SOURCE_NAME / f"{name}.png", out_dir / f"{name}.png")
+    (ANIMATIONS / f"{COPY_NAME}.json").write_text(
+        json.dumps(model, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {ANIMATIONS.relative_to(REPO_ROOT)}/{COPY_NAME}.json (copy of {SOURCE_NAME})")
+    print(f"wrote {out_dir.relative_to(REPO_ROOT)}/ ({len(list(out_dir.iterdir()))} files)")
 
 
 def _tint(Image, src: Path, dst: Path) -> None:

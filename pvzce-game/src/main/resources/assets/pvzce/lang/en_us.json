@@ -796,5 +796,13 @@
   "pvzce.preparation.hint": "Preparation: initial sun only - build, then start",
   "pvzce.preparation.sun": "Sun available",
   "pvzce.mechanic.preparation.field.manual": "Started by hand (off = the duration below starts it)",
-  "pvzce.mechanic.preparation.field.ticks": "Preparation length in ticks (only used when not manual)"
+  "pvzce.mechanic.preparation.field.ticks": "Preparation length in ticks (only used when not manual)",
+  "plant.pvzce.giant_nut": "Giant Wall-nut",
+  "plant.pvzce.giant_nut.desc": "The bowling Wall-nut, enlarged: it flattens everything in its lane and never stops.",
+  "plant.pvzce.giant_nut.flavor": "\"There are no second chances on the lane.\"",
+  "slot.pvzce.giant_nut": "Giant Wall-nut",
+  "plant.pvzce.explosive_nut": "Explosive Wall-nut",
+  "plant.pvzce.explosive_nut.desc": "The bowling Wall-nut with a blast: the first zombie it touches sets it off.",
+  "plant.pvzce.explosive_nut.flavor": "\"There are no second chances on the lane.\"",
+  "slot.pvzce.explosive_nut": "Explosive Wall-nut"
 }

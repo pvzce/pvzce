@@ -1,0 +1,27 @@
+{
+  "id": "pvzce:giant_nut",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "health": 8000,
+  "capabilities": [
+    {
+      "type": "pvzce:bowl",
+      "speed": 4.4,
+      "damage": 1800,
+      "hit_radius": 0.6,
+      "coin_from_hit": 3,
+      "ricochet": false
+    }
+  ],
+  "placement": {
+    "layer": 1,
+    "count": 1,
+    "group": "plantable"
+  },
+  "animation_dir": "plant/defense",
+  "texture": "pvzce:textures/entities/plant/defense/giant_nut",
+  "render_scale": 1.35,
+  "order": 58
+}

@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:giant_nut",
+  "kind": "plant",
+  "content": "pvzce:giant_nut",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/giant_nut"
+}

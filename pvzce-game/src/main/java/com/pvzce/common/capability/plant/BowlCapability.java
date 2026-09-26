@@ -74,6 +74,7 @@ public final class BowlCapability implements PlantCapability {
     private final float hitRadius;
     private final int coinFromHit;
     private final boolean ricochet;
+    private final boolean explodeOnHit;
 
     /** Lane drift: {@code -1}, {@code 0} or {@code +1} rows per cell travelled. */
     private float directionY;
@@ -83,11 +84,17 @@ public final class BowlCapability implements PlantCapability {
     private int hits;
 
     public BowlCapability(float speed, int damage, float hitRadius, int coinFromHit, boolean ricochet) {
+        this(speed, damage, hitRadius, coinFromHit, ricochet, false);
+    }
+
+    public BowlCapability(float speed, int damage, float hitRadius, int coinFromHit, boolean ricochet,
+                          boolean explodeOnHit) {
         this.speed = Math.max(0.1F, speed);
         this.damage = Math.max(1, damage);
         this.hitRadius = Math.max(0.1F, hitRadius);
         this.coinFromHit = Math.max(1, coinFromHit);
         this.ricochet = ricochet;
+        this.explodeOnHit = explodeOnHit;
         this.directionY = 0F;
     }
 
@@ -96,7 +103,13 @@ public final class BowlCapability implements PlantCapability {
             Codec.INT.optionalFieldOf("damage", DEFAULT_DAMAGE).forGetter(BowlCapability::damage),
             Codec.FLOAT.optionalFieldOf("hit_radius", DEFAULT_HIT_RADIUS).forGetter(BowlCapability::hitRadius),
             Codec.INT.optionalFieldOf("coin_from_hit", DEFAULT_COIN_FROM_HIT).forGetter(BowlCapability::coinFromHit),
-            Codec.BOOL.optionalFieldOf("ricochet", true).forGetter(BowlCapability::ricochet)
+            Codec.BOOL.optionalFieldOf("ricochet", true).forGetter(BowlCapability::ricochet),
+            // What the explosive nut is: it bowls, and the first thing it touches sets off the
+            // `explosive` capability it also carries. Declared here rather than as a fifth trigger
+            // on that capability because "when" is the ball's business (it is the bowl that knows
+            // it hit something) while "how hard, how wide, what it draws" stays the blast's - one
+            // implementation of a blast, two ways to set it off.
+            Codec.BOOL.optionalFieldOf("explode_on_hit", false).forGetter(BowlCapability::explodeOnHit)
     ).apply(i, BowlCapability::new));
 
     public float speed() {
@@ -115,6 +128,10 @@ public final class BowlCapability implements PlantCapability {
         return coinFromHit;
     }
 
+    public boolean explodeOnHit() {
+        return explodeOnHit;
+    }
+
     public boolean ricochet() {
         return ricochet;
     }
@@ -130,7 +147,7 @@ public final class BowlCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new BowlCapability(speed, damage, hitRadius, coinFromHit, ricochet);
+        return new BowlCapability(speed, damage, hitRadius, coinFromHit, ricochet, explodeOnHit);
     }
 
     @Override
@@ -222,6 +239,17 @@ public final class BowlCapability implements PlantCapability {
             level.emitEffect("", plant.cellX(), plant.cellY(), PvzceSounds.UI_POINTS);
         }
         hitCooldown = HIT_COOLDOWN_TICKS;
+        if (explodeOnHit) {
+            // Spent on the first thing it touches - and spent *through the blast it carries*, so
+            // the shape, the radius, the damage type and the cloud are the ones the plant's own
+            // `explosive` block declares. The ball itself goes with it: an explosive nut that kept
+            // rolling would be a second explosion down the lane.
+            ExplosiveCapability blast = plant.capability(ExplosiveCapability.class);
+            if (blast != null) {
+                blast.detonateNow();
+            }
+            return;
+        }
         if (ricochet) {
             // Knocked into the next lane, still going forward. `ricochet: false` keeps it
             // rolling straight; there is no "bounce back" mode, because a ball that turns
