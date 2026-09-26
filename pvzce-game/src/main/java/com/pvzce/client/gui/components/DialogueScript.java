@@ -30,11 +30,12 @@ import java.util.Set;
  *
  * <h2>The stage</h2>
  *
- * <p>Two characters may share the screen, one in each half of the window. A line says who is
- * there with {@code slots}; the script compares that with the line before it and starts a slide
- * for whoever appeared and a leave for whoever is gone. A line that says nothing about the stage
- * keeps the one it had, minus the speaker - so a conversation written the old way (one character,
- * no {@code slots} at all) stages exactly what it always did.
+ * <p>Two characters may share the screen, one in each half of the window. A line says who is there
+ * with {@code slots}; the script compares that with the line before it and starts a slide for
+ * whoever appeared and a leave for whoever is gone. A line that says nothing about the stage keeps
+ * it exactly as it was - which is how a conversation written the old way (one character, no
+ * {@code slots} at all) stages what it always did, and why a missing {@code slots} can never make
+ * somebody walk off.
  *
  * <p>Each slide has its own clock rather than sharing the conversation's, because there are now
  * three kinds of them: the opening one, one per arrival or departure mid-conversation, and the
@@ -403,10 +404,10 @@ final class DialogueScript {
      * Stages a line: arrivals slide in, departures slide out, and whoever was already there stays.
      *
      * <p>An arrival is a character who was not in {@link #stage} a moment ago; a departure is one
-     * who is in it and not in the new line's stage. A character who merely moves between halves,
-     * or who is already where the new line wants them, gets no slide at all - and that is also why
-     * nothing happens while the speaker changes: the stage of a line with no {@code slots} is the
-     * previous one, so the same single portrait is simply still there.
+     * who is in it and not in the new line's stage. A character who merely moves between halves, or
+     * who is already where the new line wants them, gets no slide at all - and that is also why
+     * nothing happens while the speaker changes: a line with no {@code slots} stages exactly the
+     * stage it already had, so the same portraits are simply still there.
      */
     private void enter(DialogueLine line, long nowNanos) {
         Map<Identifier, DialogueSlot> wanted = stageOf(line);
@@ -450,8 +451,19 @@ final class DialogueScript {
     }
 
     /**
-     * Who this line puts on stage: its own {@code slots}, or the previous stage with the speaker
-     * on their side - which is what every line written before {@code slots} existed means.
+     * Who this line puts on stage: its own {@code slots}, or the stage it already had.
+     *
+     * <p>A line with no {@code slots} is a line that says nothing about the stage, and the only
+     * thing that can mean is "nobody moves". It used to mean "the previous stage, with the speaker
+     * put back in their own half" - which is invisible in a one-character conversation and wrong the
+     * moment two characters share the screen: a line spoken by one of them while the other stood
+     * there was read as "and the other one leaves", so 3-2 had 缠 walk off in the middle of the
+     * scene and come back after 豌豆酱 was gone. Deriving a stage from a line that does not describe
+     * one was the mistake; the speaker's half is the stage's business, not their {@code side}'s
+     * (which is where their bubble goes).
+     *
+     * <p>The opening line is still staged from the speaker's side, because there is no previous
+     * stage to keep (see {@link #enter}).
      */
     private Map<Identifier, DialogueSlot> stageOf(DialogueLine line) {
         Map<Identifier, DialogueSlot> wanted = new LinkedHashMap<>();
@@ -468,11 +480,13 @@ final class DialogueScript {
             return wanted;
         }
         for (Map.Entry<Identifier, StagePortrait> entry : stage.entrySet()) {
-            if (!entry.getKey().equals(line.character())) {
-                wanted.put(entry.getKey(), entry.getValue().slot);
-            }
+            wanted.put(entry.getKey(), entry.getValue().slot);
         }
-        if (line.character() != null) {
+        if (wanted.isEmpty() && line.character() != null) {
+            // Nothing on stage yet and somebody is speaking: the first line of a conversation stands
+            // the speaker in their own half, which is what every conversation written before slots
+            // existed relies on. A player's line ({@code character == null}) stages nobody, so it
+            // leaves the stage empty rather than putting the player in it.
             wanted.put(line.character(), line.side().isRight() ? DialogueSlot.RIGHT : DialogueSlot.LEFT);
         }
         return wanted;

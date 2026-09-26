@@ -107,6 +107,34 @@ class DialogueStageTest {
         assertEquals(2, script.portraits().size());
     }
 
+    /**
+     * A line with no {@code slots} leaves the stage alone - it never walks anybody off.
+     *
+     * <p>This is the bug 3-2 shipped with: only the lines that changed the stage named it, and every
+     * other line re-derived the stage as "the previous one, plus the speaker in their own half". In a
+     * one-character conversation the two answers agree; with two characters on stage the second one
+     * was read as absent, so 缠 walked off in the middle of the scene and walked back on when the
+     * next line named her again.
+     */
+    @Test
+    void aLineWithNoSlotsLeavesTheStageAlone() {
+        DialogueScript script = scriptOf(
+                line(ENTANG, "bored", "又见面了", DialogueSlot.LEFT, List.of(), List.of()),
+                line(PEA, "fierce", "杂鱼你怎么跑这里来了！", DialogueSlot.RIGHT,
+                        List.of(at(DialogueSlot.LEFT, ENTANG), at(DialogueSlot.RIGHT, PEA)), List.of()),
+                line(PEA, "fierce", "坏蛋，怎么不告...", DialogueSlot.RIGHT, List.of(), List.of()),
+                line(PEA, "scared", "诶，你是...?", DialogueSlot.RIGHT, List.of(), List.of()));
+
+        assertTrue(script.advance());
+        assertTrue(script.advance(), "the line after the arrival says nothing about the stage");
+        assertEquals(2, script.portraits().size(), "so both characters are still standing there");
+        assertNull(script.slideOf(ENTANG), "and nobody is walking anywhere");
+        assertEquals(ENTANG, script.portraitIn(DialogueSlot.LEFT).character.id());
+        assertTrue(script.advance());
+        assertEquals(2, script.portraits().size(), "the same holds for every line after it");
+        assertNull(script.slideOf(ENTANG));
+    }
+
     /** A character the next line leaves out walks off, and is gone once their slide has played. */
     @Test
     void aCharacterTheNextLineLeavesOutWalksOff() {
@@ -243,6 +271,77 @@ class DialogueStageTest {
             }
         }
         assertTrue(problems.isEmpty(), "conversations that stage nothing:\n" + String.join("\n", problems));
+    }
+
+    /**
+     * Nobody leaves the stage while they still have something to say.
+     *
+     * <p>The rule the reader actually cares about, and the one 3-2 broke: a line that says nothing
+     * about the stage re-derived one, which silently moved 缠 out of the way and back. A character
+     * who speaks later has to be standing where they were, whatever the lines in between say - so a
+     * missing {@code slots} can never quietly empty or rearrange half the window.
+     */
+    @Test
+    void aCharacterDoesNotMoveOrLeaveWhileTheyStillHaveLines() {
+        List<String> problems = new ArrayList<>();
+        for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
+            var def = BuiltInRegistries.LEVELS.get(id);
+            if (def == null || def.dialogue() == null || def.dialogue().isEmpty()) {
+                continue;
+            }
+            List<com.pvzce.api.content.DialogueLine> lines = def.dialogue().lines();
+            DialogueScript script = DialogueScript.of(def.dialogue(), PLAYER);
+            java.util.Map<Identifier, DialogueSlot> previous = new java.util.HashMap<>();
+            for (int at = 0; at < lines.size(); at++) {
+                java.util.Set<Identifier> onStage = new java.util.HashSet<>();
+                java.util.Map<Identifier, DialogueSlot> where = new java.util.HashMap<>();
+                for (DialogueScript.StagePortrait staged : script.portraits()) {
+                    onStage.add(staged.character.id());
+                    where.put(staged.character.id(), staged.slot);
+                }
+                // A line that says nothing about the stage has to leave every half of the window
+                // exactly as it was - not merely keep the same cast. 3-2's bug was a character
+                // silently changing halves, which is invisible to a "who is on stage" check.
+                if (at > 0 && lines.get(at).slots().isEmpty()) {
+                    for (java.util.Map.Entry<Identifier, DialogueSlot> entry : previous.entrySet()) {
+                        if (where.get(entry.getKey()) != entry.getValue()) {
+                            problems.add(id + ": line " + at + " says nothing about the stage but moved "
+                                    + entry.getKey() + " from " + entry.getValue() + " to "
+                                    + where.get(entry.getKey()));
+                        }
+                    }
+                }
+                for (int later = at + 1; later < lines.size(); later++) {
+                    Identifier speaker = lines.get(later).character();
+                    if (speaker == null) {
+                        continue;
+                    }
+                    // Somebody who has not spoken yet is on their way in, not on their way out: a
+                    // character walks on at their first line (the arrival is staged by it).
+                    boolean alreadySpoke = false;
+                    for (int earlier = 0; earlier <= at; earlier++) {
+                        alreadySpoke |= speaker.equals(lines.get(earlier).character());
+                    }
+                    if (alreadySpoke && !onStage.contains(speaker)) {
+                        problems.add(id + ": " + speaker + " is off stage at line " + at
+                                + " but speaks again at line " + later);
+                        break;
+                    }
+                }
+                previous.clear();
+                previous.putAll(where);
+                if (!script.choose(0)) {
+                    script.advance();
+                }
+            }
+        }
+        assertTrue(problems.isEmpty(), "characters who move or leave while they still have lines:\n"
+                + String.join("\n", problems));
+    }
+
+    /** A line the player speaks: no character, and the conversation never draws it. */
+    private static boolean isPlayerLine(com.pvzce.api.content.DialogueLine line) {
+        return line.character() == null;
     }
 
     /**
