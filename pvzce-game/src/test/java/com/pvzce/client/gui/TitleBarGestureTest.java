@@ -65,8 +65,8 @@ class TitleBarGestureTest {
     @Test
     void aPressOnTheBarIsSwallowed() {
         assertTrue(gesture.press(LAYOUT, EMPTY_X, MIDDLE, 0.0));
-        assertFalse(gesture.press(LAYOUT, EMPTY_X, LAYOUT.height(), 0.0),
-                "one pixel below the bar is the game's");
+        assertFalse(gesture.press(LAYOUT, EMPTY_X, LAYOUT.activationHeight(), 0.0),
+                "below the band that answers is the game's");
     }
 
     @Test

@@ -720,8 +720,8 @@ public final class PvzceClient {
         } else {
             currentScreen().mouseMoved(window.cursorX(), window.cursorY());
         }
-        // Hover feedback for the buttons, in the same GUI coordinates the click path uses.
-        titleBar.mouseMoved(guiMouseX(window.cursorX()), guiMouseY(window.cursorY()));
+        // Hover feedback for the buttons, in the same top-down GUI space the click path uses.
+        titleBar.mouseMoved(guiMouseX(window.cursorX()), guiMouseYTopDown());
     }
 
     // ------------------------------------------------------------------
@@ -745,7 +745,7 @@ public final class PvzceClient {
     private void dispatchMouseClicked(int button) {
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
-        if (titleBar.mousePressed(guiX, guiY)) {
+        if (titleBar.mousePressed(guiX, guiMouseYTopDown())) {
             return;
         }
         if (overlay != null) {
@@ -773,7 +773,7 @@ public final class PvzceClient {
     private void dispatchMouseReleased() {
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
-        if (titleBar.mouseReleased(guiX, guiY)) {
+        if (titleBar.mouseReleased(guiMouseX(window.cursorX()), guiMouseYTopDown())) {
             return;
         }
         if (overlay != null) {
@@ -815,6 +815,24 @@ public final class PvzceClient {
         return guiX * window.width() / (double) Math.max(1, guiWidth());
     }
 
+    /**
+     * The pointer's Y in GUI units, <b>measured down from the top</b>.
+     *
+     * <p>Not a second {@code guiMouseY}: the GUI projection's origin is the bottom, so
+     * {@link #guiMouseY} flips. The window title bar is anchored to the top edge like every desktop
+     * title bar, and hit-testing it in the flipped space put the bar's answer at the opposite end of
+     * the window from its paint - the click landed on the button on screen and missed in the test.
+     * This converts once, for the bar, so no call site has to know both orientations.
+     */
+    private double guiMouseYTopDown() {
+        // The ratio is framebuffer pixels per GUI unit, which is NOT guiScale in general: the
+        // two agree only while the window and the framebuffer are the same size, and the
+        // compositor is free to resize the window after GLFW reported one (the reported window
+        // here is 1408 tall while guiHeight is 704, so one GUI unit is two device pixels). Using
+        // guiScale instead put the bar's answer half a window away from its own paint.
+        return window.cursorY() * guiHeight() / (double) Math.max(1, window.height());
+    }
+
     /** Raw framebuffer Y (top-down) for a logical GUI Y: the inverse of {@link #guiMouseY}. */
     private double rawMouseY(double guiY) {
         return window.height() - guiY * window.height() / (double) Math.max(1, guiHeight());
@@ -831,7 +849,7 @@ public final class PvzceClient {
     private ScrollRegion gestureRegionAt(double guiX, double guiY) {
         // The title bar is not a scroll region, and saying so here is what keeps a press on it
         // from being held back as a possible swipe: chrome reacts on press, like a real title bar.
-        if (titleBar.contains(guiX, guiY)) {
+        if (titleBar.contains(guiMouseX(window.cursorX()), guiMouseYTopDown())) {
             return null;
         }
         return overlay != null
@@ -1023,6 +1041,7 @@ public final class PvzceClient {
         // which screen drew underneath it.
         beginGuiView();
         titleBar.render();
+        renderPointerProbe();
         // One-shot atlas dump: the glyph atlas is uploaded from memory rather than
         // decoded from a PNG, so when text renders wrong there is otherwise no file to
         // look at. `-Dpvzce.dumpFontAtlas=<dir>` writes it after the first drawn frame.
@@ -1035,6 +1054,49 @@ public final class PvzceClient {
         // leave the scissor test enabled for the rest of the session.
         clipping.reset();
         RenderSystem.checkGlError("frame");
+    }
+
+    /**
+     * {@code -Dpvzce.tracePointer=true}: draws where the game believes the pointer is.
+     *
+     * <p>Two marks, because either one alone is ambiguous. The hollow square is the reported point
+     * in GUI logical pixels; the bar at the very top is the strip the window title bar considers
+     * its own. If the square is not under the real cursor, the pointer coordinate space is wrong;
+     * if it is under the cursor but the top strip is somewhere else on screen, the bar is drawn in
+     * the wrong place. Grey, small and off by default so it cannot end up in a screenshot run.
+     */
+    private void renderPointerProbe() {
+        if (!Boolean.getBoolean("pvzce.tracePointer")) {
+            return;
+        }
+        float x = (float) guiMouseX(window.cursorX());
+        // Same top-down space as the window title bar: this mark has to land on the same pixel the
+        // bar's hit test answers for, or the probe itself becomes another way to be fooled.
+        float y = guiHeight() - (float) guiMouseYTopDown();
+        float mark = 9F;
+        // The rectangle is the strip the title bar claims for hit-testing, drawn in screen space
+        // from the same layout, so it can be compared against where the bar's paint visibly is.
+        com.pvzce.client.gui.WindowTitleBar.Layout layout = titleBar.layout();
+        if (layout != null) {
+            // The painted bar's lower edge and the (slightly lower) edge that answers the pointer.
+            drawSolid(0F, guiHeight() - layout.height(), guiWidth(), 1F, 0.95F, 0F, 1F, 0F, 0.9F);
+            drawSolid(0F, guiHeight() - layout.activationHeight(), guiWidth(), 1F,
+                    0.95F, 1F, 1F, 1F, 0.9F);
+        }
+        drawSolid(x - mark, y, mark * 2F, 1F, 0.96F, 1F, 0F, 0F, 1F);
+        drawSolid(x, y - mark, 1F, mark * 2F, 0.96F, 1F, 0F, 0F, 1F);
+        if (clientTick % 30 == 0) {
+            // glfwGetCursorPos and glfwGetWindowSize are asked live, not read from the cached
+            // callback values, so "the callback and my conversion disagree" shows up as two
+            // different numbers on one line instead of needing two runs.
+            double[] live = window.liveCursor();
+            int[] liveWindow = window.liveWindowSize();
+            LOGGER.info("[指针探针] 回调指针={},{} GLFW现场指针={},{} gui={},{}"
+                            + " 缓存窗口={}x{} GLFW现场窗口={}x{} framebuffer={}x{} gui空间={}x{}",
+                    window.cursorX(), window.cursorY(), live[0], live[1], x, y,
+                    window.width(), window.height(), liveWindow[0], liveWindow[1],
+                    window.width(), window.height(), guiWidth(), guiHeight());
+        }
     }
 
     /** One-second sliding window FPS sample, refreshed twice per second like MC's debug chart. */

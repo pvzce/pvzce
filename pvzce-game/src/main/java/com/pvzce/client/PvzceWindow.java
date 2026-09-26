@@ -52,6 +52,8 @@ public final class PvzceWindow implements AutoCloseable {
     }
 
     private long handle;
+    /** The button a smoke run is holding down, or {@code null}; see {@link #pressButtonForSmoke}. */
+    private Integer syntheticButtonDown;
     /** The window title, kept because GLFW cannot read it back. */
     private final String title;
     private final ConcurrentLinkedQueue<Integer> typedChars = new ConcurrentLinkedQueue<>();
@@ -262,6 +264,26 @@ public final class PvzceWindow implements AutoCloseable {
         cursorY = y;
     }
 
+    /** {@code glfwGetCursorPos} right now, bypassing the callback cache, for diagnostics. */
+    public double[] liveCursor() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            java.nio.DoubleBuffer x = stack.mallocDouble(1);
+            java.nio.DoubleBuffer y = stack.mallocDouble(1);
+            GLFW.glfwGetCursorPos(handle, x, y);
+            return new double[]{x.get(0), y.get(0)};
+        }
+    }
+
+    /** {@code glfwGetWindowSize} right now, bypassing the cached framebuffer size. */
+    public int[] liveWindowSize() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer w = stack.mallocInt(1);
+            IntBuffer h = stack.mallocInt(1);
+            GLFW.glfwGetWindowSize(handle, w, h);
+            return new int[]{w.get(0), h.get(0)};
+        }
+    }
+
     /** The GLFW window handle, for the native layers that need it. */
     public long handle() {
         return handle;
@@ -384,7 +406,30 @@ public final class PvzceWindow implements AutoCloseable {
     }
 
     public boolean isMouseButtonDown(int button) {
+        // A smoke run holding a synthetic button: the frame loop reads the button's state to decide
+        // whether a press is a click or a drag, so a synthetic press that only reached the dispatch
+        // would never take the drag branch (see SmokeDriver's `pvzce.smokeHold`). This is a mask
+        // over the platform state, not a fake click - nothing is written to GLFW.
+        Integer synthetic = syntheticButtonDown;
+        if (synthetic != null && synthetic == button) {
+            return true;
+        }
         return GLFW.glfwGetMouseButton(handle, button) == GLFW.GLFW_PRESS;
+    }
+
+    /**
+     * Presses a button on behalf of a smoke run, or clears the synthetic state with {@code null}.
+     *
+     * <p>The press goes into the same queue {@link #pollMouseButton()} drains, so the frame loop
+     * sees it where a real press arrives - which is the whole point: a hook that calls
+     * {@code dispatchMouseClicked} directly skips the frame loop's own press/drag/release logic and
+     * is green on a path no device takes.
+     */
+    public void pressButtonForSmoke(Integer button) {
+        this.syntheticButtonDown = button;
+        if (button != null) {
+            mouseButtons.add(button);
+        }
     }
 
     /** Applies the video-settings vsync value immediately. */

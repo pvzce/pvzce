@@ -25,14 +25,41 @@ class WindowTitleBarTest {
 
     @Test
     void barHeightScalesWithTheGuiAndStaysLegible() {
-        // 1.9% of the GUI height, with a floor and a ceiling. The floor is what every real desktop
-        // hits: a 1440p window at gui_scale 2 is 720 GUI units tall, and 720/240 = 3 would be an
-        // invisible sliver, so the bar is 18 units there and stays 18 at any smaller GUI.
-        assertEquals(18, Layout.of(GUI_WIDTH, 240).height(), "a tiny GUI clamps to the floor");
-        assertEquals(18, Layout.of(GUI_WIDTH, 720).height(),
-                "the floor is what the reported 1440p window lands on");
-        assertEquals(24, Layout.of(GUI_WIDTH, 5760).height(), "5760/240, above the floor");
-        assertEquals(46, Layout.of(GUI_WIDTH, 20_000).height(), "a huge GUI clamps to the ceiling");
+        // Two floors and a ceiling. The GUI-proportional part (1/240 of the height) only wins on a
+        // very tall window; everywhere else the bar is held at MIN_PHYSICAL_HEIGHT device pixels,
+        // because it is a pointer target: 44 px at gui_scale 2 is 22 GUI units, and that is what
+        // the reported 1440p desktop gets.
+        assertEquals(22, Layout.of(GUI_WIDTH, 720, 2F).height(),
+                "the reported desktop: 44 physical px at gui_scale 2");
+        assertEquals(44, Layout.of(GUI_WIDTH, 240, 1F).height(),
+                "an unscaled GUI needs the whole 44 pixels");
+        assertEquals(24, Layout.of(GUI_WIDTH, 5760, 2F).height(), "5760/240 wins over the floor");
+        for (int guiHeight : new int[]{240, 360, 540, 720, 1080}) {
+            for (float scale : new float[]{1F, 1.5F, 2F, 3F}) {
+                Layout layout = Layout.of(GUI_WIDTH, guiHeight, scale);
+                assertTrue(layout.height() * scale >= 44F,
+                        "gui " + guiHeight + " at scale " + scale
+                                + " must still be a 44-device-pixel target");
+            }
+        }
+    }
+
+    @Test
+    void theBarAnswersAPointerThatIsSlightlyLow() {
+        // This is the bug the class shipped with, in one assertion. The report was "the three
+        // buttons do nothing": the pointer sat inside the painted bar and outside the region that
+        // answered, because the answer used the wrong Y and a bar that ended at its last pixel.
+        // The misses were at raw y = 12.7, 14.5 and 19.0 device pixels, i.e. 6..10 GUI units down
+        // from the top on the reported desktop.
+        Layout layout = Layout.of(GUI_WIDTH, 720, 2F);
+        for (double unitsBelowTop : new double[]{0, 6.35, 9.5}) {
+            assertTrue(layout.contains(GUI_WIDTH / 2.0, unitsBelowTop),
+                    unitsBelowTop + " GUI units below the top is on the bar");
+        }
+        assertTrue(layout.activationHeight() > layout.height(),
+                "the band that answers is a little taller than the paint, on purpose");
+        assertFalse(layout.contains(GUI_WIDTH / 2.0, layout.activationHeight()),
+                "and it still stops: the strip below belongs to the game");
     }
 
     @Test
@@ -79,13 +106,14 @@ class WindowTitleBarTest {
     @Test
     void aPointOffTheBarBelongsToTheGame() {
         Layout layout = Layout.of(GUI_WIDTH, GUI_HEIGHT);
-        // One pixel below the bar is the game's: that boundary is what keeps a click on the top row
-        // of the card bar out of the window chrome.
-        assertFalse(layout.contains(600, layout.height()));
+        // Below the region that answers - not below the paint: the band between the two is on
+        // purpose (see theBarAnswersAPointerThatIsSlightlyLow). Past it, the game gets the click,
+        // which is what keeps the top row of the card bar out of the window chrome.
+        assertFalse(layout.contains(600, layout.activationHeight()));
         assertFalse(layout.contains(600, -1));
         assertFalse(layout.contains(-1, 5));
         assertFalse(layout.contains(GUI_WIDTH, 5));
-        assertNull(layout.buttonAt(600, layout.height()));
+        assertNull(layout.buttonAt(600, layout.activationHeight()));
     }
 
     @Test

@@ -186,6 +186,34 @@ final public class SmokeDriver {
             Integer.getInteger("pvzce.smokeRelease");
     private boolean smokeReleaseDone;
     /**
+     * Development smoke hook: hold the mouse button from frame {@code hold} to
+     * {@code hold + holdFrames}, over the <b>frame loop</b> rather than over the dispatch.
+     *
+     * <p><b>Why the other hooks are not enough.</b> {@code smokeClick} and {@code smokeRelease} call
+     * {@code deliverRawClick} / {@code deliverRawRelease}, which jump straight to
+     * {@code dispatchMouseClicked} / {@code dispatchMouseReleased}. Everything the frame loop does
+     * around them is skipped: the gesture's press branch, the "is the button still down" poll that
+     * decides click-versus-drag, and every early return on the way. A control that works under a
+     * synthetic click and not under a real one is exactly the failure this hook exists to catch -
+     * the same lesson as {@code pvzce.smokeSwipe} (see 踩坑清单 116).
+     *
+     * <p>{@code pvzce.smokeHold=<x,yFromTop>} plus {@code pvzce.smokeHoldFrame=<n>} (default 60) and
+     * {@code pvzce.smokeHoldFrames=<n>} (default 3): the pointer is put there (warped, and recorded
+     * every frame because a Wayland compositor is free to ignore the warp), then the button is
+     * pressed and released through the polled state across those frames.
+     *
+     * <p><b>Y counts down from the top</b>, not up from the bottom like every other smoke hook:
+     * that is the space the pointer callback reports and the space the window title bar hit-tests
+     * in, so a "hold the close button" run can be written from the screenshot instead of from its
+     * mirror image.
+     */
+    private final double[] smokeHoldAt = parsePoint(System.getProperty("pvzce.smokeHold", ""));
+    private final int smokeHoldFrame = Integer.getInteger("pvzce.smokeHoldFrame", 60);
+    private final int smokeHoldFrames = Math.max(1, Integer.getInteger("pvzce.smokeHoldFrames", 3));
+    private boolean smokeHoldWarped;
+    private boolean smokeHoldPressed;
+    private boolean smokeHoldReleased;
+    /**
      * Development smoke hook: a whole swipe - press, travel in steps, release - as
      * {@code fromX,fromY,toX,toY} in logical GUI coordinates.
      *
@@ -403,8 +431,57 @@ final public class SmokeDriver {
         frameSamples = 0;
     }
 
+    /**
+     * Presses and releases the button across frames, so the frame loop's own input path runs.
+     *
+     * <p>The press is queued for {@code pollInput}'s button branch and reported as "still down"
+     * until the release frame, which is what a real hold looks like from inside the loop.
+     */
+    private void applySmokeHold(long clientTick) {
+        if (smokeHoldAt == null) {
+            return;
+        }
+        // Warped on the release frame at the earliest, never before the second frame: the window is
+        // resized by the compositor right after it is shown (2560x1440 asked for, 2560x1408 given on
+        // the machine this was written on), and a warp computed from the pre-clamp size lands off the
+        // top edge - which silently turns "hold the close button" into "hold nothing".
+        if (!smokeHoldWarped && clientTick >= Math.max(2, smokeHoldFrame - 2)) {
+            smokeHoldWarped = true;
+            double rawX = smokeHoldAt[0] * client.window().width()
+                    / (double) Math.max(1, client.guiWidth());
+            double rawY = smokeHoldAt[1] * client.window().height()
+                    / (double) Math.max(1, client.guiHeight());
+            System.out.println("[SMOKE] hold at x=" + smokeHoldAt[0] + " yFromTop=" + smokeHoldAt[1]
+                    + " raw=" + rawX + "," + rawY);
+            client.window().warpCursor(rawX, rawY);
+        }
+        if (clientTick >= smokeHoldFrame && !smokeHoldReleased) {
+            // Warping is only a request - on Wayland this compositor ignores glfwSetCursorPos
+            // outright, so the pointer stays wherever it was and a "hold the close button" run
+            // silently holds some other pixel. Recording the position is what the game actually
+            // reads (the cursor callback writes the same two fields), so re-recording it every
+            // frame until the release keeps the synthetic click where the run aimed it.
+            double rawX = smokeHoldAt[0] * client.window().width()
+                    / (double) Math.max(1, client.guiWidth());
+            double rawY = smokeHoldAt[1] * client.window().height()
+                    / (double) Math.max(1, client.guiHeight());
+            client.window().setPointerPosition(rawX, rawY);
+        }
+        if (!smokeHoldPressed && clientTick >= smokeHoldFrame) {
+            smokeHoldPressed = true;
+            client.window().pressButtonForSmoke(org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        }
+        if (smokeHoldPressed && !smokeHoldReleased
+                && clientTick >= smokeHoldFrame + smokeHoldFrames) {
+            smokeHoldReleased = true;
+            client.window().pressButtonForSmoke(null);
+            System.out.println("[SMOKE] hold released at frame " + clientTick);
+        }
+    }
+
     void beforeFrame() {
         long clientTick = client.clientTick();
+        applySmokeHold(clientTick);
         applySmokeCoins(clientTick);
         applyTrayClick();
         // Before the render, not after: the capture hook below runs after the buffers were

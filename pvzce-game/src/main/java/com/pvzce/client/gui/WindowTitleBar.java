@@ -50,9 +50,26 @@ public final class WindowTitleBar {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Window");
     /** GUI pixels per unit of bar height; the bar scales with the rest of the UI. */
     private static final int GUI_UNITS_PER_HEIGHT = 240;
-    /** Below this the bar's text and glyphs stop being legible, above it it is a billboard. */
+    /**
+     * How thick the bar has to be <em>on screen</em>, whatever the GUI scale is.
+     *
+     * <p>This is a pointer target before it is a decoration. The first version sized the bar purely
+     * from the GUI height (18 units = 36 physical pixels on the reported 1440p/gui_scale 2 desktop),
+     * and a click meant for the middle of a button missed it: the reported misses were at raw y =
+     * 12.7, 14.5 and 19.03 against a bar ending at 18 units - i.e. the pointer was <em>inside the
+     * painted bar</em> and outside the region that answered. Windows' own caption is 46 physical
+     * pixels and GNOME's header bar is 47, so ~44 is the number to match.
+     */
+    private static final int MIN_PHYSICAL_HEIGHT = 44;
     private static final int MIN_HEIGHT = 18;
-    private static final int MAX_HEIGHT = 46;
+    /**
+     * The area that answers the pointer, as a share of the painted bar.
+     *
+     * <p>The extra below the bar is forgiveness, not decoration: a title bar whose clickable region
+     * ends exactly at its last painted pixel is a bar people miss. It is deliberately small - the
+     * strip under the bar is the game's.
+     */
+    private static final float ACTIVATION_OF_HEIGHT = 1.2F;
     /** Button square/width against the bar height: Windows' caption buttons are 46x32. */
     private static final float BUTTON_WIDTH_OF_HEIGHT = 1.4375F;
     /** Title text height against the bar: leaves a margin above and below the caps. */
@@ -92,15 +109,52 @@ public final class WindowTitleBar {
      * when someone changes a coordinate convention. {@code y} is measured downwards from the top,
      * the way the pointer callback reports it - so the bar spans {@code [0, height)} while the same
      * bar is drawn from {@code surfaceHeight - height} upwards, and that flip lives in one place
-     * ({@code WindowTitleBar.render}).
+     * ({@code WindowTitleBar.render}). The <em>activation</em> height may be a little taller than
+     * the painted one; see {@link #activationHeight()}.
+     *
+     * <p><b>Y is top-down here, and that is the whole point.</b> The pointer callback reports
+     * "pixels below the top edge"; the GUI projection has its origin at the bottom. The first
+     * version of this bar hit-tested with the bottom-up pair, and it produced a bug that looked
+     * impossible: the red crosshair drawn from the pointer sat exactly on the buttons while the
+     * press at that same pointer was rejected - the crosshair followed one origin and the hit test
+     * the other. So the bar works in the pointer's own orientation and {@code PvzceClient} converts
+     * once, at the boundary ({@code guiMouseYTopDown}), instead of flipping per call site.
      */
     public record Layout(int surfaceWidth, int surfaceHeight, int height, int buttonWidth) {
-        /** Bar height from the GUI height, clamped so the text stays legible at any scale. */
-        public static Layout of(int surfaceWidth, int surfaceHeight) {
-            int height = Math.clamp(surfaceHeight / GUI_UNITS_PER_HEIGHT, MIN_HEIGHT, MAX_HEIGHT);
+        /**
+         * Bar height from the GUI height, with a floor in <em>physical</em> pixels because the bar
+         * is a pointer target: at gui_scale 2 a floor of 22 GUI units is 44 device pixels, which is
+         * what a desktop title bar measures (Windows 46, GNOME 47).
+         *
+         * <p>No upper cap: the proportional term is GUI height / 240, so it only exceeds the floor
+         * on a GUI taller than ~5300 units, and a bar that is a large share of an absurdly tall
+         * window is a more honest failure than one too thin to hit.
+         */
+        public static Layout of(int surfaceWidth, int surfaceHeight, float guiScale) {
+            float scale = Math.max(1F, guiScale);
+            // Proportional, then a physical floor. The floor is deliberately not capped by the
+            // window: it is 44 device pixels, which is smaller than any sane window, and a bar too
+            // thin to hit is a worse failure than a bar that is a large share of a tiny one.
+            // ceil, not round: rounding down leaves the bar a fraction of a pixel under the floor,
+            // which is exactly the "missed by one pixel" failure this floor exists to prevent.
+            int height = Math.max(MIN_HEIGHT,
+                    Math.max(surfaceHeight / GUI_UNITS_PER_HEIGHT,
+                            (int) Math.ceil(MIN_PHYSICAL_HEIGHT / scale)));
             return new Layout(surfaceWidth, surfaceHeight, height,
                     Math.max(1, Math.round(height * BUTTON_WIDTH_OF_HEIGHT)));
         }
+
+        /** Bar height for a window whose GUI scale is not known; assumes the scale is 1. */
+        public static Layout of(int surfaceWidth, int surfaceHeight) {
+            return of(surfaceWidth, surfaceHeight, 1F);
+        }
+
+        /** The height that answers the pointer: the painted bar plus a little below it. */
+        public int activationHeight() {
+            return Math.max(height, Math.round(height * ACTIVATION_OF_HEIGHT));
+        }
+
+
 
         /** The buttons' left edges, in {@link Button} order; all widths are {@link #buttonWidth}. */
         public int buttonLeft(Button button) {
@@ -124,12 +178,23 @@ public final class WindowTitleBar {
 
         /** Whether the point is on the bar at all - button or empty strip. */
         public boolean contains(double x, double y) {
-            return x >= 0 && x < surfaceWidth && y >= 0 && y < height;
+            return x >= 0 && x < surfaceWidth && y >= 0 && y < activationHeight();
         }
     }
 
     private final PvzceClient client;
     private final TitleBarGesture gesture = new TitleBarGesture();
+    /**
+     * {@code -Dpvzce.traceTitleBar=true}: one line per press and release with the numbers the hit
+     * test used.
+     *
+     * <p>Trace, not test. "The buttons are there but clicking them does nothing" has three causes
+     * that look identical from the outside: the press never reached the bar (the cursor is not
+     * where the bar is), it reached the bar but not a button, or it reached a button and the action
+     * was refused by the compositor. This prints the rectangle and the point, which separates the
+     * first two in one run - the third is already logged by {@link #activate}.
+     */
+    private final boolean trace = Boolean.getBoolean("pvzce.traceTitleBar");
 
     public WindowTitleBar(PvzceClient client) {
         this.client = client;
@@ -157,7 +222,14 @@ public final class WindowTitleBar {
      * close button somewhere it is not.
      */
     public Layout layout() {
-        return visible() ? Layout.of(client.guiWidth(), client.guiHeight()) : null;
+        if (!visible()) {
+            return null;
+        }
+        // The scale is passed through so the bar can hold a physical minimum: at gui_scale 2 a
+        // 22-unit bar is 44 device pixels, the size of a real desktop title bar.
+        float scale = client.guiHeight() <= 0 ? 1F
+                : client.window().height() / (float) client.guiHeight();
+        return Layout.of(client.guiWidth(), client.guiHeight(), scale);
     }
 
     /** Which button a GUI point is over, or {@code null}. */
@@ -177,8 +249,20 @@ public final class WindowTitleBar {
 
     /** Tracks the pointer for hover feedback; the client calls this once a frame. */
     public void mouseMoved(double guiX, double guiY) {
-        gesture.hover(layout(), guiX, guiY);
+        Layout layout = layout();
+        gesture.hover(layout, guiX, guiY);
+        if (trace && gesture.hovered() != lastTracedHover) {
+            lastTracedHover = gesture.hovered();
+            LOGGER.info("[标题栏] 悬停 gui={},{} 原始指针={},{} 窗口={}x{} gui={}x{} scale={} 命中={}",
+                    guiX, guiY, client.window().cursorX(), client.window().cursorY(),
+                    client.window().width(), client.window().height(),
+                    client.guiWidth(), client.guiHeight(), client.guiScale(),
+                    gesture.hovered());
+        }
     }
+
+    /** Last hover the trace printed, so the line appears when it changes and not 180 times a second. */
+    private Button lastTracedHover;
 
     /**
      * Whether the bar is in the middle of a press it owns.
@@ -196,7 +280,31 @@ public final class WindowTitleBar {
      * @return true when the bar consumed it and the game must not see it
      */
     public boolean mousePressed(double guiX, double guiY) {
-        return gesture.press(layout(), guiX, guiY, GLFW.glfwGetTime());
+        Layout layout = layout();
+        boolean owned = gesture.press(layout, guiX, guiY, GLFW.glfwGetTime());
+        if (trace) {
+            double[] live = client.window().liveCursor();
+            int[] liveWindow = client.window().liveWindowSize();
+            LOGGER.info("[标题栏] 按下 x={} 距顶={} 回调指针={},{} GLFW现场指针={},{}"
+                            + " 缓存窗口={}x{} GLFW现场窗口={}x{} 条={} 命中={}",
+                    guiX, guiY, client.window().cursorX(), client.window().cursorY(),
+                    live[0], live[1], client.window().width(), client.window().height(),
+                    liveWindow[0], liveWindow[1],
+                    layout == null ? "无（全屏或桌面已画边框）" : describe(layout), gesture.pressed());
+        }
+        return owned;
+    }
+
+    /** The bar and its three buttons as one line, for {@code -Dpvzce.traceTitleBar}. */
+    private String describe(Layout layout) {
+        StringBuilder text = new StringBuilder("0.." + layout.surfaceWidth() + " x 0.."
+                + layout.height() + "，按键 ");
+        for (Button button : Button.values()) {
+            int left = layout.buttonLeft(button);
+            text.append(button).append('[').append(left).append("..")
+                    .append(left + layout.buttonWidth()).append("] ");
+        }
+        return text.toString();
     }
 
     /**
@@ -206,6 +314,11 @@ public final class WindowTitleBar {
      */
     public boolean mouseReleased(double guiX, double guiY) {
         boolean owned = gesture.dragging() || contains(guiX, guiY);
+        Button heldOn = gesture.pressed();
+        if (trace) {
+            LOGGER.info("[标题栏] 抬起 x={} 距顶={} 按下的是={} 抬起在={}", guiX, guiY,
+                    heldOn, buttonAt(guiX, guiY));
+        }
         switch (gesture.release(layout(), guiX, guiY)) {
             case MINIMIZE -> activate(Button.MINIMIZE);
             case MAXIMIZE -> activate(Button.MAXIMIZE);
