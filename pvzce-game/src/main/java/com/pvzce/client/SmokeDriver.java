@@ -80,6 +80,22 @@ final public class SmokeDriver {
     private final String smokeAlmanacShots = System.getProperty("pvzce.smokeAlmanacShots", "");
     private final java.util.Set<Long> almanacShotsDone = new java.util.HashSet<>();
 
+    /**
+     * A filmstrip across menu pages: {@code frame:page,frame:page}, where {@code page} is any key
+     * {@code pvzce.smokeScreen} accepts.
+     *
+     * <p>For the same reason as {@link #smokeAlmanacShots}, one level up: a round of work that
+     * touches the title screen, the shop and the packs page needs a screenshot of each, and only
+     * one smoke launch is allowed per change. Paired with {@code captureEvery} this shoots all
+     * three in one run - and a page that only draws correctly when it is the first screen of the
+     * session is exactly what a second launch would have hidden.
+     *
+     * <p>Runs in {@link #beforeFrame()}, so the page named for a frame is the page that frame's
+     * buffer shows.
+     */
+    private final String smokePages = System.getProperty("pvzce.smokePages", "");
+    private final java.util.Set<Long> smokePagesDone = new java.util.HashSet<>();
+
     /** Saves the editor once, so a smoke run can verify the write round trip. */
     private final boolean smokeSave = Boolean.getBoolean("pvzce.smokeSave");
     /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
@@ -186,7 +202,20 @@ final public class SmokeDriver {
      * normal run and a mistyped smoke run behave the same way.
      */
     void applyInitialScreen() {
-        String smokeScreen = System.getProperty("pvzce.smokeScreen", "");
+        if (!openNamedScreen(System.getProperty("pvzce.smokeScreen", ""))) {
+            client.setScreenReplacing(new TitleScreen(client));
+        }
+    }
+
+    /**
+     * Opens the screen a {@code pvzce.smokeScreen}-style key names, and answers whether it knew it.
+     *
+     * <p>A method rather than the body of {@link #applyInitialScreen} because the filmstrip hook
+     * ({@code pvzce.smokePages}) walks the same keys: one launch is allowed per change (see
+     * {@code docs/冒烟与截图指南.md}), so a round that touches three menus has to shoot all three
+     * in one run - and "the page the key names" must mean exactly the same thing in both.
+     */
+    boolean openNamedScreen(String smokeScreen) {
         if ("mods".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.mods.ModsScreen(client));
         } else if ("settings".equals(smokeScreen)) {
@@ -251,8 +280,9 @@ final public class SmokeDriver {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.AwardScreen(client,
                     new LevelRewardS2C("pvzce:yard/adventure/1_1", 0, 100, 462, "")));
         } else {
-            client.setScreenReplacing(new TitleScreen(client));
+            return false;
         }
+        return true;
     }
 
     /**
@@ -315,6 +345,7 @@ final public class SmokeDriver {
         // Before the render, not after: the capture hook below runs after the buffers were
         // swapped, so a page turned in afterFrame would be one frame late in the PNG.
         applyAlmanacShots(client.currentScreen(), clientTick);
+        applySmokePages(clientTick);
         // Development smoke hook: request a level automatically so CI can
         // render gameplay without driving the title/level screens.
         if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
@@ -553,6 +584,42 @@ final public class SmokeDriver {
             }
             System.out.println("[SMOKE] almanac frame " + frame + " -> " + item.trim()
                     + " (page=" + almanac.pageIndex() + " entry=" + almanac.currentEntry() + ")");
+        }
+    }
+
+    /**
+     * {@code pvzce.smokePages}: walk a schedule of menu pages, one screen per named frame.
+     *
+     * <p>The same shape as {@link #applyAlmanacShots} and for the same reason - a run that has to
+     * click its way to a page breaks the next time a menu moves - but across screens rather than
+     * within one. An unknown key is reported rather than ignored: a silently skipped page is a
+     * screenshot that looks like the hook did nothing.
+     */
+    private void applySmokePages(long clientTick) {
+        if (smokePages.isBlank()) {
+            return;
+        }
+        for (String item : smokePages.split(",")) {
+            String[] parts = item.trim().split(":");
+            if (parts.length < 2) {
+                continue;
+            }
+            long frame;
+            try {
+                frame = Long.parseLong(parts[0].trim());
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            if (clientTick != frame || !smokePagesDone.add(frame)) {
+                continue;
+            }
+            String page = parts[1].trim();
+            if (openNamedScreen(page)) {
+                System.out.println("[SMOKE] frame " + frame + " -> page "
+                        + page + " (" + client.currentScreen().getClass().getSimpleName() + ")");
+            } else {
+                System.out.println("[SMOKE] frame " + frame + " -> unknown page '" + page + "'");
+            }
         }
     }
 

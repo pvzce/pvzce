@@ -157,6 +157,17 @@ public abstract class Screen {
         }
     }
 
+    /**
+     * The cover-fit transform, for a caller that draws a background itself.
+     *
+     * <p>Public so the shared menu-page canvas ({@code gui.layout.MenuPageCanvas}) can map the
+     * title screen's field the way the title screen does. It is the same object
+     * {@link #coverFit} returns: one formula, two callers, and no third copy of it.
+     */
+    public CoverFit coverFitFor(int textureWidth, int textureHeight) {
+        return coverFit(textureWidth, textureHeight);
+    }
+
     /** The cover-fit transform for an image of the given size in the current window. */
     protected CoverFit coverFit(int textureWidth, int textureHeight) {
         float scale = Math.max(client.guiWidth() / (float) Math.max(1, textureWidth),

@@ -164,6 +164,29 @@ class GuiComponentsRegressionTest {
         assertEquals(4, list.selectedIndex());
     }
 
+    /**
+     * {@link AbstractSelectionList#scrollOffset()} reports what the list draws with.
+     *
+     * <p>The getter exists for a screen that hit-tests its own rows - the shop buys the row under
+     * the cursor - and its whole value is being the <em>clamped</em> offset: a raw accumulator would
+     * let that screen compute a first visible row past the end of its list.
+     */
+    @Test
+    void listScrollOffsetIsTheClampedOneItDrawsWith() {
+        AbstractSelectionList<String> list = new AbstractSelectionList<>(0, 0, 200, 40, 20,
+                (client, entry, x, y) -> {
+                });
+        list.setEntries(List.of("a", "b", "c", "d", "e"));
+        assertEquals(0, list.scrollOffset(), "a fresh list is at the top");
+
+        // Five rows of 20 in a 40-tall box: the furthest down it can go is 60.
+        list.mouseScrolled(10, 10, -1000);
+        assertEquals(60, list.scrollOffset(), "scrolled past the end clamps to the content extent");
+
+        list.mouseScrolled(10, 10, 1000);
+        assertEquals(0, list.scrollOffset(), "and back up clamps to the first row");
+    }
+
     /** The shared text helpers behave the same for every caller. */
     @Test
     void sharedTextHelpersAreConsistent() {

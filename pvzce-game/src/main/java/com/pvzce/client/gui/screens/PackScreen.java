@@ -5,7 +5,8 @@ import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
-import com.pvzce.client.gui.layout.GuiLayout;
+import com.pvzce.client.gui.layout.MenuPageCanvas;
+import com.pvzce.client.gui.layout.MenuPageCanvas.Canvas;
 import com.pvzce.common.resource.PackSelection;
 import com.pvzce.common.resource.PvzceResourceManager.AvailablePack;
 
@@ -19,9 +20,13 @@ import java.util.Map;
 /**
  * The packs page: what is in this game directory, what each pack holds, and which ones are on.
  *
- * <p>Shaped like {@code ModsScreen} - a list on the left, the selected entry's detail on the
- * right - because the question is the same one ("what is installed, and what is this one?"), and
- * two pages that answer it should not be two different layouts.
+ * <p>Shaped like {@code ModsScreen} - a list on the left, the selected entry's detail on the right
+ * - because the question is the same one ("what is installed, and what is this one?"), and two
+ * pages that answer it should not be two different layouts. What it now shares with the shop
+ * instead of with the mod list is its <em>surface</em>: both are {@link MenuPageCanvas} pages, so
+ * the two list-and-detail columns stand on wooden panels rather than on dark rectangles drawn
+ * straight over a screenshot of the title screen. That was the visible defect here - text over a
+ * photograph, and a list whose background ended where its last row did.
  *
  * <h2>Switching a pack off is a file plus an order</h2>
  *
@@ -33,29 +38,34 @@ import java.util.Map;
  */
 public final class PackScreen extends Screen {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Packs");
-    private static final int LEFT_X = 24;
-    /** One line per pack: the state tick, the name, its kind and its file count. */
-    private static final int ROW_HEIGHT = 34;
+
     /**
-     * The hint's size, and the page's only text size that the layout measures with.
+     * The page's composition, in canvas units.
      *
-     * <p>The list's top edge is derived from the footer (back button + hint), so the two cannot
-     * overlap however short the window is.
+     * <p>Two panels side by side under the title band, with the footer under them. The left one is
+     * narrower than the mod list's: this page's right side carries a description, the file counts
+     * and two buttons, which a 45/55 split cannot hold at a small window - the same reason the
+     * first version of this page used 45/55 in GUI units.
      */
-    private static final float HINT_SCALE = 0.8F;
+    private static final float HEADER_TITLE_X = 28F;
+    private static final float HEADER_BASELINE = 40F;
+    private static final float HEADER_TITLE_SIZE = 1.9F;
 
-    private int leftWidth;
-    private int rightX;
-    private int rightWidth;
-    /** The bottom of the title band: the top of the list and of the detail text. */
-    private int listTop;
-    private float titleScale;
-    private float titleY;
-    private float hintY;
-    /** The footer line that carries this page's notice, or the last thing the server said. */
-    private float statusY;
-    private int actionHeight;
+    private static final float PANEL_TOP = 72F;
+    private static final float PANEL_BOTTOM = 512F;
+    private static final float PANEL_H = PANEL_BOTTOM - PANEL_TOP;
+    private static final float LEFT_X = 24F;
+    private static final float LEFT_W = MenuPageCanvas.NATIVE_WIDTH * 44F / 100F;
+    private static final float RIGHT_X = LEFT_X + LEFT_W + 16F;
+    private static final float RIGHT_W = MenuPageCanvas.NATIVE_WIDTH - RIGHT_X - 24F;
 
+    /** One line per pack: the state tick, the name, its kind and its file count. */
+    private static final int ROW_HEIGHT = 56;
+
+    private static final float FOOTER_Y = 524F;
+    private static final float FOOTER_BUTTON_H = 36F;
+
+    private Canvas canvas = new Canvas(1F, 0F, 0F);
     private AbstractSelectionList<PackRow> packList;
     private Button toggleButton;
     private final PackSelection selection;
@@ -76,50 +86,37 @@ public final class PackScreen extends Screen {
 
     @Override
     protected void init() {
-        int guiW = client.guiWidth();
-        int guiH = client.guiHeight();
-        int titleReserve = Math.max(38, Math.min(58, guiH / 5));
-        // A 45/55 split rather than the mod list's fixed left column: at the default window this
-        // page's right side carries a description and the content counts, and the mod list's
-        // 260-unit floor would leave it 107 units to draw them in.
-        leftWidth = Math.max(190, Math.min(420, guiW * 45 / 100));
-        rightX = LEFT_X + leftWidth + 16;
-        rightWidth = Math.max(120, guiW - rightX - 16);
+        canvas = MenuPageCanvas.fit(client);
 
-        titleScale = Math.min(1.8F, Math.max(1.0F, guiH / 140F));
-        titleY = guiH - titleReserve + 4F;
-        listTop = guiH - titleReserve - 4;
-
-        // The footer: the back button, then the hint line, then the line this page has to say.
-        // The list gets whatever is left, because the page has no fixed number of rows - and the
-        // status line lives down here rather than in the detail column, which has no room to
-        // spare on a short window.
-        int buttonHeight = GuiLayout.fitHeight(guiH, 36, 1, 0, 0);
-        addWidget(new Button(LEFT_X, 8, 140, buttonHeight,
-                GuiLang.raw("pvzce.back", "Back"), this::requestClose));
-        float lineHeight = client.fonts().body().lineHeight(HINT_SCALE);
-        hintY = 8 + buttonHeight + 6;
-        statusY = hintY + (int) lineHeight + 4;
-        int listY = (int) statusY + (int) lineHeight + 8;
-        packList = new AbstractSelectionList<>(LEFT_X, listY, leftWidth,
-                Math.max(60, listTop - listY), ROW_HEIGHT, this::renderRow);
+        packList = new AbstractSelectionList<>(
+                Math.round(canvas.interiorX(LEFT_X)),
+                Math.round(canvas.interiorBottom(PANEL_TOP, PANEL_H)),
+                Math.round(canvas.interiorWidth(LEFT_W)),
+                Math.round(canvas.interiorHeight(PANEL_H)),
+                ROW_HEIGHT, this::renderRow);
         addWidget(packList);
 
-        // The detail pane's two actions, along the bottom of the right column.
-        actionHeight = GuiLayout.fitHeight(guiH, 40, 1, 0, 0);
-        int toggleWidth = Math.max(90, Math.min(160, rightWidth / 3));
-        toggleButton = new Button(rightX, 8, toggleWidth, actionHeight, "", this::applyToggle);
+        // The detail pane's two actions, along its bottom, and the page's back button in the
+        // footer. All three are placed by the canvas, so they sit in the same place relative to
+        // the panels at every window size - and the pair starts inside the frame's own border,
+        // which is 9 source pixels wide, rather than at the panel's outer edge.
+        float actionWidth = (RIGHT_W - 18F) / 2F;
+        toggleButton = canvas.widgetAt(client, RIGHT_X + 9F + actionWidth / 2F, PANEL_BOTTOM - 52F,
+                actionWidth, FOOTER_BUTTON_H, "", this::applyToggle);
         addWidget(toggleButton);
-        addWidget(new Button(rightX + toggleWidth + 6, 8,
-                Math.max(90, Math.min(170, rightWidth - toggleWidth - 6)), actionHeight,
-                GuiLang.raw("gui.pvzce.packs.reload", "Reload"), this::requestReload));
+        addWidget(canvas.widgetAt(client, RIGHT_X + 9F + actionWidth * 1.5F + 8F,
+                PANEL_BOTTOM - 52F, actionWidth, FOOTER_BUTTON_H,
+                GuiLang.raw("gui.pvzce.packs.reload", "重新加载"), this::requestReload));
+        addWidget(canvas.widgetAt(client, MenuPageCanvas.NATIVE_WIDTH / 2F, FOOTER_Y,
+                190F, FOOTER_BUTTON_H, GuiLang.raw("pvzce.back", "返回"), this::requestClose));
 
         rescan();
     }
 
     @Override
     public boolean blurredBackdrop() {
-        return true;
+        // Off: the page paints its own field (the title screen's background under a flat dim).
+        return false;
     }
 
     /**
@@ -230,17 +227,17 @@ public final class PackScreen extends Screen {
 
     private static String headingFor(AvailablePack.Kind kind) {
         return switch (kind) {
-            case BUILT_IN -> GuiLang.raw("gui.pvzce.packs.heading.builtin", "Built-in");
-            case RESOURCEPACK -> GuiLang.raw("gui.pvzce.packs.heading.resourcepacks", "Resource packs");
-            case DATAPACK -> GuiLang.raw("gui.pvzce.packs.heading.datapacks", "Data packs");
+            case BUILT_IN -> GuiLang.raw("gui.pvzce.packs.heading.builtin", "内置");
+            case RESOURCEPACK -> GuiLang.raw("gui.pvzce.packs.heading.resourcepacks", "资源包");
+            case DATAPACK -> GuiLang.raw("gui.pvzce.packs.heading.datapacks", "数据包");
         };
     }
 
     private static String kindLabel(AvailablePack.Kind kind) {
         return switch (kind) {
-            case BUILT_IN -> GuiLang.raw("gui.pvzce.packs.kind.builtin", "built-in");
-            case RESOURCEPACK -> GuiLang.raw("gui.pvzce.packs.kind.resourcepack", "resource pack");
-            case DATAPACK -> GuiLang.raw("gui.pvzce.packs.kind.datapack", "data pack");
+            case BUILT_IN -> GuiLang.raw("gui.pvzce.packs.kind.builtin", "内置包");
+            case RESOURCEPACK -> GuiLang.raw("gui.pvzce.packs.kind.resourcepack", "资源包");
+            case DATAPACK -> GuiLang.raw("gui.pvzce.packs.kind.datapack", "数据包");
         };
     }
 
@@ -280,11 +277,11 @@ public final class PackScreen extends Screen {
         if (selected == null) {
             toggleButton.setLabel("");
         } else if (builtIn) {
-            toggleButton.setLabel(GuiLang.raw("gui.pvzce.packs.builtin_on", "always on"));
+            toggleButton.setLabel(GuiLang.raw("gui.pvzce.packs.builtin_on", "始终启用"));
         } else {
             toggleButton.setLabel(GuiLang.raw(
                     selected.enabled() ? "gui.pvzce.packs.disable" : "gui.pvzce.packs.enable",
-                    selected.enabled() ? "Disable" : "Enable"));
+                    selected.enabled() ? "停用" : "启用"));
         }
     }
 
@@ -309,7 +306,7 @@ public final class PackScreen extends Screen {
     /** The reload button: the same round trip with nothing changed, for a pack edited on disk. */
     private void requestReload() {
         reloadsAtRequest = client.contentReloads();
-        showNotice(GuiLang.raw("gui.pvzce.packs.reloading", "Reloading…"));
+        showNotice(GuiLang.raw("gui.pvzce.packs.reloading", "正在重新加载…"));
         client.requestPackReload();
     }
 
@@ -324,23 +321,26 @@ public final class PackScreen extends Screen {
     @Override
     public void render() {
         client.beginGuiView();
-        if (!renderBlurredBackdrop(0.10F, 0.11F, 0.14F, 0.62F)) {
-            renderBackground(0.08F, 0.1F, 0.12F);
-        }
-        client.fonts().button().draw(GuiLang.raw("gui.pvzce.packs.title", "Packs"),
-                LEFT_X + 10, titleY, titleScale, 1F, 1F, 1F, 1F);
-        client.fonts().body().draw(GuiLang.raw("gui.pvzce.packs.hint",
-                "A change takes effect after a reload"), LEFT_X + 10, hintY, HINT_SCALE,
-                0.7F, 0.75F, 0.7F, 1F);
-        renderStatus();
+        canvas = MenuPageCanvas.fit(client);
+        MenuPageCanvas.renderPageBackground(client, this, 0.22F);
+        canvas.header(client, MenuPageCanvas.NATIVE_WIDTH);
+        canvas.text(client, client.fonts().button(), GuiLang.raw("gui.pvzce.packs.title", "数据包"),
+                HEADER_TITLE_X, HEADER_BASELINE, HEADER_TITLE_SIZE, 1F, 1F, 1F, 1F);
+        canvas.textRight(client, client.fonts().body(),
+                GuiLang.raw("gui.pvzce.packs.hint", "改动在重新加载后生效"),
+                MenuPageCanvas.NATIVE_WIDTH - 28F, HEADER_BASELINE, 0.85F, 0.72F, 0.76F, 0.72F, 1F);
+
+        canvas.panel(client, LEFT_X, PANEL_TOP, LEFT_W, PANEL_H);
+        canvas.panel(client, RIGHT_X, PANEL_TOP, RIGHT_W, PANEL_H);
+        renderDetail();
         for (var widget : widgets) {
             widget.render(client);
         }
-        renderDetail();
+        renderStatus();
     }
 
     /**
-     * The page's own line, or whatever the server last said.
+     * The page's own line, or whatever the server last said, under the title band.
      *
      * <p>The server's line is the one that carries load failures: the page cannot parse a pack
      * itself, so "why did nothing happen" is answered by the message the reload sent back. The
@@ -349,18 +349,20 @@ public final class PackScreen extends Screen {
      */
     private void renderStatus() {
         String server = client.recentServerMessage();
-        if (!notice.isEmpty()) {
-            client.fonts().body().draw(notice, LEFT_X + 10, statusY, HINT_SCALE, 1F, 0.9F, 0.5F, 1F);
-        } else if (!server.isEmpty()) {
-            client.fonts().body().draw(server, LEFT_X + 10, statusY, HINT_SCALE, 1F, 0.5F, 0.45F, 1F);
+        String line = notice.isEmpty() ? server : notice;
+        if (line.isEmpty()) {
+            return;
         }
+        canvas.text(client, client.fonts().body(), line, LEFT_X + 4F, PANEL_TOP - 16F, 0.85F,
+                1F, notice.isEmpty() ? 0.55F : 0.9F, notice.isEmpty() ? 0.5F : 0.6F, 1F);
     }
 
     /** One list row: the state tick, the name, its kind, and how many files it holds. */
     private void renderRow(PvzceClient client, PackRow row, int x, int y) {
+        float unit = canvas.scale();
         if (row.isHeading()) {
-            client.fonts().body().draw(row.heading(), x + 2, y + ROW_HEIGHT * 0.3F, 0.95F,
-                    0.85F, 0.85F, 0.6F, 1F);
+            client.fonts().body().draw(row.heading(), x, y + ROW_HEIGHT * 0.3F, 0.95F * unit,
+                    0.88F, 0.82F, 0.58F, 1F);
             return;
         }
         AvailablePack pack = row.pack();
@@ -368,60 +370,69 @@ public final class PackScreen extends Screen {
         float tint = on ? 1F : 0.55F;
         // √ and × rather than ✓ and ✗: the bundled face is a Chinese one, and these are the two
         // forms it is certain to carry (× is already drawn all over the editor).
-        client.fonts().body().draw(on ? "√" : "×", x + 2, y + ROW_HEIGHT * 0.3F, 1F,
+        client.fonts().body().draw(on ? "√" : "×", x, y + ROW_HEIGHT * 0.3F, 1.1F * unit,
                 on ? 0.45F : 0.85F, on ? 0.9F : 0.35F, on ? 0.45F : 0.35F, 1F);
-        client.fonts().body().draw(pack.name(), x + 24, y + ROW_HEIGHT * 0.42F, 1F, tint, tint, tint, 1F);
-        client.fonts().body().draw(kindLabel(pack.kind()), x + 24, y + ROW_HEIGHT * 0.1F, 0.7F,
-                0.75F, 0.8F, 0.75F, 1F);
-        String count = row.files() + " " + GuiLang.raw("gui.pvzce.packs.files", "files");
-        float countScale = 0.75F;
+        client.fonts().body().draw(pack.name(), x + 24F * unit, y + ROW_HEIGHT * 0.46F,
+                1.05F * unit, tint, tint, tint, 1F);
+        client.fonts().body().draw(kindLabel(pack.kind()), x + 24F * unit, y + ROW_HEIGHT * 0.14F,
+                0.72F * unit, 0.75F, 0.8F, 0.75F, 1F);
+        String count = row.files() + " " + GuiLang.raw("gui.pvzce.packs.files", "个文件");
         client.fonts().body().draw(count,
-                LEFT_X + leftWidth - 14 - client.fonts().body().width(count, countScale),
-                y + ROW_HEIGHT * 0.25F, countScale, 0.8F, 0.8F, 0.85F, 1F);
+                x + packList.width() - 14F * unit
+                        - client.fonts().body().width(count, 0.78F * unit),
+                y + ROW_HEIGHT * 0.28F, 0.78F * unit, 0.8F, 0.8F, 0.85F, 1F);
     }
 
+    /**
+     * The right panel: what the selected pack is, and what is in it.
+     *
+     * <p>Drawn inside the panel's interior rather than from the panel's own left edge - the frame
+     * costs nine source pixels a side, and text that starts under the frame reads as clipped.
+     */
     private void renderDetail() {
         if (selected == null) {
             return;
         }
-        float y = listTop - client.fonts().body().lineHeight(1.4F);
-        client.fonts().button().draw(selected.name(), rightX, y, 1.4F, 1F, 1F, 1F, 1F);
-        y -= client.fonts().body().lineHeight(0.9F) + 8F;
-        // Kind, directory and state on one line: a short window leaves the detail column about
-        // four lines of room, and two of them spent on "which directory is this" would push the
-        // content counts off the page.
+        float unit = canvas.scale();
+        float textX = canvas.interiorX(RIGHT_X) + 6F * unit;
+        float textW = canvas.interiorWidth(RIGHT_W) - 12F * unit;
+        // Top down from the panel's inner top edge: the name, then the kind line, then the
+        // author's description, then the counts above the buttons.
+        float y = canvas.y(PANEL_TOP) - canvas.scaled(46F);
+        client.fonts().button().draw(selected.name(), textX, y, 1.5F * unit, 1F, 1F, 1F, 1F);
+
+        y -= client.fonts().body().lineHeight(0.85F * unit) + 10F * unit;
         String kindLine = kindLabel(selected.kind())
                 + (selected.path() == null ? "" : " · " + relativeDirectory(selected))
-                + (selected.enabled() ? "" : " · " + GuiLang.raw("gui.pvzce.packs.state_off", "Disabled"));
-        client.fonts().body().draw(kindLine, rightX, y, 0.85F, 0.75F, 0.85F, 0.75F, 1F);
+                + (selected.enabled() ? "" : " · " + GuiLang.raw("gui.pvzce.packs.state_off", "已停用"));
+        client.fonts().body().draw(kindLine, textX, y, 0.85F * unit, 0.75F, 0.85F, 0.75F, 1F);
 
-        // The description is the pack author's text, so it is wrapped rather than drawn as one
-        // line, and the summary hangs off whatever is left below it: on a short window the text
-        // is cut with an ellipsis instead of the counts being drawn over the buttons.
-        float lineHeight = client.fonts().body().lineHeight(0.85F) + 2F;
-        float descriptionTop = y - 18F;
-        float summaryHeadingMin = actionTop() + 30F;
-        float afterDescription = drawWrappedText(selected.description(), rightX, descriptionTop,
-                rightWidth, 0.85F, 0.9F, 0.9F, 0.9F, 1F, summaryHeadingMin + lineHeight);
-        float summaryHeading = Math.max(afterDescription - 4F, summaryHeadingMin);
-        client.fonts().body().draw(GuiLang.raw("gui.pvzce.packs.summary", "Contents"),
-                rightX, summaryHeading, 0.9F, 0.85F, 0.85F, 0.6F, 1F);
+        // The description is the pack author's text, so it wraps rather than running off the
+        // panel; the summary hangs off whatever is left below it.
+        float lineHeight = client.fonts().body().lineHeight(0.85F * unit) + 2F * unit;
+        float summaryHeadingMin = canvas.y(PANEL_BOTTOM) + canvas.scaled(96F);
+        float afterDescription = drawWrappedText(selected.description(), textX, y - 18F * unit,
+                textW, 0.85F * unit, 0.9F, 0.9F, 0.9F, 1F, summaryHeadingMin + lineHeight);
+        float summaryHeading = Math.max(afterDescription - 4F * unit, summaryHeadingMin);
+        client.fonts().body().draw(GuiLang.raw("gui.pvzce.packs.summary", "内容摘要"),
+                textX, summaryHeading, 0.9F * unit, 0.85F, 0.85F, 0.6F, 1F);
         // The counts are read from the directory rather than from the stack, so they describe a
         // pack that is switched off just as well - which is what a player deciding whether to
         // switch it on is looking for.
-        renderSummary(summaryHeading - 20F, actionTop() + 6F);
+        renderSummary(textX, textW, summaryHeading - 20F * unit,
+                canvas.y(PANEL_BOTTOM) + canvas.scaled(70F), unit);
     }
 
     /** The per-content-directory counts, two columns wide, top down; whatever fits. */
-    private void renderSummary(float top, float floor) {
+    private void renderSummary(float textX, float textW, float top, float floor, float unit) {
         if (selectedSummary.isEmpty()) {
-            client.fonts().body().draw(GuiLang.raw("gui.pvzce.packs.empty", "no content"),
-                    rightX, top, 0.8F, 0.7F, 0.7F, 0.7F, 1F);
+            client.fonts().body().draw(GuiLang.raw("gui.pvzce.packs.empty", "没有内容"),
+                    textX, top, 0.8F * unit, 0.7F, 0.7F, 0.7F, 1F);
             return;
         }
         List<Map.Entry<String, Integer>> entries = new ArrayList<>(selectedSummary.entrySet());
-        float columnWidth = Math.max(110F, rightWidth / 2F);
-        float lineHeight = client.fonts().body().lineHeight(0.8F) + 4F;
+        float columnWidth = textW / 2F;
+        float lineHeight = client.fonts().body().lineHeight(0.8F * unit) + 4F * unit;
         int fits = 0;
         while (fits < entries.size() && top - (fits / 2) * lineHeight >= floor) {
             fits++;
@@ -432,14 +443,9 @@ public final class PackScreen extends Screen {
             // there is by definition no room for another row.
             String text = entry.getKey() + " " + entry.getValue()
                     + (i == fits - 1 && fits < entries.size() ? " …" : "");
-            client.fonts().body().draw(text, rightX + (i % 2) * columnWidth,
-                    top - (i / 2) * lineHeight, 0.8F, 0.85F, 0.85F, 0.85F, 1F);
+            client.fonts().body().draw(text, textX + (i % 2) * columnWidth,
+                    top - (i / 2) * lineHeight, 0.8F * unit, 0.85F, 0.85F, 0.85F, 1F);
         }
-    }
-
-    /** Where the detail text ends: the action buttons start here. */
-    private float actionTop() {
-        return 8F + actionHeight + 12F;
     }
 
     /** The pack's directory as the player would say it: {@code datapacks/user_levels}. */

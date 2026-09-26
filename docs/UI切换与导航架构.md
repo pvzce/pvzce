@@ -80,7 +80,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 | 语义 | 方法 | 调用点 |
 |---|---|---|
 | 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect`（＝`showTitle`）/ `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
-| 嵌套 | `openScreen` | `Title→LevelSelect`（点玩家名 / 开始游戏）、`LevelSelect→LevelSetup`、`LevelSelect→Inventory`、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
+| 嵌套 | `openScreen` | `Title→LevelSelect`（点玩家名 / 开始游戏）、`Title→Shop/Packs`（左下托盘的两个格子）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
 | 声明的目的地 | `Navigation.replaceRoot(...)` | `LevelSelectScreen.backTarget()`（无下层时）、`AwardScreen.backTarget()` |
 | 弹回 | `Navigation.POP`（默认） | 所有"返回/完成"按钮、`Screen.requestClose()` 默认实现、`Dialog` 的 ESC |
 
@@ -89,23 +89,24 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ```
                     ┌──────────────────────────────────────────────┐
                     │                 TitleScreen                  │
-                    │  左：谁要玩游戏？（玩家列表＝世界列表）        │
-                    │  右：开始游戏 / 模组列表 / 设置 / 退出         │
+                    │  左上：谁要玩游戏？（玩家列表＝世界列表）      │
+                    │  中列：开始游戏 / 模组列表 / 设置 / 退出       │
+                    │  左下：木托盘 = 商店 / 数据包（两个图标格子）  │
                     └───┬──────────────┬───────────────┬───────────┘
                  push   │              │ push          │ push
                         ▼              ▼               ▼
        ┌────────────────────────┐  ┌────────────┐  ┌──────────────┐
        │  LevelSelectScreen     │  │ ModsScreen │  │SettingsScreen│
-       │  (关卡列表 + 背包按钮)  │  └────────────┘  └───┬──────────┘
+       │  (关卡列表 + 图鉴按钮)  │  └────────────┘  └───┬──────────┘
        └──┬──────────┬──────────┘                       │ push
           │ push     │ push                    ┌────────▼─────────┐
           ▼          ▼                         │ConfigScreen /    │
    ┌────────────┐  ┌──────────────┐            │VideoSettings     │
    │LevelSetup  │  │ EditorScreen │            └──────────────────┘
-   │(关卡准备)   │  │ (编辑器)      │            ┌──────────────┐
-   └──┬─────────┘  └──────────────┘            │InventoryScreen│
-      │                                          └──────────────┘
-      │ 开始游戏 → enterLevelFromMenu
+   │(关卡准备)   │  │ (编辑器)      │            ┌───────────────┐
+   └──┬─────────┘  └──────────────┘            │ ShopScreen /  │
+      │                                         │ PackScreen    │
+      │ 开始游戏 → enterLevelFromMenu            └───────────────┘
       ▼
    ┌──────────────────┐
    │ ChooseSeedsScreen│  （有存档：跳过这一屏；卡组没得选时是"仅预览"过场）
@@ -359,6 +360,8 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 | 需要"离开时释放"的东西 | 覆写 `Screen.onRemoved()` | ✅ 现成 |
 | 新前置流程（选难度、选阵营） | 仍要改 `enterLevelFromMenu` 的分支 | ⚠️ 待做（阵营已经是关卡数据驱动的：`LevelDef.playable_teams`） |
 | 玩家/世界切换 | 标题页的木牌 → `PlayerPickerDialog`（只切换，不开关卡列表） | ✅ 玩家列表就是世界列表 |
+| 新的"菜单页"（固定构图、缩放到窗口） | `layout/MenuPageCanvas` + `Canvas.panel/widgetAt` | ✅ 现成（商店页与数据包页是它的两个调用者） |
+| 标题页左下角再添一个入口 | `TitleScreen` 的托盘格子（`cellAt` / `cellX` / `cellY` 三个方法一处定义，画与判定共用） | ✅ 现成（格子只有图标，名字走 `HoverTip`） |
 | 关卡对话里的玩家名 | 台词里写 `${user_name}`，替换在 `DialogueOverlay.create` | ✅ 见 `当前项目架构.md` §6.2.2 |
 | 关卡自带的开场对话 | 关卡 JSON 的 `dialogue` 块，宿主是选卡页或游戏内 | ✅ 数据驱动 |
 | 新的"自供卡组"机制 | `common/level/mechanic` + `ClientMechanics` 路由 | ✅ 注册制 |
@@ -393,3 +396,6 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
     用 `replaceRoot`。
 11. **离开时要释放的东西 → `Screen.onRemoved()`**，不要写进各自的出口方法。
 12. **浮在别的屏上面的界面 → `Overlay`**，不要压进屏幕栈：栈深度是"嵌套了几屏"，不是"屏 + 浮层"。
+13. **有真实构图的整屏页面 → `MenuPageCanvas`**（800x600 画布 + contain 缩放），不要直接在 GUI 单位里
+    排版：默认窗口只有 427x240，直接排版出来的东西没有面板也没有层次（商店页与数据包页就是这么坏掉的）。
+    控件仍留在 GUI 单位，用 `Canvas.widgetAt` / `interiorX/Width/Bottom/Height` 放进面板。

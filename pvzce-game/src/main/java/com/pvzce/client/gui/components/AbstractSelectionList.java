@@ -98,6 +98,21 @@ public class AbstractSelectionList<E> extends AbstractWidget {
         return entryHeight;
     }
 
+    /**
+     * How far the list has been scrolled, in pixels.
+     *
+     * <p>Exposed because a screen that draws a row's interior itself - rather than through {@link
+     * EntryRenderer} - has to answer the same question the list does: "which row is at this point".
+     * The shop hit-tests its rows to buy them, and deriving that from the widget's own offset is
+     * what keeps the drawn row and the clickable row together; the first version recomputed the
+     * rows from the list's top edge instead, which is only correct while the list has not scrolled.
+     *
+     * <p>Clamped, so it is the value {@link #render} actually draws with and not a raw accumulator.
+     */
+    public int scrollOffset() {
+        return Math.min(Math.max(0, scrollOffset), maxScroll());
+    }
+
     public int visibleCount() {
         return Math.max(1, height / entryHeight);
     }
