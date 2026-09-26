@@ -646,29 +646,32 @@ public final class PvzceClient {
         }
     }
 
-    /** A click in raw framebuffer coordinates, to whichever layer owns the mouse. */
+    /**
+     * A click at a raw framebuffer point, to whichever layer owns the mouse.
+     *
+     * <p>Warped, then dispatched through the same two calls the real event loop makes
+     * ({@link #pollInput}'s button branch -> {@link #dispatchMouseClicked}). The first version
+     * called {@code currentScreen().mouseClicked(rawX, rawY, button)} instead, which is one
+     * conversion too many: {@code Screen.mouseClicked} converts raw to GUI itself, so a smoke
+     * click's coordinates were divided by the GUI scale twice and landed at a quarter of the way
+     * across the window. Nothing caught it because the hooks that hit a target on purpose
+     * ({@code smokeClickLabel}, {@code smokeTray}) go through {@code deliverGuiClick}, which never
+     * had the bug.
+     */
     void deliverRawClick(double rawX, double rawY, int button) {
-        if (overlay != null) {
-            overlay.mouseClicked(guiMouseX(rawX), guiMouseY(rawY), button);
-        } else {
-            currentScreen().mouseClicked(rawX, rawY, button);
-        }
+        window.warpCursor(rawX, rawY);
+        dispatchMouseClicked(button);
     }
 
+    /** A drag to a raw framebuffer point; the same warp-then-dispatch as {@link #deliverRawClick}. */
     void deliverRawDrag(double rawX, double rawY, int button) {
-        if (overlay != null) {
-            overlay.mouseDragged(guiMouseX(rawX), guiMouseY(rawY), button);
-        } else {
-            currentScreen().mouseDragged(rawX, rawY, button);
-        }
+        window.warpCursor(rawX, rawY);
+        dispatchMouseDragged();
     }
 
     void deliverRawRelease(double rawX, double rawY, int button) {
-        if (overlay != null) {
-            overlay.mouseReleased(guiMouseX(rawX), guiMouseY(rawY), button);
-        } else {
-            currentScreen().mouseReleased(rawX, rawY, button);
-        }
+        window.warpCursor(rawX, rawY);
+        dispatchMouseReleased();
     }
 
     // ---------- rendering ----------

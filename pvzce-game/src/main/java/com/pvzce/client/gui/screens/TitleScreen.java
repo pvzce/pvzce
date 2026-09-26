@@ -308,6 +308,41 @@ public final class TitleScreen extends Screen {
     }
 
     /**
+     * The screen's own click regions: the player board, then the two corner cells.
+     *
+     * <p>{@code onMouseClicked} and not {@code mouseClicked} - the latter is {@code final} in
+     * {@code Screen} because the modal dispatch has to run first (see {@code 架构-客户端.md} §6).
+     *
+     * <p>This method is the whole reason the two regions work at all, which is worth stating
+     * because it went missing: an edit that rewrote the tray's geometry deleted it, and the
+     * symptom was "这两个按钮都点不进去了" - the plate still drew, still lit up on hover (that path
+     * is {@code renderTray}, not this one), and did nothing. Nothing failed to compile and no test
+     * covered it, because the smoke hook that clicks a cell calls {@code dispatchMouseClicked}
+     * itself rather than going through the screen's own handler.
+     */
+    @Override
+    protected void onMouseClicked(double guiX, double guiY, int button) {
+        if (button != 0) {
+            return;
+        }
+        if (overPlayerBoard(guiX, guiY)) {
+            openPlayerPicker();
+            return;
+        }
+        int cell = cellAt(guiX, guiY);
+        if (cell == 0) {
+            // The shop draws the wallet, and the client's profile is reset on every world change
+            // and otherwise only filled in by the level list - which this path never opens. So the
+            // click asks for it; the request is a no-op once the profile has arrived for this
+            // world. (Without this the shop drew 0 金币 until a level had been started and left.)
+            client.requestProfile();
+            client.openScreen(new ShopScreen(client));
+        } else if (cell == 1) {
+            client.openScreen(new PackScreen(client));
+        }
+    }
+
+    /**
      * Which corner cell a GUI point is on: 0 the shop, 1 the packs page, -1 neither.
      *
      * <p>The tray is drawn from these same rectangles, so the plate and the hit box cannot drift

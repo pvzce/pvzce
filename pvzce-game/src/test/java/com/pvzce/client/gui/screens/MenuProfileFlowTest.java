@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -48,6 +49,41 @@ class MenuProfileFlowTest {
     @AfterEach
     void closeHarnesses() {
         harnesses.forEach(ClientHarness::close);
+    }
+
+    /**
+     * A click on a corner cell reaches the screen and opens the page.
+     *
+     * <p>The plainest test in this file and the one that was missing: the round that re-sized the
+     * tray deleted {@code TitleScreen.onMouseClicked}, and nothing noticed. The plate still drew,
+     * it still lit up on hover - that path is {@code renderTray} - and clicking it did nothing at
+     * all. The smoke hook that clicks a cell could not catch it either, because it calls
+     * {@code dispatchMouseClicked} itself rather than going through the screen's own handler.
+     *
+     * <p>Both cells are clicked, because the handler is one method: a screen that lost it loses
+     * both, and a screen that has it must route both.
+     */
+    @Test
+    void clickingACornerCellOpensItsPage() throws Exception {
+        ClientHarness harness = ClientHarness.create("pvzce-tray-click");
+        harnesses.add(harness);
+        PvzceClient client = harness.client();
+
+        TitleScreen menu = new TitleScreen(client);
+        client.setScreenReplacing(menu);
+        // The tray's default layout (no window, so no init()): its cells are the small ones. What
+        // is under test is the dispatch, not the size, so the click is aimed by the screen itself.
+        TitleScreen.TrayCell shop = menu.trayCell(0);
+        menu.dispatchMouseClicked(shop.centerX(), shop.centerY(), 0);
+        assertInstanceOf(ShopScreen.class, client.currentScreen(),
+                "the coin cell has to reach TitleScreen.onMouseClicked and open the shop");
+        client.navigateBack();
+
+        client.setScreenReplacing(menu);
+        TitleScreen.TrayCell packs = menu.trayCell(1);
+        menu.dispatchMouseClicked(packs.centerX(), packs.centerY(), 0);
+        assertInstanceOf(PackScreen.class, client.currentScreen(),
+                "and the seed-packet cell has to open the packs page");
     }
 
     /**
