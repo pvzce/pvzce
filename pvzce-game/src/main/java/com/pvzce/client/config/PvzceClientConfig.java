@@ -26,6 +26,18 @@ public final class PvzceClientConfig {
     public static final int UNLIMITED_FPS = 260;
     public static final boolean DEFAULT_VSYNC = true;
     public static final boolean DEFAULT_FULLSCREEN = false;
+    /**
+     * Whether this client asks for the X11 backend when the session could give it either one.
+     *
+     * <p>Temporarily on, and it is a switch rather than a rewrite: on a Wayland session the native
+     * Wayland backend is the only one where touch works (GLFW's Wayland backend is the one with a
+     * {@code wl_touch} device, and the game reads it itself - see {@code client.input.wayland}),
+     * but it also comes with no window decorations at all, because libdecor's GTK plugin cannot
+     * start inside a JVM and GNOME offers no server-side decorations. X11/XWayland gives the
+     * desktop's own title bar and move/resize for free - at the price of touch. Flip this to
+     * {@code false} (or run {@code -Dpvzce.platform=wayland}) to go back.
+     */
+    public static final boolean DEFAULT_PREFER_X11 = true;
     public static final int DEFAULT_WIDTH = 1280;
     public static final int DEFAULT_HEIGHT = 720;
     public static final int AUTO_GUI_SCALE = 0;
@@ -90,6 +102,7 @@ public final class PvzceClientConfig {
     private int maxFps = DEFAULT_MAX_FPS;
     private boolean vsync = DEFAULT_VSYNC;
     private boolean fullscreen = DEFAULT_FULLSCREEN;
+    private boolean preferX11 = DEFAULT_PREFER_X11;
     private int width = DEFAULT_WIDTH;
     private int height = DEFAULT_HEIGHT;
     private int guiScale = AUTO_GUI_SCALE;
@@ -111,6 +124,7 @@ public final class PvzceClientConfig {
                 config.maxFps = clampFps(getInt(toml, "max_fps", DEFAULT_MAX_FPS));
                 config.vsync = getBoolean(toml, "vsync", DEFAULT_VSYNC);
                 config.fullscreen = getBoolean(toml, "fullscreen", DEFAULT_FULLSCREEN);
+                config.preferX11 = getBoolean(toml, "prefer_x11", DEFAULT_PREFER_X11);
                 config.width = Math.max(320, getInt(toml, "window_width", DEFAULT_WIDTH));
                 config.height = Math.max(240, getInt(toml, "window_height", DEFAULT_HEIGHT));
                 config.guiScale = Math.max(AUTO_GUI_SCALE,
@@ -165,6 +179,7 @@ public final class PvzceClientConfig {
                     + "\nmax_fps = " + maxFps
                     + "\nvsync = " + vsync
                     + "\nfullscreen = " + fullscreen
+                    + "\nprefer_x11 = " + preferX11
                     + "\nwindow_width = " + width
                     + "\nwindow_height = " + height
                     + "\ngui_scale = " + guiScale
@@ -216,6 +231,15 @@ public final class PvzceClientConfig {
 
     public void setVsync(boolean vsync) {
         this.vsync = vsync;
+    }
+
+    /** Whether to ask for X11 when both backends are available; see {@link #DEFAULT_PREFER_X11}. */
+    public boolean preferX11() {
+        return preferX11;
+    }
+
+    public void setPreferX11(boolean preferX11) {
+        this.preferX11 = preferX11;
     }
 
     public boolean fullscreen() {

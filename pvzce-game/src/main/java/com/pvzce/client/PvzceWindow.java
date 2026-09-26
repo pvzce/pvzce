@@ -85,14 +85,17 @@ public final class PvzceWindow implements AutoCloseable {
         String forcedPlatform = System.getProperty("pvzce.platform");
         boolean forcedWayland = "wayland".equalsIgnoreCase(forcedPlatform);
         boolean forcedX11 = "x11".equalsIgnoreCase(forcedPlatform);
-        // A Wayland session gets the native Wayland backend, and that is not a preference: it is the
-        // only place touch can work at all. GLFW's Wayland backend is the one with a wl_touch device
-        // (the game reads it itself, see client.input.wayland), while X11/XWayland never turns a
-        // finger into mouse events - so on a Wayland desktop, XWayland means an unclickable game.
+        // Which backend, in one place. The order is: an explicit -Dpvzce.platform wins; otherwise a
+        // Wayland session is talked back to X11 (config `prefer_x11`, on by default - the desktop
+        // then draws the title bar and moves the window for us), unless the session has no XWayland
+        // at all. The native Wayland path is kept whole: -Dpvzce.platform=wayland takes it, and it
+        // is the only backend where touch works (GLFW's Wayland backend is the one with a wl_touch
+        // device; X11/XWayland never turns a finger into mouse events).
         boolean preferWayland = forcedWayland
-                || (System.getenv("WAYLAND_DISPLAY") != null && !forcedX11);
+                || (!forcedX11 && !config.preferX11()
+                        && System.getenv("WAYLAND_DISPLAY") != null);
         boolean preferX11 = !preferWayland
-                && (System.getenv("DISPLAY") != null || forcedX11);
+                && (forcedX11 || System.getenv("DISPLAY") != null);
         if (preferWayland) {
             GLFW.glfwInitHint(GLFW.GLFW_PLATFORM, GLFW.GLFW_PLATFORM_WAYLAND);
         } else if (preferX11) {
@@ -106,7 +109,8 @@ public final class PvzceWindow implements AutoCloseable {
             }
         }
         LOGGER.info("GLFW platform = {}{}", GLFW.glfwGetPlatform(),
-                preferWayland ? " (Wayland 会话：触控需要它)" : "");
+                preferWayland ? " (Wayland：原生后端，触控需要它，但没有系统标题栏)"
+                        : " (X11/XWayland：系统画标题栏，触控不可用)");
         GLFW.glfwDefaultWindowHints();
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
         GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_TRUE);

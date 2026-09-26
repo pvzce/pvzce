@@ -875,7 +875,11 @@ public final class PvzceClient {
             return;
         }
         if (window.platform() != GLFW.GLFW_PLATFORM_WAYLAND) {
-            LOGGER.info("触控：平台 {} 上手指由系统提升成鼠标事件，无需接管", window.platform());
+            // X11 is not "the system promotes a finger to a mouse" in every case: XInput2 does that
+            // for a real touchscreen, but a Wayland session's XWayland forwards pointers only, so a
+            // touch there reaches the game as nothing at all. Say which one it is.
+            LOGGER.info("触控：平台 {} 上不接管（X11 由 XInput2 把首个触点变成指针事件，"
+                            + "真触摸屏可用；Wayland 会话下的 XWayland 不转发触摸）", window.platform());
             return;
         }
         waylandTouch = WaylandTouch.install(window.waylandDisplay(), window.waylandSurface(),
