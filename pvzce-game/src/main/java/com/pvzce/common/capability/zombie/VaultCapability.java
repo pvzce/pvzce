@@ -53,8 +53,20 @@ import java.util.Optional;
  * zombie {@link #walkState} stops overriding.
  */
 public final class VaultCapability implements ZombieCapability {
-    /** Cells cleared by the hop; lands past the vaulted plant. */
-    public static final float DEFAULT_JUMP_DISTANCE = 1.4F;
+    /**
+     * Cells cleared by the hop; lands past the vaulted plant.
+     *
+     * <p><b>Not a taste decision: it is the distance the art draws.</b> The {@code jump} clip's own
+     * foot bones travel 1.077 cells from the first frame to the last, so a server that moved the
+     * zombie 1.4 slid its landing nearly a third of a cell past the frame the sprite is drawn on -
+     * the reported "撑杆僵尸/海豚僵尸动画的掉落位置和实际位置不符合". {@code tools/vault_curve.py}
+     * prints the number; change it and the curve together.
+     *
+     * <p>It is also still enough to clear a plant: the vault is triggered from
+     * {@code plantX + clearance}, so 1.08 lands the zombie about a third of a cell past the thing it
+     * jumped over.
+     */
+    public static final float DEFAULT_JUMP_DISTANCE = 1.0908F;
     /**
      * How long the vault takes, in ticks.
      *
@@ -93,6 +105,81 @@ public final class VaultCapability implements ZombieCapability {
     private static final float AIRBORNE_FROM = 0.30F;
     private static final float AIRBORNE_TO = 0.84F;
 
+    /**
+     * Where the jumping clips draw the zombie, as a fraction of the hop, over clip progress.
+     *
+     * <p>Read off the converted {@code jump} clip by {@code tools/vault_curve.py}, from the
+     * <b>torso</b>: every body bone agrees on the span to within a few per cent, and the torso is
+     * the one the player reads as "where the zombie is". Normalised so the first frame is 0 and the
+     * last is exactly 1, so a hop of {@link #jumpDistance} cells ends where the server says.
+     *
+     * <p>The dolphin rider's clip is the same motion authored the same way, so one table answers
+     * both. Regenerate with {@code python3 tools/vault_curve.py} after any change to the clip.
+     */
+    private static final float[] VAULT_TRAVEL_KEYS = {
+            -0.0000F, -0.0056F, -0.0117F, -0.0169F, -0.0171F, +0.0413F, +0.0997F, +0.1511F,
+            +0.1708F, +0.1868F, +0.1907F, +0.1947F, +0.2003F, +0.2113F, +0.2217F, +0.2320F,
+            +0.2408F, +0.2495F, +0.2859F, +0.3598F, +0.4332F, +0.4889F, +0.5255F, +0.5624F,
+            +0.5928F, +0.6188F, +0.6448F, +0.6708F, +0.7386F, +0.8286F, +0.8783F, +0.9103F,
+            +0.9310F, +0.9481F, +0.9718F, +0.9961F, +1.0113F, +1.0239F, +1.0197F, +1.0124F,
+            +1.0063F, +1.0001F, +1.0000F,
+    
+    };
+
+    /**
+     * How far off the ground the jumping clips draw the zombie's feet, in cells.
+     *
+     * <p>The arc itself, from the same tool: the lowest foot's bottom edge, zeroed on the first
+     * frame. The entity's own {@code height} follows it, which is what makes the legs tuck under a
+     * zombie that is off the ground rather than stretch below one that is not - the hop and the
+     * lift are one motion and were being told as two.
+     */
+    private static final float[] VAULT_LIFT_KEYS = {
+            +0.0000F, +0.0027F, +0.0062F, +0.0079F, +0.0158F, +0.0670F, +0.0628F, +0.0532F,
+            +0.0531F, +0.0532F, +0.0530F, +0.0531F, +0.0542F, +0.0660F, +0.1812F, +0.4069F,
+            +0.5006F, +0.5859F, +0.6640F, +0.7323F, +0.8003F, +0.8504F, +0.8806F, +0.9106F,
+            +0.8848F, +0.8141F, +0.7431F, +0.6719F, +0.5546F, +0.4129F, +0.3284F, +0.2691F,
+            +0.2122F, +0.1564F, +0.0780F, +0.0054F, -0.0023F, +0.0030F, +0.0007F, -0.0008F,
+            -0.0034F, -0.0059F, -0.0060F,
+    
+    };
+
+    /** {@link #VAULT_TRAVEL_KEYS} as a sampler: evenly spaced keys over progress 0..1. */
+    private static final Curve VAULT_TRAVEL = new Curve(VAULT_TRAVEL_KEYS);
+    /** {@link #VAULT_LIFT_KEYS} as a sampler. */
+    private static final Curve VAULT_LIFT = new Curve(VAULT_LIFT_KEYS);
+
+    /**
+     * How far across the hop the jumping art draws the zombie at {@code progress}.
+     *
+     * <p>Public because it is a fact about the *art*, and the test that keeps the art and the
+     * simulation together has to read both: this is one half, the exported clip's own foot
+     * translation keys are the other. {@code PoleVaultTest#theArtAndTheSimulationAgreeOnWhereTheZombieIs}
+     * checks them against each other, so a clip re-export that moves the zombie without this table
+     * being regenerated fails instead of silently drawing the landing half a cell out.
+     */
+    public static float travelAt(float progress) {
+        return VAULT_TRAVEL.sample(progress);
+    }
+
+    /** The matching foot lift, in cells; see {@link #VAULT_LIFT_KEYS}. */
+    public static float liftAt(float progress) {
+        return VAULT_LIFT.sample(progress);
+    }
+
+    /** Evenly spaced keys over a 0..1 progress, linearly interpolated. */
+    private record Curve(float[] keys) {
+        float sample(float progress) {
+            float position = MathUtil.clamp01(progress) * (keys.length - 1);
+            int index = (int) position;
+            if (index >= keys.length - 1) {
+                return keys[keys.length - 1];
+            }
+            float fraction = position - index;
+            return keys[index] * (1F - fraction) + keys[index + 1] * fraction;
+        }
+    }
+
     private final float jumpDistance;
     private final int jumpTicks;
     private final Optional<Identifier> sound;
@@ -106,6 +193,8 @@ public final class VaultCapability implements ZombieCapability {
     private float vaultStartX;
     /** How far this vault carries the zombie: fixed for a vaulter, re-read for a bounce. */
     private float vaultDistance;
+    /** The height the vault started at, which {@link #VAULT_LIFT_KEYS} is added to. */
+    private float vaultBaseHeight;
 
     public VaultCapability(float jumpDistance, Optional<Identifier> sound) {
         this(jumpDistance, DEFAULT_JUMP_TICKS, sound, false, DEFAULT_CLEARANCE);
@@ -350,6 +439,9 @@ public final class VaultCapability implements ZombieCapability {
         vaultTicks = jumpTicks;
         vaultStartX = zombie.cellX();
         vaultDistance = distance;
+        // The height it was standing at, which the hop's lift is added to. A vaulting zombie that
+        // started on a lily pad comes back down onto the pad rather than into the water.
+        vaultBaseHeight = zombie.height();
         zombie.setAnimation(bounce ? EntityAnimations.POGO : EntityAnimations.JUMP);
         level.emitEffect("", zombie.cellX(), zombie.cellY(), soundOr(zombie));
     }
@@ -363,9 +455,22 @@ public final class VaultCapability implements ZombieCapability {
     /**
      * Moves the zombie across the plant, at the clip's own pace.
      *
-     * <p>Eased rather than linear: a vault is a hop, and the art's airborne window is already
-     * a curve - which is why the travel is mapped onto that window instead of onto the whole
-     * clip.
+     * <p><b>A vaulter travels by the art's own curve; a pogo travels by an eased window.</b> The
+     * two are different answers because the two are different clips. The pole vaulter's and the
+     * dolphin rider's {@code jump} is one authored hop with a crouch, a launch, a peak and a
+     * landing settle, and its foot bones say where the zombie is on every frame; {@link
+     * #VAULT_TRAVEL_KEYS} and {@link #VAULT_LIFT_KEYS} are that motion, so the sprite is drawn
+     * exactly where the simulation puts it. The previous version eased the travel across an
+     * airborne window of its own invention, which is a different curve from the art's - the drawn
+     * landing was half a cell from the real one, which is the reported "撑杆僵尸/海豚僵尸动画的掉落
+     * 位置和实际位置不符合".
+     *
+     * <p>The lift is the other half of the same bug: with the entity's {@code height} left at
+     * zero, the art's tucked legs were drawn hanging below the ground line the whole way across.
+     *
+     * <p>The pogo's clip is a stick bouncing in place ({@code anim_pogo} is 11 frames with no
+     * horizontal travel at all), so there is no curve to read and the eased window is the only
+     * description of the motion there is - and its own bounce already draws the vertical half.
      */
     private void advanceVault(ZombieEntity zombie) {
         vaultTicks--;
@@ -375,14 +480,22 @@ public final class VaultCapability implements ZombieCapability {
         // that slides across the plant with its pole frozen at its side, which is exactly
         // what "it did not really jump" looked like.
         zombie.setAnimation(bounce ? EntityAnimations.POGO : EntityAnimations.JUMP);
-        float progress = 1F - vaultTicks / (float) jumpTicks;
-        float travel = MathUtil.easeInOut(MathUtil.clamp01(
-                (progress - AIRBORNE_FROM) / (AIRBORNE_TO - AIRBORNE_FROM)));
-        zombie.setCellX(vaultStartX - vaultDistance * travel);
+        float progress = MathUtil.clamp01(1F - vaultTicks / (float) jumpTicks);
+        if (bounce) {
+            float travel = MathUtil.easeInOut(MathUtil.clamp01(
+                    (progress - AIRBORNE_FROM) / (AIRBORNE_TO - AIRBORNE_FROM)));
+            zombie.setCellX(vaultStartX - vaultDistance * travel);
+        } else {
+            zombie.setCellX(vaultStartX - vaultDistance * travelAt(progress));
+            // The entity's own field, not a second drawing offset: the client already lifts the
+            // art by `height`, so the feet are off the ground exactly where the clip draws them.
+            zombie.setHeight(vaultBaseHeight + liftAt(progress));
+        }
         if (vaultTicks <= 0) {
-            // Land exactly past the plant, whatever the easing rounded to.
+            // Land exactly past the plant, whatever the curve rounded to.
             jumped = !bounce;
             zombie.setCellX(vaultStartX - vaultDistance);
+            zombie.setHeight(vaultBaseHeight);
             zombie.setAnimation(bounce ? EntityAnimations.POGO : EntityAnimations.WALK);
         }
     }
@@ -393,6 +506,7 @@ public final class VaultCapability implements ZombieCapability {
         tag.putInt("vaultTicks", vaultTicks);
         tag.putFloat("vaultStartX", vaultStartX);
         tag.putFloat("vaultDistance", vaultDistance);
+        tag.putFloat("vaultBaseHeight", vaultBaseHeight);
     }
 
     @Override
@@ -408,6 +522,9 @@ public final class VaultCapability implements ZombieCapability {
         // A save from before the bounce: the distance was the definition's, which is what the
         // field is initialised to.
         vaultDistance = tag.contains("vaultDistance") ? tag.getFloat("vaultDistance") : jumpDistance;
+        // A save from before the hop had a lift: the zombie's own height is the base, which is
+        // what it must come back down to.
+        vaultBaseHeight = tag.contains("vaultBaseHeight") ? tag.getFloat("vaultBaseHeight") : 0F;
         if (vaultTicks <= 0) {
             vaultTicks = 0;
         }

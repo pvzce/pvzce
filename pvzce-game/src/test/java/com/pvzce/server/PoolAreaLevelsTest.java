@@ -210,7 +210,8 @@ class PoolAreaLevelsTest {
     @Test
     void theBonusLevelIsTheOriginalsConveyorBeltOfLittleZombies() {
         LevelDef def = pool("3_5");
-        assertEquals(List.of(), def.slots(), "a belt level pins no cards by hand");
+        assertEquals(List.of(), com.pvzce.testutil.TestLevels.plantSlots(def),
+                "a belt level pins no cards by hand");
         assertEquals(0, def.initialSun(), "and hands out no sun: the cards are free");
         assertFalse(def.unlockResources().containsKey(PvzceIds.SUN),
                 "there is no sun to collect in this level");

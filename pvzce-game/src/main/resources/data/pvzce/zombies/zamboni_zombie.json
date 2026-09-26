@@ -10,6 +10,12 @@
       "leaves_ice": true
     }
   ],
+  "equipment": [
+    {
+      "art": "zamboni_body",
+      "health_below": 0.5
+    }
+  ],
   "sounds": {
     "spawn": "pvzce:sfx/zombie/zamboni",
     "death": "pvzce:sfx/effect/explosion"

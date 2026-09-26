@@ -6,12 +6,16 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.AbstractSelectionList;
+import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.layout.MenuPageCanvas;
 import com.pvzce.client.gui.layout.MenuPageCanvas.Canvas;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.buff.BuiltInBuffs;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.shop.ShopItems;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The shop: what there is to spend coins on, on a page of its own.
@@ -33,6 +37,17 @@ import com.pvzce.common.shop.ShopItems;
  * today: a list brings its own scrolling, clipping and row geometry, and the page then grows to a
  * fourth item without being redrawn.
  *
+ * <h2>Selecting and buying are two steps</h2>
+ *
+ * <p>Clicking a row <em>selects</em> it; the purchase is a button. That is what the page was always
+ * meant to be, and the version before this one was neither: the click handler was written on the
+ * screen's own {@code onMouseClicked}, which a list never lets run - {@link
+ * AbstractSelectionList#mouseClicked} consumes the click, moves its own selection and calls the
+ * callback it was given, and this page gave it none. So a click on a row did nothing at all, which
+ * is the reported "商店购买点击无效". The callback is the fix for that half; the button on the right
+ * is the other half, because "one click spends 1500 coins" leaves no room to read what is being
+ * bought and no way to change your mind.
+ *
  * <h2>The client does not own any of the numbers</h2>
  *
  * <p>The catalogue lives in {@code common.shop.ShopItems}, which the client can read because it is
@@ -53,6 +68,11 @@ public final class ShopScreen extends Screen {
      * to - the room the old three-row page did not have, at a size worth reading. Two and a half
      * rows fit, so the third item is visibly "below" rather than silently missing, and the list
      * scrolls to it.
+     *
+     * <p>The panel is split: {@link #listWidth} of list on the left, then a detail column with the
+     * buy button under it. The split is a fraction rather than two fixed widths, so a fourth item
+     * and a longer description cannot make one half the wrong size for the other - only the
+     * description wraps, and it has a column of its own to wrap in.
      */
     private static final float HEADER_TITLE_X = 28F;
     private static final float HEADER_BASELINE = 40F;
@@ -81,6 +101,20 @@ public final class ShopScreen extends Screen {
     private static final float FOOTER_BUTTON_W = 190F;
     private static final float FOOTER_BUTTON_H = 36F;
 
+    /** The gap between the list's column and the detail's, in canvas units. */
+    private static final float SPLIT_GAP = 14F;
+    /** The detail column's share of the panel's interior width. */
+    private static final float DETAIL_SHARE = 0.34F;
+    /** The buy button: under the detail, as wide as the detail column and as tall as the footer's. */
+    private static final float BUY_BUTTON_H = 44F;
+    private static final float BUY_BUTTON_MARGIN = 12F;
+    /** The detail column's own padding and type sizes, in canvas units. */
+    private static final float DETAIL_PAD = 12F;
+    private static final float DETAIL_ICON_BOX = 68F;
+    private static final float DETAIL_NAME_SIZE = 1.5F;
+    private static final float DETAIL_BODY_SIZE = 0.9F;
+    private static final float DETAIL_LINE = 26F;
+
     /** The icon the wallet is printed with; the same coin the title screen's tray cell shows. */
     private static final Identifier COIN_ICON =
             Identifier.withDefaultNamespace("textures/resource/coin_gold");
@@ -89,6 +123,15 @@ public final class ShopScreen extends Screen {
     private AbstractSelectionList<ShopItems.Item> itemList;
     /** The row the pointer is over: index, or -1. Hover is this page's drawing, not the list's. */
     private int hoveredRow = -1;
+    /**
+     * What the buy button will buy, or {@code null} when nothing is selected.
+     *
+     * <p>Held as the item rather than as an index: the list's selection is the list's business, and
+     * the row that was clicked must stay the selected one even if the catalogue is rebuilt under it
+     * (the shop's own rebuy path re-reads the profile and the page re-renders from that).
+     */
+    private ShopItems.Item selected;
+    private Button buyButton;
     private String notice = "";
     private long noticeUntil;
 
@@ -103,22 +146,31 @@ public final class ShopScreen extends Screen {
 
         // The panel is drawn by hand and the rows by the shared list, so both read the panel's
         // interior from the canvas rather than each working it out from the frame's pixel width.
+        // The list takes the left column only; the detail column is drawn by this page.
         itemList = new AbstractSelectionList<>(
                 Math.round(canvas.interiorX(PANEL_X)),
                 Math.round(canvas.interiorBottom(PANEL_Y, PANEL_H)),
-                Math.round(canvas.interiorWidth(PANEL_W)),
+                Math.round(listWidth()),
                 Math.round(canvas.interiorHeight(PANEL_H)),
                 ROW_HEIGHT, (c, item, x, y) -> renderRow(item, x, y));
         itemList.setEntries(ShopItems.ITEMS);
-        // No row is a "current" one: the page has no confirm step and no highlighted item, so the
-        // list's own green highlight is switched off by clearing the selection.
+        // The list's own green highlight is off, and "what is selected" is the callback's business:
+        // the page draws the selected row itself, because the detail column has to agree with it
+        // and two highlights for one fact is one too many.
         itemList.select(-1);
+        itemList.setOnRowClick(this::select);
         addWidget(itemList);
 
         addWidget(canvas.widgetAt(client, MenuPageCanvas.NATIVE_WIDTH / 2F, FOOTER_Y,
                 FOOTER_BUTTON_W, FOOTER_BUTTON_H, GuiLang.raw("pvzce.back", "返回"),
                 this::requestClose));
-
+        // The buy button, pinned inside the detail column's bottom-right corner. It buys *the
+        // selection*, so it is enabled by the selection rather than by the pointer: the row the
+        // player clicked is still the row they are buying after they move down to it.
+        buyButton = canvas.widgetAtInterior(client, PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
+                SPLIT_GAP, BUY_BUTTON_MARGIN, detailNativeWidth(), BUY_BUTTON_H,
+                GuiLang.raw("gui.pvzce.shop.buy", "购买"), this::buySelected);
+        addWidget(buyButton);
     }
 
     @Override
@@ -133,6 +185,26 @@ public final class ShopScreen extends Screen {
     // ------------------------------------------------------------------
     // Geometry
     // ------------------------------------------------------------------
+
+    /** The list column's GUI width: the panel interior minus the detail column and the gap. */
+    private float listWidth() {
+        return Math.max(1F, canvas.interiorWidth(PANEL_W) - detailWidth() - canvas.scaled(SPLIT_GAP));
+    }
+
+    /** The detail column's GUI width, a fixed share of the panel's interior. */
+    private float detailWidth() {
+        return Math.max(1F, canvas.interiorWidth(PANEL_W) * DETAIL_SHARE);
+    }
+
+    /** The same width in canvas units, which is what a widget's placement is stated in. */
+    private float detailNativeWidth() {
+        return detailWidth() / canvas.scale();
+    }
+
+    /** The detail column's left edge, in GUI units. */
+    private float detailLeft() {
+        return canvas.interiorX(PANEL_X) + listWidth() + canvas.scaled(SPLIT_GAP);
+    }
 
     /**
      * The row index a GUI point is over, or -1.
@@ -165,22 +237,26 @@ public final class ShopScreen extends Screen {
     // ------------------------------------------------------------------
 
     /**
-     * Clicking a row buys it.
+     * Clicking a row selects it and shows it in the detail column.
      *
-     * <p>Hit testing in {@code onMouseClicked} rather than a widget per row: a row is a drawing
-     * (an icon, a name, what it does and a price on three lines), and a {@link
-     * com.pvzce.client.gui.components.Button} draws exactly one centred label. The pattern is the
-     * one {@code TitleScreen}'s player board uses.
+     * <p>This is the callback the list calls after it moves its own selection, and it is the only
+     * click path the rows have: {@code AbstractSelectionList.mouseClicked} consumes the click, so
+     * the screen's {@code onMouseClicked} hook never runs over a row. Writing the purchase there -
+     * which is what the page did - is why a click bought nothing at all.
      */
-    @Override
-    protected void onMouseClicked(double guiX, double guiY, int button) {
-        if (button != 0) {
+    private void select(ShopItems.Item item) {
+        selected = item;
+        notice = "";
+        noticeUntil = 0L;
+    }
+
+    /** The buy button: what the selection is worth, or why it cannot be bought. */
+    private void buySelected() {
+        if (selected == null) {
+            showNotice(GuiLang.raw("gui.pvzce.shop.pick", "先选一件商品"));
             return;
         }
-        int index = rowAt(guiX, guiY);
-        if (index >= 0) {
-            buy(itemList.entries().get(index));
-        }
+        buy(selected);
     }
 
     private void buy(ShopItems.Item item) {
@@ -218,10 +294,84 @@ public final class ShopScreen extends Screen {
                 HEADER_TITLE_X, HEADER_BASELINE, HEADER_TITLE_SIZE, 1F, 1F, 1F, 1F);
         renderWallet();
         canvas.panel(client, PANEL_X, PANEL_Y, PANEL_W, PANEL_H);
+        renderDetail();
         for (var widget : widgets) {
             widget.render(client);
         }
         renderNotice();
+    }
+
+    /**
+     * The right-hand column: what the selected item is, in full, and what it costs.
+     *
+     * <p>One column of its own rather than a fourth line on the row, because the row is 96 units
+     * tall and has to be read at a glance while this is the text the player reads before spending
+     * 1500 coins on it. A rule between the two columns is what makes them read as two columns
+     * rather than as rows that stop early.
+     */
+    private void renderDetail() {
+        float left = detailLeft();
+        float right = canvas.interiorRight(PANEL_X, PANEL_W);
+        float top = canvas.interiorTop(PANEL_Y);
+        float bottom = buyButton == null ? canvas.interiorBottom(PANEL_Y, PANEL_H) : buyButton.y() - 8F;
+        float unit = canvas.scale();
+        // The rule, drawn the full height of the interior: the list and the detail are two columns
+        // of one panel and this is the only thing that says so.
+        client.drawSolid(left - canvas.scaled(SPLIT_GAP) / 2F, canvas.interiorBottom(PANEL_Y, PANEL_H),
+                1F, canvas.interiorHeight(PANEL_H), 0.05F, 1F, 1F, 1F, 0.12F);
+        if (selected == null) {
+            client.fonts().body().draw(GuiLang.raw("gui.pvzce.shop.pick", "先选一件商品"),
+                    left, top - canvas.scaled(DETAIL_LINE), DETAIL_BODY_SIZE * unit,
+                    0.75F, 0.76F, 0.75F, 1F);
+            return;
+        }
+        boolean owned = ShopItems.maxedOut(client.profile().seedSlots(), client.profile().unlocked(),
+                client.profile().unlockedBuffs(), selected);
+        float textX = left + canvas.scaled(DETAIL_PAD);
+        float iconBox = canvas.scaled(DETAIL_ICON_BOX);
+        drawFitted(iconFor(selected), textX, top - iconBox - canvas.scaled(DETAIL_PAD),
+                iconBox, owned ? 0.5F : 1F);
+        client.fonts().body().draw(nameOf(selected), textX, top - iconBox - canvas.scaled(DETAIL_LINE),
+                DETAIL_NAME_SIZE * unit, owned ? 0.7F : 1F, owned ? 0.7F : 0.95F,
+                owned ? 0.7F : 0.85F, 1F);
+        float line = top - iconBox - canvas.scaled(DETAIL_LINE * 2F);
+        for (String row : wrapped(descriptionOf(selected), right - textX)) {
+            if (line < bottom) {
+                break;
+            }
+            client.fonts().body().draw(row, textX, line, DETAIL_BODY_SIZE * unit,
+                    0.78F, 0.8F, 0.78F, 1F);
+            line -= canvas.scaled(DETAIL_LINE * 0.82F);
+        }
+    }
+
+    /**
+     * One sentence broken to fit a column.
+     *
+     * <p>Greedy per <em>character</em>: the shipped descriptions are Chinese, which has no spaces to
+     * break on, so "break on spaces" would either overflow the column or throw away the sentence.
+     * Latin text breaks at the same places a reader would accept, just less tidily.
+     */
+    private List<String> wrapped(String text, float width) {
+        if (text == null || text.isEmpty() || width <= 0F) {
+            return List.of();
+        }
+        float size = DETAIL_BODY_SIZE * canvas.scale();
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (!line.isEmpty()
+                    && client.fonts().body().width(line.toString() + ch, size) > width) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            line.append(ch);
+        }
+        if (!line.isEmpty()) {
+            lines.add(line.toString());
+        }
+        return List.copyOf(lines);
     }
 
     /** The coin and the count, right-aligned in the title band. */
@@ -276,7 +426,12 @@ public final class ShopScreen extends Screen {
         boolean affordable = client.profile().coins() >= item.price();
         float unit = canvas.scale();
 
-        if (index == hoveredRow && !owned) {
+        if (item == selected) {
+            // The selected row, drawn by the page: the list's own highlight is off, because "which
+            // row is selected" and "what the detail column shows" have to be one fact.
+            client.drawSolid(x - 6F, y + 2F, itemList.width() - 4F, ROW_HEIGHT - 4F, 0.06F,
+                    0.55F, 0.45F, 0.20F, 0.28F);
+        } else if (index == hoveredRow && !owned) {
             client.drawSolid(x - 6F, y + 2F, itemList.width() - 4F, ROW_HEIGHT - 4F, 0.06F,
                     1F, 0.92F, 0.6F, 0.10F);
         }

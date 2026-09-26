@@ -5,7 +5,7 @@
   "capabilities": [
     {
       "type": "pvzce:vault",
-      "jump_distance": 1.4
+      "jump_distance": 1.0908
     }
   ],
   "sounds": {

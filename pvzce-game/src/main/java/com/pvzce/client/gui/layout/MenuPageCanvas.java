@@ -193,9 +193,19 @@ public final class MenuPageCanvas {
             return Math.max(1F, scaled(nativeWidth - PANEL_SIDE * 2F));
         }
 
+        /** GUI x of a panel's right interior edge, for a control laid against it. */
+        public float interiorRight(float nativeX, float nativeWidth) {
+            return x(nativeX + nativeWidth) - scaled(PANEL_SIDE);
+        }
+
         /** GUI y of the bottom of a native rectangle's panel interior. */
         public float interiorBottom(float nativeY, float nativeHeight) {
             return y(nativeY + nativeHeight) + scaled(PANEL_EDGE);
+        }
+
+        /** GUI y of the top of a native rectangle's panel interior. */
+        public float interiorTop(float nativeY) {
+            return y(nativeY) - scaled(PANEL_EDGE);
         }
 
         /** GUI height of {@code nativeHeight} minus a panel's two horizontal borders. */
@@ -228,6 +238,28 @@ public final class MenuPageCanvas {
             solid(client, 0F, 0F, nativeWidth, HEADER_HEIGHT, 0.10F, 0.11F, 0.14F, 0.90F);
             solid(client, 0F, 0F, nativeWidth, 2F, 0.30F, 0.32F, 0.36F, 0.55F);
             solid(client, 0F, HEADER_HEIGHT, nativeWidth, 1.5F, GOLD_R, GOLD_G, GOLD_B, 0.75F);
+        }
+
+        /**
+         * A widget pinned inside one of {@link #panel}'s corners, by an inset in native units.
+         *
+         * <p>"Bottom-right of this panel, 12 in from each edge" is how a control that belongs to a
+         * panel is actually placed, and it is the only placement that cannot disagree with the
+         * frame: the inset is counted from the same interior edges {@link #interiorX} and
+         * {@link #interiorBottom} report. Building it out of those two keeps the frame's own width
+         * (a fixed number of <em>source</em> pixels) in one place, and saves a caller from dividing
+         * a GUI width back by {@link #scale()} to feed {@link #widgetAt}.
+         */
+        public Button widgetAtInterior(PvzceClient client, float nativeX, float nativeY,
+                                       float nativeWidth, float nativeHeight,
+                                       float insetRight, float insetBottom,
+                                       float widgetWidth, float widgetHeight,
+                                       String label, Runnable onPress) {
+            int width = Math.round(scaled(widgetWidth));
+            int height = Math.round(scaled(widgetHeight));
+            int widgetX = Math.round(interiorX(nativeX + nativeWidth) - scaled(insetRight) - width);
+            int widgetY = Math.round(interiorBottom(nativeY, nativeHeight) + scaled(insetBottom));
+            return new Button(widgetX, widgetY, width, height, label, onPress);
         }
     }
 

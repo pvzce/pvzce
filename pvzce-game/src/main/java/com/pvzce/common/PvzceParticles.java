@@ -141,6 +141,37 @@ public final class PvzceParticles {
     public static final Identifier JACK_EXPLODE_SPROING = id("jack_explode_jack_explode_sproing");
 
     /**
+     * The zomboni's wreck, in the original's own five pieces.
+     *
+     * <p>The original ships two takes of this explosion ({@code ZamboniExplosion.xml} and
+     * {@code ZamboniExplosion2.xml}) and they are <em>mixed</em>: the second one swaps the driver's
+     * beanie for the machine's brush, so the two files are the same blast with one piece changed.
+     * This list is the second take, which is the fuller of the two, and the pieces are emitted
+     * together rather than picked between - "mixed" in the report is the machine coming apart, not
+     * a random choice of animation.
+     *
+     * <p>Every one of the five was already in the shipped set (the converter ran over the whole
+     * emitter directory); what was missing was anything that <em>emitted</em> them, so a zomboni
+     * died as a cherry bomb's {@code pow} - the reported "冰车爆炸的动画也错误".
+     */
+    public static final java.util.List<Identifier> ZAMBONI_WRECK = java.util.List.of(
+            id("zamboni_explosion2_zamboni_big_clouds"),
+            id("zamboni_explosion2_hood"),
+            id("zamboni_explosion2_wheels"),
+            id("zamboni_explosion2_brush"),
+            id("zamboni_explosion"));
+
+    /**
+     * The jalapeno's flame: the original's own 13-frame fire loop, one tongue per cell of the row
+     * it burns.
+     *
+     * <p>{@code tools/gen_jalapeno_fire.py} cuts the frames out of {@code refer/anim/fire.reanim}
+     * and writes the definition. Emitted by {@code ExplosiveCapability} for a row-shaped blast and
+     * nobody else - the cherry bomb's round cloud is a different plant's explosion.
+     */
+    public static final Identifier JALAPENO_FIRE = id("jalapeno_fire");
+
+    /**
      * The three puffs of a sleeping mushroom's breath, smallest first.
      *
      * <p>Three sizes rather than one scaled puff because a particle's size is a number in its
@@ -160,6 +191,8 @@ public final class PvzceParticles {
                 ZOMBIE_FLAG, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
                 LANTERN_SHINE, MOWERED_ZOMBIE_HEAD, MOWERED_ZOMBIE_ARM, MOWER_CLOUD,
                 MOWER_CLOUD_POWIE, JACK_EXPLODE_BIG_CLOUD, JACK_EXPLODE_SPROING,
+                ZAMBONI_WRECK.get(0), ZAMBONI_WRECK.get(1), ZAMBONI_WRECK.get(2),
+                ZAMBONI_WRECK.get(3), ZAMBONI_WRECK.get(4), JALAPENO_FIRE,
                 id("zzz_1"), id("zzz_2"), id("zzz_3"));
     }
 

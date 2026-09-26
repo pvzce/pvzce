@@ -141,6 +141,39 @@ class EntityConfig:
     # translation into the extra's keys, which is rigid attachment in everything but
     # rotation.
     extra_bone_host: Optional[str] = None
+    # Bones drawn *in their host's space* rather than in the model's, as ``child -> host``.
+    #
+    # A reanim has one flat transform space: every track carries absolute coordinates, so a part
+    # that rides on another part is authored frame by frame in world space and the parent's motion
+    # is baked into its own keys. That is why the threepeater's three heads stand still while its
+    # three stems sway - the heads' own tracks are a flat three-second loop, and nothing ties them
+    # to the stems they are drawn growing out of. Naming the host here makes the exporter rewrite
+    # the child's keys into the host's space and declare it as a child in the model's bone tree, so
+    # the engine's own parent transform carries it.
+    #
+    # Orthogonal to ``extra_bone_host`` (which welds a *translation delta* onto a bone whose keys
+    # are already in model space, for a part that comes from a second reanim file). This one is a
+    # real parent link, so it is the right tool whenever the host's animation is what should move
+    # the child - and the wrong one when the child's keys already say where it goes.
+    bone_parents: Dict[str, str] = field(default_factory=dict)
+    # Sprites that belong to the model but to no track in it: ``{host bone: ((bone, png), ...)}``.
+    #
+    # The bobsled team is the case. The original draws its board with the game rather than the
+    # reanim, so an image for it is not in the rip at all and no mask mentions one - but the board
+    # is part of the zombie's picture, drawn under its feet, and the runtime draws a zombie by
+    # drawing its model's bones. A bone declared here copies its host's keys (so it rides whatever
+    # the host does), draws its own sprite, and is hidden in every clip until a `force_visible`
+    # rule brings it back.
+    #
+    # The same shape as ``damage_states``, and different in what it is for: a damage state is a
+    # family the client picks one member of, while this is a piece that is simply there. A pack
+    # that wants "one sprite, shown from a clip" has a damage state with one entry; this is for a
+    # sprite that is not a state of anything.
+    extra_bones: Dict[str, Tuple[Tuple[str, str, float], ...]] = field(default_factory=dict)
+    # ...and each entry is ``(bone, png, offset_y)``: the third number is how far above the host's
+    # own origin the sprite hangs, in model units. A board under four riders is *below* the body
+    # bone it rides, and the engine draws a part centred on its bone, so the piece needs somewhere
+    # to say "down there" - the alternative is padding every such PNG with blank rows.
     # Image references whose part is blended additively: light rather than paint.
     #
     # The reanim format has no blend flag - PopCap's renderer decided it in code, per
@@ -465,6 +498,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Wallnut.reanim",
         target_box=PLANT_BOX,
         animations={"idle": {"mask": "anim_idle", "loop": True}},
+        # The walnut's two cracked drawings. They are referenced by no track in `Wallnut.reanim`
+        # - the original swaps them in code as the nut is chewed - so without this the plant was
+        # drawn whole from full health to zero, which is the reported "坚果墙被啃了一部分后，外观
+        # 没有变化". The client picks one member of the family from the plant's synced health; see
+        # `PlantDef#damageTextures`.
+        damage_states={
+            "body": (("cracked_1", "Wallnut_cracked1.png"),
+                     ("cracked_2", "Wallnut_cracked2.png")),
+        },
     ),
     # ------------------------------------------------------------------
     # World 3 and 4, second half
@@ -503,16 +545,34 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         target_box=PLANT_BOX,
         animations={"idle": {"mask": "anim_idle", "loop": True}},
     ),
-    # The tall-nut: a wall-nut that is tall. Its `anim_blink_twice` and `anim_blink_thrice`
-    # masks are the two damage poses the original swaps in, and they are driven by the same
-    # `damage` state family the wall-nut's own two are - so they are exported as `idle` only
-    # and the definition borrows the wall-nut's damage-state handling by staying a plain wall.
+    # The tall-nut: a wall-nut that is tall.
+    #
+    # Its two cracked drawings live in `Tallnut_cracked1/2.png`, referenced by no track - the
+    # original swaps them in code as the nut is chewed - so they are declared as damage states
+    # here, exactly like the wall-nut's. The comment this replaces claimed the two were exported
+    # as part of the reanim's own blink masks, which they are not: nothing was drawn between full
+    # health and zero.
+    #
+    # Its *size* is its own number rather than `PLANT_BOX`. Fitting the 146px-tall body to the
+    # 0.76-cell box the wall-nut uses drew the tall-nut exactly as tall as the wall-nut, which is
+    # the reported "高坚果体积不对": the original's tall-nut body is 146px against the wall-nut's
+    # 100px, i.e. 1.46x its height.
+    #
+    # The pair below is `0.76 * (tallnut drawn box / tallnut body sprite)` per axis: the fit
+    # divides by the *drawn* box, not by the sprite, and the two differ because the blinking eyes
+    # widen it and the idle sway shortens it (119.824 x 84.672 source pixels against the sprite's
+    # 146 x 99). Both axes are scaled by the same fraction, so the shape is the source's - this is
+    # a size, not a stretch.
     EntityConfig(
         output="tall_nut",
         group="plant/defense",
         reanim="Tallnut.reanim",
-        target_box=PLANT_BOX,
+        target_box=(0.623743, 1.093202),
         animations={"idle": {"mask": "anim_idle", "loop": True}},
+        damage_states={
+            "body": (("cracked_1", "Tallnut_cracked1.png"),
+                     ("cracked_2", "Tallnut_cracked2.png")),
+        },
     ),
     # The sea-shroom: a mushroom that lives in the water. `anim_idle_aquarium` is the
     # Zen Garden's tank variant and `anim_waterline` is the foam at the water line, which the
@@ -1078,6 +1138,22 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 ],
             },
         },
+        # Each head rides the stem it grows out of. The head art's own tracks are a *flat* loop -
+        # `anim_face1/2/3` do not move a pixel across the whole idle, because in the original the
+        # heads are drawn by the stems' motion - so without this the stems sway and the three heads
+        # hang in the air: the reported "三线射手 idle 时只有身体在摆动，头没有跟着动".
+        #
+        # Which head belongs to which stem is measured from the art, not guessed: at the idle's rest
+        # frame the head faces sit at x=50.5/33.0/15.2 and the stems' drawn bodies at x=27.2/23.1/
+        # 19.1, and a head's bottom edge lands on exactly one of them (face2 on stem3 within half a
+        # pixel; the other two within 13, against 23 for the next candidate). `head` is head 1,
+        # `head_2` is head 3's face and `head_3` is head 2's - the suffixes count the deduplication
+        # order of the images, not the plant's own numbering (see the phase windows above).
+        bone_parents={
+            "head": "stem_1",
+            "head_2": "stem_2",
+            "head_3": "stem_3",
+        },
     ),
     EntityConfig(
         output="split_pea",
@@ -1507,6 +1583,21 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "wheelie": {"mask": "anim_wheelie1", "loop": False, "on_end": "walk",
                         "transition": 0.05},
         },
+        # The machine's own two damaged drawings. `Zombie_zamboni_1_damage1/2.png` are referenced by
+        # no track - the original swapped them in by health - so without this a zomboni is drawn
+        # pristine from full health to the tick it explodes, which is the reported "冰车也要有破损
+        # 痕迹". The client picks one from the zombie's synced health (see `EquipmentDef` with no
+        # `piece`: a family with more than one drawing wears through the original's thirds).
+        damage_states={
+            # The machine is drawn in four numbered slices, and it is `Zombie_zamboni_1` that has
+            # the two damaged drawings. That piece's name after the conversion is the bare bone `1`
+            # (the entity prefix is stripped), which `bone_renames` turns into `zamboni_body`
+            # *before* the damage states are applied - so both the host and the family are named
+            # the way the runtime will look them up.
+            "zamboni_body": (("zamboni_body_damage1", "Zombie_zamboni_1_damage1.png"),
+                             ("zamboni_body_damage2", "Zombie_zamboni_1_damage2.png")),
+        },
+        bone_renames={"1": "zamboni_body"},
     ),
     EntityConfig(
         output="balloon_zombie",
@@ -1554,16 +1645,34 @@ ENTITY_CONFIGS: List[EntityConfig] = [
     # crash are told apart by the art rather than by a guess. The ride is what this project
     # plays, and its 47 frames are drawn for the 0.55 cells/s a sled slides at.
     #
-    # There is no sled sprite in the rip: the original builds the team out of four bodies of
-    # this same art, offset along the lane, which is what `BobsledCapability` does with it.
+    # The board the four sit on is the one piece of art the rip does not have: the original draws
+    # it with the game rather than with the reanim, and there is no image for it anywhere under
+    # `refer/`. `tools/gen_bobsled_sled.py` draws it new - see that file for what it is modelled
+    # on - and it is declared here as an extra bone, so the sled is part of the zombie's own model
+    # rather than a second entity whose position has to be kept in sync with the team. It is
+    # measured *out* of the model, or four zombies shrink to fit a board longer than they are tall.
+    #
+    # The board rides `body_1`, which is the body of whichever rider this is: the team is four
+    # bodies of this one definition, so the lead and the three behind it all draw the board, and
+    # the overlapping copies land within a few centimetres of each other and read as one sled.
+    # `hidden_bones` on the definition would remove it from a rider; nothing does, because the
+    # alternative - one board on the lead only - is a fourth body that draws nothing extra and a
+    # team that loses its board for the frame between a crash and the four walking apart.
     EntityConfig(
         output="bobsled_zombie",
         group="zombie/special",
         reanim="Zombie_bobsled.reanim",
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
+        measure_exclude_regex=r"^sled$",
         animations=zombie_animations(walk=False, all_deaths=False) | {
-            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.55},
+            "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.55,
+                     "force_visible": r"^sled$"},
+        },
+        extra_bones={
+            # `(bone, png, offset_y)`: the board hangs this far below the body bone it rides, and
+            # the path is repository-relative because the sprite is not in `refer/`.
+            "body_1": (("sled", "tools/art/bobsled_sled.png", -0.4917),),
         },
     ),
     EntityConfig(
@@ -2015,6 +2124,24 @@ def pieces_to_bones(pieces: Sequence[core.RenderPiece], input_path: Path) -> Lis
     return bones
 
 
+def hierarchy_host(bones: Sequence[core.Bone], config: EntityConfig,
+                   bone: core.Bone) -> Optional[core.Bone]:
+    """The bone this one is parented to, or ``None``.
+
+    <p>Looked up by name and validated loudly: a typo in ``bone_parents`` would otherwise be a
+    model that quietly does not move, which is the exact symptom this field exists to fix.
+    """
+    host_name = config.bone_parents.get(bone.name)
+    if host_name is None:
+        return None
+    host = next((candidate for candidate in bones if candidate.name == host_name), None)
+    if host is None:
+        raise SystemExit(
+            f"{config.output}: bone_parents maps {bone.name!r} to {host_name!r}, "
+            "which is not a bone")
+    return host
+
+
 def rename_declared_bones(bones: List[core.Bone], config: EntityConfig) -> None:
     """Applies ``bone_renames`` in place; see that field for why it exists."""
 
@@ -2048,14 +2175,39 @@ def measure_bones(bones: Sequence[core.Bone], config: EntityConfig) -> List[core
     return kept
 
 
-def load_damage_state_asset(input_dir: Path, file_name: str) -> core.ImageAsset:
-    """One damaged-equipment PNG, by file name next to the reanim that uses it."""
+def load_damage_state_asset(input_dir: Path, file_name: str,
+                            host: Optional[core.ImageAsset] = None) -> core.ImageAsset:
+    """One damaged-equipment PNG, by file name next to the reanim that uses it.
+
+    <p>A damage state that is a *shorter* drawing than the sprite it replaces is padded back up to
+    it, centred. The bone carries no translation of its own - it copies the host's keys - so the
+    drawn position is the image's own centre, and a state two pixels short is a state drawn one
+    pixel low. ``Tallnut_cracked2.png`` is exactly that: 99x144 against the body's 99x146. Padding
+    is written next to the generated part textures (the ``refer/`` copy is never edited) and is the
+    same picture, so nothing about the art changes - only which pixel is its middle.
+    """
 
     source = input_dir / file_name
     if not source.is_file():
         raise SystemExit(f"Missing damage-state image: {source}")
     width, height = core.read_png_size(source)
-    return core.ImageAsset(ref=file_name, source=source, width=width, height=height)
+    if host is None or (width == host.width and height == host.height):
+        return core.ImageAsset(ref=file_name, source=source, width=width, height=height)
+    if width > host.width or height > host.height:
+        raise SystemExit(
+            f"Damage-state image {file_name} is larger than the sprite it replaces "
+            f"({width}x{height} against {host.width}x{host.height}); it would not be centred")
+    from PIL import Image  # noqa: PLC0415 - only needed by this branch
+
+    padded_dir = REPO_ROOT / "build" / "damage_states"
+    padded_dir.mkdir(parents=True, exist_ok=True)
+    padded = padded_dir / file_name
+    canvas = Image.new("RGBA", (host.width, host.height), (0, 0, 0, 0))
+    with Image.open(source) as art:
+        canvas.alpha_composite(art.convert("RGBA"),
+                               ((host.width - width) // 2, (host.height - height) // 2))
+    canvas.save(padded)
+    return core.ImageAsset(ref=file_name, source=padded, width=host.width, height=host.height)
 
 
 def apply_damage_states(
@@ -2083,7 +2235,7 @@ def apply_damage_states(
             bones.append(
                 core.Bone(
                     name=new_name,
-                    asset=load_damage_state_asset(input_dir, file_name),
+                    asset=load_damage_state_asset(input_dir, file_name, host.asset),
                     states=list(host.states),
                     visibility=[False] * len(host.states),
                     order=host.order,
@@ -2096,6 +2248,51 @@ def apply_damage_states(
             # intact one swings with the arm.
             if host_name in attached_bones:
                 attached_bones.add(new_name)
+
+
+def apply_extra_bones(
+    config: EntityConfig,
+    bones: List[core.Bone],
+    input_dir: Path,
+    extra_bone_offsets: Dict[str, float],
+) -> None:
+    """Appends a bone per declared extra sprite, hidden in every clip.
+
+    The twin of {@link apply_damage_states} with one difference that matters: the sprite is not a
+    state of its host, it is a piece of the model the rip never drew. Its own PNG, its host's keys
+    so it rides whatever the host does, and `hidden` so no clip has to mention it - a clip that
+    wants it says so with `force_visible`.
+    """
+
+    for host_name, entries in config.extra_bones.items():
+        host = next((bone for bone in bones if bone.name == host_name), None)
+        if host is None:
+            raise SystemExit(
+                f"{config.output}: extra-bone host {host_name!r} is not in the model")
+        for new_name, file_name, offset_y in entries:
+            if any(bone.name == new_name for bone in bones):
+                raise SystemExit(f"{config.output}: duplicate extra bone {new_name!r}")
+            # A bare name is a PNG next to the reanim; a path with a separator is relative to the
+            # repository. The second form is what an extra that the rip *does not have* needs - a
+            # sprite the project draws itself lives in the repository, not in `refer/`, and
+            # `refer/` is read-only by the rules in AGENTS.md.
+            source = (REPO_ROOT / file_name) if "/" in file_name else (input_dir / file_name)
+            if not source.is_file():
+                raise SystemExit(f"Missing extra-bone image: {source}")
+            width, height = core.read_png_size(source)
+            bones.append(
+                core.Bone(
+                    name=new_name,
+                    asset=core.ImageAsset(ref=file_name, source=source,
+                                          width=width, height=height),
+                    states=list(host.states),
+                    visibility=[False] * len(host.states),
+                    order=host.order,
+                    track_names=[f"extra_bone:{host_name}"],
+                    hidden=True,
+                )
+            )
+            extra_bone_offsets[new_name] = offset_y
 
 
 def reference_range(config: EntityConfig, tracks: Sequence[core.Track]) -> Tuple[int, int]:
@@ -2337,7 +2534,9 @@ def build_animation(
     bbox: core.BBox,
     config: EntityConfig,
     attached_bones: Optional[set] = None,
+    extra_bone_offsets: Optional[Dict[str, float]] = None,
 ) -> Dict[str, object]:
+    extra_bone_offsets = extra_bone_offsets or {}
     frames = range_frames(spec, tracks)
     start, end = frames[0], frames[-1]
     frame_count = len(frames)
@@ -2419,8 +2618,6 @@ def build_animation(
                 is_visible = True
             if force_visible_re is not None and force_visible_re.fullmatch(bone.name):
                 is_visible = True
-            if clip_visible_re is not None and clip_visible_re.search(bone.name):
-                is_visible = True
             if phase is not None:
                 # A bone one of the clip's phases claims is drawn for the whole clip: the
                 # source only hides it while some *other* phase's timeline is the one
@@ -2434,10 +2631,15 @@ def build_animation(
             if force_hidden_re is not None and force_hidden_re.fullmatch(bone.name):
                 is_visible = False
             if bone.hidden:
-                # A damage-state sprite is never drawn by a clip: the client picks one
-                # member of the family from the zombie's synced state. This is last so no
-                # force_visible rule can resurrect it.
-                is_visible = False
+                # A sprite no track draws - a damage state, an extra bone - is off unless the
+                # *clip* says otherwise. It is off by default so that no clip has to know about
+                # it, and a clip that does say so is the one case where the sprite is part of
+                # that clip's picture: the bobsled's board is drawn by the ride (`walk`) and not
+                # by the death, and it is the same declaration either way. A config-level
+                # `force_visible_bones` cannot resurrect one, which is what keeps the client's
+                # own choice of damage state the only thing that turns a cracked nut on.
+                is_visible = clip_visible_re is not None \
+                    and clip_visible_re.search(bone.name) is not None
             visibility.append(is_visible)
 
         def key(position: int) -> str:
@@ -2446,11 +2648,52 @@ def build_animation(
         weld = host_translation if (attached_bones and bone.name in attached_bones) else None
         # The host's rest position, which is the pivot a welded bone swings around.
         weld_pivot = weld(frames[0]) if weld is not None else None
+        # The bone this one is *parented* to, which is a different statement from "welded": a
+        # parented bone's keys are rewritten into its host's space, so the host's own animation
+        # carries it. See `bone_parents` on EntityConfig.
+        parent_bone = hierarchy_host(bones, config, bone)
+        parent_frame = idle_pose_frame
+
+        def parent_world(frame: int, position: int) -> Optional[List[float]]:
+            if parent_bone is None:
+                return None
+            state_data = parent_bone.states[pose_frame_for(parent_bone, frame, position)]
+            center_x, center_y = core.model_center_px(state_data, parent_bone.asset, bbox)
+            return [center_x * scale, center_y * scale]
+
+        def pose_frame_for(target: "core.Bone", frame: int, position: int) -> int:
+            """``pose_frame`` for another bone.
+
+            <p>A parented bone is posed by its host's frame, not by its own: the host is where the
+            motion comes from, and a host that borrows the idle pose outside its window would drag
+            its child somewhere the child's own track never goes.
+            """
+            phase = window_for(windows, target.name)
+            rescued_target = (force_visible and not any(target.visibility[i] for i in frames)
+                              and parent_frame is not None)
+            if phase is not None:
+                return frame if phase[0] <= position <= phase[1] else parent_frame
+            return parent_frame if rescued_target else frame
 
         def translation_at(frame: int, position: int) -> List[float]:
             state_data = bone.states[pose_frame(frame, position)]
             center_x, center_y = core.model_center_px(state_data, bone.asset, bbox)
             value = [center_x * scale, center_y * scale]
+            extra_offset = extra_bone_offsets.get(bone.name)
+            if extra_offset is not None:
+                # An extra bone hangs where its declaration says, in *model* units: the offset is
+                # added after the fit's scale, because "half a cell below the body" is a statement
+                # about the board and not about the source pixels it was drawn in.
+                value[1] += extra_offset
+            host_world = parent_world(frame, position)
+            if host_world is not None:
+                # Local space: base is the host's own origin, so the child's keys have to be the
+                # child's world position *minus the host's*. `ControllerPlayback` multiplies the
+                # parent's world matrix by the child's pose, so a child left in world coordinates
+                # would be carried twice - once by its own keys and once by its parent.
+                value[0] -= host_world[0]
+                value[1] -= host_world[1]
+                return [core.round_float(value[0]), core.round_float(value[1])]
             if weld is not None:
                 # The piece is carried by the host: its authored position plus however far the
                 # host has moved since the clip began.
@@ -2474,8 +2717,18 @@ def build_animation(
             # The piece's own drawn shear, untouched. It already carries the same swing the host
             # does - the art was drawn as one animation - so tilting it by the host's delta
             # rotates the pole twice about a pivot it is already positioned against.
+            #
+            # A parented bone is the exception: its host's rotation is *already applied* by the
+            # playback, so the local key is the difference. The threepeater's heads are the case -
+            # the stems do not rotate in the idle, but a bone parented to one that did would spin
+            # twice otherwise.
             state_data = bone.states[pose_frame(frame, position)]
-            return [core.round_float(state_data.kx), core.round_float(state_data.ky), 0.0]
+            kx, ky = state_data.kx, state_data.ky
+            if parent_bone is not None:
+                host_state = parent_bone.states[pose_frame_for(parent_bone, frame, position)]
+                kx -= host_state.kx
+                ky -= host_state.ky
+            return [core.round_float(kx), core.round_float(ky), 0.0]
 
         def scale_at(frame: int, position: int) -> List[float]:
             state_data = bone.states[pose_frame(frame, position)]
@@ -2701,6 +2954,7 @@ def build_controller_json(
     scale: float,
     drawn: Tuple[float, float],
     attached_bones: Optional[set] = None,
+    extra_bone_offsets: Optional[Dict[str, float]] = None,
 ) -> Dict[str, object]:
     model_bones: List[Dict[str, object]] = [
         {
@@ -2727,7 +2981,7 @@ def build_controller_json(
         model_bones.append(
             {
                 "name": bone.name,
-                "parent": "root",
+                "parent": config.bone_parents.get(bone.name, "root"),
                 "pivot": [0.0, 0.0],
                 "parts": [part],
             }
@@ -2736,7 +2990,7 @@ def build_controller_json(
     animations: Dict[str, object] = {}
     for state, spec in config.animations.items():
         animations[state] = build_animation(state, spec, bones, tracks, fps, scale, bbox, config,
-                                            attached_bones or set())
+                                            attached_bones or set(), extra_bone_offsets)
 
     return {
         "type": "controller",
@@ -2777,6 +3031,9 @@ def process_entity(
     # Before everything that looks a bone up by name: the fit, the damage states and the
     # controller all have to see the name the runtime will use.
     rename_declared_bones(bones, config)
+    # Model-space y each extra bone hangs by, filled in as they are appended; see
+    # `apply_extra_bones` and `translation_at`.
+    extra_bone_offsets: Dict[str, float] = {}
 
     # The host's own art, kept before the extras are appended. The bounding box is the main
     # reanim's and so is the extent below, deliberately: the extras are authored in that same
@@ -2811,6 +3068,9 @@ def process_entity(
     # After the extras, so a damage state of an attached bone (the flag) is welded like
     # its host; before the scale, because the extras are invisible and must not move it.
     apply_damage_states(config, bones, attached_bones, input_dir)
+    # After the damage states, so a piece declared as both is not appended twice, and before
+    # the scale, for the same reason: neither is measured.
+    apply_extra_bones(config, bones, input_dir, extra_bone_offsets)
     # What the model *draws*, in source pixels, measured with the same affine the runtime uses
     # (see model_extent). The fit works off this rather than the reanim bounding box because
     # the number written into `model.size` - which the runtime reads back as the entity's
@@ -2836,7 +3096,8 @@ def process_entity(
             config.target_box[1] / max(1.0, drawn[1]),
         )
 
-    controller = build_controller_json(config, bones, tracks, fps, bbox, scale, drawn, attached_bones)
+    controller = build_controller_json(config, bones, tracks, fps, bbox, scale, drawn, attached_bones,
+                                       extra_bone_offsets)
 
     json_path = (resources_dir / "assets" / DEFAULT_NAMESPACE / "animations"
                  / config.group / f"{config.output}.json")

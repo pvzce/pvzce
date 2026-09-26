@@ -218,7 +218,8 @@ class DayAreaLevelsTest {
     @Test
     void theFinaleIsABeltLevelOverTheWholeLawn() {
         LevelDef def = level("1_10");
-        assertTrue(def.slots().isEmpty(), "the belt is the card bar");
+        assertTrue(com.pvzce.testutil.TestLevels.plantSlots(def).isEmpty(),
+                "the belt is the card bar");
         LevelBelt belt = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class)
                 .orElseThrow(() -> new AssertionError("1-10 must declare a conveyor"));
         assertEquals(List.of("pea_shooter", "wall_nut", "snow_pea", "repeater", "chomper",

@@ -582,6 +582,8 @@
   "gui.pvzce.shop.wallet": "Coins",
   "gui.pvzce.shop.owned": "Owned",
   "gui.pvzce.shop.poor": "Not enough coins",
+  "gui.pvzce.shop.buy": "Buy",
+  "gui.pvzce.shop.pick": "Select an item first",
   "gui.pvzce.shop.item.rake": "Rake",
   "gui.pvzce.shop.item.card_slot": "Extra Card Slot",
   "gui.pvzce.shop.item.sun_shovel": "Sun Shovel I",

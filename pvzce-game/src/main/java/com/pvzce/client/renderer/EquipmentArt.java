@@ -190,7 +190,7 @@ public final class EquipmentArt implements BoneArt {
     }
 
     /** One equipment entry and the bones that draw it, by damage state. */
-    private record Entry(EquipmentDef equipment, List<String> bones) {
+    private record Entry(EquipmentDef equipment, List<String> bones, boolean healthDriven) {
         /**
          * The bone that means "this piece's own arm is on screen", or {@code null}.
          *
@@ -234,9 +234,14 @@ public final class EquipmentArt implements BoneArt {
             if (ratio <= 0F) {
                 return null;
             }
+            if (healthDriven) {
+                // A wrecked machine rather than a worn hat: the zomboni's body has two damaged
+                // drawings and the machine itself is what is being destroyed, so it wears through
+                // the same thirds a bucket does instead of switching once at half health.
+                return bones.get(stateIndexFor(ratio));
+            }
             return ratio <= equipment.healthBelow() ? bones.get(bones.size() - 1) : bones.get(0);
         }
-
         /**
          * Which drawing a wear ratio shows: the original's thirds, so a fresh cone turns
          * cracked at two thirds and crushed at one.
@@ -277,7 +282,12 @@ public final class EquipmentArt implements BoneArt {
                 // when a zombie loses it.
                 List<String> family = familyIn(model, equipment.art());
                 if (!family.isEmpty()) {
-                    resolved.add(new Entry(equipment, family));
+                    // A health-driven piece with a *family* is the zomboni's own body: it has more
+                    // than one damaged drawing, and "which one" is how wrecked the machine is. The
+                    // flag zombie's entry is health-driven too and has one drawing, so it keeps the
+                    // single threshold its `health_below` states.
+                    resolved.add(new Entry(equipment, family,
+                            !equipment.armorDriven() && family.size() > 1));
                 }
             }
             return new Plan(List.copyOf(resolved), def.dropsArm(),

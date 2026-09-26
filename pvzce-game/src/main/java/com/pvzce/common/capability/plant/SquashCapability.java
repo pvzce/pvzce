@@ -290,27 +290,56 @@ public final class SquashCapability implements PlantCapability {
     }
 
     /**
-     * Comes down on the zombie it committed to.
+     * Comes down on the cell it leapt at, and flattens everything standing in it.
      *
-     * <p>The target is looked up again rather than held: in the second between noticing and
-     * landing, something else may have killed it - a pea, another squash, a mower. A squash that
-     * landed on a corpse anyway would be a card spent on nothing, which is why a leap whose target
-     * is gone still spends the plant (it jumped) but does not pretend to have hit anything.
+     * <p><b>The whole cell, not the one zombie it aimed at.</b> A squash is a very large vegetable
+     * landing on one square of lawn: the original flattens every zombie in the cell it lands in, and
+     * anything that walked in beside the target by that tick is under it. This used to damage only
+     * the entity it had committed to, so a squash that came down between two zombies killed one and
+     * left the other chewing - the reported "倭瓜的伤害应该是针对整个格子的僵尸都有压扁的伤害".
+     * The target is what the leap <em>aims</em> at; the cell is what it <em>hits</em>.
+     *
+     * <p>Which cell is the landing point's own, i.e. the cell the arc already carried the plant to
+     * (see {@link #advanceLeap}), so "what it is drawn lying on" and "what takes the damage" are the
+     * same fact by construction rather than two roundings that have to agree.
+     *
+     * <p>The targeted zombie is deliberately no longer looked up: a corpse that died on the way down
+     * changes nothing, because the damage was never about that one body.
      */
     private void land(PlantEntity plant, LevelAccess level) {
-        ZombieEntity target = zombieById(plant, level);
         // Down where the arc put it: the leap already carried the plant to the target's cell
         // (see `advanceLeap`), so there is no teleport here - that was what read as "只是平移了".
         plant.setCellX(leapToX);
         plant.setHeight(leapBaseHeight);
-        if (target != null) {
+        int cell = Math.round(plant.cellX() - 0.5F);
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
+            if (zombie.isRemoved() || Math.round(zombie.cellX() - 0.5F) != cell) {
+                continue;
+            }
             // `pvzce:crush` by default: armour does not save the zombie, and nothing is burned.
-            target.damage(damage, ZombieEntity.damageType(damageType), level);
+            zombie.damage(damage, ZombieEntity.damageType(damageType), level);
         }
         level.emitEffect("", plant.cellX(), plant.cellY(),
                 plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_BONK));
         plant.setState(EntityAnimations.EXPLODE);
         lingerLeft = LINGER_TICKS;
+    }
+
+    /**
+     * Invulnerable from the moment it notices something, not from the moment it lands.
+     *
+     * <p>Reported as "倭瓜不应该被啃掉……可啃，但是激活时无敌": once a squash has committed it is in the
+     * air, and a zombie must not be able to cancel the leap by chewing on the square it left. The
+     * fuse is a second and a quarter, and a zombie standing on it bites it down in about a second -
+     * so before this the plant was regularly eaten mid-jump and spent its card on nothing.
+     *
+     * <p>Before it notices anything it is an ordinary plant and is eaten like one: {@code idle} is
+     * the state whose art is a squash sitting on the lawn, and that is the squash a zombie is
+     * allowed to take away.
+     */
+    @Override
+    public boolean invulnerable(PlantEntity plant) {
+        return lookLeft > 0 || fuseLeft > 0 || lingerLeft > 0;
     }
 
     /**

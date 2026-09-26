@@ -155,9 +155,10 @@ public final class ShooterCapability implements PlantCapability {
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
             float row = plant.cellY() + shot.rowOffset();
             if (shot.initialDelay() > 0) {
-                // The whole entry waits: this is one head of the threepeater's volley, and the
-                // art opens the three heads half a second apart. Every projectile of the entry
-                // rides the same countdown, spaced by its own burst delay on top.
+                // The whole entry waits - a volley that does not leave on the firing tick at all.
+                // No shipped shot does (see `ProjectileRef#initialDelay`); the field is kept for a
+                // content author whose art opens its heads one at a time. Every projectile of the
+                // entry rides the same countdown, spaced by its own burst delay on top.
                 for (int i = 0; i < shot.count(); i++) {
                     pendingShots.add(new PendingShot(shot, muzzleX, row,
                             shot.initialDelay() + i * shot.burstDelay()));
@@ -165,9 +166,9 @@ public final class ShooterCapability implements PlantCapability {
                 continue;
             }
             if (shot.burstDelay() <= 0) {
-                // One tick, one volley: the shape every single-pea plant and the threepeater's
-                // own entries already had, and the one a multi-row volley has to keep - its
-                // projectiles belong to different lanes, so they are not a burst at all.
+                // One tick, one volley: the shape every single-pea plant has, and the one a
+                // multi-row volley has to keep - the threepeater's three peas belong to different
+                // lanes, so they are not a burst at all and leave together.
                 for (int i = 0; i < shot.count(); i++) {
                     level.spawnProjectile(shot, muzzleX, row, plant);
                 }

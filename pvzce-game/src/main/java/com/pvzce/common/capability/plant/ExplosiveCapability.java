@@ -450,6 +450,23 @@ public final class ExplosiveCapability implements PlantCapability {
             level.emitEffect(particles.get(i).toString(), plant.cellX(), plant.cellY(),
                     i == 0 ? blastSound : null);
         }
+        if (trigger == Trigger.ROW) {
+            // A row's worth of fire, one tongue per cell along it. The original draws the
+            // jalapeno's blast as one long flame animation spanning the lane, spawned cell by cell;
+            // here it is the same particle emitted down the row, which is what makes it a *row*
+            // rather than the round cloud the cherry bomb draws - the reported "火爆辣椒的特效错误
+            // ……应该是当前整行的火焰".
+            //
+            // The whole board and not the cells to the right: a jalapeno is planted in the middle
+            // of a lawn and burns both ways, and `damageRow` above already reaches every cell.
+            // Derived from the trigger rather than declared, because "a row" *is* this shape - the
+            // cherry bomb's square gets the cloud and no square blast is a wall of flame.
+            float rowY = plant.gridY() + 0.5F;
+            for (int cell = 0; cell < level.width(); cell++) {
+                level.emitEffect(PvzceParticles.JALAPENO_FIRE.toString(),
+                        cell + 0.5F, rowY, null);
+            }
+        }
         // The blast is over as far as the simulation is concerned, but the plant stays for its
         // own linger so the client can actually draw what just happened - which for the
         // doom-shroom is a two-and-three-quarter-second cloud, not the half second a flash

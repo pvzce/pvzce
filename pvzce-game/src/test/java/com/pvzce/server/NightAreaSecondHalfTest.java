@@ -395,7 +395,8 @@ class NightAreaSecondHalfTest {
     void theFinalNightLevelIsABeltOverThirteenGraves() {
         LevelDef def = level("2_10");
         assertTrue(LevelMechanics.dealsItsOwnCards(def), "a belt level has no seed chooser");
-        assertFalse(def.slots().size() > 0, "and no fixed cards either");
+        assertFalse(com.pvzce.testutil.TestLevels.plantSlots(def).size() > 0,
+                "and no fixed cards either");
 
         LevelBelt belt = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class)
                 .orElseThrow();

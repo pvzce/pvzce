@@ -55,6 +55,31 @@ public final class TestLevels {
         return new Builder(def);
     }
 
+    /**
+     * The level's own card list, minus the tools and resources a belt level keeps on the bar.
+     *
+     * <p>A level that deals its own cards must not pin any <em>plants</em>: the belt deals those,
+     * and a pinned one is never granted. Tools and resources are the other way round - the belt
+     * cannot deal them (see {@code BeltCardSource#rebuildBar}), so a belt level that pins the
+     * shovel is stating the only way to fix a misplaced plant, and every shipped belt level does.
+     * Four tests used to assert "a belt level lists nothing at all", which was true only while no
+     * belt level had a shovel.
+     */
+    public static List<Identifier> plantSlots(LevelDef def) {
+        List<Identifier> plants = new java.util.ArrayList<>();
+        for (Identifier slot : def.slots()) {
+            if (slot == null) {
+                continue;
+            }
+            var resolved = com.pvzce.common.core.SlotResolver.resolve(slot);
+            if (resolved.isEmpty()
+                    || resolved.get().kind() == com.pvzce.common.core.Slot.Kind.PLANT) {
+                plants.add(slot);
+            }
+        }
+        return List.copyOf(plants);
+    }
+
     /** Every component of {@link LevelDef}, each defaulting to what it already was. */
     public static final class Builder {
         private Identifier id;

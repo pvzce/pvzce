@@ -185,6 +185,34 @@ class BungeeAndZamboniTest {
     }
 
     /**
+     * A spikeweed wrecks the machine instead of being driven over.
+     *
+     * <p>The reported "冰车僵尸应该被地刺扎毁而不是干掉地刺": a zomboni on the spikeweed's cell now spends
+     * the plant destroying the *zombie*, which is what "扎毁" means and what keeps one spikeweed
+     * from clearing every zomboni in the lane. Both go, and nothing is left frozen - the machine
+     * never got past the cell it died on.
+     */
+    @Test
+    void aSpikeweedWrecksTheZamboni() {
+        LevelServer level = lawn();
+        ZombieEntity zamboni = level.spawnZombie(
+                Identifier.withDefaultNamespace("zamboni_zombie"),
+                level.team(ZOMBIE_TEAM), 6F, 2);
+        assertNotNull(zamboni);
+        level.flushPending(packet -> { });
+        // Planted after the spawn so the zamboni's own spawn packet is not what "removed" is
+        // measured against: this is one zombie and one plant on an empty lawn.
+        PlantEntity spike = place(level, "spikeweed", 4, 2);
+
+        tick(level, 400);
+
+        assertTrue(spike.isRemoved(), "the spike is spent wrecking the machine");
+        // Killed, not despawned: a body stays for its death clip (see CORPSE_TICKS), and the
+        // wreck's own particles are what plays over it.
+        assertFalse(zamboni.isAlive(), "and the machine is wrecked");
+    }
+
+    /**
      * The trail is terrain with a clock: every frozen cell melts back into lawn.
      *
      * <p>The original's own thirty seconds. It is a rule rather than a hardcoded constant because

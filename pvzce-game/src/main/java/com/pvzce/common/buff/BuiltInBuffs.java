@@ -77,9 +77,14 @@ public enum BuiltInBuffs implements LevelBuff {
      * <p>A fifth rather than a half: a generous refund turns "I misplanted" into "I am
      * rearranging my lawn for free", and the point of the buff is to take the sting out of a
      * mistake rather than to remove the cost of a decision.
+     *
+     * <p>Its icon is the original shovel with the sun bank's own disc on it, composed by
+     * {@code tools/gen_sun_shovel_icon.py}. The project drew its own illustration for this one for
+     * a while - a photorealistic shovel in a style nothing else in the game uses - which is the
+     * reported "阳光铲的贴图错误".
      */
     SUN_SHOVEL(PvzceIds.BUFF_SUN_SHOVEL,
-            Identifier.withDefaultNamespace("textures/gui/buff/auto_collect")) {
+            Identifier.withDefaultNamespace("textures/gui/buff/sun_shovel")) {
         @Override
         public float shovelRefundFraction() {
             return SUN_SHOVEL_REFUND;

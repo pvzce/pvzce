@@ -10,6 +10,6 @@
   ],
   "effect": "pvzce:vase",
   "uses": -1,
-  "texture": "pvzce:textures/gui/cards/flower_pot",
+  "texture": "pvzce:textures/gui/cards/vase",
   "animation_dir": "tool"
 }

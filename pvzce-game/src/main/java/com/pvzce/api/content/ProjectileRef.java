@@ -31,11 +31,12 @@ import com.pvzce.api.util.Identifier;
  * the default, and what every single-shot plant means - keeps the volley on the firing tick.
  *
  * <p>{@code initial_delay} is the other half of that idea: a volley that does not leave on the
- * firing tick at all. It is what lets one plant's several *entries* be a sequence rather than a
- * simultaneous spread - the threepeater's three heads open one at a time, half a second apart, so
- * the peas are three entries with delays 0 / 30 / 60 rather than three entries that all leave
- * together while the art shows one head firing. {@code burst_delay} still spaces the shots
- * <em>within</em> an entry; the initial delay applies to the whole entry.
+ * firing tick at all. It exists so one plant's several *entries* can be a sequence rather than a
+ * simultaneous spread, and {@code burst_delay} still spaces the shots <em>within</em> an entry.
+ * Nothing shipped uses it today - the threepeater, which it was written for, fires all three
+ * heads at once by request (see {@code plants/threepeater.json}) - but it stays on the codec
+ * because it is the only way a content author can state "this head is late", and removing the
+ * field would not remove the code that reads it.
  */
 public record ProjectileRef(Identifier projectile, int damage, int count,
                             int rowOffset, boolean backward, int rows, float range,
@@ -46,7 +47,7 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
     /** A volley whose projectiles all leave together, which is every shot but a repeater's. */
     public static final int NO_BURST_DELAY = 0;
 
-    /** A shot that leaves on the firing tick, which is every shot but the threepeater's. */
+    /** A shot that leaves on the firing tick, which is every shipped shot. */
     public static final int NO_INITIAL_DELAY = 0;
 
     public static final Codec<ProjectileRef> CODEC = RecordCodecBuilder.create(i -> i.group(

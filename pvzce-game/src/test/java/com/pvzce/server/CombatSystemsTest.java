@@ -174,17 +174,19 @@ class CombatSystemsTest {
     }
 
     /**
-     * The threepeater opens its three heads half a second apart.
+     * The threepeater opens all three heads at once.
      *
-     * <p>Its three shots are three separate entries, so {@code burst_delay} - which spaces the
-     * projectiles <em>within</em> one entry - never applied to them and all three left on the
-     * firing tick. The art fires one head at a time (its attack clip runs three 0.5s windows back
-     * to back), so the peas were appearing before the mouth that fires them had opened.
-     * {@code initial_delay} is the fix: each entry waits its own turn, and this pins the turn
-     * spacing to the art's half-second.
+     * <p>Its three shots are three separate entries, one per lane, and they used to be staggered by
+     * {@code initial_delay} 0/30/60 so that each pea left on the tick its own head's window opened
+     * in the art. The reported behaviour is the opposite - "三线射手应该三个头同时发射子弹，而不是
+     * 分开发射" - so all three entries now leave on the firing tick, which is also what every other
+     * multi-row shot in the game does (see {@code ShooterCapability}'s "one tick, one volley").
+     *
+     * <p>Three entries and not one entry with {@code rows}: the rows have to be the plant's own row
+     * plus one either side, and {@code rows} counts a contiguous block downward.
      */
     @Test
-    void theThreepeaterOpensItsThreeHeadsOneAtATime() {
+    void theThreepeaterOpensAllThreeHeadsAtOnce() {
         LevelServer level = newLevel();
         CapturingBridge bridge = bridge();
         com.pvzce.api.content.PlantDef def = BuiltInRegistries.PLANTS.get(
@@ -197,18 +199,13 @@ class CombatSystemsTest {
         spawn(level, bridge, "basic_zombie", 8.5F, 2);
 
         tick(level, bridge, 2);
-        assertEquals(1, liveProjectiles(level).size(),
-                "the first head is the only one open on the firing tick");
-
-        // Thirty ticks is the art's half-second window, and the peas travel about two cells in
-        // it, so the ones already out are still in the air when the next head opens.
-        tick(level, bridge, 30);
-        assertEquals(2, liveProjectiles(level).size(),
-                "the second head opens half a second later");
-
-        tick(level, bridge, 30);
         assertEquals(3, liveProjectiles(level).size(),
-                "and the third after another half second");
+                "one volley is three peas, one per lane, and all three leave together");
+        // The rows are the plant's own and the two beside it, which is the shape a single body
+        // cannot state: 1 is above, 2 is its own, 3 is below.
+        assertEquals(java.util.List.of(1, 2, 3),
+                liveProjectiles(level).stream().map(p -> p.gridY()).sorted().toList(),
+                "the three peas cover the plant's row and the one either side");
     }
 
     @Test

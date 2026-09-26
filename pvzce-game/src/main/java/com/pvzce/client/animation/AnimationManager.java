@@ -371,7 +371,7 @@ public final class AnimationManager {
             client.pushEntityLook(entity);
         }
         activeBoneArt = playback.file() instanceof ControllerFile controller
-                ? com.pvzce.client.renderer.EquipmentArt.forEntity(entity, controller.model())
+                ? boneArtFor(entity, controller.model())
                 : null;
         try {
             playback.render(client, anchor[0], anchor[1], baseZ(entity), scales[0], scales[1]);
@@ -380,6 +380,21 @@ public final class AnimationManager {
             client.popEntityTint();
         }
         return true;
+    }
+
+    /**
+     * Which bones this entity's controller model may draw, or {@code null} for "the clip decides".
+     *
+     * <p>Two overrides exist and they are per-kind, because the thing they answer is: a zombie's
+     * armour and lost limbs ({@code EquipmentArt}) and a plant's cracked drawings
+     * ({@code PlantDamageArt}). One call site rather than two so the renderer cannot grow a third
+     * answer to "what is this entity allowed to draw" somewhere else.
+     */
+    private static BoneArt boneArtFor(com.pvzce.client.ClientEntity entity,
+                                      com.pvzce.client.animation.ControllerModel model) {
+        BoneArt zombie = com.pvzce.client.renderer.EquipmentArt.forEntity(entity, model);
+        return zombie != null ? zombie
+                : com.pvzce.client.renderer.PlantDamageArt.forEntity(entity, model);
     }
 
     /** The bone override of the render call in progress, or {@code null}. */
@@ -627,6 +642,7 @@ public final class AnimationManager {
         // Damage-state bone families are resolved against a parsed model, so a reloaded
         // pack must not keep being drawn from the plan built for the old one.
         com.pvzce.client.renderer.EquipmentArt.clearCache();
+        com.pvzce.client.renderer.PlantDamageArt.clearCache();
     }
 
     /** Ids whose file exists but failed to parse; used by diagnostics. */

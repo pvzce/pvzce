@@ -582,6 +582,8 @@
   "gui.pvzce.shop.wallet": "金币",
   "gui.pvzce.shop.owned": "已拥有",
   "gui.pvzce.shop.poor": "金币不足",
+  "gui.pvzce.shop.buy": "购买",
+  "gui.pvzce.shop.pick": "先选一件商品",
   "gui.pvzce.shop.item.rake": "钉耙",
   "gui.pvzce.shop.item.card_slot": "卡槽 +1",
   "gui.pvzce.shop.item.sun_shovel": "阳光铲 I",

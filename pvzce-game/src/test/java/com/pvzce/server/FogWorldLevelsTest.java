@@ -115,7 +115,8 @@ class FogWorldLevelsTest {
         assertNull(LevelMechanics.fogData(def), "and no fog: the storm is the darkness");
         assertTrue(LevelMechanics.dealsItsOwnCards(def),
                 "its cards come off a belt, like the other three area finales'");
-        assertTrue(def.slots().isEmpty(), "a belt level carries no deck of its own");
+        assertTrue(com.pvzce.testutil.TestLevels.plantSlots(def).isEmpty(),
+                "a belt level carries no deck of its own");
         assertTrue(def.music().cues().isEmpty(),
                 "and it has no background music: in the original this is the one level whose"
                         + " soundtrack is the rain, and the level data says so by saying nothing");

@@ -94,14 +94,31 @@ public final class ZamboniCapability implements ZombieCapability {
                 continue;
             }
             for (PlantEntity plant : server.plantsAt(column, row)) {
-                if (!plant.isRemoved()) {
-                    // `damageFrom` rather than `damage`: a plant that is invulnerable while its
-                    // fuse burns should not be flattened by a vehicle, for the same reason the
-                    // explosion path deliberately does reach it.
-                    plant.damageFrom(plant.health());
-                    server.emitEffect(PvzceParticles.MOWER_CLOUD.toString(),
-                            plant.cellX(), plant.cellY(), null);
+                if (plant.isRemoved()) {
+                    continue;
                 }
+                if (com.pvzce.common.core.PlantPlacement.is(plant.def(),
+                        com.pvzce.common.tag.PvzceTags.WALK_OVER)) {
+                    // **A spike takes the machine, not the other way round.** The original's zomboni
+                    // is destroyed by a spikeweed - the one plant on the lawn it cannot drive over -
+                    // and this used to flatten one like any other plant, which left the only
+                    // counter to a vehicle useless against it: the reported "冰车僵尸应该被地刺扎毁
+                    // 而不是干掉地刺". Both go: the spike is spent wrecking the machine, which is
+                    // what "扎毁" means and what keeps one spikeweed from clearing every zomboni in
+                    // a lane.
+                    plant.damageFrom(plant.health());
+                    server.emitEffect(com.pvzce.common.PvzceParticles.MOWER_CLOUD.toString(),
+                            plant.cellX(), plant.cellY(), null);
+                    zombie.damage(zombie.health(),
+                            ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT), server);
+                    return false;
+                }
+                // `damageFrom` rather than `damage`: a plant that is invulnerable while its
+                // fuse burns should not be flattened by a vehicle, for the same reason the
+                // explosion path deliberately does reach it.
+                plant.damageFrom(plant.health());
+                server.emitEffect(com.pvzce.common.PvzceParticles.MOWER_CLOUD.toString(),
+                        plant.cellX(), plant.cellY(), null);
             }
             if (leavesIce) {
                 leaveIce(server, column, row);
@@ -144,8 +161,14 @@ public final class ZamboniCapability implements ZombieCapability {
     @Override
     public void onDeath(ZombieEntity zombie, LevelAccess level) {
         if (level instanceof LevelServer server) {
-            server.emitEffect(PvzceParticles.EXPLOSION_POW.toString(),
-                    zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_EXPLOSION);
+            // The original's wreck, piece by piece: the cloud, the hood, the wheels, the brush and
+            // the small parts. All five on the same cell, because they are one explosion that the
+            // original's own emitter file splits for the sake of its spawn scheduling - the runtime
+            // here spawns each definition's particles at once, so the composition is the list.
+            for (Identifier particle : com.pvzce.common.PvzceParticles.ZAMBONI_WRECK) {
+                server.emitEffect(particle.toString(), zombie.cellX(), zombie.cellY(),
+                        PvzceSounds.EFFECT_EXPLOSION);
+            }
         }
     }
 
@@ -160,6 +183,5 @@ public final class ZamboniCapability implements ZombieCapability {
 
     private static final class PvzceParticles {
         static final Identifier MOWER_CLOUD = com.pvzce.common.PvzceParticles.MOWER_CLOUD;
-        static final Identifier EXPLOSION_POW = com.pvzce.common.PvzceParticles.EXPLOSION_POW;
     }
 }

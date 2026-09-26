@@ -63,12 +63,30 @@ public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
     @Override
     public List<String> validate(LevelDef def, LevelBelt data) {
         List<String> errors = new ArrayList<>(data.validate());
-        // Two answers to "what is in the card bar" is one answer too many: the level's own
-        // cards are never granted on a belt level, so listing them is a data mistake the
-        // author should hear about rather than a rule that quietly ignores half the file.
-        if (!def.slots().isEmpty()) {
-            errors.add("This level has a conveyor belt and also lists " + def.slots().size()
-                    + " level cards: the belt replaces the card bar, so the listed cards are never granted");
+        // Two answers to "what is in the card bar" is one answer too many: a *plant* card the level
+        // lists is never granted on a belt level - the belt deals the plants - so listing one is a
+        // data mistake the author should hear about rather than a rule that quietly ignores half
+        // the file.
+        //
+        // Tools and resources are the other half of that, and they are deliberately allowed: the
+        // belt only ever deals plants, and `BeltCardSource` keeps everything else on the bar beside
+        // it, exactly as it does on a deck level. The shovel is what the rule is for in practice -
+        // a belt level with no shovel has no way to fix a misplaced plant - so refusing every card
+        // would refuse the one card a belt level actually needs. See `BeltCardSource#rebuildBar`.
+        List<com.pvzce.api.util.Identifier> plantCards = new ArrayList<>();
+        for (com.pvzce.api.util.Identifier slot : def.slots()) {
+            if (slot == null) {
+                continue;
+            }
+            var resolved = com.pvzce.common.core.SlotResolver.resolve(slot);
+            if (resolved.isEmpty() || resolved.get().kind() == com.pvzce.common.core.Slot.Kind.PLANT) {
+                plantCards.add(slot);
+            }
+        }
+        if (!plantCards.isEmpty()) {
+            errors.add("This level has a conveyor belt and also lists " + plantCards.size()
+                    + " plant cards: the belt deals the plants, so the listed ones are never granted"
+                    + " (tools and resources are kept on the bar)");
         }
         List<com.pvzce.api.util.Identifier> cards = new ArrayList<>();
         for (LevelBelt.BeltCard card : data.cards()) {

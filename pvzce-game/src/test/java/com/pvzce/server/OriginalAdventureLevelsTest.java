@@ -357,7 +357,8 @@ class OriginalAdventureLevelsTest {
             }
 
             if (isConveyor(number)) {
-                assertTrue(def.slots().isEmpty(), name + " deals its own cards");
+                assertTrue(com.pvzce.testutil.TestLevels.plantSlots(def).isEmpty(),
+                        name + " deals its own cards");
             }
             assertEquals(
                     number == 1 ? 150 : (isConveyor(number) || number == 15 || number == 35 ? 0 : 50),
