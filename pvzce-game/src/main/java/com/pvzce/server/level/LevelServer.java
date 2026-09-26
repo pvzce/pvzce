@@ -3532,10 +3532,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             case "pvzce:glove" -> movePlant(x, y);
             case "pvzce:hammer" -> {
                 // A pot is what this swing is for on a vase level (4-5), and a zombie is what it
-                // is for everywhere else. The cell decides, and a cell holds one of them.
-                if (ScaryPotterMechanic.isPot(this, x, y)) {
-                    yield smashPot(x, y);
-                }
+                // is for everywhere else - and on a vase level it is both at once: the swing
+                // opens the pot *and* lands on whatever is standing within reach, because the
+                // mallet does not stop being a mallet just because the level is full of pots.
+                // (It used to `yield` here, so a zombie one cell away from a pot took nothing
+                // from a swing aimed at the pot it was standing next to.)
+                boolean smashed = ScaryPotterMechanic.isPot(this, x, y) && smashPot(x, y);
                 // What one swing is worth, and whether armour absorbs it, are the tool's own
                 // numbers (see ToolDef.damage / damage_type) - not this method's. They used to
                 // live here as a 100000-point `pvzce:mower` blow, which made the mallet a lawn
@@ -3580,7 +3582,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
                     hitSomething = true;
                 }
-                yield hitSomething;
+                yield hitSomething || smashed;
             }
             case "pvzce:water" -> waterPlant(x, y);
             // The vase: place it, fill it, or smash it. Which of the three depends on the cell and
@@ -3658,13 +3660,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     private boolean useVase(int x, int y) {
         SceneElementDef here = sceneAt(x, y);
-        // A plant in the cell means a vase cannot go there, for the same reason a plant cannot go
-        // into a vase that is already occupied: one cell, one thing standing in it.
         if (here == null) {
             return false;
         }
         if (!PvzceIds.VASE.equals(here.id()) && !PvzceIds.VASE_FULL.equals(here.id())) {
-            if (plantAt(x, y) != null) {
+            // A vase goes on bare ground and nowhere else: one cell, one thing standing in it.
+            //
+            // It used to ask only about plants, which quietly made the vase a thing that
+            // *overwrites*: a click on a gravestone buried the gravestone, and a click on one of
+            // 4-5's scary pots turned that pot into an empty vase - the pot's contents stayed in
+            // the mechanic's bookkeeping with nothing on the lawn to break, so the round could
+            // never be finished and the cell looked like a vase with nothing in it. The terrain
+            // list is the bare surfaces; everything else (a grave, a crater, ice, a pot, a vase)
+            // is something already standing there.
+            boolean bare = plantAt(x, y) == null
+                    && (PvzceIds.GRASS.equals(here.id()) || PvzceIds.GROUND.equals(here.id())
+                        || PvzceIds.ROOF_FLAT.equals(here.id())
+                        || PvzceIds.ROOF_SLOPE.equals(here.id()));
+            if (!bare) {
                 bridge.send(new ServerMessageS2C("这一格已经有东西了。"));
                 return false;
             }

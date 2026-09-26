@@ -87,6 +87,25 @@ class ScaryPotterTest {
         throw new AssertionError("4-5 must declare its pots");
     }
 
+    /** The bar's own index for the vase tool, put there by this test. */
+    private static int vaseSlot(LevelServer level) {
+        for (var slot : level.plantPlayer().slots()) {
+            if (slot.defId().equals(PvzceIds.VASE)) {
+                return slot.index();
+            }
+        }
+        var slots = new java.util.ArrayList<>(level.plantPlayer().slots());
+        int index = 0;
+        for (var slot : slots) {
+            index = Math.max(index, slot.index() + 1);
+        }
+        slots.add(new com.pvzce.common.core.Slot(index,
+                com.pvzce.common.core.SlotResolver.resolve(PvzceIds.VASE).orElseThrow().kind(),
+                PvzceIds.VASE, 0, 0, com.pvzce.common.core.Slot.UNLIMITED_USES, 0));
+        level.plantPlayer().replaceSlots(slots);
+        return index;
+    }
+
     /** Every cell a pot is standing in, right to left and top to bottom. */
     private static List<int[]> pots(LevelServer level) {
         List<int[]> found = new ArrayList<>();
@@ -245,6 +264,102 @@ class ScaryPotterTest {
                 "three rounds in, the level's own condition is met");
         assertEquals(GameStateS2C.WON, level.gameState(),
                 "and that is what wins it: this level has no wave to do it");
+    }
+
+    /** The vase level is not a card-picking level, and says so by filling its own bar. */
+    @Test
+    void theVaseLevelHasNothingToChoose() {
+        LevelDef def = level();
+        assertEquals(1, def.maxSeedSlots(), "one slot, filled by the level's own card");
+        assertTrue(com.pvzce.common.core.SeedOptions.hasNothingToChoose(
+                        com.pvzce.common.core.SeedOptions.forLevel(def),
+                        def.effectiveMaxSeedSlots(com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS),
+                        def.slots().stream().map(Identifier::toString).toList()),
+                "so the seed screen has nothing to offer and stays a preview (the original's vase"
+                        + " level hands the player one cherry bomb and nothing else)");
+    }
+
+    /**
+     * The vase tool cannot bury a pot: bare ground only.
+     *
+     * <p>It used to ask about plants alone, so a vase click turned one of these pots into an
+     * empty vase - the pot's contents stayed in the mechanic's bookkeeping with nothing on the
+     * lawn to break, which is a level that can never be finished and a vase that is visibly
+     * empty. (Same shape as a vase click burying a gravestone.)
+     */
+    @Test
+    void theVaseToolCannotBuryAPot() {
+        LevelDef def = level();
+        LevelServer level = new LevelServer(def);
+        Bridge bridge = new Bridge();
+        int[] pot = pots(level).get(0);
+        Identifier before = level.sceneIdAt(pot[0], pot[1]);
+        assertTrue(ScaryPotterMechanic.contentsAt(level, pot[0], pot[1]) != null);
+        // Through the tool path itself: the player carries the vase tool as a card and clicks
+        // the pot with it.
+        int slot = vaseSlot(level);
+        assertTrue(slot >= 0, "the fixture bar has to hold the vase tool");
+        level.plantPlayer().slot(slot).clearCooldown();
+        assertFalse(level.useTool(bridge::send, slot, pot[0], pot[1]),
+                "the click is refused - a pot is already standing there");
+        assertTrue(bridge.messages().stream().anyMatch(line -> line.contains("已经有东西")),
+                "and the player is told why: " + bridge.messages());
+        assertFalse(PvzceIds.VASE.equals(level.sceneIdAt(pot[0], pot[1])),
+                "and it must not have turned the pot into an empty vase");
+        assertEquals(before, level.sceneIdAt(pot[0], pot[1]), "the pot is still the pot it was");
+        assertTrue(ScaryPotterMechanic.contentsAt(level, pot[0], pot[1]) != null,
+                "with what was inside it still there");
+    }
+
+    /** A pot the board lost under a record that still counts it is stood back up. */
+    @Test
+    void aPotTheBoardLostComesBack() {
+        LevelServer level = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        // Exactly what the old vase-tool bug left behind: contents, and a cell that is not a pot.
+        // Two cells, because the first repair ends with the pot broken (one pot, one test).
+        List<int[]> standing = pots(level);
+        for (int index = 0; index < 2; index++) {
+            int[] pot = standing.get(index);
+            Identifier leftover = index == 0 ? PvzceIds.GRASS : PvzceIds.VASE;
+            level.setScene(pot[0], pot[1], leftover);
+            assertFalse(ScaryPotterMechanic.isPot(level, pot[0], pot[1]));
+            level.tick(bridge);
+            assertTrue(ScaryPotterMechanic.isPot(level, pot[0], pot[1]),
+                    "the run still counted it, so it has to be on the lawn to be broken (was "
+                            + leftover + ")");
+            assertTrue(level.useGrantedTool(bridge, mallet(level.def()), pot[0], pot[1]),
+                    "and it can be broken again");
+        }
+    }
+
+    /**
+     * The mallet is still a mallet on a pot cell.
+     *
+     * <p>A swing opens the pot it lands on <em>and</em> hits whatever is standing within its
+     * reach. It used to do only the first - the pot branch returned before the zombie loop - so a
+     * zombie one cell from a pot took nothing from a swing aimed at the pot beside it.
+     */
+    @Test
+    void theMalletOpensAPotAndStillHitsWhatIsBesideIt() {
+        LevelDef def = level();
+        LevelServer level = new LevelServer(def);
+        Bridge bridge = new Bridge();
+        // A pot on the left edge of the round's columns, so the cell beside it is bare lawn
+        // rather than another pot.
+        int[] pot = pots(level).stream().filter(cell -> cell[0] == 6).findFirst().orElseThrow();
+        int neighbour = pot[0] - 1;
+        var zombie = level.spawnZombie(PvzceIds.id("basic_zombie"),
+                level.team(PvzceIds.ZOMBIE_TEAM), neighbour + 0.5F, pot[1]);
+        level.flushPending(bridge);
+        assertNotNull(zombie);
+        assertFalse(ScaryPotterMechanic.isPot(level, neighbour, pot[1]));
+        float before = zombie.health();
+
+        assertTrue(level.useGrantedTool(bridge, mallet(def), pot[0], pot[1]));
+        assertFalse(ScaryPotterMechanic.isPot(level, pot[0], pot[1]), "the pot opened");
+        assertTrue(zombie.health() < before, "and the zombie beside it was hit too: " + before
+                + " -> " + zombie.health());
     }
 
     /** The pots a run has left are the run's, not the level's: a save brings the same board back. */

@@ -57,6 +57,15 @@ public final class PvzceIds {
 
     public static final Identifier GRASS = id("grass");
     public static final Identifier GROUND = id("ground");
+    /**
+     * The roof's two terrains, the bare surfaces of world 5.
+     *
+     * <p>Named here because "is this cell bare ground" is a question the level asks (the vase tool
+     * puts a vase on bare ground and nowhere else) and answering it by spelling the ids out at the
+     * call site is how roof cells end up excluded by accident.
+     */
+    public static final Identifier ROOF_FLAT = id("roof_flat");
+    public static final Identifier ROOF_SLOPE = id("roof_slope");
     /** The hole a blast leaves in bare ground. */
     public static final Identifier CRATER = id("crater");
     /** The same hole while it is filling back in, for the end of its recovery. */

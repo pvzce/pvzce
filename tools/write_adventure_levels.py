@@ -705,7 +705,14 @@ def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
 
     if facts.sun > 0:
         level["unlock_resources"] = {"pvzce:sun": True}
-    if facts.number == 1:
+    # A level whose cards are not chosen says so by filling its own bar: "nothing to choose"
+    # is `total slots - the level's fixed cards <= 0`, which is what sends the seed screen into
+    # its preview-only mode. 4-5 is the case that matters here - the vase level hands the player
+    # one cherry bomb and nothing else, and everything else arrives out of the pots
+    # (`CardSource.receiveCard` appends past the cap, so the freed cards still fit).
+    if facts.scary_potter:
+        level["max_seed_slots"] = len(slots)
+    elif facts.number == 1:
         level["max_seed_slots"] = 2
     elif facts.number == 2:
         level["max_seed_slots"] = 4

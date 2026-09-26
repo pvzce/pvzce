@@ -94,6 +94,7 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
         if (state == null || state.cleared) {
             return;
         }
+        recoverLostPots(level, state);
         if (!state.contents.isEmpty() || level.hostileZombieCount() > 0) {
             return;
         }
@@ -236,7 +237,14 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
                 cells.add(new long[]{x, y});
             }
         }
-        Collections.shuffle(cells, level.random());
+        // A source of this round's own, derived from the level and the round number: the board
+        // has to be the *same* board every time it is laid out, because the client is handed an
+        // opening board built by a second, throwaway level (`LevelServer.openingBoard`) and a
+        // restored run comes back to a round it may already have half-cleared. The level's own
+        // `random()` is for the things that should differ between attempts (wave lanes, sun
+        // drops); a pot layout that differed would be a picture of pots the server does not have.
+        Collections.shuffle(cells, new java.util.Random(
+                level.def().id().toString().hashCode() * 31L + state.round));
 
         // Which pots wear the leaf is decided first, so the choice is spread over the plant pots
         // rather than over the placement order (the original turns a random handful of the seed
@@ -260,6 +268,43 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
                 level.sendSceneCell(x, y);
                 state.contents.put(cellKey(x, y), new Contents(pot.kind(), pot.id()));
             }
+        }
+    }
+
+    /**
+     * Puts back any pot the board has lost under a record that still counts it.
+     *
+     * <p>The run's state and the lawn can disagree in exactly one direction: a cell that still
+     * has contents but is no longer drawn as a pot. That is not a hypothetical - the vase tool
+     * used to be able to overwrite a pot with an empty vase, which left the pot's contents in
+     * this map with nothing on the lawn to break, so the round could never be finished.
+     *
+     * <p>So a lost pot is stood back up (the player is told), and one whose cell has since grown
+     * a plant is written off instead - keeping the entry would make the level unclearable, and a
+     * pot under a plant could never be reached anyway.
+     */
+    private static void recoverLostPots(LevelServer level, State state) {
+        for (Map.Entry<Long, Contents> entry : new HashMap<>(state.contents).entrySet()) {
+            int x = (int) (entry.getKey() >> 32);
+            int y = (int) (long) entry.getKey();
+            if (isPot(level, x, y)) {
+                continue;
+            }
+            var element = level.sceneAt(x, y);
+            // Bare ground, or the empty vase the old bug left behind in its place: both are
+            // cells the run counted a pot in and the board does not. A vase the *player* filled
+            // (`vase_full`) is theirs and is left alone.
+            boolean recoverable = element != null
+                    && (PvzceIds.GRASS.equals(element.id()) || PvzceIds.GROUND.equals(element.id())
+                        || PvzceIds.VASE.equals(element.id()));
+            if (recoverable && level.plantAt(x, y) == null) {
+                // Back as a question pot: which pots were green was decided when the round was
+                // laid out, and a pot that has to be put back is a repair, not a re-roll.
+                level.setScene(x, y, PvzceIds.POT_QUESTION);
+                level.sendSceneCell(x, y);
+                continue;
+            }
+            state.contents.remove(entry.getKey());
         }
     }
 
