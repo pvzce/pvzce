@@ -35,6 +35,8 @@ import java.util.Set;
 public final class PlayerProfile {
     /** NBT key holding the unlock-everything flag; not a card set. */
     private static final String KEY_UNLOCK_ALL = "UnlockAll";
+    /** NBT key holding the world's difficulty tier. */
+    private static final String KEY_DIFFICULTY = "Difficulty";
 
     private final Set<Identifier> unlocked = new LinkedHashSet<>();
     /**
@@ -77,6 +79,15 @@ public final class PlayerProfile {
      */
     private final List<Identifier> autoBuffs = new java.util.ArrayList<>();
     private boolean unlockAll;
+    /**
+     * How hard this world plays, from {@code common.level.Difficulty}.
+     *
+     * <p>A fact about the world rather than about the client, so it is stored here with the wallet
+     * and the backpack: a save that moved to another machine must play the way its owner left it,
+     * and a modified client must not be able to hand itself an easier game.
+     */
+    private com.pvzce.common.level.Difficulty difficulty =
+            com.pvzce.common.level.Difficulty.DEFAULT;
 
     private PlayerProfile() {
     }
@@ -244,6 +255,20 @@ public final class PlayerProfile {
         return levelId != null && unlockedLevels.add(levelId);
     }
 
+    /** How hard this world plays. Never null; the original's own difficulty by default. */
+    public com.pvzce.common.level.Difficulty difficulty() {
+        return difficulty;
+    }
+
+    /** Sets the tier; returns true when this changed the profile. */
+    public boolean setDifficulty(com.pvzce.common.level.Difficulty tier) {
+        if (tier == null || tier == difficulty) {
+            return false;
+        }
+        difficulty = tier;
+        return true;
+    }
+
     /** Switches the sandbox flag on; returns true when this changed the profile. */
     public boolean unlockAll() {
         if (unlockAll) {
@@ -307,6 +332,7 @@ public final class PlayerProfile {
         // Stored numerically: CompoundTag has no boolean getter, and its numeric
         // getters are deliberately cross-type lenient.
         root.putByte(KEY_UNLOCK_ALL, (byte) (unlockAll ? 1 : 0));
+        root.putString(KEY_DIFFICULTY, difficulty.key());
         ListTag list = new ListTag();
         for (Identifier id : unlocked) {
             list.add(new StringTag(id.toString()));
@@ -346,6 +372,11 @@ public final class PlayerProfile {
             return starter();
         }
         profile.unlockAll = root.getInt(KEY_UNLOCK_ALL) != 0;
+        // A record written before the tiers existed has no key, and "no key" means the original:
+        // a world that predates the setting must not come back on a harder tier than it was played.
+        profile.difficulty = root.contains(KEY_DIFFICULTY)
+                ? com.pvzce.common.level.Difficulty.parse(root.getString(KEY_DIFFICULTY))
+                : com.pvzce.common.level.Difficulty.DEFAULT;
         profile.setCoins(root.contains("Coins") ? root.getInt("Coins") : 0);
         // A record written before card slots existed has no key, and "no key" has to mean
         // the default: the field is what an ordinary level reads to size the player's bar.

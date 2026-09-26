@@ -64,6 +64,7 @@ public final class PvzceCommands {
             return dispatcher;
         }
         dispatcher.register(profile(server));
+        dispatcher.register(difficulty(server));
         dispatcher.register(tick(server));
         dispatcher.register(time(server));
         dispatcher.register(lit("editor")
@@ -303,6 +304,34 @@ public final class PvzceCommands {
      * backpack owns: the shop that will raise it is not built, so this is how a level that
      * declares no {@code max_seed_slots} gets a bigger bar today.
      */
+    /**
+     * {@code /difficulty [easy|normal|hard|hell]}: the world's tier, or the current one.
+     *
+     * <p>The same door the settings page uses, so a screenshot run and an operator can reach a
+     * tier without clicking through the menu - and so "which tier is in force" has an answer that
+     * does not depend on the HUD being drawn.
+     */
+    private static LiteralArgumentBuilder<PvzceCommandSource> difficulty(PvzceServer server) {
+        return lit("difficulty")
+                .executes(ctx -> {
+                    LevelServer level = server.level();
+                    String now = level != null ? level.difficulty().key()
+                            : server.menuDifficulty().key();
+                    ctx.getSource().sendFeedback("当前难度：" + now);
+                    return 1;
+                })
+                .then(argString("tier").executes(ctx -> {
+                    String result = server.setDifficulty(ctx.getArgument("tier", String.class));
+                    if (!result.isEmpty()) {
+                        ctx.getSource().sendFeedback(result);
+                        return 0;
+                    }
+                    ctx.getSource().sendFeedback("难度已切换到 "
+                            + server.menuDifficulty().key());
+                    return 1;
+                }));
+    }
+
     private static LiteralArgumentBuilder<PvzceCommandSource> profile(PvzceServer server) {
         return lit("profile")
                 .then(lit("info").executes(ctx -> {

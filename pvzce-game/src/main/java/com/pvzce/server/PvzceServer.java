@@ -32,6 +32,7 @@ import com.pvzce.common.network.packet.RequestProfileC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.ServerMessageS2C;
+import com.pvzce.common.network.packet.SetDifficultyC2S;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import com.pvzce.common.network.packet.RestartLevelC2S;
 import com.pvzce.common.network.packet.SuggestionsS2C;
@@ -714,6 +715,45 @@ public final class PvzceServer implements Runnable {
         return "世界 " + safeWorld + " 已切换为沙盒：全部卡与全部关卡解锁";
     }
 
+    /** The menu world's tier; what {@code /difficulty} reports with no level running. */
+    public com.pvzce.common.level.Difficulty menuDifficulty() {
+        return worlds.profileFor(WorldPaths.sanitize(menuWorld())).difficulty();
+    }
+
+    /**
+     * Switches the menu world's difficulty, and the running level with it.
+     *
+     * <p>The tier is a fact about the <em>world</em>, so it is written to the profile and saved -
+     * a save that moved to another machine plays the way its owner left it. The running level is
+     * retuned as well ("switchable at any time"): its rules are unfolded from the old tier and
+     * folded into the new one, so the next zombie to spawn has the new health and speed. Entities
+     * already on the lawn keep what they spawned with, which is the only reading of a mid-run
+     * change that cannot make a zombie's health bar jump under the player's cursor.
+     *
+     * @return a message for the console, or an empty string on success
+     */
+    public String setDifficulty(String name) {
+        if (!com.pvzce.common.level.Difficulty.isKnown(name)) {
+            return "没有这个难度档：" + name;
+        }
+        com.pvzce.common.level.Difficulty tier =
+                com.pvzce.common.level.Difficulty.parse(name);
+        String world = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(world);
+        boolean changed = profile.setDifficulty(tier);
+        if (changed) {
+            worlds.saveProfile(world, profile);
+        }
+        LevelServer running = level;
+        if (running != null && running.difficulty() != tier) {
+            running.setDifficulty(tier);
+        }
+        if (changed) {
+            connection.send(profilePacket(profile));
+        }
+        return "";
+    }
+
     /**
      * The world the menus are working with.
      *
@@ -743,7 +783,7 @@ public final class PvzceServer implements Runnable {
                 || Boolean.getBoolean("pvzce.smokeUnlockAll");
         return new ProfileS2C(profile.coins(), profile.unlockedIds(), unlockAll,
                 profile.unlockedLevelIds(), profile.seedSlots(), profile.buffSlots(),
-                profile.autoBuffIds(), profile.unlockedBuffIds());
+                profile.autoBuffIds(), profile.unlockedBuffIds(), profile.difficulty().key());
     }
 
     /**
@@ -1257,6 +1297,8 @@ public final class PvzceServer implements Runnable {
                 int speedIndex = Math.max(1, Math.min(3, speed.speedIndex()));
                 tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE * speedIndex);
                 connection.send(new GameSpeedS2C(tickRate.tickRate()));
+            } else if (packet instanceof SetDifficultyC2S difficulty) {
+                setDifficulty(difficulty.difficulty());
             } else if (packet instanceof PauseGameC2S pause) {
                 manualPause = pause.paused();
             } else if (packet instanceof CreateWorldC2S create) {

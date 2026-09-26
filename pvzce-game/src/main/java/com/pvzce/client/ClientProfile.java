@@ -41,6 +41,15 @@ public final class ClientProfile {
      */
     private final List<Identifier> autoBuffs = new java.util.ArrayList<>();
     private boolean unlockAll;
+    /**
+     * The world's difficulty tier, as the server last reported it.
+     *
+     * <p>Read-only here like everything else: the settings page sends the choice and the level list
+     * draws the badge, and neither of them applies anything - the server folds the tier into the
+     * level's rules, so a client that disagreed could only be wrong.
+     */
+    private com.pvzce.common.level.Difficulty difficulty =
+            com.pvzce.common.level.Difficulty.DEFAULT;
 
     /** Applies a server snapshot; unparsable ids are dropped rather than kept as junk. */
     public void apply(int coins, List<String> unlockedIds, boolean unlockAll) {
@@ -68,6 +77,15 @@ public final class ClientProfile {
      */
     public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots,
                       int buffSlots, List<String> autoBuffIds, List<String> unlockedBuffIds) {
+        apply(coins, unlockedIds, unlockAll, seedSlots, buffSlots, autoBuffIds, unlockedBuffIds,
+                com.pvzce.common.level.Difficulty.DEFAULT.key());
+    }
+
+    /** Applies a server snapshot including the world's difficulty tier. */
+    public void apply(int coins, List<String> unlockedIds, boolean unlockAll, int seedSlots,
+                      int buffSlots, List<String> autoBuffIds, List<String> unlockedBuffIds,
+                      String difficulty) {
+        this.difficulty = com.pvzce.common.level.Difficulty.parse(difficulty);
         this.coins = Math.max(0, coins);
         this.unlockAll = unlockAll;
         this.seedSlots = Math.max(1, seedSlots);
@@ -138,6 +156,11 @@ public final class ClientProfile {
 
     public List<String> autoBuffIds() {
         return autoBuffs.stream().map(Identifier::toString).toList();
+    }
+
+    /** The world's difficulty tier; the original's until the server says otherwise. */
+    public com.pvzce.common.level.Difficulty difficulty() {
+        return difficulty;
     }
 
     public boolean unlockAll() {

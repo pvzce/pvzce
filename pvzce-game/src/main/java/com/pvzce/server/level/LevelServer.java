@@ -177,6 +177,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final PvzcePlayer plantPlayer;
     private final GameRules rules;
     /**
+     * How hard this world plays.
+     *
+     * <p>Not a rule of its own: the tier is written <em>into</em> four of the level's rules as an
+     * extra multiplier (see {@link #applyDifficulty}), so nothing in the simulation has to know
+     * this exists. It lives here because a save has to be able to divide it back out again.
+     */
+    private com.pvzce.common.level.Difficulty difficulty = com.pvzce.common.level.Difficulty.DEFAULT;
+    /**
      * When the sky drops its next sun; see {@link SunDropClock}.
      *
      * <p>Reset from the rules at construction and restored from the save on resume, so a
@@ -480,6 +488,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // host - so a rule read out of order is a null dereference in the constructor rather
         // than a missing value somewhere later.
         this.rules = new GameRules(def.rules());
+        // Before the sun clock and the wave director read anything: both of them read a rule the
+        // tier scales, and a first wave paced by the unwound value would arrive on the original's
+        // schedule for one wave.
+        this.difficulty = seedContext == null
+                ? com.pvzce.common.level.Difficulty.DEFAULT : seedContext.difficulty();
+        applyDifficulty();
         this.sunDropClock.reset(this.rules);
         this.rounds = com.pvzce.common.level.mechanic.EndlessMechanic.generatesWaves(def);
         this.endlessSchedule = com.pvzce.common.level.mechanic.EndlessMechanic.scheduleOf(def);
@@ -1998,7 +2012,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                               List<SeedOption> buffPool, int maxBuffSlots, int buffSlots,
                               List<Identifier> autoBuffs, List<Identifier> activeBuffs,
                               java.util.function.Predicate<Identifier> ownsBuff,
-                              boolean ownsRake) {
+                              boolean ownsRake,
+                              com.pvzce.common.level.Difficulty difficulty) {
         public SeedContext {
             pool = List.copyOf(pool);
             lockedSlotIds = List.copyOf(lockedSlotIds);
@@ -2007,12 +2022,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             activeBuffs = List.copyOf(activeBuffs);
             // ``null`` means "everything is owned", which is what a caller with no backpack wants.
             ownsBuff = ownsBuff == null ? buff -> true : ownsBuff;
+            // A caller with no world has no tier either, and the original's is the one that
+            // leaves every number in the level file exactly as written.
+            difficulty = difficulty == null ? com.pvzce.common.level.Difficulty.DEFAULT : difficulty;
         }
 
         /** The card half alone; a context built before buffs existed has none of them. */
         public SeedContext(List<SeedOption> pool, List<String> lockedSlotIds, int maxSeedSlots) {
             this(pool, lockedSlotIds, maxSeedSlots, List.of(), 0,
-                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null, false);
+                    PvzceConstants.DEFAULT_BUFF_SLOTS, List.of(), List.of(), null, false,
+                    com.pvzce.common.level.Difficulty.DEFAULT);
         }
 
         /** Everything but the rake; what every caller that predates the shop wants. */
@@ -2021,13 +2040,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                            List<Identifier> autoBuffs, List<Identifier> activeBuffs,
                            java.util.function.Predicate<Identifier> ownsBuff) {
             this(pool, lockedSlotIds, maxSeedSlots, buffPool, maxBuffSlots, buffSlots, autoBuffs,
-                    activeBuffs, ownsBuff, false);
+                    activeBuffs, ownsBuff, false, com.pvzce.common.level.Difficulty.DEFAULT);
         }
 
         /** The same context with the run's buffs filled in, after the caller resolved them. */
         public SeedContext withActiveBuffs(List<Identifier> buffs) {
             return new SeedContext(pool, lockedSlotIds, maxSeedSlots, buffPool, maxBuffSlots,
-                    buffSlots, autoBuffs, buffs, ownsBuff, ownsRake);
+                    buffSlots, autoBuffs, buffs, ownsBuff, ownsRake, difficulty);
         }
 
         /**
@@ -2047,7 +2066,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     // is a statement about a pool; a rake is a thing a specific world bought, and a
                     // caller with no profile has bought nothing. Folding the two together handed a
                     // free rake to every test and to the plant AI.
-                    false);
+                    false,
+                    // And no tier: a caller with no profile plays the original's game.
+                    com.pvzce.common.level.Difficulty.DEFAULT);
         }
 
         /** The pool a player with this backpack may actually pick from. */
@@ -2064,7 +2085,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     slots, com.pvzce.server.LevelBuffSelection.chooserPool(def, buffOwns),
                     def.effectiveMaxBuffSlots(buffSlots), buffSlots,
                     profile == null ? List.of() : profile.autoBuffs(), List.of(), buffOwns,
-                    profile != null && profile.ownsRake());
+                    profile != null && profile.ownsRake(),
+                    profile == null ? com.pvzce.common.level.Difficulty.DEFAULT
+                            : profile.difficulty());
         }
     }
 
@@ -2359,6 +2382,47 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         for (Slot slot : plantPlayer.slots()) {
             send(new com.pvzce.common.network.packet.SlotSyncS2C(toSlotInfo(slot)));
+        }
+    }
+
+    /** How hard this world plays; the original's own difficulty unless the profile says otherwise. */
+    public com.pvzce.common.level.Difficulty difficulty() {
+        return difficulty;
+    }
+
+    /**
+     * Switches the tier, mid-run included.
+     *
+     * <p>The old tier's factors are divided back out before the new one's go in, because "the
+     * value in the rule" is the level's own number times whichever tier is in force - and the
+     * level's own number is the thing that must not be lost. Rules that were already read once
+     * per entity keep the value they were read with: a zombie that spawned at 1.3x health is
+     * 1.3x health, and the next one is whatever the tier says now.
+     */
+    public boolean setDifficulty(com.pvzce.common.level.Difficulty tier) {
+        if (tier == null || tier == difficulty) {
+            return false;
+        }
+        unwindDifficulty();
+        difficulty = tier;
+        applyDifficulty();
+        return true;
+    }
+
+    /** Multiplies this level's rules by the tier's factors. Called once per tier change. */
+    private void applyDifficulty() {
+        for (java.util.Map.Entry<Identifier, Float> factor : difficulty.ruleFactors().entrySet()) {
+            rules.set(factor.getKey(), rules.getFloat(factor.getKey()) * factor.getValue());
+        }
+    }
+
+    /** Divides them back out; the inverse of {@link #applyDifficulty}, and exactly its factors. */
+    private void unwindDifficulty() {
+        for (java.util.Map.Entry<Identifier, Float> factor : difficulty.ruleFactors().entrySet()) {
+            float applied = factor.getValue();
+            if (applied > 0F) {
+                rules.set(factor.getKey(), rules.getFloat(factor.getKey()) / applied);
+            }
         }
     }
 
@@ -4839,6 +4903,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // straight back, so nothing that reads them in the same tick sees the unwound value.
         List<com.pvzce.common.level.mutation.MutationManager.RuleWrite> owned =
                 mutations == null ? List.of() : mutations.rulesForSave(liveRules, forSave);
+        // The world's difficulty comes out of the file for the same reason a mutation's factor
+        // does, and the mutation pass has already restored the live values - this only touches what
+        // is written, so the running level keeps playing with the tier in force. There is nothing
+        // to write down: the profile already knows which tier it is.
+        for (java.util.Map.Entry<Identifier, Float> factor : difficulty.ruleFactors().entrySet()) {
+            Float folded = forSave.get(factor.getKey());
+            if (folded != null && factor.getValue() > 0F) {
+                forSave.put(factor.getKey(), folded / factor.getValue());
+            }
+        }
         root.put("Rules", rules.toNbt("Rules", forSave));
         for (com.pvzce.common.level.mutation.MutationManager.RuleWrite written : owned) {
             rules.set(written.rule(), written.value());
@@ -4968,6 +5042,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // existed keeps the level definition's rules, which is what it was played under.
         if (root.contains("Rules")) {
             rules.applySaved(root.getCompound("Rules"));
+            // The file carries the level's own numbers; the tier is folded back on top, exactly
+            // as it was at creation. Without this a resumed run would silently play at the
+            // original's difficulty while the menu still showed the chosen one.
+            applyDifficulty();
         }
         // A save written before the sky had a countdown has no block here, and then the clock
         // stays at the opening delay this level's own rules gave it (see the constructor).

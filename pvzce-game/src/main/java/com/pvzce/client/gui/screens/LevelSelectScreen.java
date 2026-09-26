@@ -744,6 +744,7 @@ public final class LevelSelectScreen extends Screen {
         client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, scale)) / 2F,
                 client.guiHeight() - client.fonts().body().lineHeight(scale) - 8, scale, 1F, 1F, 1F, 1F);
         drawCoinCounter();
+        drawDifficultyBadge();
 
         // The theme column's own label, so the column reads as themes and not as an
         // unlabelled stripe of buttons.
@@ -944,6 +945,30 @@ public final class LevelSelectScreen extends Screen {
         if (index >= 0) {
             switchTo(tabs.get(index));
         }
+    }
+
+    /**
+     * The tier this world is playing, under the title on the left.
+     *
+     * <p>Next to the coin counter's corner rather than in it: the counter is "what you have" and
+     * this is "how hard it is", and the two used to be one line only because one of them did not
+     * exist. It is drawn from the profile the server sent, never from a local choice - a client
+     * that showed its own would keep showing it after the server refused.
+     */
+    private void drawDifficultyBadge() {
+        com.pvzce.common.level.Difficulty tier = client.profile().difficulty();
+        if (tier.isOriginal()) {
+            // The original's difficulty says nothing: a badge on every ordinary world would be
+            // noise, and "no badge" then means exactly what it says.
+            return;
+        }
+        String name = GuiLang.raw("pvzce.difficulty." + tier.key(), tier.key());
+        String text = GuiLang.raw("pvzce.difficulty.badge", "难度：{0}").replace("{0}", name);
+        // Under the "剧情" widget rather than on the top line with it: widgets are drawn after the
+        // screen's own text, so the first attempt sat behind that button's plate and was never
+        // seen. This offset is below it and above the theme column, which is the free band here.
+        client.fonts().body().draw(text, 12F, client.guiHeight() - 58F,
+                1F, 1F, 0.82F, 0.62F, 1F);
     }
 
     /**

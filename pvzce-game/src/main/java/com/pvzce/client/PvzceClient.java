@@ -2874,8 +2874,30 @@ public final class PvzceClient {
      */
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
                            int buffSlots, List<String> autoBuffs, List<String> unlockedBuffs) {
-        profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs, unlockedBuffs);
+        setProfile(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs, unlockedBuffs,
+                com.pvzce.common.level.Difficulty.DEFAULT.key());
+    }
+
+    /** The same, with the world's difficulty tier - every field the server's profile carries. */
+    public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
+                           int buffSlots, List<String> autoBuffs, List<String> unlockedBuffs,
+                           String difficulty) {
+        profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs, unlockedBuffs,
+                difficulty);
         profileLoaded = true;
+    }
+
+    /**
+     * Asks the server to play this world on another difficulty tier.
+     *
+     * <p>Fire and forget: the answer is a fresh profile packet, so the badge and the settings page
+     * update from the same source as everything else. A client that set its own copy would show a
+     * tier the simulation is not playing.
+     */
+    public void requestDifficulty(com.pvzce.common.level.Difficulty tier) {
+        if (tier != null && tier != profile.difficulty()) {
+            connection.send(new com.pvzce.common.network.packet.SetDifficultyC2S(tier.key()));
+        }
     }
 
     /**

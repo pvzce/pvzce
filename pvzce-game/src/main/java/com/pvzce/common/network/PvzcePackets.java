@@ -44,6 +44,7 @@ import com.pvzce.common.network.packet.ResourceDeltaS2C;
 import com.pvzce.common.network.packet.SceneSyncS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
+import com.pvzce.common.network.packet.SetDifficultyC2S;
 import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TeamSyncS2C;
@@ -121,7 +122,9 @@ public final class PvzcePackets {
     // 36: the award packet carries every card, buff and object a clear handed over, as a list,
     // rather than one field each - a clear can pay several, and the award page lists them all
     // with their own descriptions instead of describing the first and silently dropping the rest.
-    public static final int PROTOCOL_VERSION = 37;
+    // 37: the world's difficulty tier travels in the profile (for the level list's badge and the
+    // settings page's tick) and can be switched with SetDifficultyC2S at any time.
+    public static final int PROTOCOL_VERSION = 38;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -148,6 +151,7 @@ public final class PvzcePackets {
     public static final int C2S_RELEASE_MOWER = 17;
     public static final int C2S_USE_GRANTED_TOOL = 18;
     public static final int C2S_REQUEST_PROFILE = 27;
+    public static final int C2S_SET_DIFFICULTY = 28;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -238,6 +242,8 @@ public final class PvzcePackets {
                     BuyShopItemC2S::decode),
             def(C2S_USE_GRANTED_TOOL, ConnectionDirection.SERVERBOUND, UseGrantedToolC2S.class,
                     UseGrantedToolC2S::decode),
+            def(C2S_SET_DIFFICULTY, ConnectionDirection.SERVERBOUND, SetDifficultyC2S.class,
+                    SetDifficultyC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

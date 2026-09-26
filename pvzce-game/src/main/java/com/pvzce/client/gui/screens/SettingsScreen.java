@@ -5,7 +5,7 @@ import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.layout.GuiLayout;
 
-/** Settings hub: volume page, video page, done. */
+/** Settings hub: volume page, video page, difficulty, done. */
 public final class SettingsScreen extends Screen {
     private int titleY;
     private float titleScale;
@@ -31,24 +31,39 @@ public final class SettingsScreen extends Screen {
         int guiH = client.guiHeight();
         int buttonWidth = Math.min(320, client.guiWidth() - 24);
         int titleReserve = Math.max(40, Math.min(72, guiH / 4));
-        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 3, titleReserve, 8);
+        int buttonHeight = GuiLayout.fitHeight(guiH, 68, LABELS.length, titleReserve, 8);
         int gap = GuiLayout.gapFor(buttonHeight);
         int topY = guiH - titleReserve;
         int buttonTop = topY - gap;
         titleScale = Math.min(2.4F, Math.max(1.2F, guiH / 120F));
         titleY = buttonTop + Math.round(client.fonts().button().lineHeight(titleScale) * 0.35F);
         int x = centerX(buttonWidth);
-        String[] labels = {"音量设置", "视频设置", "完成"};
-        Runnable[] actions = {
-                () -> client.openScreen(client.buildSettingsConfig()),
-                () -> client.openScreen(new VideoSettingsScreen(client)),
-                this::requestClose
-        };
-        for (int i = 0; i < labels.length; i++) {
+        for (int i = 0; i < LABELS.length; i++) {
             int y = buttonTop - buttonHeight - i * (buttonHeight + gap);
-            addWidget(new Button(x, y, buttonWidth, buttonHeight, labels[i], actions[i]));
+            addWidget(new Button(x, y, buttonWidth, buttonHeight, LABELS[i], ACTIONS[i].run(this)));
         }
     }
+
+    /**
+     * The hub's rows, in the order they are stacked.
+     *
+     * <p>One table rather than two arrays inside {@code init}: the height calculation above needs
+     * the count, and a row added to one list but not the other used to be a button drawn off the
+     * bottom of the window.
+     */
+    private static final String[] LABELS = {"音量设置", "视频设置", "难度", "完成"};
+
+    /** One row's action, as a function of the screen so the table can be static. */
+    private interface Row {
+        Runnable run(SettingsScreen screen);
+    }
+
+    private static final Row[] ACTIONS = {
+            screen -> () -> screen.client().openScreen(screen.client().buildSettingsConfig()),
+            screen -> () -> screen.client().openScreen(new VideoSettingsScreen(screen.client())),
+            screen -> () -> screen.client().openScreen(new DifficultyScreen(screen.client())),
+            screen -> screen::requestClose
+    };
 
     @Override
     public boolean blurredBackdrop() {
