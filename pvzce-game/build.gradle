@@ -95,6 +95,14 @@ tasks.named('test') {
     // Diagnostics guarded by a property are useless if the forked JVM's stdout is swallowed;
     // this is what makes `-Ppvzce.smoke=pvzce.traceLocomotion=true` readable.
     testLogging.showStandardStreams = true
+
+    // The documentation is a test input. DocumentedSymbolsTest, DocStatsTest and DocLedgerTest
+    // read `docs/**` and AGENTS.md, but a doc-only edit used to leave this task UP-TO-DATE - so a
+    // stale symbol reference or a stale scale block survived until someone unrelated touched a
+    // .java file, which defeats the point of guarding the documents at all.
+    inputs.dir(rootProject.file('docs')).withPropertyName('docs')
+    inputs.file(rootProject.file('AGENTS.md')).withPropertyName('agentsInstructions')
+
     if (project.hasProperty('pvzce.smoke')) {
         project.property('pvzce.smoke').toString().split('\\s+').findAll { !it.isBlank() }.each { entry ->
             def parts = entry.split('=', 2)

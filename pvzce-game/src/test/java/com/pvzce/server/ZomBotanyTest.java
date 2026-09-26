@@ -159,8 +159,37 @@ class ZomBotanyTest {
                     }
                 }
                 assertTrue(hasPlantHead, zombie + " has to carry the plant head bone");
+
+                // The plant *is* the head, so the zombie's own face is hidden in every clip. An
+                // earlier version only laid the plant on top and left the eyes and jaw showing
+                // under it, which is what the report saw as "two heads".
+                var clipsJson = json.getAsJsonObject("animations");
+                for (String state : clipsJson.keySet()) {
+                    var tracks = clipsJson.getAsJsonObject(state).getAsJsonObject("bones");
+                    for (String hidden : new String[]{"head", "hair", "jaw", "tongue"}) {
+                        var track = tracks.getAsJsonObject(hidden);
+                        assertNotNull(track, zombie + "/" + state + " has no '" + hidden
+                                + "' track, so its rest pose would draw the zombie's face");
+                        assertFalse(track.getAsJsonObject("visible").get("0.0").getAsBoolean(),
+                                zombie + "/" + state + " still draws its own '" + hidden + "'");
+                    }
+                }
+                // And the plant rides the hidden head's own visibility: it is there while the
+                // zombie is alive and falls with the head on death.
+                for (String state : new String[]{"idle", "walk", "eat", "shoot"}) {
+                    assertTrue(plantHeadVisible(clipsJson, state),
+                            zombie + "/" + state + " has to draw the plant head");
+                }
+                assertFalse(plantHeadVisible(clipsJson, "death"),
+                        zombie + "/death must let the plant head fall with the head");
             }
         }
+    }
+
+    private static boolean plantHeadVisible(com.google.gson.JsonObject clips, String state) {
+        return clips.getAsJsonObject(state).getAsJsonObject("bones")
+                .getAsJsonObject("plant_head").getAsJsonObject("visible")
+                .get("0.0").getAsBoolean();
     }
 
     /** A peashooter-headed zombie shoots the plant in its lane. */

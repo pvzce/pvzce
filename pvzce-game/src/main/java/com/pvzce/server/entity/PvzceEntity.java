@@ -27,12 +27,39 @@ public abstract class PvzceEntity extends Entity {
     protected Team team;
     protected boolean removed;
 
+    /**
+     * The tick a mutant blast dealt this entity its killing damage, or -1.
+     *
+     * <p>Not saved and not sent: it lives exactly as long as the question "did this death come
+     * from a blast" needs an answer. A zombie dies <em>inside</em> the blast's own damage call,
+     * so the flag is still set when its death reaches the mutation hooks; a plant dies at the end
+     * of the same tick, and the tick number is what makes "the same tick" precise there. A
+     * survivor is unmarked again by {@code MutantBlast} immediately after the damage, so a later
+     * death from a pea is still an ordinary death.
+     */
+    private int blastDeathTick = -1;
+
     protected PvzceEntity(Identifier defId, Team team, float cellX, float cellY, int health) {
         super(defId, cellX, cellY, health);
         this.team = team;
     }
 
     public abstract void tick(LevelServer level);
+
+    /** Marks this entity as killed by a blast on {@code tick}; see {@link #blastDeathTick}. */
+    public void markBlastDeath(int tick) {
+        this.blastDeathTick = tick;
+    }
+
+    /** Forgets the mark: the entity survived the blast after all. */
+    public void clearBlastDeath() {
+        this.blastDeathTick = -1;
+    }
+
+    /** True when the killing damage came from a blast on the level's current tick. */
+    public boolean diedToBlast(int tick) {
+        return blastDeathTick >= 0 && blastDeathTick == tick;
+    }
 
     public Team team() {
         return team;

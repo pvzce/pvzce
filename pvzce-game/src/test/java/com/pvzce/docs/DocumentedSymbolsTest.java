@@ -95,10 +95,22 @@ class DocumentedSymbolsTest {
         }
     }
 
-    /** The documents this test holds to their word. */
+    /**
+     * The documents this test holds to their word.
+     *
+     * <p>Only the live documents in {@code docs/} itself: the archived changelog volumes
+     * ({@code docs/架构变更记录/}) and the frozen reports ({@code docs/报告/}) describe the code as
+     * it was at the time, so naming a class that has since been renamed is correct there. The
+     * directory is what excludes them, not the file name - a volume named {@code 架构-x.md} would
+     * otherwise be dragged back in by the prefix rule below.
+     */
     private static boolean isAsBuilt(Path document) {
+        if (!docsDir.equals(document.getParent())) {
+            return false;
+        }
         String name = document.getFileName().toString();
         return name.equals("当前项目架构.md") || name.equals("UI切换与导航架构.md")
+                || name.equals("README.md") || name.equals("决策记录.md")
                 || (name.startsWith("架构-") && name.endsWith(".md"));
     }
 
@@ -241,7 +253,7 @@ class DocumentedSymbolsTest {
     void theAsBuiltDocumentsAreStillThere() throws IOException {
         List<String> present = new ArrayList<>();
         for (String name : List.of("当前项目架构.md", "UI切换与导航架构.md", "代码规范.md",
-                "验证约定.md", "架构变更记录.md")) {
+                "验证约定.md", "架构变更记录.md", "README.md", "决策记录.md", "todo.md")) {
             if (Files.isRegularFile(docsDir.resolve(name))) {
                 present.add(name);
             }

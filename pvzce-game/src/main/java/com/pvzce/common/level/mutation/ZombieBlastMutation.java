@@ -12,6 +12,10 @@ import com.pvzce.server.level.LevelServer;
  * plants clears itself as the zombies die - and a Gargantuar dying next to the player's defence is
  * a disaster. That symmetry is the whole mutation, which is why it is its own entry rather than a
  * modifier on the plant version.
+ *
+ * <p>A zombie that was itself killed by a blast does <b>not</b> go off again: without that rule
+ * the first death would cascade down a lane one ordinary zombie per blast, which is not the
+ * mutation anybody asked for. See {@link MutantBlast}.
  */
 final class ZombieBlastMutation implements Mutation, MutationHooks {
     @Override
@@ -21,6 +25,9 @@ final class ZombieBlastMutation implements Mutation, MutationHooks {
 
     @Override
     public void onZombieDied(LevelServer level, ZombieEntity zombie) {
-        MutantBlast.detonate(level, zombie.cellX(), zombie.cellY(), zombie.team());
+        if (zombie.diedToBlast(level.tickCount())) {
+            return;
+        }
+        MutantBlast.detonate(level, zombie.cellX(), zombie.cellY());
     }
 }

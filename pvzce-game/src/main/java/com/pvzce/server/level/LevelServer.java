@@ -1307,7 +1307,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return ref;
         }
         return new ProjectileRef(replacement, ref.damage(), ref.count(), ref.rowOffset(),
-                ref.backward(), ref.rows(), ref.range(), ref.burstDelay());
+                ref.backward(), ref.rows(), ref.range(), ref.burstDelay(), ref.initialDelay());
     }
 
     @Override

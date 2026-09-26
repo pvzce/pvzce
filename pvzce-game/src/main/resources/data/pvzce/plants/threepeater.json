@@ -17,19 +17,22 @@
           "damage": 20,
           "count": 1,
           "row_offset": -1,
-          "rows": 2
+          "rows": 2,
+          "initial_delay": 0
         },
         {
           "projectile": "pvzce:pea",
           "damage": 20,
           "count": 1,
-          "row_offset": 0
+          "row_offset": 0,
+          "initial_delay": 30
         },
         {
           "projectile": "pvzce:pea",
           "damage": 20,
           "count": 1,
-          "row_offset": 1
+          "row_offset": 1,
+          "initial_delay": 60
         }
       ]
     }

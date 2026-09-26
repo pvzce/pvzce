@@ -397,6 +397,59 @@ class AnimationResourceLoaderTest {
         }
     }
 
+    /**
+     * Every animation the pack ships parses, not only the handful named above.
+     *
+     * <p>The bungee zombie shipped with two bones called {@code hand_2}: the converter's suffix
+     * counter was keyed per base name, so parts that canonicalized to {@code hand} / {@code hand_2}
+     * and to {@code hand2} produced a collision. {@code ControllerModel} rejects a duplicate
+     * outright, the loader logged one warning and rendered nothing, and the zombie was the
+     * missing-texture tile - a failure a screenshot caught and no test did. This walks the whole
+     * shipped tree so the next one cannot ship silently.
+     */
+    @Test
+    void everyShippedAnimationParses() throws Exception {
+        java.nio.file.Path root = java.nio.file.Path.of(
+                AnimationResourceLoaderTest.class.getResource("/assets/pvzce/animations").toURI());
+        int parsed = 0;
+        try (var paths = java.nio.file.Files.walk(root)) {
+            for (java.nio.file.Path path : paths
+                    .filter(candidate -> candidate.toString().endsWith(".json")).toList()) {
+                var json = JsonParser.parseReader(java.nio.file.Files.newBufferedReader(
+                        path, StandardCharsets.UTF_8)).getAsJsonObject();
+                AnimationResourceLoader.parse(json,
+                        Identifier.withDefaultNamespace(path.getFileName().toString()));
+                parsed++;
+            }
+        }
+        assertTrue(parsed > 50,
+                "the walk should have seen the whole shipped tree, saw " + parsed);
+    }
+
+    /**
+     * A mat-like plant is about one cell wide, not two.
+     *
+     * <p>The spikeweed is a flat, wide mat (its drawn box is 83x36) and the converter fits every
+     * plant by <em>height</em>, so it was scaled up until the model was 0.76 cells tall and 1.8
+     * cells wide - drawn across the neighbouring cells. The fix is to fit it by both axes; this
+     * pins the result so a future converter pass cannot quietly put it back.
+     */
+    @Test
+    void theSpikeweedIsAboutOneCellWide() throws Exception {
+        ControllerFile spikeweed = (ControllerFile) parseClasspath("spikeweed");
+        float widest = 0F;
+        for (ControllerModel.Bone bone : spikeweed.model().bones().values()) {
+            for (ControllerModel.Part part : bone.parts()) {
+                widest = Math.max(widest, part.sizeX());
+            }
+        }
+        // The model carries no render_scale - the plant definition's 0.85 is applied at draw time
+        // - so the asserted number is the model's own width, a little over one cell.
+        assertTrue(widest <= 1.15F,
+                "the spikeweed's widest part is " + widest + " cells; it would spill into the"
+                        + " cells beside it");
+    }
+
     private static AnimationFile parseClasspath(String path) throws Exception {
         String resolved = animationPath(path);
         try (var stream = AnimationResourceLoaderTest.class.getResourceAsStream(resolved)) {

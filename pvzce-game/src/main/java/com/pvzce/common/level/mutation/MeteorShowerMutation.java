@@ -67,7 +67,7 @@ final class MeteorShowerMutation implements Mutation, MutationManager.SaveHandle
         // The catalogue's own blast, ceilings included: a rock hurts exactly as much as the game's
         // other explosions and no more, which is what keeps "a plant explosion may only take half a
         // peashooter" true here as well.
-        MutantBlast.detonate(level, x + 0.5F, y + 0.5F, null);
+        MutantBlast.detonate(level, x + 0.5F, y + 0.5F);
         level.leaveCraters(x + 0.5F, y + 0.5F, IMPACT_RADIUS_CELLS, true);
         // Dust and a thud, at the cell it landed in: the crater is the mark it leaves, and this is
         // the moment of impact. Deliberately not a flash - the user's rule for every explosion in

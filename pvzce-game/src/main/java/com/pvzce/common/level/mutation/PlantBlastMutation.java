@@ -17,6 +17,10 @@ import com.pvzce.server.level.LevelServer;
  * caught in a blast. Anything else would leave the player with a way to disarm the field for free,
  * and "it exploded when I dug it up" is a legible rule where "it explodes unless you remove it
  * yourself" is not.
+ *
+ * <p>The one death that does not count is a death that was itself a blast's: a plant caught in
+ * another blast has already paid, and letting it answer would turn one explosion into a chain
+ * across the whole lawn. See {@link MutantBlast}.
  */
 final class PlantBlastMutation implements Mutation, MutationHooks {
     @Override
@@ -26,9 +30,9 @@ final class PlantBlastMutation implements Mutation, MutationHooks {
 
     @Override
     public void onPlantDied(LevelServer level, PlantEntity plant) {
-        if (plant == null) {
+        if (plant == null || plant.diedToBlast(level.tickCount())) {
             return;
         }
-        MutantBlast.detonate(level, plant.cellX(), plant.cellY(), plant.team());
+        MutantBlast.detonate(level, plant.cellX(), plant.cellY());
     }
 }

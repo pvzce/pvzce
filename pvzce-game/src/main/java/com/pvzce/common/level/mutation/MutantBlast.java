@@ -6,7 +6,6 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.server.Team;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.PvzceEntity;
 import com.pvzce.server.entity.ZombieEntity;
@@ -83,31 +82,41 @@ public final class MutantBlast {
     /**
      * Detonates once at a point, hurting every plant and zombie within the footprint.
      *
-     * @param sourceTeam the team whose <em>enemies</em> the ordinary damage pass hits; the plants'
-     *                   own half is applied to both sides regardless, because a Potato Mine's
-     *                   blast does not check whose plants are standing in it
+     * <h2>No chains</h2>
+     *
+     * <p>Every victim is <em>marked</em> as blast-killed before the damage lands, because a lethal
+     * hit runs the death callback - and with it the mutation that would otherwise detonate again -
+     * inside {@code damage} itself. The mark is what breaks the reaction: a zombie that dies to a
+     * blast does not itself explode, and neither does a plant, so one death cannot cascade down a
+     * lane. The ceilings above are what the mark cannot catch - two blasts landing on the same
+     * body - so both rules stay.
+     *
+     * <p>The mark survives on a plant until the end of the tick because a plant's death is
+     * processed in the level's removal pass rather than inside {@code damage}; it carries the tick
+     * number for exactly that reason. A survivor is unmarked immediately, so a later death from a
+     * pea is an ordinary death again.
      */
-    public static void detonate(LevelServer level, float x, float y, Team sourceTeam) {
+    public static void detonate(LevelServer level, float x, float y) {
         DamageTypeDef ash = BuiltInRegistries.DAMAGE_TYPES.get(PvzceIds.DAMAGE_ASH);
         DamageTypeDef type = ash == null
                 ? ZombieEntity.damageType(PvzceIds.DAMAGE_ASH) : ash;
         int zombieDamage = zombieDamage();
-        if (type != null) {
-            // `square` adds the half-cell term itself, so the radius stays the mine's own number.
-            level.damageArea(type, x, y, RADIUS_CELLS, zombieDamage, sourceTeam, true);
-        }
-        for (PvzceEntity entity : level.entities()) {
+        int plantDamage = plantDamage();
+        int tick = level.tickCount();
+        // One pass over every zombie in the footprint, friends included. This used to be
+        // `damageArea` (enemies only) plus a hand-written friendly-fire half; the mutation's own
+        // mark has to be laid down around every hit either way, and `damageArea` cannot do that.
+        for (PvzceEntity entity : new java.util.ArrayList<>(level.entities())) {
             if (entity instanceof ZombieEntity zombie && zombie.isAlive()
-                    && !LevelServer.isEnemyOf(zombie.team(), sourceTeam)
                     && within(zombie.cellX(), zombie.cellY(), x, y)) {
-                // The friendly-fire half of the zombie blast: a zombie standing in its own side's
-                // explosion takes it too. `damageArea` skipped it on purpose - it is the engine's
-                // "a blast hits the other side" - and this is the mutation saying otherwise.
+                zombie.markBlastDeath(tick);
                 zombie.damage(zombieDamage, type, level);
+                if (zombie.isAlive()) {
+                    zombie.clearBlastDeath();
+                }
             }
         }
-        int plantDamage = plantDamage();
-        for (PvzceEntity entity : level.entities()) {
+        for (PvzceEntity entity : new java.util.ArrayList<>(level.entities())) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()
                     && within(plant.cellX(), plant.cellY(), x, y)) {
                 // Deliberately `damage` and not `damageFrom`: a bomb sitting on its fuse should be
@@ -115,7 +124,11 @@ public final class MutantBlast {
                 // `isInvulnerable` arming state shrug this off. The consequence - a blast can
                 // damage a plant the ordinary bite rules would not reach - is bounded by the
                 // ceiling above.
+                plant.markBlastDeath(tick);
                 plant.damage(plantDamage);
+                if (!plant.isRemoved() && plant.health() > 0) {
+                    plant.clearBlastDeath();
+                }
             }
         }
         // Smoke, not the mine's white flash: see the class doc. The sound stays, because a

@@ -173,6 +173,44 @@ class CombatSystemsTest {
                 .toList();
     }
 
+    /**
+     * The threepeater opens its three heads half a second apart.
+     *
+     * <p>Its three shots are three separate entries, so {@code burst_delay} - which spaces the
+     * projectiles <em>within</em> one entry - never applied to them and all three left on the
+     * firing tick. The art fires one head at a time (its attack clip runs three 0.5s windows back
+     * to back), so the peas were appearing before the mouth that fires them had opened.
+     * {@code initial_delay} is the fix: each entry waits its own turn, and this pins the turn
+     * spacing to the art's half-second.
+     */
+    @Test
+    void theThreepeaterOpensItsThreeHeadsOneAtATime() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        com.pvzce.api.content.PlantDef def = BuiltInRegistries.PLANTS.get(
+                Identifier.withDefaultNamespace("threepeater"));
+        assertNotNull(def, "threepeater has to exist");
+        level.spawnPlant(def, level.team(Identifier.withDefaultNamespace("plant_team")), 1, 2);
+        level.flushPending(bridge);
+        // A target in its own row: that is what lets it fire at all, and the row-2 entry is the
+        // one with no row offset.
+        spawn(level, bridge, "basic_zombie", 8.5F, 2);
+
+        tick(level, bridge, 2);
+        assertEquals(1, liveProjectiles(level).size(),
+                "the first head is the only one open on the firing tick");
+
+        // Thirty ticks is the art's half-second window, and the peas travel about two cells in
+        // it, so the ones already out are still in the air when the next head opens.
+        tick(level, bridge, 30);
+        assertEquals(2, liveProjectiles(level).size(),
+                "the second head opens half a second later");
+
+        tick(level, bridge, 30);
+        assertEquals(3, liveProjectiles(level).size(),
+                "and the third after another half second");
+    }
+
     @Test
     void frontArmorAbsorbsPeasAndNewspaperSpeedsUp() {
         LevelServer level = newLevel();

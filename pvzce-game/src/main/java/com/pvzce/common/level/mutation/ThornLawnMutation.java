@@ -19,21 +19,26 @@ import com.pvzce.server.level.LevelServer;
  *   <li><b>The ground layer only.</b> A balloon drifting over the lawn and a miner still underground
  *       are not walking on it - the layer is the engine's own answer to "is this thing on the
  *       ground", the same one the mower and the projectiles read.</li>
- *   <li><b>Armour does not absorb it.</b> The damage type is {@code pvzce:impact}, whose meaning is
- *       "the armour takes this", which would make thorns a slow way to strip a bucket and nothing
- *       else. Thorns are not a hit.</li>
+ *   <li><b>Armour takes it first.</b> The damage type is {@code pvzce:impact}, so a Conehead loses
+ *       cone before health: thorns are pressure against what is bare and a slow grind against what
+ *       is armoured, which is what keeps a lane of Bucketheads a real threat under this
+ *       mutation.</li>
  * </ul>
  */
 final class ThornLawnMutation implements Mutation {
     /** How often a walker is pricked, in ticks. Fixed, not scaled: this is a rate of damage. */
-    private static final int PRICK_INTERVAL_TICKS = 30;
+    private static final int PRICK_INTERVAL_TICKS = 60;
     /**
      * What one prick takes, as a share of the zombie's own maximum health.
      *
-     * <p>Two percent: a basic zombie crosses a lawn in about fifteen seconds, which is thirty
-     * pricks - sixty percent of its health, so the thorns matter without being the whole defence.
+     * <p>One percent every second. It was two percent every half-second, which was a fresh basic
+     * zombie dead around the middle of the lawn: the arithmetic in the old comment assumed a
+     * fifteen-second crossing, but a basic zombie walks at 0.23 cells/s, so nine and a half cells
+     * take about forty seconds and the thorns were taking a hundred and fifty percent of its
+     * health over that walk. At one percent a second the same walk costs about forty percent -
+     * felt, and survivable.
      */
-    private static final float PRICK_SHARE = 0.02F;
+    private static final float PRICK_SHARE = 0.01F;
 
     @Override
     public Identifier id() {

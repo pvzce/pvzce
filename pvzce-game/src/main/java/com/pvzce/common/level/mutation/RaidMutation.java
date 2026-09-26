@@ -100,9 +100,12 @@ final class RaidMutation implements Mutation, MutationManager.SaveHandle {
     /**
      * The five shipped raids.
      *
-     * <p>Intervals are the plan's own numbers, and they are ordered by how much each one costs the
-     * player: a plant-headed zombie every twenty seconds is pressure, a Gargantuar every forty is an
-     * event.
+     * <p>Intervals are ordered by how much each one costs the player: a plant-headed zombie every
+     * twenty seconds is pressure, a Gargantuar every forty is an event. The bungee is the longest
+     * of the lot on purpose - it cannot be shot while it works and it <em>takes</em> a plant
+     * rather than damaging it, so at 1800 it was one guaranteed lost plant every twenty seconds
+     * (ten at HELL), which is not a raid but an eraser. Sixty seconds base leaves the player time
+     * to rebuild between visits.
      */
     static List<Mutation> all() {
         return List.of(
@@ -114,7 +117,7 @@ final class RaidMutation implements Mutation, MutationManager.SaveHandle {
                 new RaidMutation(PvzceIds.MUTATION_IMP_AIRDROP, new Spec(
                         null, PvzceIds.id("imp"), 1, 1, 900, Lane.ANY, true, 4, 6)),
                 new RaidMutation(PvzceIds.MUTATION_BUNGEE_RAID, new Spec(
-                        null, PvzceIds.id("bungee_zombie"), 1, 1, 1800, Lane.ANY, true, -1, -1)),
+                        null, PvzceIds.id("bungee_zombie"), 1, 1, 3600, Lane.ANY, true, -1, -1)),
                 new RaidMutation(PvzceIds.MUTATION_BALLOON_RAID, new Spec(
                         null, PvzceIds.id("balloon_zombie"), 3, 5, 1500, Lane.ANY, true, -1, -1)));
     }

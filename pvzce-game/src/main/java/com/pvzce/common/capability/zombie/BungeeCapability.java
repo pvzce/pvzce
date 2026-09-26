@@ -44,11 +44,21 @@ public final class BungeeCapability implements ZombieCapability {
     public static final int DEFAULT_RISE_TICKS = 70;
     /** How many columns it will try before giving up on finding anything to take. */
     public static final int DEFAULT_RETRIES = 3;
+    /**
+     * How far above its cell the bungee starts, in world cells.
+     *
+     * <p>The original's bungee hangs above the board and is lowered on its cord; the reanim is
+     * only poses and does not move the body, so the descent is the entity's own {@code height} -
+     * the same vertical offset a falling sun uses. Eight cells is above the top of even a
+     * six-row pool board's stage, so the player sees it come down rather than blink into place.
+     */
+    public static final float DEFAULT_DROP_HEIGHT = 8.0F;
 
     private final int dropTicks;
     private final int grabTicks;
     private final int holdTicks;
     private final int riseTicks;
+    private final float dropHeight;
     private final int retries;
     private final Optional<Identifier> sound;
 
@@ -62,12 +72,13 @@ public final class BungeeCapability implements ZombieCapability {
         ARRIVING, DROPPING, GRABBING, HOLDING, RISING, DONE
     }
 
-    public BungeeCapability(int dropTicks, int grabTicks, int holdTicks, int riseTicks, int retries,
-                            Optional<Identifier> sound) {
+    public BungeeCapability(int dropTicks, int grabTicks, int holdTicks, int riseTicks,
+                            float dropHeight, int retries, Optional<Identifier> sound) {
         this.dropTicks = Math.max(1, dropTicks);
         this.grabTicks = Math.max(1, grabTicks);
         this.holdTicks = Math.max(0, holdTicks);
         this.riseTicks = Math.max(1, riseTicks);
+        this.dropHeight = Math.max(0F, dropHeight);
         this.retries = Math.max(1, retries);
         this.sound = sound;
     }
@@ -81,6 +92,8 @@ public final class BungeeCapability implements ZombieCapability {
                     .forGetter(BungeeCapability::holdTicks),
             Codec.INT.optionalFieldOf("rise_ticks", DEFAULT_RISE_TICKS)
                     .forGetter(BungeeCapability::riseTicks),
+            Codec.FLOAT.optionalFieldOf("drop_height", DEFAULT_DROP_HEIGHT)
+                    .forGetter(BungeeCapability::dropHeight),
             Codec.INT.optionalFieldOf("retries", DEFAULT_RETRIES)
                     .forGetter(BungeeCapability::retries),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(BungeeCapability::sound)
@@ -88,6 +101,10 @@ public final class BungeeCapability implements ZombieCapability {
 
     public int dropTicks() {
         return dropTicks;
+    }
+
+    public float dropHeight() {
+        return dropHeight;
     }
 
     public int grabTicks() {
@@ -112,7 +129,8 @@ public final class BungeeCapability implements ZombieCapability {
 
     @Override
     public ZombieCapability instantiate() {
-        return new BungeeCapability(dropTicks, grabTicks, holdTicks, riseTicks, retries, sound);
+        return new BungeeCapability(dropTicks, grabTicks, holdTicks, riseTicks, dropHeight,
+                retries, sound);
     }
 
     /** It flies: nothing on the lawn can reach it, and it never drowns. */
@@ -146,14 +164,33 @@ public final class BungeeCapability implements ZombieCapability {
         phaseTicks++;
         return switch (stage) {
             case ARRIVING -> arrive(zombie, level);
-            case DROPPING -> advance(zombie, level, dropTicks, Stage.GRABBING,
-                    EntityAnimations.BUNGEE_DROP);
-            case GRABBING -> grab(zombie, level);
-            case HOLDING -> advance(zombie, level, holdTicks, Stage.RISING,
-                    EntityAnimations.BUNGEE_HOLD);
-            case RISING -> rise(zombie, level);
+            case DROPPING -> {
+                // The cord is paying out: the body comes down over the clip's whole length.
+                zombie.setHeight(dropHeight * (1F - progress(dropTicks)));
+                yield advance(zombie, level, dropTicks, Stage.GRABBING,
+                        EntityAnimations.BUNGEE_DROP);
+            }
+            case GRABBING -> {
+                zombie.setHeight(0F);
+                yield grab(zombie, level);
+            }
+            case HOLDING -> {
+                zombie.setHeight(0F);
+                yield advance(zombie, level, holdTicks, Stage.RISING,
+                        EntityAnimations.BUNGEE_HOLD);
+            }
+            case RISING -> {
+                // Hauled back up with whatever it took; `rise` removes it at the top.
+                zombie.setHeight(dropHeight * progress(riseTicks));
+                yield rise(zombie, level);
+            }
             case DONE -> true;
         };
+    }
+
+    /** How far through a phase this tick is, 0 at its first tick and 1 at its last. */
+    private float progress(int duration) {
+        return Math.min(1F, phaseTicks / (float) Math.max(1, duration));
     }
 
     /** Picks a column with something in it, or leaves if there is nothing worth taking. */
@@ -164,12 +201,14 @@ public final class BungeeCapability implements ZombieCapability {
         if (targetColumn < 0) {
             // Nothing on the lawn to steal. It leaves rather than hovering forever: a raid that
             // never lands is a zombie the player cannot kill standing in the sky.
+            zombie.setHeight(dropHeight);
             stage = Stage.RISING;
             phaseTicks = 0;
             return true;
         }
         zombie.setAnimation(EntityAnimations.BUNGEE_DROP);
         zombie.setCellX(targetColumn + 0.5F);
+        zombie.setHeight(dropHeight);
         stage = Stage.DROPPING;
         phaseTicks = 0;
         return true;

@@ -30,7 +30,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CORE_PATH = Path(__file__).with_name("reanim_to_pvzce.py")
@@ -447,11 +447,19 @@ ENTITY_CONFIGS: List[EntityConfig] = [
     # The spikeweed: `Caltrop.reanim` is the plant the original names Spikeweed, and the file
     # that draws it. It has an `anim_attack` mask - the spikes jab - which the spike capability
     # asks for on every damage tick, so the plant visibly stabs what is standing on it.
+    #
+    # Fitted by *width*, unlike every other plant. `fit_height_only` (the default) fits the
+    # model's drawn height to the box and lets the width fall out of the source's aspect, which
+    # is right for a standing plant. The caltrop is a flat, wide mat - its drawn box is 83x36px,
+    # an aspect of 2.3 - so fitting its height blew it up 2.1x and it was drawn 1.8 cells wide,
+    # spilling into both neighbours. Fitting both axes to a box a cell across keeps the body at
+    # about the one cell the original draws it at. See `docs/踩坑清单.md`.
     EntityConfig(
         output="spikeweed",
         group="plant/special",
         reanim="Caltrop.reanim",
-        target_box=PLANT_BOX,
+        target_box=(0.9, 0.9),
+        fit_height_only=False,
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "attack": {"mask": "anim_attack", "loop": False, "on_end": "idle",
@@ -1836,14 +1844,34 @@ def filter_pieces(pieces: Sequence[core.RenderPiece], config: EntityConfig) -> L
     return result
 
 
+def unique_bone_name(base: str, taken: Set[str]) -> str:
+    """A bone name that no other bone in this model already uses.
+
+    The suffix counter used to be keyed *per base* (``hand`` -> ``hand``, ``hand_2``;
+    ``hand_2`` -> ``hand_2`` as well), so a model whose parts canonicalize to both a name and
+    that name plus a digit produced two bones called ``hand_2``. The controller parser rejects
+    a duplicate bone outright, which is why the bungee zombie drew as the missing-texture tile
+    from the day it was converted. Counting against every name handed out already - not just
+    the same base - is the whole fix.
+    """
+
+    if base not in taken:
+        taken.add(base)
+        return base
+    suffix = 2
+    while f"{base}_{suffix}" in taken:
+        suffix += 1
+    name = f"{base}_{suffix}"
+    taken.add(name)
+    return name
+
+
 def rename_bones(bones: Sequence[core.Bone], input_path: Path) -> List[core.Bone]:
-    used: Dict[str, int] = {}
+    taken: Set[str] = set()
     renamed: List[core.Bone] = []
     for bone in bones:
         base = bone_name_for(bone.asset.ref, input_path)
-        count = used.get(base, 0)
-        used[base] = count + 1
-        name = base if count == 0 else f"{base}_{count + 1}"
+        name = unique_bone_name(base, taken)
         renamed.append(
             core.Bone(
                 name=name,
@@ -1860,13 +1888,11 @@ def rename_bones(bones: Sequence[core.Bone], input_path: Path) -> List[core.Bone
 def pieces_to_bones(pieces: Sequence[core.RenderPiece], input_path: Path) -> List[core.Bone]:
     """Create one bone per render piece without cross-image name merging."""
 
-    used: Dict[str, int] = {}
+    taken: Set[str] = set()
     bones: List[core.Bone] = []
     for piece in pieces:
         base = bone_name_for(piece.asset.ref, input_path)
-        count = used.get(base, 0)
-        used[base] = count + 1
-        name = base if count == 0 else f"{base}_{count + 1}"
+        name = unique_bone_name(base, taken)
         bones.append(
             core.Bone(
                 name=name,

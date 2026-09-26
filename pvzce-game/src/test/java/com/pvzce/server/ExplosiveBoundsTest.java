@@ -147,7 +147,7 @@ class ExplosiveBoundsTest {
         level.flushPending(packets::add);
         int before = bucket.health() + bucket.armor();
 
-        MutantBlast.detonate(level, 4F, 1.5F, level.team(PLANT_TEAM));
+        MutantBlast.detonate(level, 4F, 1.5F);
         level.flushPending(packets::add);
 
         assertTrue(!bucket.isRemoved(), "one blast must not be a removal");
@@ -167,7 +167,7 @@ class ExplosiveBoundsTest {
         int full = plant.health();
         assertTrue(full > 1);
 
-        MutantBlast.detonate(level, 4.5F, 1.5F, level.team(ZOMBIE_TEAM));
+        MutantBlast.detonate(level, 4.5F, 1.5F);
         level.flushPending(packet -> { });
 
         assertTrue(!plant.isRemoved(),

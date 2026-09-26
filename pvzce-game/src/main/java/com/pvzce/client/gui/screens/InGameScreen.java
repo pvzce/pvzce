@@ -2180,6 +2180,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // State-change driven local playback: the call is idempotent, so this
         // can safely run every frame without restarting the current clip.
         entity.playAnimation(entity.animation());
+        // The bungee zombie's rope and target go under its shadow and art: they are objects
+        // around it rather than parts of it (see BungeeRig).
+        com.pvzce.client.renderer.BungeeRig.render(client, entity);
         drawShadow(client, entity, entityTexture(entity));
         // The ice goes under the art: it is around the zombie's feet, so the legs have to come
         // down into it. Drawn every frame while the freeze lasts rather than spawned as a

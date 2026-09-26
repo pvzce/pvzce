@@ -79,6 +79,13 @@ public final class BeltCardBar implements CardBar {
     private int cardGap = 4;
     /** Width of the tray's card track, capacity cards wide. */
     private float trackWidth;
+    /**
+     * The gap between the tray's right edge and the cards kept outside it.
+     *
+     * <p>Wider than the card gap on purpose: the tray's moulding already reads as an edge, and
+     * the kept cards have to look like they belong to the bar rather than to the belt.
+     */
+    private static final float SIDE_GAP = 10F;
     /** Where each card is drawn right now, in GUI pixels, by card id. */
     private final Map<Integer, Float> cardX = new HashMap<>();
     /** Phase of the tread pattern. */
@@ -94,13 +101,58 @@ public final class BeltCardBar implements CardBar {
         // Belt order *is* the information: the card on the left has been waiting longest
         // and is the one the next delivery will sit behind. The chooser's "resources, then
         // plants, then tools" grouping would shuffle a queue.
+        //
+        // Plants only. A belt's queue is plant cards by construction - the shipped belts list
+        // plants and the conveyor mutation rolls the player's plant cards - while the cards the
+        // server *kept* beside the belt (the shovel, the watering can) are not dealt and must
+        // not ride it: they are drawn fixed, outside the tray. See `sideSlots`.
+        return split(host.client().level().slots()).belt();
+    }
+
+    /**
+     * The cards a belt cannot deal: tools and other non-plant cards, drawn fixed to the right of
+     * the tray.
+     *
+     * <p>They stay on the bar because the belt only took over the plant cards - the shovel is how
+     * the player fixes a mistake and the sun bank is what the sun is drawn for - and they stay
+     * <em>outside</em> the tray because a stationary tool on a moving belt reads as a card the
+     * belt is about to deal, and the tray's capacity counts belt cards. The classification is the
+     * same one the server made when it rebuilt the bar (belt cards first, then everything else),
+     * read from the card's own kind rather than from its position.
+     */
+    private List<SlotInfo> sideSlots() {
+        return split(host.client().level().slots()).side();
+    }
+
+    /**
+     * Splits a bar into the cards a belt deals and the cards it does not.
+     *
+     * <p>One pure function rather than two filters written at the call sites, and testable
+     * without a client: the two lists have to partition the bar, and the sun card - drawn as the
+     * HUD bank rather than as a card - is in neither.
+     */
+    record Split(List<SlotInfo> belt, List<SlotInfo> side) {
+    }
+
+    static Split split(List<SlotInfo> all) {
         List<SlotInfo> belt = new ArrayList<>();
-        for (SlotInfo slot : host.client().level().slots()) {
-            if (!SUN_CARD_ID.equals(slot.defId())) {
+        List<SlotInfo> side = new ArrayList<>();
+        for (SlotInfo slot : all) {
+            if (SUN_CARD_ID.equals(slot.defId())) {
+                continue;
+            }
+            if (isBeltCard(slot)) {
                 belt.add(slot);
+            } else {
+                side.add(slot);
             }
         }
-        return belt;
+        return new Split(List.copyOf(belt), List.copyOf(side));
+    }
+
+    /** True when a card is one the belt deals, i.e. a plant card. */
+    static boolean isBeltCard(SlotInfo slot) {
+        return "plant".equals(slot.kind());
     }
 
     @Override
@@ -165,15 +217,37 @@ public final class BeltCardBar implements CardBar {
         } finally {
             client.clipping().pop();
         }
+
+        // The cards the belt did not take over. Drawn after the clipping is popped and at their
+        // own fixed x, so the treads never run under them: they are on the bar, not on the belt.
+        List<SlotInfo> side = sideSlots();
+        for (int i = 0; i < side.size(); i++) {
+            SlotInfo slot = side.get(i);
+            CardPainter.draw(client, slot, sideX(i), viewportY, cardWidth, cardHeight, 1F,
+                    host.selectedCardIndex() == slot.index(),
+                    host.lockedSlots().contains(slot.index()));
+        }
+    }
+
+    /** The left edge of the {@code i}-th card kept outside the belt. */
+    private float sideX(int i) {
+        return viewportX - BELT_PADDING + trackWidth + SIDE_GAP + i * (cardWidth + cardGap);
     }
 
     @Override
     public int slotAt(double guiX, double guiY) {
-        List<SlotInfo> slots = slots();
-        if (slots.isEmpty()) {
-            return -1;
-        }
         updateLayout();
+        // The kept cards are hit where they are drawn - they do not move, so their place is their
+        // slot's place.
+        List<SlotInfo> side = sideSlots();
+        for (int i = 0; i < side.size(); i++) {
+            float x = sideX(i);
+            if (guiX >= x && guiX < x + cardWidth
+                    && guiY >= viewportY && guiY < viewportY + cardHeight) {
+                return side.get(i).index();
+            }
+        }
+        List<SlotInfo> slots = slots();
         // Belt cards are hit where they are drawn, not where their slot is: they are still
         // travelling when the player reaches for one.
         for (SlotInfo slot : slots) {
@@ -191,13 +265,19 @@ public final class BeltCardBar implements CardBar {
 
     @Override
     public boolean contains(double guiX, double guiY) {
-        List<SlotInfo> slots = slots();
-        if (slots.isEmpty()) {
-            return false;
-        }
         updateLayout();
-        return guiX >= viewportX - BELT_PADDING && guiX <= viewportX + trackWidth
+        float right = lastSideRight();
+        return guiX >= viewportX - BELT_PADDING && guiX <= right
                 && guiY >= viewportY - BELT_PADDING && guiY <= viewportY + cardHeight + BELT_PADDING;
+    }
+
+    /** The right edge of the whole bar: the tray plus the kept cards beside it. */
+    private float lastSideRight() {
+        int count = sideSlots().size();
+        if (count == 0) {
+            return viewportX - BELT_PADDING + trackWidth;
+        }
+        return sideX(count - 1) + cardWidth;
     }
 
     @Override
@@ -252,21 +332,28 @@ public final class BeltCardBar implements CardBar {
     }
 
     /**
-     * Lays out the belt: a centred tray at the top of the window, as wide as the belt's
-     * capacity rather than as wide as what happens to be on it right now.
+     * Lays out the belt: a tray at the top of the window, as wide as the belt's capacity rather
+     * than as wide as what happens to be on it right now, with the cards the belt did not take
+     * over in a fixed row to its right.
      *
-     * <p>The tray shares the top row with the pause and speed buttons, so on a narrow window
-     * it is the <em>cards</em> that give way: they shrink (down to
-     * {@link #BELT_MIN_CARD_HEIGHT}) until the tray fits to the left of them. The
-     * alternative - a tray that is always six full-size cards wide - is drawn under the
-     * pause button on the default window, which reads as a rendering bug rather than as a
-     * belt.
+     * <p>The bar shares the top row with the sun bank and the pause/speed buttons, so on a narrow
+     * window it is the <em>cards</em> that give way: they shrink (down to
+     * {@link #BELT_MIN_CARD_HEIGHT}) until the tray <em>and</em> the kept cards fit. The
+     * alternative - a tray that is always six full-size cards wide - is drawn under the pause
+     * button on the default window, which reads as a rendering bug rather than as a belt.
      */
     private void updateLayout() {
         PvzceClient client = host.client();
         int guiH = client.guiHeight();
+        int sideCount = sideSlots().size();
+        // The tray is placed to the right of the sun bank when the level has one, like the
+        // ordinary seed row: a mutation's belt keeps the sun card on the bar, so the bank is on
+        // screen and the tray must not be drawn over it.
+        float left = host.hasSunBank()
+                ? com.pvzce.client.gui.hud.cardbar.CardBarLayout.cardsLeft(true)
+                : BELT_PADDING + 4F;
         float right = host.rightBound();
-        float available = Math.max(120F, right - BELT_PADDING * 2F - 4F);
+        float available = Math.max(120F, right - left);
         // Two belts, one drawing: a level may declare one (a block in its definition the client
         // can read) or a mutation may install one mid-run (no block at all - it is not in the
         // definition), and the packet carries that one's capacity. Without this the tray of a
@@ -282,17 +369,28 @@ public final class BeltCardBar implements CardBar {
         cardWidth = Math.max(38, Math.round(cardHeight * 100F / 140F));
         cardGap = Math.max(3, cardWidth / 8);
         trackWidth = trackWidth(capacity);
-        while (trackWidth > available && cardHeight > BELT_MIN_CARD_HEIGHT) {
+        while (trackWidth + sideWidth(sideCount) > available && cardHeight > BELT_MIN_CARD_HEIGHT) {
             cardHeight--;
             cardWidth = Math.max(18, Math.round(cardHeight * 100F / 140F));
             cardGap = Math.max(2, cardWidth / 8);
             trackWidth = trackWidth(capacity);
         }
-        // Centred in the room left of the buttons, never off the left edge.
-        viewportX = Math.round(Math.max(BELT_PADDING + 4F, (right - trackWidth) / 2F + BELT_PADDING));
+        float total = trackWidth + sideWidth(sideCount);
+        // Centred in the room the banks and buttons leave, never off the left edge.
+        float start = Math.round(Math.max(left, left + (available - total) / 2F));
+        // `viewportX` is the first *belt* card's left edge; the tray adds its padding to the left.
+        viewportX = Math.round(start + BELT_PADDING);
         viewportY = Math.round(guiH - cardHeight - BELT_TOP_MARGIN - BELT_PADDING * 2F);
         viewportWidth = Math.max(1, Math.round(trackWidth - BELT_PADDING * 2F));
         viewportHeight = cardHeight;
+    }
+
+    /** The room the fixed cards take to the right of the tray, gap included. */
+    private float sideWidth(int count) {
+        if (count <= 0) {
+            return 0F;
+        }
+        return SIDE_GAP + count * (cardWidth + cardGap) - cardGap;
     }
 
     /** The capacity a mutation's belt reported, or 0 when no mutation is dealing the cards. */

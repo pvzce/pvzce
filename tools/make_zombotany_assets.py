@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Composes the four ZomBotany zombies' animations from the ordinary zombie plus a plant head.
 
-The original's ZomBotany zombies are the ordinary zombie body with a plant growing out of its
-head - and that art is **not in `refer/`**: the 146 reanims in this repository include every
+The original's ZomBotany zombies are the ordinary zombie body with the head **replaced** by a
+plant - and that art is **not in `refer/`**: the 146 reanims in this repository include every
 other zombie the game ships and none of the four. What *is* here is both halves:
 
 * the converted `zombie/basic/basic_zombie.json`, whose bones the client already draws with the
@@ -20,14 +20,19 @@ What the script does, exactly:
 1. reads `basic_zombie.json` and copies it four times;
 2. appends a `plant_head` bone whose single part is the plant head texture, sized in cells the
    same way every other part is;
-3. gives that bone a `visible` and an `alpha` track in every clip, **copied from the `head`
-   bone** - so a body that loses its head loses the plant with it, and a corpse that fades does
-   the same;
+3. hides every bone the zombie draws its own face with (`head`, `hair`, `jaw`, `tongue`) in every
+   clip, and gives `plant_head` a `visible` and an `alpha` track **copied from the original
+   `head` track** - so a head that pops off on death takes the plant with it, and a corpse that
+   fades does the same;
 4. writes `animations/zombie/zombotany/<name>.json`.
 
+The plant is the zombie's head, not a second one growing out of it: the ordinary head is hidden
+rather than covered, because the art under it is a full face - an earlier version left the eyes
+and jaw visible under the plant and read as two heads.
+
 No per-frame transform is written for `plant_head` at all: it inherits the head's, which is the
-whole reason it is a child. The `offset` is the one number that has to be tuned, and it is tuned
-by looking at a screenshot - see `POSITION` below.
+whole reason it is a child. Its offset seats the plant's bottom at the neck, where the hidden
+head's bottom was; see `ZOMBIE_HEAD_HEIGHT` below.
 
 Run from the repository root:
 
@@ -74,14 +79,18 @@ ZOMBIES: Dict[str, Dict[str, str]] = {
     },
 }
 
-# How the plant head sits on the zombie's head, in the head bone's own local cells.
+# How the plant head sits where the zombie's own head was, in the head bone's own local cells.
 #
-# The zombie head is 53x48 px drawn at scale 0.8, so it is 0.316 x 0.286 cells on screen and its
-# top edge is about 0.143 cells above the bone's own origin. A plant head is put with its *bottom*
-# at that edge, which is what "growing out of the head" means - so the vertical offset is half
-# the zombie head's height plus half the plant's, and the horizontal one lines the two centres up
-# (the zombie's head leans slightly back, hence the small negative x).
-POSITION = {"x": -0.04, "y": 0.30}
+# The zombie's head is 53x48 px at 0.01 cells/px, i.e. 0.395 x 0.358 cells, centred on its bone's
+# origin; its bottom edge is therefore 0.179 cells below that origin. The original's plant-headed
+# zombies have **no zombie head left** - the plant *is* the head - so the zombie head, hair, jaw
+# and tongue are hidden (see HIDDEN_HEAD_BONES) and each plant head is placed with its own bottom
+# at the neck, which is where the head's bottom was. The vertical offset is therefore
+# "half the plant minus half the head", computed per zombie from the plant part's real pixel size
+# rather than written down: a pea head and a wall-nut are different heights and a single constant
+# made the tall ones float.
+PLANT_X = -0.04
+ZOMBIE_HEAD_HEIGHT = 0.357786
 
 # How big a plant head is drawn, as a fraction of its own pixel size in cells. 0.01 is the
 # project's pixels-per-cell (see `tools/reanim_to_pvzce.py`); 0.62 makes a pea head a little
@@ -91,6 +100,11 @@ HEAD_SCALE = 0.62
 
 # The head part's z, above every part of the head itself (the highest is the jaw at 13).
 PLANT_HEAD_Z = 20
+
+# Every bone the ordinary zombie uses to draw its own head. The plant head replaces all of them;
+# hiding only `head` left the jaw and tongue floating under the plant, which is what the first
+# version did and what the report saw.
+HIDDEN_HEAD_BONES = ("head", "hair", "jaw", "tongue")
 
 
 def png_size(path: Path) -> tuple:
@@ -117,6 +131,7 @@ def build(name: str, spec: Dict[str, str]) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(part_path, target_dir / f"{texture_name}.png")
 
+    plant_height_cells = height * PIXELS_PER_CELL * HEAD_SCALE
     data["model"]["bones"].append({
         "name": "plant_head",
         "parent": "head",
@@ -125,8 +140,8 @@ def build(name: str, spec: Dict[str, str]) -> None:
             "texture": f"pvzce:textures/entities/zombie/zombotany/{name}/{texture_name}",
             "uv": [0, 0, width, height],
             "size": [round(width * PIXELS_PER_CELL * HEAD_SCALE, 6),
-                     round(height * PIXELS_PER_CELL * HEAD_SCALE, 6)],
-            "offset": [POSITION["x"], POSITION["y"]],
+                     round(plant_height_cells, 6)],
+            "offset": [PLANT_X, round(plant_height_cells / 2 - ZOMBIE_HEAD_HEIGHT / 2, 6)],
             "z": PLANT_HEAD_Z,
         }],
     })
@@ -146,16 +161,31 @@ def build(name: str, spec: Dict[str, str]) -> None:
         eat["transition"] = 0.1
         data["animations"]["shoot"] = eat
 
+    model_bone_names = {bone.get("name") for bone in data["model"]["bones"]}
     for clip_name, clip in data["animations"].items():
         head = clip["bones"].get("head")
         if head is None:
-            # A clip with no head track leaves the head at its rest pose, and the plant head is a
-            # child of it - so it is drawn, and needs a track saying so.
-            clip["bones"]["plant_head"] = {"visible": {"0.0": True}, "alpha": {"0.0": 1.0}}
-            continue
-        visible = head.get("visible", {"0.0": True})
-        alpha = head.get("alpha", {"0.0": 1.0})
-        clip["bones"]["plant_head"] = {"visible": dict(visible), "alpha": dict(alpha)}
+            head_visible = {"0.0": True}
+            head_alpha = {"0.0": 1.0}
+        else:
+            # Read *before* hiding: the plant head rides the head's own visibility and alpha, so a
+            # head that pops off on death takes the plant with it, and a corpse that fades fades as
+            # one object.
+            head_visible = head.get("visible", {"0.0": True})
+            head_alpha = head.get("alpha", {"0.0": 1.0})
+        # A clip with no track for a bone draws it at its rest pose, so every hidden head bone
+        # needs an explicit "not drawn" track in *every* clip, not only the ones that already
+        # animate it (the jaw opens while eating, and the head is absent from that track only
+        # because it does not move).
+        #
+        # `setdefault` and not a fresh dict: the head's translation track is what carries the
+        # plant head too, because the plant is a child of the head. Replacing the head's track
+        # instead of editing its `visible` dropped the plant to the entity's anchor - it was
+        # drawn at the zombie's feet.
+        for bone in HIDDEN_HEAD_BONES:
+            if bone in model_bone_names:
+                clip["bones"].setdefault(bone, {})["visible"] = {"0.0": False}
+        clip["bones"]["plant_head"] = {"visible": dict(head_visible), "alpha": dict(head_alpha)}
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     output = OUT_DIR / f"{name}.json"

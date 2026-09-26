@@ -29,15 +29,25 @@ import com.pvzce.api.util.Identifier;
  * double damage. The original staggers them, and now so does this: {@code count 2,
  * burst_delay 12} is the repeater, {@code count 4, burst_delay 12} the gatling pea. Zero -
  * the default, and what every single-shot plant means - keeps the volley on the firing tick.
+ *
+ * <p>{@code initial_delay} is the other half of that idea: a volley that does not leave on the
+ * firing tick at all. It is what lets one plant's several *entries* be a sequence rather than a
+ * simultaneous spread - the threepeater's three heads open one at a time, half a second apart, so
+ * the peas are three entries with delays 0 / 30 / 60 rather than three entries that all leave
+ * together while the art shows one head firing. {@code burst_delay} still spaces the shots
+ * <em>within</em> an entry; the initial delay applies to the whole entry.
  */
 public record ProjectileRef(Identifier projectile, int damage, int count,
                             int rowOffset, boolean backward, int rows, float range,
-                            int burstDelay) {
+                            int burstDelay, int initialDelay) {
     /** The original's straight shot: this row, forwards, no range limit. */
     public static final float UNLIMITED_RANGE = 0F;
 
     /** A volley whose projectiles all leave together, which is every shot but a repeater's. */
     public static final int NO_BURST_DELAY = 0;
+
+    /** A shot that leaves on the firing tick, which is every shot but the threepeater's. */
+    public static final int NO_INITIAL_DELAY = 0;
 
     public static final Codec<ProjectileRef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("projectile").forGetter(ProjectileRef::projectile),
@@ -53,30 +63,46 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
             Codec.FLOAT.optionalFieldOf("range", UNLIMITED_RANGE).forGetter(ProjectileRef::range),
             // Ticks between the projectiles of one volley; 0 = all on the firing tick.
             Codec.INT.optionalFieldOf("burst_delay", NO_BURST_DELAY)
-                    .forGetter(ProjectileRef::burstDelay)
+                    .forGetter(ProjectileRef::burstDelay),
+            // Ticks to wait before this entry leaves at all; 0 = on the firing tick.
+            Codec.INT.optionalFieldOf("initial_delay", NO_INITIAL_DELAY)
+                    .forGetter(ProjectileRef::initialDelay)
     ).apply(i, ProjectileRef::new));
 
     public ProjectileRef {
         range = Math.max(0F, range);
         burstDelay = Math.max(0, burstDelay);
+        initialDelay = Math.max(0, initialDelay);
     }
 
     /** The plain straight shot: this row, forwards, one projectile. */
     public ProjectileRef(Identifier projectile, int damage, int count) {
-        this(projectile, damage, count, 0, false, 0, UNLIMITED_RANGE, NO_BURST_DELAY);
+        this(projectile, damage, count, 0, false, 0, UNLIMITED_RANGE, NO_BURST_DELAY,
+                NO_INITIAL_DELAY);
     }
 
     /** A row-covering shot with no range limit (threepeater, split pea). */
     public ProjectileRef(Identifier projectile, int damage, int count,
                          int rowOffset, boolean backward, int rows) {
         this(projectile, damage, count, rowOffset, backward, rows, UNLIMITED_RANGE,
-                NO_BURST_DELAY);
+                NO_BURST_DELAY, NO_INITIAL_DELAY);
     }
 
     /** A ranged shot whose volley leaves together - every shot written before bursts existed. */
     public ProjectileRef(Identifier projectile, int damage, int count,
                          int rowOffset, boolean backward, int rows, float range) {
-        this(projectile, damage, count, rowOffset, backward, rows, range, NO_BURST_DELAY);
+        this(projectile, damage, count, rowOffset, backward, rows, range, NO_BURST_DELAY,
+                NO_INITIAL_DELAY);
+    }
+
+    /**
+     * A shot with a burst but no initial delay - every shot written before the threepeater's
+     * stagger existed.
+     */
+    public ProjectileRef(Identifier projectile, int damage, int count,
+                         int rowOffset, boolean backward, int rows, float range, int burstDelay) {
+        this(projectile, damage, count, rowOffset, backward, rows, range, burstDelay,
+                NO_INITIAL_DELAY);
     }
 
     /** {@code +1} down the lawn toward the zombies, {@code -1} back toward the house. */
@@ -101,7 +127,7 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
             return this;
         }
         return new ProjectileRef(projectile, damage, count, rowOffset, backward, rows,
-                Math.max(0F, range * multiplier), burstDelay);
+                Math.max(0F, range * multiplier), burstDelay, initialDelay);
     }
 
     /**
