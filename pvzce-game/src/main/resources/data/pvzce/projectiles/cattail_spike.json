@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:cattail_spike",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 6.0
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/projectile/hit"
+  },
+  "texture": "pvzce:textures/entities/projectile/cattail_spike",
+  "impact_particle": "pvzce:cactus_spike_splat"
+}

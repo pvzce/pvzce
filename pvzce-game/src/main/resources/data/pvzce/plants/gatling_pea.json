@@ -1,5 +1,8 @@
 {
   "id": "pvzce:gatling_pea",
+  "upgrade": {
+    "base": "pvzce:repeater"
+  },
   "cost": {
     "resources": {
       "pvzce:sun": 250

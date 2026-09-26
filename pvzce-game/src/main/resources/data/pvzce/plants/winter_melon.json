@@ -1,5 +1,8 @@
 {
   "id": "pvzce:winter_melon",
+  "upgrade": {
+    "base": "pvzce:melon_pult"
+  },
   "cost": {
     "resources": {
       "pvzce:sun": 200

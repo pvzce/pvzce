@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:spikerock",
+  "kind": "plant",
+  "content": "pvzce:spikerock",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/spikerock"
+}

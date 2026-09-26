@@ -56,6 +56,14 @@ public final class SpikeCapability implements PlantCapability {
     private final int damage;
     private final Identifier damageType;
     private final float range;
+    /**
+     * How many rows either side of the plant the patch reaches; 0 is the plant's own row.
+     *
+     * <p>A spikeweed is one cell wide, so the original never needed the question. The gloom-shroom
+     * does: it bursts spores into every adjacent space, and a patch that hit only its own row would
+     * be a plant whose art says "all around" and whose damage says "in front of it".
+     */
+    private final int rows;
     private final Optional<Identifier> sound;
 
     /** Ticks until the next stab; counts down from {@link #intervalTicks}. */
@@ -64,11 +72,12 @@ public final class SpikeCapability implements PlantCapability {
     private boolean stabbing;
 
     public SpikeCapability(int intervalTicks, int damage, Identifier damageType, float range,
-                           Optional<Identifier> sound) {
+                           int rows, Optional<Identifier> sound) {
         this.intervalTicks = Math.max(1, intervalTicks);
         this.damage = Math.max(1, damage);
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         this.range = Math.max(0.1F, range);
+        this.rows = Math.max(0, rows);
         this.sound = sound;
     }
 
@@ -79,6 +88,7 @@ public final class SpikeCapability implements PlantCapability {
             Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
                     .forGetter(SpikeCapability::damageType),
             Codec.FLOAT.optionalFieldOf("range", 0.6F).forGetter(SpikeCapability::range),
+            Codec.INT.optionalFieldOf("rows", 0).forGetter(SpikeCapability::rows),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(SpikeCapability::sound)
     ).apply(i, SpikeCapability::new));
 
@@ -98,13 +108,17 @@ public final class SpikeCapability implements PlantCapability {
         return range;
     }
 
+    public int rows() {
+        return rows;
+    }
+
     public Optional<Identifier> sound() {
         return sound;
     }
 
     @Override
     public PlantCapability instantiate() {
-        return new SpikeCapability(intervalTicks, damage, damageType, range, sound);
+        return new SpikeCapability(intervalTicks, damage, damageType, range, rows, sound);
     }
 
     @Override
@@ -116,18 +130,12 @@ public final class SpikeCapability implements PlantCapability {
             return;
         }
         boolean hit = false;
-        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
-            if (zombie.isRemoved() || zombie.layer() != EntityLayers.GROUND) {
-                // Underground diggers and fliers pass over it for the same reason they pass over
-                // a mower: the predicate is the zombie's own layer, so "on the ground" has one
-                // definition in this engine rather than one per fixture.
-                continue;
+        // Its own row, plus `rows` either side: the spikeweed's one row and the gloom-shroom's
+        // "every adjacent space" are this same loop with a different number.
+        for (int row = plant.gridY() - rows; row <= plant.gridY() + rows; row++) {
+            if (row >= 0 && row < level.height()) {
+                hit |= stabRow(plant, level, row);
             }
-            if (Math.abs(zombie.cellX() - plant.cellX()) > range) {
-                continue;
-            }
-            zombie.damage(damage, ZombieEntity.damageType(damageType), level);
-            hit = true;
         }
         if (hit) {
             stabbing = true;
@@ -151,6 +159,25 @@ public final class SpikeCapability implements PlantCapability {
     /** True on the tick this plant last stabbed. Read by the animation, not by the simulation. */
     public boolean stabbing() {
         return stabbing;
+    }
+
+    /** Damages everything this patch reaches in one row; answers whether it hit anything. */
+    private boolean stabRow(PlantEntity plant, LevelAccess level, int row) {
+        boolean hit = false;
+        for (ZombieEntity zombie : level.enemiesInRow(row, plant.team())) {
+            if (zombie.isRemoved() || zombie.layer() != EntityLayers.GROUND) {
+                // Underground diggers and fliers pass over it for the same reason they pass over
+                // a mower: the predicate is the zombie's own layer, so "on the ground" has one
+                // definition in this engine rather than one per fixture.
+                continue;
+            }
+            if (Math.abs(zombie.cellX() - plant.cellX()) > range) {
+                continue;
+            }
+            zombie.damage(damage, ZombieEntity.damageType(damageType), level);
+            hit = true;
+        }
+        return hit;
     }
 
     @Override

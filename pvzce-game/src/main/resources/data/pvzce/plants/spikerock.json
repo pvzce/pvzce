@@ -1,0 +1,32 @@
+{
+  "id": "pvzce:spikerock",
+  "upgrade": {
+    "base": "pvzce:spikeweed"
+  },
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 450
+  },
+  "health": 450,
+  "placement": {
+    "layer": 1,
+    "count": 1,
+    "group": "under_plant"
+  },
+  "capabilities": [
+    {
+      "type": "pvzce:spike",
+      "interval": 20,
+      "damage": 40,
+      "damage_type": "pvzce:impact",
+      "range": 0.6
+    }
+  ],
+  "sounds": {},
+  "animation_dir": "plant/special",
+  "texture": "pvzce:textures/entities/plant/special/spikerock",
+  "render_scale": 0.85,
+  "order": 56
+}

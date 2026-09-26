@@ -1,0 +1,36 @@
+{
+  "id": "pvzce:cattail",
+  "upgrade": {
+    "base": "pvzce:lily_pad"
+  },
+  "cost": {
+    "resources": {
+      "pvzce:sun": 225
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:cattail_spike",
+          "damage": 20,
+          "count": 2,
+          "burst_delay": 12,
+          "target_row": true
+        }
+      ],
+      "sound": "pvzce:sfx/plant/shoot_pea"
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/shoot_pea"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/cattail",
+  "render_scale": 0.85,
+  "order": 44
+}

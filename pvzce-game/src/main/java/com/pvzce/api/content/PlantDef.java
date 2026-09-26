@@ -57,8 +57,41 @@ public record PlantDef(
          * rather than derived from anything. {@link #DEFAULT_ORDER} puts a plant that does not
          * name one after all the ones that do.
          */
-        int order
+        int order,
+        /**
+         * What this plant upgrades, for the eight purple packets.
+         *
+         * <p>An upgrade is not a seed: it is planted <em>on</em> the plant it replaces, and that
+         * plant is consumed. Keeping the rule here rather than in a tag is what lets the data say
+         * which base each upgrade wants (there are eight, and each names a different plant), and
+         * putting it on the plant rather than on the slot is what lets the placement rules and the
+         * server act on the same fact the card is drawn from.
+         */
+        Optional<Upgrade> upgrade
 ) {
+    /**
+     * The base plant an upgrade replaces.
+     *
+     * @param base     the plant this one is planted on, which is consumed
+     * @param adjacent how many <em>more</em> of {@code base} must sit in the same row next to the
+     *                 target cell: 0 for seven of the eight, 1 for the cob cannon, which the
+     *                 original requires to stand on a 2x1 block of kernel-pults
+     */
+    public record Upgrade(Identifier base, int adjacent) {
+        public Upgrade {
+            adjacent = Math.max(0, adjacent);
+        }
+
+        public static Upgrade of(Identifier base) {
+            return new Upgrade(base, 0);
+        }
+
+        public static final Codec<Upgrade> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Identifier.CODEC.fieldOf("base").forGetter(Upgrade::base),
+                Codec.INT.optionalFieldOf("adjacent", 0).forGetter(Upgrade::adjacent)
+        ).apply(i, Upgrade::new));
+    }
+
     public static final int DEFAULT_HEALTH = 300;
 
     /** The order of a plant that has not said where it belongs. */
@@ -69,7 +102,7 @@ public record PlantDef(
                     List<TypedCapability<PlantCapability>> capabilities, Optional<Identifier> behavior,
                     PlantSounds sounds, AnimationBindings animations, Optional<Identifier> texture) {
         this(id, cost, health, placement, capabilities, behavior, sounds, animations, texture,
-                ContentDefs.DEFAULT_RENDER_SCALE, DEFAULT_ORDER);
+                ContentDefs.DEFAULT_RENDER_SCALE, DEFAULT_ORDER, Optional.empty());
     }
 
     public static final Codec<PlantDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -86,7 +119,10 @@ public record PlantDef(
             // Where this plant sits in the almanac order the bar and the bag are read in. Not
             // derived from the id: the original's order is the order the player *met* the
             // plants, and the alphabet knows nothing about that.
-            Codec.INT.optionalFieldOf("order", DEFAULT_ORDER).forGetter(PlantDef::order)
+            Codec.INT.optionalFieldOf("order", DEFAULT_ORDER).forGetter(PlantDef::order),
+            // The eight purple packets. Optional, so every plant that is not an upgrade - which is
+            // all but eight - says nothing about it.
+            PlantDef.Upgrade.CODEC.optionalFieldOf("upgrade").forGetter(PlantDef::upgrade)
     ).apply(i, PlantDef::new));
 
     public PlantDef {

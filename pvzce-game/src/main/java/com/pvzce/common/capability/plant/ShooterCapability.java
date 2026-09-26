@@ -11,6 +11,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
+import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
 
 import java.util.ArrayList;
@@ -153,7 +154,7 @@ public final class ShooterCapability implements PlantCapability {
             // The muzzle sits on the firing side, so a backward shot leaves the plant
             // from its other edge instead of appearing inside it.
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
-            float row = plant.cellY() + shot.rowOffset();
+            float row = aimRow(shot, plant, level);
             if (shot.initialDelay() > 0) {
                 // The whole entry waits - a volley that does not leave on the firing tick at all.
                 // No shipped shot does (see `ProjectileRef#initialDelay`); the field is kept for a
@@ -245,6 +246,54 @@ public final class ShooterCapability implements PlantCapability {
     }
 
     /**
+     * The row a shot leaves in.
+     *
+     * <p>The plant's own row, offset by the shot's {@code row_offset} - unless the shot is aimed
+     * ({@link ProjectileRef#targetRow()}), in which case it leaves in the row of the nearest
+     * zombie anywhere on the board. That is the cattail: the original's spike chases its target
+     * across lanes, and a spike that flew down an empty lane because its plant happens to sit in
+     * that row would be a plant that cannot do the one thing it is bought for.
+     *
+     * <p>Falls back to the plant's own row when nothing is found, which is also what makes this
+     * safe to call on the firing tick: a target that died between the decision and the shot leaves
+     * an ordinary straight shot rather than a projectile aimed at nothing.
+     */
+    private float aimRow(ProjectileRef shot, PlantEntity plant, LevelAccess level) {
+        if (!shot.targetRow()) {
+            return plant.cellY() + shot.rowOffset();
+        }
+        ZombieEntity nearest = nearestTarget(shot, plant, level);
+        return nearest == null ? plant.cellY() + shot.rowOffset() : nearest.gridY();
+    }
+
+    /**
+     * The zombie an aimed shot would fly at: the nearest one that shot can reach, or {@code null}.
+     *
+     * <p>Nearest by distance along x from the muzzle, which is the same "anything worth shooting"
+     * question {@link #hasTarget} asks - asked once, here, so that the decision to fire and the
+     * row the shot leaves in cannot disagree about which zombie they meant.
+     */
+    private ZombieEntity nearestTarget(ProjectileRef shot, PlantEntity plant, LevelAccess level) {
+        float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
+        ZombieEntity best = null;
+        float bestDistance = Float.MAX_VALUE;
+        for (int row = 0; row < level.height(); row++) {
+            for (ZombieEntity zombie : level.enemiesInRow(row, plant.team())) {
+                if (zombie.isRemoved() || !zombie.canBeHitByGround()
+                        || !shot.covers(muzzleX, zombie.cellX())) {
+                    continue;
+                }
+                float distance = Math.abs(zombie.cellX() - muzzleX);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = zombie;
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
      * Whether any of this plant's lanes holds something worth shooting.
      *
      * <p>A shot may cover several rows ({@code rows}) and may point backwards
@@ -265,6 +314,14 @@ public final class ShooterCapability implements PlantCapability {
             // range would never fire at the zombies its shots can now reach.
             ProjectileRef shot = PlantShots.scaled(raw, plant, level);
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
+            if (shot.targetRow()) {
+                // Aimed across lanes: the same search that decides the row the shot leaves in
+                // decides whether there is anything to fire at, so the two cannot disagree.
+                if (nearestTarget(shot, plant, level) != null) {
+                    return true;
+                }
+                continue;
+            }
             for (int rowOffset : shot.coveredRowOffsets()) {
                 int row = plant.gridY() + rowOffset;
                 if (row < 0 || row >= level.height()) {

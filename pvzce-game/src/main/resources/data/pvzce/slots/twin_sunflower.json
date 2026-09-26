@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:twin_sunflower",
+  "kind": "plant",
+  "content": "pvzce:twin_sunflower",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/twin_sunflower"
+}

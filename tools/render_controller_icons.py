@@ -63,6 +63,12 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "squash": ("idle", 0.0),
     "puff_shroom": ("idle", 0.0),
     "sun_shroom": ("idle", 0.0),
+    # The purple packets: idle for the three that stand still, and the spikerock's own idle
+    # (its `attack` is a lunge whose card would show a rock halfway through a stab).
+    "twin_sunflower": ("idle", 0.0),
+    "gloom_shroom": ("idle", 0.0),
+    "cattail": ("idle", 0.0),
+    "spikerock": ("idle", 0.0),
     # A tool card, drawn from Hammer.reanim's own idle pose.
     "hammer": ("idle", 0.0),
 }
@@ -93,6 +99,11 @@ ANIMATION_DIRS: Dict[str, str] = {
     "sunflower": "plant/producer",
     "sun_shroom": "plant/producer",
     "marigold": "plant/producer",
+    # The purple packets, in the group the converter wrote their animation to.
+    "twin_sunflower": "plant/producer",
+    "gloom_shroom": "plant/attacker",
+    "cattail": "plant/attacker",
+    "spikerock": "plant/special",
     "wall_nut": "plant/defense",
     "lily_pad": "plant/environment",
     "tangle_kelp": "plant/environment",
@@ -151,6 +162,9 @@ PLANT_ENTITIES = [
     # deliberately *not* in this list.
     "spikeweed", "torchwood", "tall_nut", "sea_shroom", "plantern",
     "blover", "starfruit", "pumpkin", "magnet_shroom",
+    # The purple packets. Same painter as every other card: the packet they are drawn in is the
+    # only thing that differs, and that is `CardPainter`'s business rather than this tool's.
+    "twin_sunflower", "gloom_shroom", "cattail", "spikerock",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

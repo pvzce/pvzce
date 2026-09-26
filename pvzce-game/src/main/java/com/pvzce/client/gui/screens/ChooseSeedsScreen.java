@@ -1751,10 +1751,13 @@ public final class ChooseSeedsScreen extends Screen {
             drawSunBankCard(x, y, width, height, brightness, alpha);
             return;
         }
+        // `packetFor`: an upgrade plant is drawn in the purple packet here exactly as it is in
+        // the bar, because this page is where the player picks it.
         SeedCardRenderer.draw(client, new SeedCardRenderer.CardModel(
                         iconFor(option),
                         SeedCardRenderer.CardKind.fromJson(option.kind()),
-                        option.costSun(), brightness, alpha, true, 0F, false, null, false),
+                        option.costSun(), brightness, alpha, true, 0F, false,
+                        com.pvzce.client.gui.hud.cardbar.CardPainter.packetFor(option.slotId()), false),
                 x, y, width, height);
         if (isPageLocked(option.slotId()) || lockedBuffOptions.contains(option.slotId())) {
             drawLockBadge(x, y, width, height, alpha);

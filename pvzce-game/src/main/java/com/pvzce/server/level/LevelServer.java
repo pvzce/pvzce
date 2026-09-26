@@ -1435,7 +1435,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return ref;
         }
         return new ProjectileRef(replacement, ref.damage(), ref.count(), ref.rowOffset(),
-                ref.backward(), ref.rows(), ref.range(), ref.burstDelay(), ref.initialDelay());
+                ref.backward(), ref.rows(), ref.range(), ref.burstDelay(), ref.initialDelay(),
+                ref.targetRow());
     }
 
     @Override
@@ -3537,11 +3538,66 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (cardSource == null || !cardSource.spend(this, bridge, slot, plantDef)) {
             return false;
         }
+        // The base goes before the upgrade appears, so the cell never holds both: a frame with two
+        // plants in one cell is a frame the client would draw as one of them, and the upgrade is
+        // what the player paid for.
+        plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, y));
         PlantEntity plant = spawnPlant(plantDef, plantPlayer.team(), x, y);
         spreadKelpFrom(plantDef, x, y);
         LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, y, plantCount());
         cardSource.afterSpend(this, bridge, slot);
         return !plant.isRemoved() || plant.consumesOnPlace();
+    }
+
+    /**
+     * Removes the plants an upgrade is planted on.
+     *
+     * <p>Quietly: no dirt, no refund, no death effect. The original replaces the base plant with its
+     * upgrade, and the player watching a sunflower turn into a twin sunflower is watching one
+     * plant, not a plant dying and another arriving. The rule that said the bases are there is
+     * {@link PlantPlacement#upgradeBasesInPlace} - this is the same walk, in the same order (left
+     * neighbour first), so the neighbour that is consumed is the one the placement previewed.
+     */
+    private void consumeUpgradeBases(PlantDef.Upgrade upgrade, int x, int y) {
+        List<int[]> cells = new ArrayList<>();
+        cells.add(new int[] {x, y});
+        if (upgrade.adjacent() > 0) {
+            int[] neighbour = null;
+            for (int dx : new int[] {-1, 1}) {
+                if (PlantPlacement.countBase(upgrade, placementContext, x + dx, y)
+                        >= upgrade.adjacent()) {
+                    neighbour = new int[] {x + dx, y};
+                    break;
+                }
+            }
+            if (neighbour != null) {
+                cells.add(neighbour);
+            }
+        }
+        for (int[] cell : cells) {
+            PlantEntity base = topmostBaseAt(upgrade.base(), cell[0], cell[1]);
+            if (base != null) {
+                base.remove();
+            }
+        }
+        flushPending();
+    }
+
+    /** The topmost plant in a cell whose definition is {@code baseId}, or {@code null}. */
+    private PlantEntity topmostBaseAt(Identifier baseId, int x, int y) {
+        PlantEntity found = null;
+        for (PvzceEntity entity : entities) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved()
+                    && plant.gridX() == x && plant.gridY() == y
+                    && baseId.equals(plant.def().id())) {
+                if (found == null || found.def() == null
+                        || PlantPlacement.layerIndex(plant.def())
+                                >= PlantPlacement.layerIndex(found.def())) {
+                    found = plant;
+                }
+            }
+        }
+        return found;
     }
 
     public boolean collectResource(ServerBridge bridge, int entityId) {

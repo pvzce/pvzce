@@ -473,6 +473,25 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "produce": {"mask": "anim_idle", "loop": True, "transition": 0.1},
         },
     ),
+    # The twin sunflower: the sunflower's upgrade, and the same pair of clips - production is
+    # the idle mask here too, because the file has no mask of its own for it. What makes the
+    # plant is a *second head* rather than a second animation: `anim_face` and `anim_face2`
+    # each carry one `SunFlower_head.png`, and both are visible for the whole `anim_idle`
+    # range (9..33), so the idle the mask describes is the finished two-headed plant and no
+    # clip needs a visibility rule. Two of its leaves are the peashooter's sprites
+    # (`IMAGE_REANIM_PEASHOOTER_BACKLEAF`/`FRONTLEAF`), which is why the generated texture
+    # directory holds `peashooter_backleaf.png` and `peashooter_frontleaf.png` - the original
+    # reuses that art rather than drawing a second pair of leaves for this plant.
+    EntityConfig(
+        output="twin_sunflower",
+        group="plant/producer",
+        reanim="TwinSunflower.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "produce": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+        },
+    ),
     EntityConfig(
         output="cherry_bomb",
         group="plant/special",
@@ -530,6 +549,33 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Caltrop.reanim",
         target_box=(0.9, 0.9),
         fit_height_only=False,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "attack": {"mask": "anim_attack", "loop": False, "on_end": "idle",
+                       "transition": 0.05},
+        },
+    ),
+    # The spikerock: the spikeweed's upgrade, fitted and animated exactly like it. The rock is
+    # the same 84px-wide mat the caltrop is (83.6 x 44.2 against 83.4 x 34.6 drawn pixels), so
+    # it needs the same width-driven box: fitting its *height* to `PLANT_BOX` would draw it 1.4
+    # cells wide, into both neighbours. Fitting both axes to 0.9 keeps it at about the size the
+    # original draws it (0.9 x 0.47 cells against 0.85 x 0.45).
+    #
+    # Its body is a bone like any other - the `anim_face` track carries `SPIKEROCK_BODY` and is
+    # visible for the whole 3..32 range, i.e. in both clips - and the mouth is a bone inside the
+    # same range, so nothing is hidden and nothing is forced.
+    #
+    # The two `anim_eye_leftbrow`/`anim_eye_rightbrow` tracks carry the eyebrow sprite and are
+    # visible in *no* frame of the file: they are the Zen Garden's expression overlays, the same
+    # family the magnet-shroom drops. Kept, they would be two bones that never draw and two more
+    # copies of a sprite the plant never uses, so they are filtered out.
+    EntityConfig(
+        output="spikerock",
+        group="plant/special",
+        reanim="SpikeRock.reanim",
+        target_box=(0.9, 0.9),
+        fit_height_only=False,
+        exclude_track_regex=r"eye_(left|right)brow",
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
             "attack": {"mask": "anim_attack", "loop": False, "on_end": "idle",
@@ -645,6 +691,25 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_nonactive_idle", "loop": True},
             "shoot": {"mask": "anim_shooting", "loop": False, "on_end": "idle",
+                      "transition": 0.1},
+        },
+    ),
+    # The gold magnet: the magnet-shroom's upgrade, and the same two clips with the same
+    # shape - `anim_attract` is the pull, one-shot, handed back to the idle, and it keeps the
+    # file's own rate like the magnet-shroom's shooting mask does (the two gestures are 31 and
+    # 26 frames long, so there is nothing to rescale). What the pull looks like is all in the
+    # art: the head swaps between `GOLDMAGNET_HEAD1`/`HEAD2` inside the `anim_face` track and
+    # the six spark sprites are bones of their own (`GoldMagnet_sparks`), drawn in their own
+    # frames across both clips. The blink overlay is hidden for the whole pull and, as with the
+    # magnet-shroom, is deliberately not rescued - there is no `force_visible_hidden` here.
+    EntityConfig(
+        output="gold_magnet",
+        group="plant/special",
+        reanim="GoldMagnet.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "shoot": {"mask": "anim_attract", "loop": False, "on_end": "idle",
                       "transition": 0.1},
         },
     ),
@@ -788,6 +853,28 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="LilyPad.reanim",
         target_box=PLANT_BOX,
         animations={"idle": {"mask": "anim_idle", "loop": True}},
+    ),
+    # The cattail: the pool's shooter, and the only plant the original lets you put on a lily
+    # pad - so it is filed next to the pad it lives on, though it fights. Its file is the plain
+    # two-mask shape: a 19-frame idle (5..23) and a 16-frame shot (24..39). Its head is carried
+    # by the `anim_face` track, visible for both ranges, and the spike it fires is a bone of its
+    # own (`Cattail_spike`, visible 24..33 - the throw - and again on the last frame), so
+    # neither clip needs a visibility rule and the throw is in the art.
+    EntityConfig(
+        output="cattail",
+        group="plant/attacker",
+        reanim="Cattail.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
+            },
+        },
     ),
     # The pool's one plant that eats a zombie: it drags the first one that walks onto it under
     # the surface. `anim_grab` is that drag and ends held (the plant is gone the moment it has
@@ -936,6 +1023,35 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "transition": 0.1,
                 "force_visible_hidden": True,
                 "force_visible_exclude_prefixes": ["sleep"],
+            },
+            "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
+        },
+    ),
+    # The gloom-shroom: the fume-shroom's upgrade, and the same three clips. Its sleeping face
+    # is the `blink` overlay - the file shows it for the whole `anim_sleep` range (24..42) and
+    # hides it for the whole shooting range (43..70) - so, like the puff-shroom and unlike the
+    # fume-shroom, there is nothing to rescue and no `force_visible_hidden`: the only bone that
+    # mask hides is that closed-eye overlay, and putting it back would give a firing mushroom a
+    # sleeping face. The head itself is the `anim_face` track (`GLOOMSHROOM_HEAD`, visible
+    # 5..70), up in all three clips; the firing expression rides on top of it as
+    # `GloomShroom_face` (`FACE1`/`FACE2`), visible 51..67, inside the shooting mask only.
+    EntityConfig(
+        output="gloom_shroom",
+        group="plant/attacker",
+        reanim="GloomShroom.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            # Named `attack`, not `shoot`: this plant's gesture is the `spike` capability's, and
+            # that capability publishes `EntityAnimations.ATTACK`. A clip under any other name is
+            # a gesture nothing can ask for - the animation manager falls back to idle, so the
+            # mushroom would spray without moving (see `架构变更记录.md`, W6).
+            "attack": {
+                "rate": SHOOT_ANIMATION_RATE,
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
             },
             "sleep": {"mask": "anim_sleep", "loop": True, "transition": 0.1},
         },
@@ -1260,6 +1376,43 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "transition": 0.1,
                 "force_visible_hidden": True,
                 "force_visible_exclude_prefixes": ["blink"],
+            },
+        },
+    ),
+    # The cob cannon: the pult line's biggest gun, and the one plant whose file has four phases
+    # where every other plant has two. The original makes you load it, and the masks say so:
+    # `anim_unarmed_idle` (5..23) is the empty cannon, `anim_charge` (24..38) lifts the cob into
+    # the barrel, `anim_idle` (39..57) is the loaded pose it holds while it waits, and
+    # `anim_shooting` (58..99) throws the cob and blows the husks off.
+    #
+    # The default `idle` is therefore the *unarmed* pose - what a freshly planted cannon and a
+    # just-fired one both look like - and the other three are named for the states the engine
+    # already has: `armed` is the load, a one-shot that hands over to `armed_loop` (the same
+    # pair the potato mine's emergence and armed pose use), and `shoot` is the launch, which
+    # ends back on the unarmed idle because the cob it fired is gone. A definition that only
+    # publishes idle/shoot still reads as a cannon that loads itself and fires; the full
+    # sequence wants all four.
+    #
+    # No `force_visible_hidden` on any of them, and here that is load-bearing rather than
+    # tidiness: `CobCannon_cob` only appears at frame 30 and the two `.2` husks at 24, i.e.
+    # every part of the unarmed pose is hidden by its own track, and the rescue would put a
+    # loaded cob on an empty cannon.
+    EntityConfig(
+        output="cob_cannon",
+        group="plant/attacker",
+        reanim="CobCannon.reanim",
+        target_box=PLANT_BOX,
+        animations={
+            "idle": {"mask": "anim_unarmed_idle", "loop": True},
+            "armed": {"mask": "anim_charge", "loop": False, "on_end": "next",
+                      "next": "armed_loop", "transition": 0.1},
+            "armed_loop": {"mask": "anim_idle", "loop": True, "transition": 0.1},
+            "shoot": {
+                "rate": SHOOT_ANIMATION_RATE,
+                "mask": "anim_shooting",
+                "loop": False,
+                "on_end": "idle",
+                "transition": 0.1,
             },
         },
     ),

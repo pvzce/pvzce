@@ -40,7 +40,7 @@ import com.pvzce.api.util.Identifier;
  */
 public record ProjectileRef(Identifier projectile, int damage, int count,
                             int rowOffset, boolean backward, int rows, float range,
-                            int burstDelay, int initialDelay) {
+                            int burstDelay, int initialDelay, boolean targetRow) {
     /** The original's straight shot: this row, forwards, no range limit. */
     public static final float UNLIMITED_RANGE = 0F;
 
@@ -67,7 +67,10 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
                     .forGetter(ProjectileRef::burstDelay),
             // Ticks to wait before this entry leaves at all; 0 = on the firing tick.
             Codec.INT.optionalFieldOf("initial_delay", NO_INITIAL_DELAY)
-                    .forGetter(ProjectileRef::initialDelay)
+                    .forGetter(ProjectileRef::initialDelay),
+            // Fires at whatever row the nearest target is in, rather than in the plant's own
+            // (the cattail, which covers the whole lawn). See `ShooterCapability.aimRow`.
+            Codec.BOOL.optionalFieldOf("target_row", false).forGetter(ProjectileRef::targetRow)
     ).apply(i, ProjectileRef::new));
 
     public ProjectileRef {
@@ -79,21 +82,21 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
     /** The plain straight shot: this row, forwards, one projectile. */
     public ProjectileRef(Identifier projectile, int damage, int count) {
         this(projectile, damage, count, 0, false, 0, UNLIMITED_RANGE, NO_BURST_DELAY,
-                NO_INITIAL_DELAY);
+                NO_INITIAL_DELAY, false);
     }
 
     /** A row-covering shot with no range limit (threepeater, split pea). */
     public ProjectileRef(Identifier projectile, int damage, int count,
                          int rowOffset, boolean backward, int rows) {
         this(projectile, damage, count, rowOffset, backward, rows, UNLIMITED_RANGE,
-                NO_BURST_DELAY, NO_INITIAL_DELAY);
+                NO_BURST_DELAY, NO_INITIAL_DELAY, false);
     }
 
     /** A ranged shot whose volley leaves together - every shot written before bursts existed. */
     public ProjectileRef(Identifier projectile, int damage, int count,
                          int rowOffset, boolean backward, int rows, float range) {
         this(projectile, damage, count, rowOffset, backward, rows, range, NO_BURST_DELAY,
-                NO_INITIAL_DELAY);
+                NO_INITIAL_DELAY, false);
     }
 
     /**
@@ -103,7 +106,7 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
     public ProjectileRef(Identifier projectile, int damage, int count,
                          int rowOffset, boolean backward, int rows, float range, int burstDelay) {
         this(projectile, damage, count, rowOffset, backward, rows, range, burstDelay,
-                NO_INITIAL_DELAY);
+                NO_INITIAL_DELAY, false);
     }
 
     /** {@code +1} down the lawn toward the zombies, {@code -1} back toward the house. */
@@ -128,7 +131,7 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
             return this;
         }
         return new ProjectileRef(projectile, damage, count, rowOffset, backward, rows,
-                Math.max(0F, range * multiplier), burstDelay, initialDelay);
+                Math.max(0F, range * multiplier), burstDelay, initialDelay, targetRow);
     }
 
     /**

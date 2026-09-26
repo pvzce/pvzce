@@ -774,5 +774,22 @@
   "pvzce.off": "Off",
   "pvzce.water.0": "Low",
   "pvzce.water.1": "Medium",
-  "pvzce.water.2": "High"
+  "pvzce.water.2": "High",
+  "plant.pvzce.twin_sunflower": "Twin Sunflower",
+  "plant.pvzce.twin_sunflower.desc": "The Sunflower's upgrade: two units of sun per glow instead of one.",
+  "plant.pvzce.twin_sunflower.flavor": "\"Two heads, two suns, twice the fun.\" - Twin Sunflower",
+  "plant.pvzce.gloom_shroom": "Gloom-shroom",
+  "plant.pvzce.gloom_shroom.desc": "The Fume-shroom's upgrade: it bursts spores in every direction, hitting everything around it.",
+  "plant.pvzce.gloom_shroom.flavor": "The Gloom-shroom does not say much. It prefers to express itself with spores.",
+  "plant.pvzce.spikerock": "Spikerock",
+  "plant.pvzce.spikerock.desc": "The Spikeweed's upgrade: it stabs twice as hard and survives several vehicles.",
+  "plant.pvzce.spikerock.flavor": "Every scratch on a Spikerock is a car that did not make it.",
+  "plant.pvzce.cattail": "Cattail",
+  "plant.pvzce.cattail.desc": "The Lily Pad's upgrade: it hurls homing spikes at the nearest zombie anywhere on the lawn.",
+  "plant.pvzce.cattail.flavor": "The Cattail has poor eyesight, so it trusts its instincts. Its instincts are excellent.",
+  "slot.pvzce.twin_sunflower": "Twin Sunflower",
+  "slot.pvzce.gloom_shroom": "Gloom-shroom",
+  "slot.pvzce.spikerock": "Spikerock",
+  "slot.pvzce.cattail": "Cattail",
+  "projectile.pvzce.cattail_spike": "Cattail Spike"
 }

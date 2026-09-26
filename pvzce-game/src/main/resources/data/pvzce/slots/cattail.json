@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:cattail",
+  "kind": "plant",
+  "content": "pvzce:cattail",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/cattail"
+}

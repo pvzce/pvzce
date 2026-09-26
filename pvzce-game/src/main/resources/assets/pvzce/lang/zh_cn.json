@@ -775,5 +775,22 @@
   "pvzce.off": "关",
   "pvzce.water.0": "低",
   "pvzce.water.1": "中",
-  "pvzce.water.2": "高"
+  "pvzce.water.2": "高",
+  "plant.pvzce.twin_sunflower": "双子向日葵",
+  "plant.pvzce.twin_sunflower.desc": "向日葵的升级版，每次产出两份阳光。",
+  "plant.pvzce.twin_sunflower.flavor": "「两个头，两份阳光，两倍的快乐。」——双子向日葵",
+  "plant.pvzce.gloom_shroom": "忧郁蘑菇",
+  "plant.pvzce.gloom_shroom.desc": "大喷菇的升级版，围着自身喷出孢子，伤害身边一圈的僵尸。",
+  "plant.pvzce.gloom_shroom.flavor": "忧郁蘑菇不太爱说话。它更喜欢用孢子表达自己。",
+  "plant.pvzce.spikerock": "地刺王",
+  "plant.pvzce.spikerock.desc": "地刺的升级版，扎得更疼，而且经得起好几辆车碾过去。",
+  "plant.pvzce.spikerock.flavor": "地刺王是地刺里的老兵，身上的每一道划痕都是一辆报废的车。",
+  "plant.pvzce.cattail": "香蒲",
+  "plant.pvzce.cattail.desc": "睡莲的升级版，朝整块草坪上最近的僵尸投出会追踪的尖刺。",
+  "plant.pvzce.cattail.flavor": "香蒲的眼神不太好，所以它靠感觉——而它的感觉一向很准。",
+  "slot.pvzce.twin_sunflower": "双子向日葵",
+  "slot.pvzce.gloom_shroom": "忧郁蘑菇",
+  "slot.pvzce.spikerock": "地刺王",
+  "slot.pvzce.cattail": "香蒲",
+  "projectile.pvzce.cattail_spike": "香蒲尖刺"
 }

@@ -169,6 +169,13 @@ public final class PlantPlacement {
             return false;
         }
         List<PlantLayer> plants = ctx.plants(x, y);
+        // An upgrade is not a seed: the only legal cell is one that already holds the plant it
+        // replaces, and nothing else about the cell is asked. The base passed these rules when it
+        // was planted, and asking them again would refuse the case the rule exists for - a cattail
+        // goes on a lily pad, and the lily pad is what makes that water cell plantable.
+        if (def.upgrade().isPresent()) {
+            return upgradeBasesInPlace(def.upgrade().get(), ctx, x, y, plants);
+        }
         if (!distinctGroup(def, plants)) {
             return false;
         }
@@ -210,6 +217,64 @@ public final class PlantPlacement {
         // Everything else: a plantable tile, or a plantable plant beneath it (which
         // is how a flower pot on bare ground - or on a roof - becomes plantable).
         return has(below, PvzceTags.PLANTABLE);
+    }
+
+    /**
+     * Whether every base an upgrade wants is in place around {@code (x, y)}.
+     *
+     * <p>Two conditions beyond "the base is here":
+     *
+     * <ul>
+     *   <li><b>A carrier base must be the topmost plant in its cell.</b> The original refuses to
+     *       upgrade a lily pad that already has a plant on it, and the reason generalises: the
+     *       upgrade takes the carrier's place, so a plant standing on the carrier would be left in
+     *       the air. A base that is <em>not</em> a carrier is upgraded whatever is around it - a
+     *       pumpkin shell over a repeater is exactly the case that must keep working.</li>
+     *   <li><b>{@code adjacent} more bases must stand in the same row next to the cell.</b> The cob
+     *       cannon is the one plant that asks for this (a 2x1 block of kernel-pults). Left first,
+     *       then right, so the choice of <em>which</em> neighbour is consumed is deterministic
+     *       rather than "whichever the list happened to hold first".</li>
+     * </ul>
+     */
+    public static boolean upgradeBasesInPlace(PlantDef.Upgrade upgrade, Ctx ctx, int x, int y,
+                                              List<PlantLayer> plants) {
+        PlantLayer base = topmost(plants, upgrade.base());
+        if (base == null) {
+            return false;
+        }
+        if (isCarrier(base.def()) && plants.get(plants.size() - 1) != base) {
+            return false;
+        }
+        if (upgrade.adjacent() == 0) {
+            return true;
+        }
+        // Left before right, so which neighbour gets consumed is deterministic rather than
+        // "whichever the list happened to hold first". A column off the board answers 0, so this
+        // never has to know how wide the row is.
+        return countBase(upgrade, ctx, x - 1, y) >= upgrade.adjacent()
+                || countBase(upgrade, ctx, x + 1, y) >= upgrade.adjacent();
+    }
+
+    /** How many of the wanted base plants sit in the cell at {@code (x, y)}. */
+    public static int countBase(PlantDef.Upgrade upgrade, Ctx ctx, int x, int y) {
+        int found = 0;
+        for (PlantLayer layer : ctx.plants(x, y)) {
+            if (upgrade.base().equals(layer.def().id())) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    /** The topmost plant in the cell that is {@code id}, or {@code null}. */
+    private static PlantLayer topmost(List<PlantLayer> plants, Identifier id) {
+        PlantLayer found = null;
+        for (PlantLayer layer : plants) {
+            if (id.equals(layer.def().id())) {
+                found = layer;
+            }
+        }
+        return found;
     }
 
     /** True when the cell's terrain, not a plant in it, carries {@code tag}. */

@@ -54,11 +54,56 @@ public final class CardPainter {
                         cost, dark, alpha, ready, slot.cooldownRatio(), selected, null, false);
         if (SHOVEL_ID.equals(slot.defId())) {
             model = model.chrome(com.pvzce.client.gui.SeedCardRenderer.SHOVEL_SLOT_BACKGROUND, false);
+        } else if (isUpgrade(slot.defId())) {
+            model = model.chrome(UPGRADE_PACKET_BACKGROUND, false);
         }
         com.pvzce.client.gui.SeedCardRenderer.draw(client, model, x, y, width, height);
         if (locked) {
             drawLockBadge(client, x, y, width, height, alpha);
         }
+    }
+
+    /**
+     * The purple packet an upgrade card is sold in.
+     *
+     * <p>Generated from the ordinary packet by {@code tools/gen_upgrade_packet.py}: the original
+     * ships the same drawing in a lavender palette, and the reference art the project has is the
+     * green one. Rotating the palette rather than tinting at draw time keeps the packet's own
+     * shading; see that tool for why.
+     */
+    public static final Identifier UPGRADE_PACKET_BACKGROUND =
+            Identifier.withDefaultNamespace("textures/gui/hud/seed_packet_upgrade");
+
+    /**
+     * The chrome a card is drawn on: the purple packet for an upgrade plant, the leaf's for
+     * everything else.
+     *
+     * <p>One function because three screens draw these cards (the two bars, the seed chooser and
+     * the award page) and "which packet does this card wear" is a fact about the plant, not about
+     * the screen. {@code null} is the renderer's own default packet.
+     */
+    public static Identifier packetFor(String defId) {
+        return isUpgrade(defId) ? UPGRADE_PACKET_BACKGROUND : null;
+    }
+
+    /**
+     * True when this card's plant is one of the eight upgrades (it is planted on another plant).
+     *
+     * <p>Takes either spelling a card id comes in - a slot's own id (the seed chooser's
+     * {@code SeedOption.slotId}) or the content it names ({@code SlotInfo.defId}) - because a slot
+     * may be named after something else than the plant it hands out, and the card's colour has to
+     * follow the plant rather than the name. {@code SlotResolver} is the one place that knows the
+     * mapping.
+     */
+    public static boolean isUpgrade(String defId) {
+        if (defId == null) {
+            return false;
+        }
+        Identifier id = Identifier.parse(defId);
+        var card = com.pvzce.common.core.SlotResolver.resolve(id).orElse(null);
+        com.pvzce.api.content.PlantDef def =
+                com.pvzce.common.core.BuiltInRegistries.PLANTS.get(card != null ? card.content() : id);
+        return def != null && def.upgrade().isPresent();
     }
 
     /**

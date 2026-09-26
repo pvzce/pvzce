@@ -1,0 +1,26 @@
+{
+  "id": "pvzce:twin_sunflower",
+  "upgrade": {
+    "base": "pvzce:sunflower"
+  },
+  "cost": {
+    "resources": {
+      "pvzce:sun": 150
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:producer",
+      "resource": "pvzce:sun",
+      "amount": 50,
+      "every": 1080
+    }
+  ],
+  "sounds": {},
+  "animation_dir": "plant/producer",
+  "texture": "pvzce:textures/entities/plant/producer/twin_sunflower",
+  "render_scale": 0.85,
+  "order": 42
+}

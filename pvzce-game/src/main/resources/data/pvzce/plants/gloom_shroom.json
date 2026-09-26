@@ -1,0 +1,34 @@
+{
+  "id": "pvzce:gloom_shroom",
+  "upgrade": {
+    "base": "pvzce:fume_shroom"
+  },
+  "cost": {
+    "resources": {
+      "pvzce:sun": 150
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:nocturnal"
+    },
+    {
+      "type": "pvzce:spike",
+      "interval": 110,
+      "damage": 20,
+      "damage_type": "pvzce:spray",
+      "range": 1.4,
+      "sound": "pvzce:sfx/plant/fume",
+      "rows": 1
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/fume"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/gloom_shroom",
+  "render_scale": 0.85,
+  "order": 43
+}
