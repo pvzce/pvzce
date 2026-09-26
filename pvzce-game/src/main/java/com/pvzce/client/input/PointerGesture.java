@@ -147,6 +147,16 @@ public final class PointerGesture {
         return true;
     }
 
+    /** For diagnostics: true while a press is being held back for a possible scroll. */
+    public boolean holding() {
+        return active;
+    }
+
+    /** For diagnostics: true once this gesture's travel has passed the tap threshold. */
+    public boolean travelled() {
+        return moved;
+    }
+
     /**
      * The button coming back up.
      *

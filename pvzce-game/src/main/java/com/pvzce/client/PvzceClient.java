@@ -180,11 +180,25 @@ public final class PvzceClient {
      * <p>按下在滚动区外立刻发点击、区内交给手势延后；拖动与松手同理。于是"手指"在游戏眼里
      * 就是一个鼠标：按住扫阳光、拖卡到格子、小推车长按、六处滚动区全部照旧。
      */
+    /**
+     * {@code -Dpvzce.touchTrace=true}: one line per touch event, with what the gesture decided.
+     *
+     * <p>Exists because "the button lights up but does nothing" has two very different causes that
+     * look identical on screen: the press was held back as a possible scroll and the release counted
+     * as travel, or the release never arrived at all (the translator then still believes a finger is
+     * down and ignores every later touch). The trace separates them in one run.
+     */
+    private final boolean touchTrace = Boolean.getBoolean("pvzce.touchTrace");
     private final TouchTranslator.Pointer touchPointer = new TouchTranslator.Pointer() {
         @Override
         public void press(double x, double y) {
             window.setPointerPosition(x, y);
-            if (!gesture.press(GLFW.GLFW_MOUSE_BUTTON_LEFT, x, y, true)) {
+            boolean held = gesture.press(GLFW.GLFW_MOUSE_BUTTON_LEFT, x, y, true);
+            if (touchTrace) {
+                LOGGER.info("[触控] down {},{} → {}", x, y,
+                        held ? "落在滚动区域，点击延后到松手" : "直接发点击");
+            }
+            if (!held) {
                 deliverGuiClick(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
             }
         }
@@ -192,6 +206,10 @@ public final class PvzceClient {
         @Override
         public void drag(double x, double y) {
             window.setPointerPosition(x, y);
+            if (touchTrace) {
+                LOGGER.info("[触控] move {},{} → {}", x, y,
+                        gesture.holding() ? "滚动手势中（已过阈值=" + gesture.travelled() + "）" : "转发为拖动");
+            }
             if (!gesture.dragged(x, y)) {
                 dispatchMouseDragged();
             }
@@ -199,6 +217,13 @@ public final class PvzceClient {
 
         @Override
         public void release() {
+            boolean held = gesture.holding();
+            boolean travelled = gesture.travelled();
+            if (touchTrace) {
+                LOGGER.info("[触控] up → {}", held
+                        ? (travelled ? "算滑动：不发点击" : "算轻点：发点击")
+                        : "没有待发的点击（这一按早就发过了）");
+            }
             if (!gesture.released()) {
                 dispatchMouseReleased();
             }
@@ -755,6 +780,9 @@ public final class PvzceClient {
                 new WaylandTouch.Sink() {
                     @Override
                     public void down(int id, double x, double y) {
+                        if (touchTrace) {
+                            LOGGER.info("[触控] wl_touch down id={} {},{}", id, x, y);
+                        }
                         touchTranslator.down(id, x, y);
                     }
 
@@ -765,11 +793,17 @@ public final class PvzceClient {
 
                     @Override
                     public void up(int id) {
+                        if (touchTrace) {
+                            LOGGER.info("[触控] wl_touch up id={}", id);
+                        }
                         touchTranslator.up(id);
                     }
 
                     @Override
                     public void cancel() {
+                        if (touchTrace) {
+                            LOGGER.info("[触控] wl_touch cancel（合成器收走了这一下）");
+                        }
                         touchTranslator.cancel();
                     }
                 });
