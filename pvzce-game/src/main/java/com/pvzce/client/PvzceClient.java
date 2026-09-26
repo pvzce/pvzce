@@ -19,6 +19,8 @@ import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
 import com.pvzce.client.input.PointerGesture;
+import com.pvzce.client.input.TouchTranslator;
+import com.pvzce.client.input.wayland.WaylandTouch;
 import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
@@ -167,6 +169,41 @@ public final class PvzceClient {
      * game, so what the switch disables is this layer - the deferred click and the swipe scrolling.
      */
     private final PointerGesture gesture;
+    /** {@code -Dpvzce.touch=false} 关掉整个触控层；见 {@link #gesture} 的说明。 */
+    private final boolean touchEnabled;
+    /** 手指事件（Wayland 才需要，别的平台系统会把它变成鼠标事件）；见 {@link #installTouchInput}。 */
+    private WaylandTouch waylandTouch;
+    /**
+     * 触摸翻译成鼠标流的落点：**与帧循环对鼠标做的一模一样**。
+     *
+     * <p>按下在滚动区外立刻发点击、区内交给手势延后；拖动与松手同理。于是"手指"在游戏眼里
+     * 就是一个鼠标：按住扫阳光、拖卡到格子、小推车长按、六处滚动区全部照旧。
+     */
+    private final TouchTranslator.Pointer touchPointer = new TouchTranslator.Pointer() {
+        @Override
+        public void press(double x, double y) {
+            window.setPointerPosition(x, y);
+            if (!gesture.press(GLFW.GLFW_MOUSE_BUTTON_LEFT, x, y, true)) {
+                deliverGuiClick(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            }
+        }
+
+        @Override
+        public void drag(double x, double y) {
+            window.setPointerPosition(x, y);
+            if (!gesture.dragged(x, y)) {
+                dispatchMouseDragged();
+            }
+        }
+
+        @Override
+        public void release() {
+            if (!gesture.released()) {
+                dispatchMouseReleased();
+            }
+        }
+    };
+    private final TouchTranslator touchTranslator = new TouchTranslator(touchPointer);
     private char suppressNextChar;
     private boolean debugOverlayEnabled;
     /** Set from {@code pvzce.dumpFontAtlas}: where to write the glyph atlases, once. */
@@ -238,9 +275,9 @@ public final class PvzceClient {
         this.config = PvzceClientConfig.load(gameDir);
         // Built here rather than in run() for the same reason the config is: a windowless client
         // (tests, tooling) has one too, and the switch has to be read once, not once per frame.
+        this.touchEnabled = Boolean.parseBoolean(System.getProperty("pvzce.touch", "true"));
         this.gesture = new PointerGesture(
-                this::gestureRegionAt, this::deliverGuiClick, this::dispatchGuiScrolled,
-                Boolean.parseBoolean(System.getProperty("pvzce.touch", "true")));
+                this::gestureRegionAt, this::deliverGuiClick, this::dispatchGuiScrolled, touchEnabled);
         String dumpAtlas = System.getProperty("pvzce.dumpFontAtlas");
         if (dumpAtlas != null && !dumpAtlas.isBlank()) {
             this.dumpFontAtlasTo = java.nio.file.Path.of(dumpAtlas);
@@ -262,6 +299,7 @@ public final class PvzceClient {
         reloadContent();
 
         window = new PvzceWindow("PVZ Community Edition", config);
+        installTouchInput();
         lastWindowWidth = window.width();
         lastWindowHeight = window.height();
         RenderSystem.init();
@@ -341,6 +379,10 @@ public final class PvzceClient {
         }
         textures.close();
         blurredBackdrop.close();
+        if (waylandTouch != null) {
+            waylandTouch.close();
+            waylandTouch = null;
+        }
         window.close();
     }
 
@@ -679,6 +721,51 @@ public final class PvzceClient {
                 : currentScreen().scrollRegionAt(guiX, guiY);
     }
 
+    /**
+     * Starts the Wayland touch source, when that is where the fingers are.
+     *
+     * <p>Only Wayland needs this. On Windows the OS promotes the primary touch pointer to mouse
+     * messages, and on X11 XInput2 emulates pointer events for the first touch point, so a finger is
+     * already a mouse there; GLFW's Wayland backend does neither - it has no touch API at all - which
+     * is what {@code client.input.wayland.WaylandTouch} exists for.
+     *
+     * <p>A failure here is never fatal: the game is still playable with a mouse and keyboard, so a
+     * compositor without a touch device, a seat that has none, or a libwayland that cannot be loaded
+     * is one log line rather than a crash.
+     */
+    private void installTouchInput() {
+        if (!touchEnabled) {
+            LOGGER.info("触控：已用 -Dpvzce.touch=false 关闭");
+            return;
+        }
+        if (window.platform() != GLFW.GLFW_PLATFORM_WAYLAND) {
+            LOGGER.info("触控：平台 {} 上手指由系统提升成鼠标事件，无需接管", window.platform());
+            return;
+        }
+        waylandTouch = WaylandTouch.install(window.waylandDisplay(), window.waylandSurface(),
+                new WaylandTouch.Sink() {
+                    @Override
+                    public void down(int id, double x, double y) {
+                        touchTranslator.down(id, x, y);
+                    }
+
+                    @Override
+                    public void motion(int id, double x, double y) {
+                        touchTranslator.motion(id, x, y);
+                    }
+
+                    @Override
+                    public void up(int id) {
+                        touchTranslator.up(id);
+                    }
+
+                    @Override
+                    public void cancel() {
+                        touchTranslator.cancel();
+                    }
+                });
+    }
+
     /** Opens the console over the current screen; {@code initialContents} pre-fills it. */
     void openConsole(String initialContents) {
         if (overlay == null) {
@@ -747,6 +834,30 @@ public final class PvzceClient {
     void deliverRawRelease(double rawX, double rawY, int button) {
         window.warpCursor(rawX, rawY);
         dispatchMouseReleased();
+    }
+
+    /**
+     * A whole touch gesture through the touch translator: a finger down, eight moves, up.
+     *
+     * <p>Package-private for the smoke driver, which routes {@code smokeClick} and
+     * {@code smokeDragTo} through it when {@code pvzce.smokeTouchSource=true}. What that proves is
+     * the touch half of the input path - the translator and the pointer stream it drives - which
+     * cannot be asked of a real finger in a screenshot run; the native delivery is a separate fact
+     * and needs a device (see {@code client.input.wayland.WaylandTouch}).
+     *
+     * <p>A gesture that ends where it started is a tap: eight moves of zero travel leave the
+     * gesture's movement threshold untouched, so it is delivered as a click at the touch point.
+     */
+    void deliverGuiTouch(double fromGuiX, double fromGuiY, double toGuiX, double toGuiY) {
+        int finger = 0;
+        touchTranslator.down(finger, fromGuiX, fromGuiY);
+        int steps = 8;
+        for (int i = 1; i <= steps; i++) {
+            double travelled = i / (double) steps;
+            touchTranslator.motion(finger, fromGuiX + (toGuiX - fromGuiX) * travelled,
+                    fromGuiY + (toGuiY - fromGuiY) * travelled);
+        }
+        touchTranslator.up(finger);
     }
 
     /**

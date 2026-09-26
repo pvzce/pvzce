@@ -210,6 +210,15 @@ final public class SmokeDriver {
      */
     private final boolean traceInput = Boolean.getBoolean("pvzce.traceInput");
     /**
+     * {@code pvzce.smokeTouchSource=true}: send {@code smokeClick} / {@code smokeClickLabel} /
+     * {@code smokeDragTo} through the touch translator instead of the mouse dispatch.
+     *
+     * <p>The two are not the same path: the mouse hooks deliver a click and a drag directly, while a
+     * touch goes down / moves / up through {@code TouchTranslator} and the gesture that decides
+     * tap-versus-scroll. A screenshot run that wants to show "a finger does this" has to use this.
+     */
+    private final boolean smokeTouchSource = Boolean.getBoolean("pvzce.smokeTouchSource");
+    /**
      * Commands to run once a level is up, separated by {@code |}.
      *
      * <p>For smoke runs that need to put something specific on the board - a drop with a
@@ -515,7 +524,11 @@ final public class SmokeDriver {
                         int cx = child.x() + child.width() / 2;
                         int cy = child.y() + child.height() / 2;
                         System.out.println("[SMOKE] clicking '" + smokeClickLabel + "' at " + cx + "," + cy);
-                        client.deliverGuiClick(cx, cy, 0);
+                        if (smokeTouchSource) {
+                            client.deliverGuiTouch(cx, cy, cx, cy);
+                        } else {
+                            client.deliverGuiClick(cx, cy, 0);
+                        }
                     }
                 }
             }
@@ -537,7 +550,11 @@ final public class SmokeDriver {
                         + " screen=" + (client.currentScreen() == null ? "none"
                                 : client.currentScreen().getClass().getSimpleName()));
             }
-            client.deliverRawClick(rawX, rawY, 0);
+            if (smokeTouchSource) {
+                client.deliverGuiTouch(gui[0], gui[1], gui[0], gui[1]);
+            } else {
+                client.deliverRawClick(rawX, rawY, 0);
+            }
         }
         if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
             // The same conversion smokeClick uses, and for the same reason: the cursor is
@@ -559,8 +576,14 @@ final public class SmokeDriver {
                     - gui[1] * client.window().height() / (double) Math.max(1, client.guiHeight());
             System.out.println("[SMOKE] dragging to gui=" + gui[0] + "," + gui[1]
                     + " backToGui=" + client.guiMouseX(rawX) + "," + client.guiMouseY(rawY));
-            client.deliverRawDrag(rawX, rawY, 0);
-            client.deliverRawRelease(rawX, rawY, 0);
+            if (smokeTouchSource && smokeClickAt != null) {
+                System.out.println("[SMOKE] touching from gui=" + smokeClickAt[0] + "," + smokeClickAt[1]
+                        + " to gui=" + gui[0] + "," + gui[1]);
+                client.deliverGuiTouch(smokeClickAt[0], smokeClickAt[1], gui[0], gui[1]);
+            } else {
+                client.deliverRawDrag(rawX, rawY, 0);
+                client.deliverRawRelease(rawX, rawY, 0);
+            }
         }
         if (smokeSwipe != null && !smokeSwipeDone && clientTick == smokeSwipeFrame) {
             smokeSwipeDone = true;

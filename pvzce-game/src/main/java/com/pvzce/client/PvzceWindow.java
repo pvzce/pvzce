@@ -6,6 +6,7 @@ import org.lwjgl.glfw.GLFWCharCallback;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
+import org.lwjgl.glfw.GLFWNativeWayland;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL20;
@@ -77,20 +78,30 @@ public final class PvzceWindow implements AutoCloseable {
 
         GLFWErrorCallback.createPrint(System.err).set();
         String forcedPlatform = System.getProperty("pvzce.platform");
-        boolean preferX11 = "x11".equalsIgnoreCase(forcedPlatform)
-                || (System.getenv("DISPLAY") != null && !"wayland".equalsIgnoreCase(forcedPlatform));
-        if (preferX11) {
+        boolean forcedWayland = "wayland".equalsIgnoreCase(forcedPlatform);
+        boolean forcedX11 = "x11".equalsIgnoreCase(forcedPlatform);
+        // A Wayland session gets the native Wayland backend, and that is not a preference: it is the
+        // only place touch can work at all. GLFW's Wayland backend is the one with a wl_touch device
+        // (the game reads it itself, see client.input.wayland), while X11/XWayland never turns a
+        // finger into mouse events - so on a Wayland desktop, XWayland means an unclickable game.
+        boolean preferWayland = forcedWayland
+                || (System.getenv("WAYLAND_DISPLAY") != null && !forcedX11);
+        boolean preferX11 = !preferWayland
+                && (System.getenv("DISPLAY") != null || forcedX11);
+        if (preferWayland) {
+            GLFW.glfwInitHint(GLFW.GLFW_PLATFORM, GLFW.GLFW_PLATFORM_WAYLAND);
+        } else if (preferX11) {
             GLFW.glfwInitHint(GLFW.GLFW_PLATFORM, GLFW.GLFW_PLATFORM_X11);
         }
-        if (!GLFW.glfwInit() && preferX11) {
-            // XWayland unavailable: fall back to the native platform.
+        if (!GLFW.glfwInit()) {
+            // The hinted platform is not there (no XWayland, no Wayland): let GLFW pick what exists.
             GLFW.glfwInitHint(GLFW.GLFW_PLATFORM, GLFW.GLFW_ANY_PLATFORM);
             if (!GLFW.glfwInit()) {
                 throw new IllegalStateException("Unable to initialize GLFW");
             }
-        } else if (!GLFW.glfwInit()) {
-            throw new IllegalStateException("Unable to initialize GLFW");
         }
+        LOGGER.info("GLFW platform = {}{}", GLFW.glfwGetPlatform(),
+                preferWayland ? " (Wayland 会话：触控需要它)" : "");
         GLFW.glfwDefaultWindowHints();
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
         GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_TRUE);
@@ -160,11 +171,50 @@ public final class PvzceWindow implements AutoCloseable {
         // Recorded here as well as asked for: a window that is not focused does not get its
         // pointer moved (Wayland ignores the request entirely), and the one caller is a
         // screenshot harness that needs the pointer to be *there*, not merely requested. The
-        // platform call still happens, so a focused window behaves exactly as it would if a
+        // platform call still happens, so a focused window works exactly as it would if a
         // player moved the mouse.
+        setPointerPosition(x, y);
+        GLFW.glfwSetCursorPos(handle, x, y);
+    }
+
+    /**
+     * Records where the pointer is without asking the platform to move it.
+     *
+     * <p>For the touch layer: a finger has no cursor to warp, but everything that follows "where the
+     * pointer is" - the placement ghost, the highlighted cell, a card's name on hover - should follow
+     * the last touch. On Wayland {@code glfwSetCursorPos} is ignored anyway, so a touch source has
+     * nothing to gain from calling {@link #warpCursor}.
+     */
+    public void setPointerPosition(double x, double y) {
         cursorX = x;
         cursorY = y;
-        GLFW.glfwSetCursorPos(handle, x, y);
+    }
+
+    /** The GLFW window handle, for the native layers that need it. */
+    public long handle() {
+        return handle;
+    }
+
+    /** The platform GLFW chose: {@code GLFW_PLATFORM_WAYLAND} and friends. */
+    public int platform() {
+        return GLFW.glfwGetPlatform();
+    }
+
+    /**
+     * The Wayland surface this window draws into, or {@code 0} when the platform is not Wayland.
+     *
+     * <p>The touch source needs it to tell "a finger on the game" from "a finger on GLFW's own
+     * fallback decoration frame" - a {@code wl_touch.down} reports whichever surface it hit.
+     */
+    public long waylandSurface() {
+        return GLFW.glfwGetPlatform() == GLFW.GLFW_PLATFORM_WAYLAND
+                ? GLFWNativeWayland.glfwGetWaylandWindow(handle) : 0L;
+    }
+
+    /** The Wayland display connection GLFW is using, or {@code 0} when the platform is not Wayland. */
+    public long waylandDisplay() {
+        return GLFW.glfwGetPlatform() == GLFW.GLFW_PLATFORM_WAYLAND
+                ? GLFWNativeWayland.glfwGetWaylandDisplay() : 0L;
     }
 
     public double cursorX() {

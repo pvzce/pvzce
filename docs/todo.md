@@ -358,23 +358,35 @@ dry-run 一直列着这条跳过）。哪天那份贴图补进 `refer/`，把三
 
 ### 触控只做了"单指点击 + 滑动"
 
-只支持 Linux X11 与 Windows，而且只有两个手势。没做的：**多指**（双指滚动/捏合，GLFW 没有 touch API，
-要接 `WM_POINTER`/XI2 raw touch 或 `wl_touch`）、**右键**（触控上没有右键，取消选卡还能靠"再点一次已选卡"，
-但把草坪上捡起来的种子包放回去只有右键一条路）、**悬停提示**（`HoverTip` 有几处是唯一的显名途径，
-触控得靠长按，而长按又要和小推车按住 500 ms 放车、Windows"长按=右键"排先后）、**屏内键盘**
-（控制台/编辑器/玩家名在触控设备上需要外接键盘：GLFW 不会告诉系统"输入框获得焦点"）。
+Wayland（自接 `wl_touch`）、Windows 与 X11/Xorg 都能用手指玩了，但手势只有两个。没做的：
+**多指**（双指滚动/捏合；`wl_touch` 的 listener 只按 v5 事件集绑，第二根手指的 id 已经被忽略）、
+**右键**（触控上没有右键：取消选卡还能靠"再点一次已选卡"，但把草坪上捡起来的种子包放回去只有右键一条路）、
+**悬停提示**（`HoverTip` 有几处是唯一的显名途径，触控要靠长按，而长按又要和小推车按住 500 ms 放车、
+Windows"长按=右键"排先后）、**屏内键盘**（控制台/编辑器/玩家名在触控设备上需要外接键盘：
+GLFW 不会告诉系统"输入框获得焦点"）。
 影响：触控设备目前可以正常玩主线，但上面的场景要么做不到、要么要用鼠标键盘补。
-卡在哪：多指与 Wayland 要原生层（`todo.md` 的"明确不做"里记着这轮的范围）。
+### 触控还没被人真正玩过一局
 
-### 触控没在真机上验过（平台投递与 HiDPI 坐标）
+探针已在真机上证明"事件送达"（`wl_touch` 收到 down/motion/up、坐标是 surface-local 逻辑像素），
+原生 Wayland 冒烟也证明了游戏内接线；但**没有人用手指实际玩过**：点一次开始游戏、滑选卡页、点卡槽条。
+影响：剩下的只可能是体感问题（滑动步长/阈值、没有指针时"点在哪个格子"不够清楚、卡片命名提示不会出现）。
+怎么做：在 Wayland 会话下 `./gradlew :pvzce-game:run` 玩一局，按"现象 + 期望"把不舒服的地方记回来。
 
-这轮的证据全部来自合成输入（单测 + 冒烟胶片），**"手指真的被系统提升成鼠标消息了吗"没有在触摸屏上验过**。
-另外仓库里没有一处 `glfwGetContentScale` / `glfwGetWindowSize`：`guiMouseX` 拿 framebuffer 宽度去除
-GLFW 报的光标坐标，两者只在缩放为 1 时相等，而触控设备几乎都是缩放屏。
-影响：如果真机上点不准，第一件要修的是坐标（`PvzceClient.guiMouseX/guiMouseY` 与 `PvzceWindow` 的
-`width/height`），不是手势。
-卡在哪：需要一台带触摸屏的机器，跑一次 `-Dpvzce.traceInput=true` 看点击落在哪。
+### HiDPI 缩放屏上点击会整体偏移
 
+仓库里没有一处 `glfwGetContentScale` / `glfwGetWindowSize`：`guiMouseX` 拿 **framebuffer 宽度**去除
+GLFW 报的**窗口坐标**，两者只在 contentScale = 1 时相等（本机实测 = 1，所以一直没暴露）。
+影响：显示器一旦是 150%/200% 缩放（`monitors.xml` 里就有 scale=2 的配置），每次点击（鼠标或手指）都会
+按 1/scale 偏移，表现就是"完全点不准"——而触摸设备几乎都是缩放屏。
+怎么做：把换算收在 `PvzceWindow` 一处：光标统一以 framebuffer 像素对外（乘 `framebuffer/window`），
+`warpCursor` / `setPointerPosition` 反向换算；冒烟钩子里"只记录不移动"的行为保持不变。
+
+### loader fork 在 JDK 25 下会打 `ZipError` 过时警告
+
+`SimpleClassPath` / `GameTransformer` / `FileSystemUtil` 都 `catch ZipError`，JDK 25 报
+`[removal] java.util.zip 中的 ZipError 已过时, 且标记为待删除`。现在只是警告。
+影响：将来某个 JDK 真删掉它时这三处会编译失败（loader 不在常规改动范围内，届时要分清是 fork 的问题
+还是我们碰了什么）。
 ### 卡条上的 `<` `>` 是画出来的字符，点它等于选中第一张卡
 
 `SeedCardBar.render` 把两个箭头当文字画在可视区**里面**，而 `slotAt` 的判定覆盖整个可视区，
@@ -388,5 +400,5 @@ GLFW 报的光标坐标，两者只在缩放为 1 时相等，而触控设备几
 | 事项 | 结论 | 出处 |
 |---|---|---|
 | 卡槽轮换把 0 阳光 / 种不下的植物送进卡槽 | **保持现状** —— 这是变异"就是乱"的设计，不是缺陷 | 用户在变异轮答复，见 `决策记录.md` §3 |
-| 多指手势、Wayland 触控（`wl_touch`）、屏内键盘、Android/iOS | **这轮不做** —— 只做 Linux X11 与 Windows 的单指点击与滑动 | 用户在触控轮答复，见 `决策记录.md` §1 |
+| 多指手势、屏内键盘、Android/iOS | **不做** —— 只做单指点击与滑动（Wayland 的 `wl_touch` 后来做了，见 Q57） | 用户在触控轮答复，见 `决策记录.md` §1 |
 

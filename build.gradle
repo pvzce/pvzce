@@ -13,16 +13,20 @@ allprojects {
 subprojects {
     apply plugin: 'java'
 
+    // One fact, one source: the toolchain and the class-file version are the same decision, and
+    // they used to be two copies of it (gradle.properties said 21, this file said 21 by hand).
+    def javaVersion = (project.findProperty('java_version') as String).toInteger()
+
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(project.findProperty('java_version') as String)
+            languageVersion = JavaLanguageVersion.of(javaVersion)
         }
         withSourcesJar()
     }
 
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
-        options.release = 21
+        options.release = javaVersion
     }
 
     tasks.withType(Test).configureEach {

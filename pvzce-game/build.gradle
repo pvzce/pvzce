@@ -91,10 +91,17 @@ tasks.register('extractLwjglNatives', Copy) {
 // Forward the smoke-style properties into the test JVM as well, so a diagnostic that is
 // guarded by one (see AnimationPlayback's pvzce.traceLocomotion) can be switched on for a
 // test run without editing the build file - the same reason `run` has this block.
+// java.lang.foreign is how the Wayland touch layer reaches libwayland-client (GLFW has no touch
+// API), and since JDK 24 every FFM entry point is a *restricted* method: without this flag the JVM
+// prints a warning per call site and a future release will refuse outright. Any launcher that
+// starts the game - not just this Gradle task - has to pass it too.
+def nativeAccess = '--enable-native-access=ALL-UNNAMED'
+
 tasks.named('test') {
     // Diagnostics guarded by a property are useless if the forked JVM's stdout is swallowed;
     // this is what makes `-Ppvzce.smoke=pvzce.traceLocomotion=true` readable.
     testLogging.showStandardStreams = true
+    jvmArgs nativeAccess
 
     // The documentation is a test input. DocumentedSymbolsTest, DocStatsTest and DocLedgerTest
     // read `docs/**` and AGENTS.md, but a doc-only edit used to leave this task UP-TO-DATE - so a
@@ -114,6 +121,7 @@ tasks.named('test') {
 run {
     // Development mode: classes are on the classpath instead of inside one fat jar.
     dependsOn tasks.named('extractLwjglNatives')
+    jvmArgs nativeAccess
     systemProperty 'fabric.development', 'true'
     systemProperty 'org.lwjgl.librarypath', lwjglNativesDir.get().asFile.absolutePath
 
