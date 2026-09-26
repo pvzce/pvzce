@@ -10,6 +10,7 @@ import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.ScaryPotterMechanic;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.GameStateS2C;
+import com.pvzce.common.network.packet.HeldCardS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.CardDropEntity;
@@ -610,6 +611,68 @@ class ScaryPotterTest {
                 "the sweep is announced, or plants vanishing reads as a bug: " + bridge.messages());
         assertTrue(ScaryPotterMechanic.stateOf(level).orElseThrow().cleared(),
                 "and three clean rounds is the level won");
+    }
+
+    /**
+     * The sweep between rounds takes the seed packets with it - the one in hand included.
+     *
+     * <p>What a round hand-out is worth is measured against a player who starts the round with
+     * nothing: leaving last round's unspent plants lying on the lawn (or worse, in their hand) is a
+     * stockpile, not a clean field.
+     */
+    @Test
+    void theSweepBetweenRoundsTakesTheSeedPacketsToo() {
+        LevelServer level = new LevelServer(level());
+        Bridge bridge = new Bridge();
+        List<int[]> plantPots = new ArrayList<>();
+        for (int[] cell : pots(level)) {
+            ScaryPotterMechanic.Contents contents =
+                    ScaryPotterMechanic.contentsAt(level, cell[0], cell[1]);
+            if (contents != null && contents.isPlant()) {
+                plantPots.add(cell);
+            }
+        }
+        assertTrue(plantPots.size() >= 2, "round one hands out more than one plant");
+        // One packet picked up and carried, one left lying on the lawn.
+        assertTrue(swingAt(level, bridge, plantPots.get(0)[0], plantPots.get(0)[1]));
+        assertTrue(swingAt(level, bridge, plantPots.get(1)[0], plantPots.get(1)[1]));
+        level.flushPending(bridge);
+        CardDropEntity lying = cardDropAt(level, plantPots.get(1)[0], plantPots.get(1)[1]);
+        assertNotNull(lying);
+        assertTrue(level.pickUpCardDrop(bridge::send, lying.id()));
+        assertEquals(lying.card(), level.heldCard(), "the plant is in the player's hand");
+
+        LevelServer.LawnSweep sweep = level.clearLawn();
+        level.flushPending(bridge);
+        assertEquals(2, sweep.packets(), "both packets went with the sweep, the held one included");
+        assertNull(level.heldCard(), "and the hand is empty afterwards");
+        assertNull(cardDropAt(level, plantPots.get(1)[0], plantPots.get(1)[1]),
+                "nothing is left lying on the lawn");
+        assertTrue(lying.isRemoved());
+        assertTrue(bridge.packets.stream()
+                        .anyMatch(packet -> packet instanceof HeldCardS2C held && !held.holding()),
+                "and the client is told the hand is empty, or it keeps drawing the ghost");
+    }
+
+    /** The bowl of every round's board: as many zombies as plants, and no kind missing. */
+    @Test
+    void everyRoundFacesThePlayerWithAtLeastAsManyZombiesAsPlants() {
+        ScaryPotterData data = data(level());
+        for (int index = 0; index < data.rounds().size(); index++) {
+            ScaryPotterData.Round round = data.rounds().get(index);
+            int plants = 0;
+            int zombies = 0;
+            for (ScaryPotterData.Pot pot : round.pots()) {
+                if (pot.isPlant()) {
+                    plants += pot.count();
+                } else if (!pot.isResource()) {
+                    zombies += pot.count();
+                }
+            }
+            assertTrue(zombies >= plants, "round " + (index + 1) + " hands out " + plants
+                    + " plants against " + zombies + " zombies, which is a round the player wins"
+                    + " by planting whatever they are given");
+        }
     }
 
     /** The seed packet lying in a cell, or {@code null} when there is none. */

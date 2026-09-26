@@ -1246,6 +1246,13 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "transition": 0.05,
                 "force_visible_hidden": True,
             },
+            # The glance before the leap: the squash notices the zombie that tripped it and
+            # turns its eyes that way first. One clip per side, because the art has one per
+            # side (the server picks by which side the target is on).
+            "look_left": {"mask": "anim_lookleft", "loop": False, "on_end": "hold",
+                          "transition": 0.05},
+            "look_right": {"mask": "anim_lookright", "loop": False, "on_end": "hold",
+                           "transition": 0.05},
         },
     ),
     # ------------------------------------------------------------------

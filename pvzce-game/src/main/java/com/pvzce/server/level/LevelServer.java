@@ -3790,7 +3790,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // was one - is the player's again.
         Identifier inside = vaseContents.remove(cellKey(x, y));
         resetSceneCell(x, y);
-        emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
+        // The vase's own pieces, not the cherry bomb's cloud: see `PvzceParticles.POT_SHATTER`.
+        emitEffect(PvzceParticles.VASE_SHATTER.toString(), x + 0.5F, y + 0.5F,
                 Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
         if (inside != null) {
             // A packet on the lawn rather than a card on the bar, which is what the original
@@ -3889,9 +3890,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (contents == null) {
             return false;
         }
+        // Which pieces: the pot's own colour, read off the picture it was wearing.
+        boolean leaf = PvzceIds.POT_LEAF.equals(sceneIdAt(x, y));
         ScaryPotterMechanic.forget(this, x, y);
         resetSceneCell(x, y);
-        emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x + 0.5F, y + 0.5F,
+        emitEffect((leaf ? PvzceParticles.POT_SHATTER_LEAF : PvzceParticles.POT_SHATTER).toString(),
+                x + 0.5F, y + 0.5F,
                 Identifier.withDefaultNamespace("sfx/effect/vase_breaking"));
         if (contents.isPlant()) {
             // A packet on the lawn, not a card on the bar - the same delivery a smashed vase
@@ -3953,46 +3957,89 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final Map<Long, Identifier> vaseContents = new java.util.HashMap<>();
 
     /**
-     * Sweeps every plant off the board, and answers how many there were.
+     * What one sweep of the lawn took off it.
+     *
+     * @param plants  plants removed, riders and carriers alike
+     * @param packets seed packets removed, the one in the player's hand included
+     */
+    public record LawnSweep(int plants, int packets) {
+        public boolean empty() {
+            return plants == 0 && packets == 0;
+        }
+    }
+
+    /**
+     * Sweeps the lawn clean: every plant, and every seed packet on it.
      *
      * <p>What the vase level does between rounds (see {@code ScaryPotterMechanic.tick}), and the
-     * one place that removes plants without a player asking: the shovel digs up what the player
+     * one place that removes things without a player asking: the shovel digs up what the player
      * points at, and this is the lawn being cleared for a board that is laid out over the cells
-     * the plants were standing on. Carriers go with their riders, because both are entities in
-     * the same cell - the same "one cell, several entities" the shovel's digging rule is written
-     * against.
+     * they were standing on. Carriers go with their riders, because both are entities in the same
+     * cell - the same "one cell, several entities" the shovel's digging rule is written against.
+     *
+     * <p><b>Packets go too, the held one included.</b> A packet is a plant the player has been
+     * given and has not spent; a round that starts by clearing the lawn and then leaves last
+     * round's plants lying around as cards is not a clean lawn, it is a stockpile - and the next
+     * round's plant pots are balanced against a player who starts it with nothing. The half-picked
+     * packet in the player's hand is the same thing one step further along, so it goes with the
+     * rest (the client is told the hand is empty; see {@code HeldCardS2C}).
      *
      * <p>Removal is the plain kind ({@code PlantEntity.remove}), deliberately: a sweep is not
      * twenty shovels, so nothing here refunds sun, triggers a death effect or leaves a drop. Last
      * round's plants are the last round's.
      */
-    public int clearPlants() {
-        int removed = 0;
+    public LawnSweep clearLawn() {
+        int plants = 0;
+        int packets = 0;
         for (PvzceEntity entity : new ArrayList<>(entities)) {
-            if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
+            if (entity.isRemoved()) {
+                continue;
+            }
+            if (entity instanceof PlantEntity plant) {
                 plant.remove();
-                removed++;
+                plants++;
+            } else if (entity instanceof com.pvzce.server.entity.CardDropEntity packet) {
+                packet.remove();
+                packets++;
             }
         }
-        if (removed > 0) {
+        if (plants > 0 || packets > 0) {
+            if (heldCardDropId >= 0) {
+                // The hand is part of the sweep: the packet it holds has just been removed, and
+                // leaving the client drawing a ghost of it would be a plant that can never be
+                // put down.
+                heldCardDropId = -1;
+                packets = Math.max(packets, 1);
+                send(HeldCardS2C.NONE);
+            }
             flushPending();
         }
-        return removed;
+        return new LawnSweep(plants, packets);
     }
 
     /**
-     * Tells the player a new round's pots are up, and that the lawn was swept to make room.
+     * Tells the player a new round's pots are up, and what the sweep took to make room.
      *
-     * <p>Says the sweep out loud when it happened: plants disappearing on their own is the kind
-     * of thing a player has to be told about, or it reads as a bug.
+     * <p>Says the sweep out loud when it happened: plants and cards disappearing on their own is
+     * the kind of thing a player has to be told about, or it reads as a bug.
      */
-    public void announceRound(int round, int rounds, int sweptPlants) {
+    public void announceRound(int round, int rounds, LawnSweep sweep) {
         if (bridge == null) {
             return;
         }
-        String swept = sweptPlants > 0 ? "，清掉了 " + sweptPlants + " 株植物" : "";
+        StringBuilder taken = new StringBuilder();
+        if (sweep.plants() > 0) {
+            taken.append("清掉了 ").append(sweep.plants()).append(" 株植物");
+        }
+        if (sweep.packets() > 0) {
+            if (taken.length() > 0) {
+                taken.append("、");
+            }
+            taken.append("收回了 ").append(sweep.packets()).append(" 张种子包");
+        }
+        String detail = taken.length() == 0 ? "" : "，" + taken;
         bridge.send(new ServerMessageS2C("第 " + round + "/" + rounds + " 回合：场地已清理"
-                + swept + "，新的花瓶出现了。"));
+                + detail + "，新的花瓶出现了。"));
     }
 
     /**

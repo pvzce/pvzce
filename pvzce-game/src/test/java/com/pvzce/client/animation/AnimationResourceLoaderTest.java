@@ -782,6 +782,34 @@ class AnimationResourceLoaderTest {
     }
 
     /**
+     * The squash's leap is not cut off before it is drawn.
+     *
+     * <p>The sibling of the landing pose above, and the one the player reported: with a 60-tick
+     * fuse against a 1.25s jump clip, the strike landed a quarter of a second early - the squash
+     * crouched, and then the landing pose appeared while it was still on its way up. The fuse is
+     * the art's own length now, so the leap plays out and the slam follows it.
+     */
+    @Test
+    void theSquashLeapsForAsLongAsTheLeapClipTakes() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
+                Identifier.withDefaultNamespace("squash"));
+        assertNotNull(def, "squash has to exist");
+        var squash = def.capabilities().stream()
+                .map(com.pvzce.api.content.capability.TypedCapability::value)
+                .filter(com.pvzce.common.capability.plant.SquashCapability.class::isInstance)
+                .map(com.pvzce.common.capability.plant.SquashCapability.class::cast)
+                .findFirst()
+                .orElseThrow();
+
+        ControllerClip grow = (ControllerClip) parseClasspath("squash").clip("grow").orElseThrow();
+        int needed = (int) Math.ceil(grow.duration() / grow.rate() * 60F);
+        assertTrue(squash.fuseTicks() >= needed,
+                "squash's grow clip needs " + needed + " ticks on screen but the strike lands"
+                        + " after " + squash.fuseTicks() + ", so the leap is cut off mid-jump");
+    }
+
+    /**
      * The ash line's blast draws the particles it names, and every one of them exists.
      *
      * <p>A missing particle draws nothing and says so once per second from the client, which is a

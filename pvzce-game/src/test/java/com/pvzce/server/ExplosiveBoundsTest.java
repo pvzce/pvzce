@@ -2,6 +2,7 @@ package com.pvzce.server;
 
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.ZombieDef;
+import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -41,9 +42,20 @@ class ExplosiveBoundsTest {
         TestContent.loadBuiltInContentAndTags();
     }
 
+    /**
+     * A lawn with room for the fixtures these tests describe.
+     *
+     * <p>1-1 is the natural base - a day lawn with no mechanics - but it is **one lane tall**, and
+     * this class is about where an attack reaches: "the zombie in the lane above" was silently the
+     * zombie in *this* lane, standing in the same cell as the plant, because every row past the
+     * first was clamped to row 0 ({@code LevelServer.spawnRowFor}). The board is widened here
+     * rather than the assertions (the cells 1-1 does not list are the level's default terrain,
+     * which is the grass this fixture expects).
+     */
     private static LevelServer lawn(List<Identifier> slots) {
         return new LevelServer(com.pvzce.testutil.TestLevels.copy(
                         BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/1_1")))
+                .width(9).height(5)
                 .waves(List.of()).slots(slots).build());
     }
 
@@ -87,6 +99,40 @@ class ExplosiveBoundsTest {
         assertTrue(neighbour.isAlive(),
                 "and the zombie in the next lane is untouched - a squash is a target, not a blast");
         assertTrue(squash.isRemoved(), "the squash spends itself");
+    }
+
+    /**
+     * The squash lands on the zombie, damages it as a crush, and does not burn it.
+     *
+     * <p>Three things the report named at once: it "只是原地变扁了，没有往僵尸的位置砸" (so the
+     * plant has to come down on the target's cell), the damage type was {@code ash} (which sets a
+     * zombie on fire - a squash flattens, it does not burn), and the glance before the leap is the
+     * original's own beat.
+     */
+    @Test
+    void theSquashLandsOnTheZombieAndCrushesIt() {
+        LevelServer level = lawn(List.of(SQUASH));
+        PlantDef def = BuiltInRegistries.PLANTS.get(SQUASH);
+        PlantEntity squash = level.spawnPlant(def, level.team(PLANT_TEAM), 3, 2);
+        level.flushPending(packet -> { });
+        ZombieEntity victim = level.spawnZombie(BASIC, level.team(ZOMBIE_TEAM), 3.6F, 2);
+        level.flushPending(packet -> { });
+
+        // The glance first: the squash turns towards the target before it leaps. It is inside the
+        // art's own clip names, which the client draws - a state the file does not have silently
+        // plays `idle`, see AnimationResourceLoaderTest.
+        tick(level, 1);
+        assertTrue(EntityAnimations.LOOK_RIGHT.equals(squash.animation())
+                        || EntityAnimations.LOOK_LEFT.equals(squash.animation()),
+                "the squash glances at the zombie first, was " + squash.animation());
+
+        tick(level, 200);
+        assertTrue(!victim.isAlive(), "the zombie it landed on is flattened");
+        assertEquals(EntityAnimations.DEATH, victim.animation(),
+                "and it dies an ordinary death: a squash crushes, the ash line is what burns");
+        assertEquals(victim.cellX(), squash.cellX(), 0.35F,
+                "the plant came down on the zombie rather than beside it");
+        assertTrue(squash.isRemoved(), "and it spends itself");
     }
 
     /** A squash notices nothing and stays put when the lane is empty. */

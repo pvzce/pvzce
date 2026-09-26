@@ -315,6 +315,13 @@ TCP 骨架（`TcpPacketTransport`）在清理轮删除：它已修好语义但�
 三件明确不做，做了才有必要改这一页：`.zip` / `.jar` 形式的包；`pack.mcmeta` 的依赖解析与 `pack_format` 校验
 （现在只读它的 `description`）；**世界级**数据包目录（`saves/<world>/datapacks`）—— 今天只有 `gameDir/datapacks`。
 
+### 容器碎片是自己切的九块，不是原版那九张
+
+`tools/gen_pot_chunks.py` 把项目自己的瓶子贴图按包围盒切成 3×3，因为原版的碎片贴图不在 `refer/` 里
+（`refer/im7/particles/VaseShatter.xml` 只有发射器参数，`IMAGE_VASE_CHUNKS` 没有对应 PNG，粒子转换器的
+dry-run 一直列着这条跳过）。哪天那份贴图补进 `refer/`，把三个 `*_shatter` 粒子换成原版九张即可，
+参数不用动 —— 它们本来就取自那份 XML。
+
 ### 种子包没有拾取/落地的声音与光效
 
 种子包（`CardDropEntity`）现在只有卡面本身与一句服务端消息：落地没有音效、捡起来没有闪光、种下去用的是

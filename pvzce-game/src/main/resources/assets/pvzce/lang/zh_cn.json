@@ -1,6 +1,7 @@
 {
   "damage_type.pvzce.ash": "灰化",
   "damage_type.pvzce.drag_under": "拖入水下",
+  "damage_type.pvzce.crush": "碾碎",
   "damage_type.pvzce.impact": "撞击",
   "damage_type.pvzce.mower": "割草机",
   "damage_type.pvzce.projectile": "弹道",

@@ -115,8 +115,9 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
         // leaving the player's plants standing there used to mean the pots that did not fit
         // were silently dropped - round two could come out with no zombie pots at all, which
         // is a round nobody can lose. Clearing is also the honest reading of the round: each
-        // one is a fresh puzzle, not a continuation of the last board.
-        int swept = level.clearPlants();
+        // one is a fresh puzzle, not a continuation of the last board - which is why the
+        // unspent seed packets go with the plants (see `LevelServer.clearLawn`).
+        LevelServer.LawnSweep swept = level.clearLawn();
         layOutRound(level, data, state);
         level.emitEffect("", level.width() / 2F, level.height() / 2F, PvzceSounds.AMBIENT_HUGE_WAVE);
         level.announceRound(state.round + 1, data.rounds().size(), swept);

@@ -80,6 +80,15 @@ public record ParticleDef(
      */
     public record ParticleLook(
             Identifier texture,
+            /**
+             * The rest of the sprite series, when the effect has one.
+             *
+             * <p>With an animation rate these are the frames of an animation. <b>With none they
+             * are variants</b>: a broken pot's nine pieces are nine drawings of one pot, and a
+             * burst of shards picks one per particle at birth (see {@code ParticleEngine}). The
+             * original's own chunk emitters work that way, and animating the series instead
+             * would flicker every piece through all nine.
+             */
             List<Identifier> frames,
             float framesPerSecond,
             boolean loop,

@@ -1,0 +1,47 @@
+{
+  "id": "pvzce:vase_shatter",
+  "look": {
+    "texture": "pvzce:textures/particles/effect/vase_shatter",
+    "frames": [
+      "pvzce:textures/particles/effect/vase_shatter_2",
+      "pvzce:textures/particles/effect/vase_shatter_3",
+      "pvzce:textures/particles/effect/vase_shatter_4",
+      "pvzce:textures/particles/effect/vase_shatter_5",
+      "pvzce:textures/particles/effect/vase_shatter_6",
+      "pvzce:textures/particles/effect/vase_shatter_7",
+      "pvzce:textures/particles/effect/vase_shatter_8",
+      "pvzce:textures/particles/effect/vase_shatter_9"
+    ],
+    "scale": 0.211,
+    "scale_spread": 0.03,
+    "aspect": 0.778,
+    "life": 1.67,
+    "spin_spread": 1120.0,
+    "random_spin": true,
+    "alpha_curve": [
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.75,
+        1.0
+      ],
+      [
+        1.0,
+        0.0
+      ]
+    ],
+    "frames_per_second": 0
+  },
+  "motion": {
+    "speed": 1.6,
+    "speed_spread": 0.6,
+    "angle": 90.0,
+    "angle_spread": 170.0,
+    "gravity": 5.25,
+    "bounce": true,
+    "ground_friction": 0.35
+  },
+  "count": 16
+}

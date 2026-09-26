@@ -386,6 +386,16 @@ public final class PvzceIds {
      * head and an arm off as it goes over, and a drowned zombie does not.
      */
     public static final Identifier DAMAGE_DRAG_UNDER = id("drag_under");
+    /**
+     * Something heavy landing on a zombie (the squash).
+     *
+     * <p>Ignores armour - a squash flattens a Buckethead, bucket and all, which is the whole
+     * point of the plant - but it does <em>not</em> burn. The squash used {@code ash} until the
+     * user reported the ash: it inherited the type from the days when it was a proximity
+     * explosive, so a squashed zombie was drawn as a charred body with no head and no arms, which
+     * is what a cherry bomb does and not what being flattened looks like.
+     */
+    public static final Identifier DAMAGE_CRUSH = id("crush");
 
     /**
      * Built-in level mechanics, the ids a level's {@code mechanics} list may name.

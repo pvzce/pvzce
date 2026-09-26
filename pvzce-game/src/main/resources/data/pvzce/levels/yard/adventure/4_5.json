@@ -99,17 +99,17 @@
             {
               "kind": "plant",
               "id": "pvzce:pea_shooter",
-              "count": 4
+              "count": 3
             },
             {
               "kind": "plant",
               "id": "pvzce:squash",
-              "count": 5
+              "count": 3
             },
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 3
+              "count": 6
             },
             {
               "kind": "zombie",
@@ -135,22 +135,22 @@
             {
               "kind": "plant",
               "id": "pvzce:snow_pea",
-              "count": 4
+              "count": 3
             },
             {
               "kind": "plant",
               "id": "pvzce:squash",
-              "count": 4
+              "count": 2
             },
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 4
+              "count": 6
             },
             {
               "kind": "zombie",
               "id": "pvzce:buckethead_zombie",
-              "count": 1
+              "count": 2
             },
             {
               "kind": "zombie",
@@ -171,27 +171,27 @@
             {
               "kind": "plant",
               "id": "pvzce:pea_shooter",
-              "count": 4
+              "count": 3
             },
             {
               "kind": "plant",
               "id": "pvzce:snow_pea",
-              "count": 4
+              "count": 3
             },
             {
               "kind": "plant",
               "id": "pvzce:hypno_shroom",
-              "count": 5
+              "count": 3
             },
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 5
+              "count": 8
             },
             {
               "kind": "zombie",
               "id": "pvzce:buckethead_zombie",
-              "count": 2
+              "count": 3
             },
             {
               "kind": "zombie",

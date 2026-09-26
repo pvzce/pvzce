@@ -63,6 +63,19 @@ public final class PvzceParticles {
     public static final Identifier BLAST_MARK = id("blast_mark");
     /** The doom shroom's own mushroom cloud. */
     public static final Identifier DOOM = id("doom");
+    /**
+     * A broken container: one question-mark pot's pieces.
+     *
+     * <p>A pot that is hit breaks into its own nine chunks (see `tools/gen_pot_chunks.py`),
+     * which is what the original draws and what this used to get wrong - it played
+     * {@link #EXPLOSION_POW}, the cherry bomb's cloud, so every pot looked like it had been
+     * blown up rather than knocked open.
+     */
+    public static final Identifier POT_SHATTER = id("pot_shatter");
+    /** The same for a pot that was drawn as a leaf pot: green pieces, green pot. */
+    public static final Identifier POT_SHATTER_LEAF = id("pot_shatter_leaf");
+    /** The same for the player's own garden vase. */
+    public static final Identifier VASE_SHATTER = id("vase_shatter");
     /** The mine's flash. */
     public static final Identifier POTATO_MINE_FLASH = id("potato_mine_flash");
     /** The mine emerging. */

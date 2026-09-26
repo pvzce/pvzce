@@ -56,6 +56,15 @@ public final class ParticleEngine {
         float scale;
         float angle;
         float spin;
+        /**
+         * The frame this particle draws, or {@code -1} to animate through the series.
+         *
+         * <p>Rolled at birth for a definition that names {@code random_frame}: a burst of
+         * shards is nine drawings of one broken pot, and each piece has to keep the shape it
+         * was born with - animating the series instead makes every piece flicker through all
+         * nine.
+         */
+        int frame = -1;
         float alphaFrom;
         float alphaTo;
     }
@@ -128,6 +137,11 @@ public final class ParticleEngine {
         particle.groundY = motion.bounce() ? particle.y - motion.groundOffset() : Float.NaN;
         particle.scale = Math.max(0.01F, look.scale() + spread(look.scaleSpread()));
         particle.angle = look.randomSpin() ? random.nextFloat() * 360F : 0F;
+        // A series with no animation rate is a set of variants, not an animation: one piece of
+        // a broken pot each, drawn for the particle's whole life. See ParticleLook#frames.
+        particle.frame = !look.animated() && look.allFrames().size() > 1
+                ? random.nextInt(look.allFrames().size())
+                : -1;
         // Rolled here with the rest of the birth state: the original's emitters name a
         // *range* of spin speeds ([-720 720] for a head the lawn mower threw), and taking
         // the midpoint of a symmetric range is zero - a solid object that slides instead of
@@ -259,7 +273,7 @@ public final class ParticleEngine {
             return;
         }
         float[] tint = look.colorArray();
-        Identifier texture = frameTexture(look, progress);
+        Identifier texture = frameTexture(look, particle.frame, progress);
         // `size` is the height; the width is the sprite's own shape (see ParticleLook#aspect).
         // Every particle used to be drawn in a square box, which stretched the pieces that come
         // off a zombie - a 26x50 arm was drawn 1.4 times too wide.
@@ -326,10 +340,13 @@ public final class ParticleEngine {
         return progress >= ramp ? 1F : progress / ramp;
     }
 
-    private Identifier frameTexture(ParticleDef.ParticleLook look, float progress) {
+    private Identifier frameTexture(ParticleDef.ParticleLook look, int frozen, float progress) {
         List<Identifier> frames = look.allFrames();
         if (!look.animated()) {
             return look.texture();
+        }
+        if (frozen >= 0 && frozen < frames.size()) {
+            return frames.get(frozen);
         }
         int index = (int) (progress * look.lifetime() * look.framesPerSecond());
         if (look.loop()) {

@@ -23,6 +23,15 @@ public final class EntityAnimations {
     public static final String CHEW = "chew";
     public static final String EXPLODE = "explode";
     public static final String GROW = "grow";
+    /**
+     * The glance a leaping plant gives the zombie that tripped it, one clip per side.
+     *
+     * <p>Two states rather than one with a mirror flag: the original draws the squash turning its
+     * eyes left or right as two animations, and the art for both is in the file. The server picks
+     * by which side the target is on (see {@code SquashCapability}).
+     */
+    public static final String LOOK_LEFT = "look_left";
+    public static final String LOOK_RIGHT = "look_right";
     public static final String ARMED = "armed";
     /**
      * The pose an armed mine holds while it waits.

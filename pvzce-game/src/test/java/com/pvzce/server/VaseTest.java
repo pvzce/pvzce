@@ -5,6 +5,7 @@ import com.pvzce.api.content.VaseFieldData;
 import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.nbt.CompoundTag;
@@ -204,6 +205,33 @@ class VaseTest {
         assertTrue(level.plantHeldCard(bridge::send, 6, 0), "so the next click plants it");
         assertEquals(1, level.plantCount());
         assertNull(level.heldCard(), "and the hand is empty again");
+    }
+
+    /**
+     * A smashed pot throws its own pieces, not the cherry bomb's cloud.
+     *
+     * <p>The report that found this: "砸花瓶的动画错误，你错误的用成了樱桃炸弹的爆炸动画". The pot
+     * played {@code pvzce:pow} - the blast's cloud - so every pot looked like it had been blown up.
+     * The pieces are the pot's own art cut into nine (see {@code tools/gen_pot_chunks.py}), and the
+     * leaf pot throws green ones.
+     */
+    @Test
+    void aSmashedContainerThrowsItsOwnPieces() {
+        LevelServer level = fixture();
+        Bridge bridge = new Bridge();
+        VaseFieldData.Vase vase = vaseField(level.def()).vases().get(0);
+
+        assertTrue(useVaseTool(level, bridge, vase.x(), vase.y()));
+        List<String> effects = new ArrayList<>();
+        for (PvzcePacket packet : bridge.packets) {
+            if (packet instanceof com.pvzce.common.network.packet.EffectEventS2C effect) {
+                effects.add(effect.particle());
+            }
+        }
+        assertTrue(effects.contains(PvzceParticles.VASE_SHATTER.toString()),
+                "a smashed vase throws its own pieces: " + effects);
+        assertFalse(effects.contains(PvzceParticles.EXPLOSION_POW.toString()),
+                "and not the cherry bomb's cloud: " + effects);
     }
 
     /** An empty vase smashes to nothing, and says so rather than pretending it dropped a card. */

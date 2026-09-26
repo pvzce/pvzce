@@ -11,9 +11,9 @@
     {
       "type": "pvzce:squash",
       "trigger_range": 0.5,
-      "fuse_ticks": 60,
+      "fuse_ticks": 75,
       "damage": 1800,
-      "damage_type": "pvzce:ash"
+      "damage_type": "pvzce:crush"
     }
   ],
   "sounds": {

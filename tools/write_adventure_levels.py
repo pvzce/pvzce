@@ -141,38 +141,45 @@ CONVEYORS: Dict[int, dict] = {
 #: The original's Scary Potter level (4-5): three rounds of vases, each round reaching one
 #: column further towards the house, each vase holding a plant or a zombie. Straight out of
 #: `Challenge::ScaryPotterPopulate`.
-#: `leaf_count` is the original's `ScaryPotterChangePotType`: round 2 turns two of its seed pots
-#: green and round 3 turns three, so the player is told where a few of the plants are.
+#: `leaf_count` is the original's `ScaryPotterChangePotType`: round 2 turns a couple of its seed
+#: pots green and round 3 turns three, so the player is told where a few of the plants are.
+#:
 #: The vase level's pots, in three rounds. The `sun` pots are the level's economy: there is no
 #: sky here (`sun_spawn_interval_*` are both 0) and none of the plants that come out of the pots
 #: produces anything, so without them the one card the player is handed - a 150-sun cherry bomb -
-#: could never be planted. Eight pots of 25 sun plus what the zombies drop is about two bombs.
+#: could never be planted. Three sun pots a round is 225 sun, one bomb and change.
+#:
+#: **There are at least as many zombie pots as plant pots in every round**, which is what the
+#: user asked for after playing the first cut of it (nine plants against four zombies in round 1
+#: made the level a formality): every plant pot now hands over one whole plant, so the plants are
+#: the player's army and the zombies have to be able to threaten it. The rounds also get harder by
+#: *kind*, not only by count - one Buckethead in the first, two plus a football in the second,
+#: and the third adds the dancing and jack-in-the-box zombies.
 SCARY_POTTER_ROUNDS = [
     {"from_column": 6, "leaf_count": 0, "pots": [
         {"kind": "sun", "id": "pvzce:sun", "count": 2},
-        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 4},
-        {"kind": "plant", "id": "pvzce:squash", "count": 5},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 3},
+        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 3},
+        {"kind": "plant", "id": "pvzce:squash", "count": 3},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 6},
         {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 1}]},
     {"from_column": 5, "leaf_count": 2, "pots": [
         {"kind": "sun", "id": "pvzce:sun", "count": 3},
         {"kind": "plant", "id": "pvzce:pea_shooter", "count": 3},
-        {"kind": "plant", "id": "pvzce:snow_pea", "count": 4},
-        {"kind": "plant", "id": "pvzce:squash", "count": 4},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 4},
-        {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 1},
+        {"kind": "plant", "id": "pvzce:snow_pea", "count": 3},
+        {"kind": "plant", "id": "pvzce:squash", "count": 2},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 6},
+        {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 2},
         {"kind": "zombie", "id": "pvzce:football_zombie", "count": 1}]},
     {"from_column": 4, "leaf_count": 3, "pots": [
         {"kind": "sun", "id": "pvzce:sun", "count": 3},
-        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 4},
-        {"kind": "plant", "id": "pvzce:snow_pea", "count": 4},
-        {"kind": "plant", "id": "pvzce:hypno_shroom", "count": 5},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 5},
-        {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 2},
+        {"kind": "plant", "id": "pvzce:pea_shooter", "count": 3},
+        {"kind": "plant", "id": "pvzce:snow_pea", "count": 3},
+        {"kind": "plant", "id": "pvzce:hypno_shroom", "count": 3},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 8},
+        {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 3},
         {"kind": "zombie", "id": "pvzce:dancing_zombie", "count": 1},
         {"kind": "zombie", "id": "pvzce:jack_in_the_box_zombie", "count": 1}]},
 ]
-
 # ---------------------------------------------------------------------------
 # Prose: the one thing the original cannot supply
 # ---------------------------------------------------------------------------

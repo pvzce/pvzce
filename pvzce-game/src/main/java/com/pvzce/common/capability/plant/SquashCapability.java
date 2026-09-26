@@ -27,23 +27,47 @@ import java.util.Optional;
  * clips the squash's art does not have, so it silently animated as {@code idle} the whole time it
  * was winding up.
  *
- * <h2>How the three beats are told</h2>
+ * <h2>How the four beats are told</h2>
  *
- * <p>{@code idle} → {@code grow} (the wind-up, which is the art's own "rearing up") → the strike →
- * {@code explode} (the art's landing pose; the clip is named for what the original's animator
- * called it, and it is the shape a squash leaves behind). The strike happens on the same tick the
- * fuse runs out, and the plant removes itself right after, so there is no "armed" state to draw:
- * the squash is committed the moment it notices a target.
+ * <p>{@code idle} → {@code look_left}/{@code look_right} (the glance: the original draws the squash
+ * turning its eyes towards the zombie that tripped it) → {@code grow} (the leap, which the art
+ * authors as a crouch and then a jump up) → the strike → {@code explode} (the art's landing pose;
+ * the clip is named for what the original's animator called it, and it is the shape a squash leaves
+ * behind). The plant removes itself after the landing pose, so there is no "armed" state to draw.
  *
- * <p>The damage goes through {@link ZombieEntity#damage} rather than removing the body outright, so
- * armour still decides what "squashed" means - a buckethead survives being flattened once, which is
- * the same answer the mallet gives and the one a player expects from a physical blow.
+ * <p><b>The fuse is the leap's own length, not a round second.</b> The art's jump clip is 1.25s and
+ * the strike used to happen on a 1.0s fuse, so the squash was cut off mid-jump: the player saw it
+ * mash itself into a pancake and then teleport into the landing pose. {@link #DEFAULT_FUSE_TICKS}
+ * is 75 ticks for that reason, and a test pins it against the clip's length.
+ *
+ * <p><b>It lands on the zombie.</b> The plant is moved to the target's own cell as it comes down
+ * (nudged to the near edge, so the two sprites overlap rather than one hiding the other) - the
+ * original draws a squash flattening the thing it landed on, and a mash in the neighbouring cell
+ * reads as "it flattened the grass next to me".
+ *
+ * <p>The damage goes through {@link ZombieEntity#damage} as {@code pvzce:crush}: it ignores armour
+ * (a squash flattens a Buckethead, bucket and all - the whole reason to bring one) and it does not
+ * burn, so the zombie dies an ordinary death instead of being left as the ash line's charred body.
  */
 public final class SquashCapability implements PlantCapability {
     /** How close a zombie has to be, in cells, before the squash commits. */
     public static final float DEFAULT_TRIGGER_RANGE = 0.5F;
-    /** How long the wind-up lasts, in ticks. */
-    public static final int DEFAULT_FUSE_TICKS = 60;
+    /**
+     * How long the leap takes, in ticks.
+     *
+     * <p>Matches the art's own {@code grow} clip (1.25s): a shorter fuse cuts the jump off, which
+     * is exactly what the old 60 ticks did.
+     */
+    public static final int DEFAULT_FUSE_TICKS = 75;
+    /**
+     * How long the glance lasts, in ticks.
+     *
+     * <p>A quarter of a second: the art's {@code look_left}/{@code look_right} clip is half a
+     * second long, and this is "it noticed you", not a pose to sit in.
+     */
+    public static final int LOOK_TICKS = 15;
+    /** How far short of the target's centre the squash comes down, in cells. */
+    public static final float LANDING_OFFSET = 0.3F;
     /**
      * What one landing is worth.
      *
@@ -60,6 +84,10 @@ public final class SquashCapability implements PlantCapability {
 
     /** Ticks left of the leap, or 0 when the squash is still standing there deciding. */
     private int fuseLeft;
+    /** Ticks left of the glance, or 0 when it has not noticed anything yet. */
+    private int lookLeft;
+    /** Which way the glance goes: the side the target is on. */
+    private boolean targetOnTheLeft;
     /** The zombie the leap was committed to, as an entity id, or -1. */
     private int targetId = -1;
     /** Ticks the flattened pose is held before the plant goes; see {@link #land}. */
@@ -78,7 +106,7 @@ public final class SquashCapability implements PlantCapability {
         this.triggerRange = Math.max(0F, triggerRange);
         this.fuseTicks = Math.max(1, fuseTicks);
         this.damage = Math.max(1, damage);
-        this.damageType = damageType == null ? PvzceIds.DAMAGE_ASH : damageType;
+        this.damageType = damageType == null ? PvzceIds.DAMAGE_CRUSH : damageType;
         this.sound = sound;
     }
 
@@ -88,7 +116,7 @@ public final class SquashCapability implements PlantCapability {
             Codec.INT.optionalFieldOf("fuse_ticks", DEFAULT_FUSE_TICKS)
                     .forGetter(SquashCapability::fuseTicks),
             Codec.INT.optionalFieldOf("damage", DEFAULT_DAMAGE).forGetter(SquashCapability::damage),
-            Identifier.CODEC.optionalFieldOf("damage_type", PvzceIds.DAMAGE_ASH)
+            Identifier.CODEC.optionalFieldOf("damage_type", PvzceIds.DAMAGE_CRUSH)
                     .forGetter(SquashCapability::damageType),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(SquashCapability::sound)
     ).apply(i, SquashCapability::new));
@@ -136,6 +164,16 @@ public final class SquashCapability implements PlantCapability {
             }
             return;
         }
+        if (lookLeft > 0) {
+            // The glance: the original turns the eyes towards the zombie before it jumps, which is
+            // what tells the player *which* zombie this squash has picked.
+            lookLeft--;
+            plant.setState(targetOnTheLeft ? EntityAnimations.LOOK_LEFT : EntityAnimations.LOOK_RIGHT);
+            if (lookLeft == 0) {
+                fuseLeft = fuseTicks;
+            }
+            return;
+        }
         if (fuseLeft > 0) {
             fuseLeft--;
             plant.setState(EntityAnimations.GROW);
@@ -150,8 +188,9 @@ public final class SquashCapability implements PlantCapability {
             return;
         }
         targetId = target.id();
-        fuseLeft = fuseTicks;
-        plant.setState(EntityAnimations.GROW);
+        targetOnTheLeft = target.cellX() < plant.cellX();
+        lookLeft = LOOK_TICKS;
+        plant.setState(targetOnTheLeft ? EntityAnimations.LOOK_LEFT : EntityAnimations.LOOK_RIGHT);
     }
 
     /**
@@ -171,7 +210,13 @@ public final class SquashCapability implements PlantCapability {
             }
         }
         if (target != null) {
-            // Through the ordinary damage path, so armour still decides what "squashed" means.
+            // Down onto the zombie, not beside it. A nudge towards the side the squash came from
+            // keeps the two drawings overlapping instead of one covering the other - the zombies
+            // draw after the plants (see EntityVisuals#renderOrder), so landing dead centre would
+            // put the corpse in front of the mash.
+            boolean fromTheLeft = plant.cellX() <= target.cellX();
+            plant.setCellX(target.cellX() + (fromTheLeft ? -LANDING_OFFSET : LANDING_OFFSET));
+            // `pvzce:crush` by default: armour does not save the zombie, and nothing is burned.
             target.damage(damage, ZombieEntity.damageType(damageType), level);
         }
         level.emitEffect("", plant.cellX(), plant.cellY(),
@@ -207,6 +252,8 @@ public final class SquashCapability implements PlantCapability {
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("fuse", fuseLeft);
+        tag.putInt("look", lookLeft);
+        tag.putInt("lookLeft", targetOnTheLeft ? 1 : 0);
         tag.putInt("target", targetId);
         tag.putInt("linger", lingerLeft);
     }
@@ -214,6 +261,8 @@ public final class SquashCapability implements PlantCapability {
     @Override
     public void load(CompoundTag tag) {
         fuseLeft = Math.max(0, tag.getInt("fuse"));
+        lookLeft = Math.max(0, tag.getInt("look"));
+        targetOnTheLeft = tag.getInt("lookLeft") != 0;
         targetId = tag.contains("target") ? tag.getInt("target") : -1;
         lingerLeft = Math.max(0, tag.getInt("linger"));
     }
