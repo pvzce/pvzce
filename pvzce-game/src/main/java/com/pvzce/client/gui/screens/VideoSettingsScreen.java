@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.PvzceWindow;
 import com.pvzce.client.config.PvzceClientConfig;
+import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.Slider;
@@ -12,8 +13,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * MC VideoSettings-shaped screen: framerate limit, vsync, fullscreen,
- * resolution presets, shader toggle and GUI scale.
+ * MC VideoSettings-shaped screen: framerate limit, vsync, fullscreen, resolution presets, GUI size,
+ * language, shader toggle and water quality.
+ *
+ * <p><b>Every label here is a language key</b>, and the two rows that pair up are the interface's
+ * own settings (size and language). The language row is the reason this page stopped hardcoding its
+ * text: a player who switched the interface to English on the first-run page and then opened the
+ * page that owns that setting would otherwise find it in Chinese - and, worse, the row labels were
+ * matched back to their settings by {@code label.startsWith("全屏")}, which a translation breaks
+ * silently. Labels are now built from the settings on every rebuild, which is also what the old
+ * {@code setLabel}-after-click path was trying (and failing) to do.
  */
 public final class VideoSettingsScreen extends Screen {
     private final List<PvzceWindow.Resolution> resolutions = new ArrayList<>();
@@ -54,94 +63,73 @@ public final class VideoSettingsScreen extends Screen {
         addWidget(fpsSlider);
         y -= rowHeight + gap;
 
-        Button[] vsync = toggleButton(x, y, halfWidth, rowHeight,
-                "垂直同步：" + onOff(client.config().vsync()),
-                () -> client.setVsync(!client.config().vsync()));
-        Button[] fullscreen = toggleButton(x + halfWidth + gap, y, halfWidth, rowHeight,
-                "全屏：" + onOff(client.config().fullscreen()),
-                () -> client.setFullscreen(!client.config().fullscreen()));
-        addWidget(vsync[0]);
-        addWidget(fullscreen[0]);
+        addWidget(new Button(x, y, halfWidth, rowHeight,
+                toggleLabel("pvzce.video.vsync", "垂直同步", client.config().vsync()),
+                () -> {
+                    client.setVsync(!client.config().vsync());
+                    refreshLabels();
+                }));
+        addWidget(new Button(x + halfWidth + gap, y, halfWidth, rowHeight,
+                toggleLabel("pvzce.video.fullscreen", "全屏", client.config().fullscreen()),
+                () -> {
+                    client.setFullscreen(!client.config().fullscreen());
+                    refreshLabels();
+                }));
         y -= rowHeight + gap;
 
         resolutions.clear();
         resolutions.addAll(client.window().availableResolutions());
-        Button[] resolution = cycleButton(x, y, fullWidth, rowHeight, resolutionLabel(),
-                () -> {
-                    PvzceWindow.Resolution next = nextResolution();
-                    client.setWindowResolution(next.width(), next.height());
-                    refreshLabels();
-                });
-        addWidget(resolution[0]);
+        addWidget(new Button(x, y, fullWidth, rowHeight, resolutionLabel(), () -> {
+            PvzceWindow.Resolution next = nextResolution();
+            client.setWindowResolution(next.width(), next.height());
+            refreshLabels();
+        }));
         y -= rowHeight + gap;
 
-        Button[] guiScale = cycleButton(x, y, halfWidth, rowHeight, guiScaleLabel(),
-                () -> {
-                    client.setGuiScaleSetting(nextGuiScale());
-                    refreshLabels();
-                });
-        Button[] shaders = toggleButton(x + halfWidth + gap, y, halfWidth, rowHeight,
-                "着色器：" + onOff(client.config().shadersEnabled()),
+        // The interface's own two settings, side by side: how big it is drawn and which language
+        // it is drawn in.
+        addWidget(new Button(x, y, halfWidth, rowHeight, guiScaleLabel(), () -> {
+            client.setGuiScaleSetting(nextGuiScale());
+            refreshLabels();
+        }));
+        addWidget(new Button(x + halfWidth + gap, y, halfWidth, rowHeight, languageLabel(), () -> {
+            client.setLanguage(nextLanguage());
+            refreshLabels();
+        }));
+        y -= rowHeight + gap;
+
+        addWidget(new Button(x, y, halfWidth, rowHeight,
+                toggleLabel("pvzce.video.shaders", "着色器", client.config().shadersEnabled()),
                 () -> {
                     client.setShadersEnabled(!client.config().shadersEnabled());
                     refreshLabels();
-                });
-        addWidget(guiScale[0]);
-        addWidget(shaders[0]);
-        y -= rowHeight + gap;
-
-        Button[] water = cycleButton(x, y, fullWidth, rowHeight, waterQualityLabel(),
+                }));
+        addWidget(new Button(x + halfWidth + gap, y, halfWidth, rowHeight, waterQualityLabel(),
                 () -> {
                     client.setWaterQuality(nextWaterQuality());
                     refreshLabels();
-                });
-        addWidget(water[0]);
+                }));
         y -= rowHeight + gap;
 
-        addWidget(new Button(x, Math.max(4, y), fullWidth,
-                rowHeight, "完成", this::requestClose));
+        addWidget(new Button(x, Math.max(4, y), fullWidth, rowHeight,
+                GuiLang.raw("pvzce.video.done", "完成"), this::requestClose));
     }
 
-    private Button[] toggleButton(int x, int y, int width, int height, String label, Runnable action) {
-        Button[] holder = new Button[1];
-        holder[0] = new Button(x, y, width, height, label, () -> {
-            action.run();
-            holder[0].setLabel(currentToggleLabel(holder[0]));
-        });
-        return holder;
-    }
-
-    private Button[] cycleButton(int x, int y, int width, int height, String label, Runnable action) {
-        Button[] holder = new Button[1];
-        holder[0] = new Button(x, y, width, height, label, () -> {
-            action.run();
-            holder[0].setLabel(currentCycleLabel(holder[0]));
-        });
-        return holder;
-    }
-
-    private String currentToggleLabel(Button button) {
-        if (button.label().startsWith("垂直同步")) {
-            return "垂直同步：" + onOff(client.config().vsync());
-        }
-        if (button.label().startsWith("全屏")) {
-            return "全屏：" + onOff(client.config().fullscreen());
-        }
-        return "着色器：" + onOff(client.config().shadersEnabled());
-    }
-
-    private String currentCycleLabel(Button button) {
-        if (button.label().startsWith("UI")) {
-            return guiScaleLabel();
-        }
-        if (button.label().startsWith("水面质量")) {
-            return waterQualityLabel();
-        }
-        return resolutionLabel();
-    }
-
+    /**
+     * Rebuilds the row labels from the settings.
+     *
+     * <p>A rebuild rather than a {@code setLabel} on each button: every one of these rows changes
+     * something the layout depends on (the resolution, the GUI size), so the page is going to be
+     * rebuilt anyway - and a label "refresh" that matched buttons by their text is what a
+     * translation breaks.
+     */
     private void refreshLabels() {
         onResize();
+    }
+
+    /** {@code 名称：开/关}, both halves from the language files. */
+    private static String toggleLabel(String key, String fallback, boolean value) {
+        return GuiLang.raw(key, fallback) + "：" + onOff(value);
     }
 
     private int configMaxFps() {
@@ -150,7 +138,7 @@ public final class VideoSettingsScreen extends Screen {
 
     private String resolutionLabel() {
         PvzceWindow.Resolution current = client.window().currentResolution();
-        return "分辨率：" + current.label();
+        return GuiLang.raw("pvzce.video.resolution", "分辨率") + "：" + current.label();
     }
 
     private PvzceWindow.Resolution nextResolution() {
@@ -171,16 +159,39 @@ public final class VideoSettingsScreen extends Screen {
     }
 
     private String guiScaleLabel() {
+        String name = GuiLang.raw("pvzce.video.gui_scale", "UI 大小");
         int setting = client.config().guiScale();
         int effective = client.guiScale();
         if (setting == PvzceClientConfig.AUTO_GUI_SCALE) {
-            return "UI 大小：自动（" + effective + "x）";
+            return name + "：" + GuiLang.raw("pvzce.onboarding.auto", "自动") + "（" + effective + "x）";
         }
-        return "UI 大小：" + effective + "x";
+        return name + "：" + effective + "x";
+    }
+
+    /** The interface's language, named in its own words. */
+    private String languageLabel() {
+        return GuiLang.raw("pvzce.video.language", "语言") + "：" + GuiLang.localeName(language());
+    }
+
+    /** The locale in force; the config is the one that knows. */
+    private String language() {
+        return client.config().language();
+    }
+
+    /** The next language the pack stack offers, wrapping around. */
+    private String nextLanguage() {
+        List<String> locales = GuiLang.availableLocales(client.resources());
+        if (locales.isEmpty()) {
+            return language();
+        }
+        int index = locales.indexOf(language());
+        return locales.get((index + 1) % locales.size());
     }
 
     private String waterQualityLabel() {
-        return "水面质量：" + PvzceClientConfig.WaterQuality.name(client.config().waterQuality());
+        return GuiLang.raw("pvzce.video.water", "水面质量") + "："
+                + GuiLang.raw("pvzce.water." + client.config().waterQuality(),
+                        PvzceClientConfig.WaterQuality.name(client.config().waterQuality()));
     }
 
     /** Cycles low -> medium -> high -> low; the tiers control shader terms only. */
@@ -200,7 +211,7 @@ public final class VideoSettingsScreen extends Screen {
     }
 
     private static String onOff(boolean value) {
-        return value ? "开" : "关";
+        return GuiLang.raw(value ? "pvzce.on" : "pvzce.off", value ? "开" : "关");
     }
 
     @Override
@@ -216,7 +227,7 @@ public final class VideoSettingsScreen extends Screen {
         if (!renderBlurredBackdrop(0.10F, 0.11F, 0.14F, 0.62F)) {
             renderBackground(0.08F, 0.1F, 0.12F);
         }
-        String title = "视频设置";
+        String title = GuiLang.raw("pvzce.video.title", "视频设置");
         client.fonts().button().draw(title, (client.guiWidth() - client.fonts().button().width(title, titleScale)) / 2F,
                 titleY, titleScale, 1, 1, 1, 1);
         if (fpsSlider != null) {
@@ -230,6 +241,8 @@ public final class VideoSettingsScreen extends Screen {
 
     private String fpsLabel() {
         int fps = client.config().maxFps();
-        return "帧率：" + (fps >= PvzceClientConfig.UNLIMITED_FPS ? "无限制" : fps + " FPS");
+        return GuiLang.raw("pvzce.video.fps", "帧率") + "："
+                + (fps >= PvzceClientConfig.UNLIMITED_FPS
+                        ? GuiLang.raw("pvzce.video.unlimited", "无限制") : fps + " FPS");
     }
 }

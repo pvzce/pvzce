@@ -223,18 +223,20 @@ public class Dialog extends AbstractWidget {
     }
 
     private void renderFrame(PvzceClient client) {
-        Identifier bottomLeft = bigBottom ? BIG_BOTTOM_LEFT : BOTTOM_LEFT;
-        Identifier bottom = bigBottom ? BIG_BOTTOM : BOTTOM;
-        Identifier bottomRight = bigBottom ? BIG_BOTTOM_RIGHT : BOTTOM_RIGHT;
-        float bottomHeight = bigBottom ? NinePatch.DIALOG_BIG_BOTTOM : NinePatch.DIALOG_BOTTOM;
-        NinePatch.drawNineSlice(client,
-                TOP_LEFT, TOP, TOP_RIGHT,
-                CENTER_LEFT, CENTER, CENTER_RIGHT,
-                bottomLeft, bottom, bottomRight,
-                x, y, width, height, 0F,
-                NinePatch.DIALOG_LEFT * frameScale, NinePatch.DIALOG_RIGHT * frameScale,
-                NinePatch.DIALOG_TOP * frameScale, bottomHeight * frameScale,
-                1F, 1F, 1F, 1F);
+        if (bigBottom) {
+            NinePatch.drawNineSlice(client,
+                    TOP_LEFT, TOP, TOP_RIGHT,
+                    CENTER_LEFT, CENTER, CENTER_RIGHT,
+                    BIG_BOTTOM_LEFT, BIG_BOTTOM, BIG_BOTTOM_RIGHT,
+                    x, y, width, height, 0F,
+                    NinePatch.DIALOG_LEFT * frameScale, NinePatch.DIALOG_RIGHT * frameScale,
+                    NinePatch.DIALOG_TOP * frameScale, NinePatch.DIALOG_BIG_BOTTOM * frameScale,
+                    1F, 1F, 1F, 1F);
+            return;
+        }
+        // The ordinary frame is shared with anything else that draws one (see
+        // `NinePatch.drawDialogFrame`).
+        NinePatch.drawDialogFrame(client, x, y, width, height, 0F, frameScale);
     }
 
     private void renderTitlePlate(PvzceClient client) {

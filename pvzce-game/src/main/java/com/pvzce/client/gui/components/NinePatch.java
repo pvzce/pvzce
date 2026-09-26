@@ -28,6 +28,35 @@ public final class NinePatch {
     }
 
     /**
+     * The stone dialogue frame, as a nine-slice.
+     *
+     * <p>The art and the slice sizes live here rather than in {@link Dialog} because two things
+     * draw this frame: a modal dialog, and a page that wants to be one panel rather than a stack of
+     * widgets (the first-run page). They must be the same frame - a second copy of the twelve
+     * texture ids and four slice numbers is how two panels end up with two different borders.
+     *
+     * @param frameScale how much of the native border thickness to draw; see
+     *                   {@code Dialog.frameScale} for why a small panel wants a thin one
+     */
+    public static void drawDialogFrame(com.pvzce.client.PvzceClient client, float x, float y,
+                                       float width, float height, float z, float frameScale) {
+        float scale = Math.max(0.1F, Math.min(1F, frameScale));
+        drawNineSlice(client,
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_topleft"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_topmiddle"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_topright"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_centerleft"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_centermiddle"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_centerright"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_bottomleft"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_bottommiddle"),
+                Identifier.withDefaultNamespace("textures/gui/dialog/dialog_bottomright"),
+                x, y, width, height, z,
+                DIALOG_LEFT * scale, DIALOG_RIGHT * scale, DIALOG_TOP * scale, DIALOG_BOTTOM * scale,
+                1F, 1F, 1F, 1F);
+    }
+
+    /**
      * Draws a three-slice horizontal frame (left cap + stretched middle +
      * right cap). Edge widths are given in pixels; if the target is narrower
      * than the two caps, both caps shrink proportionally.

@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 /** M5: TOML volume config round-trip. */
 class PvzceClientConfigTest {
@@ -32,6 +33,52 @@ class PvzceClientConfigTest {
 
         loaded.setMasterVolume(99F);
         assertEquals(1F, loaded.masterVolume(), 0.0001F);
+    }
+
+    /**
+     * The language round-trips, and an unset one is the language the game is authored in.
+     */
+    @Test
+    void theInterfaceLanguageRoundTrips() throws Exception {
+        PvzceClientConfig config = PvzceClientConfig.load(dir);
+        assertEquals(PvzceClientConfig.DEFAULT_LANGUAGE, config.language(),
+                "a fresh install is Chinese, which is also what a language the player did not ask "
+                        + "for must never override");
+
+        config.setLanguage("en_us");
+        config.save();
+        assertEquals("en_us", PvzceClientConfig.load(dir).language());
+
+        // A blank or missing value falls back rather than writing a locale nothing provides.
+        config.setLanguage("  ");
+        assertEquals(PvzceClientConfig.DEFAULT_LANGUAGE, config.language());
+    }
+
+    /**
+     * A missing config file is a new player; a config file without the key is an existing one.
+     *
+     * <p>The two questions are different, and only the first should see the first-run page: the
+     * key is absent from every file an earlier build wrote, so treating "absent" as "new" would put
+     * a language chooser in front of every existing player exactly once. The file's own existence
+     * is the discriminator, and this is the test that keeps it that way.
+     */
+    @Test
+    void onlyAFreshConfigCountsAsAFirstRun() throws Exception {
+        PvzceClientConfig fresh = PvzceClientConfig.load(dir);
+        assertFalse(fresh.onboarded(), "no config file at all means nobody has answered the page");
+
+        fresh.setOnboarded(true);
+        fresh.save();
+        assertTrue(PvzceClientConfig.load(dir).onboarded(), "and the answer is remembered");
+
+        // An upgrade: the file is there, the key is not.
+        Path file = dir.resolve("config/pvzce-client.toml");
+        String withoutKey = Files.readString(file).lines()
+                .filter(line -> !line.startsWith("onboarded"))
+                .reduce("", (a, b) -> a + b + "\n");
+        Files.writeString(file, withoutKey);
+        assertTrue(PvzceClientConfig.load(dir).onboarded(),
+                "a config written before the page existed is a player who has already played");
     }
 
     @Test

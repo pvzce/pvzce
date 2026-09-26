@@ -335,7 +335,10 @@ final public class SmokeDriver {
      */
     void applyInitialScreen() {
         if (!openNamedScreen(System.getProperty("pvzce.smokeScreen", ""))) {
-            client.setScreenReplacing(new TitleScreen(client));
+            // Not `new TitleScreen(...)`: a fresh install opens the first-run page, and the smoke
+            // hook must be able to reach the same screen a player would (see
+            // `PvzceClient.openFirstScreen`).
+            client.openFirstScreen();
         }
     }
 
@@ -354,6 +357,8 @@ final public class SmokeDriver {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.SettingsScreen(client));
         } else if ("keybinds".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.KeybindScreen(client));
+        } else if ("onboarding".equals(smokeScreen)) {
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.OnboardingScreen(client));
         } else if ("difficulty".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.DifficultyScreen(client));
         } else if ("shop".equals(smokeScreen)) {
@@ -671,15 +676,21 @@ final public class SmokeDriver {
     }
 
     /**
-     * True while a level is on screen.
+     * Whether the frame-numbered hooks may fire yet.
      *
-     * <p>The frame counter the hooks count in restarts when a level is entered - it is the client's
-     * own tick - so a hook numbered {@code 150} fires once before the level and once after it, and
-     * a burst meant for the level (typing into the chat line, say) lands in the loading screen and
-     * is dropped. Gating on "a level is up" makes those numbers level-relative and therefore mean
-     * what a script author expects.
+     * <p>A run that asks for a level ({@code pvzce.smokeLevel}) counts frames <b>from the level</b>:
+     * "frame 150" means 150 frames into the game rather than into the loading screen, which is what
+     * a script author writing "press T, then type" means - and the loading screen would eat the
+     * typing, since it has no text box to put it in.
+     *
+     * <p>A run with no level counts <b>from launch</b>, because there is no level to count from: a
+     * menu page driven by keys (the first-run page, the key binding page) never enters a level, and
+     * gating those runs on "a level is up" would arm the hooks never.
      */
-    private boolean inLevel() {
+    private boolean hooksArmed() {
+        if (smokeLevel.isBlank()) {
+            return true;
+        }
         return client.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen;
     }
 
@@ -691,7 +702,7 @@ final public class SmokeDriver {
      * person typing fast).
      */
     private void applySmokeKeys(long clientTick) {
-        if (smokeKeys.isBlank() || !inLevel()) {
+        if (smokeKeys.isBlank() || !hooksArmed()) {
             return;
         }
         for (String item : smokeKeys.split(",")) {
@@ -720,7 +731,7 @@ final public class SmokeDriver {
 
     /** {@code pvzce.smokeType=<frame>:<text>,…}: one character per frame from the frame named. */
     private void applySmokeType(long clientTick) {
-        if (smokeType.isBlank() || !inLevel()) {
+        if (smokeType.isBlank() || !hooksArmed()) {
             return;
         }
         for (String item : smokeType.split(",")) {

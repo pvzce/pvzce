@@ -2,6 +2,7 @@ package com.pvzce.client;
 
 import com.pvzce.client.gui.screens.AlmanacScreen;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
+import com.pvzce.client.gui.screens.OnboardingScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
 import com.pvzce.testutil.ClientHarness;
@@ -64,19 +65,38 @@ class SmokeDriverTest {
         }
     }
 
+    /**
+     * No properties means "whatever this install opens on", which is not a constant.
+     *
+     * <p>A fresh harness has a fresh game directory and therefore no config, so the first screen is
+     * the first-run page; a player who has answered it lands on the title screen. The switch itself
+     * must not pick between them - that decision is {@code PvzceClient.openFirstScreen}'s, and this
+     * is the test that keeps the smoke harness from having a second copy of it.
+     */
     @Test
-    void noPropertiesMeansTheTitleScreen() throws Exception {
+    void noPropertiesMeansWhateverThisInstallOpensOn() throws Exception {
         withScreen(null, (client, harness) -> {
-            assertInstanceOf(TitleScreen.class, client.currentScreen());
+            assertInstanceOf(OnboardingScreen.class, client.currentScreen(),
+                    "a fresh game directory has not answered the first-run page");
             assertEquals(1, client.screenDepth(), "exactly the one screen the switch installed");
             assertTrue(harness.sentPackets().isEmpty(), "and nothing of its own to say");
         });
     }
 
     @Test
-    void anUnknownScreenNameAlsoMeansTheTitleScreen() throws Exception {
+    void anAnsweredInstallOpensOnTheTitleScreen() throws Exception {
+        withScreen(null, (client, harness) -> {
+            client.config().setOnboarded(true);
+            client.openFirstScreen();
+            assertInstanceOf(TitleScreen.class, client.currentScreen());
+        });
+    }
+
+    @Test
+    void anUnknownScreenNameAlsoMeansTheInstallDefault() throws Exception {
         withScreen("smoe_screen", (client, harness) ->
-                assertInstanceOf(TitleScreen.class, client.currentScreen()));
+                assertInstanceOf(OnboardingScreen.class, client.currentScreen(),
+                        "an unknown name falls through to the same default"));
     }
 
     /**

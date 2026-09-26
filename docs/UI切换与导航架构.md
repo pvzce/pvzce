@@ -29,7 +29,7 @@
 
 | 层 | 载体 | 谁负责分发 | 切换单位 |
 |---|---|---|---|
-| 屏幕栈 | `gui/ScreenStack`（`PvzceClient.screens`） | `PvzceClient.run()` 每帧 | 整屏 |
+| 屏幕栈 | `gui/ScreenStack`（`PvzceClient.screens`） | `PvzceClient.run()` 每帧 | 整屏（**第一屏由 `openFirstScreen()` 决定**：没回答过引导页就是 `OnboardingScreen`，否则 `TitleScreen`） |
 | 覆盖层 | `PvzceClient.overlay`（`gui/Overlay`） | 同上，**不进栈** | 浮层（控制台、聊天行） |
 | 对话框栈 | `Screen.widgets` 里的 `Dialog` | `Screen.mouseXxx`（`final`，先给模态） | 屏内面板 |
 | 控件 | `Screen.widgets` 里的 `AbstractWidget` | 同上 | 按钮/输入框/列表 |

@@ -548,8 +548,10 @@ public final class PvzceClient {
             sound.invalidate();
         }
         // Display names come from the pack stack too, so a pack that adds or renames
-        // content updates the editor's palette on the same reload as the content.
-        com.pvzce.client.gui.GuiLang.reload(resources);
+        // content updates the editor's palette on the same reload as the content. The locale is
+        // the player's, not the default: a reload (`/reload`, a pack change) must not silently
+        // put the interface back into Chinese for someone playing in English.
+        com.pvzce.client.gui.GuiLang.reload(resources, config.language());
         try {
             var tagResult = PvzceTags.MANAGER.reload(resources, BuiltInRegistries.ACCESS);
             for (String error : tagResult.errors()) {
@@ -1464,17 +1466,30 @@ public final class PvzceClient {
      * usable integer scale; a manual scale is clamped by the same constraints.
      */
     public int guiScale() {
+        // "Auto" is the scale this resolution wants, not "as large as it can go": the largest
+        // scale that fits a 1080p window is 4, which puts the interface in a 480x270 box - half
+        // the size every screen is laid out for. See `recommendedScale`.
         return guiScaleFor(config.guiScale() == PvzceClientConfig.AUTO_GUI_SCALE
-                ? PvzceClientConfig.MAX_MANUAL_GUI_SCALE
+                ? recommendedScale(window.width(), window.height())
                 : config.guiScale());
     }
 
     /** MC {@code Window.calculateScale(requested, false)}. */
     public int guiScaleFor(int requestedScale) {
+        return fitScale(window.width(), window.height(), requestedScale);
+    }
+
+    /**
+     * The largest GUI scale that still leaves the interface at least 320x240 units.
+     *
+     * <p>MC's {@code Window.calculateScale}: it grows the scale one step at a time while the
+     * window divided by the next scale still fits what the layout needs, and never past the
+     * requested one. The floor is why a small window keeps a usable interface instead of four
+     * pixels of it.
+     */
+    public static int fitScale(int width, int height, int requestedScale) {
         int maxScale = Math.max(1, requestedScale);
         int scale = 1;
-        int width = window.width();
-        int height = window.height();
         while (scale != maxScale
                 && scale < width
                 && scale < height
@@ -1483,6 +1498,43 @@ public final class PvzceClient {
             scale++;
         }
         return scale;
+    }
+
+    /**
+     * The GUI height every screen is laid out for, in GUI units.
+     *
+     * <p>960x540: the size the layouts were written and reviewed at, and the one the screenshot
+     * suite shoots. A window whose GUI lands near it needs no adaptation at all, which is what
+     * makes the first-run page's suggestion worth more than "as big as possible".
+     */
+    private static final int COMFORTABLE_GUI_HEIGHT = 540;
+
+    /**
+     * The scale that puts this window's interface closest to {@link #COMFORTABLE_GUI_HEIGHT}.
+     *
+     * <p>This is what "auto" means and what the first-run page recommends. Nearest rather than
+     * largest, and a tie keeps the <em>smaller</em> scale (the bigger interface): every screen is
+     * written against a 320x240 minimum, so overshooting the target is the direction that
+     * compresses and overlaps, while a slightly larger interface only has more room.
+     */
+    public static int recommendedScale(int width, int height) {
+        int max = fitScale(width, height, PvzceClientConfig.MAX_MANUAL_GUI_SCALE);
+        int best = 1;
+        long bestDistance = Long.MAX_VALUE;
+        for (int scale = 1; scale <= max; scale++) {
+            int guiHeight = MathUtil.ceilDiv(height, scale);
+            long distance = Math.abs((long) guiHeight - COMFORTABLE_GUI_HEIGHT);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = scale;
+            }
+        }
+        return best;
+    }
+
+    /** {@link #recommendedScale} for the window as it is now; the first-run page marks it. */
+    public int recommendedGuiScale() {
+        return recommendedScale(window.width(), window.height());
     }
 
     public int maxAvailableGuiScale() {
@@ -1928,6 +1980,45 @@ public final class PvzceClient {
     /** How many screens are on the stack; diagnostics and tests. Overlays are not counted. */
     public int screenDepth() {
         return screens.depth();
+    }
+
+    /**
+     * The screen a session opens on.
+     *
+     * <p>The first-run page until it has been answered, the title afterwards. Not a stack push: a
+     * first run has nothing under it, and the page leaves by replacing itself with the title.
+     */
+    public void openFirstScreen() {
+        setScreenReplacing(config.onboarded()
+                ? new com.pvzce.client.gui.screens.TitleScreen(this)
+                : new com.pvzce.client.gui.screens.OnboardingScreen(this));
+    }
+
+    /**
+     * The first-run page has been answered: remember it and open the title screen.
+     *
+     * <p>Written immediately rather than at exit, so a player who answers the page and closes the
+     * game at the title does not see it again - the one thing a first-run page must never do.
+     */
+    public void completeOnboarding() {
+        config.setOnboarded(true);
+        config.save();
+        setScreenReplacing(new com.pvzce.client.gui.screens.TitleScreen(this));
+    }
+
+    /**
+     * Switches the interface language and redraws.
+     *
+     * <p>The strings the whole interface is read from are replaced before the redraw, and every
+     * screen is rebuilt for the same reason a resize rebuilds it: a widget's label is captured when
+     * it is constructed, so an already-built page would keep the old language until it was closed
+     * and reopened.
+     */
+    public void setLanguage(String locale) {
+        config.setLanguage(locale);
+        config.save();
+        com.pvzce.client.gui.GuiLang.reload(resources, config.language());
+        refreshGui();
     }
 
     /** Opens or closes the command console; it floats over the current screen. */

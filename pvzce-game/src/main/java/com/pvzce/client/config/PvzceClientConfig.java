@@ -65,6 +65,15 @@ public final class PvzceClientConfig {
     public static final String DEFAULT_WORLD = WorldPaths.DEFAULT_WORLD;
 
     /**
+     * The interface language, as a locale file name ({@code zh_cn}, {@code en_us}, ...).
+     *
+     * <p>The built-in locale, which is also what the first-run page offers first: the game is
+     * authored in Chinese and every key exists there, so a language the player did not ask for is
+     * the one thing a first impression must not get wrong.
+     */
+    public static final String DEFAULT_LANGUAGE = com.pvzce.client.gui.GuiLang.DEFAULT_LOCALE;
+
+    /**
      * How much of the water shader runs.
      *
      * <p>A quality tier only switches terms off in the fragment shader and lowers
@@ -110,6 +119,18 @@ public final class PvzceClientConfig {
     private int waterQuality = DEFAULT_WATER_QUALITY;
     private boolean storyEnabled = DEFAULT_STORY_ENABLED;
     private String lastWorld = DEFAULT_WORLD;
+    /** The interface language; see {@link #DEFAULT_LANGUAGE}. */
+    private String language = DEFAULT_LANGUAGE;
+    /**
+     * Whether the first-run page has been answered.
+     *
+     * <p><b>A config file that has every other key but not this one means "already played".</b>
+     * The file only exists because an earlier build wrote it, and that build had no first-run page
+     * - so a missing key in a file that exists is an upgrade, while a missing *file* is a new
+     * player (and is the only case that writes the defaults out). Getting this backwards would put
+     * an "choose your language" page in front of every existing player once.
+     */
+    private boolean onboarded;
     /**
      * The player's key bindings, by action name.
      *
@@ -143,6 +164,8 @@ public final class PvzceClientConfig {
                         getInt(toml, "water_quality", DEFAULT_WATER_QUALITY));
                 config.storyEnabled = getBoolean(toml, "story", DEFAULT_STORY_ENABLED);
                 config.lastWorld = WorldPaths.sanitize(getString(toml, "last_world", DEFAULT_WORLD));
+                config.language = getString(toml, "language", DEFAULT_LANGUAGE);
+                config.onboarded = getBoolean(toml, "onboarded", true);
                 config.keyBindings = com.pvzce.client.input.KeyBindings.from(readKeys(toml));
             } else {
                 config.save();
@@ -219,7 +242,9 @@ public final class PvzceClientConfig {
                     + "\nshaders_enabled = " + shadersEnabled
                     + "\nwater_quality = " + waterQuality
                     + "\nstory = " + storyEnabled
-                    + "\nlast_world = \"" + lastWorld + "\"\n"
+                    + "\nlast_world = \"" + lastWorld + "\""
+                    + "\nlanguage = \"" + language + "\""
+                    + "\nonboarded = " + onboarded + "\n"
                     + "\n[keys]\n"
                     + keyBinds();
             Files.writeString(file, content);
@@ -343,6 +368,36 @@ public final class PvzceClientConfig {
 
     public void setStoryEnabled(boolean storyEnabled) {
         this.storyEnabled = storyEnabled;
+    }
+
+    /** The interface language's locale name; never blank. */
+    public String language() {
+        return language;
+    }
+
+    /**
+     * Sets the interface language.
+     *
+     * <p>Applied by the client, not here: reading the file is this class's job, swapping the
+     * strings the whole interface is drawn from is the client's (see
+     * {@code PvzceClient.setLanguage}).
+     */
+    public void setLanguage(String language) {
+        this.language = language == null || language.isBlank() ? DEFAULT_LANGUAGE : language.trim();
+    }
+
+    /**
+     * Whether the first-run page has been answered.
+     *
+     * <p>False for a fresh install; true for a config file written before this setting existed -
+     * see the field for why those are two different questions.
+     */
+    public boolean onboarded() {
+        return onboarded;
+    }
+
+    public void setOnboarded(boolean onboarded) {
+        this.onboarded = onboarded;
     }
 
     /**

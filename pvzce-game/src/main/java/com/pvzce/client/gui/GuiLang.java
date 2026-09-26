@@ -75,6 +75,58 @@ public final class GuiLang {
         return locale;
     }
 
+    /**
+     * Every locale the pack stack offers, the built-in one first.
+     *
+     * <p>Discovered rather than listed: a resource pack that ships
+     * {@code assets/<ns>/lang/ja_jp.json} adds a language to the first-run page and to the settings
+     * row by existing. The built-in locale leads because it is the one the game is authored in and
+     * the fallback for every key, and the rest are sorted so two runs list them the same way.
+     *
+     * <p>Answers with just the built-in locale when nothing can be listed (no resources yet, a
+     * failed scan): a chooser with one option is a working chooser, an empty one is not.
+     */
+    public static java.util.List<String> availableLocales(PvzceResourceManager resources) {
+        java.util.TreeSet<String> found = new java.util.TreeSet<>();
+        found.add(DEFAULT_LOCALE);
+        if (resources != null) {
+            try {
+                for (String path : resources.listResources("assets").keySet()) {
+                    String[] parts = path.split("/");
+                    // assets/<namespace>/lang/<locale>.json
+                    if (parts.length == 4 && "lang".equals(parts[2]) && parts[3].endsWith(".json")) {
+                        String candidate = parts[3].substring(0, parts[3].length() - ".json".length());
+                        if (!candidate.isBlank()) {
+                            found.add(candidate);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Could not list the language files", e);
+            }
+        }
+        java.util.List<String> result = new java.util.ArrayList<>(found);
+        result.remove(DEFAULT_LOCALE);
+        result.add(0, DEFAULT_LOCALE);
+        return java.util.List.copyOf(result);
+    }
+
+    /**
+     * A locale as its own speakers write it - "简体中文", "English".
+     *
+     * <p>Read from the language files ({@code pvzce.lang.<locale>}), and every file carries every
+     * endonym, so the list looks the same whichever language is currently loaded: a player who
+     * cannot read the current language is exactly the player looking for this row.
+     */
+    public static String localeName(String wantedLocale) {
+        if (wantedLocale == null || wantedLocale.isBlank()) {
+            return DEFAULT_LOCALE;
+        }
+        String key = "pvzce.lang." + wantedLocale;
+        String name = strings.get(key);
+        return name == null || name.isBlank() ? wantedLocale : name;
+    }
+
     private static Map<String, String> read(PvzceResourceManager resources, String wantedLocale) {
         if (resources == null) {
             return Map.of();
