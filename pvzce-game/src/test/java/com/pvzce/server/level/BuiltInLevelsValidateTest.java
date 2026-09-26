@@ -29,9 +29,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is clean, not that the server survives dirty data.
  */
 class BuiltInLevelsValidateTest {
+    private static com.pvzce.common.resource.PvzceResourceManager resources;
+
     @BeforeAll
     static void loadBuiltInContent() throws Exception {
-        TestContent.loadBuiltInContentAndTags();
+        resources = TestContent.loadBuiltInContentAndTags();
     }
 
     @Test
@@ -47,6 +49,31 @@ class BuiltInLevelsValidateTest {
             }
         }
         assertTrue(problems.isEmpty(), "shipped levels with validator problems:\n"
+                + String.join("\n", problems));
+    }
+
+    /**
+     * Every portrait and speech bubble a shipped conversation names is in the packs.
+     *
+     * <p>{@code validateDialogueAssets} is the check the server runs on {@code /reload}, and it used
+     * to be the only one: a level naming a portrait nobody drew looked fine to every test and showed
+     * up as a silent fallback in game - the line is drawn with the character's own portrait and a
+     * warning on a log nobody reads. The data is the same whether a test or a reload reads it, so
+     * the check belongs here too.
+     */
+    @Test
+    void everyDialoguePortraitIsInThePacks() {
+        List<String> problems = new ArrayList<>();
+        for (Identifier id : BuiltInRegistries.LEVELS.keySet()) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(id);
+            if (def == null) {
+                continue;
+            }
+            for (String problem : LevelValidator.validateDialogueAssets(def, resources)) {
+                problems.add(id + ": " + problem);
+            }
+        }
+        assertTrue(problems.isEmpty(), "shipped conversations with missing art:\n"
                 + String.join("\n", problems));
     }
 

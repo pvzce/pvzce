@@ -173,8 +173,8 @@ public final class LevelValidator {
     /**
      * Reports a {@code slots} list the stage cannot build as written.
      *
-     * <p>Two slots are the whole window, so a third entry has nowhere to stand and a repeated one
-     * is a character who cannot be in two places at once; a misspelt half is dropped by the decoder
+     * <p>Three slots are the whole window, so a fourth entry has nowhere to stand and a repeated one
+     * is a character who cannot be in two places at once; a misspelt slot is dropped by the decoder
      * (it is {@code UNKNOWN}, not a failed level) and a misspelt character id is the same "no
      * portrait, no name" failure an unknown speaker is.
      */
@@ -187,12 +187,12 @@ public final class LevelValidator {
             com.pvzce.api.content.DialogueLine.DialogueSlotEntry entry = line.slots().get(s);
             String at = where + ".slots[" + s + "]";
             if (entry.slot() == com.pvzce.api.content.DialogueSlot.UNKNOWN) {
-                errors.add(at + ".slot is not 'left' or 'right', so nobody stands there");
+                errors.add(at + ".slot is not 'left', 'center' or 'right', so nobody stands there");
                 continue;
             }
             if (!used.add(entry.slot())) {
                 errors.add(at + " puts a second character in the " + entry.slot().id()
-                        + " half of the window, which already has one");
+                        + " slot, which already has one");
             }
             if (!named.add(entry.character())) {
                 errors.add(at + " names '" + entry.character() + "' twice: one character, one slot");

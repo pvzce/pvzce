@@ -626,6 +626,80 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:entang",
+        "portrait": "fear",
+        "text": "那个那个...你有了更多的植物了",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "fear",
+        "text": "会不会不要我了...、",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "fear",
+        "text": "我有点怕...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "request",
+        "text": "你能不能不要疏远我...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "request",
+        "text": "求你了...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "request",
+        "text": "我感觉我真的不能没有你....",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "我知道这很抱歉...可是...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "我只想和你多待一会...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "我好害怕孤独...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "request",
+        "text": "可以吗...求你了！",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

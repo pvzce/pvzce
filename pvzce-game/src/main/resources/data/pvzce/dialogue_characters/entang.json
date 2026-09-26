@@ -23,6 +23,15 @@
         "right": 0.012,
         "bottom": 0.0
       }
+    },
+    {
+      "portrait": "request",
+      "insets": {
+        "left": 0.012,
+        "top": 0.001,
+        "right": 0.002,
+        "bottom": 0.0
+      }
     }
   ]
 }

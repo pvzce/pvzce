@@ -149,6 +149,15 @@
         "right": 0.13,
         "bottom": 0.0
       }
+    },
+    {
+      "portrait": "cover_mouth",
+      "insets": {
+        "left": 0.105,
+        "top": 0.008,
+        "right": 0.103,
+        "bottom": 0.0
+      }
     }
   ]
 }

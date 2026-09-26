@@ -914,6 +914,52 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:entang",
+        "portrait": "shy",
+        "text": "那个就是...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "shy",
+        "text": "我感觉你其实挺厉害的...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "shy",
+        "text": "就是...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "guilty",
+        "text": "我..我不应该这样想的...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "对不起...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "我的确有点太那啥了...",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

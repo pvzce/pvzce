@@ -251,8 +251,7 @@ class DialogueStageTest {
             }
             int guard = 0;
             while (script.isActive() && guard++ < 500) {
-                if (script.portraitIn(DialogueSlot.LEFT) == null
-                        && script.portraitIn(DialogueSlot.RIGHT) == null) {
+                if (script.portraits().isEmpty()) {
                     problems.add(id + ": nobody on stage at line " + script.index());
                     break;
                 }

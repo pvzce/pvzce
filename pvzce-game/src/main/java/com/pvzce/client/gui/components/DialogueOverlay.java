@@ -632,8 +632,9 @@ public final class DialogueOverlay extends Dialog {
         ChoiceButton[] laidOut = asked ? choiceLayout(script.choices(), line, guiW, guiH)
                 : new ChoiceButton[0];
         laidOutChoices = List.of(laidOut);
-        Bubble bubble = bubbleBox(client, text, script.speakerName(), speaker, line.side(),
-                guiW, guiH, textScale, lineHeight);
+        boolean centred = speaker != null && speaker.slot().isCenter();
+        Bubble bubble = bubbleBox(client, text, script.speakerName(), speaker,
+                centred ? DialogueLine.Side.CENTER : line.side(), guiW, guiH, textScale, lineHeight);
         drawBubble(client, bubble, text, lineHeight, textScale, now, asked);
         for (int i = 0; i < laidOut.length; i++) {
             drawChoice(client, laidOut[i], i == pressedChoice);
@@ -735,6 +736,7 @@ public final class DialogueOverlay extends Dialog {
         if (character == null) {
             return null;
         }
+        float y = 0F;
         Identifier texture = textureOf(client, staged);
         if (texture == null) {
             return null;
@@ -749,32 +751,46 @@ public final class DialogueOverlay extends Dialog {
         float height = portraitHeight(client, character, guiW, guiH);
         float width = height * loaded.width() / (float) Math.max(1, loaded.height());
         DialogueCharacterDef.PortraitInsets insets = character.insets(staged.portrait);
+        // How wide the art is inside its frame: what the layout places is the figure, not the
+        // texture, because the two are not the same picture (see the insets above).
+        float padded = 1F - insets.left() - insets.right();
+        float artWidth = width * padded;
         boolean right = staged.slot == DialogueSlot.RIGHT;
-        // Where the art's own edge is put: the window margin, on the character's side.
-        float edge = right ? guiW * (1F - PORTRAIT_MARGIN_RATIO) : guiW * PORTRAIT_MARGIN_RATIO;
+        float x;
+        if (staged.slot.isCenter()) {
+            // The middle of the window: nothing to anchor to an edge, so the art is centred and the
+            // frame hung off it.
+            x = (guiW - artWidth) / 2F - width * insets.left();
+        } else {
+            // Where the art's own edge is put: the window margin, on the character's side.
+            float edge = right ? guiW * (1F - PORTRAIT_MARGIN_RATIO) : guiW * PORTRAIT_MARGIN_RATIO;
+            float scaledArt = artWidth * scale;
+            x = (right ? edge - scaledArt : edge) - width * scale * insets.left();
+        }
         DialogueScript.Slide slide = script.slideOf(character.id());
         if (slide != null) {
             // Entering and leaving are the same journey in opposite directions; the script has
-            // already decided which of them this is.
+            // already decided which of them this is. A centred character has no side of their own, so
+            // they rise from below and sink back down - the same staging a centred speaker gets.
             float progress = DialogueMotion.slideProgress(nowNanos, slide.startNanos);
-            edge += DialogueMotion.slideOffsetX(progress, false, !right, slide.entering, guiW);
+            boolean storySide = !script.line().side().isRight();
+            x += DialogueMotion.slideOffsetX(progress, staged.slot.isCenter(), storySide,
+                    slide.entering, guiW);
+            y += DialogueMotion.slideOffsetY(progress, staged.slot.isCenter(), slide.entering, guiH);
         }
         boolean speaker = character.id().equals(script.line().character());
         float scaledWidth = width * scale;
         float scaledHeight = height * scale;
-        float grow = (width - scaledWidth) / 2F;
-        // Where the art's own edge lands, and therefore where the frame is drawn from: the layout
-        // asks for the figure to stand at the edge, not for the texture to.
-        float padded = 1F - insets.left() - insets.right();
-        float artEdge = right ? edge - scaledWidth * padded : edge;
-        float x = artEdge - scaledWidth * insets.left() + grow;
+        // The size grows about the portrait's own centre line, so the figure stays where the layout
+        // put it instead of drifting towards one edge.
+        x += (width - scaledWidth) / 2F;
         if (speaker && slide == null && script.line().animation().isShake()) {
             x += DialogueMotion.shakeOffset(nowNanos, lineStartNanos, guiW,
                     script.line().animation().amount());
         }
         float visibleLeft = x + scaledWidth * insets.left();
         float visibleRight = x + scaledWidth * (1F - insets.right());
-        return new Portrait(texture, character.id(), staged.slot, speaker, x, 0F, scaledWidth, scaledHeight,
+        return new Portrait(texture, character.id(), staged.slot, speaker, x, y, scaledWidth, scaledHeight,
                 visibleLeft, visibleRight);
     }
 
@@ -936,6 +952,7 @@ public final class DialogueOverlay extends Dialog {
             return laidOut;
         }
         // The half the speaker is not standing in: their own half stays clear of anything clickable.
+        // A centred speaker is in nobody's half, so the answers take the right one.
         boolean rightSide = !line.side().isRight();
         float blockWidth = guiW * CHOICE_BLOCK_WIDTH_RATIO;
         float height = Math.max(CHOICE_MIN_HEIGHT, Math.min(CHOICE_MAX_HEIGHT,

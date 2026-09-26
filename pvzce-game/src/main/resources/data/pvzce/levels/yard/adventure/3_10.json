@@ -1466,6 +1466,252 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "happy",
+        "text": "我-又-来-啦~",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "是不是想我啦？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "杂鱼～♡",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "僵尸越来越多了呢",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "tsundere",
+        "text": "没我的话...你肯定不能战胜僵尸的吧",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "tsundere",
+        "text": "还是咱厉害！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "嘿？你是哪个哟？",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:pea_chan"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:chili_rex"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "咱是豌豆酱，你呢你呢？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "我呀，椒爆爆。",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "cover_mouth",
+        "text": "很可爱的名字呢，就是和长相完全不符合",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "impatient",
+        "text": "嘿，你娃儿怕是有儿不尊重哦",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "没得事没得事，你说的也对",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "要是有空，就来吃点火锅，摆会龙门阵噻",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "happy",
+        "text": "可以呀可以呀",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "angry",
+        "text": "你们两个！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:pea_chan"
+          },
+          {
+            "slot": "center",
+            "character": "pvzce:entang"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:chili_rex"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "angry",
+        "text": "给我走开啊！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:pea_chan"
+          },
+          {
+            "slot": "center",
+            "character": "pvzce:entang"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:chili_rex"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "scared",
+        "text": "呜哇，好可怕",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "angry",
+        "text": "喂！你！哎算了算了，我走。",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:pea_chan"
+          },
+          {
+            "slot": "center",
+            "character": "pvzce:entang"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:chili_rex"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "angry",
+        "text": "",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "center",
+            "character": "pvzce:entang"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "对...对不起...",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "是...是我的错...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "guilty",
+        "text": "我...我不应该这样的...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "我真不是故意的...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "request",
+        "text": "可以原谅我吗...求求你了...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "retain",
+        "text": "我不想离开你哇...",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "center",
+            "character": "pvzce:entang"
+          }
+        ]
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

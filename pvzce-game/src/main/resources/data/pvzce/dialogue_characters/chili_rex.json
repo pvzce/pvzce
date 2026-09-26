@@ -1,0 +1,55 @@
+{
+  "id": "pvzce:chili_rex",
+  "name": "椒爆爆",
+  "portrait_dir": "pvzce:textures/gui/dialogue/chili_rex",
+  "scale": 1.0,
+  "box_left": "pvzce:textures/gui/dialogue/box_left",
+  "box_right": "pvzce:textures/gui/dialogue/box_right",
+  "portrait_insets": [
+    {
+      "portrait": "angry",
+      "insets": {
+        "left": 0.041,
+        "top": 0.002,
+        "right": 0.022,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "disdain",
+      "insets": {
+        "left": 0.125,
+        "top": 0.008,
+        "right": 0.099,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "impatient",
+      "insets": {
+        "left": 0.113,
+        "top": 0.01,
+        "right": 0.094,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "pray",
+      "insets": {
+        "left": 0.077,
+        "top": 0.003,
+        "right": 0.033,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "warm",
+      "insets": {
+        "left": 0.108,
+        "top": 0.0,
+        "right": 0.049,
+        "bottom": 0.0
+      }
+    }
+  ]
+}

@@ -587,6 +587,117 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "嗯...我感觉...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "就是... 你...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "红汤火锅，哪个来试一哈？",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:entang"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:chili_rex"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "angry",
+        "text": "你别来！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "impatient",
+        "text": "朗楷的？不欢迎我哇？",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "sorry",
+        "text": "对不起...没...没这个意思",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "disdain",
+        "text": "算咯算咯，老子就不追究了",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "要不要吃儿特辣的？",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "保证辣的你嘴巴皮子灰红灰红的",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "impatient",
+        "text": "",
+        "voice": "",
+        "side": "right",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "angry",
+        "text": "啥子诶？有僵尸要来咯？",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "angry",
+        "text": "劳资数到三！",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:chili_rex",
+        "portrait": "warm",
+        "text": "一哈子就你娃儿烫的飞起来！",
+        "voice": "",
+        "side": "right"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

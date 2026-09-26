@@ -223,14 +223,19 @@ class DialogueMotionTest {
         assertEquals("${user_name}", player.speakerName());
         assertTrue(player.slots().isEmpty());
 
+        // All three places a character can stand, spelled as the level files spell them.
+        assertEquals(DialogueSlot.CENTER, DialogueSlot.parse("middle"));
+        assertEquals(DialogueSlot.CENTER, DialogueSlot.parse("centre"));
+        assertTrue(DialogueSlot.CENTER.isCenter() && !DialogueSlot.CENTER.isLeft());
+
         // A misspelt half of the window decodes into UNKNOWN rather than failing the level; the
         // validator is what names it, and the stage is what skips it.
         DialogueLine typo = DialogueLine.CODEC.parse(JsonOps.INSTANCE,
                 com.google.gson.JsonParser.parseString("""
                         { "character": "pvzce:entang", "text": "嗯",
-                          "slots": [ { "slot": "middle", "character": "pvzce:pea_chan" } ] }
+                          "slots": [ { "slot": "midle", "character": "pvzce:pea_chan" } ] }
                         """)).getOrThrow();
         assertEquals(DialogueSlot.UNKNOWN, typo.slots().get(0).slot());
-        assertEquals(DialogueSlot.UNKNOWN, DialogueSlot.parse(null), "a missing half is no half");
+        assertEquals(DialogueSlot.UNKNOWN, DialogueSlot.parse(null), "a missing slot is no slot");
     }
 }
