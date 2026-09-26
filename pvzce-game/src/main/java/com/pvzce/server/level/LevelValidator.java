@@ -135,14 +135,20 @@ public final class LevelValidator {
             }
             errors.addAll(validateStage(where, line));
             if (line.hasChoices()) {
-                if (i + 1 >= lines.size()) {
-                    errors.add(where + " offers choices on the last line, so the answer the player"
-                            + " picks has no line written under it and the conversation just ends");
+                // What the answer reveals is the line under the gate - the player's own words, which
+                // the conversation never draws - and the character's reply is the line after it. A
+                // question whose answer has nowhere to point is a conversation that stops there.
+                if (i + 1 >= lines.size() || !isPlayerLine(lines.get(i + 1))) {
+                    errors.add(where + " offers choices but the line under it is not the player's own"
+                            + " answer (no character, with a speaker_name), so pressing a button has"
+                            + " nothing to reveal");
+                } else if (i + 2 >= lines.size()) {
+                    errors.add(where + " offers choices but nothing follows the player's answer,"
+                            + " so the conversation ends the moment one is pressed");
                 }
                 for (int c = 0; c < line.choices().size(); c++) {
                     if (line.choices().get(c).text() == null || line.choices().get(c).text().isBlank()) {
-                        errors.add(where + ".choices[" + c + "] is empty, so the button carries no text"
-                                + " and the player's answer is a silent beat");
+                        errors.add(where + ".choices[" + c + "] is empty, so the button carries no text");
                     }
                 }
             }
@@ -152,6 +158,16 @@ public final class LevelValidator {
             // of the overlay that drew one.
         }
         return errors;
+    }
+
+    /**
+     * True for the player's own line: no character, and a name over the bubble.
+     *
+     * <p>The same rule the overlay hides such a line by - it is what the buttons say, not something
+     * the conversation draws - and the only shape a question's answer may have.
+     */
+    private static boolean isPlayerLine(com.pvzce.api.content.DialogueLine line) {
+        return line.character() == null && !line.speakerName().isBlank();
     }
 
     /**

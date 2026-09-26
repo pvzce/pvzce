@@ -279,12 +279,16 @@ final class DialogueScript {
     /**
      * Answers the current question with its {@code choiceIndex}-th button.
      *
-     * <p>The reply line written under the gate is revealed and stepped onto in the same click -
-     * the player pressed a button, they did not ask to read their own answer later. That line's
-     * voice and name come from the answer where the script left them out, so a question can be
-     * written once and answered by whoever is playing.
+     * <p>What the answer does is reveal the line written under the gate and step past it: the line
+     * under a question is the <em>player's own words</em> (it is what the button said), and it is
+     * never drawn - a conversation shows the character talking, and the button the player pressed
+     * has already been read. The step lands on the character's next line in the same click, so
+     * pressing a button is immediately followed by the answer to it.
      *
-     * @return true when the answer was taken and the conversation moved to the reply
+     * <p>A line's own {@code voice}, if it has one, is the clip for the answer, and its speaker name
+     * has already been filled in from the player - neither of which is drawn, since the line is not.
+     *
+     * @return true when the answer was taken and the conversation moved on
      */
     boolean choose(int choiceIndex) {
         if (!awaitingChoice()) {
@@ -306,16 +310,20 @@ final class DialogueScript {
         if (speakerNames.get(reply).isBlank()) {
             speakerNames.set(reply, playerName);
         }
-        if (choice.voice() != null && !choice.voice().isBlank()) {
-            voices.set(reply, choice.voice());
-        }
+        voices.set(reply, choice.voice() == null ? "" : choice.voice());
         return step();
     }
 
-    /** Steps to the next line the player may see, or ends the conversation. */
+    /**
+     * Steps to the next line the player may see, or ends the conversation.
+     *
+     * <p>Two lines are skipped rather than shown: one that is still waiting behind an unanswered
+     * question, and one that is the player's own words ({@link #isHidden}). Both are part of the
+     * script and neither is part of the picture.
+     */
     private boolean step() {
         int next = index + 1;
-        while (next < lines.size() && !revealed.contains(next)) {
+        while (next < lines.size() && (!revealed.contains(next) || isHidden(next))) {
             next++;
         }
         if (next >= lines.size()) {
@@ -325,6 +333,20 @@ final class DialogueScript {
         index = next;
         enter(line(), System.nanoTime());
         return true;
+    }
+
+    /**
+     * True for a line that is part of the script and not part of the picture: the player's.
+     *
+     * <p>A line with a {@code speaker_name} and no character has no portrait and no voice of its
+     * own - it is what the <em>player</em> says, which is why it sits under a question and is what
+     * that question's buttons say. The conversation never shows it: the button has just been read,
+     * and the character's reply to it is what the player is waiting for. It is still a line, so the
+     * question below it has somewhere to point and the script can be read start to finish.
+     */
+    private boolean isHidden(int at) {
+        DialogueLine line = lines.get(at);
+        return line.character() == null && !line.speakerName().isBlank();
     }
 
     /** Jumps to the end of the conversation: no closing slides, the host simply gets its call. */

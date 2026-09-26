@@ -136,16 +136,38 @@ public final class DialogueOverlay extends Dialog {
     private static final float NAME_COLOR_B = 0.20F;
 
     /**
-     * How tall a choice button is, in the bubble's own units.
+     * How much of the window the answers span, and how tall each one is.
      *
-     * <p>In the bubble's units rather than the window's: a button is part of the bubble, so it
-     * scales with it exactly like the tail insets do.
+     * <p>They are laid out in screen units, not the bubble's: the answers stand beside the character
+     * rather than inside anything that grows with a sentence, so a one-word question and a long one
+     * put the same buttons in the same place. The block is a fraction of the window's width and the
+     * heights are clamped, so it stays a row of buttons on a small window and does not become a wall
+     * on a large one.
      */
-    private static final float CHOICE_BUTTON_HEIGHT = 40F;
-    /** Gap between one answer button and the next, in the bubble's units. */
-    private static final float CHOICE_GAP = 8F;
-    /** Air between the question and its first answer, in the bubble's units. */
-    private static final float CHOICE_TOP_GAP = 10F;
+    private static final float CHOICE_BLOCK_WIDTH_RATIO = 0.34F;
+    private static final float CHOICE_SIDE_MARGIN_RATIO = 0.03F;
+    private static final float CHOICE_HEIGHT_RATIO = 0.075F;
+    private static final float CHOICE_MIN_HEIGHT = 30F;
+    private static final float CHOICE_MAX_HEIGHT = 56F;
+    /** Gap between two answers, as a fraction of one answer's height. */
+    private static final float CHOICE_GAP_RATIO = 0.22F;
+    /**
+     * How wide one answer is relative to its height when deciding how many fit in a row.
+     *
+     * <p>A button wants to be a good deal wider than its label, and the labels here are two to four
+     * characters: this is the width one answer is worth when the layout asks "how many fit".
+     */
+    private static final float CHOICE_ASPECT_RATIO = 2.6F;
+    /**
+     * How far off the window's bottom edge the answers sit, as a fraction of its height.
+     *
+     * <p>In the window's lower third without being on the floor: the bubble's band starts at 0.70 and
+     * grows upwards, so this clears it; the HUD's hint line and level meter live under 0.19, so this
+     * clears those too; and a one-row set of answers ends up around 0.30-0.42, which is where a
+     * player looking away from the character's face finds them. The first version sat at 0.235 and
+     * read as part of the HUD strip along the bottom.
+     */
+    private static final float CHOICE_BOTTOM_RATIO = 0.40F;
 
     /**
      * How long after a line appears its answers ignore the mouse.
@@ -526,11 +548,22 @@ public final class DialogueOverlay extends Dialog {
                             float visibleLeft, float visibleRight) {
     }
 
+    /** The bubble as it was laid out this frame. The answers are not part of it; see {@link #choiceLayout}. */
     private record Bubble(float x, float y, float width, float height, float scale,
                           List<String> lines, float textLeft, float textTop, float textBottom,
-                          float hintHeight, String name, String hint, Identifier box,
-                          List<ChoiceButton> choices, float choiceHeight) {
+                          float hintHeight, String name, String hint, Identifier box) {
     }
+
+    /**
+     * Development probe: {@code -Ppvzce.smoke=pvzce.traceDialogue=true} prints what every frame is
+     * staging.
+     *
+     * <p>A conversation that does not move looks the same whether the click never reached the modal,
+     * the line is still typing, or a question is holding it - and a screenshot cannot tell those
+     * apart. This is the line that does: which line, whose, how much of it is revealed, who is on
+     * stage, and whether it is waiting for an answer.
+     */
+    private static final boolean TRACE = Boolean.getBoolean("pvzce.traceDialogue");
 
     @Override
     public void render(PvzceClient client) {
@@ -578,25 +611,33 @@ public final class DialogueOverlay extends Dialog {
         }
 
         String text = substituteUserName(client, line.text());
+        if (TRACE) {
+            System.out.println("[DLG] line=" + script.index() + "/" + script.size()
+                    + " char=" + line.character() + " text=" + text
+                    + " revealed=" + revealedCharacters(now) + "/" + visibleLength(text)
+                    + " portraits=" + script.portraits().size()
+                    + " choices=" + script.choices().size()
+                    + " awaiting=" + script.awaitingChoice());
+        }
         if (text == null || text.isBlank()) {
             // A silent line: the portraits are the whole beat. Nothing to click through visually,
             // but the click still advances - the modal owns the input either way.
             laidOutChoices = List.of();
             return;
         }
-        Bubble bubble = bubbleBox(client, text, script.speakerName(), script.choices(), speaker,
-                line.side(), guiW, guiH, textScale, lineHeight);
-        // Answers only exist once the question has finished being asked: a button that can be pressed
-        // while the line is still typing is a button pressed before the question was read.
         boolean asked = revealedCharacters(now) >= visibleLength(text);
-        if (!asked) {
-            bubble = new Bubble(bubble.x(), bubble.y(), bubble.width(), bubble.height(), bubble.scale(),
-                    bubble.lines(), bubble.textLeft(), bubble.textTop(), bubble.textBottom(),
-                    bubble.hintHeight(), bubble.name(), bubble.hint(), bubble.box(), List.of(),
-                    bubble.choiceHeight());
-        }
-        laidOutChoices = bubble.choices();
+        // Answers exist once the question has finished being asked - a button that can be pressed
+        // while the line is still typing is a button pressed before the question was read - and they
+        // are laid out from the speaker and the window, not from the bubble (see {@link #choiceLayout}).
+        ChoiceButton[] laidOut = asked ? choiceLayout(script.choices(), line, guiW, guiH)
+                : new ChoiceButton[0];
+        laidOutChoices = List.of(laidOut);
+        Bubble bubble = bubbleBox(client, text, script.speakerName(), speaker, line.side(),
+                guiW, guiH, textScale, lineHeight);
         drawBubble(client, bubble, text, lineHeight, textScale, now, asked);
+        for (int i = 0; i < laidOut.length; i++) {
+            drawChoice(client, laidOut[i], i == pressedChoice);
+        }
     }
 
     private void drawPortrait(PvzceClient client, Portrait portrait) {
@@ -644,18 +685,13 @@ public final class DialogueOverlay extends Dialog {
         // while the text is still coming out, the click completes it instead of continuing, and a
         // "继续" that did something else would be a lie. A question has no "click to continue" at
         // all, because a click does not continue it - its answers do.
-        if (asked && bubble.choices().isEmpty()) {
+        if (asked && !script.awaitingChoice()) {
             float hintScale = textScale * HINT_SCALE;
             float hintWidth = client.fonts().body().width(bubble.hint(), hintScale);
             client.fonts().body().draw(bubble.hint(),
                     bubble.x() + bubble.width() - bubble.textLeft() - hintWidth,
                     bubble.y() + bubble.textBottom() + 2F,
                     hintScale, HINT_COLOR_R, HINT_COLOR_G, HINT_COLOR_B, 1F);
-        }
-        if (asked) {
-            for (int i = 0; i < bubble.choices().size(); i++) {
-                drawChoice(client, bubble.choices().get(i), i == pressedChoice);
-            }
         }
     }
 
@@ -805,7 +841,7 @@ public final class DialogueOverlay extends Dialog {
      * anything: "beside" has no meaning in the middle, and both answers - left or right - would point
      * the tail at empty lawn.
      */
-    private Bubble bubbleBox(PvzceClient client, String text, String speakerName, List<DialogueChoice> choices,
+    private Bubble bubbleBox(PvzceClient client, String text, String speakerName,
                              Portrait speaker, DialogueLine.Side side, float guiW, float guiH,
                              float textScale, float lineHeight) {
         float margin = guiH * SCREEN_MARGIN_RATIO;
@@ -845,13 +881,7 @@ public final class DialogueOverlay extends Dialog {
         }
         float width = Math.max(guiW * BUBBLE_MIN_WIDTH_RATIO,
                 Math.min(maxWidth, widest + textLeft + textRight));
-        int columns = choices.isEmpty() ? 0
-                : Math.max(1, (int) ((width - textLeft - textRight) / (CHOICE_BUTTON_HEIGHT * scale * 3F)));
-        int rows = choices.isEmpty() ? 0 : (choices.size() + columns - 1) / columns;
-        float buttonHeight = CHOICE_BUTTON_HEIGHT * scale;
-        float choiceHeight = choices.isEmpty() ? 0F
-                : CHOICE_TOP_GAP * scale + rows * (buttonHeight + CHOICE_GAP * scale);
-        float height = nameHeight + lines.size() * lineHeight + textTop + choiceHeight + hintHeight + textBottom;
+        float height = nameHeight + lines.size() * lineHeight + textTop + hintHeight + textBottom;
         float x;
         if (side.isCenter()) {
             // Across the lower half of a centred portrait, like a caption: the bubble's bottom edge
@@ -867,15 +897,12 @@ public final class DialogueOverlay extends Dialog {
         x = Math.max(sideMargin, Math.min(guiW - width - sideMargin, x));
         float y = Math.min(guiH * BUBBLE_BOTTOM_RATIO, guiH - height - margin);
         y = Math.max(margin, y);
-        List<ChoiceButton> buttons = choices.isEmpty() ? List.of()
-                : choiceButtons(client, choices, x, y, width, height, textTop, textLeft, textRight,
-                        nameHeight, lines.size() * lineHeight, buttonHeight, columns, scale);
         Identifier box = speaker == null || speaker.character() == null
                 ? Identifier.withDefaultNamespace(left
                         ? "textures/gui/dialogue/box_left" : "textures/gui/dialogue/box_right")
                 : boxOf(speaker, left);
         return new Bubble(x, y, width, height, scale, lines, textLeft, textTop, textBottom,
-                hintHeight, name, hint, box, buttons, choiceHeight);
+                hintHeight, name, hint, box);
     }
 
     /** The bubble texture the speaker talks through, from their own character definition. */
@@ -889,29 +916,56 @@ public final class DialogueOverlay extends Dialog {
     }
 
     /**
-     * Lays the answer buttons out inside the bubble, under the question.
+     * Lays the answers out on the screen: beside the speaker, across the window, low down.
      *
-     * <p>They are sized to the bubble and never to the answer: a wide answer gets a smaller label,
-     * not a wider button, because the buttons are the list of what may be said and a list of unequal
-     * widths reads as if some answers mattered more than others.
+     * <p>Not inside the bubble, and not over the character. A speech bubble is the character's, and a
+     * row of things to press inside it reads as part of what they are saying; the answers stand in
+     * the half of the window the <em>speaker is not in</em> - left of a right-hand speaker, right of
+     * a left-hand one - so pressing one never covers the face that just asked. They are laid out
+     * against the window's bottom edge band rather than the bubble's, so the same question asked by
+     * a short line and a long one puts its answers in the same place.
+     *
+     * <p>One row when they fit, otherwise stacked in equally wide columns, and all of them the same
+     * size: a wide answer gets a smaller label, not a wider button, because a list of unequal widths
+     * reads as if some answers mattered more than others.
      */
-    private List<ChoiceButton> choiceButtons(PvzceClient client, List<DialogueChoice> choices, float x,
-                                             float y, float width, float height, float textTop, float textLeft,
-                                             float textRight, float nameHeight, float lineHeight,
-                                             float buttonHeight, int columns, float scale) {
-        float usable = width - textLeft - textRight;
-        float columnWidth = usable / columns;
-        float buttonWidth = columnWidth - CHOICE_GAP * scale;
-        float top = y + height - textTop - nameHeight - lineHeight - CHOICE_TOP_GAP * scale;
-        List<ChoiceButton> laidOut = new ArrayList<>(choices.size());
+    private ChoiceButton[] choiceLayout(List<DialogueChoice> choices, DialogueLine line,
+                                        float guiW, float guiH) {
+        ChoiceButton[] laidOut = new ChoiceButton[choices.size()];
+        if (choices.isEmpty()) {
+            return laidOut;
+        }
+        // The half the speaker is not standing in: their own half stays clear of anything clickable.
+        boolean rightSide = !line.side().isRight();
+        float blockWidth = guiW * CHOICE_BLOCK_WIDTH_RATIO;
+        float height = Math.max(CHOICE_MIN_HEIGHT, Math.min(CHOICE_MAX_HEIGHT,
+                guiH * CHOICE_HEIGHT_RATIO));
+        float gap = height * CHOICE_GAP_RATIO;
+        // One row while the answers fit across the block; past that they stack, widest row first.
+        int columns = Math.max(1, (int) (blockWidth / (height * CHOICE_ASPECT_RATIO)));
+        columns = Math.min(columns, Math.max(1, choices.size()));
+        if (columns >= choices.size()) {
+            columns = choices.size();
+        } else if (choices.size() % columns == 1 && columns > 1) {
+            // A last row with a single answer on it reads as an afterthought; move one down from
+            // the row above so both rows carry the same number.
+            columns--;
+        }
+        int rows = (choices.size() + columns - 1) / columns;
+        float buttonWidth = (blockWidth - (columns - 1) * gap) / columns;
+        float blockHeight = rows * height + (rows - 1) * gap;
+        float blockLeft = rightSide ? guiW - guiW * CHOICE_SIDE_MARGIN_RATIO - blockWidth
+                : guiW * CHOICE_SIDE_MARGIN_RATIO;
+        float blockBottom = Math.max(guiH * CHOICE_BOTTOM_RATIO, guiH * SCREEN_MARGIN_RATIO);
         for (int i = 0; i < choices.size(); i++) {
             int column = i % columns;
             int row = i / columns;
-            float buttonY = top - (row + 1) * (buttonHeight + CHOICE_GAP * scale);
-            // The answer is the player's own line too, so it takes the placeholder as well: the
-            // button and the reply it reveals have to read as the same sentence.
-            laidOut.add(new ChoiceButton(x + textLeft + column * columnWidth, buttonY,
-                    buttonWidth, buttonHeight, substituteUserName(client, choices.get(i).text())));
+            // Bottom row first: the answers climb away from the window's edge, so the one the eye
+            // reaches first is the one nearest the bottom of the screen.
+            int fromBottom = rows - 1 - row;
+            laidOut[i] = new ChoiceButton(blockLeft + column * (buttonWidth + gap),
+                    blockBottom + fromBottom * (height + gap), buttonWidth, height,
+                    substituteUserName(client, choices.get(i).text()));
         }
         return laidOut;
     }

@@ -143,9 +143,12 @@ class DialogueStageTest {
         assertEquals(0, script.index());
     }
 
-    /** Picking an answer speaks the line written under the question, in the player's own name. */
+    /**
+     * Picking an answer goes straight to the character's next line: the player's own line is part of
+     * the script and never part of the picture.
+     */
     @Test
-    void anAnswerIsSpokenByThePlayer() {
+    void anAnswerSkipsThePlayersOwnLine() {
         DialogueScript script = scriptOf(
                 line(ENTANG, "confused", "嗯，你谁？", DialogueSlot.LEFT, List.of(),
                         List.of(new DialogueChoice("莉安"), new DialogueChoice("路过的人"))),
@@ -153,10 +156,28 @@ class DialogueStageTest {
                 line(ENTANG, "gentle", "明白了", DialogueSlot.LEFT, List.of(), List.of()));
 
         assertTrue(script.choose(1), "the answer is taken");
-        assertEquals(1, script.index(), "and the reply is on screen in the same click");
-        assertEquals(PLAYER, script.speakerName(), "named after the player, not after a character");
-        assertTrue(script.advance(), "walking on reaches the line after the reply");
-        assertEquals(2, script.index());
+        assertEquals(2, script.index(), "and the character answers in the same click");
+        assertEquals("缠", script.speakerName(), "the speaker is the character, not the player");
+        assertFalse(script.advance(), "and the character's line is the last one");
+        assertTrue(script.isExiting(), "so the conversation walks its portraits off");
+    }
+
+    /** A question with nothing written under it (or nothing after the answer) still ends. */
+    @Test
+    void aQuestionWithNothingAfterItStillEnds() {
+        DialogueScript bare = scriptOf(
+                line(ENTANG, "confused", "你是这里的主人吗？", DialogueSlot.LEFT, List.of(),
+                        List.of(new DialogueChoice("是的"))));
+        assertTrue(bare.awaitingChoice());
+        assertFalse(bare.choose(0), "there is no answer line to reveal, so the answer ends it");
+        assertTrue(bare.isExiting());
+
+        DialogueScript truncated = scriptOf(
+                line(ENTANG, "confused", "你是这里的主人吗？", DialogueSlot.LEFT, List.of(),
+                        List.of(new DialogueChoice("是的"))),
+                playerLine(DialogueSlot.LEFT));
+        assertTrue(truncated.awaitingChoice());
+        assertFalse(truncated.choose(0), "nothing follows the answer, so there is nothing to play");
     }
 
     /** The closing slides are walked through before the host is told the conversation is over. */
@@ -184,18 +205,6 @@ class DialogueStageTest {
         assertFalse(script.advance());
         assertTrue(script.tick(System.nanoTime()), "no closing slide, so nothing to wait for");
         assertFalse(script.isActive());
-    }
-
-    /** Answering a question the data wrote on the last line ends the conversation instead of hanging. */
-    @Test
-    void aQuestionWithNothingUnderItStillEnds() {
-        DialogueScript script = scriptOf(
-                line(ENTANG, "confused", "你是这里的主人吗？", DialogueSlot.LEFT, List.of(),
-                        List.of(new DialogueChoice("是的"))));
-
-        assertTrue(script.awaitingChoice());
-        assertFalse(script.choose(0), "there is no reply line, so the answer ends the conversation");
-        assertTrue(script.isExiting());
     }
 
     /** Every built-in conversation plays to its end with somebody on stage the whole way. */
@@ -254,7 +263,13 @@ class DialogueStageTest {
                                 at(DialogueSlot.RIGHT, Identifier.withDefaultNamespace("nobody"))),
                         List.of(), ""),
                 new DialogueLine(null, "", "嗯", "", DialogueLine.Side.LEFT,
-                        DialogueAnimation.NONE, List.of(), List.of(new DialogueChoice("")), "")));
+                        DialogueAnimation.NONE, List.of(), List.of(new DialogueChoice("")), ""),
+                // A question whose answer is written but leads nowhere: pressing it would end the
+                // conversation on the spot, which is not what the author wrote a question for.
+                new DialogueLine(ENTANG, "gentle", "那你是？", "", DialogueLine.Side.LEFT,
+                        DialogueAnimation.NONE, List.of(), List.of(new DialogueChoice("路人")), ""),
+                new DialogueLine(null, "", "", "", DialogueLine.Side.LEFT,
+                        DialogueAnimation.NONE, List.of(), List.of(), "${user_name}")));
         List<String> problems = LevelValidator.validateDialogue(
                 TestLevels.copy(level).dialogue(broken).build());
 
@@ -264,8 +279,8 @@ class DialogueStageTest {
                 "a character nobody registered: " + problems);
         assertTrue(problems.stream().anyMatch(p -> p.contains("names no character and no speaker_name")),
                 "a line with nobody to put over the bubble: " + problems);
-        assertTrue(problems.stream().anyMatch(p -> p.contains("choices on the last line")),
-                "a question with no line written under it: " + problems);
+        assertTrue(problems.stream().anyMatch(p -> p.contains("nothing follows the player's answer")),
+                "a question whose answer leads nowhere: " + problems);
         assertTrue(problems.stream().anyMatch(p -> p.contains("choices[0] is empty")),
                 "an answer with no text: " + problems);
     }

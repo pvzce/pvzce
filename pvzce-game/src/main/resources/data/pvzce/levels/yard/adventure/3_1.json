@@ -338,7 +338,7 @@
         ]
       },
       {
-        "text": "${user_name}",
+        "text": "",
         "voice": "",
         "side": "left",
         "speaker_name": "${user_name}"
@@ -348,13 +348,7 @@
         "portrait": "gentle",
         "text": "${user_name}，明白了",
         "voice": "",
-        "side": "left",
-        "slots": [
-          {
-            "slot": "left",
-            "character": "pvzce:entang"
-          }
-        ]
+        "side": "left"
       },
       {
         "character": "pvzce:entang",
@@ -369,7 +363,7 @@
         ]
       },
       {
-        "text": "是的",
+        "text": "",
         "voice": "",
         "side": "left",
         "speaker_name": "${user_name}"
@@ -379,13 +373,7 @@
         "portrait": "gentle",
         "text": "明白了",
         "voice": "",
-        "side": "left",
-        "slots": [
-          {
-            "slot": "left",
-            "character": "pvzce:entang"
-          }
-        ]
+        "side": "left"
       },
       {
         "character": "pvzce:entang",
