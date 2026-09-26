@@ -67,6 +67,18 @@ public final class WaveDirector {
      */
     public static final int SAVE_VERSION = 2;
 
+    /**
+     * What the health drain may shorten a countdown to: the original's 200 ticks of "a wave".
+     *
+     * <p>See {@link #healthDrainApplies}: this is the pace the original switches to the moment the
+     * wave on the lawn is beaten, and it is what makes a level read as continuous rather than as a
+     * sequence of waits.
+     */
+    public static final int HEALTH_DRAIN_TICKS = 200;
+    /** How much of a wave's health may be gone before the original drops the countdown to 200. */
+    public static final float HEALTH_DRAIN_FLOOR_RATIO = 0.5F;
+    public static final float HEALTH_DRAIN_CEILING_RATIO = 0.65F;
+
     /** Everything a wave needs from the level it runs in. */
     public interface Host {
         int width();
@@ -114,8 +126,23 @@ public final class WaveDirector {
         /** How many zombies of this one {@code healthScale} times its own health; 1 for ordinary. */
         ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale);
 
+        /**
+         * The total health still standing of one wave's own zombies, armour included, or
+         * {@code -1} when this level cannot total it.
+         *
+         * <p>What the health drain reads (see {@link WaveDirector#healthDrainApplies}); the
+         * host answers it by summing the entities it owns. {@code -1} switches the drain off,
+         * which is the right answer for a harness that has no entities to weigh.
+         */
+        default int waveHealth(int waveKey) {
+            return -1;
+        }
+
         /** Zombies still standing, corpses excluded. */
         long aliveZombieCount();
+
+        /** Every entity on the board, for the two questions that need to weigh them. */
+        List<com.pvzce.server.entity.PvzceEntity> entities();
 
         /**
          * The level's living zombies, oldest first, for the resume-time re-owning of a wave.
@@ -222,6 +249,17 @@ public final class WaveDirector {
     private final Map<Integer, Integer> killsByWave = new HashMap<>();
     /** How many zombies each wave set out to send, for the kill share. */
     private final Map<Integer, Integer> arcByWave = new HashMap<>();
+    /** The health each wave has put on the lawn so far, for the health drain. */
+    private final Map<Integer, Integer> healthOnLawnByWave = new HashMap<>();
+    /**
+     * The health the wave after this one waits for: the original's {@code mZombieHealthToNextWave}.
+     *
+     * <p>Rolled once per countdown - see {@link #rollHealthDrainTarget} - and negative while it has
+     * not been rolled yet, which is the state a countdown starts in. A line that moved as the wave
+     * took damage would not be the same mechanic, and one rolled from a wave that had not finished
+     * arriving would be a line of zero.
+     */
+    private int healthDrainTarget = -1;
     /**
      * Waves whose release queue is gone but whose deaths still matter.
      *
@@ -378,19 +416,34 @@ public final class WaveDirector {
             // reaching its target.
             boolean firstWave = waveIndex == 0;
             if (firstWave || !currentWaveStillReleasing()) {
-                // Two things can make this countdown shorter than written, and both are the
-                // answer to "I killed everything and the level is making me stand here": a
-                // cleared lawn (see `clearRewardApplies`) and a wave the player has already
-                // answered (the survival-ratio mode, see `earnedEarlyArrival`). The target is
-                // decided on the countdown's first tick and then frozen, both because the clear
-                // bonus is a reward for the state the player reached and because a finish line
-                // that moved under a running countdown would stop the level dead.
+                // Three things can make this countdown shorter than written, and all three are the
+                // answer to "I killed everything and the level is making me stand here": the wave
+                // on the lawn being beaten (the health drain, see `healthDrainApplies`), a cleared
+                // lawn (see `clearRewardApplies`) and a wave the player has already answered (the
+                // survival-ratio mode, see `earnedEarlyArrival`). The target is decided on the
+                // countdown's first tick and then frozen, both because these are rewards for the
+                // state the player reached and because a finish line that moved under a running
+                // countdown would stop the level dead.
                 if (waveIntervalTicks == 0) {
                     nextWaveTargetTicks = clearRewardApplies()
                             ? pacing.clearRewardDelay(nextWaveDelayTicks)
                             : nextWaveDelayTicks;
+                    rollHealthDrainTarget();
                 }
                 waveIntervalTicks = Math.min(waveIntervalTicks + delayStep(), nextWaveTargetTicks);
+                // The drain is tested every tick, not only on the first one: the original does the
+                // same, and "the player finished the wave off halfway through the wait" is the
+                // common case. It is a *ceiling on what is left* rather than a new finish line each
+                // tick - this counter counts up and the original's counts down, so the original's
+                // "200 ticks left to run" is "where this counter is, plus 200", and it only ever
+                // moves the target backwards. Re-arming it every tick instead pushed the arrival
+                // 200 ticks further away on every tick the wave stayed beaten, which is a countdown
+                // that never arrives. A countdown still frozen because its wave is coming out is
+                // skipped: that wave has not finished arriving, so there is nothing beaten yet.
+                if (healthDrainApplies()) {
+                    nextWaveTargetTicks = Math.min(nextWaveTargetTicks,
+                            waveIntervalTicks + HEALTH_DRAIN_TICKS);
+                }
             }
             // Due, and then held only if an opening wave is still on the field: the clock runs
             // while the player fights, so clearing the field early never costs the gap the
@@ -500,6 +553,78 @@ public final class WaveDirector {
     }
 
     /**
+     * True when the wave on the lawn is beaten badly enough that the next one comes now.
+     *
+     * <p>The original's own pacing, and the piece this engine was missing: {@code Board} rolls
+     * {@code mZombieHealthToNextWave = RandRangeFloat(0.5, 0.65) * TotalZombiesHealthInWave()}
+     * when a wave spawns and then drops its countdown straight to 200 ticks the moment the wave
+     * still standing is at or below that line. On a level's 2500-3100 tick gaps that is the whole
+     * difference between "a level that flows" and "a level that keeps making you stand on an empty
+     * lawn": the shipped tables' delays are the original's numbers, and they were never meant to
+     * be served in full by a player who is winning.
+     *
+     * <p>Two conditions, both the original's:
+     *
+     * <ul>
+     *   <li>the countdown has more than {@value #HEALTH_DRAIN_TICKS} left to run - there has to be
+     *       a wait to shorten. The original states the same thing as "the counter is above 200",
+     *       and the "this wave has been going for 400 ticks" half of its guard is a different clock
+     *       than this one: this countdown has already been frozen through the whole release
+     *       window, which is the same "the player has been at this a while".</li>
+     *   <li>the wave that triggered the countdown is at or below its rolled line. Measured from
+     *       the wave that <em>arrived</em>, not from the whole lawn: a stockpile wave refilling
+     *       from behind must not hold the next wave back, and the original asks
+     *       {@code TotalZombiesHealthInWave(mCurrentWave - 1)} for exactly that reason. The line
+     *       itself is a share of what that wave has <em>put out</em>, which is the other thing the
+     *       original does - a wave still trickling has not offered the player its whole health yet.</li>
+     * </ul>
+     *
+     * <p>A host that cannot total a wave's health ({@code waveHealth} answers {@code -1}) opts out.
+     * So does a level whose wave arrived with no health at all - a shell wave on a level whose
+     * zombies come from graves has nothing to drain, and its graves' own clock is the pacing.
+     */
+    private boolean healthDrainApplies() {
+        if (!pacing.healthDrain()) {
+            return false;
+        }
+        if (nextWaveTargetTicks <= HEALTH_DRAIN_TICKS || healthDrainTarget < 0) {
+            return false;
+        }
+        if (waveIndex <= 0 || waveIndex > roundWaves) {
+            return false;
+        }
+        int key = waveKey(round, waveIndex - 1);
+        int sent = healthOnLawnByWave.getOrDefault(key, 0);
+        if (sent <= 0) {
+            return false;
+        }
+        int standing = host.waveHealth(key);
+        return standing >= 0 && standing <= healthDrainTarget;
+    }
+
+    /**
+     * Rolls this countdown's line from what the wave before it has put on the lawn, once.
+     *
+     * <p>Rolled on the countdown's first running tick rather than at the wave's trigger, and that
+     * is not a detail: a wave triggers on the tick its predecessor's queue empties, and the
+     * predecessor's last zombie may be published <em>later in that same tick</em> - so a line
+     * snapped at the trigger would be a share of nothing and the drain would never open. The total
+     * it reads is frozen by then (only a queue still trickling adds to it, and a countdown does not
+     * run while one does), which is what makes "once" the same answer as the original's "once".
+     *
+     * <p>The original rolls {@code RandRangeFloat(0.5, 0.65) * TotalZombiesHealthInWave()}, and it
+     * reads that total the tick a wave spawns; this reads the same number one tick later, when the
+     * wave that arrived has stopped adding to it.
+     */
+    private void rollHealthDrainTarget() {
+        int key = waveIndex <= 0 ? -1 : waveKey(round, waveIndex - 1);
+        int sent = key < 0 ? 0 : healthOnLawnByWave.getOrDefault(key, 0);
+        healthDrainTarget = sent <= 0 ? 0 : Math.round(sent
+                * (HEALTH_DRAIN_FLOOR_RATIO + host.random().nextFloat()
+                        * (HEALTH_DRAIN_CEILING_RATIO - HEALTH_DRAIN_FLOOR_RATIO)));
+    }
+
+    /**
      * True once the wave that has already arrived is mostly dead.
      *
      * <p>The survival-ratio gate, and only that mode: a wave has to have been authored as "come
@@ -551,6 +676,33 @@ public final class WaveDirector {
     /** How many of the wave at this position are still standing. */
     private int aliveOfWave(int key) {
         return Math.max(0, aliveByWave.getOrDefault(key, 0));
+    }
+
+    /**
+     * The health this wave's own zombies still have left, armour included.
+     *
+     * <p>The {@link Host#waveHealth} implementation: the director knows which zombie belongs to
+     * which wave (that is {@link #waveOwner}) but not what a zombie is, so it walks the level's
+     * entities and weighs the ones it owns. Armour counts because that is what the player is
+     * shooting through - see {@link #healthOf}.
+     *
+     * @return the total, or {@code -1} when there is no map to weigh against
+     */
+    public int healthOfWave(int key) {
+        if (waveOwner == null) {
+            return -1;
+        }
+        int total = 0;
+        for (com.pvzce.server.entity.PvzceEntity entity : host.entities()) {
+            if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
+                continue;
+            }
+            Integer owner = waveOwner.get(zombie.id());
+            if (owner != null && owner == key) {
+                total += healthOf(zombie);
+            }
+        }
+        return total;
     }
 
     /** The identity of one wave in the run: which round, and which wave inside it. */
@@ -625,6 +777,7 @@ public final class WaveDirector {
         // gate takes its share of. Written here, where the composition is known.
         arcByWave.put(key, zombies.size());
         releasedWaves.remove(key);
+
 
         int announcedIndex = key;
         boolean firstAnnouncement = announcedWaves.add(announcedIndex);
@@ -790,9 +943,12 @@ public final class WaveDirector {
             ZombieEntity spawned = spawnQueued(queued, row);
             if (spawned != null) {
                 // Owned here, where the wave is known: the stockpile cap and the survival-ratio
-                // gate both count a wave's own zombies rather than the lawn's.
+                // gate both count a wave's own zombies rather than the lawn's. The health is the
+                // third thing that has to be counted here and not at trigger time - see
+                // `healthDrainApplies` for why the line is a share of what a wave has put out.
                 waveOwner.put(spawned.id(), queue.waveKey);
                 aliveByWave.merge(queue.waveKey, 1, Integer::sum);
+                healthOnLawnByWave.merge(queue.waveKey, healthOf(spawned), Integer::sum);
             }
             queue.gateZombieId = queue.waitsForPrevious() && spawned != null ? spawned.id() : -1;
             // One tick above the wait, because the counter is decremented on the tick after it is
@@ -848,6 +1004,17 @@ public final class WaveDirector {
             }
         }
         return zombies;
+    }
+
+    /**
+     * What one zombie is worth to the health drain: its body and its armour together.
+     *
+     * <p>The original's own total ({@code mBodyHealth + mHelmHealth}), and it has to be a total of
+     * both because that is what the player is actually shooting through: a buckethead is one
+     * zombie of 1100, not a 200-health zombie with a hat.
+     */
+    private static int healthOf(ZombieEntity zombie) {
+        return Math.max(0, zombie.health()) + Math.max(0, zombie.armorHealth());
     }
 
     /**
@@ -1035,6 +1202,8 @@ public final class WaveDirector {
         aliveByWave.clear();
         killsByWave.clear();
         arcByWave.clear();
+        healthOnLawnByWave.clear();
+        healthDrainTarget = -1;
         waveOwner.clear();
         dirty = true;
         return round;
@@ -1269,6 +1438,11 @@ public final class WaveDirector {
         aliveByWave.clear();
         killsByWave.clear();
         arcByWave.clear();
+        healthOnLawnByWave.clear();
+        // The drain's line and totals are not saved (see `save`), so a restored run starts its
+        // current countdown without one: the mechanic comes back on the next wave that arrives,
+        // which is the same "one refill" the stockpile cap pays for on a resume.
+        healthDrainTarget = -1;
         releasedWaves.clear();
         Set<Integer> releasing = new HashSet<>();
         for (PendingWaveSpawn queue : pendingWaveSpawns) {

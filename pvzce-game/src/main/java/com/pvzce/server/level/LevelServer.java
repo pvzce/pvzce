@@ -1139,6 +1139,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * What one wave's own zombies still have left to chew through, armour included.
+     *
+     * <p>{@link WaveDirector}'s health drain asks this every tick a countdown is running, so it is
+     * a walk of the entity list with an owner test rather than a per-wave total kept in step: the
+     * owner map already exists for the stockpile cap, and a second index that could disagree with
+     * it is exactly the kind of state this class does not need.
+     *
+     * @param waveKey the wave being asked about, as {@code WaveDirector.waveKey}
+     * @return the total, or {@code -1} when this level cannot answer - which switches the drain off
+     */
+    @Override
+    public int waveHealth(int waveKey) {
+        return waves.healthOfWave(waveKey);
+    }
+
+    /**
      * How many zombies are still on the other side.
      *
      * <p>What the win check asks, and the difference from {@link #aliveZombieCount} is the
@@ -2507,6 +2523,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         List<LevelDef.MusicCue> cues = def.music().cues().stream()
                 .sorted(Comparator.comparingInt(LevelDef.MusicCue::atTick))
                 .toList();
+        if (cues.isEmpty() && !levelTracksSettled) {
+            levelTracksSettled = true;
+            // A level whose music block is empty has no music, and saying nothing is not the same
+            // as saying "stop": the client enters a level with the menu and stinger tracks stopped
+            // and the background track started on the ordinary theme (`PvzceMusicController.
+            // startLevel`), waiting for the first cue to tell it what this level actually plays.
+            // With no cue at all, the previous level's theme therefore kept playing over it -
+            // measured on 4-10, the game's one silent level, whose whole point is that the rain is
+            // the soundtrack. One explicit stop at tick zero is what the empty block means.
+            for (String track : LEVEL_TRACKS) {
+                bridge.send(new MusicEventS2C(track, "", false, true, 1F, 0.5F));
+            }
+            return;
+        }
+        levelTracksSettled = true;
         while (nextMusicCueIndex < cues.size() && tickCount >= cues.get(nextMusicCueIndex).atTick()) {
             LevelDef.MusicCue cue = cues.get(nextMusicCueIndex++);
             // A cue with no event, or one that stops the track, leaves nothing playing.
@@ -2520,6 +2551,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     Math.max(0F, cue.fadeSeconds())));
         }
     }
+
+    /**
+     * The tracks a level's own music can play on: everything except the menu's theme.
+     *
+     * <p>Listed here rather than in the music controller because this is the server saying "this
+     * level has no music", and the client's track names are the wire values ({@code MusicEventS2C})
+     * - the two ends share one spelling.
+     */
+    /**
+     * Whether this level has told the client what its music is (or that it has none).
+     *
+     * <p>Needed because "no music" is an instruction rather than an absence, and it may only be
+     * given once per level instance: a re-sent stop would cut the stingers a win or a loss plays.
+     */
+    private boolean levelTracksSettled;
+
+    private static final List<String> LEVEL_TRACKS = List.of(
+            MusicEventS2C.TRACK_BACKGROUND, MusicEventS2C.TRACK_BATTLE, MusicEventS2C.TRACK_STINGER);
 
     /**
      * Puts an abandoned carry back where it came from.

@@ -62,10 +62,11 @@ MINI_BOSS_FIRST_WAVE = 100
 #: The original's 1800 is a *setup* wait: the player has a lawn to plant and a sun economy to
 #: start, and the thirty seconds are what being ready costs. A conveyor level has neither - its
 #: cards arrive off the belt by themselves and there is nothing to save up for - so the same
-#: thirty seconds is half a minute of empty lawn with nothing to do. Twenty is long enough to
-#: watch the belt arrive and place the first card. The three mini-boss levels keep the original's
-#: 100: their opening is part of what makes them one.
-CONVEYOR_FIRST_WAVE = 1200
+#: thirty seconds is half a minute of empty lawn with nothing to do. Ten seconds is enough to see
+#: the belt arrive and place the first card, and it is what the user asked for after playing 1-5:
+#: twenty was still "等半天等不到第一只僵尸". The three mini-boss levels keep the original's 100:
+#: their opening is part of what makes them one.
+CONVEYOR_FIRST_WAVE = 600
 #: How long before a flag wave the game raises the banner (``mHugeWaveCountDown = 750``).
 HUGE_WAVE_WARNING_TICKS = 750
 #: Waves per flag for a level with ten waves or more; a shorter level flags its last wave only.

@@ -58,6 +58,10 @@ import java.util.Set;
  *                           {@code 1} (or more) means "only a cleared lawn counts"
  * @param earlyKillDelayFactor how much the opening waves' death gate tightens each time it runs
  *                             out; {@code 1} keeps the written wait for every zombie
+ * @param healthDrain whether a countdown may be cut to {@code WaveDirector.HEALTH_DRAIN_TICKS}
+ *                    the moment the wave on the lawn is beaten - the original's own pace, and
+ *                    {@code false} for a level whose pacing is the point (a lesson, a scripted
+ *                    tutorial) rather than a battle
  * @param defaultMode the mode of a wave that declares none
  * @param waves per-wave overrides, applied in order, later entries winning
  */
@@ -68,6 +72,7 @@ public record WavePacingData(
         float earlyWaveKillRatio,
         float earlyKillDelayFactor,
         boolean earlyAdvance,
+        boolean healthDrain,
         WaveMode defaultMode,
         List<WavePacing> waves
 ) implements MechanicData {
@@ -104,6 +109,14 @@ public record WavePacingData(
      * is what makes the first two waves of a slow start feel like a stall.
      */
     public static final float DEFAULT_EARLY_KILL_DELAY_FACTOR = 0.75F;
+    /**
+     * The health drain is on unless a level turns it off.
+     *
+     * <p>On, because it is the original's own pacing and the shipped tables' {@code delay}s are the
+     * original's numbers - a level that serves them in full sits on an empty lawn for half a
+     * minute. Off is for a level whose point is the script rather than the fight.
+     */
+    public static final boolean DEFAULT_HEALTH_DRAIN = true;
     /** A mode's {@code max_alive} when the wave does not say. */
     public static final int DEFAULT_MAX_ALIVE = 8;
     /**
@@ -165,6 +178,8 @@ public record WavePacingData(
             Codec.FLOAT.optionalFieldOf("early_kill_delay_factor", DEFAULT_EARLY_KILL_DELAY_FACTOR)
                     .forGetter(WavePacingData::earlyKillDelayFactor),
             Codec.BOOL.optionalFieldOf("early_advance", true).forGetter(WavePacingData::earlyAdvance),
+            Codec.BOOL.optionalFieldOf("health_drain", DEFAULT_HEALTH_DRAIN)
+                    .forGetter(WavePacingData::healthDrain),
             Codec.STRING.optionalFieldOf("default_mode", DEFAULT_MODE.name().toLowerCase(Locale.ROOT))
                     .forGetter(data -> data.defaultMode().name().toLowerCase(Locale.ROOT)),
             WavePacing.CODEC.listOf().optionalFieldOf("waves", List.of())
@@ -181,9 +196,11 @@ public record WavePacingData(
     public static WavePacingData parse(float clearRewardFactor, int clearRewardMinTicks,
                                        int clearRewardGraceTicks, float earlyWaveKillRatio,
                                        float earlyKillDelayFactor, boolean earlyAdvance,
-                                       String defaultMode, List<WavePacing> waves) {
+                                       boolean healthDrain, String defaultMode,
+                                       List<WavePacing> waves) {
         return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
-                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, parseMode(defaultMode), waves);
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, healthDrain,
+                parseMode(defaultMode), waves);
     }
 
     public WavePacingData {
@@ -194,7 +211,7 @@ public record WavePacingData(
     public static final WavePacingData DEFAULT = new WavePacingData(
             DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS,
             DEFAULT_CLEAR_REWARD_GRACE_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
-            DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_MODE, List.of());
+            DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_HEALTH_DRAIN, DEFAULT_MODE, List.of());
 
     /**
      * How long the next wave's countdown may run down to while the clear bonus is active.
@@ -216,10 +233,17 @@ public record WavePacingData(
         return Math.max(1, Math.min(delayTicks, grace + accelerated));
     }
 
-    /** The same block with the clear bonus switched off: the wave table, exactly as written. */
+    /**
+     * The same block with every acceleration switched off: the wave table, exactly as written.
+     *
+     * <p>The health drain goes with the clear bonus, because the two are the same promise - "a
+     * countdown may be cut short" - and a caller that asked for the second asked for the first.
+     * Tests use this to read a table's own pacing; a level that wants it writes
+     * {@code "health_drain": false} and leaves the clear bonus alone.
+     */
     public WavePacingData clearRewardOff() {
         return new WavePacingData(1F, 0, 0, earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance,
-                defaultMode, waves);
+                false, defaultMode, waves);
     }
 
     /**
@@ -232,7 +256,20 @@ public record WavePacingData(
     public static WavePacingData ofModes(WaveMode defaultMode, WavePacing... waves) {
         return new WavePacingData(DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS,
                 DEFAULT_CLEAR_REWARD_GRACE_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
-                DEFAULT_EARLY_KILL_DELAY_FACTOR, true, defaultMode, List.of(waves));
+                DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_HEALTH_DRAIN, defaultMode,
+                List.of(waves));
+    }
+
+    /** The same block with the health drain off: for a level whose script is the point. */
+    public WavePacingData healthDrainOff() {
+        return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, false, defaultMode, waves);
+    }
+
+    /** The same block with the health drain on and nothing else touched. */
+    public WavePacingData drainOn() {
+        return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, true, defaultMode, waves);
     }
 
     /** One row for one wave, in this mode, with nothing else changed. */

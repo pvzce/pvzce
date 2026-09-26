@@ -162,12 +162,16 @@ class WavePacingMechanicTest {
      *
      * <p>Written as the difference between two runs of the same level: with wave 1 in
      * survival-ratio mode and its zombies killed as they arrive, wave 2 shows up while the first
-     * one is still being fought - and in the fixed mode, with the same kills, it waits out its
-     * written 3000-tick delay. That difference is the mechanic.
+     * one is still being fought - and in a run whose countdown cannot be cut at all, with the same
+     * kills, it waits out its written 3000-tick delay. That difference is the mechanic.
+     *
+     * <p>The control run switches off <em>both</em> shortcuts ({@code clearRewardOff}): the health
+     * drain is the other one, and with two zombies in the wave it would land on the same arrival
+     * and make this test say nothing about the ratio gate.
      */
     @Test
     void aSurvivalRatioWaveArrivesOnceThePlayerHasAnsweredTheOneBeforeIt() {
-        WaveDef first = wave(WaveDef.WaveType.SMALL, 10, 4);
+        WaveDef first = wave(WaveDef.WaveType.SMALL, 10, 2);
         WaveDef second = wave(WaveDef.WaveType.FINAL, 3000, 1);
 
         WavePacingData ratio = WavePacingData.ofModes(WavePacingData.WaveMode.FIXED,
@@ -176,8 +180,8 @@ class WavePacingMechanicTest {
         WavePacingData fixed = WavePacingData.ofModes(WavePacingData.WaveMode.FIXED)
                 .clearRewardOff();
 
-        int answered = fifthZombieTick(new LevelServer(level(List.of(first, second), ratio)), true);
-        int untouched = fifthZombieTick(new LevelServer(level(List.of(first, second), fixed)), true);
+        int answered = thirdZombieTick(new LevelServer(level(List.of(first, second), ratio)), true);
+        int untouched = thirdZombieTick(new LevelServer(level(List.of(first, second), fixed)), true);
 
         // Wave 1 is answered at 100%, so wave 2's 3000-tick countdown runs at twice the rate and
         // lands near 1600 - the same run in the fixed mode lands on its written 3000 instead.
@@ -190,17 +194,17 @@ class WavePacingMechanicTest {
     /**
      * The tick wave 2's only zombie arrives on, with everything killed as it appears.
      *
-     * <p>Wave 1 is four zombies, so the fifth spawn of the run is wave 2's - and "killed as it
+     * <p>Wave 1 is two zombies, so the third spawn of the run is wave 2's - and "killed as it
      * appears" is what a player's lawn does, which is the state the ratio gate is written for.
      */
-    private static int fifthZombieTick(LevelServer level, boolean kill) {
+    private static int thirdZombieTick(LevelServer level, boolean kill) {
         Bridge bridge = new Bridge();
         for (int tick = 1; tick <= 6000; tick++) {
             level.tick(bridge);
             if (kill) {
                 killAll(level);
             }
-            if (bridge.spawns() >= 5) {
+            if (bridge.spawns() >= 3) {
                 return tick;
             }
         }
@@ -239,7 +243,9 @@ class WavePacingMechanicTest {
      */
     @Test
     void theClearBonusShortensTheWaitButKeepsAGraceWindow() {
-        WavePacingData pacing = new WavePacingData(3F, 300, 600, 0.75F, 0.75F, false,
+        // The health drain is off: this test is about the clear bonus's own arithmetic, and both
+        // are shortcuts to the same arrival.
+        WavePacingData pacing = new WavePacingData(3F, 300, 600, 0.75F, 0.75F, false, false,
                 WavePacingData.WaveMode.FIXED, List.of());
         LevelServer level = new LevelServer(level(List.of(
                 wave(WaveDef.WaveType.SMALL, 10, 1), wave(WaveDef.WaveType.FINAL, 1800, 1)), pacing));
@@ -255,5 +261,78 @@ class WavePacingMechanicTest {
         assertTrue(gap < 1800, "but it is shorter than written: " + gap);
         assertEquals(300, pacing.clearRewardDelay(300), "a gap inside the window is untouched");
         assertEquals(1000, pacing.clearRewardDelay(1800), "600 grace + 1200/3");
+    }
+
+    // ------------------------------------------------------------------
+    // The health drain: the wave on the lawn being beaten IS the pacing
+    // ------------------------------------------------------------------
+
+    /**
+     * Beating the wave on the lawn brings the next one in about {@code HEALTH_DRAIN_TICKS}.
+     *
+     * <p>The original's own mechanic, and the answer to "the level makes me stand on an empty lawn
+     * between waves": a countdown written as 3000 ticks is the pacing of a player who is <em>not</em>
+     * winning, and the moment the wave that arrived is beaten the wait becomes a few seconds.
+     *
+     * <p>The clear reward is off in both runs on purpose: it is the other shortcut to the same
+     * arrival, and with both of them on this would pass without the drain existing at all. What is
+     * left is the drain's own signature - a countdown that stops obeying its written delay the
+     * moment the wave is beaten. Two zombies, killed a second after they walk in, so the line sits
+     * at "one of the two is gone" rather than on the dice.
+     */
+    @Test
+    void beatingTheWaveOnTheLawnBringsTheNextOneInThreeSeconds() {
+        LevelServer probe = new LevelServer(level(List.of(
+                wave(WaveDef.WaveType.SMALL, 10, 2), wave(WaveDef.WaveType.FINAL, 3000, 1)),
+                WavePacingData.ofModes(WavePacingData.WaveMode.FIXED).clearRewardOff().drainOn()));
+        Bridge probeBridge = new Bridge();
+        int lastSpawns = 0;
+        for (int tick = 1; tick <= 700; tick++) {
+            probe.tick(probeBridge);
+            killAll(probe);
+            var tag = probe.save();
+            if (probeBridge.spawns() != lastSpawns || tick % 50 == 0) {
+                lastSpawns = probeBridge.spawns();
+                System.out.println("P t=" + tick + " w=" + probe.currentWave()
+                        + " iv=" + tag.getInt("WaveIntervalTicks")
+                        + " tgt=" + tag.getInt("NextWaveTargetTicks")
+                        + " spawns=" + lastSpawns + " alive=" + probe.aliveZombieCount());
+            }
+        }
+        int[] drained = arrivals(WavePacingData.ofModes(WavePacingData.WaveMode.FIXED)
+                .clearRewardOff().drainOn());
+        assertTrue(drained[2] - drained[1] <= WaveDirector.HEALTH_DRAIN_TICKS + 60,
+                "the drain leaves the original's three seconds, not the written 3000: "
+                        + (drained[2] - drained[1]));
+        assertTrue(drained[2] - drained[1] >= 120,
+                "and it is still a gap the player can see coming: " + (drained[2] - drained[1]));
+    }
+
+    /**
+     * The drain is off in a level that says so, and the written delay is served in full.
+     *
+     * <p>What a scripted level (the mutation tutorial) asks for: its point is the order of its own
+     * events, and a fight that ends early would take the last of them with it.
+     */
+    @Test
+    void aLevelMayTurnTheDrainOffAndServeItsWrittenDelay() {
+        int[] served = arrivals(WavePacingData.ofModes(WavePacingData.WaveMode.FIXED)
+                .clearRewardOff());
+        assertTrue(served[2] - served[1] >= 3000,
+                "with the drain off the countdown runs its written 3000: "
+                        + (served[2] - served[1]));
+    }
+
+    /**
+     * The three arrivals of one level: two zombies a second after they walk in, then the finale.
+     *
+     * <p>Built here rather than taken from a fixture file because the wave table <em>is</em> the
+     * subject: wave 1 is two zombies on a 30-tick interval, wave 2 a written 3000-tick wait.
+     */
+    private static int[] arrivals(WavePacingData pacing) {
+        LevelServer level = new LevelServer(level(List.of(
+                wave(WaveDef.WaveType.SMALL, 10, 2), wave(WaveDef.WaveType.FINAL, 3000, 1)),
+                pacing));
+        return nextSpawns(level, new Bridge(), 3, true);
     }
 }

@@ -293,7 +293,7 @@ public final class MutationLevels {
                 DialogueLine.Side.LEFT));
     }
 
-    /** The tutorial's mechanics: a scripted mutation block, mowers, and a deck. */
+    /** The tutorial's mechanics: a scripted mutation block, mowers, a deck, and its pacing. */
     private static List<TypedMechanic> tutorialMechanics(
             List<com.pvzce.api.content.MutationData.Planned> script) {
         List<TypedMechanic> mechanics = new ArrayList<>();
@@ -302,6 +302,11 @@ public final class MutationLevels {
                 new com.pvzce.api.content.MutationData(false, script)));
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_MOWER, MowerData.EVERY_ROW));
         mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_DECK, MechanicData.Empty.INSTANCE));
+        // The lesson's clock is the script, not the fight: the health drain would let a player who
+        // kills each wave as it arrives reach the last wave - and end the level - before the last
+        // staged mutation was due to be explained (`MutationTutorialTest`).
+        mechanics.add(new TypedMechanic(PvzceIds.MECHANIC_WAVE_PACING,
+                com.pvzce.api.content.WavePacingData.DEFAULT.healthDrainOff()));
         return List.copyOf(mechanics);
     }
 
