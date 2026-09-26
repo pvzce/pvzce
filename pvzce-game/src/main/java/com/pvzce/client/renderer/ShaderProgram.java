@@ -148,6 +148,10 @@ public final class ShaderProgram implements Closeable {
         }
         GL20.glDeleteShader(vertex);
         GL20.glDeleteShader(fragment);
+        // ★ 必须先把自己 bind 上：下面那一批初始 uniform 走的是 glUniform*（作用于**当前程序**），
+        //   而此刻绑着的还是上一个程序（或 0）。没绑自己时它们要么落到 0 号程序上（GL_INVALID_OPERATION，
+        //   KHR_debug 会直接点名 "glUniform(program not linked)"），要么**静默改掉上一个程序的 uniform**。
+        GL20.glUseProgram(id);
         projectionLocation = GL20.glGetUniformLocation(id, "uProj");
         texturedLocation = GL20.glGetUniformLocation(id, "uTextured");
         tintLocation = GL20.glGetUniformLocation(id, "uTint");

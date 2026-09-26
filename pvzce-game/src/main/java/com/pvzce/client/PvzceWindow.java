@@ -109,6 +109,11 @@ public final class PvzceWindow implements AutoCloseable {
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 2);
         GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
         GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE);
+        // Opt-in debug context: with it the driver names the offending call instead of leaving us to
+        // guess from a bare `[GL] frame: 0x502`. A debug context is slower, hence the property.
+        if (Boolean.getBoolean("pvzce.traceGl")) {
+            GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_DEBUG_CONTEXT, GLFW.GLFW_TRUE);
+        }
 
         handle = GLFW.glfwCreateWindow(preferredWidth, preferredHeight, title, MemoryUtil.NULL, MemoryUtil.NULL);
         if (handle == MemoryUtil.NULL) {
@@ -130,10 +135,14 @@ public final class PvzceWindow implements AutoCloseable {
         GLFW.glfwMakeContextCurrent(handle);
         setVsync(config.vsync());
         GL.createCapabilities();
+        com.pvzce.client.renderer.RenderSystem.enableDebugOutput();
         if (config.fullscreen()) {
             setFullscreen(true);
         }
         GL20.glViewport(0, 0, width, height);
+        // Consume and report startup errors here rather than letting the frame loop's single
+        // glGetError attribute them to a frame that had nothing to do with them.
+        com.pvzce.client.renderer.RenderSystem.checkGlError("窗口初始化");
         GLFW.glfwShowWindow(handle);
     }
 
@@ -193,6 +202,53 @@ public final class PvzceWindow implements AutoCloseable {
     /** The GLFW window handle, for the native layers that need it. */
     public long handle() {
         return handle;
+    }
+
+    /**
+     * The window's size in <em>screen coordinates</em>, which is not the framebuffer size.
+     *
+     * <p>They differ whenever the display is scaled (content scale != 1), and the difference is
+     * exactly what a wrong click mapping looks like: GLFW reports cursor and touch positions in
+     * screen coordinates while {@link #width()}/{@link #height()} are framebuffer pixels. Kept as an
+     * accessor so the startup line (and whoever fixes that mapping) can see both numbers.
+     */
+    public int screenWidth() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer w = stack.mallocInt(1);
+            IntBuffer h = stack.mallocInt(1);
+            GLFW.glfwGetWindowSize(handle, w, h);
+            return w.get(0);
+        }
+    }
+
+    /** The window's height in screen coordinates; see {@link #screenWidth()}. */
+    public int screenHeight() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer w = stack.mallocInt(1);
+            IntBuffer h = stack.mallocInt(1);
+            GLFW.glfwGetWindowSize(handle, w, h);
+            return h.get(0);
+        }
+    }
+
+    /** The display's content scale for this window: 1.0 on an unscaled desktop. */
+    public float contentScaleX() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            java.nio.FloatBuffer x = stack.mallocFloat(1);
+            java.nio.FloatBuffer y = stack.mallocFloat(1);
+            GLFW.glfwGetWindowContentScale(handle, x, y);
+            return x.get(0);
+        }
+    }
+
+    /** The display's vertical content scale for this window; see {@link #contentScaleX()}. */
+    public float contentScaleY() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            java.nio.FloatBuffer x = stack.mallocFloat(1);
+            java.nio.FloatBuffer y = stack.mallocFloat(1);
+            GLFW.glfwGetWindowContentScale(handle, x, y);
+            return y.get(0);
+        }
     }
 
     /** The platform GLFW chose: {@code GLFW_PLATFORM_WAYLAND} and friends. */

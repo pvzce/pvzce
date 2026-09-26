@@ -1,5 +1,6 @@
 package com.pvzce.client.renderer;
 
+import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 
@@ -181,6 +182,36 @@ public final class RenderSystem {
 
     public static void viewport(int x, int y, int width, int height) {
         GL20.glViewport(x, y, width, height);
+    }
+
+    /**
+     * {@code -Dpvzce.traceGl=true}: let the driver name the offending call instead of leaving a bare
+     * {@code 0x502} to be guessed at.
+     *
+     * <p>Has to be installed <em>as early as possible</em>: a GL error is latched in the error queue
+     * and read much later, so a callback that is only installed after the window is built misses
+     * exactly the errors that happen while it is being built (which is where the fullscreen switch
+     * lives). Requires the debug-context hint, which {@code PvzceWindow} asks for under the same
+     * property.
+     */
+    public static void enableDebugOutput() {
+        if (!Boolean.getBoolean("pvzce.traceGl")) {
+            return;
+        }
+        if (!GL.getCapabilities().GL_KHR_debug) {
+            LOGGER.warn("[GL] 驱动没有 KHR_debug，拿不到出错的调用点");
+            return;
+        }
+        org.lwjgl.opengl.KHRDebug.glDebugMessageCallback(
+                (source, type, id, severity, length, message, userParam) -> {
+                    String text = org.lwjgl.opengl.GLDebugMessageCallback.getMessage(length, message);
+                    LOGGER.warn("[GL调试] source=0x{} type=0x{} severity=0x{} id={} {}",
+                            Integer.toHexString(source), Integer.toHexString(type),
+                            Integer.toHexString(severity), id, text == null ? "" : text.trim());
+                }, org.lwjgl.system.MemoryUtil.NULL);
+        GL11.glEnable(org.lwjgl.opengl.KHRDebug.GL_DEBUG_OUTPUT);
+        GL11.glEnable(org.lwjgl.opengl.KHRDebug.GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        LOGGER.info("[GL] 调试输出已打开（KHR_debug 同步模式）");
     }
 
     public static void checkGlError(String where) {
