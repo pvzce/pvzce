@@ -181,17 +181,17 @@
             {
               "kind": "plant",
               "id": "pvzce:hypno_shroom",
-              "count": 3
+              "count": 5
             },
             {
               "kind": "zombie",
               "id": "pvzce:basic_zombie",
-              "count": 8
+              "count": 7
             },
             {
               "kind": "zombie",
               "id": "pvzce:buckethead_zombie",
-              "count": 3
+              "count": 2
             },
             {
               "kind": "zombie",

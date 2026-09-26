@@ -111,6 +111,21 @@ public interface ZombieCapability {
     default void onDeath(ZombieEntity zombie, LevelAccess level) {
     }
 
+    /**
+     * A container let this zombie out, rather than a wave putting it down in a lane.
+     *
+     * <p>The vase level's pots are the case: a zombie that comes out of one appears wherever the
+     * pot stood, in the middle of the player's board, instead of walking in from the right-hand
+     * edge. Anything a capability counts <em>from the walk</em> - a fuse measured in cells covered,
+     * in the one shipped example (see {@code JackInTheBoxCapability}) - has nothing to count, and
+     * "how far along the lane is it" is not a question the player can answer about a zombie that
+     * never walked a lane.
+     *
+     * <p>Called once, at the spawn, and only by a container's own release path.
+     */
+    default void onReleased(ZombieEntity zombie, LevelAccess level) {
+    }
+
     default void save(CompoundTag tag) {
     }
 

@@ -107,6 +107,33 @@ class LevelEntryFlowTest {
                 "and the run is asked for right away, with the bar the server resolves");
     }
 
+    /**
+     * Restarting from the pause menu is the same entrance, so it skips the same screens.
+     *
+     * <p>Reported by the user: "如果选择重新开始，那么还会有选卡页面，是不是因为走了不同的路？" - it
+     * was. Entering from the list and the save prompt's restart both ask
+     * {@code skipsSeedScreen}, and the pause menu's 重新开始 did not, so the one level that says
+     * its card screen is not a question was asked it anyway.
+     */
+    @Test
+    void restartingALevelWithNoCardScreenGoesStraightBackIn() throws Exception {
+        com.pvzce.common.tag.TestContent.loadBuiltInContentAndTags();
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        LevelListS2C.LevelInfo info = levelInfo("pvzce:yard/adventure/4_5", "");
+        client.setLevelList(List.of(info));
+        client.level().init(info.id(), 9, 5, List.of(), List.of(),
+                List.of(), 2, List.of(), List.of(), "pvzce:plant_team", "植物方", List.of());
+
+        client.restartCurrentLevel();
+
+        assertFalse(client.currentScreen() instanceof ChooseSeedsScreen,
+                "the vase level declares no card screen, so a restart may not offer one either");
+        assertTrue(fixture.sentPackets().stream()
+                        .anyMatch(com.pvzce.common.network.packet.RestartLevelC2S.class::isInstance),
+                "the run is restarted on the server instead, without leaving and coming back");
+    }
+
     /** A level with nothing to resume still picks its cards first, exactly as before. */
     @Test
     void aFreshLevelStillGoesThroughTheSeedChooser() throws Exception {

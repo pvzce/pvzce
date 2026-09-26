@@ -199,6 +199,22 @@ public final class JackInTheBoxCapability implements ZombieCapability {
     }
 
     /**
+     * Out of a pot: the box opens on the spot.
+     *
+     * <p>The fuse is the ground it has covered, and a zombie a pot released has covered none of
+     * it - so a jack-in-the-box that comes out of a vase would otherwise stroll most of the lane
+     * before doing anything, which is not the trap the level is built around. It opens here
+     * instead, and the opening is still the {@code pop_ticks} warning it always was: the player
+     * who breaks that pot has the length of the lid coming up to save the plants around it.
+     */
+    @Override
+    public void onReleased(ZombieEntity zombie, LevelAccess level) {
+        if (!exploded && popTicksLeft <= 0) {
+            openTheBox(zombie, level);
+        }
+    }
+
+    /**
      * A jack-in-the-box with the lid up stands still.
      *
      * <p>It is not eating, not walking and not shootable-in-passing: the 110 ticks are the last

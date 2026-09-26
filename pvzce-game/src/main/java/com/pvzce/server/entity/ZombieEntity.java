@@ -289,6 +289,19 @@ public class ZombieEntity extends PvzceEntity {
         this.blowAwayDirection = direction;
     }
 
+    /**
+     * Tells every capability that a container let this zombie out rather than a wave.
+     *
+     * <p>One loop, and the entity stays ignorant of which capabilities care: a fuse measured in
+     * cells walked has nothing to count for a zombie that was never dropped into a lane
+     * ({@code JackInTheBoxCapability.onReleased}). Called by the pot that released it, once.
+     */
+    public void onReleased(LevelAccess level) {
+        for (Instance instance : capabilities) {
+            instance.capability.onReleased(this, level);
+        }
+    }
+
     /** Which way a blown-away body left, for the client's own effect. */
     public float blowAwayDirection() {
         return blowAwayDirection;

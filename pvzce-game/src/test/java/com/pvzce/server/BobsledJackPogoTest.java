@@ -187,6 +187,34 @@ class BobsledJackPogoTest {
     }
 
     /**
+     * A jack-in-the-box a pot releases opens on the spot instead of walking its fuse first.
+     *
+     * <p>Its fuse is the ground it has covered (6.5 cells), and a zombie that comes out of a vase
+     * in the middle of the board has covered none - so the pot has to say "this one was let out"
+     * rather than let it stroll. The opening is still the warning: the lid comes up, and the blast
+     * follows {@code pop_ticks} later, which is the player's chance to spend something on it.
+     */
+    @Test
+    void theBoxAPotReleasedOpensAtOnce() {
+        LevelServer level = lawn(List.of());
+        ZombieEntity released = spawn(level, JACK_IN_THE_BOX, 4.5F, 2);
+        JackInTheBoxCapability fuse = released.capability(JackInTheBoxCapability.class);
+        assertNotNull(fuse);
+        assertFalse(fuse.isPopping(), "a freshly spawned one is still walking");
+
+        released.onReleased(level);
+
+        assertTrue(fuse.isPopping(), "the pot's one has its lid up immediately");
+        assertEquals(4.5F, released.cellX(), 0.0001F, "and it has not walked anywhere");
+        // And the blast is still pop_ticks away, not instant: that is the answer to "the player
+        // gets a warning", and it is what makes the pot a decision rather than a tax.
+        tick(level, fuse.popTicks() - 1);
+        assertTrue(released.isAlive(), "it is still standing for the whole wind-up");
+        tick(level, 2);
+        assertFalse(released.isAlive(), "and then the box goes off");
+    }
+
+    /**
      * The box opens before it goes off, and the zombie stands still while it does.
      *
      * <p>The 110 ticks are the player's last chance to answer it, which only exists if the blast's

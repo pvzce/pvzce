@@ -154,7 +154,9 @@ CONVEYORS: Dict[int, dict] = {
 #: made the level a formality): every plant pot now hands over one whole plant, so the plants are
 #: the player's army and the zombies have to be able to threaten it. The rounds also get harder by
 #: *kind*, not only by count - one Buckethead in the first, two plus a football in the second,
-#: and the third adds the dancing and jack-in-the-box zombies.
+#: and the third adds the dancing and jack-in-the-box zombies. The third round was two zombies
+#: heavier than this on the first pass and the user asked for it a little easier: two Bucketheads
+#: instead of three, and two more hypno-shrooms to answer them with.
 SCARY_POTTER_ROUNDS = [
     {"from_column": 6, "leaf_count": 0, "pots": [
         {"kind": "sun", "id": "pvzce:sun", "count": 2},
@@ -174,9 +176,9 @@ SCARY_POTTER_ROUNDS = [
         {"kind": "sun", "id": "pvzce:sun", "count": 3},
         {"kind": "plant", "id": "pvzce:pea_shooter", "count": 3},
         {"kind": "plant", "id": "pvzce:snow_pea", "count": 3},
-        {"kind": "plant", "id": "pvzce:hypno_shroom", "count": 3},
-        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 8},
-        {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 3},
+        {"kind": "plant", "id": "pvzce:hypno_shroom", "count": 5},
+        {"kind": "zombie", "id": "pvzce:basic_zombie", "count": 7},
+        {"kind": "zombie", "id": "pvzce:buckethead_zombie", "count": 2},
         {"kind": "zombie", "id": "pvzce:dancing_zombie", "count": 1},
         {"kind": "zombie", "id": "pvzce:jack_in_the_box_zombie", "count": 1}]},
 ]

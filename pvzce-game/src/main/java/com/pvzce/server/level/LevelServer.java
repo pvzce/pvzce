@@ -3913,7 +3913,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
             bridge.send(new ServerMessageS2C("花瓶里掉出了阳光。"));
         } else {
-            spawnZombie(contents.id(), x + 0.5F, y);
+            ZombieEntity zombie = spawnZombie(contents.id(), x + 0.5F, y);
+            if (zombie != null) {
+                // A pot is not a lane: a zombie it releases appears in the middle of the board, so
+                // anything that counts how far it has walked starts from nothing (see
+                // `ZombieCapability.onReleased`).
+                zombie.onReleased(this);
+            }
             bridge.send(new ServerMessageS2C("花瓶里跳出了一只僵尸。"));
         }
         return true;

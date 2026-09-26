@@ -67,8 +67,12 @@ public final class EntityVisuals {
      * <p>Centred on the cell it fell in rather than standing on the cell's floor like a plant: a
      * card lying on the grass is not something with feet, and the anchor a plant is drawn from put
      * it in the cell above the one the pot stood in.
+     *
+     * <p>Size: half a cell wide and seven tenths tall, which is about the packet the original
+     * drops and smaller than the pot it came out of. The first cut was 0.72 x 1.0 - a full cell
+     * tall, bigger than the vase - and the user reported it as "掉落的植物卡似乎有点太大了".
      */
-    private static final Visuals CARD_DROP = new Visuals(0F, 0.72F, 1.0F, 0.36F, 0.5F, 0.35F, 30);
+    private static final Visuals CARD_DROP = new Visuals(0F, 0.52F, 0.72F, 0.26F, 0.36F, 0.35F, 30);
     /**
      * The size, in cells, that a drop's own art is authored at.
      *

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -133,6 +134,43 @@ class ExplosiveBoundsTest {
         assertEquals(victim.cellX(), squash.cellX(), 0.35F,
                 "the plant came down on the zombie rather than beside it");
         assertTrue(squash.isRemoved(), "and it spends itself");
+    }
+
+    /**
+     * The squash notices a zombie a whole cell away - and still not one two cells away.
+     *
+     * <p>The user's number ("判定范围太窄了，应该为前后各一格的范围"). Half a cell meant it only
+     * committed to something already on top of it, which is one bite too late: the zombie has
+     * been chewing since it reached {@code BITE_REACH} (0.55).
+     */
+    @Test
+    void theSquashNoticesAZombieOneCellAway() {
+        for (float distance : new float[]{0.9F, -0.9F}) {
+            LevelServer level = lawn(List.of(SQUASH));
+            PlantEntity squash = level.spawnPlant(BuiltInRegistries.PLANTS.get(SQUASH),
+                    level.team(PLANT_TEAM), 3, 2);
+            level.flushPending(packet -> { });
+            ZombieEntity victim = level.spawnZombie(BASIC, level.team(ZOMBIE_TEAM), 3.5F + distance, 2);
+            level.flushPending(packet -> { });
+
+            tick(level, 200);
+
+            assertTrue(!victim.isAlive(), "a zombie " + distance + " cells away is in range");
+            assertTrue(squash.isRemoved(), "and the squash spent itself on it");
+        }
+
+        // Two cells is out of range: the squash is a target, not a lane sweep.
+        LevelServer level = lawn(List.of(SQUASH));
+        PlantEntity squash = level.spawnPlant(BuiltInRegistries.PLANTS.get(SQUASH),
+                level.team(PLANT_TEAM), 3, 2);
+        level.flushPending(packet -> { });
+        ZombieEntity far = level.spawnZombie(BASIC, level.team(ZOMBIE_TEAM), 5.5F, 2);
+        level.flushPending(packet -> { });
+
+        tick(level, 200);
+
+        assertTrue(far.isAlive(), "two cells away is not the squash's business");
+        assertFalse(squash.isRemoved(), "so it stays where it is, waiting");
     }
 
     /** A squash notices nothing and stays put when the lane is empty. */

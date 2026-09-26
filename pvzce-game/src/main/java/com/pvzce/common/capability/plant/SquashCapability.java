@@ -50,8 +50,15 @@ import java.util.Optional;
  * burn, so the zombie dies an ordinary death instead of being left as the ash line's charred body.
  */
 public final class SquashCapability implements PlantCapability {
-    /** How close a zombie has to be, in cells, before the squash commits. */
-    public static final float DEFAULT_TRIGGER_RANGE = 0.5F;
+    /**
+     * How close a zombie has to be, in cells, before the squash commits.
+     *
+     * <p>One cell either side of its own: the user's own number ("前后各一格"). Half a cell was
+     * the first cut of it and it read as "the squash only notices what is already eating it" - by
+     * then the zombie has been chewing for a bite or two, and a plant cornered like that spends
+     * its card on a zombie that is already there.
+     */
+    public static final float DEFAULT_TRIGGER_RANGE = 1.0F;
     /**
      * How long the leap takes, in ticks.
      *

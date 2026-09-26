@@ -2092,9 +2092,10 @@ public final class PvzceClient {
      * level's pause menu, so "restart" never actually closed anything. Now the current
      * level is genuinely closed first (the server writes a save on the way out, so
      * backing out of the chooser still leaves the run resumable from the level list)
-     * and the seed chooser is entered exactly like a normal level entry - a screen
-     * replacement, with 返回/ESC leading to the level list rather than back into the
-     * level that was just closed.
+     * and the way back in is the level's own way in: the chooser for a level that has
+     * one, and straight into the run for a level that says its card screen is not a
+     * question ({@link #skipsSeedScreen}) - the same decision {@link #enterLevelFromMenu}
+     * makes, because "restart" is that entry minus the old run.
      */
     public void restartCurrentLevel() {
         String levelId = level.levelId();
@@ -2103,6 +2104,16 @@ public final class PvzceClient {
             // No registry snapshot for this level (editor/smoke entry): fall back to a
             // plain server-side restart, which still closes the old instance. There is no
             // chooser on this path either, so the opening dialogue plays in game.
+            requestFreshRunDirectly(levelId, true);
+            return;
+        }
+        if (skipsSeedScreen(info)) {
+            // The same level that goes straight in on the way in goes straight back in on a
+            // restart. This used to be the one entrance that did not ask: entering from the list
+            // and the save prompt's restart both check `skipsSeedScreen`, and the pause menu sent
+            // every level through the chooser - so restarting 4-5 (whose bar is two fixed cards)
+            // offered a card screen the level had said it does not have. (The user found it:
+            // "如果选择重新开始，那么还会有选卡页面，是不是因为走了不同的路？")
             requestFreshRunDirectly(levelId, true);
             return;
         }

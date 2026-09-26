@@ -1778,6 +1778,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // other zombie.
         renderRisingZombies(camera);
 
+        renderContainerHover(camera);
+
         if (selectedCard >= 0) {
             int hoverX = camera.cellX(client.window().cursorX(), client.window().cursorY());
             int hoverY = camera.cellY(client.window().cursorX(), client.window().cursorY());
@@ -2344,6 +2346,53 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
+     * Lights up the container under the cursor: a vase or a scary pot, when a click would do
+     * something with it.
+     *
+     * <p>The user asked for it ("鼠标放到花瓶上后，应该让花瓶高亮显示"), and the reason is the same one
+     * the plantable-cell tint exists for: a container is a thing the *click* acts on, and without a
+     * mark the only way to find out that a pot is clickable is to click it. The rule is deliberately
+     * the click's own rule rather than "the cell holds a pot": a packet in hand plants rather than
+     * smashes, and a pot refuses a plant card while a vase takes one - so the highlight appears
+     * exactly when the click would land, and never when it would be refused.
+     */
+    private void renderContainerHover(PvzceCamera camera) {
+        double cursorX = client.window().cursorX();
+        double cursorY = client.window().cursorY();
+        if (!camera.inBoard(cursorX, cursorY)) {
+            return;
+        }
+        int x = camera.cellX(cursorX, cursorY);
+        int y = camera.cellY(cursorX, cursorY);
+        if (x < 0 || x >= client.level().width() || y < 0 || y >= client.level().height()) {
+            return;
+        }
+        String scene = client.level().sceneAt(x, y);
+        if (!com.pvzce.common.PvzceIds.isSmashableContainer(Identifier.tryParse(scene))) {
+            return;
+        }
+        if (client.level().holdingCard()) {
+            // A packet in hand plants: a container is in the way, not a target.
+            return;
+        }
+        boolean bareHanded = selectedCard < 0 && client.level().carriedPlant().isEmpty();
+        boolean cardOntoVase = selectedCard >= 0 && isVaseScene(scene);
+        if (!bareHanded && !cardOntoVase) {
+            return;
+        }
+        // A warm wash rather than a green/red tint: this is not a verdict about whether the cell
+        // can take a plant, it is "there is something here to hit".
+        client.drawSolid(x, y, 1F, 1F, 0.21F, 1F, 0.94F, 0.66F, 0.25F);
+    }
+
+    /** True when this cell's scene is one of the player's own garden vases. */
+    private static boolean isVaseScene(String scene) {
+        Identifier id = Identifier.tryParse(scene);
+        return com.pvzce.common.PvzceIds.VASE.equals(id)
+                || com.pvzce.common.PvzceIds.VASE_FULL.equals(id);
+    }
+
+    /**
      * The seed packet under the cursor, or {@code null}.
      *
      * <p>Tested as a box rather than by a radius: a packet is a card lying on the lawn, and the
@@ -2365,10 +2414,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 continue;
             }
             float dx = entity.cellX() - worldX;
-            // The same box the packet is drawn in: it is centred on its cell, one cell tall.
-            float dy = entity.cellY() + visuals.spriteHeight() / 2F - visuals.spriteOffsetY() - worldY;
-            if (Math.abs(dx) > visuals.spriteWidth() / 2F
-                    || Math.abs(dy) > visuals.spriteHeight() / 2F) {
+            // The box the packet is drawn in, plus a margin: the picture is deliberately small
+            // (see EntityVisuals.CARD_DROP), and a card the player has to hit pixel-perfect is a
+            // card they lose to the clock.
+            float halfWidth = visuals.spriteWidth() * CARD_DROP_PICKUP_MARGIN / 2F;
+            float halfHeight = visuals.spriteHeight() * CARD_DROP_PICKUP_MARGIN / 2F;
+            float dy = entity.cellY() - worldY;
+            if (Math.abs(dx) > halfWidth || Math.abs(dy) > halfHeight) {
                 continue;
             }
             float distance = dx * dx + dy * dy;
@@ -3488,6 +3540,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             summonMallet(cellX, cellY);
         }
     }
+
+    /**
+     * How much bigger than the picture a seed packet's click target is.
+     *
+     * <p>1.5: the packet is half a cell wide, so the picture alone is a small target for a thing
+     * that has twenty seconds to live. The picture stays the size it is - what grows is only the
+     * area that counts as "the player clicked it".
+     */
+    private static final float CARD_DROP_PICKUP_MARGIN = 1.5F;
 
     /** True when this cell holds something a bare click breaks open: a vase, or a scary pot. */
     private boolean containerAt(int cellX, int cellY) {

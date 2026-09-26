@@ -10,7 +10,7 @@
   "capabilities": [
     {
       "type": "pvzce:squash",
-      "trigger_range": 0.5,
+      "trigger_range": 1.0,
       "fuse_ticks": 75,
       "damage": 1800,
       "damage_type": "pvzce:crush"
