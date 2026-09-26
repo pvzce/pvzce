@@ -1,7 +1,10 @@
 package com.pvzce.client.gui.components;
 
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.renderer.SpriteRenderer;
+
+import java.util.List;
 
 /** Minimal MC-style widget: bounds + visible/active/hovered state. */
 public abstract class AbstractWidget {
@@ -53,6 +56,65 @@ public abstract class AbstractWidget {
     }
 
     public void mouseReleased(double mouseX, double guiY, int button) {
+    }
+
+    /**
+     * The scroll region a press at this point would drive, or {@code null} for "not scrollable".
+     *
+     * <p>Asked by the touch gesture layer before it lets a press become a swipe
+     * ({@code com.pvzce.client.input.PointerGesture}): a widget that scrolls answers here, and a
+     * screen that scrolls its own drawing answers {@code Screen.onScrollRegionAt} instead.
+     * Implementations must return {@code null} outside their own bounds - the caller only checks
+     * {@link #isMouseOver}, it does not know how a subclass clips itself.
+     */
+    public ScrollRegion scrollRegionAt(double mouseX, double guiY) {
+        return null;
+    }
+
+    /**
+     * True when this widget needs press, drag and release for itself, so a press on it must never
+     * be reinterpreted as a swipe.
+     *
+     * <p>Only {@link Slider} says yes today. Without the rule, a slider drawn over a scrolling list
+     * would be dead on a touchscreen: its press would become a scroll candidate, its drags would be
+     * eaten as scrolling and its release would never commit the value.
+     */
+    public boolean claimsDrag() {
+        return false;
+    }
+
+    /**
+     * True when any of {@code widgets} under the point claims the drag for itself.
+     *
+     * <p>Checked <em>before</em> any region, by both callers, because a widget that needs
+     * press-drag-release (a {@link Slider}) must win over a region it happens to be drawn on top of.
+     */
+    public static boolean claimsDragAt(List<AbstractWidget> widgets, double mouseX, double guiY) {
+        for (AbstractWidget widget : widgets) {
+            if (widget.isMouseOver(mouseX, guiY) && widget.claimsDrag()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The first scroll region among {@code widgets} under the point, or {@code null}.
+     *
+     * <p>Lives here rather than in each caller because the two callers are a screen and a dialog, and
+     * "which widget is under this point" has to give the same answer to both. The scan follows the
+     * widget list's own order - the same order {@code Screen.mouseClicked} offers the click in.
+     */
+    public static ScrollRegion regionAt(List<AbstractWidget> widgets, double mouseX, double guiY) {
+        for (AbstractWidget widget : widgets) {
+            if (widget.isMouseOver(mouseX, guiY)) {
+                ScrollRegion region = widget.scrollRegionAt(mouseX, guiY);
+                if (region != null) {
+                    return region;
+                }
+            }
+        }
+        return null;
     }
 
     public void setPosition(int x, int y) {

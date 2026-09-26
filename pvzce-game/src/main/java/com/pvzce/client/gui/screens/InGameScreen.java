@@ -8,6 +8,7 @@ import com.pvzce.client.ResourceCollectAnimation;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.PvzceConstants;
@@ -3995,9 +3996,32 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     protected void onMouseScrolled(double guiX, double guiY, double amount) {
         // No modal check here: Screen.mouseScrolled already routed a modal dialog
         // before calling this hook.
-        if (client.level().gameState().equals("running")) {
+        if (cardBarScrollsAt(guiX, guiY)) {
             cardBar().scroll(guiX, guiY, amount);
         }
+    }
+
+    /**
+     * True when the card row is the thing under this point, and there is more of it than fits.
+     *
+     * <p>One predicate for two callers - the wheel and the touch gesture layer - because they have to
+     * agree: a row that the wheel scrolls must be a row a swipe scrolls, and a row that fits (or a
+     * conveyor, which deals everything onto the screen) must stay an ordinary click target.
+     */
+    private boolean cardBarScrollsAt(double guiX, double guiY) {
+        return client.level().gameState().equals("running")
+                && cardBar().scrollStep() > 0
+                && cardBar().contains(guiX, guiY);
+    }
+
+    @Override
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        if (!cardBarScrollsAt(guiX, guiY)) {
+            return null;
+        }
+        // The row runs left to right, so dragging it right and wheeling up both mean "show the cards
+        // before these" - the two readings coincide on a horizontal region.
+        return ScrollRegion.dragsContent(ScrollRegion.Axis.HORIZONTAL, cardBar().scrollStep());
     }
 
     @Override

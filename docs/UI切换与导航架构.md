@@ -396,6 +396,11 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
     用 `replaceRoot`。
 11. **离开时要释放的东西 → `Screen.onRemoved()`**，不要写进各自的出口方法。
 12. **浮在别的屏上面的界面 → `Overlay`**，不要压进屏幕栈：栈深度是"嵌套了几屏"，不是"屏 + 浮层"。
+14. **会滚的界面 → 声明 `onScrollRegionAt`**（返回 `client/input/ScrollRegion`），而且**必须复用滚轮处理器
+    已经用的那个矩形**：不声明的话，滑动会在起点按下一次（商店行就是买、列表就是选中），声明了才把点击留到松手。
+    控件级的列表用 `AbstractSelectionList` 自带的那份；压着列表的滑条靠 `claimsDrag()` 保住自己的拖动。
+    新界面不许只提供滚轮一条路（触控下那条路不存在）。
+
 13. **有真实构图的整屏页面 → `MenuPageCanvas`**（800x600 画布 + contain 缩放），不要直接在 GUI 单位里
     排版：默认窗口只有 427x240，直接排版出来的东西没有面板也没有层次（商店页与数据包页就是这么坏掉的）。
     控件仍留在 GUI 单位，用 `Canvas.widgetAt` / `interiorX/Width/Bottom/Height` 放进面板。

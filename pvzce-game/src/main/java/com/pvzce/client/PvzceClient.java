@@ -18,6 +18,8 @@ import com.pvzce.client.gui.screens.RoundClearDialog;
 import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.screens.TitleScreen;
+import com.pvzce.client.input.PointerGesture;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.client.particle.ParticleEngine;
@@ -150,6 +152,21 @@ public final class PvzceClient {
     private long backspaceNextNanos;
     private boolean backspaceHeld;
     private boolean leftMouseWasDown;
+    /**
+     * What a finger did: a tap is a click, a swipe over a scroll region is a scroll.
+     *
+     * <p>Touch arrives as mouse input - Windows promotes a single finger to mouse messages, X11
+     * emulates the pointer for the first touch - so the tap half needs no code at all. This exists
+     * for the other half: turning a swipe into the wheel, which cannot be done naively because
+     * clicks are delivered on <em>press</em> and nothing here has ever had a movement threshold, so
+     * a synthesised scroll would also press whatever the finger landed on (in the shop that press
+     * buys, in the player picker it switches player, on the card bar it selects a card).
+     *
+     * <p>Switched off with {@code -Dpvzce.touch=false}, which is the whole of "关闭触控支持": the
+     * platform's own promotion of a finger into mouse messages cannot be turned off from inside the
+     * game, so what the switch disables is this layer - the deferred click and the swipe scrolling.
+     */
+    private final PointerGesture gesture;
     private char suppressNextChar;
     private boolean debugOverlayEnabled;
     /** Set from {@code pvzce.dumpFontAtlas}: where to write the glyph atlases, once. */
@@ -219,6 +236,11 @@ public final class PvzceClient {
         // running the render loop. `load` writes the file out when there is none, so this
         // also means a constructed client always has a config directory.
         this.config = PvzceClientConfig.load(gameDir);
+        // Built here rather than in run() for the same reason the config is: a windowless client
+        // (tests, tooling) has one too, and the switch has to be read once, not once per frame.
+        this.gesture = new PointerGesture(
+                this::gestureRegionAt, this::deliverGuiClick, this::dispatchGuiScrolled,
+                Boolean.parseBoolean(System.getProperty("pvzce.touch", "true")));
         String dumpAtlas = System.getProperty("pvzce.dumpFontAtlas");
         if (dumpAtlas != null && !dumpAtlas.isBlank()) {
             this.dumpFontAtlasTo = java.nio.file.Path.of(dumpAtlas);
@@ -532,15 +554,28 @@ public final class PvzceClient {
         backspaceHeld = backspaceDown;
         Integer button;
         while ((button = window.pollMouseButton()) != null) {
-            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT || button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-                dispatchMouseClicked(button);
+            if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                continue;
             }
+            // A press inside a scroll region belongs to the gesture, which holds the click back and
+            // delivers it as a tap when the finger comes up without having travelled (see
+            // PointerGesture). Everything else is an ordinary press-time click, exactly as before.
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
+                    && gesture.press(button, guiMouseX(window.cursorX()), guiMouseY(window.cursorY()),
+                            window.isMouseButtonDown(GLFW.GLFW_MOUSE_BUTTON_LEFT))) {
+                continue;
+            }
+            dispatchMouseClicked(button);
         }
         boolean leftDown = window.isMouseButtonDown(GLFW.GLFW_MOUSE_BUTTON_LEFT);
         if (leftDown) {
-            dispatchMouseDragged();
+            if (!gesture.dragged(guiMouseX(window.cursorX()), guiMouseY(window.cursorY()))) {
+                dispatchMouseDragged();
+            }
         } else if (leftMouseWasDown) {
-            dispatchMouseReleased();
+            if (!gesture.released()) {
+                dispatchMouseReleased();
+            }
         }
         leftMouseWasDown = leftDown;
         Double scroll;
@@ -602,6 +637,46 @@ public final class PvzceClient {
         } else {
             currentScreen().mouseScrolled(window.cursorX(), window.cursorY(), amount);
         }
+    }
+
+    /**
+     * A scroll in logical GUI coordinates, to whichever layer owns the pointer.
+     *
+     * <p>The gesture's half of {@link #dispatchMouseScrolled}: same routing rule, but the point comes
+     * from the finger rather than from the live cursor. The two conversions are not symmetric in the
+     * layers below ({@code Overlay.mouseScrolled} takes GUI coordinates, {@code Screen.mouseScrolled}
+     * takes raw ones), so this is the one place that knows both.
+     */
+    private void dispatchGuiScrolled(double guiX, double guiY, double amount) {
+        if (overlay != null) {
+            overlay.mouseScrolled(guiX, guiY, amount);
+        } else {
+            currentScreen().mouseScrolled(rawMouseX(guiX), rawMouseY(guiY), amount);
+        }
+    }
+
+    /** Raw framebuffer X for a logical GUI X: the inverse of {@link #guiMouseX}. */
+    private double rawMouseX(double guiX) {
+        return guiX * window.width() / (double) Math.max(1, guiWidth());
+    }
+
+    /** Raw framebuffer Y (top-down) for a logical GUI Y: the inverse of {@link #guiMouseY}. */
+    private double rawMouseY(double guiY) {
+        return window.height() - guiY * window.height() / (double) Math.max(1, guiHeight());
+    }
+
+    /**
+     * Where a press at this point would scroll, to whichever layer owns the pointer.
+     *
+     * <p>The same rule {@link #dispatchMouseClicked} follows: an open overlay owns the mouse, and
+     * otherwise the current screen answers - its modal dialog first, then its widgets, then the
+     * regions it draws itself. Kept here, beside the dispatch it mirrors, so the gesture and the
+     * click cannot come to different conclusions about which layer a point belongs to.
+     */
+    private ScrollRegion gestureRegionAt(double guiX, double guiY) {
+        return overlay != null
+                ? overlay.scrollRegionAt(guiX, guiY)
+                : currentScreen().scrollRegionAt(guiX, guiY);
     }
 
     /** Opens the console over the current screen; {@code initialContents} pre-fills it. */
@@ -672,6 +747,41 @@ public final class PvzceClient {
     void deliverRawRelease(double rawX, double rawY, int button) {
         window.warpCursor(rawX, rawY);
         dispatchMouseReleased();
+    }
+
+    /**
+     * A whole swipe through the touch gesture: press, travel in eight steps, release.
+     *
+     * <p>Package-private for the smoke driver, and deliberately routed through the gesture rather
+     * than through {@link #dispatchMouseDragged}: what a screenshot has to show is the decision the
+     * gesture makes - a swipe over a scroll region scrolls it and does <em>not</em> press whatever it
+     * started on - and {@code smokeDragTo} bypasses that decision entirely by dispatching the drag
+     * itself. Eight steps rather than one jump because that is what a finger produces, and the
+     * gesture's step accumulator is part of what is under test.
+     *
+     * <p>A swipe aimed outside every scroll region behaves like the mouse it stands in for: the click
+     * is delivered on press and the drag and release follow, exactly as the frame loop would.
+     */
+    void deliverGuiSwipe(double fromGuiX, double fromGuiY, double toGuiX, double toGuiY) {
+        double rawFromX = rawMouseX(fromGuiX);
+        double rawFromY = rawMouseY(fromGuiY);
+        double rawToX = rawMouseX(toGuiX);
+        double rawToY = rawMouseY(toGuiY);
+        if (!gesture.press(GLFW.GLFW_MOUSE_BUTTON_LEFT, fromGuiX, fromGuiY, true)) {
+            window.warpCursor(rawFromX, rawFromY);
+            dispatchMouseClicked(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            window.warpCursor(rawToX, rawToY);
+            dispatchMouseDragged();
+            dispatchMouseReleased();
+            return;
+        }
+        int steps = 8;
+        for (int i = 1; i <= steps; i++) {
+            double travelled = i / (double) steps;
+            gesture.dragged(fromGuiX + (toGuiX - fromGuiX) * travelled,
+                    fromGuiY + (toGuiY - fromGuiY) * travelled);
+        }
+        gesture.released();
     }
 
     // ---------- rendering ----------

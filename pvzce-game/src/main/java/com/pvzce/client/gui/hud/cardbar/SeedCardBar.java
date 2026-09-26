@@ -155,6 +155,22 @@ public final class SeedCardBar implements CardBar {
         return cardHeight;
     }
 
+    /**
+     * One card plus its gap of finger travel, so a swipe moves the row one card at a time.
+     *
+     * <p>Deliberately the same number {@link #slotAt} lays the cards out with: a step of its own
+     * would make the row drift away from the finger.
+     */
+    @Override
+    public int scrollStep() {
+        List<SlotInfo> slots = slots();
+        if (slots.isEmpty()) {
+            return 0;
+        }
+        updateLayout(slots.size());
+        return cardMaxScroll > 0 ? cardWidth + cardGap : 0;
+    }
+
     private void updateLayout(int slotCount) {
         PvzceClient client = host.client();
         int guiW = client.guiWidth();

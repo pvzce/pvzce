@@ -2,6 +2,7 @@ package com.pvzce.client.gui;
 
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.components.EditBox;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.common.network.packet.CommandC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.SuggestionsS2C;
@@ -286,6 +287,19 @@ public final class ConsoleOverlay extends Overlay {
             }
         }
         messageScroll = Math.max(0, messageScroll - (int) amount);
+    }
+
+    /**
+     * The console scrolls vertically wherever the wheel does: the suggestion popup over its own
+     * rectangle, the message log everywhere else.
+     *
+     * <p>{@link ScrollRegion.Swipe#DRAGS_CONTENT} because {@code renderMessages} draws newest-first
+     * downward and scrolls by skipping towards older lines, so dragging the text down walks back
+     * towards the older messages - the direction the finger suggests.
+     */
+    @Override
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        return ScrollRegion.dragsContent(ScrollRegion.Axis.VERTICAL, ScrollRegion.DEFAULT_STEP);
     }
 
     /** Left edge of the suggestion popup. */

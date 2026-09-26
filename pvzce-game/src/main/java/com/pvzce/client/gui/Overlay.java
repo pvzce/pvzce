@@ -3,6 +3,7 @@ package com.pvzce.client.gui;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.components.AbstractWidget;
 import com.pvzce.client.gui.components.EditBox;
+import com.pvzce.client.input.ScrollRegion;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -196,5 +197,28 @@ public abstract class Overlay {
 
     /** Overlay-specific scroll handling. */
     protected void onMouseScrolled(double guiX, double guiY, double amount) {
+    }
+
+    /**
+     * The scroll region a press at this point would drive, or {@code null}.
+     *
+     * <p>Mirrors {@code Screen.scrollRegionAt} for the layer that floats above screens, in the same
+     * order ({@link #mouseScrolled} feeds widgets first, then the overlay's own hook). The console is
+     * the only overlay there is, and it scrolls its message log.
+     */
+    public final ScrollRegion scrollRegionAt(double guiX, double guiY) {
+        if (AbstractWidget.claimsDragAt(widgets, guiX, guiY)) {
+            return null;
+        }
+        ScrollRegion widget = AbstractWidget.regionAt(widgets, guiX, guiY);
+        return widget != null ? widget : onScrollRegionAt(guiX, guiY);
+    }
+
+    /**
+     * Overlay-specific scroll region. Must be the same rectangle {@link #onMouseScrolled} tests, so
+     * a swipe and the wheel cannot come apart.
+     */
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        return null;
     }
 }

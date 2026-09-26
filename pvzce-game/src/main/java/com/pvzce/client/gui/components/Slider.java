@@ -98,6 +98,15 @@ public class Slider extends AbstractWidget {
         }
     }
 
+    /**
+     * A slider is the one widget whose gesture is the whole press-drag-release triple, so the touch
+     * gesture layer has to leave its presses alone ({@link AbstractWidget#claimsDrag()}).
+     */
+    @Override
+    public boolean claimsDrag() {
+        return true;
+    }
+
     @Override
     public void mouseScrolled(double mouseX, double guiY, double amount) {
         if (isMouseOver(mouseX, guiY)) {

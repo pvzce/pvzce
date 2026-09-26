@@ -168,6 +168,19 @@ final public class SmokeDriver {
     private final int smokeDragFrame = Integer.getInteger("pvzce.smokeDragFrame", 60);
     private boolean smokeDragDone;
     /**
+     * Development smoke hook: a whole swipe - press, travel in steps, release - as
+     * {@code fromX,fromY,toX,toY} in logical GUI coordinates.
+     *
+     * <p>{@code smokeDragTo} cannot stand in for this one: it calls the drag and release dispatch
+     * directly, so it never reaches the gesture that decides whether a press is a tap or a scroll
+     * (see {@code client.input.PointerGesture}). This hook drives the same three calls the frame loop
+     * makes, which is the only way a screenshot can show that a swipe scrolled a list <em>and did not
+     * press the row it started on</em>.
+     */
+    private final double[] smokeSwipe = parseSwipe(System.getProperty("pvzce.smokeSwipe", ""));
+    private final int smokeSwipeFrame = Integer.getInteger("pvzce.smokeSwipeFrame", 90);
+    private boolean smokeSwipeDone;
+    /**
      * Smoke hook: keep the pointer at this GUI point, so hover states can be photographed.
      *
      * <p>{@code smokeClick} delivers a click at a point without moving the pointer, and half
@@ -549,6 +562,12 @@ final public class SmokeDriver {
             client.deliverRawDrag(rawX, rawY, 0);
             client.deliverRawRelease(rawX, rawY, 0);
         }
+        if (smokeSwipe != null && !smokeSwipeDone && clientTick == smokeSwipeFrame) {
+            smokeSwipeDone = true;
+            System.out.println("[SMOKE] swipe gui=" + smokeSwipe[0] + "," + smokeSwipe[1]
+                    + " -> " + smokeSwipe[2] + "," + smokeSwipe[3]);
+            client.deliverGuiSwipe(smokeSwipe[0], smokeSwipe[1], smokeSwipe[2], smokeSwipe[3]);
+        }
         if (smokeFrames > 0 && clientTick == smokeFrames) {
             System.out.println("[SMOKE] frame " + smokeFrames + " rendered, screen="
                     + screen.getClass().getSimpleName());
@@ -749,6 +768,26 @@ final public class SmokeDriver {
     }
 
     /** Parses {@code x,y} in logical GUI coordinates, or null when it is absent or malformed. */
+    /** Four numbers, for the one hook that needs a start and an end. */
+    private static double[] parseSwipe(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String[] parts = raw.split(",");
+        if (parts.length != 4) {
+            return null;
+        }
+        try {
+            double[] parsed = new double[4];
+            for (int i = 0; i < 4; i++) {
+                parsed[i] = Double.parseDouble(parts[i].trim());
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private static double[] parsePoint(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;

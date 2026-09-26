@@ -5,6 +5,7 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.components.AbstractWidget;
 import com.pvzce.client.gui.components.Dialog;
 import com.pvzce.client.gui.components.EditBox;
+import com.pvzce.client.input.ScrollRegion;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -512,6 +513,40 @@ public abstract class Screen {
 
     /** Screen-specific scroll handling, called only when no modal dialog is open. */
     protected void onMouseScrolled(double guiX, double guiY, double amount) {
+    }
+
+    /**
+     * The scroll region a press at this point would drive, or {@code null} for "an ordinary press".
+     *
+     * <p>This is what tells the touch gesture layer where a swipe is allowed to scroll
+     * ({@code client.input.PointerGesture}): inside a region the press is held back until the finger
+     * comes up, so a swipe cannot also press whatever it started on - and pressing is destructive in
+     * the screens that scroll (the shop buys, the player picker switches, the card bar selects).
+     *
+     * <p>The order is the order a click takes - modal dialog first, then the widgets, then the
+     * screen's own hook - because the gesture and the click have to agree about which layer owns a
+     * point. {@code final} for the same reason the mouse dispatch above it is.
+     */
+    public final ScrollRegion scrollRegionAt(double guiX, double guiY) {
+        if (AbstractWidget.claimsDragAt(widgets, guiX, guiY)) {
+            return null;
+        }
+        Dialog modal = modalDialog();
+        if (modal != null) {
+            return modal.scrollRegionAt(guiX, guiY);
+        }
+        ScrollRegion widget = AbstractWidget.regionAt(widgets, guiX, guiY);
+        return widget != null ? widget : onScrollRegionAt(guiX, guiY);
+    }
+
+    /**
+     * Screen-specific scroll region, called only when no modal dialog is open and no widget took the
+     * point. A screen that scrolls its own drawing - the card bar, the seed pool, the level grid, the
+     * almanac - overrides this and returns the <em>same</em> rectangle its wheel handler tests, so
+     * that "can it scroll" and "does a swipe scroll it" cannot drift apart.
+     */
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        return null;
     }
 
     public void keyPressed(int key) {

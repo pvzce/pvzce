@@ -5,6 +5,7 @@ import com.pvzce.client.ClientEntity;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.SceneVisibility;
 import com.pvzce.client.gui.Screen;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.gui.SeedCardRenderer;
 import com.pvzce.client.gui.components.AbstractWidget;
 import com.pvzce.client.gui.components.Button;
@@ -1327,10 +1328,7 @@ public final class ChooseSeedsScreen extends Screen {
 
     @Override
     protected void onMouseScrolled(double guiX, double guiY, double amount) {
-        boolean overPool = gridMaxScroll > 0F
-                && guiX >= panelX && guiX <= panelX + panelW
-                && guiY >= gridViewBottom && guiY <= gridViewTop;
-        if (!overPool) {
+        if (!poolScrollsAt(guiX, guiY)) {
             return;
         }
         int delta = amount > 0 ? -1 : 1;
@@ -1340,6 +1338,33 @@ public final class ChooseSeedsScreen extends Screen {
             gridScroll = clamped;
             updateLayout();
         }
+    }
+
+    /**
+     * True when the pool is the thing under this point, and there is more of it than fits.
+     *
+     * <p>One predicate for the wheel and for the touch gesture layer, so a pool the wheel scrolls is
+     * a pool a swipe scrolls - and a pool that fits stays an ordinary tap target.
+     */
+    private boolean poolScrollsAt(double guiX, double guiY) {
+        return gridMaxScroll > 0F
+                && guiX >= panelX && guiX <= panelX + panelW
+                && guiY >= gridViewBottom && guiY <= gridViewTop;
+    }
+
+    /**
+     * The pool scrolls vertically, one card row per step of travel.
+     *
+     * <p>{@link ScrollRegion.Swipe#DRAGS_CONTENT} rather than mirroring the wheel: this grid is laid
+     * out downward from {@code contentTop} (and the wheel up moves it down), so dragging the cards
+     * with the finger is the direction a player expects - finger up brings the later rows up.
+     */
+    @Override
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        if (!poolScrollsAt(guiX, guiY)) {
+            return null;
+        }
+        return ScrollRegion.dragsContent(ScrollRegion.Axis.VERTICAL, cardH + cardGap);
     }
 
     @Override

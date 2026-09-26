@@ -1,6 +1,7 @@
 package com.pvzce.client.gui.components;
 
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.renderer.SpriteRenderer;
 
 import java.util.ArrayList;
@@ -207,5 +208,25 @@ public class AbstractSelectionList<E> extends AbstractWidget {
     @Override
     public void mouseScrolled(double mouseX, double guiY, double amount) {
         scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset - (int) (amount * entryHeight)));
+    }
+
+    /**
+     * This list is a vertical scroll region, one row per step of finger travel.
+     *
+     * <p>{@link ScrollRegion.Swipe#MIRRORS_WHEEL} rather than "content follows the finger" because
+     * the rows run bottom-up ({@link #rowBottom} draws index 0 at the bottom), which makes the wheel
+     * the natural direction here already - a finger moving up means wheel up, exactly like today's
+     * wheel.
+     *
+     * <p>Only while there is something to scroll: a list that fits stays an ordinary click target,
+     * so "can it scroll" and "is this a scroll region" remain one answer. A press on a list that
+     * does not overflow therefore behaves exactly as it did before this existed.
+     */
+    @Override
+    public ScrollRegion scrollRegionAt(double mouseX, double guiY) {
+        if (!isMouseOver(mouseX, guiY) || maxScroll() == 0) {
+            return null;
+        }
+        return ScrollRegion.mirrorsWheel(ScrollRegion.Axis.VERTICAL, entryHeight);
     }
 }

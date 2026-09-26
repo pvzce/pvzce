@@ -6,6 +6,7 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.almanac.AlmanacEntries;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.renderer.EntityTextures;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
@@ -1182,6 +1183,22 @@ public final class AlmanacScreen extends Screen {
         if (page >= 0) {
             select(amount > 0 ? 1 : -1);
         }
+    }
+
+    /**
+     * While an entry page is open the whole shelf is a vertical scroll region: one step of finger
+     * travel moves the selection by one entry, which is what the wheel and the arrow keys already do.
+     *
+     * <p>{@link ScrollRegion.Swipe#MIRRORS_WHEEL}: there is no content to drag here - the selection
+     * steps through the catalogue - so "finger up = wheel up = next entry" is the only predictable
+     * answer. Without the region a swipe over the shelf would press whichever card it started on.
+     */
+    @Override
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        if (page < 0) {
+            return null;
+        }
+        return ScrollRegion.mirrorsWheel(ScrollRegion.Axis.VERTICAL, ScrollRegion.DEFAULT_STEP);
     }
 
     @Override

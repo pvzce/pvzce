@@ -38,6 +38,17 @@ public interface CardBar {
     /** Mouse wheel over the bar; true when the bar consumed the scroll. */
     boolean scroll(double guiX, double guiY, double amount);
 
+    /**
+     * One card's worth of finger travel in GUI pixels, or {@code 0} when this bar does not scroll.
+     *
+     * <p>The one thing the touch gesture layer needs from a bar: {@code 0} is also the answer to
+     * "is this bar a scroll region at all", which is why the conveyor - whose cards are all on
+     * screen by construction - can answer with the default instead of a second method saying so.
+     */
+    default int scrollStep() {
+        return 0;
+    }
+
     /** Card height in GUI pixels, for things drawn relative to the bar. */
     int cardHeight();
 

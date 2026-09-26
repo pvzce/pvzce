@@ -2,6 +2,7 @@ package com.pvzce.client.gui.components;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.client.input.ScrollRegion;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -311,6 +312,21 @@ public class Dialog extends AbstractWidget {
                 child.mouseScrolled(mouseX, guiY, amount);
             }
         }
+    }
+
+    /**
+     * A dialog answers for its children, in the same order {@link #mouseScrolled} feeds them.
+     *
+     * <p>Without this the lists that live <em>inside</em> dialogs - the player picker, the card pool
+     * editor, every editor page's table - would be invisible to the touch gesture layer, and a swipe
+     * over them would press the row under the finger instead of scrolling it.
+     */
+    @Override
+    public ScrollRegion scrollRegionAt(double mouseX, double guiY) {
+        if (!visible || AbstractWidget.claimsDragAt(children, mouseX, guiY)) {
+            return null;
+        }
+        return AbstractWidget.regionAt(children, mouseX, guiY);
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.Navigation;
+import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.components.Button;
@@ -640,12 +641,33 @@ public final class LevelSelectScreen extends Screen {
 
     @Override
     protected void onMouseScrolled(double guiX, double guiY, double amount) {
-        if (guiX >= gridX && guiX < gridX + gridWidth
-                && guiY >= gridRenderBottom && guiY <= gridRenderTop) {
+        if (gridTurnsPageAt(guiX, guiY)) {
             // The wheel turns pages here, like the arrows: a one-row scroll left the grid
             // showing a mix of two pages, which is the duplication the arrows had.
             turnPage(amount > 0 ? -1 : 1);
         }
+    }
+
+    /** True when the card grid is what is under this point. */
+    private boolean gridTurnsPageAt(double guiX, double guiY) {
+        return guiX >= gridX && guiX < gridX + gridWidth
+                && guiY >= gridRenderBottom && guiY <= gridRenderTop;
+    }
+
+    /**
+     * The card grid is a vertical scroll region, one row of finger travel per row of cards.
+     *
+     * <p>{@link ScrollRegion.Swipe#DRAGS_CONTENT}: rows run downward from {@code gridRenderTop}, so
+     * dragging the cards up brings the next page up, which is what the finger suggests. The arrows and
+     * the wheel keep working exactly as they did - this only decides that a swipe over the grid is a
+     * scroll rather than a press on whichever level happened to be under the finger.
+     */
+    @Override
+    protected ScrollRegion onScrollRegionAt(double guiX, double guiY) {
+        if (!gridTurnsPageAt(guiX, guiY) || (!paging.hasNext() && !paging.hasPrevious())) {
+            return null;
+        }
+        return ScrollRegion.dragsContent(ScrollRegion.Axis.VERTICAL, rowHeight + rowGap);
     }
 
     private static boolean inside(double x, double y, int rx, int ry, int rw, int rh) {
