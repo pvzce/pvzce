@@ -128,7 +128,7 @@ public final class PvzcePackets {
     // 38: a key binding is a setting the player owns (the profile does not carry them: they are a
     // client preference and travel in pvzce-client.toml), and the chat line is its own packet -
     // ChatC2S - rather than an empty console command.
-    public static final int PROTOCOL_VERSION = 39;
+    public static final int PROTOCOL_VERSION = 40;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -157,6 +157,7 @@ public final class PvzcePackets {
     public static final int C2S_REQUEST_PROFILE = 27;
     public static final int C2S_SET_DIFFICULTY = 28;
     public static final int C2S_CHAT = 29;
+    public static final int C2S_START_WAVES = 30;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -250,6 +251,9 @@ public final class PvzcePackets {
             def(C2S_SET_DIFFICULTY, ConnectionDirection.SERVERBOUND, SetDifficultyC2S.class,
                     SetDifficultyC2S::decode),
             def(C2S_CHAT, ConnectionDirection.SERVERBOUND, ChatC2S.class, ChatC2S::decode),
+            def(C2S_START_WAVES, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.StartWavesC2S.class,
+                    com.pvzce.common.network.packet.StartWavesC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

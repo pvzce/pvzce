@@ -5,6 +5,7 @@ import com.pvzce.client.renderer.EntityVisuals;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.ResourceCollectAnimation;
+import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
@@ -382,6 +383,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private ClientEntity placementPreview;
     private Button pauseButton;
     private Button speedButton;
+    /**
+     * The preparation phase's "开始" button, created lazily.
+     *
+     * <p>Not in {@link #init()} like the other two: whether a level has a preparation phase arrives
+     * with the level's streamed state, which is after the screen was built. Created the first time
+     * the phase is seen, hidden when it ends.
+     */
+    private Button startWavesButton;
     private PauseDialog pauseDialog;
     private long lastParticleNanos = System.nanoTime();
     /**
@@ -601,6 +610,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     protected void init() {
+        // The preparation button is rebuilt from scratch here rather than kept: `init()` runs again
+        // after a resize or a GUI-scale change, and `clearWidgets()` has already thrown the old
+        // widget away - a field still pointing at it would be a button nothing draws.
+        startWavesButton = null;
         int width = client.guiWidth();
         int height = client.guiHeight();
         // Pause is the rightmost thing on the bar and the tallest; the speed button sits to its
@@ -2645,6 +2658,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
         renderWaveBar();
         renderWaveWarning();
+        renderPreparation();
     }
 
     /**
@@ -2995,6 +3009,66 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * level's meter costing the same as an ordinary one's, whatever its table holds.
      */
     private static final int MAX_WAVE_FLAGS = 128;
+
+    /**
+     * The preparation phase's button and hint, drawn while the phase is running.
+     *
+     * <p>Centred over the board rather than tucked in with the pause and speed buttons: it is not
+     * one of the things a player touches mid-wave, it is the one thing to press before the level
+     * has begun, and the original puts it in the middle of the lawn for the same reason.
+     *
+     * <p>Drawn *and* hit-tested from {@link #startWavesRect()} - the same two numbers - because a
+     * button whose picture and whose target are computed apart is the failure this HUD has had
+     * before (see the tray's own note in {@code TitleScreen}).
+     */
+    private void renderPreparation() {
+        if (!client.level().preparing()) {
+            if (startWavesButton != null) {
+                // The phase is over: the button goes away rather than staying on a running board,
+                // where pressing it would mean nothing.
+                startWavesButton.setVisible(false);
+            }
+            return;
+        }
+        if (startWavesButton == null) {
+            // Built on the first frame the phase is seen rather than in `init()`: the state is
+            // streamed, so it arrives *after* the screen was built, and a widget created in init()
+            // would never exist. `onResize` rebuilds the screen and re-creates it with the new
+            // geometry.
+            float[] rect = startWavesRect();
+            startWavesButton = new Button(Math.round(rect[0]), Math.round(rect[1]),
+                    Math.round(rect[2]), Math.round(rect[3]),
+                    GuiLang.raw("pvzce.preparation.start", "开始"),
+                    () -> client.connection().send(
+                            new com.pvzce.common.network.packet.StartWavesC2S()));
+            addWidget(startWavesButton);
+        }
+        startWavesButton.setVisible(true);
+        int guiW = client.guiWidth();
+        float[] rect = startWavesRect();
+        String hint = GuiLang.raw("pvzce.preparation.hint", "准备阶段：只能用初始阳光，摆好再开始");
+        client.fonts().body().draw(hint,
+                (guiW - client.fonts().body().width(hint, 0.9F)) / 2F,
+                rect[1] + rect[3] + 6F, 0.9F, 0.95F, 0.95F, 0.8F, 1F);
+        String sun = GuiLang.raw("pvzce.preparation.sun", "可用阳光") + "：" + client.level().sun();
+        client.fonts().body().draw(sun,
+                (guiW - client.fonts().body().width(sun, 0.8F)) / 2F,
+                rect[1] - client.fonts().body().lineHeight(0.8F) - 4F, 0.8F, 1F, 0.95F, 0.55F, 1F);
+    }
+
+    /**
+     * Where the preparation phase's start button is, as {@code {x, y, width, height}}.
+     *
+     * <p>Above the card bar and centred: the bar owns the bottom of the screen, and the middle of
+     * the board is where the player's eyes already are while they arrange the defence.
+     */
+    private float[] startWavesRect() {
+        float width = Math.min(240F, client.guiWidth() * 0.4F);
+        float height = Math.max(28F, Math.min(52F, client.guiHeight() / 12F));
+        float x = (client.guiWidth() - width) / 2F;
+        float y = cardBar().cardHeight() + 46F;
+        return new float[] {x, y, width, height};
+    }
 
     private void renderWaveBar() {
         int total = client.level().totalWaves();
@@ -3435,6 +3509,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         if (speedButton != null && speedButton.isMouseOver(guiX, guiY)) {
             speedButton.mouseClicked(guiX, guiY, button);
+            return;
+        }
+        if (startWavesButton != null && startWavesButton.isVisible()
+                && startWavesButton.isMouseOver(guiX, guiY)) {
+            startWavesButton.mouseClicked(guiX, guiY, button);
             return;
         }
 

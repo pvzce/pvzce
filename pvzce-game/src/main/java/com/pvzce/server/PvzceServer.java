@@ -1334,6 +1334,13 @@ public final class PvzceServer implements Runnable {
                 setDifficulty(difficulty.difficulty());
             } else if (packet instanceof PauseGameC2S pause) {
                 manualPause = pause.paused();
+            } else if (packet instanceof com.pvzce.common.network.packet.StartWavesC2S) {
+                // A preparation phase's own button. Asked of the running level rather than of a
+                // flag here: the level is the one that knows whether it was still preparing, so a
+                // press that arrives after the first wave is a no-op instead of a second start.
+                if (level != null) {
+                    level.beginWaves();
+                }
             } else if (packet instanceof CreateWorldC2S create) {
                 createWorld(create.worldName(), create.unlockAll());
             } else if (packet instanceof com.pvzce.common.network.packet.UnlockLevelC2S unlockLevel) {

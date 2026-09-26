@@ -47,6 +47,8 @@ public final class LevelMechanics {
     public static final ConveyorMechanic CONVEYOR = new ConveyorMechanic();
     public static final PlacementZoneMechanic PLACEMENT_ZONE = new PlacementZoneMechanic();
     public static final MowerMechanic MOWER = new MowerMechanic();
+    /** Build first, then start the waves. */
+    public static final PreparationMechanic PREPARATION = new PreparationMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final StormMechanic STORM = new StormMechanic();
@@ -80,6 +82,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_SCARY_POTTER, SCARY_POTTER);
         register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
         register(PvzceIds.MECHANIC_ENDLESS, ENDLESS);
+        register(PvzceIds.MECHANIC_PREPARATION, PREPARATION);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);
     }
 

@@ -792,5 +792,10 @@
   "slot.pvzce.gloom_shroom": "忧郁蘑菇",
   "slot.pvzce.spikerock": "地刺王",
   "slot.pvzce.cattail": "香蒲",
-  "projectile.pvzce.cattail_spike": "香蒲尖刺"
+  "projectile.pvzce.cattail_spike": "香蒲尖刺",
+  "pvzce.preparation.start": "开始",
+  "pvzce.preparation.hint": "准备阶段：只能用初始阳光，摆好再开始",
+  "pvzce.preparation.sun": "可用阳光",
+  "pvzce.mechanic.preparation.field.manual": "手动开始（关掉则按下面的时长自动开始）",
+  "pvzce.mechanic.preparation.field.ticks": "准备时长（tick，仅自动时有意义）"
 }

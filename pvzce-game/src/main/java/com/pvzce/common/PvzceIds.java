@@ -491,6 +491,11 @@ public final class PvzceIds {
      */
     public static final Identifier MECHANIC_ENDLESS = id("endless");
     /**
+     * The preparation phase: the stretch before the first wave, where the player spends the sun the
+     * level gave them and starts the waves themselves. See {@code PreparationMechanic}.
+     */
+    public static final Identifier MECHANIC_PREPARATION = id("preparation");
+    /**
      * The mutation system: a level where the rules themselves are rewritten every so often.
      *
      * <p>The id of a mechanic with no block of its own (the same shape as

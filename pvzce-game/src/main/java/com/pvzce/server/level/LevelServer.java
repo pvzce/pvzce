@@ -1078,6 +1078,36 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 && PlantPlacement.canPlace(def, placementContext, x, y);
     }
 
+    /**
+     * True while the level is holding its waves for a preparation phase.
+     *
+     * <p>Asked every tick from the tick loop, so it reads the mechanic's own state rather than a
+     * copy: one answer to "are the waves being held", owned by the mechanic that holds them.
+     */
+    public boolean isPreparing() {
+        return com.pvzce.common.level.mechanic.PreparationMechanic.isPreparing(this);
+    }
+
+    /** Starts this level's preparation phase. Called by the mechanic when the level is built. */
+    public void beginPreparation() {
+        com.pvzce.common.level.mechanic.PreparationMechanic.begin(this);
+    }
+
+    /**
+     * Ends the preparation phase and lets the waves run.
+     *
+     * <p>The player's "开始" button and the mechanic's own countdown both land here, so a level
+     * that is started by hand and one that starts itself cannot drift apart in what starting
+     * means.
+     */
+    public void beginWaves() {
+        if (!isPreparing()) {
+            return;
+        }
+        com.pvzce.common.level.mechanic.PreparationMechanic.end(this);
+        LOGGER.debug("Preparation phase over at tick {}, waves released", tickCount);
+    }
+
     /** True when this plant occupies the carrier layer (flower pot, lily pad). */
     public static boolean isCarrier(PlantEntity plant) {
         return plant != null && PlantPlacement.isCarrier(plant.def());
@@ -2186,9 +2216,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (mutations != null) {
                 mutations.tick();
             }
-            waves.tick();
-            syncWaveAndTime(bridge);
-            maybeSpawnSun();
+            if (isPreparing()) {
+                // The preparation phase: no wave is released and no sun falls, so the sun the player
+                // builds with is the sun the level handed over - the whole rule of the phase. The
+                // clock is re-sent anyway (the HUD draws it), and the sun clock is *not* ticked, so
+                // the first drop after the phase is a full interval away rather than immediate.
+                syncWaveAndTime(bridge);
+            } else {
+                waves.tick();
+                syncWaveAndTime(bridge);
+                maybeSpawnSun();
+            }
             tickScene();
             flushPending(bridge);
 
@@ -3834,6 +3872,27 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public static final int WATERED_TICKS = 15 * PvzceConstants.TICKS_PER_SECOND;
 
+    /**
+     * Gives back what a plant cost, in full, because it is being taken up during preparation.
+     *
+     * <p>The price is read from the plant's own definition - the same number the card printed and
+     * the till charged - so a refund cannot pay out something the player never spent.
+     */
+    private void refundWholePrice(PlantEntity plant) {
+        if (plantPlayer == null || plant.def() == null) {
+            return;
+        }
+        int price = plant.def().cost().amountOf(PvzceIds.SUN);
+        if (price <= 0) {
+            return;
+        }
+        plantPlayer.team().putResource(PvzceIds.SUN,
+                plantPlayer.team().resourcesOf(PvzceIds.SUN) + price);
+        send(new com.pvzce.common.network.packet.ResourceDeltaS2C(
+                plantPlayer.team().id().toString(), PvzceIds.SUN.toString(),
+                plantPlayer.team().resourcesOf(PvzceIds.SUN)));
+    }
+
     private boolean applyToolEffect(ToolDef tool, int x, int y) {
         return switch (tool.effect()) {
             // PVZ original: one shovel click removes exactly one plant, always the
@@ -3841,7 +3900,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             case "pvzce:shovel" -> {
                 PlantEntity plant = plantAt(x, y);
                 if (plant != null) {
-                    refundShovel(plant);
+                    // During a preparation phase the dig is a *rearrangement*, not a mistake: the
+                    // original gives the whole price back until the first wave, which is what makes
+                    // "try a layout, look at it, change your mind" possible at all. After the phase
+                    // the ordinary rule applies (the sun shovel's fraction, or nothing).
+                    if (com.pvzce.common.level.mechanic.PreparationMechanic.refundsFully(this)) {
+                        refundWholePrice(plant);
+                    } else {
+                        refundShovel(plant);
+                    }
                     plant.remove();
                     flushPending();
                     emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.EFFECT_SHOVEL);

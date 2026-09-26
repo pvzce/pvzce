@@ -39,6 +39,7 @@ public final class ClientMechanics {
         register(new FogClientMechanic());
         register(new StormClientMechanic());
         register(new RakeClientMechanic());
+        register(new PreparationClientMechanic());
     }
 
     public static void register(ClientMechanic mechanic) {

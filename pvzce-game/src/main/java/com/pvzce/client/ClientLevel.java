@@ -36,6 +36,8 @@ public final class ClientLevel {
             org.slf4j.LoggerFactory.getLogger("PVZCE/ClientLevel");
     private final Map<Integer, ClientEntity> entities = new ConcurrentHashMap<>();
     private final List<SlotInfo> slots = new ArrayList<>();
+    /** Whether a preparation phase is holding the waves; see {@link #preparing()}. */
+    private volatile boolean preparing;
     private final List<String> messages = new ArrayList<>();
     /**
      * Resource balances per team, keyed by team then resource. Teams share resources
@@ -259,6 +261,7 @@ public final class ClientLevel {
             slots.clear();
         }
         suggestions.clear();
+        preparing = false;
         seedPool = List.of();
         maxSeedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
         previewZombies = List.of();
@@ -582,6 +585,22 @@ public final class ClientLevel {
     }
 
     /** True while the server says a mutation is dealing the cards. */
+    /**
+     * True while the level is holding its waves for a preparation phase.
+     *
+     * <p>The server's own state, streamed by {@code PreparationClientMechanic}: the client draws
+     * the start button and the phase's hint from it, and the server is what decides whether the
+     * press does anything - so a client that has not heard the latest value can be wrong about the
+     * label but never about the rule.
+     */
+    public boolean preparing() {
+        return preparing;
+    }
+
+    public void setPreparing(boolean preparing) {
+        this.preparing = preparing;
+    }
+
     public boolean mutatedCardBar() {
         com.pvzce.common.network.packet.MutationStateS2C state = mutations;
         return state != null && "mutated".equals(state.cardBarKind());

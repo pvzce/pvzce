@@ -791,5 +791,10 @@
   "slot.pvzce.gloom_shroom": "Gloom-shroom",
   "slot.pvzce.spikerock": "Spikerock",
   "slot.pvzce.cattail": "Cattail",
-  "projectile.pvzce.cattail_spike": "Cattail Spike"
+  "projectile.pvzce.cattail_spike": "Cattail Spike",
+  "pvzce.preparation.start": "Start",
+  "pvzce.preparation.hint": "Preparation: initial sun only - build, then start",
+  "pvzce.preparation.sun": "Sun available",
+  "pvzce.mechanic.preparation.field.manual": "Started by hand (off = the duration below starts it)",
+  "pvzce.mechanic.preparation.field.ticks": "Preparation length in ticks (only used when not manual)"
 }
