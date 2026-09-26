@@ -365,13 +365,6 @@ Wayland（自接 `wl_touch`）、Windows 与 X11/Xorg 都能用手指玩了，�
 Windows"长按=右键"排先后）、**屏内键盘**（控制台/编辑器/玩家名在触控设备上需要外接键盘：
 GLFW 不会告诉系统"输入框获得焦点"）。
 影响：触控设备目前可以正常玩主线，但上面的场景要么做不到、要么要用鼠标键盘补。
-### 触控还没被人真正玩过一局
-
-探针已在真机上证明"事件送达"（`wl_touch` 收到 down/motion/up、坐标是 surface-local 逻辑像素），
-原生 Wayland 冒烟也证明了游戏内接线；但**没有人用手指实际玩过**：点一次开始游戏、滑选卡页、点卡槽条。
-影响：剩下的只可能是体感问题（滑动步长/阈值、没有指针时"点在哪个格子"不够清楚、卡片命名提示不会出现）。
-怎么做：在 Wayland 会话下 `./gradlew :pvzce-game:run` 玩一局，按"现象 + 期望"把不舒服的地方记回来。
-
 ### HiDPI 缩放屏上点击会整体偏移
 
 仓库里没有一处 `glfwGetContentScale` / `glfwGetWindowSize`：`guiMouseX` 拿 **framebuffer 宽度**去除
