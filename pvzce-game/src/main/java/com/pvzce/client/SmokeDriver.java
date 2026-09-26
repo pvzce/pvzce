@@ -96,6 +96,29 @@ final public class SmokeDriver {
     private final String smokePages = System.getProperty("pvzce.smokePages", "");
     private final java.util.Set<Long> smokePagesDone = new java.util.HashSet<>();
 
+    /**
+     * {@code pvzce.smokeTray=<cell>@<frame>}: click a cell of the title screen's corner tray.
+     *
+     * <p>Exists because that tray is the one click target whose coordinates cannot be written down:
+     * it is anchored to the player board's height, which comes from the font, and it scales with the
+     * menu buttons, which come from the GUI height. So the click is aimed by asking the screen where
+     * its cell is - the same method the hit test uses, which is also what makes this a check of the
+     * two agreeing rather than of a number written here.
+     */
+    private final String smokeTray = System.getProperty("pvzce.smokeTray", "");
+    private boolean smokeTrayClicked;
+
+    /**
+     * {@code pvzce.smokeCoins=<n>}: put coins in the world before anything is photographed.
+     *
+     * <p>The shop is a price list, and a fresh world has no money - so every screenshot of it used
+     * to show a zero wallet, which is also the shape of the bug it had (a stale zero until a level
+     * was started). This gives the world a balance through the same server call the console command
+     * uses, so the frame shows what a player who can afford something sees.
+     */
+    private final int smokeCoins = Integer.getInteger("pvzce.smokeCoins", 0);
+    private boolean smokeCoinsGranted;
+
     /** Saves the editor once, so a smoke run can verify the write round trip. */
     private final boolean smokeSave = Boolean.getBoolean("pvzce.smokeSave");
     /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
@@ -342,6 +365,8 @@ final public class SmokeDriver {
 
     void beforeFrame() {
         long clientTick = client.clientTick();
+        applySmokeCoins(clientTick);
+        applyTrayClick();
         // Before the render, not after: the capture hook below runs after the buffers were
         // swapped, so a page turned in afterFrame would be one frame late in the PNG.
         applyAlmanacShots(client.currentScreen(), clientTick);
@@ -621,6 +646,60 @@ final public class SmokeDriver {
                 System.out.println("[SMOKE] frame " + frame + " -> unknown page '" + page + "'");
             }
         }
+    }
+
+    /**
+     * {@code pvzce.smokeCoins}: put coins in the menus' world, once the world is chosen.
+     *
+     * <p>Goes through the console command ({@code /profile coins <n>}) rather than reaching into the
+     * server, because a single-player client holds no server reference - the command path is the
+     * only one that exists. It waits for the level list, which is what makes the server pick a
+     * world: paying before that would pay whichever world the menu happened to default to.
+     */
+    private void applySmokeCoins(long clientTick) {
+        if (smokeCoins <= 0 || smokeCoinsGranted || clientTick < 20 || client.levelList().isEmpty()) {
+            return;
+        }
+        smokeCoinsGranted = true;
+        client.connection().send(new CommandC2S("profile coins " + smokeCoins));
+        System.out.println("[SMOKE] asking for " + smokeCoins + " coins in world '"
+                + client.currentWorld() + "'");
+    }
+
+    /**
+     * {@code pvzce.smokeTray}: aims a real click at a corner-tray cell.
+     *
+     * <p>Reported rather than silent: "the click did nothing" and "the click missed" look identical
+     * in a screenshot, and the whole point of this hook is the coordinate.
+     */
+    private void applyTrayClick() {
+        if (smokeTray.isBlank() || smokeTrayClicked) {
+            return;
+        }
+        String[] parts = smokeTray.split("@");
+        int cell;
+        long frame;
+        try {
+            cell = Integer.parseInt(parts[0].trim());
+            frame = parts.length > 1 ? Long.parseLong(parts[1].trim()) : 40L;
+        } catch (NumberFormatException e) {
+            System.out.println("[SMOKE] smokeTray wants <cell>@<frame>, got '" + smokeTray + "'");
+            smokeTrayClicked = true;
+            return;
+        }
+        if (client.clientTick() < frame) {
+            return;
+        }
+        smokeTrayClicked = true;
+        if (!(client.currentScreen() instanceof TitleScreen menu)) {
+            System.out.println("[SMOKE] smokeTray: the title screen is not up ("
+                    + client.currentScreen().getClass().getSimpleName() + ")");
+            return;
+        }
+        TitleScreen.TrayCell target = menu.trayCell(cell);
+        System.out.println("[SMOKE] tray cell " + cell + " at gui=" + target.centerX() + ","
+                + target.centerY());
+        client.deliverGuiClick(target.centerX(), target.centerY(), 0);
     }
 
     /** {@code /tmp/x.png} at frame 240 becomes {@code /tmp/x_240.png}. */

@@ -126,6 +126,15 @@ public final class PvzceClient {
     private volatile List<LevelTabsS2C.Tab> levelTabs = List.of();
     /** Coins and unlocks of the current world; menus only, the server is authoritative. */
     private final ClientProfile profile = new ClientProfile();
+    /**
+     * Whether a profile snapshot has arrived for the current world.
+     *
+     * <p>False after every world change, because {@link #setCurrentWorld} drops the previous
+     * world's profile and there is nothing to draw until the server answers. It is what makes
+     * {@link #requestProfile} safe to call from a menu button: the level list fills the profile in
+     * as a side effect of its own request, so this only asks when nobody has.
+     */
+    private boolean profileLoaded;
     private long clientTick;
     private int lastWindowWidth;
     private int lastWindowHeight;
@@ -1567,6 +1576,28 @@ public final class PvzceClient {
         connection.send(new com.pvzce.common.network.packet.BuyShopItemC2S(itemId, currentWorld));
     }
 
+    /**
+     * Asks the server for the current world's profile: wallet, card slots, unlocks.
+     *
+     * <p>Needed because the profile otherwise travels only with the level list, and the shop is
+     * reachable without it (the title screen's corner tray). The client resets its profile on every
+     * world change, so until this is answered the shop would draw a zero wallet - which is what it
+     * did, until the player started a level and came back.
+     *
+     * <p>Asked at most once per world in flight: the flag is cleared whenever the world changes,
+     * set by the arriving snapshot, and <em>also</em> set by the send itself - so two clicks before
+     * the answer are one request, and a client that already has the profile (it opened the level
+     * list first) asks not at all. A lost answer costs a stale wallet until the world changes
+     * again, which is the cheaper failure than a request per frame.
+     */
+    public void requestProfile() {
+        if (profileLoaded) {
+            return;
+        }
+        profileLoaded = true;
+        connection.send(new com.pvzce.common.network.packet.RequestProfileC2S(currentWorld));
+    }
+
     public void buyLevelUnlock(String levelId) {
         connection.send(new UnlockLevelC2S(levelId, currentWorld));
     }
@@ -2393,6 +2424,7 @@ public final class PvzceClient {
             // The profile is per world too: keeping the previous world's coins on
             // screen while the new world's list loads would show another world's money.
             profile.reset();
+            profileLoaded = false;
         }
         this.currentWorld = world;
         // Written through on every switch, so the next start opens on the player that was
@@ -2413,24 +2445,31 @@ public final class PvzceClient {
     }
 
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll) {
-        profile.apply(coins, unlocked, unlockAll);
+        setProfile(coins, unlocked, unlockAll, PvzceConstants.DEFAULT_SEED_SLOTS);
     }
 
     /** As above, with the backpack's card-slot count the server reports. */
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots) {
-        profile.apply(coins, unlocked, unlockAll, seedSlots);
+        setProfile(coins, unlocked, unlockAll, seedSlots, PvzceConstants.DEFAULT_BUFF_SLOTS, List.of());
     }
 
     /** As above, with the buff half of the backpack: its slot count and the world's auto list. */
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
                            int buffSlots, List<String> autoBuffs) {
-        profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs);
+        setProfile(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs, List.of());
     }
 
-    /** As above, with the buffs this world has been given - what the shop and the padlocks read. */
+    /**
+     * As above, with the buffs this world has been given - what the shop and the padlocks read.
+     *
+     * <p>Every overload ends up here, because this is where the client records the one thing all of
+     * them mean: a snapshot for the current world has arrived ({@link #requestProfile}). Four
+     * copies of that assignment is four places to forget when a fifth field is added.
+     */
     public void setProfile(int coins, List<String> unlocked, boolean unlockAll, int seedSlots,
                            int buffSlots, List<String> autoBuffs, List<String> unlockedBuffs) {
         profile.apply(coins, unlocked, unlockAll, seedSlots, buffSlots, autoBuffs, unlockedBuffs);
+        profileLoaded = true;
     }
 
     /**

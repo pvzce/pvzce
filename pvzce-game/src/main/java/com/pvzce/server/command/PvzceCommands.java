@@ -350,6 +350,11 @@ public final class PvzceCommands {
                     ctx.getSource().sendFeedback(result);
                     return 1;
                 })))
+                .then(lit("coins").then(argInteger("coins", 0, com.pvzce.common.PvzceConstants.COIN_LIMIT).executes(ctx -> {
+                    ctx.getSource().sendFeedback(
+                            server.grantCoinsToWorld(ctx.getArgument("coins", Integer.class)));
+                    return 1;
+                })))
                 .then(lit("unlockall").executes(ctx -> {
                     ctx.getSource().sendFeedback(server.grantEverything());
                     return 1;

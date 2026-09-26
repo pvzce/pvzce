@@ -37,6 +37,7 @@ import com.pvzce.common.network.packet.PlantHeldCardC2S;
 import com.pvzce.common.network.packet.ReleaseHeldCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
+import com.pvzce.common.network.packet.RequestProfileC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
@@ -114,7 +115,10 @@ public final class PvzcePackets {
     // appeared in the bar. Picking one up (PickUpCardC2S) puts the plant in the player's hand,
     // which the client is told about (HeldCardS2C) and answers with its own two requests -
     // plant it (PlantHeldCardC2S) or put it back (ReleaseHeldCardC2S).
-    public static final int PROTOCOL_VERSION = 34;
+    // 35: the shop is reachable without opening the level list, and the profile used to travel
+    // only with that list - so a fresh session drew a zero wallet until a level was started and
+    // left. RequestProfileC2S is the client asking for the profile on its own.
+    public static final int PROTOCOL_VERSION = 35;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -140,6 +144,7 @@ public final class PvzcePackets {
     // retired rather than reused, so an old client cannot land on a different packet.
     public static final int C2S_RELEASE_MOWER = 17;
     public static final int C2S_USE_GRANTED_TOOL = 18;
+    public static final int C2S_REQUEST_PROFILE = 27;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -210,6 +215,8 @@ public final class PvzcePackets {
                     RequestLevelListC2S::decode),
             def(C2S_REQUEST_SUGGESTIONS, ConnectionDirection.SERVERBOUND, RequestSuggestionsC2S.class,
                     RequestSuggestionsC2S::decode),
+            def(C2S_REQUEST_PROFILE, ConnectionDirection.SERVERBOUND, RequestProfileC2S.class,
+                    RequestProfileC2S::decode),
             def(C2S_LEAVE_LEVEL, ConnectionDirection.SERVERBOUND, LeaveLevelC2S.class, LeaveLevelC2S::decode),
             def(C2S_PICK_CARD, ConnectionDirection.SERVERBOUND, PickCardC2S.class, PickCardC2S::decode),
             def(C2S_PLACE_PLANT, ConnectionDirection.SERVERBOUND, PlacePlantC2S.class, PlacePlantC2S::decode),

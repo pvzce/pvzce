@@ -118,6 +118,7 @@ public final class ShopScreen extends Screen {
         addWidget(canvas.widgetAt(client, MenuPageCanvas.NATIVE_WIDTH / 2F, FOOTER_Y,
                 FOOTER_BUTTON_W, FOOTER_BUTTON_H, GuiLang.raw("pvzce.back", "返回"),
                 this::requestClose));
+
     }
 
     @Override

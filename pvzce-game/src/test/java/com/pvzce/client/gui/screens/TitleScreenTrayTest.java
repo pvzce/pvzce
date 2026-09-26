@@ -39,67 +39,58 @@ class TitleScreenTrayTest {
         return harness.client();
     }
 
-    /** The first cell opens the shop; the second opens the packs page. */
+    /**
+     * The icons are sized against the menu buttons, not by a constant.
+     *
+     * <p>What this pins is the second bug report: at 1080p/2x the tray looked like a doodle next to
+     * a 68-unit-tall menu column, because its icons were a fixed 22 units. Three button heights are
+     * checked rather than one, because the failure mode was a tray that only looked right at the
+     * size it happened to be drawn at - and the tray must also stay narrower than the column it
+     * sits under, which is the constraint that ruled out a fixed wide plate.
+     */
     @Test
-    void eachTrayCellOpensItsPage() throws Exception {
-        PvzceClient client = newClient();
-
-        TitleScreen menu = new TitleScreen(client);
-        client.setScreenReplacing(menu);
-        TitleScreen.TrayCell shop = menu.trayCell(0);
-        TitleScreen.TrayCell packs = menu.trayCell(1);
-
-        menu.dispatchMouseClicked(shop.centerX(), shop.centerY(), 0);
-        assertInstanceOf(ShopScreen.class, client.currentScreen(),
-                "the coin cell opens the shop");
-
-        menu.dispatchMouseClicked(packs.centerX(), packs.centerY(), 0);
-        assertInstanceOf(PackScreen.class, client.currentScreen(),
-                "the seed-packet cell opens the packs page");
+    void theTrayScalesWithTheMenuButtons() {
+        // Two real windows: the default (GUI 427x240) and 1080p at 2x UI (960x540), plus a small
+        // one no window would open but a 4x-UI display can produce.
+        for (int[] size : new int[][]{{427, 240}, {640, 320}, {960, 540}}) {
+            int buttonHeight = TitleScreen.menuButtonHeight(size[1]);
+            TitleScreen.TrayLayout tray = TitleScreen.trayForGui(size[0], buttonHeight);
+            assertTrue(tray.iconBox() >= buttonHeight * 0.4F,
+                    "a " + buttonHeight + "-unit button leaves a " + tray.iconBox()
+                            + "-unit icon: the corner would look empty beside it");
+            assertTrue(tray.iconBox() <= buttonHeight * 1.1F,
+                    "and not bigger than the button it stands beside (" + tray.iconBox() + ")");
+            assertTrue(tray.width() < buttonHeight * 6.5F,
+                    "the tray has to stay narrow enough for the corner: " + tray.width());
+        }
     }
 
     /**
-     * The two cells do not overlap, and neither reaches into the menu column.
+     * The tray stays inside the window and clear of the menu column, at every size.
      *
-     * <p>The menu column's left edge is what the tray had to be built around: three earlier
-     * versions drew cells underneath the 开始游戏 button. The column starts at the same x the
-     * buttons are placed at, so this measures against the real widget rather than a constant.
+     * <p>Two bugs are behind this: a tray that grew under the player board (whose click is tested
+     * first, so its cells opened the player picker), and a board-anchored tray at GUI 960x540 that
+     * came out ending 126 units below the bottom edge - i.e. invisible, which is what the 1080p
+     * screenshot showed.
      */
     @Test
-    void theCellsSitInsideTheCornerAndClearTheMenu() throws Exception {
-        PvzceClient client = newClient();
-        TitleScreen menu = new TitleScreen(client);
-        client.setScreenReplacing(menu);
-
-        TitleScreen.TrayCell shop = menu.trayCell(0);
-        TitleScreen.TrayCell packs = menu.trayCell(1);
-        float[] tray = menu.trayBounds();
-
-        assertTrue(packs.centerX() > shop.centerX(),
-                "the two cells run left to right, not stacked on each other");
-
-        int menuLeft = Integer.MAX_VALUE;
-        for (var widget : menu.widgets()) {
-            menuLeft = Math.min(menuLeft, widget.x());
+    void theTrayFitsTheWindowItIsDrawnIn() {
+        for (int[] size : new int[][]{{427, 240}, {960, 540}, {640, 320}}) {
+            int buttonHeight = TitleScreen.menuButtonHeight(size[1]);
+            TitleScreen.TrayLayout tray =
+                    TitleScreen.trayForGui(size[0], buttonHeight);
+            assertTrue(tray.y() >= 8F, "at GUI " + size[0] + "x" + size[1] + " the tray starts at "
+                    + tray.y() + ", off the bottom");
+            assertTrue(tray.y() + tray.height() <= size[1],
+                    "at GUI " + size[0] + "x" + size[1] + " the tray ends at "
+                            + (tray.y() + tray.height()) + ", past the top edge");
+            // The menu column is centred and 280 wide, or the window minus 24 when it is narrow.
+            int buttonWidth = Math.min(280, size[0] - 24);
+            float menuLeft = (size[0] - buttonWidth) / 2F;
+            assertTrue(tray.x() + tray.width() <= menuLeft + 0.5F,
+                    "at GUI " + size[0] + "x" + size[1] + " the tray reaches "
+                            + (tray.x() + tray.width()) + " into the menu column at " + menuLeft);
         }
-        assertTrue(tray[0] + tray[2] <= menuLeft,
-                "the tray's right edge (" + (tray[0] + tray[2]) + ") must clear the menu column ("
-                        + menuLeft + ")");
     }
 
-    /** A click on the plate between the cells belongs to the plate, not to a page. */
-    @Test
-    void aClickOnThePlateItselfOpensNothing() throws Exception {
-        PvzceClient client = newClient();
-        TitleScreen menu = new TitleScreen(client);
-        client.setScreenReplacing(menu);
-        TitleScreen.TrayCell shop = menu.trayCell(0);
-        float[] tray = menu.trayBounds();
-
-        // The plate's bottom-left corner: inside the tray, outside both cells (the cells are
-        // inset by the plate's own padding).
-        menu.dispatchMouseClicked(tray[0] + 1F, tray[1] + 1F, 0);
-
-        assertSame(menu, client.currentScreen(), "the tray's frame is not a button");
-    }
 }

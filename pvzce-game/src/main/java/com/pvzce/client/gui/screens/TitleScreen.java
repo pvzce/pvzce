@@ -44,10 +44,16 @@ public final class TitleScreen extends Screen {
      * an icon <em>and</em> a two-hanzi label needs about 100. The names live in the hover tip,
      * through {@link HoverTip}, which is the same channel the card bar uses to name a card.
      *
-     * <p>Sizes are therefore all small: a 104-wide plate whose 8-unit frame leaves just enough
-     * interior for two 24-unit cells, and 22-unit icons. The plate is
-     * {@code seed_chooser_background}, the game's own shallow box; the cells are the level list's
-     * wooden plate, stretched.
+     * <p>Sizes are therefore all small, and <b>tied to the menu buttons</b> rather than fixed: the
+     * plate stands one menu button tall, and its cells are that much again (see
+     * {@link #layOutTray}). A fixed size was the first version, and it is what made the tray look
+     * like a doodle in the corner at 1080p/2x - where the buttons are 68 GUI units tall and a
+     * 22-unit icon beside them is a third of their height. Scaling with the buttons is also what
+     * keeps the corner's share of the screen the same at every window size: measured against the
+     * menu column's left edge, which is the boundary the tray must not cross.
+     *
+     * <p>The plate is {@code seed_chooser_background}, the game's own shallow box; the cells are
+     * the level list's wooden plate, stretched.
      */
     private static final Identifier TRAY_PANEL =
             Identifier.withDefaultNamespace("textures/gui/screen/seeds/seed_chooser_background");
@@ -60,23 +66,98 @@ public final class TitleScreen extends Screen {
             Identifier.withDefaultNamespace("textures/gui/hud/seed_packet");
     private static final Identifier CELL_PLATE =
             Identifier.withDefaultNamespace("textures/gui/screen/seeds/seed_chooser_button");
-    private static final float CELL_W = 24F;
-    private static final float CELL_PLATE_H = 10F;
-    private static final float CELL_ICON = 22F;
-    private static final float CELL_GAP = 4F;
-    private static final float TRAY_SIDE_PAD = 8F;
-    private static final float TRAY_TOP_PAD = 6F;
-    private static final float TRAY_BOTTOM_PAD = 6F;
-    private static final float TRAY_W = 104F;
-    private static final float TRAY_H = 72F;
+    /** How much wider than tall a cell is; the icon on it stays square. */
+    private static final float CELL_ASPECT = 1.2F;
+    /** The frame's share of the tray's height, per side: the art's own 32/513. */
+    private static final float TRAY_FRAME_OF_HEIGHT = 32F / 513F;
+    private static final float TRAY_SIDE_PAD = 10F;
+    private static final float TRAY_TOP_PAD = 8F;
+    private static final float TRAY_BOTTOM_PAD = 8F;
+    private static final float CELL_GAP = 12F;
+    /** The cell plate's height as a fraction of the cell, at the button art's own 156:42. */
+    private static final float CELL_PLATE_OF_CELL = 0.34F;
+    /** How many menu buttons tall a cell is; see {@link TrayLayout}. */
+    private static final float CELL_OF_BUTTON = 1.5F;
     /**
-     * One cell's height: the plate, the pixel of air above it, then the icon.
+     * The menu button height assumed before a window exists.
      *
-     * <p>All three are constants, so this is one too - and it has to be, because the tray's
-     * geometry is what the tray's test drives, and a headless client has no window to measure a
-     * font through (asking the font made {@code init()} throw there).
+     * <p>{@link #tray} is initialized with it so the tray has a sane shape in a windowless client
+     * - it is what the tray's test drives, and a test must not be able to read a zeroed rectangle.
+     * 27 is what the default window (GUI 427x240) computes, so the value is real rather than a
+     * placeholder.
      */
-    private static final float CELL_H = CELL_PLATE_H + 1F + CELL_ICON;
+    private static final float DEFAULT_BUTTON_HEIGHT = 27F;
+    /** The default window's GUI width; the other half of the same placeholder. */
+    private static final float DEFAULT_GUI_WIDTH = 427F;
+
+    /**
+     * The tray's whole geometry for one menu-button height.
+     *
+     * <p>A pure function rather than a handful of assignments in {@code init()}, because the menu's
+     * button height only exists once a window does - and the rule "the corner scales with the menu"
+     * is worth testing at sizes no headless client can lay out. {@code init()} calls it with the
+     * real height; the test calls it with three.
+     */
+    record TrayLayout(float x, float y, float width, float height,
+                      float cellWidth, float cellHeight, float plateHeight, float iconBox) {
+        /**
+         * The tray for a menu-button height and the room the corner actually has.
+         *
+         * <p>Two constraints, and the smaller wins. Vertically the cell is one and a half buttons
+         * tall, so the icon beside a button-height column is still the biggest thing in the corner.
+         * Horizontally it is what is left between the window's edge and the menu column, because
+         * the column is centred and 280 units wide - and at the default window that leaves 65
+         * units, where the vertical rule alone would draw a plate under the buttons.
+         *
+             * <p>The plate under the icon is sized from the icon, not from the cell: a short cell whose
+         * plate took a third of its height left the icon a sliver (8 units at GUI 427x240), which
+         * is the same "too small" the fixed-size version was replaced for.
+         */
+        static TrayLayout forCorner(float buttonHeight, float availableWidth) {
+            float cellWidthByHeight = buttonHeight * CELL_OF_BUTTON * CELL_ASPECT;
+            float cellWidthBySpace = (availableWidth - TRAY_SIDE_PAD * 2F - CELL_GAP) / 2F;
+            float width = Math.max(16F, Math.round(Math.min(cellWidthByHeight, cellWidthBySpace)));
+            float frame = buttonHeight * TRAY_FRAME_OF_HEIGHT;
+            // The taller of the two rules, and the width's own aspect is one of them: a cell that
+            // is 24 wide but 40 tall is mostly the plate, which leaves the icon a stamp.
+            float height = Math.max(Math.round(buttonHeight * CELL_OF_BUTTON + frame * 2F
+                    + TRAY_TOP_PAD + TRAY_BOTTOM_PAD),
+                    Math.round(width / CELL_ASPECT + frame * 2F + TRAY_TOP_PAD + TRAY_BOTTOM_PAD));
+            float cell = height - frame * 2F - TRAY_TOP_PAD - TRAY_BOTTOM_PAD;
+            // The plate is as wide as the icon (the button art's own proportion), capped so the
+            // icon above it never grows past the menu button beside it - a cell whose width and
+            // height disagree (a short, wide window) is what made that happen.
+            float plate = Math.min(
+                    Math.min(Math.max(6F, width * CELL_PLATE_OF_CELL),
+                            Math.max(6F, cell - buttonHeight)),
+                    Math.max(6F, cell - 10F));
+            // The icon is square and inside the cell both ways: `cell - plate` alone ignores the
+            // cell's width, and at the default window (a 16-unit-wide cell) that reported a 34-unit
+            // icon - which the renderer then had to squeeze back down to 16.
+            float icon = Math.max(6F, Math.min(width, cell - plate));
+            return new TrayLayout(8F, 8F, width * 2F + CELL_GAP + TRAY_SIDE_PAD * 2F, height,
+                    width, cell, plate, icon);
+        }
+
+        float cellX(int index) {
+            return x + TRAY_SIDE_PAD + index * (cellWidth + CELL_GAP);
+        }
+
+        float cellY() {
+            return y + TRAY_BOTTOM_PAD;
+        }
+    }
+
+    /**
+     * The tray's geometry for the current window, laid out in {@link #init()}.
+     *
+     * <p>One record rather than six float fields, because "where is the cell" is asked three times
+     * (drawing, hit-testing and the test) and three readers of six fields is three chances to read
+     * a stale one - which is exactly what happened: {@code trayCell()} was still reading zeros
+     * after the layout moved into a local.
+     */
+    private TrayLayout tray =
+            TrayLayout.forCorner(DEFAULT_BUTTON_HEIGHT, DEFAULT_GUI_WIDTH);
 
     private int titleY;
     private int subtitleY;
@@ -88,11 +169,6 @@ public final class TitleScreen extends Screen {
     private int nameY;
     private int nameWidth;
     private int nameHeight;
-    /** The corner tray's rectangle; the two cells inside it are derived from it. */
-    private float trayX;
-    private float trayY;
-    private float trayWidth;
-    private float trayHeight;
 
     public TitleScreen(PvzceClient client) {
         super(client);
@@ -115,6 +191,7 @@ public final class TitleScreen extends Screen {
         int guiH = client.guiHeight();
         int buttonWidth = Math.min(280, guiW - 24);
         int titleReserve = Math.max(56, Math.min(140, guiH * 30 / 100));
+
         // 48px legacy height enlarged by 40%; shrinks automatically when 4x UI has less room.
         // Four entries: the shop and the packs page used to sit here as the second and third of
         // six buttons, and stopped being the right shape for that the moment they became pages of
@@ -170,13 +247,50 @@ public final class TitleScreen extends Screen {
         nameX = 8;
         nameY = Math.max(8, guiH - 8 - nameHeight);
 
-        // The corner tray: two icon cells, bottom left. Its geometry is derived here and its
-        // click target is the two cells themselves (see {@link #cellAt}) - the tray's own frame
-        // is not a button, so a click on the wood between the cells does nothing.
-        trayX = 8;
-        trayY = 8;
-        trayWidth = TRAY_W;
-        trayHeight = TRAY_H;
+        // The corner tray: two icon cells, bottom left. Its click target is the two cells
+        // themselves (see {@link #cellAt}); the plate's frame is not a button, so a click on the
+        // wood between them does nothing.
+        tray = trayForGui(guiW, buttonHeight);
+    }
+
+    /**
+     * The corner tray's geometry for a window, as a pure function.
+     *
+     * <p>Kept separate from {@link #init()} so the tray can be laid out for window sizes no
+     * headless client can open. The corner is the part of this screen that has been wrong at three
+     * different sizes, and "it looks right at the window I use" is what all three had in common.
+     */
+    static TrayLayout trayForGui(int guiWidth, int buttonHeight) {
+        // In the menu's own band, not under the player board: the board and the menu column are
+        // both anchored to the bottom of the window, so at a tall window the board's band is the
+        // *top* of the screen and a board-anchored tray ended up below the bottom edge.
+        return TrayLayout.forCorner(buttonHeight, menuGap(guiWidth));
+    }
+
+    /**
+     * The room between the window's left edge and the menu column.
+     *
+     * <p>The tray's horizontal budget, and the reason its cells are sized from the window rather
+     * than only from the buttons. The column is centred and 280 wide, or the window minus 24 when
+     * the window is the narrower of the two.
+     */
+    static float menuGap(int guiWidth) {
+        int buttonWidth = Math.min(280, guiWidth - 24);
+        // The extra 2 is the gap the tray leaves before the column: at the default window the raw
+        // difference is 65 units and the rounded tray came out one unit wider than that, so the
+        // plate touched the 开始游戏 button's edge.
+        return (guiWidth - buttonWidth) / 2F - 8F - 2F;
+    }
+
+    /**
+     * The menu column's button height for a GUI height - {@code GuiLayout.fitHeight}'s result.
+     *
+     * <p>Here rather than inline because the tray's geometry is defined in terms of it, and a test
+     * that hard-coded 27 or 68 would stop describing the rule the moment the menu changes.
+     */
+    static int menuButtonHeight(int guiHeight) {
+        int titleReserve = Math.max(56, Math.min(140, guiHeight * 30 / 100));
+        return GuiLayout.fitHeight(guiHeight, 68, 4, titleReserve, 8);
     }
 
     /**
@@ -193,23 +307,6 @@ public final class TitleScreen extends Screen {
                 && guiY >= nameY && guiY < nameY + nameHeight;
     }
 
-    @Override
-    protected void onMouseClicked(double guiX, double guiY, int button) {
-        if (button != 0) {
-            return;
-        }
-        if (overPlayerBoard(guiX, guiY)) {
-            openPlayerPicker();
-            return;
-        }
-        int cell = cellAt(guiX, guiY);
-        if (cell == 0) {
-            client.openScreen(new ShopScreen(client));
-        } else if (cell == 1) {
-            client.openScreen(new PackScreen(client));
-        }
-    }
-
     /**
      * Which corner cell a GUI point is on: 0 the shop, 1 the packs page, -1 neither.
      *
@@ -218,23 +315,14 @@ public final class TitleScreen extends Screen {
      */
     private int cellAt(double guiX, double guiY) {
         for (int i = 0; i < 2; i++) {
-            if (guiX >= cellX(i) && guiX < cellX(i) + CELL_W
-                    && guiY >= cellY() && guiY < cellY() + CELL_H) {
+            if (guiX >= tray.cellX(i) && guiX < tray.cellX(i) + tray.cellWidth()
+                    && guiY >= tray.cellY() && guiY < tray.cellY() + tray.cellHeight()) {
                 return i;
             }
         }
         return -1;
     }
 
-    /** The left edge of cell {@code i}; the two sit side by side inside the plate. */
-    private float cellX(int i) {
-        return trayX + TRAY_SIDE_PAD + i * (CELL_W + CELL_GAP);
-    }
-
-    /** The bottom edge of both cells; the plate's padding is what lifts them off its frame. */
-    private float cellY() {
-        return trayY + TRAY_BOTTOM_PAD;
-    }
 
     /**
      * The read-only view the tray's test drives.
@@ -249,17 +337,40 @@ public final class TitleScreen extends Screen {
      * font that the tray's earlier version measured its cells with. There is deliberately no label
      * on a cell to expose - the two are icon-only, and the text lives in the hover tip.
      */
-    record TrayCell(float centerX, float centerY) {
+    public record TrayCell(float centerX, float centerY) {
     }
 
-    TrayCell trayCell(int index) {
-        return new TrayCell(cellX(index) + CELL_W / 2F, cellY() + CELL_H / 2F);
+    /**
+     * Where a corner cell is, in GUI units.
+     *
+     * <p>Public for the smoke driver's {@code pvzce.smokeTray} hook, which has to click one: the
+     * tray is anchored to the player board's font-measured height and scales with the menu buttons,
+     * so its coordinates are the one pair on this screen that cannot be written down as constants.
+     * Aiming with the same method {@link #cellAt} hit-tests with is also what makes that hook a
+     * check of the two agreeing.
+     */
+    public TrayCell trayCell(int index) {
+        return cellOf(tray, index);
     }
+
+    /**
+     * The centre of a cell, for a layout.
+     *
+     * <p>Static and taking the layout because the click contract has to be testable without a
+     * window: a screen's {@code init()} reads the framebuffer, so a windowless test can only reach
+     * the geometry through {@link #trayForGui}.
+     */
+    static TrayCell cellOf(TrayLayout layout, int index) {
+        return new TrayCell(layout.cellX(index) + layout.cellWidth() / 2F,
+                layout.cellY() + layout.cellHeight() / 2F);
+    }
+
 
     /** The tray's own rectangle, for the "a click on the wood does nothing" half of the contract. */
     float[] trayBounds() {
-        return new float[]{trayX, trayY, trayWidth, trayHeight};
+        return new float[]{tray.x(), tray.y(), tray.width(), tray.height()};
     }
+
 
     /**
      * Opens the picker over the menu.
@@ -351,7 +462,8 @@ public final class TitleScreen extends Screen {
      * rather than as two icons dropped on the background.
      */
     private void renderTray() {
-        NinePatch.drawNineSlice(client, TRAY_PANEL, trayX, trayY, trayWidth, trayHeight, 0F,
+        NinePatch.drawNineSlice(client, TRAY_PANEL, tray.x(), tray.y(),
+                tray.width(), tray.height(), 0F,
                 TRAY_TEXTURE_WIDTH, TRAY_TEXTURE_HEIGHT,
                 9F, 9F, 32F, 32F, 1F, 1F, 1F, 1F);
         int hovered = cellAt(client.guiMouseX(client.window().cursorX()),
@@ -368,15 +480,16 @@ public final class TitleScreen extends Screen {
      * their own render pass (the card bar and the buff row do the same).
      */
     private void drawCell(int index, Identifier icon, String label, boolean lit) {
-        float x = cellX(index);
-        float y = cellY();
-        client.drawTexture(CELL_PLATE, x, y, CELL_W, CELL_PLATE_H, 0F, 1F, 1F, 1F, 1F);
+        float x = tray.cellX(index);
+        float y = tray.cellY();
+        float plateH = tray.plateHeight();
+        client.drawTexture(CELL_PLATE, x, y, tray.cellWidth(), plateH, 0F, 1F, 1F, 1F, 1F);
         // Hover is a warm wash over the plate rather than the disabled art: that image is the
         // same wood drained to grey, which reads as "not available" on a cell that is.
         if (lit) {
-            client.drawSolid(x, y, CELL_W, CELL_PLATE_H, 0.05F, 1F, 0.85F, 0.45F, 0.18F);
+            client.drawSolid(x, y, tray.cellWidth(), plateH, 0.05F, 1F, 0.85F, 0.45F, 0.18F);
         }
-        drawIcon(icon, x, y + CELL_PLATE_H + 1F, CELL_W);
+        drawIcon(icon, x, y + plateH + 1F, tray.cellWidth(), tray.iconBox());
         if (lit) {
             HoverTip.draw(client, label,
                     (float) client.guiMouseX(client.window().cursorX()),
@@ -385,22 +498,23 @@ public final class TitleScreen extends Screen {
     }
 
     /**
-     * Draws an icon at its own aspect inside a square cell.
+     * Draws an icon at its own aspect inside a box.
      *
-     * <p>Not stretched to the square: the seed packet is 100x140 and the coin is 45x45, and a
-     * packet squashed into a square is a different piece of art. Fitted instead, both sit in the
-     * same cell as themselves.
+     * <p>Not stretched to the box: the seed packet is 100x140 and the coin is 45x45, and a packet
+     * squashed into a square is a different piece of art. Fitted instead, both sit in the same cell
+     * as themselves.
      */
-    private void drawIcon(Identifier icon, float x, float y, float box) {
+    private void drawIcon(Identifier icon, float x, float y, float boxWidth, float boxHeight) {
         if (!client.hasTexture(icon)) {
             client.warnMissingTexture(icon);
             return;
         }
+        float box = Math.min(boxWidth, boxHeight);
         var tex = client.textures().getOrLoad(icon);
         float aspect = tex.width() / (float) Math.max(1, tex.height());
         float width = aspect >= 1F ? box : box * aspect;
         float height = aspect >= 1F ? box / aspect : box;
-        client.drawTexture(icon, x + (box - width) / 2F, y + (box - height) / 2F,
+        client.drawTexture(icon, x + (boxWidth - width) / 2F, y + (boxHeight - height) / 2F,
                 width, height, 0.5F, 1F, 1F, 1F, 1F);
     }
 

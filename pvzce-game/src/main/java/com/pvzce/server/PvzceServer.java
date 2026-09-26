@@ -28,6 +28,7 @@ import com.pvzce.common.network.packet.ProfileS2C;
 import com.pvzce.common.network.packet.ReloadPacksC2S;
 import com.pvzce.common.network.packet.ContinueLevelC2S;
 import com.pvzce.common.network.packet.RequestLevelListC2S;
+import com.pvzce.common.network.packet.RequestProfileC2S;
 import com.pvzce.common.network.packet.RequestSuggestionsC2S;
 import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.ServerMessageS2C;
@@ -678,6 +679,30 @@ public final class PvzceServer implements Runnable {
         return "已解锁关卡 " + levelId + "（世界 " + safeWorld + "）";
     }
 
+    /**
+     * Puts coins in the menus' world, the way a level's payout does.
+     *
+     * <p>Reached by {@code /profile coins <n>}. It exists for the one state no other command can
+     * produce: a world that can <em>afford</em> something. The shop's whole page is a price list,
+     * and {@code pvzce.smokeCoins} uses this to photograph it next to a real balance rather than
+     * next to zero. Named "...ToWorld" rather than {@code grantCoins} because the profile has a
+     * method by that name and the two are not the same call: this one picks the world, saves it and
+     * pushes the new wallet to the client.
+     */
+    public String grantCoinsToWorld(int amount) {
+        if (amount < 0) {
+            return "金币要一个非负数，收到 " + amount;
+        }
+        String safeWorld = WorldPaths.sanitize(menuWorld());
+        PlayerProfile profile = worlds.profileFor(safeWorld);
+        int added = profile.grantCoins(amount);
+        worlds.saveProfile(safeWorld, profile);
+        refreshLevelList();
+        connection.send(profilePacket(profile));
+        return "世界 " + safeWorld + " 的金币现在是 " + profile.coins()
+                + (added < amount ? "（上限截断了 " + (amount - added) + "）" : "");
+    }
+
     /** Switches the current world into sandbox mode: every card and every level. */
     public String grantEverything() {
         String safeWorld = WorldPaths.sanitize(menuWorld());
@@ -1221,6 +1246,14 @@ public final class PvzceServer implements Runnable {
             } else if (packet instanceof RequestLevelListC2S request) {
                 lastRequestedWorld = request.worldName();
                 sendLevelList(request.worldName());
+            } else if (packet instanceof RequestProfileC2S request) {
+                // The shop asks for this on its own: it is reachable without the level list, and
+                // on a fresh session the client has no profile at all (see RequestProfileC2S).
+                String world = WorldPaths.sanitize(request.worldName());
+                if (!world.isBlank()) {
+                    lastRequestedWorld = world;
+                }
+                connection.send(profilePacket(worlds.profileFor(menuWorld())));
             } else if (packet instanceof RequestSuggestionsC2S suggestions) {
                 sendSuggestions(suggestions.input(), suggestions.requestId());
             } else if (packet instanceof SetGameSpeedC2S speed) {
