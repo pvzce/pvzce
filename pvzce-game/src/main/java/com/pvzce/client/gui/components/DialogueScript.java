@@ -1,0 +1,469 @@
+package com.pvzce.client.gui.components;
+
+import com.pvzce.api.content.DialogueCharacterDef;
+import com.pvzce.api.content.DialogueChoice;
+import com.pvzce.api.content.DialogueLine;
+import com.pvzce.api.content.DialogueSlot;
+import com.pvzce.api.content.LevelDialogue;
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.core.BuiltInRegistries;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * A conversation as it is being played: which lines are behind us, who is standing on stage,
+ * and what a click means right now.
+ *
+ * <p>Split out of {@link DialogueOverlay} on purpose, the same way {@link DialogueMotion} was:
+ * the overlay owns textures, layout and input, and none of that can be asserted, while "who is
+ * on stage after this click" is where the mistakes live - a character who never leaves, a line
+ * reached before its question was answered, a stage rebuilt from scratch so someone who was
+ * already there walks on again. Those are questions about a list and two maps, so they live in a
+ * class a test can drive without a window.
+ *
+ * <h2>The stage</h2>
+ *
+ * <p>Two characters may share the screen, one in each half of the window. A line says who is
+ * there with {@code slots}; the script compares that with the line before it and starts a slide
+ * for whoever appeared and a leave for whoever is gone. A line that says nothing about the stage
+ * keeps the one it had, minus the speaker - so a conversation written the old way (one character,
+ * no {@code slots} at all) stages exactly what it always did.
+ *
+ * <p>Each slide has its own clock rather than sharing the conversation's, because there are now
+ * three kinds of them: the opening one, one per arrival or departure mid-conversation, and the
+ * closing one. A slide that has finished is simply not in the map any more.
+ *
+ * <h2>Choices</h2>
+ *
+ * <p>A line with {@code choices} is a <em>gate</em>: it does not advance on a click, and the line
+ * written under it - the player's own answer - is not reached until a button is pressed. From the
+ * outside that is one extra state to ask about, {@link #awaitingChoice()}, and one more verb,
+ * {@link #choose(int)} where {@link #advance()} would be.
+ *
+ * <p>Reached lines are remembered in {@link #revealed}: a line written under a question is normally
+ * <em>not</em> reachable - walking on must not step onto an answer the player never gave - and is
+ * made reachable by the one thing that can say it: the button that picks it.
+ */
+final class DialogueScript {
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Dialogue");
+
+    /** One slide that is running: which way it goes, and when it started. */
+    static final class Slide {
+        final boolean entering;
+        final long startNanos;
+
+        Slide(boolean entering, long startNanos) {
+            this.entering = entering;
+            this.startNanos = startNanos;
+        }
+    }
+
+    /** A character standing in one half of the window. */
+    static final class StagePortrait {
+        final DialogueCharacterDef character;
+        final DialogueSlot slot;
+        /** The portrait file name they are drawn with; the speaker's comes from their own line. */
+        final String portrait;
+
+        StagePortrait(DialogueCharacterDef character, DialogueSlot slot, String portrait) {
+            this.character = character;
+            this.slot = slot;
+            this.portrait = portrait;
+        }
+    }
+
+    private final List<DialogueLine> lines;
+    private final String playerName;
+    private final Set<Integer> revealed = new HashSet<>();
+    private final Map<Identifier, StagePortrait> stage = new LinkedHashMap<>();
+    private final Map<Identifier, Slide> slides = new LinkedHashMap<>();
+    /** Per line: the name over the bubble, already substituted. */
+    private final List<String> speakerNames = new ArrayList<>();
+    /** Per line: the voice clip, already resolved from the line or from the chosen answer. */
+    private final List<String> voices = new ArrayList<>();
+    private final long startNanos;
+    private final boolean exitSlides;
+    private int index;
+    private boolean finished;
+    private boolean exiting;
+    private long exitStartNanos;
+
+    private DialogueScript(List<DialogueLine> lines, String playerName, long startNanos, boolean exitSlides) {
+        this.lines = lines;
+        this.playerName = playerName == null ? "" : playerName;
+        this.startNanos = startNanos;
+        this.exitSlides = exitSlides;
+        for (DialogueLine line : lines) {
+            this.speakerNames.add(substitute(line.speakerName(), this.playerName));
+            this.voices.add(line.voice() == null ? "" : line.voice());
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            this.revealed.add(i);
+        }
+        // A reply written under a question is not on the way anywhere: it is reached by answering.
+        // Marking it reachable above and taking it back here keeps "reachable" the single list of
+        // what a click may step onto, rather than two rules that have to agree.
+        for (int i = 0; i + 1 < lines.size(); i++) {
+            if (lines.get(i).hasChoices()) {
+                this.revealed.remove(i + 1);
+            }
+        }
+        if (!lines.isEmpty()) {
+            enter(lines.get(0), startNanos);
+        }
+    }
+
+    /**
+     * Reads a conversation into a playable script.
+     *
+     * <p>The names a line may put over its bubble ({@code ${user_name}} for the player) are
+     * substituted here and not while drawing: one line then has one final text, and the
+     * typewriter, the wrapping and the choice buttons all measure the same string.
+     */
+    static DialogueScript of(LevelDialogue dialogue, String playerName) {
+        List<DialogueLine> lines = dialogue == null ? List.of() : dialogue.lines();
+        boolean exitSlides = dialogue == null || dialogue.exit().slides();
+        return new DialogueScript(List.copyOf(lines), playerName, System.nanoTime(), exitSlides);
+    }
+
+    /** The same substitution the overlay's line texts go through, for a name. */
+    private static String substitute(String text, String playerName) {
+        if (text == null) {
+            return "";
+        }
+        if (!text.contains(DialogueOverlay.USER_NAME_PLACEHOLDER)) {
+            return text;
+        }
+        return text.replace(DialogueOverlay.USER_NAME_PLACEHOLDER, playerName == null ? "" : playerName);
+    }
+
+    // ------------------------------------------------------------------
+    // Reading the script
+    // ------------------------------------------------------------------
+
+    boolean isEmpty() {
+        return lines.isEmpty();
+    }
+
+    boolean isActive() {
+        return !finished && !lines.isEmpty();
+    }
+
+    int index() {
+        return index;
+    }
+
+    int size() {
+        return lines.size();
+    }
+
+    DialogueLine line() {
+        return lines.get(index);
+    }
+
+    DialogueLine line(int at) {
+        return lines.get(at);
+    }
+
+    /** True while the closing slides are playing: nothing left to advance, waiting for them. */
+    boolean isExiting() {
+        return exiting;
+    }
+
+    /** True when the closing slides are run at all; {@code "exit": "none"} cuts instead. */
+    boolean exitSlides() {
+        return exitSlides;
+    }
+
+    long exitStartNanos() {
+        return exitStartNanos;
+    }
+
+    /** True when the current line must be answered with a button before anything moves on. */
+    boolean awaitingChoice() {
+        return isActive() && !exiting && line().hasChoices();
+    }
+
+    /** The buttons the current question offers, or none. */
+    List<DialogueChoice> choices() {
+        return awaitingChoice() ? line().choices() : List.of();
+    }
+
+    /** The name to draw over the bubble: the character's, or the one written on the line. */
+    String speakerName() {
+        if (!isActive()) {
+            return "";
+        }
+        String written = speakerNames.get(index);
+        if (!written.isBlank()) {
+            return written;
+        }
+        // A line with a character and no name of its own speaks for that character; a line with
+        // neither (the player's own answer, before it is answered) is drawn without a name.
+        DialogueCharacterDef character = characterOf(line().character());
+        return character == null ? "" : character.displayName();
+    }
+
+    /** The voice clip the current line plays, or empty. */
+    String voice() {
+        return isActive() ? voices.get(index) : "";
+    }
+
+    /** The characters on stage, in the order they arrived. */
+    List<StagePortrait> portraits() {
+        return new ArrayList<>(stage.values());
+    }
+
+    /**
+     * The character standing in {@code slot}, or {@code null} when that half is empty.
+     *
+     * <p>Two characters asking for one slot is an author's mistake that the validator reports; the
+     * first to arrive keeps it, so the picture is stable rather than depending on map order.
+     */
+    StagePortrait portraitIn(DialogueSlot slot) {
+        for (StagePortrait portrait : stage.values()) {
+            if (portrait.slot == slot) {
+                return portrait;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A slide that is still running for a character who is on stage, or {@code null}.
+     *
+     * <p>A character who has already left is not a slide any more, however recently they went: the
+     * overlay asks this once per portrait it is about to draw, and somebody who is not on stage is
+     * not drawn at all.
+     */
+    Slide slideOf(Identifier id) {
+        return id == null || !stage.containsKey(id) ? null : slides.get(id);
+    }
+
+    /** When the conversation opened; the opening slide is clocked from here. */
+    long startNanos() {
+        return startNanos;
+    }
+
+    // ------------------------------------------------------------------
+    // Playing it
+    // ------------------------------------------------------------------
+
+    /**
+     * One click, once the overlay has dealt with the typewriter: move to the next line.
+     *
+     * <p>Three answers live here. A question waits - nothing happens until a button is pressed.
+     * The last line ends the conversation, which is where the closing slides start. Anything else
+     * steps forward, skipping over any line still waiting behind an unanswered question.
+     *
+     * @return true when it moved to another line
+     */
+    boolean advance() {
+        if (!isActive() || exiting) {
+            return false;
+        }
+        if (line().hasChoices()) {
+            // The question is the gate: a click is not an answer.
+            return false;
+        }
+        return step();
+    }
+
+    /**
+     * Answers the current question with its {@code choiceIndex}-th button.
+     *
+     * <p>The reply line written under the gate is revealed and stepped onto in the same click -
+     * the player pressed a button, they did not ask to read their own answer later. That line's
+     * voice and name come from the answer where the script left them out, so a question can be
+     * written once and answered by whoever is playing.
+     *
+     * @return true when the answer was taken and the conversation moved to the reply
+     */
+    boolean choose(int choiceIndex) {
+        if (!awaitingChoice()) {
+            return false;
+        }
+        List<DialogueChoice> offered = line().choices();
+        if (choiceIndex < 0 || choiceIndex >= offered.size()) {
+            return false;
+        }
+        int reply = index + 1;
+        if (reply >= lines.size()) {
+            // A question on the last line has nothing written under it. Treated as an ending
+            // rather than as a question nobody can get past; the validator reports it.
+            endConversation();
+            return false;
+        }
+        revealed.add(reply);
+        DialogueChoice choice = offered.get(choiceIndex);
+        if (speakerNames.get(reply).isBlank()) {
+            speakerNames.set(reply, playerName);
+        }
+        if (choice.voice() != null && !choice.voice().isBlank()) {
+            voices.set(reply, choice.voice());
+        }
+        return step();
+    }
+
+    /** Steps to the next line the player may see, or ends the conversation. */
+    private boolean step() {
+        int next = index + 1;
+        while (next < lines.size() && !revealed.contains(next)) {
+            next++;
+        }
+        if (next >= lines.size()) {
+            endConversation();
+            return false;
+        }
+        index = next;
+        enter(line(), System.nanoTime());
+        return true;
+    }
+
+    /** Jumps to the end of the conversation: no closing slides, the host simply gets its call. */
+    void skipAll() {
+        if (isActive()) {
+            finished = true;
+            exiting = false;
+            slides.clear();
+            stage.clear();
+        }
+    }
+
+    /** Ends the conversation: everyone still on stage leaves, and the host waits for them. */
+    private void endConversation() {
+        if (!exitSlides) {
+            skipAll();
+            return;
+        }
+        exiting = true;
+        exitStartNanos = System.nanoTime();
+        for (Identifier id : new ArrayList<>(stage.keySet())) {
+            slides.put(id, new Slide(false, exitStartNanos));
+        }
+    }
+
+    /**
+     * Advances the stage's clocks: retires finished slides and drops the characters who left.
+     *
+     * @return true when the conversation is over for good
+     */
+    boolean tick(long nowNanos) {
+        if (finished) {
+            return true;
+        }
+        List<Identifier> done = new ArrayList<>();
+        for (Map.Entry<Identifier, Slide> entry : slides.entrySet()) {
+            if (DialogueMotion.progress(nowNanos, entry.getValue().startNanos, DialogueMotion.SLIDE_NANOS) >= 1F) {
+                done.add(entry.getKey());
+            }
+        }
+        for (Identifier id : done) {
+            Slide slide = slides.remove(id);
+            if (!slide.entering) {
+                stage.remove(id);
+            }
+        }
+        if (exiting && slides.isEmpty()) {
+            finished = true;
+        }
+        return finished;
+    }
+
+    /**
+     * Stages a line: arrivals slide in, departures slide out, and whoever was already there stays.
+     *
+     * <p>An arrival is a character who was not in {@link #stage} a moment ago; a departure is one
+     * who is in it and not in the new line's stage. A character who merely moves between halves,
+     * or who is already where the new line wants them, gets no slide at all - and that is also why
+     * nothing happens while the speaker changes: the stage of a line with no {@code slots} is the
+     * previous one, so the same single portrait is simply still there.
+     */
+    private void enter(DialogueLine line, long nowNanos) {
+        Map<Identifier, DialogueSlot> wanted = stageOf(line);
+        for (Map.Entry<Identifier, DialogueSlot> entry : wanted.entrySet()) {
+            Identifier id = entry.getKey();
+            StagePortrait current = stage.get(id);
+            if (current != null && current.slot == entry.getValue()) {
+                // Already there, in the same half: the line may still change their look, and
+                // whatever brought them here is over - a slide left running would push a settled
+                // character back off the screen for as long as it lasted.
+                stage.put(id, new StagePortrait(current.character, current.slot, portraitFor(line, id)));
+                slides.remove(id);
+                continue;
+            }
+            DialogueCharacterDef character = current == null ? characterOf(id) : current.character;
+            if (character == null) {
+                continue;
+            }
+            stage.put(id, new StagePortrait(character, entry.getValue(), portraitFor(line, id)));
+            if (current == null) {
+                slides.put(id, new Slide(true, nowNanos));
+            } else {
+                // They changed halves: no walk across the yard, they are simply standing there now.
+                slides.remove(id);
+            }
+        }
+        for (Identifier id : new ArrayList<>(stage.keySet())) {
+            if (!wanted.containsKey(id)) {
+                slides.put(id, new Slide(false, nowNanos));
+            }
+        }
+    }
+
+    /** The look a character is drawn with on this line: the speaker's portrait, others keep theirs. */
+    private String portraitFor(DialogueLine line, Identifier id) {
+        if (id.equals(line.character())) {
+            return line.portrait();
+        }
+        StagePortrait current = stage.get(id);
+        return current == null ? "" : current.portrait;
+    }
+
+    /**
+     * Who this line puts on stage: its own {@code slots}, or the previous stage with the speaker
+     * on their side - which is what every line written before {@code slots} existed means.
+     */
+    private Map<Identifier, DialogueSlot> stageOf(DialogueLine line) {
+        Map<Identifier, DialogueSlot> wanted = new LinkedHashMap<>();
+        if (!line.slots().isEmpty()) {
+            for (DialogueLine.DialogueSlotEntry entry : line.slots()) {
+                if (entry.character() == null || entry.slot() == DialogueSlot.UNKNOWN) {
+                    continue;
+                }
+                if (wanted.putIfAbsent(entry.character(), entry.slot()) != null) {
+                    LOGGER.warn("Dialogue stage names '{}' twice on one line: the first slot is kept",
+                            entry.character());
+                }
+            }
+            return wanted;
+        }
+        for (Map.Entry<Identifier, StagePortrait> entry : stage.entrySet()) {
+            if (!entry.getKey().equals(line.character())) {
+                wanted.put(entry.getKey(), entry.getValue().slot);
+            }
+        }
+        if (line.character() != null) {
+            wanted.put(line.character(), line.side().isRight() ? DialogueSlot.RIGHT : DialogueSlot.LEFT);
+        }
+        return wanted;
+    }
+
+    private static DialogueCharacterDef characterOf(Identifier id) {
+        if (id == null) {
+            return null;
+        }
+        DialogueCharacterDef character = BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+        if (character == null) {
+            LOGGER.warn("Unknown dialogue character '{}': the line is shown without a portrait", id);
+        }
+        return character;
+    }
+}

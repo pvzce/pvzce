@@ -316,6 +316,86 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:entang",
+        "portrait": "confused",
+        "text": "",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "confused",
+        "text": "嗯，你谁？",
+        "voice": "",
+        "side": "left",
+        "choices": [
+          {
+            "text": "${user_name}"
+          }
+        ]
+      },
+      {
+        "text": "${user_name}",
+        "voice": "",
+        "side": "left",
+        "speaker_name": "${user_name}"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "${user_name}，明白了",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:entang"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "confused",
+        "text": "你是这里的主人吗？",
+        "voice": "",
+        "side": "left",
+        "choices": [
+          {
+            "text": "是的"
+          }
+        ]
+      },
+      {
+        "text": "是的",
+        "voice": "",
+        "side": "left",
+        "speaker_name": "${user_name}"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "明白了",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:entang"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "indifferent",
+        "text": "你先去忙吧",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

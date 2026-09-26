@@ -313,4 +313,57 @@ class LevelFileWriterTest {
         LevelFileWriter.dialogue(draft, new com.pvzce.client.gui.screens.DialogueEditorModel.Config());
         assertFalse(draft.json().has("dialogue"));
     }
+
+    /**
+     * A save from the 对话 page may not delete the stage or the question it cannot edit.
+     *
+     * <p>The page has widgets for a line's text, portrait, side and animation and none for
+     * {@code slots} or {@code choices}. That is exactly the shape of a data-loss bug: the author
+     * fixes a typo in one line's text, saves, and the second character on stage - or the question
+     * the player answers - is gone, with nothing on screen to say so. The two fields therefore
+     * round-trip verbatim, the same rule an animation kind the page cannot draw already follows.
+     */
+    @Test
+    void theStageAndTheAnswersSurviveThePage() {
+        JsonObject root = JsonParser.parseString("""
+                {
+                  "id": "pvzce:two_handed",
+                  "dialogue": {
+                    "lines": [
+                      { "character": "pvzce:entang", "portrait": "bored", "text": "又见面了",
+                        "voice": "", "side": "left",
+                        "slots": [ { "slot": "left", "character": "pvzce:entang" },
+                                   { "slot": "right", "character": "pvzce:pea_chan" } ],
+                        "choices": [ { "text": "莉安" }, { "text": "路过的人" } ] },
+                      { "text": "${user_name}", "speaker_name": "${user_name}", "side": "left" },
+                      { "character": "pvzce:entang", "portrait": "gentle", "text": "明白了",
+                        "side": "left" }
+                    ]
+                  }
+                }
+                """).getAsJsonObject();
+        com.pvzce.client.gui.screens.DialogueEditorModel.Config config =
+                com.pvzce.client.gui.screens.DialogueEditorModel.Config.fromJson(root);
+        assertEquals("${user_name}", config.lines.get(1).speakerName,
+                "the player's own line keeps the name over its bubble");
+
+        JsonDraft draft = JsonDraft.of(root.deepCopy());
+        LevelFileWriter.dialogue(draft, config);
+        JsonArray lines = draft.json().getAsJsonObject("dialogue").getAsJsonArray("lines");
+
+        JsonObject question = lines.get(0).getAsJsonObject();
+        assertEquals(2, question.getAsJsonArray("slots").size());
+        assertEquals("pvzce:pea_chan", question.getAsJsonArray("slots").get(1).getAsJsonObject()
+                .get("character").getAsString());
+        assertEquals("路过的人", question.getAsJsonArray("choices").get(1).getAsJsonObject()
+                .get("text").getAsString());
+        assertEquals("${user_name}", lines.get(1).getAsJsonObject().get("speaker_name").getAsString());
+
+        // A line that has neither writes neither: "no stage" is the absence of the field, and a
+        // page that wrote an empty array on every line would be noise the author has to read past.
+        JsonObject plain = lines.get(2).getAsJsonObject();
+        assertFalse(plain.has("slots"));
+        assertFalse(plain.has("choices"));
+        assertFalse(plain.has("speaker_name"));
+    }
 }

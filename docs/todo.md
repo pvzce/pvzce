@@ -189,7 +189,8 @@ Crazy Dave 的商店全套与图鉴式商品栏都没做。金币目前主要是
 
 ### 编辑器不认识 `dialogue.timed` 与 `mechanics.schedule`
 
-对话页会把整个 `dialogue` 块按自己认识的字段重写，所以**用编辑器保存一个带 `timed` 的包关卡会把定时台词丢掉**；
+对话页会把整个 `dialogue` 块按自己认识的字段重写，所以**用编辑器保存一个带 `timed` 的包关卡会把定时台词丢掉**
+（`slots` / `choices` / `speaker_name` 已经有编辑入口——「同台：…」对话框——不再属于这一条）；
 `MutationMechanic.editorFields()` 仍然是空的，脚本变异只能手写 JSON。要补的话：对话页加"定时台词"一栏
 （一个 `at_tick` + 一行台词的列表），变异机制加一个只读提示 + "在 JSON 里编辑"的说明就够 —— 一个可视化的脚本编辑器不值得做。
 

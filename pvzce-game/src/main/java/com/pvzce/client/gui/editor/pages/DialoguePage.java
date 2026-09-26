@@ -49,6 +49,8 @@ public final class DialoguePage implements EditorPage {
     private Button dialogueSideButton;
     private Button dialogueAnimationButton;
     private EditBox dialogueAnimationValueBox;
+    /** Opens {@link DialogueChoicesDialog} for the selected line: its stage and its answers. */
+    private Button dialogueStageButton;
     /** The line the detail form was last built for; the list has no change event. */
     private DialogueEditorModel.LineModel lastDialogueLineShown;
     /** The picker values that came from the model rather than from a click. */
@@ -154,6 +156,12 @@ public final class DialoguePage implements EditorPage {
         dialogueAnimationValueBox = context.own(new EditBox(detailX + animationButtonW + 5,
                 fieldTop - fieldRow * 3, Math.max(50, detailW - animationButtonW - 5), rowH,
                 this::commitDialogueFieldsNow));
+        // The stage and the answers share the animation row's right-hand side rather than taking a
+        // row of their own: the form has four rows and a fifth would push the two pickers off the
+        // page. Both open the same dialog, which is where those fields are edited.
+        dialogueStageButton = context.own(new Button(detailX + animationButtonW + 5,
+                fieldTop - fieldRow * 4, Math.max(50, detailW - animationButtonW - 5), rowH,
+                "同台：无", () -> openStageDialog(context)));
 
         int listsBottom = y + pad + fieldRow * fieldRows + 18;
         int listBlockH = Math.max(70, (y + h - pad - 18) - listsBottom);
@@ -279,12 +287,14 @@ public final class DialoguePage implements EditorPage {
         dialogueAnimationButton.setActive(has);
         dialogueAnimationValueBox.setActive(has && !"none".equalsIgnoreCase(
                 currentDialogueLine() == null ? "none" : currentDialogueLine().animation));
+        dialogueStageButton.setActive(has);
         if (!has) {
             dialogueTextBox.setValue("", false);
             dialogueVoiceBox.setValue("", false);
             dialogueSideButton.setLabel("位置：-");
             dialogueAnimationButton.setLabel("动画：-");
             dialogueAnimationValueBox.setValue("", false);
+            dialogueStageButton.setLabel("同台：-");
             if (dialoguePortraitList != null) {
                 dialoguePortraitList.setEntries(List.of());
             }
@@ -298,6 +308,7 @@ public final class DialoguePage implements EditorPage {
         }
         dialogueSideButton.setLabel("位置：" + line.sideLabel());
         dialogueAnimationButton.setLabel("动画：" + line.animationLabel());
+        dialogueStageButton.setLabel(stageLabel(line));
         if (!dialogueAnimationValueBox.isFocused()) {
             dialogueAnimationValueBox.setValue(line.animationValueText(), false);
         }
@@ -470,4 +481,81 @@ public final class DialoguePage implements EditorPage {
         refreshDialogueDetail(context);
     }
 
+
+    /**
+     * What the 同台 button says: who else is standing there, and whether the line asks a question.
+     *
+     * <p>One label for two fields because they are one thing an author decides at a time - what this
+     * beat looks like - and the row has only one button's worth of room.
+     */
+    private String stageLabel(DialogueEditorModel.LineModel line) {
+        if (line == null) {
+            return "同台：-";
+        }
+        StringBuilder label = new StringBuilder("同台：");
+        int staged = 0;
+        for (com.pvzce.api.content.DialogueLine.DialogueSlotEntry entry : line.toLine().slots()) {
+            if (staged++ > 0) {
+                label.append(' ');
+            }
+            label.append(entry.slot().isLeft() ? "左" : "右").append(shortCharacter(entry.character()));
+        }
+        if (staged == 0) {
+            label.append("无");
+        }
+        int choices = line.toLine().choices().size();
+        if (choices > 0) {
+            label.append("　选项:").append(choices);
+        }
+        return label.toString();
+    }
+
+    /** A character id as the page spells it: the namespace only when it is not this project's. */
+    private static String shortCharacter(Identifier id) {
+        if (id == null) {
+            return "";
+        }
+        return Identifier.DEFAULT_NAMESPACE.equals(id.namespace()) ? id.path() : id.toString();
+    }
+
+    /**
+     * Opens the 同台与选项 dialog for the selected line and writes back what it edited.
+     *
+     * <p>The line is looked up again when the dialog closes rather than captured: a dialog can be
+     * open while the list is reordered, and writing the answer into whichever line now sits at that
+     * index would silently edit the wrong beat.
+     */
+    private void openStageDialog(EditorContext context) {
+        DialogueEditorModel.LineModel selected = currentDialogueLine();
+        if (selected == null) {
+            return;
+        }
+        int index = dialogueConfig.lines.indexOf(selected);
+        com.pvzce.client.gui.screens.DialogueChoicesDialog.openFor(context, selected.toLine(),
+                config -> applyStageDialog(context, index, config));
+    }
+
+    private void applyStageDialog(EditorContext context, int index,
+                                  com.pvzce.client.gui.screens.DialogueChoicesDialog.Config config) {
+        if (config == null || index < 0 || index >= dialogueConfig.lines.size()) {
+            return;
+        }
+        DialogueEditorModel.LineModel line = dialogueConfig.lines.get(index);
+        List<com.pvzce.api.content.DialogueLine.DialogueSlotEntry> stage = new ArrayList<>();
+        Identifier left = config.leftCharacter();
+        Identifier right = config.rightCharacter();
+        if (left != null) {
+            stage.add(new com.pvzce.api.content.DialogueLine.DialogueSlotEntry(
+                    left, com.pvzce.api.content.DialogueSlot.LEFT));
+        }
+        if (right != null) {
+            stage.add(new com.pvzce.api.content.DialogueLine.DialogueSlotEntry(
+                    right, com.pvzce.api.content.DialogueSlot.RIGHT));
+        }
+        line.applyStage(stage);
+        line.applyChoices(config.choices);
+        line.speakerName = config.speakerName == null ? "" : config.speakerName.trim();
+        refreshDialogueLineList();
+        refreshDialogueDetail(context);
+    }
 }

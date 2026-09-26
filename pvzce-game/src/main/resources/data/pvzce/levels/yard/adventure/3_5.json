@@ -911,6 +911,100 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "happy",
+        "text": "终于又见面啦~",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "right",
+            "character": "pvzce:pea_chan"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "她好像没来呢",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "你可能会比较好奇她的一些事情吧？",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "confused",
+        "text": "我也不知道应该怎么说啦",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "embrassed",
+        "text": "一点...一点爱恨情仇吧",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "fierce",
+        "text": "她的占有欲，真—的—好—高—",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "disappointed",
+        "text": "摆脱不掉呢",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "happy",
+        "text": "之后在慢慢说这些吧",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "smile",
+        "text": "回到正题",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "confused",
+        "text": "不知道为什么会来了一堆小小的僵尸呢",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "看起来好杂鱼的样子~",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "zako",
+        "text": "像是咱两下就能干掉的呢",
+        "voice": "",
+        "side": "right"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

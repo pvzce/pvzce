@@ -4,5 +4,151 @@
   "portrait_dir": "pvzce:textures/gui/dialogue/pea_chan",
   "scale": 1.0,
   "box_left": "pvzce:textures/gui/dialogue/box_left",
-  "box_right": "pvzce:textures/gui/dialogue/box_right"
+  "box_right": "pvzce:textures/gui/dialogue/box_right",
+  "portrait_insets": [
+    {
+      "portrait": "blush",
+      "insets": {
+        "left": 0.16,
+        "top": 0.002,
+        "right": 0.129,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "confused",
+      "insets": {
+        "left": 0.127,
+        "top": 0.001,
+        "right": 0.155,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "disappointed",
+      "insets": {
+        "left": 0.191,
+        "top": 0.015,
+        "right": 0.167,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "dislike",
+      "insets": {
+        "left": 0.211,
+        "top": 0.0,
+        "right": 0.209,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "embrassed",
+      "insets": {
+        "left": 0.151,
+        "top": 0.015,
+        "right": 0.169,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "evil_smile",
+      "insets": {
+        "left": 0.161,
+        "top": 0.006,
+        "right": 0.02,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "fierce",
+      "insets": {
+        "left": 0.113,
+        "top": 0.001,
+        "right": 0.099,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "guilty",
+      "insets": {
+        "left": 0.169,
+        "top": 0.01,
+        "right": 0.121,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "happy",
+      "insets": {
+        "left": 0.026,
+        "top": 0.007,
+        "right": 0.07,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "panic",
+      "insets": {
+        "left": 0.042,
+        "top": 0.01,
+        "right": 0.124,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "pea_chan",
+      "insets": {
+        "left": 0.285,
+        "top": 0.01,
+        "right": 0.286,
+        "bottom": 0.01
+      }
+    },
+    {
+      "portrait": "scared",
+      "insets": {
+        "left": 0.129,
+        "top": 0.005,
+        "right": 0.131,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "smile",
+      "insets": {
+        "left": 0.121,
+        "top": 0.001,
+        "right": 0.122,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "tsundere",
+      "insets": {
+        "left": 0.089,
+        "top": 0.008,
+        "right": 0.159,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "welcome",
+      "insets": {
+        "left": 0.182,
+        "top": 0.007,
+        "right": 0.177,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "zako",
+      "insets": {
+        "left": 0.163,
+        "top": 0.003,
+        "right": 0.13,
+        "bottom": 0.0
+      }
+    }
+  ]
 }

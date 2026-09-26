@@ -3,6 +3,7 @@ package com.pvzce.client.gui.components;
 import com.pvzce.api.content.DialogueAnimation;
 import com.pvzce.api.content.DialogueEffect;
 import com.pvzce.api.content.DialogueLine;
+import com.pvzce.api.content.DialogueSlot;
 import com.pvzce.api.content.LevelDialogue;
 import com.pvzce.api.util.Identifier;
 import com.mojang.serialization.JsonOps;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -179,10 +181,56 @@ class DialogueMotionTest {
         assertEquals(DialogueAnimation.TYPE_NONE, line.animation().type());
         assertEquals("pvzce:pea_chan", line.character().toString());
         assertEquals(DialogueLine.Side.RIGHT, line.side(), "and the rest of the line is untouched");
+        assertTrue(line.slots().isEmpty(), "no stage means just the speaker");
+        assertFalse(line.hasChoices(), "and no answers means click to continue");
+        assertEquals("", line.speakerName(), "and the name over the bubble is the character's");
 
         // The five-argument constructor the old callers use still means "no animation".
         DialogueLine shortForm = new DialogueLine(Identifier.withDefaultNamespace("pea_chan"),
                 "smile", "嗨", "", DialogueLine.Side.LEFT);
         assertTrue(shortForm.animation().isNone());
+    }
+
+    /**
+     * The three fields a line gained for a second character and for the player's own answer.
+     *
+     * <p>{@code slots} is who is on stage, {@code choices} is the question, and {@code speaker_name}
+     * is a line nobody in the registry speaks - the player's. Decoded on their own line, since the
+     * three answer different questions and a conversation may use any of them.
+     */
+    @Test
+    void theStageAndTheAnswersDecodeFromTheLine() {
+        DialogueLine line = DialogueLine.CODEC.parse(JsonOps.INSTANCE,
+                com.google.gson.JsonParser.parseString("""
+                        { "character": "pvzce:entang", "portrait": "confused", "text": "嗯，你谁？",
+                          "side": "left",
+                          "slots": [ { "slot": "left", "character": "pvzce:entang" },
+                                     { "slot": "right", "character": "pvzce:pea_chan" } ],
+                          "choices": [ { "text": "莉安" }, { "text": "路过的人" } ] }
+                        """)).getOrThrow();
+        assertEquals(2, line.slots().size());
+        assertEquals(DialogueSlot.RIGHT, line.slots().get(1).slot());
+        assertEquals("pvzce:pea_chan", line.slots().get(1).character().toString());
+        assertTrue(line.hasChoices());
+        assertEquals("莉安", line.choices().get(0).text());
+        assertEquals("", line.choices().get(0).voice(), "an answer without a clip of its own");
+
+        DialogueLine player = DialogueLine.CODEC.parse(JsonOps.INSTANCE,
+                com.google.gson.JsonParser.parseString("""
+                        { "text": "${user_name}", "speaker_name": "${user_name}" }
+                        """)).getOrThrow();
+        assertNull(player.character(), "a line with no character is the player's");
+        assertEquals("${user_name}", player.speakerName());
+        assertTrue(player.slots().isEmpty());
+
+        // A misspelt half of the window decodes into UNKNOWN rather than failing the level; the
+        // validator is what names it, and the stage is what skips it.
+        DialogueLine typo = DialogueLine.CODEC.parse(JsonOps.INSTANCE,
+                com.google.gson.JsonParser.parseString("""
+                        { "character": "pvzce:entang", "text": "嗯",
+                          "slots": [ { "slot": "middle", "character": "pvzce:pea_chan" } ] }
+                        """)).getOrThrow();
+        assertEquals(DialogueSlot.UNKNOWN, typo.slots().get(0).slot());
+        assertEquals(DialogueSlot.UNKNOWN, DialogueSlot.parse(null), "a missing half is no half");
     }
 }

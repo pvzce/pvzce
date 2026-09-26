@@ -25,6 +25,14 @@ final class DialogueMotion {
     static final float SHAKE_AMPLITUDE_RATIO = 0.012F;
     /** Back-and-forth cycles in one shake; one and a half is a shudder, not a vibration. */
     private static final float SHAKE_CYCLES = 1.5F;
+    /**
+     * The smallest share of its own height a pair of portraits is shrunk to.
+     *
+     * <p>Only reachable with art far wider than it is tall or characters scaled up: at 0.62 two
+     * portrait boxes fit inside a 16:9 window's width, so a conversation that was written for two
+     * characters fits without ever being cut down this far.
+     */
+    static final float MIN_PAIR_SCALE = 0.62F;
 
     private DialogueMotion() {
     }
@@ -114,5 +122,37 @@ final class DialogueMotion {
      */
     static float scaleAt(float from, float to, long nowNanos, long startNanos, boolean animate) {
         return animate ? from + (to - from) * scaleProgress(nowNanos, startNanos) : to;
+    }
+
+    /**
+     * How tall a portrait may stand when {@code ratios} of them share the window.
+     *
+     * <p>One character gets {@code tallest}, which is the whole staging height: a portrait is the
+     * character's presence in the scene, and there is nobody to make room for. Two get less,
+     * because they stand in the two halves of the window and their boxes would otherwise overlap in
+     * the middle - the pair is shrunk by exactly the factor that makes them fit, and never below
+     * {@link #MIN_PAIR_SCALE}: a conversation still reads at two thirds size, while two portraits
+     * squeezed to half height stop reading as anyone.
+     *
+     * <p>The ratios are per portrait rather than one aspect for the group, because a character with
+     * a {@code scale} of their own takes that much more room: how much to shrink is a property of
+     * the pair on stage, not of the layout.
+     *
+     * @param tallest    the height one portrait alone would stand at
+     * @param usableWide how much window width the portraits may span, margins already taken off
+     * @param ratios     each portrait's width over its height
+     */
+    static float portraitHeight(float tallest, float usableWide, java.util.List<Float> ratios) {
+        if (ratios == null || ratios.size() < 2) {
+            return tallest;
+        }
+        float spanned = 0F;
+        for (float ratio : ratios) {
+            spanned += Math.max(0.01F, ratio) * tallest;
+        }
+        if (spanned <= usableWide) {
+            return tallest;
+        }
+        return tallest * Math.max(MIN_PAIR_SCALE, usableWide / spanned);
     }
 }

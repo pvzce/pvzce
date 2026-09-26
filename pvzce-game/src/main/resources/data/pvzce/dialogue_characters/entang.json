@@ -1,0 +1,28 @@
+{
+  "id": "pvzce:entang",
+  "name": "缠",
+  "portrait_dir": "pvzce:textures/gui/dialogue/entang",
+  "scale": 1.0,
+  "box_left": "pvzce:textures/gui/dialogue/box_left",
+  "box_right": "pvzce:textures/gui/dialogue/box_right",
+  "portrait_insets": [
+    {
+      "portrait": "disappointed",
+      "insets": {
+        "left": 0.009,
+        "top": 0.0,
+        "right": 0.014,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "entang",
+      "insets": {
+        "left": 0.003,
+        "top": 0.0,
+        "right": 0.012,
+        "bottom": 0.0
+      }
+    }
+  ]
+}

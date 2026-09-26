@@ -970,6 +970,45 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "之前我们也见过几面了",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "这次这次",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "gentle",
+        "text": "让我也来帮帮你怎么样？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "reach_out",
+        "text": "你可以相信我的！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "reach_out",
+        "text": "我...我能尽自己的努力做到最好",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

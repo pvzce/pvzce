@@ -85,6 +85,13 @@ public final class LevelValidator {
      * reward {@code type}), a line whose {@code animation.type} this version does not know, and
      * a portrait name that is not a valid identifier path. A line with no text at all is a
      * portrait-only beat and is deliberately not one of these.
+     *
+     * <p>Three more come with the stage and the answers: a line with neither a character nor a
+     * {@code speaker_name} (nobody to name over the bubble), a {@code slots} entry that names an
+     * unknown character or half the window twice (the second one is dropped, so the picture is not
+     * what the file says), and a question on the last line (nothing is written under it, so the
+     * conversation simply ends when it is answered). An empty answer is not one of these: the same
+     * beat a silent line is.
      */
     public static List<String> validateDialogue(LevelDef def) {
         List<String> errors = new ArrayList<>();
@@ -104,14 +111,18 @@ public final class LevelValidator {
             String where = "dialogue.lines[" + i + "]";
             com.pvzce.api.content.DialogueCharacterDef character = line.character() == null
                     ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(line.character());
-            if (character == null) {
+            if (character == null && line.character() != null) {
                 errors.add(where + " names unknown character '" + line.character()
                         + "': no portrait or name will be shown");
-            } else if (character.portraitTexture(line.portrait()) == null) {
+            } else if (character != null && character.portraitTexture(line.portrait()) == null) {
                 if (!line.portrait().isBlank()) {
                     errors.add(where + " names portrait '" + line.portrait()
                             + "', which is not a valid file name");
                 }
+            }
+            if (character == null && line.character() == null && line.speakerName().isBlank()) {
+                errors.add(where + " names no character and no speaker_name,"
+                        + " so the bubble is drawn without a name");
             }
             if (line.side() == com.pvzce.api.content.DialogueLine.Side.UNKNOWN) {
                 errors.add(where + ".side is not 'left', 'center' or 'right',"
@@ -122,10 +133,58 @@ public final class LevelValidator {
                         + "', which this version does not know (expected 'shake' or 'scale'),"
                         + " so the line is played with no animation");
             }
+            errors.addAll(validateStage(where, line));
+            if (line.hasChoices()) {
+                if (i + 1 >= lines.size()) {
+                    errors.add(where + " offers choices on the last line, so the answer the player"
+                            + " picks has no line written under it and the conversation just ends");
+                }
+                for (int c = 0; c < line.choices().size(); c++) {
+                    if (line.choices().get(c).text() == null || line.choices().get(c).text().isBlank()) {
+                        errors.add(where + ".choices[" + c + "] is empty, so the button carries no text"
+                                + " and the player's answer is a silent beat");
+                    }
+                }
+            }
             // An empty text is a portrait-only beat, not a mistake: the character is on
             // screen and nobody is talking, and the overlay draws no bubble for it. It used
             // to be reported as "the player clicks through an empty bubble", which was true
             // of the overlay that drew one.
+        }
+        return errors;
+    }
+
+    /**
+     * Reports a {@code slots} list the stage cannot build as written.
+     *
+     * <p>Two slots are the whole window, so a third entry has nowhere to stand and a repeated one
+     * is a character who cannot be in two places at once; a misspelt half is dropped by the decoder
+     * (it is {@code UNKNOWN}, not a failed level) and a misspelt character id is the same "no
+     * portrait, no name" failure an unknown speaker is.
+     */
+    private static List<String> validateStage(String where, com.pvzce.api.content.DialogueLine line) {
+        List<String> errors = new ArrayList<>();
+        java.util.Set<com.pvzce.api.content.DialogueSlot> used =
+                java.util.EnumSet.noneOf(com.pvzce.api.content.DialogueSlot.class);
+        java.util.Set<com.pvzce.api.util.Identifier> named = new java.util.HashSet<>();
+        for (int s = 0; s < line.slots().size(); s++) {
+            com.pvzce.api.content.DialogueLine.DialogueSlotEntry entry = line.slots().get(s);
+            String at = where + ".slots[" + s + "]";
+            if (entry.slot() == com.pvzce.api.content.DialogueSlot.UNKNOWN) {
+                errors.add(at + ".slot is not 'left' or 'right', so nobody stands there");
+                continue;
+            }
+            if (!used.add(entry.slot())) {
+                errors.add(at + " puts a second character in the " + entry.slot().id()
+                        + " half of the window, which already has one");
+            }
+            if (!named.add(entry.character())) {
+                errors.add(at + " names '" + entry.character() + "' twice: one character, one slot");
+            }
+            if (BuiltInRegistries.DIALOGUE_CHARACTERS.get(entry.character()) == null) {
+                errors.add(at + " names unknown character '" + entry.character()
+                        + "', so nobody stands there");
+            }
         }
         return errors;
     }

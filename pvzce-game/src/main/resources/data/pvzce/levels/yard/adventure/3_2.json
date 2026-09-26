@@ -615,6 +615,119 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:entang",
+        "portrait": "bored",
+        "text": "又见面了",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "bored",
+        "text": "......",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "fierce",
+        "text": "杂鱼你怎么跑这里来了！",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:entang"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:pea_chan"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "fierce",
+        "text": "坏蛋，怎么不告...",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "scared",
+        "text": "诶，你是...?",
+        "voice": "",
+        "side": "right",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "embrassed",
+        "text": "那...那个...",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "embrassed",
+        "text": "没事的话...我就先走了",
+        "voice": "",
+        "side": "right"
+      },
+      {
+        "character": "pvzce:pea_chan",
+        "portrait": "embrassed",
+        "text": "",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "right",
+            "character": "pvzce:pea_chan"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "retain",
+        "text": "别...",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:entang"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "disappointed",
+        "text": "哎...",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "dull",
+        "text": "一点过去的事情",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:entang",
+        "portrait": "dull",
+        "text": "也不必深究了...",
+        "voice": "",
+        "side": "left"
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {
