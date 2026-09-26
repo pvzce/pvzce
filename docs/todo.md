@@ -476,9 +476,11 @@ W8 里**打地鼠（加强版）**、**谁笑到最后**与**坚果保龄球2**�
   （`PickUpCardC2S` + `ClientLevel.carriedPlant`，4-5 的花瓶发卡走的就是它），缺的是**一个定时往棋盘上
   撒"卡掉落物"的机制**（形状与 `ResourceDropEntity` 同构：落点 + 内容 id + 可点击），以及"这一张不花钱"
   的那条路（`CardSource.spend` 现在按卡的 `costSun` 收，要么给这种卡一个 0 价来源，要么走"手持卡"那条路）。
-- **斗转星移（Portal Combat）**：一双传送门，僵尸走进一个就从另一个出来。缺的是一个机制
-  （两个格子的配对 + 僵尸跨过触发线时的位移 + 客户端的门美术），触发点可以照 `MowerMechanic`
-  的 `TRIGGER_X` 那一套写；门的美术要新画（`refer/` 里没有原版传送门的现成素材）。
+- **斗转星移（Portal Combat）**：**服务端机制已经落地**（`pvzce:portal` + `PortalData` + 4 例测试，
+  见 `架构变更记录.md` 的 W8c）。还缺两件：① 客户端的门美术与世界层绘制
+  （`ClientMechanic.createWorldOverlay`，形状可以照 `PlacementZoneClientMechanic`；`refer/` 里没有原版
+  传送门的现成素材，要么画一对紫色旋涡的生成图，要么用现有的粒子纹理拼）；② 用它的关卡
+  （照 1-8 的形状：固定牌堆 + 若干对门，把玩家经营过的行接到没经营的行上）。
 
 ## 明确不做的（不再重提）
 

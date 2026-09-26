@@ -49,6 +49,8 @@ public final class LevelMechanics {
     public static final MowerMechanic MOWER = new MowerMechanic();
     /** Build first, then start the waves. */
     public static final PreparationMechanic PREPARATION = new PreparationMechanic();
+    /** Pairs of portals a ground zombie travels between. */
+    public static final PortalMechanic PORTAL = new PortalMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final StormMechanic STORM = new StormMechanic();
@@ -83,6 +85,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_WAVE_PACING, WAVE_PACING);
         register(PvzceIds.MECHANIC_ENDLESS, ENDLESS);
         register(PvzceIds.MECHANIC_PREPARATION, PREPARATION);
+        register(PvzceIds.MECHANIC_PORTAL, PORTAL);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);
     }
 

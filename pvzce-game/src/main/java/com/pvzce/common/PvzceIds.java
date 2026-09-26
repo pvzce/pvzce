@@ -495,6 +495,8 @@ public final class PvzceIds {
      * level gave them and starts the waves themselves. See {@code PreparationMechanic}.
      */
     public static final Identifier MECHANIC_PREPARATION = id("preparation");
+    /** 斗转星移: pairs of cells a ground zombie travels between. */
+    public static final Identifier MECHANIC_PORTAL = id("portal");
     /**
      * The mutation system: a level where the rules themselves are rewritten every so often.
      *
