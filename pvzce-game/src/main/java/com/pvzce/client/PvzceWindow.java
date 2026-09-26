@@ -52,6 +52,8 @@ public final class PvzceWindow implements AutoCloseable {
     }
 
     private long handle;
+    /** The window title, kept because GLFW cannot read it back. */
+    private final String title;
     private final ConcurrentLinkedQueue<Integer> typedChars = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<Integer> pressedKeys = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<Integer> mouseButtons = new ConcurrentLinkedQueue<>();
@@ -69,6 +71,7 @@ public final class PvzceWindow implements AutoCloseable {
     private boolean fullscreen;
 
     public PvzceWindow(String title, PvzceClientConfig config) {
+        this.title = title;
         this.preferredWidth = Math.max(MIN_WIDTH, config.windowWidth());
         this.preferredHeight = Math.max(MIN_HEIGHT, config.windowHeight());
         this.windowedWidth = preferredWidth;
@@ -155,6 +158,59 @@ public final class PvzceWindow implements AutoCloseable {
 
     public boolean shouldClose() {
         return GLFW.glfwWindowShouldClose(handle);
+    }
+
+    /** The window's title, which a client-drawn title bar has to render itself. */
+    public String title() {
+        return title;
+    }
+
+    /**
+     * How much window the desktop draws around our pixels, as
+     * {@code [left, top, right, bottom]} in screen coordinates.
+     *
+     * <p>All zero means the window has <b>no system decoration at all</b>, which on Wayland is the
+     * normal state for a Java process: GLFW hands decorations to libdecor there, and libdecor's GTK
+     * plugin refuses to initialise off the process's first thread - a thread the JVM's {@code main}
+     * never is (the java launcher creates the VM on a new pthread on purpose, JDK-6316197). So the
+     * client draws its own title bar; see {@code client.gui.WindowTitleBar}.
+     *
+     * <p>On X11 this is the window-manager frame and on Windows the non-client area, so the same
+     * question - "do I have to draw a title bar myself" - gets the same answer everywhere.
+     */
+    public int[] frameInsets() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer left = stack.mallocInt(1);
+            IntBuffer top = stack.mallocInt(1);
+            IntBuffer right = stack.mallocInt(1);
+            IntBuffer bottom = stack.mallocInt(1);
+            GLFW.glfwGetWindowFrameSize(handle, left, top, right, bottom);
+            return new int[]{left.get(0), top.get(0), right.get(0), bottom.get(0)};
+        } catch (RuntimeException nothingReported) {
+            // Wayland reports no frame at all rather than a zero rectangle, and "no frame" has to
+            // read the same in the startup line either way.
+            return new int[]{0, 0, 0, 0};
+        }
+    }
+
+    /** True while the compositor has this window maximized. */
+    public boolean isMaximized() {
+        return GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_MAXIMIZED) == GLFW.GLFW_TRUE;
+    }
+
+    /** Maximizes the window; the same call MS Windows' title-bar button makes. */
+    public void maximize() {
+        GLFW.glfwMaximizeWindow(handle);
+    }
+
+    /** Restores a maximized (or iconified) window to its windowed size. */
+    public void restore() {
+        GLFW.glfwRestoreWindow(handle);
+    }
+
+    /** Minimizes the window to the dock/taskbar. */
+    public void minimize() {
+        GLFW.glfwIconifyWindow(handle);
     }
 
     public void pollEvents() {

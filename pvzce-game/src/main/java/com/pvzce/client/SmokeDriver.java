@@ -168,6 +168,24 @@ final public class SmokeDriver {
     private final int smokeDragFrame = Integer.getInteger("pvzce.smokeDragFrame", 60);
     private boolean smokeDragDone;
     /**
+     * Development smoke hook: let the button go at this GUI point, {@code smokeClickFrame + this}
+     * frames after {@code smokeClick} pressed it.
+     *
+     * <p><b>Why this hook has to exist.</b> {@code smokeClick} only sends a <em>press</em> - the real
+     * release comes from the frame loop noticing that the button is no longer held, which a
+     * synthetic click never causes. So before this, a screenshot run could prove that a widget saw
+     * the press and nothing else, and every "acts on release" control (a window title bar's close
+     * button, a dialog's confirm) looked dead to the harness while working for a human. That is the
+     * same trap {@code pvzce.smokeSwipe} was added for: a hook that is green on a path the real
+     * device never takes.
+     *
+     * <p>Opt-in through {@code pvzce.smokeRelease=<frames>}: off unless the run asks for it, so
+     * every existing screenshot keeps the press-only behaviour it was written against.
+     */
+    private final Integer smokeReleaseAfter =
+            Integer.getInteger("pvzce.smokeRelease");
+    private boolean smokeReleaseDone;
+    /**
      * Development smoke hook: a whole swipe - press, travel in steps, release - as
      * {@code fromX,fromY,toX,toY} in logical GUI coordinates.
      *
@@ -584,6 +602,19 @@ final public class SmokeDriver {
                 client.deliverRawDrag(rawX, rawY, 0);
                 client.deliverRawRelease(rawX, rawY, 0);
             }
+        }
+        // Not together with smokeDragTo: that hook releases on its own, and a second release would
+        // reach the layers below as a button going up twice.
+        if (smokeReleaseAfter != null && !smokeReleaseDone && smokeClickAt != null
+                && smokeDragTo == null
+                && smokeClicksSent > 0 && clientTick >= smokeClickFrame + Math.max(0, smokeReleaseAfter)) {
+            smokeReleaseDone = true;
+            double[] gui = smokeClickAt;
+            double rawX = gui[0] * client.window().width() / (double) Math.max(1, client.guiWidth());
+            double rawY = client.window().height()
+                    - gui[1] * client.window().height() / (double) Math.max(1, client.guiHeight());
+            System.out.println("[SMOKE] release gui=" + gui[0] + "," + gui[1]);
+            client.deliverRawRelease(rawX, rawY, 0);
         }
         if (smokeSwipe != null && !smokeSwipeDone && clientTick == smokeSwipeFrame) {
             smokeSwipeDone = true;

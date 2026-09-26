@@ -172,6 +172,13 @@ public final class PvzceClient {
     private final PointerGesture gesture;
     /** {@code -Dpvzce.touch=false} 关掉整个触控层；见 {@link #gesture} 的说明。 */
     private final boolean touchEnabled;
+    /**
+     * 窗口标题栏，只在桌面不给画的时候由我们自己画（Wayland + libdecor 拿不到插件时就是这样）。
+     *
+     * <p>它排在每一条指针通路的最前面：按下先问它要不要，再问 overlay/screen。见
+     * {@link com.pvzce.client.gui.WindowTitleBar}。
+     */
+    private final com.pvzce.client.gui.WindowTitleBar titleBar;
     /** 手指事件（Wayland 才需要，别的平台系统会把它变成鼠标事件）；见 {@link #installTouchInput}。 */
     private WaylandTouch waylandTouch;
     /**
@@ -352,6 +359,7 @@ public final class PvzceClient {
         this.touchEnabled = Boolean.parseBoolean(System.getProperty("pvzce.touch", "true"));
         this.gesture = new PointerGesture(
                 this::gestureRegionAt, this::deliverGuiClick, this::dispatchGuiScrolled, touchEnabled);
+        this.titleBar = new com.pvzce.client.gui.WindowTitleBar(this);
         String dumpAtlas = System.getProperty("pvzce.dumpFontAtlas");
         if (dumpAtlas != null && !dumpAtlas.isBlank()) {
             this.dumpFontAtlasTo = java.nio.file.Path.of(dumpAtlas);
@@ -381,10 +389,11 @@ public final class PvzceClient {
         // platform, what size the window really is, what the framebuffer is, and whether the display
         // is scaled (screen coordinates and framebuffer pixels only agree at scale 1).
         LOGGER.info("[启动] platform={} 窗口={}x{} framebuffer={}x{} contentScale={}x{} guiScale={} 全屏={}"
-                        + " 主显示器={}",
+                        + " 主显示器={} 边框={} 自绘标题栏={}",
                 GLFW.glfwGetPlatform(), window.screenWidth(), window.screenHeight(),
                 window.width(), window.height(), window.contentScaleX(), window.contentScaleY(),
-                guiScale(), window.isFullscreen(), window.monitorMode());
+                guiScale(), window.isFullscreen(), window.monitorMode(),
+                java.util.Arrays.toString(window.frameInsets()), titleBar.visible());
         // Seed the shader gate from the config as well as setting it in
         // beginWorldView, because the boards that render OUTSIDE a running level -
         // the seed chooser's preview and the editor's canvas - never call
@@ -711,6 +720,8 @@ public final class PvzceClient {
         } else {
             currentScreen().mouseMoved(window.cursorX(), window.cursorY());
         }
+        // Hover feedback for the buttons, in the same GUI coordinates the click path uses.
+        titleBar.mouseMoved(guiMouseX(window.cursorX()), guiMouseY(window.cursorY()));
     }
 
     // ------------------------------------------------------------------
@@ -719,11 +730,24 @@ public final class PvzceClient {
     // One place decides whether the mouse goes to the overlay or to the screen, so the
     // frame loop cannot drift from itself: every branch below reads the same rule, and the
     // raw-framebuffer-to-GUI conversion happens exactly once per event.
+    //
+    // The title bar is asked first, everywhere, because it is the one thing on screen that is
+    // not the game: a press on "close" must not also reach the card bar underneath it. That
+    // ordering is written once per entry point rather than in a helper, because each entry
+    // point then hands the same answer to the rest of the chain.
     // ------------------------------------------------------------------
+
+    /** The window's own title bar; see {@link com.pvzce.client.gui.WindowTitleBar}. */
+    public com.pvzce.client.gui.WindowTitleBar titleBar() {
+        return titleBar;
+    }
 
     private void dispatchMouseClicked(int button) {
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
+        if (titleBar.mousePressed(guiX, guiY)) {
+            return;
+        }
         if (overlay != null) {
             overlay.mouseClicked(guiX, guiY, button);
         } else {
@@ -734,6 +758,10 @@ public final class PvzceClient {
     private void dispatchMouseDragged() {
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
+        // A drag that began on the bar is the bar's; nothing below it moves with the pointer.
+        if (titleBar.dragging()) {
+            return;
+        }
         if (overlay != null) {
             overlay.mouseDragged(guiX, guiY, GLFW.GLFW_MOUSE_BUTTON_LEFT);
         } else {
@@ -745,6 +773,9 @@ public final class PvzceClient {
     private void dispatchMouseReleased() {
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
+        if (titleBar.mouseReleased(guiX, guiY)) {
+            return;
+        }
         if (overlay != null) {
             overlay.mouseReleased(guiX, guiY, GLFW.GLFW_MOUSE_BUTTON_LEFT);
         } else {
@@ -798,6 +829,11 @@ public final class PvzceClient {
      * click cannot come to different conclusions about which layer a point belongs to.
      */
     private ScrollRegion gestureRegionAt(double guiX, double guiY) {
+        // The title bar is not a scroll region, and saying so here is what keeps a press on it
+        // from being held back as a possible swipe: chrome reacts on press, like a real title bar.
+        if (titleBar.contains(guiX, guiY)) {
+            return null;
+        }
         return overlay != null
                 ? overlay.scrollRegionAt(guiX, guiY)
                 : currentScreen().scrollRegionAt(guiX, guiY);
@@ -982,6 +1018,11 @@ public final class PvzceClient {
             beginGuiView();
             DebugOverlay.render(this);
         }
+        // Window chrome is drawn last and with its own view/projection, because every screen above
+        // leaves whatever view it needed active: a title bar has to sit over the game no matter
+        // which screen drew underneath it.
+        beginGuiView();
+        titleBar.render();
         // One-shot atlas dump: the glyph atlas is uploaded from memory rather than
         // decoded from a PNG, so when text renders wrong there is otherwise no file to
         // look at. `-Dpvzce.dumpFontAtlas=<dir>` writes it after the first drawn frame.
