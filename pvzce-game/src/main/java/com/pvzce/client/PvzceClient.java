@@ -230,6 +230,54 @@ public final class PvzceClient {
         }
     };
     private final TouchTranslator touchTranslator = new TouchTranslator(touchPointer);
+    /**
+     * The one place a finger's coordinates enter the game.
+     *
+     * <p>{@code wl_touch} reports <b>surface-local pixels</b>, which is the same space the cursor
+     * callback stores and therefore the right thing to hand {@link PvzceWindow#setPointerPosition} -
+     * but it is <em>not</em> the space anything else speaks: {@link PointerGesture} hit-tests scroll
+     * regions and {@code Screen.dispatchMouseClicked} hits widgets, and both work in logical GUI
+     * pixels. Converting here, once, at the boundary, is what keeps the two apart; feeding the pixel
+     * pair straight through (which this did at first) makes the pointer hover in the right place while
+     * every click lands at a coordinate the UI has never heard of - the button lights up and does
+     * nothing, because the click went to GUI (753, 365) in a 427x240 space.
+     *
+     * <p>The smoke hook drives this same sink, so a screenshot run exercises the conversion instead of
+     * bypassing it.
+     */
+    private final WaylandTouch.Sink touchSink = new WaylandTouch.Sink() {
+        @Override
+        public void down(int id, double screenX, double screenY) {
+            if (touchTrace) {
+                LOGGER.info("[触控] wl_touch down id={} {},{} → gui {},{}", id, screenX, screenY,
+                        guiMouseX(screenX), guiMouseY(screenY));
+            }
+            window.setPointerPosition(screenX, screenY);
+            touchTranslator.down(id, guiMouseX(screenX), guiMouseY(screenY));
+        }
+
+        @Override
+        public void motion(int id, double screenX, double screenY) {
+            window.setPointerPosition(screenX, screenY);
+            touchTranslator.motion(id, guiMouseX(screenX), guiMouseY(screenY));
+        }
+
+        @Override
+        public void up(int id) {
+            if (touchTrace) {
+                LOGGER.info("[触控] wl_touch up id={}", id);
+            }
+            touchTranslator.up(id);
+        }
+
+        @Override
+        public void cancel() {
+            if (touchTrace) {
+                LOGGER.info("[触控] wl_touch cancel（合成器收走了这一下）");
+            }
+            touchTranslator.cancel();
+        }
+    };
     private char suppressNextChar;
     private boolean debugOverlayEnabled;
     /** Set from {@code pvzce.dumpFontAtlas}: where to write the glyph atlases, once. */
@@ -777,36 +825,7 @@ public final class PvzceClient {
             return;
         }
         waylandTouch = WaylandTouch.install(window.waylandDisplay(), window.waylandSurface(),
-                new WaylandTouch.Sink() {
-                    @Override
-                    public void down(int id, double x, double y) {
-                        if (touchTrace) {
-                            LOGGER.info("[触控] wl_touch down id={} {},{}", id, x, y);
-                        }
-                        touchTranslator.down(id, x, y);
-                    }
-
-                    @Override
-                    public void motion(int id, double x, double y) {
-                        touchTranslator.motion(id, x, y);
-                    }
-
-                    @Override
-                    public void up(int id) {
-                        if (touchTrace) {
-                            LOGGER.info("[触控] wl_touch up id={}", id);
-                        }
-                        touchTranslator.up(id);
-                    }
-
-                    @Override
-                    public void cancel() {
-                        if (touchTrace) {
-                            LOGGER.info("[触控] wl_touch cancel（合成器收走了这一下）");
-                        }
-                        touchTranslator.cancel();
-                    }
-                });
+                touchSink);
     }
 
     /** Opens the console over the current screen; {@code initialContents} pre-fills it. */
@@ -890,17 +909,22 @@ public final class PvzceClient {
      *
      * <p>A gesture that ends where it started is a tap: eight moves of zero travel leave the
      * gesture's movement threshold untouched, so it is delivered as a click at the touch point.
+     *
+     * <p>It feeds {@link #touchSink} - the same boundary the compositor's events go through - rather
+     * than the translator directly, so the GUI-to-screen conversion that a real finger exercises is
+     * part of what a smoke run covers. Handing the translator GUI coordinates while the device hands
+     * it pixels is exactly how "the button lights up and does nothing" got through a green smoke run.
      */
     void deliverGuiTouch(double fromGuiX, double fromGuiY, double toGuiX, double toGuiY) {
         int finger = 0;
-        touchTranslator.down(finger, fromGuiX, fromGuiY);
+        touchSink.down(finger, rawMouseX(fromGuiX), rawMouseY(fromGuiY));
         int steps = 8;
         for (int i = 1; i <= steps; i++) {
             double travelled = i / (double) steps;
-            touchTranslator.motion(finger, fromGuiX + (toGuiX - fromGuiX) * travelled,
-                    fromGuiY + (toGuiY - fromGuiY) * travelled);
+            touchSink.motion(finger, rawMouseX(fromGuiX + (toGuiX - fromGuiX) * travelled),
+                    rawMouseY(fromGuiY + (toGuiY - fromGuiY) * travelled));
         }
-        touchTranslator.up(finger);
+        touchSink.up(finger);
     }
 
     /**

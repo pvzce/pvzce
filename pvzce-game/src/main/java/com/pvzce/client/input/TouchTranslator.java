@@ -11,6 +11,12 @@ package com.pvzce.client.input;
  * behaving exactly as it does for a mouse - the board's sweep-to-collect, dragging a card onto a
  * cell, the 500 ms mower hold and the six declared scroll regions all come along for free.
  *
+ * <p><b>Coordinates are logical GUI pixels</b>, the space every {@code Screen} entry point works
+ * in. A touch source reports surface pixels instead (see {@code PvzceClient.touchSink}), and the
+ * conversion belongs at that boundary and nowhere else: the pointer position wants the raw pair while
+ * the gesture and the click want this one, and mixing them makes the hover land correctly while every
+ * click misses.
+ *
  * <p>Only one finger is followed. The game is played with one hand: a second finger arriving
  * mid-gesture is ignored rather than restarting the press, because a restart would turn "two
  * fingers on the lawn" into a click on the second one. The compositor's {@code cancel} (it can take
