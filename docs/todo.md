@@ -393,6 +393,9 @@ the window position"），唯一正规做法是 `xdg_toplevel.move(seat, serial)
 怎么做：等 GLFW 把 `glfwSetWindowPos` 在 Wayland 上实现（上游 issue），或我们自己接一版
 `xdg_toplevel`/`xdg_toplevel_drag_manager_v1`（本机 registry 有后者）——无论哪条都要先有不靠猜偏移量
 拿到 toplevel 的办法。
+**已经试过并失败**（`踩坑清单.md` 第 125 条）：`glfwGetWaylandWindow` 给回的指针不是 `struct wl_proxy`，
+所以"当成 `_GLFWwindow` 再按偏移找 `xdg_toplevel`"找错了对象；要再试得换一条拿到 toplevel 的路
+（上游 API / 自己建 surface 与 toplevel），不是再猜偏移量。
 
 ### HiDPI 缩放屏上点击会整体偏移
 

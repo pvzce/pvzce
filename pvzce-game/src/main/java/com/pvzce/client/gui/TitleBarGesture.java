@@ -36,6 +36,15 @@ public final class TitleBarGesture {
      */
     public static final double DOUBLE_CLICK_SECONDS = 0.4D;
 
+    /**
+     * How far the pointer may travel between press and release and still count as a click.
+     *
+     * <p>The touch gesture's slop, in GUI pixels: two presses that are a double click land on the
+     * same spot, and without this a press that slid across the bar (picking up a window that this
+     * bar cannot move - Wayland gives a client no way to) would count as the second click of one.
+     */
+    public static final double DOUBLE_CLICK_SLOP = 4.0D;
+
     /** What the gesture decided a release meant. */
     public enum Action {
         /** Nothing: the release was not on the bar, or not on the button the press started on. */
@@ -51,6 +60,8 @@ public final class TitleBarGesture {
     private Button pressed;
     /** True from a press the bar owns until the release: the whole gesture is chrome. */
     private boolean armed;
+    private double originX;
+    private double originY;
     private double pressTime = Double.NEGATIVE_INFINITY;
     private double pressX;
     private double pressY;
@@ -104,6 +115,8 @@ public final class TitleBarGesture {
         pressTime = now;
         pressX = guiX;
         pressY = guiY;
+        originX = guiX;
+        originY = guiY;
         pressed = layout.buttonAt(guiX, guiY);
         armed = true;
         return true;
@@ -133,7 +146,10 @@ public final class TitleBarGesture {
             }
             return Action.NONE;
         }
-        // The press was on the empty strip; a second one there is a double click.
-        return wasDoubleClick && released == null ? Action.TOGGLE_MAXIMIZED : Action.NONE;
+        // The press was on the empty strip; a second one there is a double click - but only if the
+        // pointer stayed put. The wheel of a mouse and a shaky hand both move a few pixels between
+        // two presses, and neither is a double click.
+        boolean travelled = Math.hypot(guiX - originX, guiY - originY) >= DOUBLE_CLICK_SLOP;
+        return wasDoubleClick && !travelled && released == null ? Action.TOGGLE_MAXIMIZED : Action.NONE;
     }
 }
