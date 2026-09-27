@@ -76,23 +76,31 @@ public final class PortalMechanic implements LevelMechanic<PortalData> {
         state.immunity.replaceAll((id, ticks) -> ticks - 1);
         state.immunity.values().removeIf(ticks -> ticks <= 0);
 
-        for (PortalData.Pair pair : data.pairs()) {
-            for (ZombieEntity zombie : zombies(level)) {
-                if (zombie.isRemoved() || !zombie.isAlive() || zombie.layer() != EntityLayers.GROUND) {
-                    continue;
-                }
-                if (state.immunity.containsKey(zombie.id())) {
-                    continue;
-                }
-                float x = zombie.cellX();
-                Float previous = state.lastX.put(zombie.id(), x);
-                if (previous == null) {
-                    continue;
-                }
+        // One position is read per zombie per tick, and then every pair is asked about it.
+        //
+        // The loop order is the whole of this method. Asking *inside* a per-pair loop means each
+        // pair overwrites the remembered x before the next one reads it, so the second pair and
+        // every pair after it compare the zombie's position against itself and can never see a
+        // crossing - a level with two doors silently plays with one. The pairs are the inner loop
+        // for that reason, and a zombie that came out of a door stops being asked (see below).
+        for (ZombieEntity zombie : zombies(level)) {
+            if (zombie.isRemoved() || !zombie.isAlive() || zombie.layer() != EntityLayers.GROUND) {
+                continue;
+            }
+            float x = zombie.cellX();
+            Float previous = state.lastX.put(zombie.id(), x);
+            if (previous == null || state.immunity.containsKey(zombie.id())) {
+                continue;
+            }
+            for (PortalData.Pair pair : data.pairs()) {
                 if (crossedLeft(previous, x, pair.ax()) && zombie.gridY() == pair.ay()) {
                     teleport(level, state, zombie, pair.bx(), pair.by());
+                    // One door per tick: the zombie is somewhere else now, and the position this
+                    // tick's test was made against no longer describes it.
+                    break;
                 } else if (crossedLeft(previous, x, pair.bx()) && zombie.gridY() == pair.by()) {
                     teleport(level, state, zombie, pair.ax(), pair.ay());
+                    break;
                 }
             }
         }

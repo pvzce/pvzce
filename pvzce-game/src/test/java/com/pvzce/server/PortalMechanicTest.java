@@ -141,4 +141,70 @@ class PortalMechanicTest {
         assertTrue(errors.stream().anyMatch(message -> message.contains("off a")),
                 "a portal outside the board is reported: " + errors);
     }
+
+    /**
+     * The shipped mini-game's own portals: the level the player picks is the one that travels.
+     *
+     * <p>Everything above builds a board to test the mechanic with. These two load
+     * {@code yard/minigame/portal_combat} as it ships and walk a zombie through <em>its</em>
+     * pairs, because a level whose portals were mis-numbered would still pass every test above -
+     * the mechanic would be working perfectly on a board whose two ends are in the same lane,
+     * which is a level that plays like an ordinary one.
+     *
+     * <p>One board per door, and each is walked for the shortest time that gets a zombie through:
+     * a zombie that reaches the house trips the mower, the lawn goes clear and the level ends, and
+     * a second zombie spawned before that simply stops moving. Two doors on one board therefore
+     * measure the first door twice.
+     */
+    private static LevelServer shippedPortalLevel() {
+        LevelDef shipped = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/minigame/portal_combat"));
+        assertNotNull(shipped, "portal_combat must load");
+        return new LevelServer(com.pvzce.testutil.TestLevels.copy(shipped)
+                .waves(List.of())
+                .build());
+    }
+
+    /** Where a zombie that starts at {@code x} in {@code row} of the shipped level comes out. */
+    private static ZombieEntity walkThroughTheShippedDoor(int row, float x) {
+        LevelServer level = shippedPortalLevel();
+        CapturingBridge bridge = new CapturingBridge();
+        ZombieEntity walker = zombie(level, bridge, x, row);
+        // Long enough to cross the door and come out the far side, short enough that the walker
+        // is still on the lawn: reaching the house would end the level.
+        tick(level, bridge, 600);
+        return walker;
+    }
+
+    @Test
+    void theShippedLevelsFirstDoorSendsRowZeroIntoRowThree() {
+        ZombieEntity walker = walkThroughTheShippedDoor(0, 8.0F);
+
+        assertEquals(3, rowOf(walker), "a zombie in row 0 leaves through row 3");
+        assertTrue(walker.cellX() < 2.5F, "past the exit ring's centre: " + walker.cellX());
+    }
+
+    @Test
+    void theShippedLevelsSecondDoorSendsRowOneIntoRowFour() {
+        ZombieEntity walker = walkThroughTheShippedDoor(1, 8.5F);
+
+        assertEquals(4, rowOf(walker), "a zombie in row 1 leaves through row 4");
+        assertTrue(walker.cellX() < 3.5F, "past the exit ring's centre: " + walker.cellX());
+    }
+
+    /** Row 2 is the lane the level leaves alone, which is what makes the doors a choice. */
+    @Test
+    void theShippedLevelPairsFourRingsAndLeavesTheMiddleLaneAlone() {
+        LevelDef shipped = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/minigame/portal_combat"));
+        assertNotNull(shipped, "portal_combat must load");
+        PortalData portals = shipped.mechanics().stream()
+                .filter(block -> block.type().equals(PvzceIds.MECHANIC_PORTAL))
+                .map(block -> (PortalData) block.value())
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("portal_combat declares no portal mechanic"));
+        assertEquals(2, portals.pairs().size(), "the level pairs four rings into two doors");
+        for (PortalData.Pair pair : portals.pairs()) {
+            assertTrue(pair.ay() != 2 && pair.by() != 2,
+                    "no ring stands in the middle lane: " + pair);
+        }
+    }
 }

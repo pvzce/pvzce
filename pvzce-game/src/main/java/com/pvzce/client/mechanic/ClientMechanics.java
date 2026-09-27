@@ -40,6 +40,7 @@ public final class ClientMechanics {
         register(new StormClientMechanic());
         register(new RakeClientMechanic());
         register(new PreparationClientMechanic());
+        register(new PortalClientMechanic());
     }
 
     public static void register(ClientMechanic mechanic) {

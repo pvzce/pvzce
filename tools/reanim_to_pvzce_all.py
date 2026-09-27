@@ -2089,6 +2089,34 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "idle": {"range": "all", "loop": True, "transition": 0.05},
         },
     ),
+    # The portal of Portal Combat: the pair of rings a ground zombie walks between.
+    #
+    # Its reanim is four mask tracks over the same three sprites - `anim_appear`, `anim_pulse`,
+    # `anim_pulse_reverse`, `anim_dissapear` - so the whole portal is *visible* the entire time
+    # and the masks only say which sprite transform each phase uses. Two of the four are exported:
+    # a ring is always open on the lawn, so a portal that is not there has no clip to play, and a
+    # clip nothing can ask for is a clip that will rot (`appear`/`dissapear` are the "a portal is
+    # being created mid-level" phases, which no mechanic drives yet).
+    #
+    # The two pulsing phases are the two *ends* of a pair. The original animates one ring of a pair
+    # forwards and the other backwards, and that is the only thing in the art that tells the two
+    # ends apart - the sprites are the same three. So the client mechanic plays `idle` on the `a`
+    # end of every pair and `pulse_reverse` on the `b` end (see `PortalClientMechanic`).
+    #
+    # Sized from the source at the original's own scale: the outer ring is 108x175 source pixels
+    # against a 100-pixel row, so a portal stands about one and three quarter rows tall - it is a
+    # tall oval on the lawn, not a one-cell decal. Fitted by height, so the width comes out of the
+    # art's own proportions.
+    EntityConfig(
+        output="portal",
+        group="mechanic",
+        reanim="Portal_Circle.reanim",
+        target_box=(1.35, 1.75),
+        animations={
+            "idle": {"mask": "anim_pulse", "loop": True, "transition": 0.0},
+            "pulse_reverse": {"mask": "anim_pulse_reverse", "loop": True, "transition": 0.0},
+        },
+    ),
     EntityConfig(
         output="imp",
         group="zombie/giant",

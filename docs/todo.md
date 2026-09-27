@@ -466,21 +466,18 @@ GLFW 报的**窗口坐标**，两者只在 contentScale = 1 时相等（本机�
 - 商店那两行（20000 / 3000 金币）等机制落地再加：现在写进去就是卖一张不存在的卡，
   `ShopItems` 的校验会（正确地）拒绝它。
 
-### 五个小游戏还差两个：种子雨 / 斗转星移
+### 五个小游戏还差一个：种子雨
 
-W8 里**打地鼠（加强版）**、**谁笑到最后**与**坚果保龄球2**已经落地（`yard/minigame/` 三张新关卡：
-前者是 2-5 的加强版，第二张用 W7 的准备阶段 + 12 张固定卡，第三张是巨坚果 + 命中即炸的红色爆炸坚果 ——
-做法见 `架构变更记录.md` 的 W8/W8b）。剩下两个各自缺一样东西：
+W8 里**打地鼠（加强版）**、**谁笑到最后**、**坚果保龄球2** 与 **斗转星移** 已经落地
+（`yard/minigame/` 四张新关卡：做法见 `架构变更记录.md` 的 W8/W8b/W8d —— 斗转星移的门美术直接转的
+原版 `refer/anim/Portal_Circle.reanim`，客户端覆盖层在 `client/mechanic/PortalClientMechanic`）。
+剩下一个缺一样东西：
 
 - **种子雨（It's Raining Seeds）**：卡从天上来、捡起来免费种。捡卡的管道已经有了
-  （`PickUpCardC2S` + `ClientLevel.carriedPlant`，4-5 的花瓶发卡走的就是它），缺的是**一个定时往棋盘上
-  撒"卡掉落物"的机制**（形状与 `ResourceDropEntity` 同构：落点 + 内容 id + 可点击），以及"这一张不花钱"
-  的那条路（`CardSource.spend` 现在按卡的 `costSun` 收，要么给这种卡一个 0 价来源，要么走"手持卡"那条路）。
-- **斗转星移（Portal Combat）**：**服务端机制已经落地**（`pvzce:portal` + `PortalData` + 4 例测试，
-  见 `架构变更记录.md` 的 W8c）。还缺两件：① 客户端的门美术与世界层绘制
-  （`ClientMechanic.createWorldOverlay`，形状可以照 `PlacementZoneClientMechanic`；`refer/` 里没有原版
-  传送门的现成素材，要么画一对紫色旋涡的生成图，要么用现有的粒子纹理拼）；② 用它的关卡
-  （照 1-8 的形状：固定牌堆 + 若干对门，把玩家经营过的行接到没经营的行上）。
+  （`PickUpCardC2S` + `ClientLevel.carriedPlant`，4-5 的花瓶发卡走的就是它），
+  `LevelServer.spawnCardDrop(card, x, y)` 也已经存在（恐怖花瓶与花瓶工具在用），
+  缺的是**一个定时往棋盘上撒"卡掉落物"的机制**（每 N 拍在随机格 `spawnCardDrop` 一张池子里的卡，
+  形状照 `ConveyorMechanic`）+ 一张用它的关卡。
 
 ## 明确不做的（不再重提）
 
