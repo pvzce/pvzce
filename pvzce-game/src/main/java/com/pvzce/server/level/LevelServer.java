@@ -517,10 +517,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         this.mechanics = new java.util.ArrayList<>(
                 withPlayerMechanics(LevelMechanics.effective(def)));
         Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
+        // Which side the player is on is the level's answer (see `LevelDef.humanTeam`): every
+        // level before I, Zombie says the plant team, and a level that lists the zombie team
+        // instead is played from the other end. Seated here rather than per packet so the seat,
+        // the card bar and the win condition are all the same fact.
+        Identifier humanTeam = def.humanTeam();
+        this.humanTeamId = teams.containsKey(humanTeam) ? humanTeam : PvzceIds.PLANT_TEAM;
+        Team human = teams.get(this.humanTeamId);
         // The level owns the bar; the card source fills it. A self-dealt level (a conveyor
         // belt) ignores the seed selection, which is why the selection is still passed in:
         // the source decides what to do with it, not this constructor.
-        this.plantPlayer = plantTeam != null ? new PvzcePlayer(plantTeam) : null;
+        //
+        // `plantPlayer` is the *human's* player, which on an ordinary level is the plant side and
+        // on I, Zombie is the zombie side. The name is the older fact; the field is who the bar
+        // belongs to.
+        this.plantPlayer = human != null ? new PvzcePlayer(human) : null;
         this.selectedCards = List.copyOf(selectedSlotsOrDef(selectedSlots));
         this.cardSource = this.plantPlayer != null
                 ? LevelMechanics.createCardSource(def, new com.pvzce.server.level.cardsource.CardSource.Context(
@@ -529,17 +540,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         this.mutations = LevelMechanics.has(def, PvzceIds.MECHANIC_MUTATION) && plantTeam != null
                 ? new com.pvzce.common.level.mutation.MutationManager(this)
                 : null;
-        if (plantTeam != null) {
-            plantTeam.putResource(PvzceIds.SUN, def.initialSun());
+        if (human != null) {
+            // The budget goes to whoever is playing, not to the plant side: on I, Zombie the sun
+            // is what the player spends on zombies, and a level that gave it to the plants would
+            // give the player nothing to play with.
+            human.putResource(PvzceIds.SUN, def.initialSun());
             for (Identifier slotId : def.slots()) {
                 SlotDef slotDef = BuiltInRegistries.SLOT_TYPES.get(slotId);
                 if (slotDef != null && slotDef.kind() == SlotDef.Kind.RESOURCE) {
-                    plantTeam.unlockResource(slotDef.content());
+                    human.unlockResource(slotDef.content());
                 }
             }
             def.unlockResources().forEach((resource, unlocked) -> {
                 if (unlocked) {
-                    plantTeam.unlockResource(resource);
+                    human.unlockResource(resource);
                 }
             });
         }
@@ -3407,9 +3421,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // An endless level is never won: its waves do not run out, so "every wave released"
         // would be true at the end of every round. The only way a run ends is a zombie reaching
         // the house, which `zombieReachedLeft` reports.
+        //
+        // And it is the *plant side's* way to win, so a level the player plays from the other end
+        // must not be won by it: an I, Zombie level has no waves at all, which makes "every wave
+        // released and the lawn clear" true from the first tick.
         if (!rounds && gameState.equals(GameStateS2C.RUNNING)
+                && humanTeamId.equals(PvzceIds.PLANT_TEAM)
                 && waves.allWavesReleased()
                 && hostileZombieCount() == 0) {
+            markEnd(teams.get(PvzceIds.PLANT_TEAM));
+        }
+        // The other side's end: nothing of the player's is on the lawn and nothing can be put
+        // there, so the run is over whether or not anybody says so.
+        if (!rounds && gameState.equals(GameStateS2C.RUNNING)
+                && humanTeamId.equals(PvzceIds.ZOMBIE_TEAM)
+                && zombieSideIsStuck()) {
             markEnd(teams.get(PvzceIds.PLANT_TEAM));
         }
 
@@ -3597,7 +3623,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (!gameState.equals(GameStateS2C.RUNNING) || winnerTeam == null) {
             return;
         }
-        gameState = PvzceIds.PLANT_TEAM.equals(winnerTeam.id())
+        // WON means *the player* won, which on every level but I, Zombie is the plant team. The
+        // two are the same statement written twice before the zombie side existed, and the second
+        // copy is the one that would have shown a zombie-side victory as a defeat.
+        gameState = humanTeamId.equals(winnerTeam.id())
                 ? GameStateS2C.WON
                 : GameStateS2C.LOST;
         winner = winnerTeam.id();
@@ -3807,6 +3836,101 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return true;
         }
         return false;
+    }
+
+    /**
+     * True when the zombie-side player can no longer do anything.
+     *
+     * <p>The original ends an I, Zombie level when the player has no zombies left and cannot
+     * afford another one - there is no clock to run out and no wave to survive, so without this
+     * the run would sit there forever with nothing to click. "Cannot afford" is read from the
+     * bar's own numbers (price and balance) rather than from the sun alone, because a card the
+     * player owns and cannot pay for is exactly the case this is about.
+     */
+    private boolean zombieSideIsStuck() {
+        if (plantPlayer == null) {
+            return true;
+        }
+        for (PvzceEntity entity : entities) {
+            if (entity instanceof ZombieEntity zombie && !zombie.isRemoved() && zombie.isAlive()
+                    && zombie.team() == plantPlayer.team()) {
+                return false;
+            }
+        }
+        int sun = plantPlayer.team().resourcesOf(PvzceIds.SUN);
+        for (Slot slot : plantPlayer.slots()) {
+            if (slot.kind() == Slot.Kind.ZOMBIE && slot.costSun() <= sun) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Places a zombie the player paid for: the I, Zombie card's own placement path.
+     *
+     * <p>The mirror of {@link #placePlant}, and deliberately a second method rather than a branch
+     * inside it: the two differ in every line that matters (which side may act, what the card
+     * spawns, which registry the id is looked up in) and share only the charging of a card, which
+     * is four lines. What they do share is the rule that the *server* decides - the client sends a
+     * slot and a cell, and the price, the cooldown and the side are all re-derived here.
+     */
+    public boolean placeZombie(ServerBridge bridge, int slotIndex, int x, int y) {
+        return withBridge(bridge, () -> placeZombieInternal(bridge, slotIndex, x, y));
+    }
+
+    private boolean placeZombieInternal(ServerBridge bridge, int slotIndex, int x, int y) {
+        if (!gameState.equals(GameStateS2C.RUNNING)) {
+            bridge.send(new ServerMessageS2C("游戏已经结束。"));
+            return false;
+        }
+        if (rejectWhileChoosingCards(bridge)) {
+            return false;
+        }
+        if (!humanTeamId.equals(PvzceIds.ZOMBIE_TEAM)) {
+            bridge.send(new ServerMessageS2C("当前控制的是植物方，僵尸由关卡派。"));
+            return false;
+        }
+        if (plantPlayer == null) {
+            return false;
+        }
+        Slot slot = plantPlayer.slot(slotIndex);
+        if (slot == null || slot.kind() != Slot.Kind.ZOMBIE) {
+            bridge.send(new ServerMessageS2C("无效的卡槽。"));
+            return false;
+        }
+        if (!inBounds(x, y)) {
+            bridge.send(new ServerMessageS2C("不能在草坪外放僵尸。"));
+            return false;
+        }
+        if (!slot.ready()) {
+            bridge.send(new ServerMessageS2C("卡片冷却中。"));
+            return false;
+        }
+        int cost = slot.costSun();
+        if (cost > 0 && !plantPlayer.team().consume(PvzceIds.SUN, cost)) {
+            bridge.send(new ServerMessageS2C("阳光不足！"));
+            return false;
+        }
+        if (slot.usesLeft() != Slot.UNLIMITED_USES) {
+            slot.consumeUse();
+        }
+        slot.startCooldown(effectiveCooldownTicks(slot));
+        ZombieEntity spawned = spawnZombie(slot.defId(), plantPlayer.team(), x + 0.5F, y);
+        if (spawned == null) {
+            // Give the sun back: the cell was refused somewhere the player cannot see, and a card
+            // that costs sun and produces nothing is a bug report.
+            if (cost > 0) {
+                plantPlayer.team().addResource(PvzceIds.SUN, cost);
+            }
+            bridge.send(new ServerMessageS2C("这个僵尸放不下。"));
+            return false;
+        }
+        requestEntitySync();
+        bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
+        bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(),
+                PvzceIds.SUN.toString(), plantPlayer.team().resourcesOf(PvzceIds.SUN)));
+        return true;
     }
 
     /**

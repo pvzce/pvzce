@@ -6,6 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 
 import java.util.ArrayList;
@@ -341,6 +342,24 @@ public record LevelDef(
      * skips it - and a level that declares none at all keeps the screen, because a menu with
      * no choice in it is a better failure than silently starting a level as nobody.
      */
+    /**
+     * The team the player plays: I, Zombie is the reason this exists.
+     *
+     * <p>Empty {@code playable_teams} means the plant side, which is what every shipped level
+     * before I, Zombie says and what the default has always been in practice. A level that names
+     * the zombie side is played from the other end, and this is the one place that is decided -
+     * the server seats the player there, and the chooser offers that side's cards, so the two
+     * cannot disagree about which game is being played.
+     */
+    public Identifier humanTeam() {
+        for (Identifier team : playableTeams) {
+            if (team != null) {
+                return team;
+            }
+        }
+        return PvzceIds.PLANT_TEAM;
+    }
+
     public boolean offersTeamChoice() {
         return playableTeamDefs().size() != 1;
     }

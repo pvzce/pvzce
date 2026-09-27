@@ -80,13 +80,15 @@ public final class HoverTip {
         return GuiLang.name(cardCategory(card.kind()), card.content());
     }
 
-    /** The language category a card kind names. */
+    /**
+     * The language category a card kind names.
+     *
+     * <p>{@code SlotResolver}'s, not a copy: that method exists so "which registry does this
+     * card's name live in" has one answer, and this class had quietly grown the second one - which
+     * is how a new card kind shows a plant's sentence for a zombie.
+     */
     private static String cardCategory(com.pvzce.common.core.Slot.Kind kind) {
-        return switch (kind) {
-            case PLANT -> "plant";
-            case TOOL -> "tool";
-            case RESOURCE -> "resource";
-        };
+        return com.pvzce.common.core.SlotResolver.languageCategory(kind);
     }
 
     /** The display name of a level buff. Buffs are named off their own id, like content is. */

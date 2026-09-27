@@ -1,0 +1,206 @@
+{
+  "id": "pvzce:yard/puzzle/i_zombie_2",
+  "name": "我是僵尸 2",
+  "description": "解谜：路障头比普通僵尸扛得多，铁桶头更扛。花在哪儿、什么时候花，是这一关唯一的事。",
+  "width": 9,
+  "height": 5,
+  "scene": {
+    "pvzce:grass": [
+      "0,0",
+      "1,0",
+      "2,0",
+      "3,0",
+      "4,0",
+      "5,0",
+      "6,0",
+      "7,0",
+      "8,0",
+      "0,1",
+      "1,1",
+      "2,1",
+      "3,1",
+      "4,1",
+      "5,1",
+      "6,1",
+      "7,1",
+      "8,1",
+      "0,2",
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2",
+      "7,2",
+      "8,2",
+      "0,3",
+      "1,3",
+      "2,3",
+      "3,3",
+      "4,3",
+      "5,3",
+      "6,3",
+      "7,3",
+      "8,3",
+      "0,4",
+      "1,4",
+      "2,4",
+      "3,4",
+      "4,4",
+      "5,4",
+      "6,4",
+      "7,4",
+      "8,4"
+    ]
+  },
+  "teams": [
+    {
+      "id": "pvzce:plant_team",
+      "name": "植物方",
+      "win_condition": "plant_side_lost"
+    },
+    {
+      "id": "pvzce:zombie_team",
+      "name": "僵尸方",
+      "win_condition": "survive_waves"
+    }
+  ],
+  "win_team": "pvzce:zombie_team",
+  "playable_teams": [
+    "pvzce:zombie_team"
+  ],
+  "rules": {
+    "pvzce:day_length": 0,
+    "pvzce:night_length": -1,
+    "pvzce:sun_spawn_interval_min": 0,
+    "pvzce:sun_spawn_interval_max": 0,
+    "pvzce:sun_spawn_initial_ticks": 0,
+    "pvzce:zombie_sun_drop_chance": 0.0
+  },
+  "env_vars": {},
+  "wave_interval_end_multiplier": 1.0,
+  "slots": [
+    "pvzce:basic_zombie",
+    "pvzce:conehead_zombie"
+  ],
+  "max_seed_slots": 2,
+  "seed_screen": false,
+  "initial_sun": 175,
+  "mechanics": [],
+  "initial_entities": [
+    {
+      "kind": "plant",
+      "id": "pvzce:pea_shooter",
+      "x": 1,
+      "y": 0
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:pea_shooter",
+      "x": 1,
+      "y": 1
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:pea_shooter",
+      "x": 1,
+      "y": 2
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:pea_shooter",
+      "x": 1,
+      "y": 3
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:pea_shooter",
+      "x": 1,
+      "y": 4
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:wall_nut",
+      "x": 3,
+      "y": 0
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:wall_nut",
+      "x": 3,
+      "y": 2
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:wall_nut",
+      "x": 3,
+      "y": 4
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:repeater",
+      "x": 0,
+      "y": 2
+    }
+  ],
+  "waves": [],
+  "music": {
+    "cues": [
+      {
+        "at_tick": 0,
+        "track": "background",
+        "event": "pvzce:music/rigor_mormist",
+        "loop": true,
+        "volume": 0.85,
+        "fade_seconds": 1.0
+      }
+    ]
+  },
+  "background": "pvzce:textures/gui/screen/level/background1",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "这一关你指挥僵尸：点一张僵尸卡，再点一行把它放下去",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "小推车每行一辆，先吃掉的僵尸会替后面的开路",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "buffs": [
+    "pvzce:player_choice"
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "coins",
+        "amount": 600
+      },
+      {
+        "type": "unlock",
+        "id": "pvzce:conehead_zombie"
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 250
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
+}

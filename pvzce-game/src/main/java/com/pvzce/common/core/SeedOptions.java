@@ -3,6 +3,7 @@ package com.pvzce.common.core;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.network.packet.SeedOption;
 
 import java.util.ArrayList;
@@ -98,7 +99,11 @@ public final class SeedOptions {
      */
     public static List<Identifier> cardPool(LevelDef def, java.util.function.Predicate<Identifier> owns) {
         LinkedHashSet<Identifier> ids = new LinkedHashSet<>();
+        boolean zombieSide = PvzceIds.ZOMBIE_TEAM.equals(def.humanTeam());
         for (Identifier card : allCards()) {
+            if (!matchesSide(card, zombieSide)) {
+                continue;
+            }
             if (owns == null || owns.test(card)) {
                 ids.add(card);
             }
@@ -109,6 +114,24 @@ public final class SeedOptions {
             }
         }
         return List.copyOf(ids);
+    }
+
+    /**
+     * Whether a card belongs to the side being played.
+     *
+     * <p>Zombie cards are only offered on a level the player plays as the zombies, and plant cards
+     * are only offered on the others. Without this the bag would show a Zombie between the
+     * Peashooter and the Sunflower on every ordinary level - the two sides' cards live in one
+     * registry, so "which cards are mine" cannot be read off the registry and has to be read off
+     * the card kind.
+     */
+    private static boolean matchesSide(Identifier card, boolean zombieSide) {
+        SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
+        if (resolved == null) {
+            // A bare content id the level pinned: it is the level's business, not the side's.
+            return true;
+        }
+        return (resolved.kind() == Slot.Kind.ZOMBIE) == zombieSide;
     }
 
     /** The ids of the cards the level pinned, capped at its slot count. */

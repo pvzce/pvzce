@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:football_zombie",
+  "kind": "zombie",
+  "content": "pvzce:football_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 175
+    },
+    "cooldown": 60
+  },
+  "icon": "pvzce:textures/gui/cards/football_zombie"
+}

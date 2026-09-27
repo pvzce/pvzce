@@ -53,6 +53,8 @@ public final class LevelMechanics {
     public static final PortalMechanic PORTAL = new PortalMechanic();
     /** Seed packets the level drops onto the lawn on a clock. */
     public static final SeedRainMechanic SEED_RAIN = new SeedRainMechanic();
+    /** I, Zombie's board: the enemy's garden, round by round. */
+    public static final PlantGardenMechanic PLANT_GARDEN = new PlantGardenMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final StormMechanic STORM = new StormMechanic();
@@ -89,6 +91,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_PREPARATION, PREPARATION);
         register(PvzceIds.MECHANIC_PORTAL, PORTAL);
         register(PvzceIds.MECHANIC_SEED_RAIN, SEED_RAIN);
+        register(PvzceIds.MECHANIC_PLANT_GARDEN, PLANT_GARDEN);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);
     }
 

@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:buckethead_zombie",
+  "kind": "zombie",
+  "content": "pvzce:buckethead_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 60
+  },
+  "icon": "pvzce:textures/gui/cards/buckethead_zombie"
+}

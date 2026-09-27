@@ -8,6 +8,7 @@ import com.pvzce.common.tag.TestContent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -145,7 +146,28 @@ class SeedPlanTest {
         assertTrue(offered.contains("pvzce:pea_shooter"),
                 "the chooser needs the pinned card too: it is what it renders as already chosen");
         assertTrue(offered.contains("pvzce:sun"));
-        assertEquals(names(SeedOptions.allCards()), offered);
+        // Every card *of this side's kinds*, and no card of the other's: zombie cards live in the
+        // same slot registry, so "everything in the registry" stopped being the right answer the
+        // day I, Zombie got a card - see `SeedOptions.matchesSide`.
+        List<String> expected = new ArrayList<>();
+        for (Identifier card : SeedOptions.allCards()) {
+            SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
+            if (resolved != null && resolved.kind() != com.pvzce.common.core.Slot.Kind.ZOMBIE) {
+                expected.add(card.toString());
+            }
+        }
+        assertEquals(expected, offered);
+        assertFalse(offered.contains("pvzce:basic_zombie"),
+                "a plant level's chooser does not offer a zombie");
+        assertTrue(SeedOptions.forLevel(zombieLevel()).stream().map(SeedOption::slotId)
+                        .allMatch(id -> id.endsWith("_zombie") || id.equals("pvzce:gargantuar")),
+                "and a zombie level's chooser offers only zombies");
+    }
+
+    /** The endless puzzle level: the one shipped level the player plays as the zombies. */
+    private static LevelDef zombieLevel() {
+        return com.pvzce.common.core.BuiltInRegistries.LEVELS.get(
+                id("pvzce:yard/puzzle/i_zombie_endless"));
     }
 
     @Test

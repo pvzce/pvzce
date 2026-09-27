@@ -7,8 +7,8 @@ import com.pvzce.api.util.Identifier;
 import java.util.Optional;
 
 /**
- * A card-slot definition: plant card, resource card, or tool card.
- * {@code content} points at a plant/resource/tool registry id; {@code cost}
+ * A card-slot definition: plant card, resource card, tool card or zombie card.
+ * {@code content} points at a plant/resource/tool/zombie registry id; {@code cost}
  * may override the referenced content's own cost. {@code icon} optionally
  * overrides the card icon texture (top-left origin, same texture id space as
  * other resources).
@@ -21,7 +21,7 @@ public record SlotDef(Identifier id, Kind kind, Identifier content, ResourceCost
     }
 
     public enum Kind {
-        PLANT("plant"), RESOURCE("resource"), TOOL("tool");
+        PLANT("plant"), RESOURCE("resource"), TOOL("tool"), ZOMBIE("zombie");
 
         private final String json;
 

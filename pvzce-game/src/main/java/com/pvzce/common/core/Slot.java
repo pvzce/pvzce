@@ -5,7 +5,7 @@ import com.pvzce.api.util.Identifier;
 import java.util.Locale;
 
 /**
- * Player card slot: a plant card, a resource card or a tool card.
+ * Player card slot: a plant card, a resource card, a tool card or a zombie card.
  *
  * <p>Lives in {@code common} because both sides need its vocabulary: the server owns the
  * slots, and {@code SlotResolver} (which resolves a card id for the editor, the seed chooser
@@ -14,7 +14,17 @@ import java.util.Locale;
  */
 public final class Slot {
     public enum Kind {
-        PLANT, RESOURCE, TOOL;
+        PLANT, RESOURCE, TOOL,
+        /**
+         * A zombie the player places: the card kind I, Zombie is played with.
+         *
+         * <p>A kind rather than a plant with a zombie's art, because everything downstream asks
+         * "what does placing this spawn" - the placement path, the card's language category, the
+         * seed chooser's side - and one word answers all of them in one place. The price lives in
+         * the slot file like every other card's, so a zombie's sun cost is content and not a
+         * field the zombie registry would have to grow.
+         */
+        ZOMBIE;
 
         /** The wire spelling (also what seed options and level JSON use). */
         public String json() {

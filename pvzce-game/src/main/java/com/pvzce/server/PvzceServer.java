@@ -1341,6 +1341,11 @@ public final class PvzceServer implements Runnable {
                 if (level != null) {
                     level.beginWaves();
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.PlaceZombieC2S place) {
+                // I, Zombie's click. The level re-derives the price, the cooldown and the side.
+                if (level != null) {
+                    level.placeZombie(bridge, place.slotIndex(), place.gridX(), place.gridY());
+                }
             } else if (packet instanceof com.pvzce.common.network.packet.FireAtC2S fire) {
                 // A hand-aimed shot. The level re-derives everything: which entity that id is,
                 // whether it is the sender's, whether it is loaded, and whether the cell exists.

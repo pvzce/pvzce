@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:pole_vaulter_zombie",
+  "kind": "zombie",
+  "content": "pvzce:pole_vaulter_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 60
+  },
+  "icon": "pvzce:textures/gui/cards/pole_vaulter_zombie"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:gargantuar",
+  "kind": "zombie",
+  "content": "pvzce:gargantuar",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 300
+    },
+    "cooldown": 60
+  },
+  "icon": "pvzce:textures/gui/cards/gargantuar"
+}

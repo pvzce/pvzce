@@ -3,6 +3,7 @@ package com.pvzce.server.level;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.api.util.LevelGrouping;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.tag.TestContent;
@@ -63,6 +64,12 @@ class LevelTabsTest {
         List<Identifier> categories = new ArrayList<>(BuiltInRegistries.LEVEL_CATEGORIES.keySet());
         int endlessLevels = 0;
         for (LevelDef def : BuiltInRegistries.LEVELS) {
+            // I, Zombie's endless is a *puzzle* mode and lives on the puzzle page: the rule this
+            // loop enforces is "the survival family's endless modes are one page", not "every
+            // level whose id says endless is survival". The puzzle one is asserted below.
+            if (def.id().path().contains("/puzzle/")) {
+                continue;
+            }
             if (def.id().path().contains("endless") || def.id().path().contains("mutation_")) {
                 assertEquals("survival",
                         LevelGrouping.resolve(def.id(), themes, categories).category().path(),
@@ -70,6 +77,10 @@ class LevelTabsTest {
                 endlessLevels++;
             }
         }
+        assertEquals("puzzle",
+                LevelGrouping.resolve(PvzceIds.id("yard/puzzle/i_zombie_endless"), themes, categories)
+                        .category().path(),
+                "I, Zombie's endless mode is a puzzle level, and sits with the rest of them");
         assertTrue(endlessLevels >= 5,
                 "the pool endless level and the four mutation tiers are all there, found "
                         + endlessLevels);

@@ -499,6 +499,8 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_PORTAL = id("portal");
     /** 种子雨: seed packets the level drops onto the lawn on a clock. */
     public static final Identifier MECHANIC_SEED_RAIN = id("seed_rain");
+    /** 我是僵尸: the enemy's garden, laid out round by round. */
+    public static final Identifier MECHANIC_PLANT_GARDEN = id("plant_garden");
     /**
      * The mutation system: a level where the rules themselves are rewritten every so often.
      *

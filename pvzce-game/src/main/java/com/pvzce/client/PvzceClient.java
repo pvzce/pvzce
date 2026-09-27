@@ -2851,15 +2851,18 @@ public final class PvzceClient {
         if (music == null || state == null || state.equals("running")) {
             return;
         }
-        boolean plantSideWon = winTeamId != null && winTeamId.contains("plant");
-        // A plant win does not play its stinger here: the reward packet that follows
-        // lands a seed packet or money bag on the lawn, and the victory music belongs
-        // to the moment the player claims it (InGameScreen.tickReward). A defeat has
-        // nothing to claim, so it plays immediately.
-        if (plantSideWon && currentScreen() instanceof InGameScreen) {
+        // `state` is the player's own outcome and `winTeamId` is which side of the board it
+        // happened on; on I, Zombie the player is the zombie side, so only the first of the two
+        // answers "did I win".
+        boolean playerWon = "won".equals(state);
+        // A win does not play its stinger here: the reward packet that follows lands a seed
+        // packet or money bag on the lawn, and the victory music belongs to the moment the player
+        // claims it (InGameScreen.tickReward). A defeat has nothing to claim, so it plays
+        // immediately.
+        if (playerWon && currentScreen() instanceof InGameScreen) {
             return;
         }
-        music.playWinLose(!(winTeamId != null && winTeamId.contains("zombie")));
+        music.playWinLose(playerWon);
     }
 
     /**
@@ -2876,7 +2879,8 @@ public final class PvzceClient {
         if (reward == null || !(currentScreen() instanceof InGameScreen screen)) {
             return;
         }
-        if (!level.gameState().equals("running") && level.winTeam().contains("plant")) {
+        // Paid on the player's own win: a zombie-side victory banks its coins like any other.
+        if (level.gameState().equals("won")) {
             screen.showReward(reward);
         }
     }

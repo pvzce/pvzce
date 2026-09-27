@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:basic_zombie",
+  "kind": "zombie",
+  "content": "pvzce:basic_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 60
+  },
+  "icon": "pvzce:textures/gui/cards/basic_zombie"
+}

@@ -151,6 +151,15 @@ ANIMATION_DIRS: Dict[str, str] = {
     "pumpkin": "plant/defense",
     "magnet_shroom": "plant/special",
     "gold_magnet": "plant/special",
+    # I, Zombie's cards. A zombie's "texture" is a directory of bone parts rather than one file
+    # (see `EntityArt`), so a card face for one has to be drawn from its model exactly like a
+    # plant's is.
+    "basic_zombie": "zombie/basic",
+    "conehead_zombie": "zombie/armored",
+    "buckethead_zombie": "zombie/armored",
+    "football_zombie": "zombie/armored",
+    "pole_vaulter_zombie": "zombie/special",
+    "gargantuar": "zombie/giant",
 }
 
 PLANT_ENTITIES = [
@@ -181,6 +190,10 @@ PLANT_ENTITIES = [
     # The last two purple packets: the cannon and the coin magnet. Both are converted reanims
     # that have been in `refer/anim` since the beginning; only their mechanics were missing.
     "cob_cannon", "gold_magnet",
+    # The zombie cards I, Zombie is played with. Same painter: a card face is a pose of the
+    # model, and a zombie's model is a model like any other.
+    "basic_zombie", "conehead_zombie", "buckethead_zombie", "football_zombie",
+    "pole_vaulter_zombie", "gargantuar",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

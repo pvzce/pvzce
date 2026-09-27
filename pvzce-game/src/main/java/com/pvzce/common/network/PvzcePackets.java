@@ -131,7 +131,9 @@ public final class PvzcePackets {
     // 39: the chat line got its own packet (ChatC2S).
     // 40: the preparation phase's start button (StartWavesC2S).
     // 41: a plant can be aimed by hand (FireAtC2S: which cannon, and which cell).
-    public static final int PROTOCOL_VERSION = 41;
+    // 42: the player can be on the zombie side, which places zombies rather than plants
+    // (PlaceZombieC2S).
+    public static final int PROTOCOL_VERSION = 42;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -163,6 +165,8 @@ public final class PvzcePackets {
     public static final int C2S_START_WAVES = 30;
     /** A click that aims a loaded plant at a cell: the cob cannon's shot. */
     public static final int C2S_FIRE_AT = 31;
+    /** A click that puts a paid-for zombie on the lawn: I, Zombie's placement. */
+    public static final int C2S_PLACE_ZOMBIE = 32;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -262,6 +266,9 @@ public final class PvzcePackets {
             def(C2S_FIRE_AT, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.FireAtC2S.class,
                     com.pvzce.common.network.packet.FireAtC2S::decode),
+            def(C2S_PLACE_ZOMBIE, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.PlaceZombieC2S.class,
+                    com.pvzce.common.network.packet.PlaceZombieC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

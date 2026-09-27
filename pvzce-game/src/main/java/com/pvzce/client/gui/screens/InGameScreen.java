@@ -851,9 +851,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 + " · 用时 " + clock;
     }
 
-    /** True when the level ended with the zombies winning. */
+    /**
+     * True when the level ended with the player losing.
+     *
+     * <p>Read from the game state rather than from which team won: {@code WON}/{@code LOST} are the
+     * *player's* outcome (see {@code LevelServer.markEnd}), while the winning team's id says which
+     * side of the board it happened on. On I, Zombie those two are opposite - the zombies won and
+     * so did the player - so the id is the one answer that cannot be asked here.
+     */
     private boolean isDefeat() {
-        return client.level().winTeam().contains("zombie");
+        return client.level().gameState().equals("lost");
     }
 
     /**
@@ -3481,7 +3488,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         client.drawSolid(0, 0, width, height, 0.5F, 0F, 0F, 0F, 0.45F);
-        boolean plantWin = client.level().winTeam().contains("plant");
+        // The player's own outcome, not the plant side's: see isDefeat.
+        boolean plantWin = client.level().gameState().equals("won");
         String text = plantWin ? "胜利！" : "失败！";
         float scale = 4F;
         client.fonts().body().draw(text, (width - client.fonts().body().width(text, scale)) / 2F, height / 2F + 40, scale,
@@ -3547,7 +3555,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (slot >= 0) {
             if (button == 0) {
                 SlotInfo info = slotInfo(slot);
-                if (info != null && (info.kind().equals("plant") || info.kind().equals("tool"))) {
+                // Zombie cards are selectable on the same terms: the click that places them is a
+                // board click like any other, and the bar's own readiness rules (price, cooldown,
+                // uses) are the same three numbers.
+                if (info != null && (info.kind().equals("plant") || info.kind().equals("tool")
+                        || info.kind().equals("zombie"))) {
                     if (!cardUsable(info) && !gloveCard(info)) {
                         // Cooling down, too expensive, out of uses. The server would refuse
                         // the placement too, but by then the player has picked a cell and
@@ -4138,7 +4150,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             selectedCard = -1;
             return;
         }
-        client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY));
+        // Which placement message a card sends is the card's kind, not the level's: a zombie card
+        // is placed on the same lawn by the same click, and only the registry the id is looked up
+        // in differs (see PlaceZombieC2S).
+        if (selected.kind().equals("zombie")) {
+            client.connection().send(
+                    new com.pvzce.common.network.packet.PlaceZombieC2S(selectedCard, cellX, cellY));
+        } else {
+            client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY));
+        }
         selectedCard = -1;
     }
 

@@ -5,6 +5,7 @@ import com.pvzce.api.content.ResourceDef;
 import com.pvzce.api.content.SlotDef;
 import com.pvzce.api.content.ToolDef;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.Slot;
 
@@ -58,6 +59,7 @@ public final class SlotResolver {
                 case PLANT -> Slot.Kind.PLANT;
                 case RESOURCE -> Slot.Kind.RESOURCE;
                 case TOOL -> Slot.Kind.TOOL;
+                case ZOMBIE -> Slot.Kind.ZOMBIE;
             };
             int cost = slot.cost().amountOf(PvzceIds.SUN);
             int cooldown = slot.cost().cooldownTicks();
@@ -78,6 +80,11 @@ public final class SlotResolver {
                         cooldown = tool.cooldownTicks();
                     }
                 }
+            } else if (kind == Slot.Kind.ZOMBIE && cooldown == 0) {
+                // A zombie has no cost of its own to fall back on - the original prices each one
+                // per level, and the slot file is where that number goes. The cooldown does have
+                // a sensible default: without one a player could empty a whole lane in a tick.
+                cooldown = PvzceConstants.PLANT_CARD_COOLDOWN_TICKS;
             }
             return Optional.of(new ResolvedCard(slotId, slot.content(), kind, cost, cooldown, uses,
                     slot.icon().isPresent() ? slot.icon() : fallbackIcon(kind, slot.content())));
@@ -111,6 +118,7 @@ public final class SlotResolver {
             case PLANT -> "plant";
             case TOOL -> "tool";
             case RESOURCE -> "resource";
+            case ZOMBIE -> "zombie";
         };
     }
 
@@ -134,7 +142,8 @@ public final class SlotResolver {
     public static boolean requiresUnlock(Identifier card) {
         ResolvedCard resolved = resolve(card).orElse(null);
         return resolved != null
-                && (resolved.kind() == Slot.Kind.PLANT || resolved.kind() == Slot.Kind.TOOL);
+                && (resolved.kind() == Slot.Kind.PLANT || resolved.kind() == Slot.Kind.TOOL
+                        || resolved.kind() == Slot.Kind.ZOMBIE);
     }
 
     /**
