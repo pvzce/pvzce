@@ -501,6 +501,8 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_SEED_RAIN = id("seed_rain");
     /** 我是僵尸: the enemy's garden, laid out round by round. */
     public static final Identifier MECHANIC_PLANT_GARDEN = id("plant_garden");
+    /** 节奏草坪: a chart the player plays on the keyboard, and the lanes that answer it. */
+    public static final Identifier MECHANIC_RHYTHM = id("rhythm");
     /**
      * The mutation system: a level where the rules themselves are rewritten every so often.
      *

@@ -1103,6 +1103,22 @@ public final class ClientLevel {
         return levelTickCount;
     }
 
+    /**
+     * The level's own clock, interpolated between heartbeats.
+     *
+     * <p>The heartbeat carries both counters (see {@link #setDebugInfo}), so their difference is how
+     * far the world has moved since the last one - and adding that to the level's counter gives a
+     * smooth, level-relative tick that is right to within the heartbeat's own accuracy.
+     *
+     * <p>It is what the rhythm levels judge against: their notes are written in level ticks, and a
+     * judgement made on the 250-millisecond heartbeat alone would be four ticks coarse in one
+     * direction - wider than the perfect window, which is the difference between a mode and a
+     * lottery.
+     */
+    public double smoothLevelTicks() {
+        return levelTickCount + (smoothGameTicks() - debugTickCount);
+    }
+
     public float measuredTps() {
         return measuredTps;
     }

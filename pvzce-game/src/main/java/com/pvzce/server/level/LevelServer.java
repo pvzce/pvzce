@@ -1781,6 +1781,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public void damageColumn(com.pvzce.api.content.DamageTypeDef type, int column, int damage,
+                             Team sourceTeam) {
+        for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
+                continue;
+            }
+            // The zombie's own column, not its position - the same rule the row attack uses, and
+            // for the same reason: a zombie straddling a boundary walks in one column or the other.
+            if (zombie.gridX() == column && isEnemyOf(zombie.team(), sourceTeam)) {
+                zombie.damage(damage, type, this);
+            }
+        }
+    }
+
+    @Override
     public void leaveCraters(float centerX, float centerY, float radius, boolean square) {
         // The same footprint the blast itself used (see damageArea): a square measured in cells
         // reaches half a cell further than its number says, which is what makes a radius of 1
@@ -3836,6 +3851,35 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Judges one rhythm note, and answers whether it counted.
+     *
+     * <p>A thin door on purpose: the mechanic owns the chart, the clock and the scoring, and this
+     * only finds the block the level declared and hands the packet's four numbers to it.
+     */
+    public boolean rhythmHit(String laneKind, int laneIndex, int noteTick, int perceivedTicks) {
+        com.pvzce.api.content.RhythmChartData chart = com.pvzce.common.level.mechanic.LevelMechanics
+                .dataOf(def, PvzceIds.MECHANIC_RHYTHM, com.pvzce.api.content.RhythmChartData.class)
+                .orElse(null);
+        if (chart == null) {
+            return false;
+        }
+        return com.pvzce.common.level.mechanic.LevelMechanics.RHYTHM
+                .judge(this, chart, laneKind, laneIndex, noteTick, perceivedTicks);
+    }
+
+    /**
+     * True when this level's own rules forbid changing the game speed.
+     *
+     * <p>A rhythm level does: its notes are written against the level's tick count, so 2x does not
+     * move the chart, it halves the time the player has to answer it - the same chart becomes a
+     * different, unplayable one. Asked here rather than decided in the packet handler so the rule
+     * is the level's, and so the client can be told it (see {@code LevelInitS2C}).
+     */
+    public boolean forbidsSpeedChange() {
+        return com.pvzce.common.level.mechanic.LevelMechanics.has(def, PvzceIds.MECHANIC_RHYTHM);
     }
 
     /**

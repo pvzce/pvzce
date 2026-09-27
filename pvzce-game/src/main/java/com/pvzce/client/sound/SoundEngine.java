@@ -40,6 +40,14 @@ public final class SoundEngine implements AutoCloseable {
             org.slf4j.LoggerFactory.getLogger("PVZCE/Sound");
     public static final int MAX_SFX_SOURCES = 16;
     public static final int MUSIC_SOURCE_COUNT = 8;
+    /**
+     * True while every music source is held paused.
+     *
+     * <p>Pausing rather than stopping is the whole point: a stopped source loses its playback
+     * position, so a level's music would restart from the top every time the player opened the
+     * pause dialog - which is the difference between "the game is paused" and "the song is over".
+     */
+    private boolean musicPaused;
     private static final long SFX_MIN_INTERVAL_NANOS = 130_000_000L;
     private static final Random RANDOM = new Random();
 
@@ -351,6 +359,45 @@ public final class SoundEngine implements AutoCloseable {
     }
 
     /** Stops the ambient loop, if one is playing. Called when the player leaves the level. */
+    /**
+     * Holds or releases every music source.
+     *
+     * <p>One flag for all eight because the tracks are independent but the pause is not: a level
+     * has background music and a stinger and they are paused because the <em>game</em> is paused.
+     * The flag is also what a later {@code playMusic} consults, so a cue that arrives while the
+     * game is paused does not start playing under the pause dialog.
+     */
+    public void setMusicPaused(boolean paused) {
+        if (musicPaused == paused) {
+            return;
+        }
+        musicPaused = paused;
+        if (musicSources == null) {
+            return;
+        }
+        for (int source : musicSources) {
+            if (source == 0) {
+                continue;
+            }
+            if (paused) {
+                AL10.alSourcePause(source);
+            } else {
+                // Only the ones that were actually playing: OpenAL has no "resume what was
+                // playing", and `alSourcePlay` on a stopped source would restart it from zero -
+                // which is what the pause was for.
+                int state = AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE);
+                if (state == AL10.AL_PAUSED) {
+                    AL10.alSourcePlay(source);
+                }
+            }
+        }
+    }
+
+    /** True while music is held paused; read by the controller so a cue can be deferred. */
+    public boolean musicPaused() {
+        return musicPaused;
+    }
+
     public void stopAmbient() {
         if (!enabled) {
             return;

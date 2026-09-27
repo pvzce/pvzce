@@ -516,6 +516,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     /** How far the defeat has turned the camera toward the house, in cells. */
     private float defeatPan;
     private boolean paused;
+    /**
+     * The rhythm chart this level plays, or {@code null}.
+     *
+     * <p>Built once when the level starts: the chart is level data and does not change, and the
+     * playing state inside it (which notes have been pressed) has to survive every frame.
+     */
+    private com.pvzce.client.RhythmPlay rhythm;
 
     /**
      * The card a press picked up, or {@code -1}.
@@ -628,6 +635,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // after a resize or a GUI-scale change, and `clearWidgets()` has already thrown the old
         // widget away - a field still pointing at it would be a button nothing draws.
         startWavesButton = null;
+        // The rhythm chart is level content, and it is read before the widgets are built: whether
+        // this level has one decides whether the speed button exists at all. Built once per level
+        // rather than per init, because the chart's own state - which notes have been pressed -
+        // has to survive a resize.
+        if (rhythm == null && client.level() != null) {
+            rhythm = com.pvzce.client.RhythmPlay.forLevel(client.level());
+        }
         int width = client.guiWidth();
         int height = client.guiHeight();
         // Pause is the rightmost thing on the bar and the tallest; the speed button sits to its
@@ -642,7 +656,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         int speedX = Math.max(12, pauseX - speedWidth - 8);
         speedButton = new Button(speedX, height - pauseHeight - 12,
                 speedWidth, pauseHeight, speedLabel(), this::cycleSpeed);
-        addWidget(speedButton);
+        // A rhythm level does not show the speed control at all: its chart is written against the
+        // level's tick count, so 2x would not move the notes, it would halve the time to answer
+        // them. The server refuses the packet too (see LevelServer.forbidsSpeedChange) - this is
+        // the half that stops the player from asking.
+        if (rhythm == null) {
+            addWidget(speedButton);
+        }
         addWidget(pauseButton);
         pauseDialog = PauseDialog.create(client);
         pauseDialog.onClose(this::handlePauseDialogClosed);
@@ -1508,6 +1528,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // banner are messages about it.
         mutationHud.renderDarkness(client);
         renderHud();
+        if (rhythm != null) {
+            // The chart's clock is anchored here rather than in `tick()`: the moment the build
+            // phase ends is the moment the first note may be pressed, and the render loop runs on
+            // every frame the player could press one.
+            rhythm.tick(client.level().smoothLevelTicks(), client.level().preparing());
+        }
+        renderRhythmHud();
         renderEntryBanner();
         renderFinalWaveBanner();
         mutationHud.renderBanner(client);
@@ -4321,6 +4348,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (action == null) {
             return false;
         }
+        if (action.isRhythmLane()) {
+            return playRhythmLane(action.rhythmLaneKind(), action.rhythmLaneIndex());
+        }
         if (action.isTool()) {
             return useToolHotkey(action.toolId());
         }
@@ -4440,6 +4470,73 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         super.keyPressed(key);
     }
 
+    /**
+     * The rhythm levels' ten lanes: one key, one note, one attack.
+     *
+     * <p>The judgement happens here and the score happens on the server; this method's whole job is
+     * to turn a key into "which note was that, and how far off was it" and to say so. A press that
+     * is nowhere near a note sends nothing at all - a stray key is not a mistake, and a client that
+     * reported every press would be filling the server's miss counter with the player's typing.
+     */
+    private boolean playRhythmLane(String laneKind, int laneIndex) {
+        if (rhythm == null || !client.level().gameState().equals("running") || paused) {
+            // The keys are always bound, so they arrive in every level; only a running rhythm
+            // level has anything to do with them.
+            return rhythm != null;
+        }
+        rhythm.tick(client.level().smoothLevelTicks(), client.level().preparing());
+        var packet = rhythm.press(laneKind, laneIndex, client.level().smoothLevelTicks());
+        if (packet != null) {
+            client.connection().send(packet);
+        }
+        return true;
+    }
+
+    /**
+     * Draws the chart's own HUD: the two hands, the verdict, and the tally.
+     *
+     * <p>Not a note highway. The chart is short and the lanes are the lawn itself - a hit lights up
+     * the row or column it fired, which is the feedback that matters, and it is drawn where the
+     * player is already looking. What is left for the HUD is the part the lawn cannot say: which
+     * keys are the lanes, how the run is going, and whether that last press was on the beat.
+     */
+    /** How far apart the rhythm HUD's lines sit, in GUI units. */
+    private static final float RHYTHM_HUD_LINE = 14F;
+
+    private void renderRhythmHud() {
+        if (rhythm == null) {
+            return;
+        }
+        float width = client.guiWidth();
+        float height = client.guiHeight();
+        com.pvzce.api.content.RhythmChartData chart = rhythm.chart();
+        // Down the right-hand side and stacked downward from above the wave bar. Not the left
+        // corner: that is where the sun bank lives, and a lane list drawn under it is a lane list
+        // nobody can read - which is what the first attempt at this did.
+        float right = width - 16F;
+        float line = height * 0.34F;
+        for (com.pvzce.api.content.RhythmChartData.Lane lane : chart.lanes()) {
+            boolean row = lane.kind() == com.pvzce.api.content.RhythmChartData.LaneKind.ROW;
+            String label = (row ? "行 " : "列 ") + lane.index();
+            boolean hot = rhythm.justPlayed(lane.kind().json(), lane.index());
+            client.fonts().body().draw(label, right - client.fonts().body().width(label, 0.9F),
+                    line, 0.9F, hot ? 1F : 0.75F, hot ? 0.85F : 0.8F, hot ? 0.2F : 0.8F, 1F);
+            line -= RHYTHM_HUD_LINE;
+        }
+        String verdict = rhythm.visibleVerdict();
+        if (!verdict.isEmpty()) {
+            float scale = 1.6F;
+            client.fonts().body().draw(verdict, (width - client.fonts().body().width(verdict, scale)) / 2F,
+                    client.guiHeight() * 0.62F, scale,
+                    verdict.equals("PERFECT") ? 1F : 0.9F,
+                    verdict.equals("PERFECT") ? 0.9F : 0.8F, 0.2F, 1F);
+        }
+        String tally = "PERFECT " + rhythm.perfect() + " · GOOD " + rhythm.good()
+                + " · 连击 " + rhythm.combo();
+        client.fonts().body().draw(tally, right - client.fonts().body().width(tally, 0.9F),
+                height * 0.38F, 0.9F, 1F, 1F, 1F, 1F);
+    }
+
     private void openPause() {
         if (paused || !client.level().gameState().equals("running")) {
             return;
@@ -4449,8 +4546,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             pauseDialog.setVisible(true);
         }
         // Single-player integrated server: freeze level ticks while the pause
-        // dialog is open.
+        // dialog is open. The music is held with it - a paused game whose song plays on is the
+        // one thing a player listens for and concludes is broken.
         client.connection().send(new PauseGameC2S(true));
+        client.music().setPaused(true);
     }
 
     private void handlePauseDialogClosed() {
@@ -4459,6 +4558,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         paused = false;
         client.connection().send(new PauseGameC2S(false));
+        client.music().setPaused(false);
     }
 
     private void closePause() {

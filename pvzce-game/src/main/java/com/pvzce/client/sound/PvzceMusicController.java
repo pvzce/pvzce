@@ -48,6 +48,17 @@ public final class PvzceMusicController {
         }
     }
 
+    /**
+     * Holds or releases the music with the game.
+     *
+     * <p>Called by the in-game screen when its pause dialog opens and closes. The alternative -
+     * stopping the track - is what the code did by omission before: the music played on under the
+     * pause dialog, which is the one moment a player is listening for "did it stop".
+     */
+    public void setPaused(boolean paused) {
+        sound.setMusicPaused(paused);
+    }
+
     public void playMenu(String event) {
         playCue(TRACK_MENU, event, true, false, 1F, 0.6F);
     }

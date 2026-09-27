@@ -203,6 +203,16 @@ public interface LevelAccess {
     void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam);
 
     /**
+     * Hits every zombie in one column, from the house to the road.
+     *
+     * <p>{@link #damageRow}'s twin, and the rhythm levels' other attack: a column is the shape that
+     * reaches a lane's whole length the way a row reaches its whole width, and it is what makes the
+     * two halves of the keyboard two different weapons rather than two colours of the same one.
+     */
+    void damageColumn(com.pvzce.api.content.DamageTypeDef type, int column, int damage,
+                      Team sourceTeam);
+
+    /**
      * Turns the ground a blast covered into craters.
      *
      * <p>What the original's doom shroom leaves behind: the lawn its blast covered stops being

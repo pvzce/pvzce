@@ -133,7 +133,8 @@ public final class PvzcePackets {
     // 41: a plant can be aimed by hand (FireAtC2S: which cannon, and which cell).
     // 42: the player can be on the zombie side, which places zombies rather than plants
     // (PlaceZombieC2S).
-    public static final int PROTOCOL_VERSION = 42;
+    // 43: the rhythm levels' keyboard (RhythmHitC2S: which lane, which note, how well).
+    public static final int PROTOCOL_VERSION = 43;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -167,6 +168,8 @@ public final class PvzcePackets {
     public static final int C2S_FIRE_AT = 31;
     /** A click that puts a paid-for zombie on the lawn: I, Zombie's placement. */
     public static final int C2S_PLACE_ZOMBIE = 32;
+    /** One rhythm note, pressed and judged by the client. */
+    public static final int C2S_RHYTHM_HIT = 33;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -269,6 +272,9 @@ public final class PvzcePackets {
             def(C2S_PLACE_ZOMBIE, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.PlaceZombieC2S.class,
                     com.pvzce.common.network.packet.PlaceZombieC2S::decode),
+            def(C2S_RHYTHM_HIT, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.RhythmHitC2S.class,
+                    com.pvzce.common.network.packet.RhythmHitC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

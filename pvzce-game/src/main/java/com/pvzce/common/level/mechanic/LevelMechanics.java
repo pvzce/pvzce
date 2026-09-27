@@ -55,6 +55,8 @@ public final class LevelMechanics {
     public static final SeedRainMechanic SEED_RAIN = new SeedRainMechanic();
     /** I, Zombie's board: the enemy's garden, round by round. */
     public static final PlantGardenMechanic PLANT_GARDEN = new PlantGardenMechanic();
+    /** The rhythm chart, played. */
+    public static final RhythmMechanic RHYTHM = new RhythmMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final StormMechanic STORM = new StormMechanic();
@@ -92,6 +94,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_PORTAL, PORTAL);
         register(PvzceIds.MECHANIC_SEED_RAIN, SEED_RAIN);
         register(PvzceIds.MECHANIC_PLANT_GARDEN, PLANT_GARDEN);
+        register(PvzceIds.MECHANIC_RHYTHM, RHYTHM);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);
     }
 

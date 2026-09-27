@@ -1326,6 +1326,16 @@ public final class PvzceServer implements Runnable {
                 sendSuggestions(suggestions.input(), suggestions.requestId());
             } else if (packet instanceof SetGameSpeedC2S speed) {
                 int speedIndex = Math.max(1, Math.min(3, speed.speedIndex()));
+                // A level can refuse the speed control outright: a rhythm chart is written against
+                // the level's tick count, so 2x would not move the notes, it would halve the time
+                // the player has to answer them. The client is told at level init and hides the
+                // button; this is the check that makes it true rather than tidy.
+                if (level != null && level.forbidsSpeedChange()) {
+                    connection.send(new GameSpeedS2C(tickRate.tickRate()));
+                    connection.send(new com.pvzce.common.network.packet.ServerMessageS2C(
+                            "这一关的谱面按拍走，不能改速度。"));
+                    return;
+                }
                 tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE * speedIndex);
                 connection.send(new GameSpeedS2C(tickRate.tickRate()));
             } else if (packet instanceof com.pvzce.common.network.packet.ChatC2S chat) {
@@ -1340,6 +1350,13 @@ public final class PvzceServer implements Runnable {
                 // press that arrives after the first wave is a no-op instead of a second start.
                 if (level != null) {
                     level.beginWaves();
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.RhythmHitC2S hit) {
+                // A rhythm note. The client judged it; the level decides whether that judgement
+                // counts (see LevelServer.rhythmHit).
+                if (level != null) {
+                    level.rhythmHit(hit.laneKind(), hit.laneIndex(), hit.noteTick(),
+                            hit.perceivedTicks());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.PlaceZombieC2S place) {
                 // I, Zombie's click. The level re-derives the price, the cooldown and the side.

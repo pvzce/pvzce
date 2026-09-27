@@ -7,6 +7,7 @@ import com.pvzce.client.gui.editor.pages.InfoPage;
 import com.pvzce.client.gui.editor.pages.LookPage;
 import com.pvzce.client.gui.editor.pages.MechanicPages;
 import com.pvzce.client.gui.editor.pages.MusicPage;
+import com.pvzce.client.gui.editor.pages.RhythmPage;
 import com.pvzce.client.gui.editor.pages.RulePage;
 import com.pvzce.client.gui.editor.pages.UnlockPage;
 import com.pvzce.client.gui.editor.pages.WavePage;
@@ -41,6 +42,7 @@ public final class BuiltInEditorPages {
         pages.add(new WavePage());
         pages.add(new CardsPage());
         pages.add(new MusicPage());
+        pages.add(new RhythmPage());
         pages.add(new DialoguePage());
         pages.add(new UnlockPage());
         pages.add(LookPage.create());

@@ -57,7 +57,36 @@ public final class KeyBindings {
         TOOL_HAMMER("tool_hammer", GLFW.GLFW_KEY_3),
         TOOL_WATERING_CAN("tool_watering_can", GLFW.GLFW_KEY_4),
         /** The vase tool; unbound by default, and the row a player is most likely to fill in. */
-        TOOL_VASE("tool_vase", GLFW.GLFW_KEY_UNKNOWN);
+        TOOL_VASE("tool_vase", GLFW.GLFW_KEY_UNKNOWN),
+
+        /**
+         * The rhythm levels' lanes: five rows on {@code D F G H J}, nine columns on
+         * {@code Q W E R Y U I O P}.
+         *
+         * <p>The two halves of the keyboard are the two shapes of attack - a row sweeps across the
+         * lawn and a column runs down it - and the split is the home row: the left hand plays the
+         * lanes that go across, the right hand the lanes that go down.
+         *
+         * <p><b>{@code T} is skipped on purpose.</b> The layout this was asked for was
+         * {@code Q W E R T Y U I O}, and {@code T} is the chat key (a decision from the same round,
+         * {@code 决策记录.md} Q69). The two cannot both have it, and the chat line is a key the
+         * whole game uses while a lane is one mode's - so the columns step over it and the run of
+         * nine ends on {@code P}, which keeps the sweep left-to-right and the hand in one place.
+         */
+        RHYTHM_ROW_0("rhythm_row_0", GLFW.GLFW_KEY_D),
+        RHYTHM_ROW_1("rhythm_row_1", GLFW.GLFW_KEY_F),
+        RHYTHM_ROW_2("rhythm_row_2", GLFW.GLFW_KEY_G),
+        RHYTHM_ROW_3("rhythm_row_3", GLFW.GLFW_KEY_H),
+        RHYTHM_ROW_4("rhythm_row_4", GLFW.GLFW_KEY_J),
+        RHYTHM_COL_0("rhythm_col_0", GLFW.GLFW_KEY_Q),
+        RHYTHM_COL_1("rhythm_col_1", GLFW.GLFW_KEY_W),
+        RHYTHM_COL_2("rhythm_col_2", GLFW.GLFW_KEY_E),
+        RHYTHM_COL_3("rhythm_col_3", GLFW.GLFW_KEY_R),
+        RHYTHM_COL_4("rhythm_col_4", GLFW.GLFW_KEY_Y),
+        RHYTHM_COL_5("rhythm_col_5", GLFW.GLFW_KEY_U),
+        RHYTHM_COL_6("rhythm_col_6", GLFW.GLFW_KEY_I),
+        RHYTHM_COL_7("rhythm_col_7", GLFW.GLFW_KEY_O),
+        RHYTHM_COL_8("rhythm_col_8", GLFW.GLFW_KEY_P);
 
         private final String key;
         private final int defaultCode;
@@ -81,6 +110,39 @@ public final class KeyBindings {
         public boolean isTool() {
             return this == TOOL_SHOVEL || this == TOOL_GLOVE || this == TOOL_HAMMER
                     || this == TOOL_WATERING_CAN || this == TOOL_VASE;
+        }
+
+        /**
+         * The lane this action plays, or {@code null} for every key that is not a rhythm lane.
+         *
+         * <p>Answered here rather than parsed off the config key's name by the screen: the name is
+         * a config file's business and renaming one would silently unbind a lane.
+         */
+        public String rhythmLaneKind() {
+            String name = name();
+            if (name.startsWith("RHYTHM_ROW_")) {
+                return "row";
+            }
+            return name.startsWith("RHYTHM_COL_") ? "col" : null;
+        }
+
+        /** The row or column this action plays, or -1 for every key that is not a rhythm lane. */
+        public int rhythmLaneIndex() {
+            String name = name();
+            int at = name.lastIndexOf('_');
+            if (!name.startsWith("RHYTHM_")) {
+                return -1;
+            }
+            try {
+                return Integer.parseInt(name.substring(at + 1));
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+
+        /** True for the fourteen lane keys. */
+        public boolean isRhythmLane() {
+            return rhythmLaneKind() != null;
         }
 
         /** The tool id this action fires, or {@code null} for everything else. */
