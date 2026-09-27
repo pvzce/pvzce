@@ -497,6 +497,8 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_PREPARATION = id("preparation");
     /** 斗转星移: pairs of cells a ground zombie travels between. */
     public static final Identifier MECHANIC_PORTAL = id("portal");
+    /** 种子雨: seed packets the level drops onto the lawn on a clock. */
+    public static final Identifier MECHANIC_SEED_RAIN = id("seed_rain");
     /**
      * The mutation system: a level where the rules themselves are rewritten every so often.
      *

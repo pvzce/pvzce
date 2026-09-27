@@ -51,6 +51,8 @@ public final class LevelMechanics {
     public static final PreparationMechanic PREPARATION = new PreparationMechanic();
     /** Pairs of portals a ground zombie travels between. */
     public static final PortalMechanic PORTAL = new PortalMechanic();
+    /** Seed packets the level drops onto the lawn on a clock. */
+    public static final SeedRainMechanic SEED_RAIN = new SeedRainMechanic();
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final StormMechanic STORM = new StormMechanic();
@@ -86,6 +88,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_ENDLESS, ENDLESS);
         register(PvzceIds.MECHANIC_PREPARATION, PREPARATION);
         register(PvzceIds.MECHANIC_PORTAL, PORTAL);
+        register(PvzceIds.MECHANIC_SEED_RAIN, SEED_RAIN);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);
     }
 
