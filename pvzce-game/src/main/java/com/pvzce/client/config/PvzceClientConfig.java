@@ -253,10 +253,27 @@ public final class PvzceClientConfig {
         }
     }
 
-    /** The {@code [keys]} section's body: one {@code action = code} line per action. */
+    /**
+     * The {@code [keys]} section's body: one line per binding the player <em>chose</em>.
+     *
+     * <p>Actions still on the key they ship with are left out. Writing them froze the shipped table
+     * of the day into every file, and a frozen default outlives its default: the rhythm lanes kept
+     * serving {@code Q W E R Y} long after the keys had moved to {@code S D F J K L}, because the
+     * file said so and the file was the player's own (see {@code 踩坑清单} 145). A file that lists
+     * only departures cannot do that - the next change to the table reaches everyone who never
+     * touched the action, which is what a default is for.
+     *
+     * <p>The cost is that the file no longer spells the whole table out. Nothing reads it that way:
+     * the settings page draws the live table, and {@code KeyBindings.from} falls back per action.
+     */
     private String keyBinds() {
         StringBuilder body = new StringBuilder();
         for (java.util.Map.Entry<String, Integer> entry : keyBindings.asMap().entrySet()) {
+            com.pvzce.client.input.KeyBindings.Action action =
+                    com.pvzce.client.input.KeyBindings.byName(entry.getKey());
+            if (action != null && keyBindings.isDefault(action)) {
+                continue;
+            }
             body.append(entry.getKey()).append(" = ").append(entry.getValue()).append('\n');
         }
         return body.toString();

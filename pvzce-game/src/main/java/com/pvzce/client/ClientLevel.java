@@ -73,6 +73,14 @@ public final class ClientLevel {
     private volatile SceneVisibility sceneVisibility = SceneVisibility.NONE;
     /** True when this level turns the shader effects off whatever the player's setting is. */
     private volatile boolean shadersDisabled;
+    /**
+     * Whether one card fills its whole column here; see {@code RULE_PLANT_WHOLE_COLUMN}.
+     *
+     * <p>Mirrored because the placement preview draws it: the hover tint covers the column a click
+     * is about to fill. The server is still the one that decides where the plants land - this is
+     * the picture, not the rule.
+     */
+    private volatile boolean plantsWholeColumn;
     /** The plant a glove is holding, or empty; see {@code CarrySyncS2C}. */
     private volatile String carriedPlant = "";
     /**
@@ -203,7 +211,7 @@ public final class ClientLevel {
                      boolean shadersDisabled) {
         init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies,
                 sceneCells, controlledTeamId, controlledTeamName, levelMechanics, background,
-                hiddenSceneElements, shadersDisabled, List.of());
+                hiddenSceneElements, shadersDisabled, List.of(), false);
     }
 
     /** The whole mirror, including the level buffs this run was started with. */
@@ -213,6 +221,24 @@ public final class ClientLevel {
                      List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics,
                      Identifier background, List<String> hiddenSceneElements,
                      boolean shadersDisabled, List<String> activeBuffs) {
+        init(levelId, width, height, slots, waveTypes, seedPool, maxSeedSlots, previewZombies,
+                sceneCells, controlledTeamId, controlledTeamName, levelMechanics, background,
+                hiddenSceneElements, shadersDisabled, activeBuffs, false);
+    }
+
+    /**
+     * The whole mirror, including how far one card reaches on this level.
+     *
+     * <p>{@code plantsWholeColumn} is the one game rule that travels to the client
+     * ({@code RULE_PLANT_WHOLE_COLUMN}): the placement preview draws the column a click is about
+     * to fill, and the client cannot work that out from anything else it is sent.
+     */
+    public void init(String levelId, int width, int height, List<SlotInfo> slots, List<String> waveTypes,
+                     List<SeedOption> seedPool, int maxSeedSlots, List<String> previewZombies,
+                     List<SceneSyncS2C.Cell> sceneCells, String controlledTeamId, String controlledTeamName,
+                     List<com.pvzce.common.network.packet.LevelPayload.MechanicPayload> levelMechanics,
+                     Identifier background, List<String> hiddenSceneElements,
+                     boolean shadersDisabled, List<String> activeBuffs, boolean plantsWholeColumn) {
         clearTransientState();
         this.seedPool = List.copyOf(seedPool);
         this.maxSeedSlots = Math.max(0, maxSeedSlots);
@@ -224,6 +250,7 @@ public final class ClientLevel {
         this.background = background;
         this.sceneVisibility = SceneVisibility.of(hiddenSceneElements);
         this.shadersDisabled = shadersDisabled;
+        this.plantsWholeColumn = plantsWholeColumn;
         applyMechanics(levelMechanics);
         this.scene = SceneGrid.create(width, height, PvzceIds.GRASS.toString());
         // Written without the rise bookkeeping: a level's opening graves were always there.
@@ -270,6 +297,7 @@ public final class ClientLevel {
         background = null;
         sceneVisibility = SceneVisibility.NONE;
         shadersDisabled = false;
+        plantsWholeColumn = false;
         carriedPlant = "";
         heldCardEntityId = -1;
         heldCardId = "";
@@ -878,6 +906,11 @@ public final class ClientLevel {
      * {@code disable_shaders} runs without them even for a player who has them on, and a level
      * that says nothing follows the player. See {@code PvzceClient.shadersEnabled}.
      */
+    /** True when one card plants its whole column here; the placement preview draws it. */
+    public boolean plantsWholeColumn() {
+        return plantsWholeColumn;
+    }
+
     public boolean shadersDisabled() {
         return shadersDisabled;
     }

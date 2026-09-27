@@ -91,6 +91,25 @@ public class PlantEntity extends PvzceEntity {
     private final com.pvzce.common.level.RateClock sharedClock =
             new com.pvzce.common.level.RateClock();
 
+    /**
+     * How many attacks this plant has been ordered to make and has not made yet.
+     *
+     * <p>The rhythm levels' whole output: a played note orders the plants in its column to attack
+     * (see {@code RhythmMechanic}), three times on a PERFECT and fewer on the lesser verdicts.
+     * Queued rather than done in one tick because a volley is a stream and not a stack - three
+     * peas born in the same tick sit on top of each other and read as one shot, which is exactly
+     * what {@code ProjectileRef#burstDelay} exists to avoid for the repeater.
+     */
+    private int pendingStrikes;
+    /** Ticks until the next queued attack; see {@link #STRIKE_GAP_TICKS}. */
+    private int strikeDelay;
+    /**
+     * The gap between two ordered attacks, in ticks.
+     *
+     * <p>Four ticks is a fifteenth of a second: fast enough that a PERFECT's three volleys read as
+     * one event the player caused, slow enough that each one is a separate object on the lawn.
+     */
+    public static final int STRIKE_GAP_TICKS = 4;
 
     public PlantEntity(PlantDef def, Team team, int gridX, int gridY) {
         this(def, team, gridX, gridY, def.health());
@@ -308,6 +327,46 @@ public class PlantEntity extends PvzceEntity {
         return EntityLayers.PLANT;
     }
 
+    /**
+     * Orders this plant to attack this many times, starting on its next tick.
+     *
+     * <p>Additive: a plant that is still working through the volleys of one note and is ordered to
+     * attack again by the next one makes all of them rather than losing the tail of the first -
+     * a dense chart asks for two notes inside one burst often enough that dropping one would be a
+     * hit the player landed and did not get.
+     */
+    public void queueStrikes(int volleys) {
+        if (volleys <= 0 || removed) {
+            return;
+        }
+        if (pendingStrikes == 0) {
+            strikeDelay = 0;
+        }
+        pendingStrikes += volleys;
+    }
+
+    /** How many ordered attacks are still to come; the HUD does not read it, the tests do. */
+    public int pendingStrikes() {
+        return pendingStrikes;
+    }
+
+    /**
+     * One ordered attack, now: every capability that can strike does.
+     *
+     * <p>The plant is not asked whether it wants to: this is the player acting through it. The
+     * answer is only used for the ones with nothing to aim at - a lob with no zombie to land on, a
+     * bite with nothing in reach - which simply do nothing, so "the plants in this column attack"
+     * stays honest for a column of wall-nuts.
+     */
+    public void strike(LevelServer level) {
+        for (Instance instance : capabilities) {
+            instance.capability.strike(this, level);
+            if (removed) {
+                return;
+            }
+        }
+    }
+
     @Override
     public void tick(LevelServer level) {
         if (removed) {
@@ -323,14 +382,33 @@ public class PlantEntity extends PvzceEntity {
         // active capability is what makes "asleep" one fact instead of a check every new
         // behaviour has to remember.
         boolean asleep = isAsleep(level);
+        // A level whose plants hold their fire (the rhythm levels) skips the capabilities that
+        // attack on a clock and keeps everything else - producing, growing, a burning fuse. See
+        // PlantCapability#holdsFire: the note the player plays is what makes those act.
+        boolean holdFire = level.plantsHoldFire();
         for (Instance instance : capabilities) {
             if (asleep && !instance.capability.ticksWhileAsleep(this)) {
+                continue;
+            }
+            if (holdFire && instance.capability.holdsFire(this)) {
+                // Held fire stops new attacks, not the delivery of ones already made: a repeater's
+                // second pea and a chomper's chew are owed work, and they are what the capability
+                // spends its ticks on here (see PlantCapability#tickPending).
+                if (instance.capability.hasPendingWork(this)) {
+                    instance.capability.tickPending(this, level);
+                }
+                if (removed) {
+                    break;
+                }
                 continue;
             }
             instance.capability.tick(this, level);
             if (removed) {
                 break;
             }
+        }
+        if (!removed) {
+            tickOrderedStrikes(level);
         }
         if (asleep && !removed) {
             // The sleeping pose wins, whatever else ticked this tick. A capability that keeps
@@ -341,6 +419,29 @@ public class PlantEntity extends PvzceEntity {
             // deliberate: the sun still has to arrive.
             setState(com.pvzce.api.entity.EntityAnimations.SLEEP);
         }
+    }
+
+    /**
+     * Makes the next ordered attack whose gap has elapsed.
+     *
+     * <p>After the capabilities rather than before: an ordered volley is an extra attack on top of
+     * whatever the plant was already doing, so a plant that is mid-burst when the note lands still
+     * finishes its own business first.
+     */
+    private void tickOrderedStrikes(LevelServer level) {
+        if (pendingStrikes <= 0) {
+            return;
+        }
+        if (strikeDelay > 0) {
+            strikeDelay--;
+            return;
+        }
+        strike(level);
+        if (removed) {
+            return;
+        }
+        pendingStrikes--;
+        strikeDelay = STRIKE_GAP_TICKS;
     }
 
     /** True while a capability says this plant is asleep (a nocturnal mushroom in daylight). */

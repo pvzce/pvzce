@@ -1415,6 +1415,14 @@
       }
     ]
   },
+  "music/ancient_egypt_ultimate_battle": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/ancient_egypt_ultimate_battle",
+        "stream": true
+      }
+    ]
+  },
   "music/cerebrawl": {
     "sounds": [
       {

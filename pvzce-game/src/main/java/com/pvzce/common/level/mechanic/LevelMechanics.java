@@ -431,6 +431,24 @@ public final class LevelMechanics {
         return errors;
     }
 
+    /**
+     * One mechanic's own validation, asked about a block that is not in a level file.
+     *
+     * <p>{@link #validate(LevelDef)} is what a level runs; this is the same check reachable with a
+     * chart or a fog or a belt in hand, which is how a test pins a rule the shipped data happens to
+     * satisfy - "a chart may not mix rows and columns" is only observable if something can hand the
+     * validator a chart that does.
+     */
+    @SuppressWarnings("unchecked")
+    public static <D extends MechanicData> List<String> validate(LevelDef def, Identifier type,
+                                                                 D data) {
+        LevelMechanic<?> mechanic = get(type);
+        if (mechanic == null) {
+            return List.of("Unknown mechanic '" + type + "'");
+        }
+        return ((LevelMechanic<D>) mechanic).validate(def, data);
+    }
+
     /** Collects one mechanic's run state into the level save. */
     public static void collectSave(TypedMechanic typed, LevelServer level,
                                    CompoundTag root) {

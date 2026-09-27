@@ -38,6 +38,14 @@ public final class MusicPage implements EditorPage {
     private Button musicTrackButton;
     private Button musicLoopButton;
     private Button musicStopButton;
+    /**
+     * Which clock this cue's tick counts from.
+     *
+     * <p>A button rather than a field because the two answers are the two beginnings a level has,
+     * and the one a rhythm level needs - {@code waves_start}, the tick the player pressed 开始 - is
+     * not a number an author can write down in advance.
+     */
+    private Button musicTriggerButton;
     private EditBox musicTickBox;
     private EditBox musicVolumeBox;
     private EditBox musicFadeBox;
@@ -132,6 +140,8 @@ public final class MusicPage implements EditorPage {
                 fieldW, rowH, "循环：开", this::toggleMusicLoop));
         musicStopButton = context.own(new Button(detailX, top - (rowH + 6) * 2, fieldW * 2 + gap, rowH,
                 "停止：关", this::toggleMusicStop));
+        musicTriggerButton = context.own(new Button(detailX + (fieldW * 2 + gap) + gap,
+                top - (rowH + 6) * 2, fieldW, rowH, "起点：关卡", this::toggleMusicTrigger));
 
         int eventsTop = top - (rowH + 6) * 2 - 20;
         int eventsBottom = y + pad + rowH + 6;
@@ -149,7 +159,8 @@ public final class MusicPage implements EditorPage {
         EditorContext.Rect area = context.fullContent();
         PvzceClient renderClient = context.client();
         renderClient.fonts().body().draw("提示音 " + musicConfig.cues.size() + " 条　"
-                        + "每条按 tick 触发，可选轨道 background / battle / menu / stinger",
+                        + "每条按 tick 触发，可选轨道 background / battle / menu / stinger；"
+                        + "起点「波次」= 准备阶段结束那一刻",
                 area.x() + 4, area.y() + area.height() + 4F, 0.74F, 1F, 1F, 1F, 1F);
         // Field labels in the gaps the fields leave; without them three bare
         // numbers in a row say nothing about which is which.
@@ -201,7 +212,8 @@ public final class MusicPage implements EditorPage {
     private void renderMusicCueRow(PvzceClient renderClient, MusicEditorModel.CueModel cue, int x, int y) {
         int rowH = musicCueList == null ? 30 : musicCueList.entryHeight();
         String event = cue.event == null || cue.event.isEmpty() ? MusicEditorModel.STOP_LABEL : cue.event;
-        String head = "tick " + cue.atTick + "　" + cue.track;
+        String head = "tick " + cue.atTick + "　" + cue.track
+                + ("waves_start".equals(cue.trigger) ? "　[波次起]" : "");
         renderClient.fonts().body().draw(head, x, y + rowH / 2F + 1F, 0.76F, 1F, 1F, 1F, 1F);
         renderClient.fonts().body().draw(GuiText.shortId(event), x, y + rowH / 2F - 12F, 0.66F,
                 cue.stop ? 0.95F : 0.8F, cue.stop ? 0.7F : 0.85F, 0.7F, 1F);
@@ -223,11 +235,13 @@ public final class MusicPage implements EditorPage {
         musicTrackButton.setActive(has);
         musicLoopButton.setActive(has);
         musicStopButton.setActive(has);
+        musicTriggerButton.setActive(has);
         if (!has) {
             musicTickBox.setValue("", false);
             musicVolumeBox.setValue("", false);
             musicFadeBox.setValue("", false);
             musicTrackButton.setLabel("轨道：-");
+            musicTriggerButton.setLabel("起点：-");
             return;
         }
         if (!musicTickBox.isFocused()) {
@@ -242,6 +256,7 @@ public final class MusicPage implements EditorPage {
         musicTrackButton.setLabel("轨道：" + cue.track);
         musicLoopButton.setLabel(cue.loop ? "循环：开" : "循环：关");
         musicStopButton.setLabel(cue.stop ? "停止：开" : "停止：关");
+        musicTriggerButton.setLabel("起点：" + ("waves_start".equals(cue.trigger) ? "波次" : "关卡"));
     }
 
     private void commitMusicFields() {
@@ -286,6 +301,17 @@ public final class MusicPage implements EditorPage {
         if (cue.stop) {
             cue.event = "";
         }
+        refreshMusicDetail();
+        refreshMusicCueList();
+    }
+
+    /** Flips the cue between the level's first tick and the tick the waves were released. */
+    private void toggleMusicTrigger() {
+        MusicEditorModel.CueModel cue = currentMusicCue();
+        if (cue == null) {
+            return;
+        }
+        cue.trigger = "waves_start".equals(cue.trigger) ? "level_start" : "waves_start";
         refreshMusicDetail();
         refreshMusicCueList();
     }

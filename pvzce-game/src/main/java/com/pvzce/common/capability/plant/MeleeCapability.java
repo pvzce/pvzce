@@ -67,27 +67,79 @@ public final class MeleeCapability implements PlantCapability {
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
-        if (remainingChewTicks > 0) {
-            remainingChewTicks--;
-            plant.setState(EntityAnimations.CHEW);
-            if (remainingChewTicks == 0) {
-                plant.remove();
-            }
+        if (chew(plant)) {
             return;
         }
+        if (!swallow(plant, level)) {
+            plant.setState(EntityAnimations.IDLE);
+        }
+    }
+
+    /**
+     * A mouth full of zombie is owed work: the bite happened, the thirty seconds of chewing have
+     * not.
+     *
+     * <p>Without this a chomper ordered to bite on a level that holds its fire stayed mid-chew
+     * forever - it never finished, so it never left the lawn, so the cell it was standing in stayed
+     * occupied by a plant that would never act again (see {@code PlantCapability#hasPendingWork}).
+     */
+    @Override
+    public boolean hasPendingWork(PlantEntity plant) {
+        return remainingChewTicks > 0;
+    }
+
+    /** One tick of the chew, and nothing else. */
+    @Override
+    public void tickPending(PlantEntity plant, LevelAccess level) {
+        chew(plant);
+    }
+
+    /** Counts the chew down; answers whether there was one to count. */
+    private boolean chew(PlantEntity plant) {
+        if (remainingChewTicks <= 0) {
+            return false;
+        }
+        remainingChewTicks--;
+        plant.setState(EntityAnimations.CHEW);
+        if (remainingChewTicks == 0) {
+            plant.remove();
+        }
+        return true;
+    }
+
+    /** This plant attacks on its own clock, so a hold-fire level makes it wait for an order. */
+    @Override
+    public boolean holdsFire(PlantEntity plant) {
+        return true;
+    }
+
+    /**
+     * Bites, when it is not already chewing and something edible is in reach.
+     *
+     * <p>A mouth is the one attack that cannot be aimed at nothing: a chomper ordered to bite an
+     * empty lane stays shut rather than swallowing air, which is what "the plants in this column
+     * attack" means for a column that has no zombie in front of it.
+     */
+    @Override
+    public boolean strike(PlantEntity plant, LevelAccess level) {
+        return remainingChewTicks == 0 && swallow(plant, level);
+    }
+
+    /** Swallows what is in reach, if anything is; answers whether a bite happened. */
+    private boolean swallow(PlantEntity plant, LevelAccess level) {
         ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team()).stream()
                 .filter(z -> !z.isRemoved() && Math.abs(z.cellX() - plant.cellX()) < range)
                 .findFirst()
                 .orElse(null);
         if (target == null || target.health() > swallowMaxHealth) {
-            plant.setState(EntityAnimations.IDLE);
-            return;
+            return false;
         }
         target.remove();
         remainingChewTicks = Math.max(1, chewTicks);
         plant.setState(EntityAnimations.CHEW);
         level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().melee().orElse(PvzceSounds.EFFECT_BITE)));
+        return true;
     }
 
     @Override

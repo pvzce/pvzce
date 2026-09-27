@@ -1090,6 +1090,7 @@ public final class PvzceServer implements Runnable {
         // The reset goes out *before* the level init: the init is what starts the new track.
         // A resync of the running level never reaches this point - its music is still current.
         silenceClientLevelMusic();
+        preloadClientLevelMusic(def);
         newLevel.sendFullState(bridge);
         connection.send(new GameSpeedS2C(tickRate.tickRate()));
 
@@ -1118,6 +1119,26 @@ public final class PvzceServer implements Runnable {
         connection.send(MusicEventS2C.reset(MusicEventS2C.TRACK_BACKGROUND));
         connection.send(MusicEventS2C.reset(MusicEventS2C.TRACK_BATTLE));
         connection.send(MusicEventS2C.reset(MusicEventS2C.TRACK_STINGER));
+    }
+
+    /**
+     * Asks the client to decode this level's music while it is still loading.
+     *
+     * <p>Music is decoded whole, on the thread that asks to play it, and a three-minute track costs
+     * about a tenth of a second of stb_vorbis before a single sample is audible. Without this the
+     * song started nine ticks after the tick its cue was written for while the notes were judged
+     * against that tick - a rhythm chart nobody could play to the music (see {@code 踩坑清单} 147).
+     * The decode happens here instead: while the loading screen is up, and long before anything is
+     * being judged. One packet per event the timeline actually names - a cue with no event is a
+     * stop, and there is nothing to decode.
+     */
+    private void preloadClientLevelMusic(LevelDef def) {
+        for (LevelDef.MusicCue cue : def.music().cues()) {
+            if (cue.stop() || cue.event().isEmpty()) {
+                continue;
+            }
+            connection.send(MusicEventS2C.preload(cue.track(), cue.event().get().toString()));
+        }
     }
 
     /**

@@ -350,6 +350,45 @@ class ServerMenuFlowTest {
      * and only leaving a level stopped it - a restart from the save prompt or from the editor's
      * test button never leaves one, so the server has to say so itself.
      */
+    /**
+     * A level's music is decoded while it loads, not when its cue arrives.
+     *
+     * <p>Music is decoded whole, on the thread that plays it: 149 ms measured for the rhythm levels'
+     * three-minute track, which is nine ticks of the chart's own clock. The song would then start
+     * nine ticks after the tick its cue was written for - a level nobody can play to the music
+     * (see {@code 踩坑清单} 147). So the events the timeline names are preloaded, with the resets and
+     * before the init, while the loading screen is still up.
+     */
+    @Test
+    void aNewLevelPreloadsItsMusicBeforeTheInit() throws Exception {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
+            server.send(new PlayLevelC2S("pvzce:yard/adventure/1_1", "preloadworld", false,
+                    List.of("pvzce:sun", "pvzce:pea_shooter")));
+            server.waitForCondition(() -> initCount(server.packets()) >= 1, 5_000);
+
+            List<PvzcePacket> packets = server.packets();
+            int initIndex = -1;
+            for (int i = 0; i < packets.size(); i++) {
+                if (packets.get(i) instanceof LevelInitS2C) {
+                    initIndex = i;
+                    break;
+                }
+            }
+            assertTrue(initIndex > 0, "the level init is in the log");
+            List<MusicEventS2C> preloads = packets.subList(0, initIndex).stream()
+                    .filter(MusicEventS2C.class::isInstance)
+                    .map(MusicEventS2C.class::cast)
+                    .filter(MusicEventS2C::preload)
+                    .toList();
+            assertEquals(List.of("pvzce:music/grasswalk"),
+                    preloads.stream().map(MusicEventS2C::event).toList(),
+                    "1-1's own theme is decoded before the level starts, in front of the init: "
+                            + preloads);
+            assertTrue(preloads.stream().allMatch(cue -> !cue.stop()),
+                    "a preload decodes and plays nothing");
+        }
+    }
+
     @Test
     void aNewLevelInstanceResetsTheClientsMusicAndAResyncDoesNot() throws Exception {
         try (ServerHarness server = ServerHarness.create(gameDir)) {

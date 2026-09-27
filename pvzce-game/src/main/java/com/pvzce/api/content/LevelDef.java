@@ -523,7 +523,8 @@ public record LevelDef(
     /** Data-driven music timeline; missing music defaults to a grasswalk loop. */
     public record LevelMusicDef(List<MusicCue> cues) {
         public static final LevelMusicDef DEFAULT = new LevelMusicDef(List.of(
-                new MusicCue(0, "background", Optional.of(Identifier.withDefaultNamespace("music/grasswalk")),
+                new MusicCue(MusicCue.Trigger.LEVEL_START, 0, "background",
+                        Optional.of(Identifier.withDefaultNamespace("music/grasswalk")),
                         true, false, 0.85F, 1F)));
 
         public static final Codec<LevelMusicDef> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -536,6 +537,7 @@ public record LevelDef(
      * {@code stop=true} (or a missing event) stops the track.
      */
     public record MusicCue(
+            Trigger trigger,
             int atTick,
             String track,
             Optional<Identifier> event,
@@ -544,7 +546,53 @@ public record LevelDef(
             float volume,
             float fadeSeconds
     ) {
+        /**
+         * What the cue's {@code at_tick} counts from.
+         *
+         * <p>Two clocks, because a level has two beginnings. {@link #LEVEL_START} is the level's
+         * own first tick and is what every file written before this field existed means; the music
+         * starts while the player is still choosing cards or arranging the lawn.
+         * {@link #WAVES_START} is the tick the preparation phase ended on, which is the only
+         * beginning a chart can be written against: a rhythm level's song has to start on the same
+         * tick its notes do, and that tick is the moment the player pressed 开始 - an amount of
+         * time only the player knows in advance.
+         *
+         * <p>Stored as the lower-case name, spelled out rather than derived from {@code ordinal()},
+         * for the same reason {@code LevelHint.Trigger} is: inserting a value must not silently
+         * reinterpret the files that already exist.
+         */
+        public enum Trigger {
+            /** From the level's first tick. */
+            LEVEL_START,
+            /** From the tick the preparation phase ended; a level with no phase never fires it. */
+            WAVES_START;
+
+            public static final Codec<Trigger> CODEC = Codec.STRING.xmap(
+                    Trigger::parse,
+                    trigger -> trigger.name().toLowerCase(java.util.Locale.ROOT));
+
+            /**
+             * Reads a trigger name, falling back to {@link #LEVEL_START}.
+             *
+             * <p>Silent on purpose, like {@code LevelHint.Trigger.parse}: an unrecognised name
+             * plays the level's music early rather than not at all, and
+             * {@code LevelValidator} is what names the typo.
+             */
+            public static Trigger parse(String name) {
+                if (name == null) {
+                    return LEVEL_START;
+                }
+                for (Trigger trigger : values()) {
+                    if (trigger.name().equalsIgnoreCase(name.trim())) {
+                        return trigger;
+                    }
+                }
+                return LEVEL_START;
+            }
+        }
+
         public static final Codec<MusicCue> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Trigger.CODEC.optionalFieldOf("trigger", Trigger.LEVEL_START).forGetter(MusicCue::trigger),
                 Codec.INT.optionalFieldOf("at_tick", 0).forGetter(MusicCue::atTick),
                 Codec.STRING.optionalFieldOf("track", "background").forGetter(MusicCue::track),
                 Identifier.CODEC.optionalFieldOf("event").forGetter(MusicCue::event),

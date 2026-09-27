@@ -267,6 +267,19 @@ public final class PvzceIds {
     public static final Identifier RULE_PLANT_ACTION_SPEED_MULTIPLIER =
             id("plant_action_speed_multiplier");
     /**
+     * Whether one card placement plants its whole column instead of one cell.
+     *
+     * <p>The "排山倒海" shape: a click on a column fills every cell of it that will take the plant
+     * and skips the ones that will not (an occupied cell, water for a land plant, outside the
+     * level's placement zone) - for the price of <em>one</em> card. Read by the placement path
+     * itself ({@code LevelServer.placePlant}) and by the client, which draws the column it is about
+     * to fill on the hover tint.
+     *
+     * <p>Off unless a level says otherwise: a level that plants in columns is a different game
+     * about planting, not a default.
+     */
+    public static final Identifier RULE_PLANT_WHOLE_COLUMN = id("plant_whole_column");
+    /**
      * How fast this level's sun arrives, as a multiplier on the rate.
      *
      * <p>Both halves of the sun economy in one number, because a player who reads "sun rate"

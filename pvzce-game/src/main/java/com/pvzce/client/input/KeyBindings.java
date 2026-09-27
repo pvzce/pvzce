@@ -60,33 +60,37 @@ public final class KeyBindings {
         TOOL_VASE("tool_vase", GLFW.GLFW_KEY_UNKNOWN),
 
         /**
-         * The rhythm levels' lanes: five rows on {@code D F G H J}, nine columns on
-         * {@code Q W E R Y U I O P}.
+         * The rhythm levels' lanes: six columns on {@code S D F J K L}, and everything else on
+         * nothing at all.
          *
-         * <p>The two halves of the keyboard are the two shapes of attack - a row sweeps across the
-         * lawn and a column runs down it - and the split is the home row: the left hand plays the
-         * lanes that go across, the right hand the lanes that go down.
+         * <p><b>{@code S D F J K L}</b> - the three fingers of each hand on the home row - because
+         * the mode is played with the hands at the bottom of the board: a note flies down its own
+         * column to the judgement line, and the keys are drawn under it. The shipped tiers use the
+         * first six columns of the lawn; the seventh to ninth are ordinary lawn (plantable, edible,
+         * no key).
          *
-         * <p><b>{@code T} is skipped on purpose.</b> The layout this was asked for was
-         * {@code Q W E R T Y U I O}, and {@code T} is the chat key (a decision from the same round,
-         * {@code 决策记录.md} Q69). The two cannot both have it, and the chat line is a key the
-         * whole game uses while a lane is one mode's - so the columns step over it and the run of
-         * nine ends on {@code P}, which keeps the sweep left-to-right and the hand in one place.
+         * <p><b>The lanes nothing plays ship unbound, and that is the point.</b> The row lanes used
+         * to be {@code D F G H J}, which is where the column keys live now, and the last three
+         * columns used to be {@code U I O P}, which is not a run anybody's hands know. One key
+         * belongs to one action (see {@link #bind}), so a table with both would have shipped keys
+         * that fire a lane the level does not have. A hand-written chart that wants rows, or more
+         * than six columns, binds them on the settings page - which draws an unbound action as
+         * "未绑定" rather than hiding it.
          */
-        RHYTHM_ROW_0("rhythm_row_0", GLFW.GLFW_KEY_D),
-        RHYTHM_ROW_1("rhythm_row_1", GLFW.GLFW_KEY_F),
-        RHYTHM_ROW_2("rhythm_row_2", GLFW.GLFW_KEY_G),
-        RHYTHM_ROW_3("rhythm_row_3", GLFW.GLFW_KEY_H),
-        RHYTHM_ROW_4("rhythm_row_4", GLFW.GLFW_KEY_J),
-        RHYTHM_COL_0("rhythm_col_0", GLFW.GLFW_KEY_Q),
-        RHYTHM_COL_1("rhythm_col_1", GLFW.GLFW_KEY_W),
-        RHYTHM_COL_2("rhythm_col_2", GLFW.GLFW_KEY_E),
-        RHYTHM_COL_3("rhythm_col_3", GLFW.GLFW_KEY_R),
-        RHYTHM_COL_4("rhythm_col_4", GLFW.GLFW_KEY_Y),
-        RHYTHM_COL_5("rhythm_col_5", GLFW.GLFW_KEY_U),
-        RHYTHM_COL_6("rhythm_col_6", GLFW.GLFW_KEY_I),
-        RHYTHM_COL_7("rhythm_col_7", GLFW.GLFW_KEY_O),
-        RHYTHM_COL_8("rhythm_col_8", GLFW.GLFW_KEY_P);
+        RHYTHM_ROW_0("rhythm_row_0", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_ROW_1("rhythm_row_1", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_ROW_2("rhythm_row_2", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_ROW_3("rhythm_row_3", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_ROW_4("rhythm_row_4", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_COL_0("rhythm_col_0", GLFW.GLFW_KEY_S),
+        RHYTHM_COL_1("rhythm_col_1", GLFW.GLFW_KEY_D),
+        RHYTHM_COL_2("rhythm_col_2", GLFW.GLFW_KEY_F),
+        RHYTHM_COL_3("rhythm_col_3", GLFW.GLFW_KEY_J),
+        RHYTHM_COL_4("rhythm_col_4", GLFW.GLFW_KEY_K),
+        RHYTHM_COL_5("rhythm_col_5", GLFW.GLFW_KEY_L),
+        RHYTHM_COL_6("rhythm_col_6", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_COL_7("rhythm_col_7", GLFW.GLFW_KEY_UNKNOWN),
+        RHYTHM_COL_8("rhythm_col_8", GLFW.GLFW_KEY_UNKNOWN);
 
         private final String key;
         private final int defaultCode;
@@ -145,6 +149,24 @@ public final class KeyBindings {
             return rhythmLaneKind() != null;
         }
 
+        /**
+         * The action that plays one lane, or {@code null} when no key is assigned to it.
+         *
+         * <p>The inverse of {@link #rhythmLaneKind()} and {@link #rhythmLaneIndex()}, and it exists
+         * for the same reason they do: the on-lawn key hints have a lane in hand (the chart's, which
+         * is data) and need the letter to draw on it, and spelling the mapping out a second time
+         * where the hints are drawn is how the two would come apart.
+         */
+        public static Action forLane(String kind, int index) {
+            for (Action action : values()) {
+                if (index == action.rhythmLaneIndex() && kind != null
+                        && kind.equals(action.rhythmLaneKind())) {
+                    return action;
+                }
+            }
+            return null;
+        }
+
         /** The tool id this action fires, or {@code null} for everything else. */
         public String toolId() {
             return switch (this) {
@@ -172,6 +194,66 @@ public final class KeyBindings {
     }
 
     /**
+     * The defaults an action has shipped with and no longer has, by action.
+     *
+     * <p>A config file records choices by action name, and a file written by an older build names
+     * <em>every</em> action - the untouched ones included, at the value that was the default then.
+     * Loading such a file verbatim is how the rhythm lanes kept answering to {@code Q W E R Y} after
+     * the keys had moved to {@code S D F J K L}: the file was not wrong, it was old. So a stored
+     * value equal to an old default of that action is read as "the player never chose this" and the
+     * action gets what it ships with now (see {@code 踩坑清单} 145).
+     *
+     * <p>Only the actions whose defaults have actually moved are listed. Anything else in a file is
+     * a choice and is kept - including a deliberate rebinding onto one of these old values, which is
+     * the one case an upgrade cannot be told apart from a decision. That ambiguity is also why the
+     * config stopped writing defaults at all (see {@code PvzceClientConfig.keyBinds}): a file
+     * written from now on records choices, so this list only ever has to describe the past.
+     */
+    private static final Map<Action, int[]> SUPERSEDED_DEFAULTS = supersededDefaults();
+
+    private static Map<Action, int[]> supersededDefaults() {
+        Map<Action, int[]> old = new EnumMap<>(Action.class);
+        // The rhythm lanes, in the order the mode grew: nine columns on Q W E R Y U I O P, then
+        // five of them on A S D J K (with U I O P left for a nine-lane chart), then the six columns
+        // the shipped levels are played on today.
+        old.put(Action.RHYTHM_COL_0, new int[] {GLFW.GLFW_KEY_Q, GLFW.GLFW_KEY_A});
+        old.put(Action.RHYTHM_COL_1, new int[] {GLFW.GLFW_KEY_W, GLFW.GLFW_KEY_S});
+        old.put(Action.RHYTHM_COL_2, new int[] {GLFW.GLFW_KEY_E, GLFW.GLFW_KEY_D});
+        old.put(Action.RHYTHM_COL_3, new int[] {GLFW.GLFW_KEY_R, GLFW.GLFW_KEY_J});
+        old.put(Action.RHYTHM_COL_4, new int[] {GLFW.GLFW_KEY_Y, GLFW.GLFW_KEY_K});
+        old.put(Action.RHYTHM_COL_5, new int[] {GLFW.GLFW_KEY_U});
+        old.put(Action.RHYTHM_COL_6, new int[] {GLFW.GLFW_KEY_I});
+        old.put(Action.RHYTHM_COL_7, new int[] {GLFW.GLFW_KEY_O});
+        old.put(Action.RHYTHM_COL_8, new int[] {GLFW.GLFW_KEY_P});
+        // The row lanes were D F G H J until the column keys took those letters, and they ship
+        // unbound now: no shipped chart plays a row.
+        old.put(Action.RHYTHM_ROW_0, new int[] {GLFW.GLFW_KEY_D});
+        old.put(Action.RHYTHM_ROW_1, new int[] {GLFW.GLFW_KEY_F});
+        old.put(Action.RHYTHM_ROW_2, new int[] {GLFW.GLFW_KEY_G});
+        old.put(Action.RHYTHM_ROW_3, new int[] {GLFW.GLFW_KEY_H});
+        old.put(Action.RHYTHM_ROW_4, new int[] {GLFW.GLFW_KEY_J});
+        return Map.copyOf(old);
+    }
+
+    /**
+     * One stored code as the table should hold it: an old default is not a choice.
+     *
+     * <p>The whole of the upgrade rule, in one place, so "why did my file's Q become S" has one
+     * answer to read.
+     */
+    private static int asShipped(Action action, int stored) {
+        int[] superseded = SUPERSEDED_DEFAULTS.get(action);
+        if (superseded != null) {
+            for (int candidate : superseded) {
+                if (candidate == stored) {
+                    return action.defaultCode();
+                }
+            }
+        }
+        return stored;
+    }
+
+    /**
      * The table a config file describes, falling back per action.
      *
      * <p>Per action rather than wholesale: a file written by an older build has no entry for an
@@ -190,8 +272,9 @@ public final class KeyBindings {
             if (action != null && code != null) {
                 // Set directly rather than through `bind`: a file is a description of the whole
                 // table, and clearing another action's key while reading it would make the result
-                // depend on the file's line order.
-                bindings.keys.put(action, code);
+                // depend on the file's line order. The value still goes through `asShipped`, which
+                // is the one thing an old file cannot say for itself.
+                bindings.keys.put(action, asShipped(action, code));
             }
         }
         return bindings;

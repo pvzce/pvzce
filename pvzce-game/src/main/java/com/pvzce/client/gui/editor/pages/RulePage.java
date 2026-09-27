@@ -58,7 +58,7 @@ public final class RulePage {
             "pvzce:zombie_sun_drop_chance", "pvzce:zombie_sun_drop_count",
             "pvzce:crater_recovery", "pvzce:graves_spawn_night", "pvzce:zombie_damage_multiplier",
             "pvzce:zombie_speed_multiplier", "pvzce:plant_damage_multiplier",
-            "pvzce:seed_cooldown_multiplier",
+            "pvzce:seed_cooldown_multiplier", "pvzce:plant_whole_column",
             "pvzce:max_players_per_team", "pvzce:level_pause_on_single_player");
 
     public static EditorPage create() {

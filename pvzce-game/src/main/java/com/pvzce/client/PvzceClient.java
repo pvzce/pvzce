@@ -2841,10 +2841,18 @@ public final class PvzceClient {
         return music;
     }
 
-    public void onMusicEvent(String track, String event, boolean loop, boolean stop, float volume, float fadeSeconds) {
-        if (music != null) {
-            music.playCue(track, event, loop, stop, volume, fadeSeconds);
+    public void onMusicEvent(String track, String event, boolean loop, boolean stop, float volume,
+                             float fadeSeconds, boolean preload) {
+        if (music == null) {
+            return;
         }
+        if (preload) {
+            // Decode now, play nothing: the cue that plays it comes later, and it has a clock to
+            // keep (see PvzceMusicController.preload).
+            music.preload(event);
+            return;
+        }
+        music.playCue(track, event, loop, stop, volume, fadeSeconds);
     }
 
     public void onGameState(String state, String winTeamId) {

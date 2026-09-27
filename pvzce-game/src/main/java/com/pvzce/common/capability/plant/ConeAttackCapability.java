@@ -195,6 +195,23 @@ public final class ConeAttackCapability implements PlantCapability {
         cooldown = intervalTicks;
     }
 
+    /** This plant attacks on its own clock, so a hold-fire level makes it wait for an order. */
+    @Override
+    public boolean holdsFire(PlantEntity plant) {
+        return true;
+    }
+
+    /**
+     * Breathes once, now.
+     *
+     * <p>Answers what {@link #breath} answers: a cone with nothing in it draws nothing and counts
+     * as no attack, which is the same rule the plant's own clock follows.
+     */
+    @Override
+    public boolean strike(PlantEntity plant, LevelAccess level) {
+        return breath(plant, level);
+    }
+
     /**
      * Hits everything in the cone, and reports whether there was anything to hit.
      *

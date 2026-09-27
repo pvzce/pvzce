@@ -194,6 +194,12 @@ public final class TestLevels {
             return this;
         }
 
+        /** The level's music timeline; the copy's own unless a test says otherwise. */
+        public Builder music(LevelDef.LevelMusicDef value) {
+            this.music = value;
+            return this;
+        }
+
         public Builder slots(List<Identifier> value) {
             this.slots = value;
             return this;

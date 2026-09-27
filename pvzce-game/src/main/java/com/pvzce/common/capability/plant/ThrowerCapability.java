@@ -91,15 +91,48 @@ public final class ThrowerCapability implements PlantCapability {
             }
             return;
         }
-        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team()).stream()
-                .filter(z -> !z.isRemoved() && z.cellX() > plant.cellX())
-                .sorted((a, b) -> Float.compare(a.cellX(), b.cellX()))
-                .findFirst()
-                .orElse(null);
+        ZombieEntity target = targetOf(plant, level);
         if (target == null) {
             plant.setState(EntityAnimations.IDLE);
             return;
         }
+        lob(plant, level, target);
+    }
+
+    /** This plant attacks on its own clock, so a hold-fire level makes it wait for an order. */
+    @Override
+    public boolean holdsFire(PlantEntity plant) {
+        return true;
+    }
+
+    /**
+     * Lobs one volley at whatever is in front, now.
+     *
+     * <p>A lob is the one shot that cannot be fired at nothing: it lands <em>on</em> a zombie's
+     * cell, and a cabbage thrown down an empty lane has nowhere to come down. So this is the
+     * clock's own target search, and an empty lane answers "no attack" rather than a wasted lob.
+     */
+    @Override
+    public boolean strike(PlantEntity plant, LevelAccess level) {
+        ZombieEntity target = targetOf(plant, level);
+        if (target == null) {
+            return false;
+        }
+        lob(plant, level, target);
+        return true;
+    }
+
+    /** The nearest zombie in front of this plant, which is what a lob would come down on. */
+    private ZombieEntity targetOf(PlantEntity plant, LevelAccess level) {
+        return level.enemiesInRow(plant.gridY(), plant.team()).stream()
+                .filter(z -> !z.isRemoved() && z.cellX() > plant.cellX())
+                .sorted((a, b) -> Float.compare(a.cellX(), b.cellX()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** One volley of arc shots at a target; shared by the clock and by {@link #strike}. */
+    private void lob(PlantEntity plant, LevelAccess level, ZombieEntity target) {
         plant.setState(EntityAnimations.SHOOT);
         for (ProjectileRef shot : shots) {
             boolean butter = butterChance > 0F && level.random().nextFloat() < butterChance;

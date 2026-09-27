@@ -21,6 +21,10 @@ import java.util.Optional;
  * had to guess them from its own copy of the level file would draw a different board than the
  * one the server is running.
  *
+ * <p>One game rule travels too - {@code plantsWholeColumn} - because the client draws the column
+ * a card is about to fill. Rules are the server's, so this is the exception and not the shape: a
+ * rule the HUD does not draw stays where it is.
+ *
  * <p>Mechanics travel as their own JSON blocks ({@link MechanicPayload}), encoded by the
  * mechanic's codec on the server and decoded by the same codec on the client. They used to
  * be three hand-written field groups here ({@code conveyor}, {@code beltCapacity} and the
@@ -33,7 +37,7 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
                            List<String> lockedSlots, List<MechanicPayload> mechanics,
                            String background, List<String> hiddenSceneElements,
                            boolean shadersDisabled, List<SeedOption> buffPool, int maxBuffSlots,
-                           List<String> activeBuffs) {
+                           List<String> activeBuffs, boolean plantsWholeColumn) {
     public LevelPayload {
         seedPool = List.copyOf(seedPool);
         previewZombies = List.copyOf(previewZombies);
@@ -58,7 +62,8 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
                         List<String> lockedSlots, List<MechanicPayload> mechanics,
                         String background, List<String> hiddenSceneElements, boolean shadersDisabled) {
         this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, lockedSlots,
-                mechanics, background, hiddenSceneElements, shadersDisabled, List.of(), 0, List.of());
+                mechanics, background, hiddenSceneElements, shadersDisabled, List.of(), 0, List.of(),
+                false);
     }
 
     /** As above, before the running buff set travelled. */
@@ -69,7 +74,7 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
                         List<SeedOption> buffPool, int maxBuffSlots) {
         this(width, height, seedPool, maxSeedSlots, previewZombies, sceneCells, lockedSlots,
                 mechanics, background, hiddenSceneElements, shadersDisabled, buffPool, maxBuffSlots,
-                List.of());
+                List.of(), false);
     }
 
     /**
@@ -152,13 +157,17 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
             // what the server does, and a client drawing icons from its own arithmetic could
             // show a buff the simulation is not applying.
             .stringList(LevelPayload::activeBuffs)
+            // How far one card reaches, which the placement preview draws: the one game rule the
+            // client has to know (see `RULE_PLANT_WHOLE_COLUMN`). A rule rather than a mechanic
+            // because the server is the one that enforces it and `/gamerule` can turn it on.
+            .field(LevelPayload::plantsWholeColumn, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
             .build(values -> new LevelPayload((Integer) values.get(0), (Integer) values.get(1),
                     (List<SeedOption>) values.get(2), (Integer) values.get(3),
                     (List<String>) values.get(4), (List<SceneSyncS2C.Cell>) values.get(5),
                     (List<String>) values.get(6), (List<MechanicPayload>) values.get(7),
                     (String) values.get(8), (List<String>) values.get(9), (Boolean) values.get(10),
                     (List<SeedOption>) values.get(11), (Integer) values.get(12),
-                    (List<String>) values.get(13)));
+                    (List<String>) values.get(13), (Boolean) values.get(14)));
 
     public void encode(PacketByteBuf buf) {
         CODEC.encode(this, buf);

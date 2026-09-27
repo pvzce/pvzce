@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/rhythm_easy",
   "name": "节奏草坪 · 简单",
-  "description": "节奏草坪：谱面按拍走，按对应的键就能让那一行或那一列发动攻击。行键 D F G H J，列键 Q W E R Y U I O P；PERFECT 额外掉阳光。这一关不能加速——谱面是按关卡自己的拍子写的。",
+  "description": "节奏草坪：音符踩在歌的鼓点上，等它飞到底下的判定线再按对应的列键，那一列的植物就会替你打——PERFECT 打三次、GOOD 两次、FAIR 一次，按空了是 MISS。列键 S D F J K L 对应左起六列，草坪下沿有提示；植物平时不会自己开火。PERFECT 会从那一列的植物身上掉一颗阳光。歌放完就清场，撑到那一刻算你赢。这一关不能加速——谱面是按这首歌的拍子写的。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -75,19 +75,25 @@
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
     "pvzce:sun_spawn_initial_ticks": 0,
-    "pvzce:zombie_sun_drop_chance": 0.0
+    "pvzce:zombie_sun_drop_chance": 0.0,
+    "pvzce:zombie_speed_multiplier": 2.0,
+    "pvzce:zombie_spawn_speed_multiplier": 1.4,
+    "pvzce:seed_cooldown_multiplier": 0.0,
+    "pvzce:plant_whole_column": true
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
     "pvzce:sun",
     "pvzce:pea_shooter",
+    "pvzce:snow_pea",
+    "pvzce:repeater",
     "pvzce:wall_nut",
     "pvzce:shovel"
   ],
-  "max_seed_slots": 4,
+  "max_seed_slots": 6,
   "seed_screen": false,
-  "initial_sun": 250,
+  "initial_sun": 500,
   "mechanics": [
     {
       "type": "pvzce:preparation",
@@ -97,87 +103,181 @@
     },
     {
       "type": "pvzce:rhythm",
-      "bpm": 100.0,
-      "offset_ticks": 300,
-      "perfect_ticks": 4,
-      "good_ticks": 9,
-      "perfect_sun": 1,
-      "attack_damage": 300,
+      "bpm": 110.0,
+      "offset_ticks": 14,
+      "approach_ticks": 80,
+      "perfect_sun": 25,
+      "attack_volleys": 3,
+      "plants_hold_fire": true,
+      "end_beat": 340.0,
       "lanes": [
         {
-          "kind": "row",
+          "kind": "col",
+          "index": 0,
+          "notes": [
+            22.0,
+            55.0,
+            64.0,
+            97.0,
+            100.0,
+            102.0,
+            110.0,
+            126.0,
+            135.0,
+            137.0,
+            147.0,
+            149.0,
+            155.0,
+            184.0,
+            203.0,
+            229.0,
+            241.0,
+            327.0
+          ]
+        },
+        {
+          "kind": "col",
+          "index": 1,
+          "notes": [
+            13.0,
+            34.0,
+            53.0,
+            58.0,
+            62.0,
+            63.0,
+            68.0,
+            103.0,
+            115.0,
+            120.0,
+            127.0,
+            148.0,
+            166.0,
+            180.0,
+            192.0,
+            198.0,
+            210.0,
+            222.0,
+            249.0,
+            260.0,
+            289.0,
+            299.0,
+            306.0,
+            336.0
+          ]
+        },
+        {
+          "kind": "col",
           "index": 2,
           "notes": [
-            4.0,
-            6.941,
-            9.882,
-            12.824,
-            15.765,
-            18.706,
-            21.647,
-            24.588,
-            27.529,
-            30.471,
-            33.412,
-            36.353,
-            39.294,
-            42.235,
-            45.176,
-            48.118,
-            51.059,
-            54.0,
-            56.941,
-            59.882,
-            62.824,
-            65.765,
-            68.706,
-            71.647,
-            74.588,
-            77.529,
-            80.471,
-            83.412,
-            86.353,
-            89.294,
-            92.235,
-            95.176
+            15.0,
+            41.0,
+            47.0,
+            59.0,
+            76.0,
+            80.0,
+            90.0,
+            98.0,
+            107.0,
+            114.0,
+            118.0,
+            131.0,
+            139.0,
+            144.0,
+            169.0,
+            170.0,
+            171.0,
+            172.0,
+            236.0,
+            254.0,
+            285.0,
+            292.0
+          ]
+        },
+        {
+          "kind": "col",
+          "index": 3,
+          "notes": [
+            18.0,
+            20.0,
+            32.0,
+            51.0,
+            60.0,
+            72.0,
+            99.0,
+            138.0,
+            150.0,
+            159.0,
+            168.0,
+            182.0,
+            206.0,
+            246.0,
+            265.0,
+            268.0,
+            276.0,
+            281.0,
+            302.0,
+            305.0,
+            318.0,
+            329.0
           ]
         },
         {
           "kind": "col",
           "index": 4,
           "notes": [
-            4.5,
-            7.441,
-            10.382,
-            13.324,
-            16.265,
-            19.206,
-            22.147,
-            25.088,
-            28.029,
-            30.971,
-            33.912,
-            36.853,
-            39.794,
-            42.735,
-            45.676,
-            48.618,
-            51.559,
-            54.5,
-            57.441,
-            60.382,
-            63.324,
-            66.265,
-            69.206,
-            72.147,
-            75.088,
-            78.029,
-            80.971,
-            83.912,
-            86.853,
-            89.794,
-            92.735,
-            95.676
+            19.0,
+            26.0,
+            30.0,
+            38.0,
+            56.0,
+            86.0,
+            91.0,
+            108.0,
+            111.0,
+            112.0,
+            113.0,
+            116.0,
+            136.0,
+            143.0,
+            146.0,
+            152.0,
+            156.0,
+            160.0,
+            162.0,
+            165.0,
+            178.0,
+            214.0,
+            275.0,
+            308.0,
+            313.0
+          ]
+        },
+        {
+          "kind": "col",
+          "index": 5,
+          "notes": [
+            8.0,
+            52.0,
+            54.0,
+            74.0,
+            92.0,
+            93.0,
+            94.0,
+            95.0,
+            96.0,
+            109.0,
+            119.0,
+            122.0,
+            153.0,
+            154.0,
+            164.0,
+            189.0,
+            216.0,
+            225.0,
+            234.0,
+            256.0,
+            321.0,
+            332.0
           ]
         }
       ]
@@ -187,29 +287,11 @@
     {
       "type": "small",
       "delay": 2400,
-      "spawn_interval": 420,
+      "spawn_interval": 260,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 3,
-          "rows": [
-            0,
-            1,
-            2,
-            3,
-            4
-          ]
-        }
-      ]
-    },
-    {
-      "type": "small",
-      "delay": 2400,
-      "spawn_interval": 380,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 3,
+          "count": 4,
           "rows": [
             0,
             1,
@@ -232,10 +314,9 @@
       ]
     },
     {
-      "type": "final",
-      "delay": 2600,
-      "warning_ticks": 750,
-      "spawn_interval": 320,
+      "type": "small",
+      "delay": 2300,
+      "spawn_interval": 240,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -260,17 +341,175 @@
           ]
         }
       ]
+    },
+    {
+      "type": "small",
+      "delay": 2200,
+      "spawn_interval": 220,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2100,
+      "spawn_interval": 200,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "spawn_interval": 180,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "final",
+      "delay": 2000,
+      "warning_ticks": 750,
+      "spawn_interval": 160,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
     }
   ],
   "music": {
     "cues": [
       {
+        "trigger": "level_start",
         "at_tick": 0,
         "track": "background",
-        "event": "pvzce:music/cerebrawl",
-        "loop": true,
+        "stop": true,
+        "fade_seconds": 0.0
+      },
+      {
+        "trigger": "waves_start",
+        "at_tick": 0,
+        "track": "background",
+        "event": "pvzce:music/ancient_egypt_ultimate_battle",
+        "loop": false,
         "volume": 0.85,
-        "fade_seconds": 1.0
+        "fade_seconds": 0.0
       }
     ]
   },
@@ -282,13 +521,18 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "行键 D F G H J，列键 Q W E R Y U I O P：踩上拍子就能打一整行或一整列",
-      "duration_ticks": 900
+      "text": "列键 S D F J K L：音符飞到下沿判定线时按，那一列的植物替你打；早按或错过都是 MISS",
+      "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "先把阵摆好，再按开始读谱",
-      "duration_ticks": 900
+      "text": "这一关的植物不会自己开火——不按谱，草坪就是站着挨打",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "先把阵摆好，再按开始读谱——歌放完就清场",
+      "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
@@ -298,7 +542,8 @@
     "pvzce:sun": true
   },
   "buffs": [
-    "pvzce:player_choice"
+    "pvzce:player_choice",
+    "pvzce:auto_collect"
   ],
   "rewards": {
     "first_clear": [

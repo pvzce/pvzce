@@ -107,6 +107,73 @@ public interface PlantCapability {
     }
 
     /**
+     * Whether this capability's whole job is attacking, and it therefore waits for an order on a
+     * level whose plants hold their fire.
+     *
+     * <p>The rhythm levels are played the other way round: nothing on the lawn attacks by itself,
+     * and a note the player hits is what makes that column's plants act (see
+     * {@code RhythmMechanic}). A capability that answers yes stops ticking while the level says so,
+     * which is why the answer means "I attack on a clock" rather than "I am a weapon": a producer
+     * still produces, a plant still grows, and a fuse still burns - a cherry bomb the player paid
+     * for is a one-shot, not a clock.
+     *
+     * <p><b>Answering yes here means {@link #strike} has to work.</b> A capability that holds its
+     * fire and cannot be ordered to act would be a plant that does nothing for a whole level.
+     */
+    default boolean holdsFire(PlantEntity plant) {
+        return false;
+    }
+
+    /**
+     * Attacks once, right now, out of the capability's own clock.
+     *
+     * <p>What a played rhythm note orders the plants in its column to do - three times on a
+     * PERFECT, twice on a GOOD, once on a FAIR (see {@code RhythmChartData#volleys}). The clock is
+     * ignored: the cooldown is not consulted and is left where it was, and the target search is not
+     * a veto - a peashooter told to fire fires down its row whether or not anything is standing
+     * there, because the shot <em>is</em> the feedback the player just paid for. A capability with
+     * nothing to aim at (a lob, a bite) simply does nothing.
+     *
+     * <p>Ticking and striking share the firing code rather than each having its own copy, so "what
+     * this plant does" cannot drift between "when it feels like it" and "when it is told".
+     *
+     * @return {@code true} when something actually happened
+     */
+    default boolean strike(PlantEntity plant, LevelAccess level) {
+        return false;
+    }
+
+    /**
+     * Whether this capability still owes the lawn something it has already started.
+     *
+     * <p>The companion of {@link #holdsFire}, and the reason it is not enough on its own: an attack
+     * is not always one instant. A repeater's volley is two peas twelve ticks apart and a gatling
+     * pea's is four, so most of a volley is <em>work promised on later ticks</em> - and a chomper
+     * that has swallowed something owes thirty seconds of chewing before it leaves. Skipping the
+     * whole capability while the level holds its fire therefore threw that work away: on a rhythm
+     * level a repeater did exactly what a peashooter does, and a chomper that bit stayed stuck
+     * mid-chew forever.
+     *
+     * <p>So a held-fire capability that answers yes here is still ticked, with
+     * {@link #tickPending} instead of {@link #tick}: the gate stops <em>new</em> attacks, not the
+     * delivery of ones already made.
+     */
+    default boolean hasPendingWork(PlantEntity plant) {
+        return false;
+    }
+
+    /**
+     * One tick of that owed work, and nothing else.
+     *
+     * <p>Called instead of {@link #tick} while the level holds the plants' fire and
+     * {@link #hasPendingWork} says there is something left. It must not start an attack, spend or
+     * reset a cooldown, or look for a target - a capability that decided something here would be
+     * firing on its own clock again, which is the thing the gate exists to stop.
+     */
+    default void tickPending(PlantEntity plant, LevelAccess level) {
+    }
+
+    /**
      * Whether placement of this plant is immediately consumed (coffee bean).
      * Such plants are removed right after {@link #onPlaced}.
      *

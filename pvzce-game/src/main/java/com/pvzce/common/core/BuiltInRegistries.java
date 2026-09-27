@@ -382,6 +382,9 @@ public final class BuiltInRegistries {
         // one clock every counting-down capability spends (see PlantEntity.actionStep).
         registerRule(PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER,
                 new GameRuleType.FloatRule(1F, 0.1F, 20F));
+        // False = one click, one cell. True = one click, one whole column ("排山倒海"): the card's
+        // price is paid once and every cell of the clicked column that can take the plant gets one.
+        registerRule(PvzceIds.RULE_PLANT_WHOLE_COLUMN, new GameRuleType.BooleanRule(false));
         // 1 = the sun arrives at the rate the level and the producers wrote. Bigger is faster, and
         // it scales the sky and the flowers together: "sun rate" is not a thing a player reads as
         // half of itself.

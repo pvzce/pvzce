@@ -129,15 +129,7 @@ public final class SpikeCapability implements PlantCapability {
             plant.setState(EntityAnimations.IDLE);
             return;
         }
-        boolean hit = false;
-        // Its own row, plus `rows` either side: the spikeweed's one row and the gloom-shroom's
-        // "every adjacent space" are this same loop with a different number.
-        for (int row = plant.gridY() - rows; row <= plant.gridY() + rows; row++) {
-            if (row >= 0 && row < level.height()) {
-                hit |= stabRow(plant, level, row);
-            }
-        }
-        if (hit) {
+        if (stab(plant, level)) {
             stabbing = true;
             // The plant's own rate: watered counts faster, and a mutation that rewrites how fast
             // plants work at all reaches this clock for free.
@@ -154,6 +146,46 @@ public final class SpikeCapability implements PlantCapability {
             cooldown = intervalTicks;
             plant.setState(EntityAnimations.IDLE);
         }
+    }
+
+    /** This plant attacks on its own clock, so a hold-fire level makes it wait for an order. */
+    @Override
+    public boolean holdsFire(PlantEntity plant) {
+        return true;
+    }
+
+    /**
+     * Stabs everything standing on the patch, now.
+     *
+     * <p>An order does not restart the clock: the plant's own interval is left where it was, so a
+     * played note adds a stab rather than replacing the one the patch was already counting down
+     * to. The animation is asked for here as the clock asks for it, because a patch that hurt
+     * something without visibly jabbing would read as a bug.
+     */
+    @Override
+    public boolean strike(PlantEntity plant, LevelAccess level) {
+        boolean hit = stab(plant, level);
+        if (hit) {
+            stabbing = true;
+            plant.setState(EntityAnimations.ATTACK);
+            if (sound.isPresent()) {
+                level.emitEffect("", plant.cellX(), plant.cellY(), sound.get());
+            }
+        }
+        return hit;
+    }
+
+    /** One stab across every row this patch reaches; answers whether it hit anything. */
+    private boolean stab(PlantEntity plant, LevelAccess level) {
+        boolean hit = false;
+        // Its own row, plus `rows` either side: the spikeweed's one row and the gloom-shroom's
+        // "every adjacent space" are this same loop with a different number.
+        for (int row = plant.gridY() - rows; row <= plant.gridY() + rows; row++) {
+            if (row >= 0 && row < level.height()) {
+                hit |= stabRow(plant, level, row);
+            }
+        }
+        return hit;
     }
 
     /** True on the tick this plant last stabbed. Read by the animation, not by the simulation. */

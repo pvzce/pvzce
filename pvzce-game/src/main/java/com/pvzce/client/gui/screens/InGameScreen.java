@@ -1529,10 +1529,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         mutationHud.renderDarkness(client);
         renderHud();
         if (rhythm != null) {
-            // The chart's clock is anchored here rather than in `tick()`: the moment the build
-            // phase ends is the moment the first note may be pressed, and the render loop runs on
-            // every frame the player could press one.
-            rhythm.tick(client.level().smoothLevelTicks(), client.level().preparing());
+            // The chart's clock is read here rather than in `tick()`: the first note may be pressed
+            // on any frame, and the render loop is the one that runs on all of them.
+            rhythm.tick(client.level().smoothLevelTicks(), rhythmStartTick());
         }
         renderRhythmHud();
         renderEntryBanner();
@@ -1551,6 +1550,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // cleared outright on a loss for the same reason.
             hints.render();
         }
+        // The lane keys, the judgement line and the notes in the air are the last thing over the
+        // board, and deliberately so. Over the dragged card's placement preview, because a note
+        // arriving on the beat must not wash out under the ghost of whatever the player was about
+        // to plant - and over the hint box, because the mode's own bottom edge is where the hint
+        // box is: while a lesson is up, the keys are still the thing being played.
+        renderRhythmHighway(client.camera(), Math.max(1, client.guiScale()));
         if (client.level().gameState().equals("running")) {
             boolean dialogueActive = dialogue != null && dialogue.isActive();
             for (var widget : widgets) {
@@ -1861,6 +1866,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // mini-game's red line is: a level that only accepts the left half must not
                 // look like it accepts a click it is going to refuse.
                 boolean allowed = client.level().inPlacementZone(hoverX, hoverY);
+                // On a level whose cards plant a whole column, the tint covers the column - which
+                // is the one thing the player has to know before clicking, and the reason the rule
+                // travels to the client at all. The hovered cell is drawn again on top, brighter,
+                // because the ghost below is still only on that cell.
+                if (client.level().plantsWholeColumn()) {
+                    for (int row = 0; row < client.level().height(); row++) {
+                        boolean rowAllowed = client.level().inPlacementZone(hoverX, row);
+                        client.drawSolid(hoverX, row, 1F, 1F, 0.19F,
+                                rowAllowed ? 0.2F : 1F, rowAllowed ? 1F : 0.2F, 0.2F, 0.18F);
+                    }
+                }
                 client.drawSolid(hoverX, hoverY, 1F, 1F, 0.2F,
                         allowed ? 0.2F : 1F, allowed ? 1F : 0.2F, 0.2F, 0.25F);
             }
@@ -4471,6 +4487,22 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
+     * Where the server anchored this level's chart, or {@code -1} while it has not said.
+     *
+     * <p>The number comes from {@code RhythmMechanic.Start} through the mechanic sync channel -
+     * the same one the preparation phase uses for its flag - and it is the server's own tick, so
+     * the client's notes and the server's judgement are counting from the same place. Deriving the
+     * moment here instead (the build phase ending) was out by the whole build phase: the client's
+     * mirror of that phase is a packet behind, and false before the first packet arrives.
+     */
+    private double rhythmStartTick() {
+        com.pvzce.common.level.mechanic.RhythmMechanic.Start start =
+                client.level().mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM,
+                        com.pvzce.common.level.mechanic.RhythmMechanic.Start.class);
+        return start == null ? -1D : start.tick();
+    }
+
+    /**
      * The rhythm levels' ten lanes: one key, one note, one attack.
      *
      * <p>The judgement happens here and the score happens on the server; this method's whole job is
@@ -4484,7 +4516,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // level has anything to do with them.
             return rhythm != null;
         }
-        rhythm.tick(client.level().smoothLevelTicks(), client.level().preparing());
+        rhythm.tick(client.level().smoothLevelTicks(), rhythmStartTick());
         var packet = rhythm.press(laneKind, laneIndex, client.level().smoothLevelTicks());
         if (packet != null) {
             client.connection().send(packet);
@@ -4493,15 +4525,211 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
-     * Draws the chart's own HUD: the two hands, the verdict, and the tally.
+     * Draws the chart's own HUD: the tally, and - for a row chart - the verdict.
      *
-     * <p>Not a note highway. The chart is short and the lanes are the lawn itself - a hit lights up
-     * the row or column it fired, which is the feedback that matters, and it is drawn where the
-     * player is already looking. What is left for the HUD is the part the lawn cannot say: which
-     * keys are the lanes, how the run is going, and whether that last press was on the beat.
+     * <p>A column chart's verdict belongs on the judgement line, so it is drawn there instead (see
+     * {@link #renderRhythmHighway}); what is left here is how the run is going.
      */
     /** How far apart the rhythm HUD's lines sit, in GUI units. */
     private static final float RHYTHM_HUD_LINE = 14F;
+    /**
+     * Where the row keys sit, in world cells: inside the board's left edge.
+     *
+     * <p>Not <em>outside</em> it, which is where the eye looks first and where the first attempt at
+     * this put them. The lawn's left edge is the house, and the 1400x600 backdrop is scaled to
+     * <em>cover</em> the window - at 16:9 that crops the house away almost entirely, so a badge at
+     * world x {@code -1.35} was drawn thirty pixels off the left of the screen and the smoke
+     * screenshot showed an empty lawn. The parked mower ({@code MowerMechanic.IDLE_X}) takes the
+     * half cell that is left, so the row's own left end is the only place a letter can sit and be
+     * read at every window size - which is also the thing the badge is supposed to say: this key,
+     * this row.
+     */
+    private static final float RHYTHM_KEY_ROW_X = 0.30F;
+    /**
+     * Where the judgement line sits, in world cells: inside the board's bottom row.
+     *
+     * <p><b>Inside</b> it, and that is the whole report this answers. The keys used to hang in the
+     * strip below the board, which is where they belong in a rhythm game - and the strip is not
+     * there: the 1400x600 backdrop is scaled to <em>cover</em> the window, so at 1920x1080 the
+     * lawn's own bottom edge lands 36 pixels above the bottom of the screen (a fifth of a cell),
+     * and the hint box owns most of that. A line plus a key capsule needs forty pixels. So the
+     * judgement line goes on the lawn's bottom row and the keys go under it, which is also why the
+     * old row-mode hints were inside the board's left edge for the same reason (see
+     * {@link #RHYTHM_KEY_ROW_X}).
+     */
+    private static final float RHYTHM_JUDGE_Y = 0.68F;
+    /**
+     * Where the column keys sit, in world cells: under the judgement line, in the bottom row.
+     *
+     * <p>The half of the report that was about <em>place</em>: the keys used to be a column of
+     * letters down the lawn's left edge, and the notes come <em>down</em> - so the thing that
+     * answers them has to be under them, at the bottom of their own column.
+     */
+    private static final float RHYTHM_KEY_COL_Y = 0.36F;
+    /**
+     * How far above the board's top row a note appears, in cells.
+     *
+     * <p>Above the lawn rather than on it: a note that popped into existence inside the top row
+     * would have no visible start, and the flight is what tells the player how long they have.
+     */
+    private static final float RHYTHM_FLIGHT_HEADROOM = 0.25F;
+    /** Capsule size as a fraction of the lane's own thickness, clamped to something readable. */
+    private static final float RHYTHM_KEY_LANE_FRACTION = 0.42F;
+    /** The flying note is a little smaller than the key it is aimed at, so the cap stays readable. */
+    private static final float RHYTHM_NOTE_LANE_FRACTION = 0.34F;
+    private static final float RHYTHM_KEY_MIN = 16F;
+    private static final float RHYTHM_KEY_MAX = 34F;
+
+    /**
+     * The lane keys, the judgement line and the notes in the air.
+     *
+     * <p>A letter under each column is the whole of what tells the player which key plays which
+     * lane: the mode's keys are bindings away in a settings page nobody opens mid-level. Read from
+     * the live table, so a player who rebound one reads their own letter, and an unbound lane draws
+     * nothing at all - the honest answer to "which key plays this".
+     *
+     * <p><b>The highway is the answer to "when and where do I press".</b> A note is drawn as the
+     * capsule of the key that answers it, flying down its own column from just above the lawn to
+     * the judgement line, and it takes the chart's {@code approach_ticks} to get there - which is
+     * the same number the windows are fractions of (see {@code RhythmChartData}). So the picture
+     * and the judgement are the same fact twice: when the note is on the line, the press is a
+     * PERFECT, and the player can see that without knowing a tick from a millisecond.
+     *
+     * <p>Only the lanes the chart actually uses, and only the notes still unplayed: a letter for a
+     * lane with no notes would be a key the player learns and never needs, and a note that has been
+     * played or missed is gone from the air.
+     */
+    private void renderRhythmHighway(com.pvzce.client.renderer.PvzceCamera camera, float guiScale) {
+        if (rhythm == null) {
+            return;
+        }
+        boolean columnChart = false;
+        for (com.pvzce.api.content.RhythmChartData.Lane lane : rhythm.chart().lanes()) {
+            if (lane.kind() == com.pvzce.api.content.RhythmChartData.LaneKind.COL) {
+                columnChart = true;
+                break;
+            }
+        }
+        float judgeY = camera.screenY(RHYTHM_JUDGE_Y) / guiScale;
+        for (com.pvzce.api.content.RhythmChartData.Lane lane : rhythm.chart().lanes()) {
+            if (lane.notes().isEmpty()) {
+                continue;
+            }
+            com.pvzce.client.input.KeyBindings.Action action =
+                    com.pvzce.client.input.KeyBindings.Action.forLane(lane.kind().json(), lane.index());
+            if (action == null) {
+                continue;
+            }
+            String key = com.pvzce.client.input.KeyBindings.keyName(client.keyBindings().code(action));
+            if (key.isEmpty()) {
+                continue;
+            }
+            boolean row = lane.kind() == com.pvzce.api.content.RhythmChartData.LaneKind.ROW;
+            float laneSize = (row ? camera.unitY() : camera.unitX()) / guiScale;
+            float height = MathUtil.clamp(laneSize * RHYTHM_KEY_LANE_FRACTION,
+                    RHYTHM_KEY_MIN, RHYTHM_KEY_MAX);
+            float scale = height / RHYTHM_HUD_LINE;
+            float textWidth = client.fonts().body().width(key, scale);
+            float width = Math.max(height, textWidth + height * 0.6F);
+            boolean hot = rhythm.justPlayed(lane.kind().json(), lane.index());
+            if (row) {
+                // A row chart keeps the letters on the left edge of its rows. No shipped tier plays
+                // this way any more; the mechanic still supports it, and a hand-written chart should
+                // not be told its keys are somewhere else.
+                float centerX = camera.screenX(RHYTHM_KEY_ROW_X) / guiScale;
+                float centerY = camera.screenY(lane.index() + 0.5F) / guiScale;
+                drawRhythmCapsule(centerX, centerY, width, height, key, scale, hot, false);
+                continue;
+            }
+            float centerX = camera.screenX(lane.index() + 0.5F) / guiScale;
+            // The lane itself: a faint thread from the line to where the notes appear, so the eye
+            // can follow a capsule down without the lawn being painted over.
+            client.drawSolid(centerX - 1F, judgeY, 2F,
+                    camera.screenY(client.level().height() + RHYTHM_FLIGHT_HEADROOM) / guiScale - judgeY,
+                    0.51F, 0.9F, 0.85F, 0.45F, 0.10F);
+            // The judgement marker: the line the note has to be on. Bright while this lane is the
+            // one that was just played, so the answer and the question are drawn in one place.
+            client.drawSolid(centerX - laneSize / 2F, judgeY - 2F, laneSize, 4F, 0.52F,
+                    hot ? 1F : 0.55F, hot ? 0.9F : 0.5F, 0.2F, 0.9F);
+            drawRhythmCapsule(centerX, camera.screenY(RHYTHM_KEY_COL_Y) / guiScale, width, height, key,
+                    scale, hot, false);
+        }
+        // The notes, over everything: they are the thing the player is reading.
+        double topY = client.level().height() + RHYTHM_FLIGHT_HEADROOM;
+        for (com.pvzce.client.RhythmPlay.Flight flight : rhythm.inFlight()) {
+            if (!"col".equals(flight.laneKind())) {
+                continue;
+            }
+            com.pvzce.client.input.KeyBindings.Action action =
+                    com.pvzce.client.input.KeyBindings.Action.forLane(flight.laneKind(),
+                            flight.laneIndex());
+            if (action == null) {
+                continue;
+            }
+            String key = com.pvzce.client.input.KeyBindings.keyName(client.keyBindings().code(action));
+            if (key.isEmpty()) {
+                continue;
+            }
+            float centerX = camera.screenX(flight.laneIndex() + 0.5F) / guiScale;
+            // Down to the line, not up from it: the flight's own arithmetic, so that the picture
+            // and the judgement cannot disagree about which way time runs (`RhythmPlay.Flight`).
+            float worldY = (float) flight.worldY(rhythm.chart().approachTicks(), topY, RHYTHM_JUDGE_Y);
+            float centerY = camera.screenY(worldY) / guiScale;
+            float laneSize = camera.unitX() / guiScale;
+            float height = MathUtil.clamp(laneSize * RHYTHM_NOTE_LANE_FRACTION,
+                    RHYTHM_KEY_MIN * 0.8F, RHYTHM_KEY_MAX * 0.9F);
+            float scale = height / RHYTHM_HUD_LINE;
+            float textWidth = client.fonts().body().width(key, scale);
+            float width = Math.max(height, textWidth + height * 0.6F);
+            // On the line is the moment that counts, so the note whitens as it arrives: a player
+            // who presses when it is white is inside the perfect window by construction.
+            boolean onLine = Math.abs(flight.ticksAhead()) <= rhythm.chart().perfectTicks();
+            drawRhythmCapsule(centerX, centerY, width, height, key, scale, onLine, true);
+        }
+        if (columnChart && !rhythm.visibleVerdict().isEmpty()) {
+            // Just above the line, where the player is looking. The tally is off to the right
+            // (see `renderRhythmHud`); this is the answer to the press they just made.
+            String verdict = rhythm.visibleVerdict();
+            float scale = 1.5F;
+            float[] colour = verdictColour(rhythm.visibleGrade());
+            client.fonts().body().draw(verdict,
+                    (client.guiWidth() - client.fonts().body().width(verdict, scale)) / 2F,
+                    judgeY + RHYTHM_HUD_LINE * 2F, scale,
+                    colour[0], colour[1], colour[2], 1F);
+        }
+    }
+
+    /** One capsule: a dark rim, a filled cap and the letter on it. */
+    private void drawRhythmCapsule(float centerX, float centerY, float width, float height, String key,
+                                   float scale, boolean hot, boolean note) {
+        // The white letters were all that showed in the first version of this, because the fifth
+        // argument of `drawSolid` is z, not a corner radius: passing a radius-sized number there
+        // draws the cap at a depth nothing else uses, which is to say nowhere.
+        float rimR = note ? 0.12F : 0.05F;
+        float rimG = note ? 0.1F : 0.05F;
+        float rimB = note ? 0.04F : 0.06F;
+        float fillR = hot ? 1F : note ? 0.95F : 0.17F;
+        float fillG = hot ? 0.87F : note ? 0.78F : 0.17F;
+        float fillB = hot ? 0.2F : note ? 0.18F : 0.23F;
+        client.drawSolid(centerX - width / 2F - 2F, centerY - height / 2F - 2F,
+                width + 4F, height + 4F, 0.52F, rimR, rimG, rimB, 0.85F);
+        client.drawSolid(centerX - width / 2F, centerY - height / 2F, width, height,
+                0.53F, fillR, fillG, fillB, 0.95F);
+        client.fonts().body().drawCentered(key, centerX,
+                centerY - client.fonts().body().ascent(scale) / 2F, scale,
+                hot || note ? 0.12F : 0.97F, hot || note ? 0.1F : 0.96F,
+                hot || note ? 0.08F : 0.9F, 1F);
+    }
+
+    /** How a verdict is drawn: gold, blue, grey and red for the four of them. */
+    private static float[] verdictColour(com.pvzce.api.content.RhythmChartData.Grade grade) {
+        return switch (grade) {
+            case PERFECT -> new float[] {1F, 0.9F, 0.25F};
+            case GOOD -> new float[] {0.55F, 0.9F, 1F};
+            case FAIR -> new float[] {0.85F, 0.85F, 0.85F};
+            case MISS -> new float[] {1F, 0.35F, 0.3F};
+        };
+    }
 
     private void renderRhythmHud() {
         if (rhythm == null) {
@@ -4509,32 +4737,31 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         float width = client.guiWidth();
         float height = client.guiHeight();
-        com.pvzce.api.content.RhythmChartData chart = rhythm.chart();
-        // Down the right-hand side and stacked downward from above the wave bar. Not the left
-        // corner: that is where the sun bank lives, and a lane list drawn under it is a lane list
-        // nobody can read - which is what the first attempt at this did.
+        // The lane keys and the flying notes are drawn by `render`, not here: they belong over the
+        // dragged card's placement preview (see the call site).
+        boolean columnChart = !rhythm.chart().lanes().isEmpty()
+                && rhythm.chart().lanes().get(0).kind()
+                        == com.pvzce.api.content.RhythmChartData.LaneKind.COL;
         float right = width - 16F;
-        float line = height * 0.34F;
-        for (com.pvzce.api.content.RhythmChartData.Lane lane : chart.lanes()) {
-            boolean row = lane.kind() == com.pvzce.api.content.RhythmChartData.LaneKind.ROW;
-            String label = (row ? "行 " : "列 ") + lane.index();
-            boolean hot = rhythm.justPlayed(lane.kind().json(), lane.index());
-            client.fonts().body().draw(label, right - client.fonts().body().width(label, 0.9F),
-                    line, 0.9F, hot ? 1F : 0.75F, hot ? 0.85F : 0.8F, hot ? 0.2F : 0.8F, 1F);
-            line -= RHYTHM_HUD_LINE;
-        }
         String verdict = rhythm.visibleVerdict();
-        if (!verdict.isEmpty()) {
+        if (!verdict.isEmpty() && !columnChart) {
+            // A row chart has no judgement line to hang the verdict on, so it keeps the middle of
+            // the screen; a column chart's is drawn on its own line (see `renderRhythmHighway`).
             float scale = 1.6F;
-            client.fonts().body().draw(verdict, (width - client.fonts().body().width(verdict, scale)) / 2F,
-                    client.guiHeight() * 0.62F, scale,
-                    verdict.equals("PERFECT") ? 1F : 0.9F,
-                    verdict.equals("PERFECT") ? 0.9F : 0.8F, 0.2F, 1F);
+            float[] colour = verdictColour(rhythm.visibleGrade());
+            client.fonts().body().draw(verdict,
+                    (width - client.fonts().body().width(verdict, scale)) / 2F,
+                    client.guiHeight() * 0.62F, scale, colour[0], colour[1], colour[2], 1F);
         }
+        // The tally, down the right-hand side: every verdict the run has had, misses included -
+        // the mode tells the player what they failed to press, not only what they hit.
         String tally = "PERFECT " + rhythm.perfect() + " · GOOD " + rhythm.good()
-                + " · 连击 " + rhythm.combo();
+                + " · FAIR " + rhythm.fair() + " · MISS " + rhythm.missed();
         client.fonts().body().draw(tally, right - client.fonts().body().width(tally, 0.9F),
                 height * 0.38F, 0.9F, 1F, 1F, 1F, 1F);
+        String combo = "连击 " + rhythm.combo() + " · 最高 " + rhythm.bestCombo();
+        client.fonts().body().draw(combo, right - client.fonts().body().width(combo, 0.9F),
+                height * 0.38F - RHYTHM_HUD_LINE, 0.9F, 1F, 0.9F, 0.45F, 1F);
     }
 
     private void openPause() {

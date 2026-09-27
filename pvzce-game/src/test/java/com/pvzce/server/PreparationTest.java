@@ -10,6 +10,7 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
+import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
@@ -194,5 +195,81 @@ class PreparationTest {
         assertTrue(bridge.packets.stream().anyMatch(packet -> packet instanceof MechanicSyncS2C sync
                         && PvzceIds.MECHANIC_PREPARATION.equals(sync.mechanic())),
                 "and again when it ends, so the button goes away");
+    }
+
+    /**
+     * Cards do not recharge while the phase runs, and they do again once it is over.
+     *
+     * <p>The build phase is where a level hands the player a purse and nothing else; a seed packet
+     * that made them stand and wait for it is a wait with no level behind it. Last Stand is the
+     * level this was reported on - its whole opening is "arrange a defence with the sun you were
+     * given" - and the rule is the phase's rather than that level's, because it is what the phase
+     * means: nothing is happening yet.
+     */
+    @Test
+    void cardsDoNotRechargeWhileThePhaseRuns() {
+        LevelServer level = new LevelServer(board(PreparationData.MANUAL));
+        CapturingBridge bridge = new CapturingBridge();
+        com.pvzce.common.core.Slot slot = level.plantPlayer().slots().stream()
+                .filter(candidate -> SUNFLOWER.equals(candidate.defId()))
+                .findFirst().orElse(null);
+        assertNotNull(slot, "the board's bar has the sunflower on it");
+        assertTrue(slot.cooldownTicks() > 0, "and it has a cooldown to skip");
+
+        assertEquals(0, level.effectiveCooldownTicks(slot),
+                "during the phase a spent card is ready again at once");
+
+        level.beginWaves();
+        tick(level, bridge, 1);
+        assertEquals(slot.cooldownTicks(), level.effectiveCooldownTicks(slot),
+                "once the waves run, the card waits its own cooldown again");
+    }
+
+    /**
+     * A cue written against the waves does not fire while the phase is still up.
+     *
+     * <p>This is the whole reason a cue has two clocks. A rhythm level's song <em>is</em> its chart's
+     * clock, so it may only start on the tick the chart does - and that tick is the one the player
+     * chose when they pressed 开始, which no level file can name in advance. Without the second
+     * trigger the song played over the build phase and the notes arrived however many seconds late
+     * the player had spent arranging the lawn.
+     */
+    @Test
+    void aCueWrittenAgainstTheWavesWaitsForThem() {
+        LevelDef demo = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/demo_level"));
+        assertNotNull(demo);
+        LevelDef board = com.pvzce.testutil.TestLevels.copy(demo)
+                .waves(List.of())
+                .music(new LevelDef.LevelMusicDef(List.of(
+                        new LevelDef.MusicCue(LevelDef.MusicCue.Trigger.LEVEL_START, 0, "background",
+                                java.util.Optional.empty(), false, true, 1F, 0F),
+                        new LevelDef.MusicCue(LevelDef.MusicCue.Trigger.WAVES_START, 0, "background",
+                                java.util.Optional.of(PvzceIds.id("music/ancient_egypt_ultimate_battle")),
+                                false, false, 0.85F, 0F))))
+                .mechanics(List.of(new TypedMechanic(PvzceIds.MECHANIC_PREPARATION,
+                        PreparationData.MANUAL)))
+                .build();
+        LevelServer level = new LevelServer(board);
+        CapturingBridge bridge = new CapturingBridge();
+
+        tick(level, bridge, 1);
+        List<MusicEventS2C> before = music(bridge);
+        assertEquals(1, before.size(), "only the level-start cue has fired: the song is waiting");
+        assertTrue(before.get(0).stop(), "and what it fired is the silence of the build phase");
+
+        bridge.packets.clear();
+        level.beginWaves();
+        tick(level, bridge, 1);
+        List<MusicEventS2C> after = music(bridge);
+        assertEquals(1, after.size(), "the song starts on the tick the waves do");
+        assertEquals("pvzce:music/ancient_egypt_ultimate_battle", after.get(0).event());
+        assertEquals(0F, after.get(0).fadeSeconds(), 0.0001F,
+                "with no fade: a fade is a start time that is not the cue's, and a chart cannot"
+                        + " wait for one");
+    }
+
+    private static List<MusicEventS2C> music(CapturingBridge bridge) {
+        return bridge.packets.stream().filter(MusicEventS2C.class::isInstance)
+                .map(MusicEventS2C.class::cast).toList();
     }
 }

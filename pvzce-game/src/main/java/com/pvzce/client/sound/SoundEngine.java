@@ -308,6 +308,29 @@ public final class SoundEngine implements AutoCloseable {
         AL10.alSourcePlay(source);
     }
 
+    /**
+     * Decodes a sound into its buffer now, so that playing it later is immediate.
+     *
+     * <p>What it is for: a music file is decoded <em>whole</em>, on the thread that asks to play it,
+     * and a three-minute track takes about a tenth of a second - nine ticks of a rhythm chart, which
+     * the song would spend not being audible while the notes were already being judged. The level's
+     * music is therefore decoded while the client is still loading it (see
+     * {@code PvzceMusicController.preload} and {@code 踩坑清单} 147).
+     *
+     * <p>Synchronous, and deliberately so: it runs where a hitch costs nothing (the loading screen),
+     * and the alternative - a worker thread - would have to make the OpenAL context current on that
+     * thread and still leave the first play racing the decode.
+     */
+    public void preload(String soundId) {
+        if (!enabled || soundId == null || soundId.isEmpty()) {
+            return;
+        }
+        EventDefinition definition = definition(eventPath(soundId));
+        for (SoundVariant variant : definition.variants()) {
+            bufferForFile(variant.file());
+        }
+    }
+
     public void stopMusicSource(int musicSourceIndex) {
         if (enabled && musicSourceIndex >= 0 && musicSourceIndex < MUSIC_SOURCE_COUNT) {
             AL10.alSourceStop(musicSources[musicSourceIndex]);
@@ -444,11 +467,27 @@ public final class SoundEngine implements AutoCloseable {
         }
     }
 
-    public boolean isMusicSourcePlaying(int musicSourceIndex) {
+    /**
+     * Whether a music source still holds something: playing <em>or</em> paused.
+     *
+     * <p>Not "is it playing", which is the question this used to answer and the reason a song
+     * could outlive its level. The pause dialog pauses every music source, and a paused source
+     * reports {@code AL_PAUSED} - so a caller asking "has this one-shot finished" was told yes by
+     * a track that was merely paused, forgot the source, and left it holding the song; releasing
+     * the pause then played it again with nothing left that could ever stop it (see
+     * {@code PvzceMusicController.finishOneShotIfDone} and {@code 踩坑清单} 144). Only
+     * {@code AL_STOPPED} - the buffer ran out or somebody stopped it - is an ending.
+     *
+     * <p>Used for both questions the controller asks of a source: "may I forget it" and "should
+     * a volume change reach it" (a paused source's gain has to follow the slider too, or the
+     * music comes back at the old volume).
+     */
+    public boolean musicSourceActive(int musicSourceIndex) {
         if (!enabled || musicSourceIndex < 0 || musicSourceIndex >= MUSIC_SOURCE_COUNT) {
             return false;
         }
-        return AL10.alGetSourcei(musicSources[musicSourceIndex], AL10.AL_SOURCE_STATE) == AL10.AL_PLAYING;
+        int state = AL10.alGetSourcei(musicSources[musicSourceIndex], AL10.AL_SOURCE_STATE);
+        return state == AL10.AL_PLAYING || state == AL10.AL_PAUSED;
     }
 
     /** Updates live music-source gain when the volume options change. */
@@ -457,7 +496,7 @@ public final class SoundEngine implements AutoCloseable {
             return;
         }
         for (int i = 0; i < Math.min(volumes.length, MUSIC_SOURCE_COUNT); i++) {
-            if (isMusicSourcePlaying(i)) {
+            if (musicSourceActive(i)) {
                 setMusicSourceVolume(i, volumes[i]);
             }
         }
@@ -550,7 +589,17 @@ public final class SoundEngine implements AutoCloseable {
                 LOGGER.warn("Missing sound file {}", file);
                 return 0;
             }
-            return uploadOgg(resource.get());
+            long decodeStarted = System.nanoTime();
+            int uploaded = uploadOgg(resource.get());
+            long decodeMillis = (System.nanoTime() - decodeStarted) / 1_000_000L;
+            if (Boolean.getBoolean("pvzce.traceMusic") || Boolean.getBoolean("pvzce.traceSounds")) {
+                // A music file is decoded whole, on the thread that asked to play it, so this
+                // number is how late the song starts relative to the tick its cue was written for
+                // - which is the difference between a chart that can be played and one that cannot
+                // (see 踩坑清单 147).
+                LOGGER.info("[sound] decoded {} in {} ms", file, decodeMillis);
+            }
+            return uploaded;
         } catch (Throwable t) {
             LOGGER.warn("Failed to load sound file " + file, t);
             return 0;

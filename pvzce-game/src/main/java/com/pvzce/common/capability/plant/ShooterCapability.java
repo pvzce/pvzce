@@ -149,6 +149,65 @@ public final class ShooterCapability implements PlantCapability {
             plant.setState(EntityAnimations.IDLE);
             return;
         }
+        fire(plant, level);
+    }
+
+    /**
+     * Whether this shooter attacks on a clock - which it does, and it therefore waits for an order
+     * on a level whose plants hold their fire (see {@code PlantCapability#holdsFire}).
+     */
+    @Override
+    public boolean holdsFire(PlantEntity plant) {
+        return true;
+    }
+
+    /**
+     * A burst still on its way out is owed work: the peas were fired, they have not been born yet.
+     *
+     * <p>Which is what makes a repeater a repeater on a level that holds its fire - the alternative
+     * was a two-shot plant that dealt one shot's damage (see {@code PlantCapability#hasPendingWork}).
+     */
+    @Override
+    public boolean hasPendingWork(PlantEntity plant) {
+        return !pendingShots.isEmpty();
+    }
+
+    /** The tail of a volley whose ticks have come; no cooldown, no target, no new decision. */
+    @Override
+    public void tickPending(PlantEntity plant, LevelAccess level) {
+        firePendingShots(plant, level);
+    }
+
+    /**
+     * Fires one volley now, at nothing in particular.
+     *
+     * <p>A play-ordered shot does not look for a target first: the player pressed the key for this
+     * column, and a peashooter that answered a beat with nothing at all because the lane happened
+     * to be empty would read as a broken key. The row is still the plant's own, so the shot goes
+     * where the plant aims; if nothing is there it flies off the lawn and expires.
+     */
+    @Override
+    public boolean strike(PlantEntity plant, LevelAccess level) {
+        if (removed(plant)) {
+            return false;
+        }
+        fire(plant, level);
+        return true;
+    }
+
+    /** True for a plant that has already left the field; a strike on one does nothing. */
+    private static boolean removed(PlantEntity plant) {
+        return plant == null || plant.isRemoved();
+    }
+
+    /**
+     * One volley: every shot entry, with the burst entries left on their own clocks.
+     *
+     * <p>Shared by the clock and by {@link #strike} so that "what this plant does" has one answer.
+     * The cooldown is set here too: a play-ordered volley that did not reset it would let a plant
+     * fire on its own the moment the level stopped holding fire, as if the note had never happened.
+     */
+    private void fire(PlantEntity plant, LevelAccess level) {
         plant.setState(EntityAnimations.SHOOT);
         for (ProjectileRef shot : shots) {
             // The muzzle sits on the firing side, so a backward shot leaves the plant

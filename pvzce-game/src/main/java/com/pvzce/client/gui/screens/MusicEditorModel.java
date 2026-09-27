@@ -41,6 +41,8 @@ public final class MusicEditorModel {
                 }
                 JsonObject cueJson = element.getAsJsonObject();
                 CueModel cue = new CueModel();
+                cue.trigger = cueJson.has("trigger") ? cueJson.get("trigger").getAsString()
+                        : "level_start";
                 cue.atTick = cueJson.has("at_tick") ? cueJson.get("at_tick").getAsInt() : 0;
                 cue.track = cueJson.has("track") ? cueJson.get("track").getAsString() : "background";
                 if (cueJson.has("event") && !cueJson.get("event").isJsonNull()) {
@@ -60,6 +62,10 @@ public final class MusicEditorModel {
             JsonArray cuesJson = new JsonArray();
             for (CueModel cue : cues) {
                 JsonObject cueJson = new JsonObject();
+                // Written for every cue, not only for the non-default ones: a music page that
+                // dropped a field it does not show would rewrite a rhythm level's song onto the
+                // level's first tick the moment an author opened the page and pressed save.
+                cueJson.addProperty("trigger", cue.trigger);
                 cueJson.addProperty("at_tick", Math.max(0, cue.atTick));
                 cueJson.addProperty("track", cue.track);
                 if (cue.event != null && !cue.event.isEmpty()) {
@@ -79,6 +85,7 @@ public final class MusicEditorModel {
             cues.clear();
             for (CueModel otherCue : other.cues) {
                 CueModel copy = new CueModel();
+                copy.trigger = otherCue.trigger;
                 copy.atTick = otherCue.atTick;
                 copy.track = otherCue.track;
                 copy.event = otherCue.event;
@@ -92,6 +99,15 @@ public final class MusicEditorModel {
     }
 
     public static final class CueModel {
+        /**
+         * What {@code atTick} counts from, as level data spells it: {@code level_start} or
+         * {@code waves_start}.
+         *
+         * <p>A string rather than the enum, because this model is a JSON half and the enum lives in
+         * {@code api.content.LevelDef}: the page round-trips the file's own word, so a value a
+         * later version adds survives a save by an older editor.
+         */
+        public String trigger = "level_start";
         public int atTick;
         public String track = "background";
         public String event = "";

@@ -8,6 +8,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,6 +42,24 @@ class KeyBindingsTest {
         assertEquals(GLFW.GLFW_KEY_4, keys.code(KeyBindings.Action.TOOL_WATERING_CAN));
         assertEquals(GLFW.GLFW_KEY_UNKNOWN, keys.code(KeyBindings.Action.TOOL_VASE),
                 "four digits were asked for and there are five tools; the fifth is deliberately free");
+        // The rhythm lanes: the six playable columns under the hands, left to right.
+        assertEquals(GLFW.GLFW_KEY_S, keys.code(KeyBindings.Action.RHYTHM_COL_0));
+        assertEquals(GLFW.GLFW_KEY_D, keys.code(KeyBindings.Action.RHYTHM_COL_1));
+        assertEquals(GLFW.GLFW_KEY_F, keys.code(KeyBindings.Action.RHYTHM_COL_2));
+        assertEquals(GLFW.GLFW_KEY_J, keys.code(KeyBindings.Action.RHYTHM_COL_3));
+        assertEquals(GLFW.GLFW_KEY_K, keys.code(KeyBindings.Action.RHYTHM_COL_4));
+        assertEquals(GLFW.GLFW_KEY_L, keys.code(KeyBindings.Action.RHYTHM_COL_5));
+        // And everything nothing plays ships unbound: the row lanes (once D F G H J) and the
+        // seventh to ninth columns (once U I O P). One key is one action, and the shipped charts
+        // are six columns, so a hand-written chart that wants more visits the settings page.
+        for (KeyBindings.Action idle : new KeyBindings.Action[] {KeyBindings.Action.RHYTHM_ROW_0,
+                KeyBindings.Action.RHYTHM_ROW_1, KeyBindings.Action.RHYTHM_ROW_2,
+                KeyBindings.Action.RHYTHM_ROW_3, KeyBindings.Action.RHYTHM_ROW_4,
+                KeyBindings.Action.RHYTHM_COL_6, KeyBindings.Action.RHYTHM_COL_7,
+                KeyBindings.Action.RHYTHM_COL_8}) {
+            assertEquals(GLFW.GLFW_KEY_UNKNOWN, keys.code(idle),
+                    idle.key() + " plays a lane no shipped chart has");
+        }
         assertFalse(keys.isModified());
     }
 
@@ -98,6 +117,62 @@ class KeyBindingsTest {
         assertEquals(GLFW.GLFW_KEY_F1, keys.code(KeyBindings.Action.CHAT));
         assertEquals(GLFW.GLFW_KEY_F10, keys.code(KeyBindings.Action.HEALTH_BARS),
                 "an action the file does not mention keeps the key it ships with");
+    }
+
+    /**
+     * A file written by the build whose lanes were {@code Q W E R Y} loads as the keys the game
+     * ships now.
+     *
+     * <p>The report this answers was "I opened the game and it still shows Q W E R Y": the file was
+     * not wrong, it was old - it named every action, and every action was at its old default. An
+     * old default is not a choice, so the lanes move with the table; anything the player actually
+     * picked is kept, including a lane rebound onto a key this build never shipped.
+     */
+    @Test
+    void aFileWrittenWithTheOldLaneDefaultsLoadsTheShippedLanes() {
+        Map<String, Integer> oldFile = new LinkedHashMap<>();
+        oldFile.put("rhythm_col_0", GLFW.GLFW_KEY_Q);
+        oldFile.put("rhythm_col_1", GLFW.GLFW_KEY_W);
+        oldFile.put("rhythm_col_2", GLFW.GLFW_KEY_E);
+        oldFile.put("rhythm_col_3", GLFW.GLFW_KEY_R);
+        oldFile.put("rhythm_col_4", GLFW.GLFW_KEY_Y);
+        oldFile.put("rhythm_col_5", GLFW.GLFW_KEY_U);
+        oldFile.put("rhythm_row_0", GLFW.GLFW_KEY_D);
+        oldFile.put("rhythm_row_4", GLFW.GLFW_KEY_J);
+        oldFile.put("chat", GLFW.GLFW_KEY_F1);
+
+        KeyBindings keys = KeyBindings.from(oldFile);
+        assertEquals(GLFW.GLFW_KEY_S, keys.code(KeyBindings.Action.RHYTHM_COL_0));
+        assertEquals(GLFW.GLFW_KEY_L, keys.code(KeyBindings.Action.RHYTHM_COL_5),
+                "including the sixth, which that build called U");
+        assertEquals(GLFW.GLFW_KEY_UNKNOWN, keys.code(KeyBindings.Action.RHYTHM_ROW_0),
+                "and the row lanes come back unbound, because the columns took their letters");
+        assertEquals(GLFW.GLFW_KEY_UNKNOWN, keys.code(KeyBindings.Action.RHYTHM_ROW_4));
+        assertEquals(GLFW.GLFW_KEY_F1, keys.code(KeyBindings.Action.CHAT),
+                "while a binding the player did choose is kept");
+
+        // A lane the player moved somewhere of their own is not an old default either.
+        assertEquals(GLFW.GLFW_KEY_Z,
+                KeyBindings.from(Map.of("rhythm_col_0", GLFW.GLFW_KEY_Z))
+                        .code(KeyBindings.Action.RHYTHM_COL_0));
+    }
+
+    /** And the file stops freezing the shipped table in the first place. */
+    @Test
+    void theConfigWritesOnlyTheBindingsThePlayerChose(@TempDir Path gameDir) throws Exception {
+        PvzceClientConfig config = PvzceClientConfig.load(gameDir);
+        config.save();
+        String untouched = Files.readString(gameDir.resolve("config/pvzce-client.toml"));
+        assertFalse(untouched.contains("rhythm_col_0"),
+                "an untouched action is not written down: " + untouched);
+        assertFalse(untouched.contains("chat ="), "including the ones the game ships with");
+
+        config.keyBindings().bind(KeyBindings.Action.RHYTHM_COL_3, GLFW.GLFW_KEY_7);
+        config.save();
+        String chosen = Files.readString(gameDir.resolve("config/pvzce-client.toml"));
+        assertTrue(chosen.contains("rhythm_col_3 = 55"), "a choice is: " + chosen);
+        assertEquals(GLFW.GLFW_KEY_7,
+                PvzceClientConfig.load(gameDir).keyBindings().code(KeyBindings.Action.RHYTHM_COL_3));
     }
 
     @Test

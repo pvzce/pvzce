@@ -132,6 +132,15 @@ public final class PvzceSounds {
     /** The background track of an ordinary day level; a level's music timeline defaults to it. */
     public static final Identifier MUSIC_GRASSWALK = id("music/grasswalk");
     /**
+     * The rhythm levels' track: the one song this project has a beat analysis for.
+     *
+     * <p>Named here rather than only in the level files because two other things point at it - the
+     * chart generator picks its onset profile by this id, and the tier files are written with it -
+     * and a track that three places spell by hand is a track that can be renamed in two of them.
+     */
+    public static final Identifier MUSIC_ANCIENT_EGYPT_ULTIMATE_BATTLE =
+            id("music/ancient_egypt_ultimate_battle");
+    /**
      * The two end-of-level stingers, played by the music controller as the run ends.
      *
      * <p>They are music rather than {@code sfx/ui/*}: the original ships one file per jingle and

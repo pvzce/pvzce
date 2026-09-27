@@ -86,6 +86,21 @@ public final class PvzceMusicController {
         playMenu(event);
     }
 
+    /**
+     * Gets an event ready to play, without playing it: decode now, silence until cued.
+     *
+     * <p>The level's music is decoded while the level loads rather than when its cue arrives - a
+     * three-minute track costs about a tenth of a second of stb_vorbis, which is nine ticks of a
+     * rhythm chart's clock (see {@code 踩坑清单} 147).
+     */
+    public void preload(String event) {
+        if (event == null || event.isEmpty()) {
+            return;
+        }
+        sound.preload(event);
+        tracePreload(event);
+    }
+
     /** Enters a level: menu track stops, background starts on grasswalk. */
     public void startLevel(String defaultMusic) {
         stopCue(TRACK_MENU, 0.3F);
@@ -94,9 +109,31 @@ public final class PvzceMusicController {
     }
 
     public void leaveLevel() {
-        stopCue(TRACK_BACKGROUND, 0.5F);
-        stopCue(TRACK_BATTLE, 0.5F);
-        stopCue(TRACK_STINGER, 0.5F);
+        silenceForTheRoad(TRACK_BACKGROUND, 0.5F);
+        silenceForTheRoad(TRACK_BATTLE, 0.5F);
+        silenceForTheRoad(TRACK_STINGER, 0.5F);
+    }
+
+    /**
+     * Stops one track on the way out of a level, and does not take the track state's word for it.
+     *
+     * <p>{@link #stopCue} fades out whatever the track <em>knows</em> it is playing, which is the
+     * right thing for a hand-over between two cues and not enough for this one: a track can believe
+     * it is silent while one of its sources still holds a cue - that is exactly what a paused
+     * one-shot used to do (see {@link SoundEngine#musicSourceActive}). Leaving a level is the one
+     * moment the player must hear nothing, so when the state had nothing to fade, both of the
+     * track's sources are stopped outright. A track that did have something keeps its fade: the
+     * belt is for the case where the braces are wrong, not a replacement for them.
+     */
+    private void silenceForTheRoad(String trackName, float fadeSeconds) {
+        TrackState state = tracks[trackIndex(trackName)];
+        boolean owned = state.currentSource >= 0 || state.incomingSource >= 0;
+        stopCue(trackName, fadeSeconds);
+        if (!owned) {
+            int first = trackIndex(trackName) * SOURCES_PER_TRACK;
+            sound.stopMusicSource(first);
+            sound.stopMusicSource(first + 1);
+        }
     }
 
     /**
@@ -162,6 +199,13 @@ public final class PvzceMusicController {
                 currentEvent(TRACK_BATTLE), currentEvent(TRACK_STINGER));
     }
 
+    /** One line for a preload, which changes no track's state and would otherwise be invisible. */
+    private void tracePreload(String event) {
+        if (Boolean.getBoolean("pvzce.traceMusic")) {
+            LOGGER.info("music trace: (preload) {}", event);
+        }
+    }
+
     /** Stops a track; an in-progress fade completes before the new cue starts. */
     public void stopCue(String trackName, float fadeSeconds) {
         TrackState state = tracks[trackIndex(trackName)];
@@ -172,14 +216,17 @@ public final class PvzceMusicController {
         }
         if (state.currentSource < 0) {
             state.reset();
+            trace(trackName, "(already silent)");
             return;
         }
         if (safeFade <= 0F) {
             sound.stopMusicSource(state.currentSource);
             state.reset();
+            trace(trackName, "(stop)");
             return;
         }
         state.beginFade(-1, null, false, 0F, safeFade, now());
+        trace(trackName, "(stopping over " + safeFade + "s)");
     }
 
     public void playWinLose(boolean win) {
@@ -314,6 +361,9 @@ public final class PvzceMusicController {
             if (progress >= 1F) {
                 if (currentSource >= 0) {
                     sound.stopMusicSource(currentSource);
+                    if (incomingSource < 0) {
+                        traceStop();
+                    }
                 }
                 if (incomingSource >= 0) {
                     sound.setMusicSourceVolume(incomingSource, incomingVolume);
@@ -335,8 +385,15 @@ public final class PvzceMusicController {
             }
         }
 
+        /** One line when a fade lands, so a track that never goes quiet can be seen doing it. */
+        private void traceStop() {
+            if (Boolean.getBoolean("pvzce.traceMusic")) {
+                LOGGER.info("music trace: a fade-out finished and its source was stopped");
+            }
+        }
+
         private void finishOneShotIfDone(SoundEngine sound) {
-            if (currentSource >= 0 && !currentLoop && !sound.isMusicSourcePlaying(currentSource)) {
+            if (currentSource >= 0 && !currentLoop && !sound.musicSourceActive(currentSource)) {
                 currentSource = -1;
                 currentEvent = null;
                 currentVolume = 1F;

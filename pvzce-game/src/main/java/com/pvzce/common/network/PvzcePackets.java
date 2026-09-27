@@ -134,7 +134,11 @@ public final class PvzcePackets {
     // 42: the player can be on the zombie side, which places zombies rather than plants
     // (PlaceZombieC2S).
     // 43: the rhythm levels' keyboard (RhythmHitC2S: which lane, which note, how well).
-    public static final int PROTOCOL_VERSION = 43;
+    // 44: how far one card reaches travels with the level (LevelPayload.plantsWholeColumn), so the
+    // placement preview can draw the column it is about to fill.
+    // 45: a music cue can ask the client to preload instead of play (MusicEventS2C.preload), which
+    // is how the level's song is decoded while it loads rather than nine ticks after it was due.
+    public static final int PROTOCOL_VERSION = 45;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

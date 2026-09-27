@@ -340,6 +340,36 @@ public class ZombieEntity extends PvzceEntity {
 
     private boolean selfDestructed;
 
+    /**
+     * Ends this body because the level did, not because anything hit it.
+     *
+     * <p>This is the ending a rhythm level's song has: the chart runs out, the lawn is swept, and
+     * every body still standing dies the ordinary death - corpse, clip, head, the wave director
+     * hearing about it. The one thing it does not do is <em>pay</em>, for the same reason
+     * {@link #selfDestruct} does not: the player did not kill these. It is not the same event
+     * though, and the difference is visible - a jack-in-the-box is gone when it goes off and
+     * leaves no head behind, while a swept zombie was standing there normally and does.
+     */
+    public void sweptAway(LevelAccess level) {
+        if (!isAlive()) {
+            return;
+        }
+        swept = true;
+        damageBody(health(), level, false);
+    }
+
+    private boolean swept;
+
+    /**
+     * True when nothing the player did killed this body, so a kill's payout is not owed.
+     *
+     * <p>Two ways to earn that: blowing yourself up, and being swept away when the level ended.
+     * Read by the level's payout path and by nothing else.
+     */
+    public boolean unearned() {
+        return selfDestructed || swept;
+    }
+
     /** True when this zombie is still wearing anything. */
     public boolean hasArmor() {
         com.pvzce.common.capability.zombie.ArmorCapability armor =

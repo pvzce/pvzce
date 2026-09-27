@@ -311,7 +311,25 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private ServerBridge outbound;
 
     private int tickCount;
-    private int nextMusicCueIndex;
+    /**
+     * Which of the level's music cues have already fired, as a bit per cue in the list's own
+     * order.
+     *
+     * <p>A mask rather than a cursor because cues have two clocks (see
+     * {@code MusicCue.Trigger}): a run has a level-start timeline and a waves-start one, and one
+     * cursor over a single sorted list would let a late level-start cue hold back a waves-start
+     * cue that is already due. "Has this one fired" is the question the dispatch actually asks,
+     * so that is what is stored.
+     */
+    private long musicCuesFired;
+    /**
+     * The level tick the waves began on, or {@code -1} while the preparation phase is still up.
+     *
+     * <p>The base a {@code WAVES_START} cue counts from, and the reason a rhythm level's song and
+     * its chart can start together: both are anchored to the tick the player pressed 开始 rather
+     * than to a time the level file had to guess.
+     */
+    private int wavesStartTick = -1;
     /**
      * The cue that is playing right now, or {@code null} when nothing is.
      *
@@ -1119,6 +1137,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return;
         }
         com.pvzce.common.level.mechanic.PreparationMechanic.end(this);
+        // The second clock the level's music may be written against, and the one a rhythm level's
+        // song is: every cue that says `waves_start` counts from here, which is the same tick the
+        // chart anchors itself on - so the two cannot drift by however long the player spent
+        // arranging the lawn.
+        wavesStartTick = tickCount;
         LOGGER.debug("Preparation phase over at tick {}, waves released", tickCount);
     }
 
@@ -2783,13 +2806,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // same reason the card pool is: the client is told what it may pick rather than
                 // working it out from its own copy of the level file.
                 seeds.buffPool(), seeds.maxBuffSlots(),
-                seeds.activeBuffs().stream().map(Identifier::toString).toList());
+                seeds.activeBuffs().stream().map(Identifier::toString).toList(),
+                // The one rule the client's placement preview draws (see `plantableRows`).
+                // Read from the file's own table rather than from a running level: this method is
+                // static, and the level list previews a level that does not exist yet. A run that
+                // turns the rule on mid-game with `/gamerule` is the server's business; the preview
+                // follows the file, which is what the level list promised.
+                def.rules().get(PvzceIds.RULE_PLANT_WHOLE_COLUMN) != null
+                        && def.rules().get(PvzceIds.RULE_PLANT_WHOLE_COLUMN).getAsBoolean());
     }
 
     private void processMusicCues(ServerBridge bridge) {
-        List<LevelDef.MusicCue> cues = def.music().cues().stream()
-                .sorted(Comparator.comparingInt(LevelDef.MusicCue::atTick))
-                .toList();
+        List<LevelDef.MusicCue> cues = musicCues();
         if (cues.isEmpty() && !levelTracksSettled) {
             levelTracksSettled = true;
             // A level whose music block is empty has no music, and saying nothing is not the same
@@ -2800,13 +2828,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // measured on 4-10, the game's one silent level, whose whole point is that the rain is
             // the soundtrack. One explicit stop at tick zero is what the empty block means.
             for (String track : LEVEL_TRACKS) {
-                bridge.send(new MusicEventS2C(track, "", false, true, 1F, 0.5F));
+                bridge.send(new MusicEventS2C(track, "", false, true, 1F, 0.5F, false));
             }
             return;
         }
         levelTracksSettled = true;
-        while (nextMusicCueIndex < cues.size() && tickCount >= cues.get(nextMusicCueIndex).atTick()) {
-            LevelDef.MusicCue cue = cues.get(nextMusicCueIndex++);
+        for (int i = 0; i < cues.size(); i++) {
+            if ((musicCuesFired & (1L << i)) != 0) {
+                continue;
+            }
+            LevelDef.MusicCue cue = cues.get(i);
+            // Two clocks, and a cue on the second one does not exist until the waves do: a level
+            // that sits in its preparation phase forever must not fire the song that belongs to
+            // the chart (see MusicCue.Trigger).
+            int base = cue.trigger() == LevelDef.MusicCue.Trigger.WAVES_START ? wavesStartTick : 0;
+            if (base < 0 || tickCount < base + cue.atTick()) {
+                continue;
+            }
+            musicCuesFired |= 1L << i;
             // A cue with no event, or one that stops the track, leaves nothing playing.
             currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
             bridge.send(new MusicEventS2C(
@@ -2815,7 +2854,60 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     cue.loop(),
                     cue.stop() || cue.event().isEmpty(),
                     Math.max(0F, Math.min(1F, cue.volume())),
-                    Math.max(0F, cue.fadeSeconds())));
+                    Math.max(0F, cue.fadeSeconds()), false));
+        }
+    }
+
+    /**
+     * The level's cues in the order the fired-mask indexes them: level-start ones first, each
+     * group by its own tick.
+     *
+     * <p>The order is what makes "the first N cues" mean the same thing to a save written before
+     * the mask existed (see {@link #restoreMusicCues}), and it keeps a {@code WAVES_START} cue
+     * from ever being jumped over by a {@code LEVEL_START} one.
+     */
+    private List<LevelDef.MusicCue> musicCues() {
+        return def.music().cues().stream()
+                .sorted(Comparator
+                        .comparing((LevelDef.MusicCue cue) -> cue.trigger()
+                                == LevelDef.MusicCue.Trigger.LEVEL_START ? 0 : 1)
+                        .thenComparingInt(LevelDef.MusicCue::atTick))
+                .toList();
+    }
+
+    /**
+     * Reads a save's music state: which cues had already fired, and when the waves began.
+     *
+     * <p>The cue that is playing is replayed rather than saved - "the last one that fired" is
+     * exactly what the mask says, and storing the cue itself would be a second copy of the level's
+     * own music block, which a data pack edit could leave disagreeing with the first.
+     *
+     * <p>{@code WavesStartTick} has to be in the save for the same reason the mask does: a run
+     * resumed three minutes after 开始 must not answer "when did the waves begin" with the tick it
+     * was reloaded on, or every {@code WAVES_START} cue would fire a second time (and a rhythm
+     * level's song would start over mid-chart).
+     */
+    private void restoreMusicCues(CompoundTag root) {
+        // No field means a save from before cues had a second clock: those cues were all
+        // level-start ones, so the waves clock was never read and zero is the honest answer.
+        wavesStartTick = root.contains("WavesStartTick") ? root.getInt("WavesStartTick") : 0;
+        // One bit per cue, so sixty-four is the ceiling; a level with more cues than that is
+        // already past what a hand-written music block is for, and the extra ones simply fire on
+        // the tick they are due instead of being remembered.
+        List<LevelDef.MusicCue> cues = musicCues();
+        if (root.contains("MusicCuesFired")) {
+            musicCuesFired = root.getLong("MusicCuesFired");
+        } else {
+            int legacy = Math.max(0, root.getInt("NextMusicCueIndex"));
+            musicCuesFired = legacy >= Long.SIZE ? -1L : (1L << legacy) - 1L;
+        }
+        currentMusicCue = null;
+        for (int i = 0; i < cues.size() && i < Long.SIZE; i++) {
+            if ((musicCuesFired & (1L << i)) == 0) {
+                continue;
+            }
+            LevelDef.MusicCue cue = cues.get(i);
+            currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
         }
     }
 
@@ -3517,8 +3609,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         lastKillY = zombie.cellY();
         // A zombie that blew itself up (the jack-in-the-box) is a death the wave above had to
         // hear about and a payout nobody earned: the player did not kill this one, so the sun
-        // and the coin roll would be a reward for standing next to a bomb.
-        if (zombie.selfDestructed()) {
+        // and the coin roll would be a reward for standing next to a bomb. The same goes for the
+        // bodies a finished chart sweeps off the lawn (see ZombieEntity.sweptAway).
+        if (zombie.unearned()) {
             return;
         }
         if (!gameState.equals(GameStateS2C.RUNNING)) {
@@ -3634,6 +3727,33 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         markEnd(teams.get(PvzceIds.PLANT_TEAM));
     }
 
+    /**
+     * Sweeps every hostile off the lawn: they die where they stand and the level is told.
+     *
+     * <p>The other ending a level can author for itself. {@code checkEnd} wants a lawn that is
+     * already empty, which is a shape only "the last wave was shot" has; a rhythm level's ending is
+     * the chart running out, and whatever is still walking at that moment has to go - the song is
+     * over, the notes are over, and a lawn that kept walking would be the level refusing to end.
+     *
+     * <p>The deaths are ordinary ones (see {@link ZombieEntity#sweptAway}), so the wave director
+     * hears about each body and a wave still releasing its queue is not left waiting for a zombie
+     * that will never die. What they do not do is pay.
+     *
+     * @return how many bodies were swept
+     */
+    public int sweepLawn() {
+        Team plantTeam = teams.get(PvzceIds.PLANT_TEAM);
+        int swept = 0;
+        for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                    && isEnemyOf(zombie.team(), plantTeam)) {
+                zombie.sweptAway(this);
+                swept++;
+            }
+        }
+        return swept;
+    }
+
     private void markEnd(Team winnerTeam) {
         if (!gameState.equals(GameStateS2C.RUNNING) || winnerTeam == null) {
             return;
@@ -3709,25 +3829,70 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (isVaseAt(x, y)) {
             return storeCardInVase(bridge, slot, plantDef, x, y);
         }
-        if (!canPlacePlant(plantDef, x, y)) {
+        // Where this one click lands. A cell, or - on a level that plants in columns - every cell
+        // of the clicked column that will take the plant. The cells that will not are skipped in
+        // silence rather than refusing the whole click: "this column, as far as it goes" is the
+        // rule, and a lawn with one wall-nut in it must still be plantable around. See
+        // `RULE_PLANT_WHOLE_COLUMN`.
+        List<Integer> rows = plantableRows(plantDef, x, y);
+        if (rows.isEmpty()) {
             bridge.send(new ServerMessageS2C("该格不能种植。"));
             return false;
         }
         // What a card costs - sun and a cooldown, or nothing at all because the level
         // handed it over - is the card source's business. This method only knows that a
         // card was asked for and that a plant has to appear if the payment went through.
+        // Charged once, whatever the shape: the price is the card's, and a column of five is
+        // what the level's rule is giving away.
         if (cardSource == null || !cardSource.spend(this, bridge, slot, plantDef)) {
             return false;
         }
-        // The base goes before the upgrade appears, so the cell never holds both: a frame with two
-        // plants in one cell is a frame the client would draw as one of them, and the upgrade is
-        // what the player paid for.
-        plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, y));
-        PlantEntity plant = spawnPlant(plantDef, plantPlayer.team(), x, y);
-        spreadKelpFrom(plantDef, x, y);
-        LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, y, plantCount());
+        for (int row : rows) {
+            // The base goes before the upgrade appears, so the cell never holds both: a frame with
+            // two plants in one cell is a frame the client would draw as one of them, and the
+            // upgrade is what the player paid for.
+            plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, row));
+            spawnPlant(plantDef, plantPlayer.team(), x, row);
+            spreadKelpFrom(plantDef, x, row);
+            LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, row, plantCount());
+        }
         cardSource.afterSpend(this, bridge, slot);
-        return !plant.isRemoved() || plant.consumesOnPlace();
+        return true;
+    }
+
+    /**
+     * Which rows of one column this placement fills, in row order; empty when it fills none.
+     *
+     * <p>One cell on an ordinary level - the clicked one, if it will take the plant. Every cell of
+     * the clicked column on a level whose {@code plant_whole_column} rule is on, each of them asked
+     * the same question the single-cell path asks ({@link #canPlacePlant}, which is where the
+     * terrain, the stacking, the level's own placement zone and its mechanics all meet).
+     *
+     * <p>Returning a list rather than planting here is what lets the caller refuse <em>before</em>
+     * the card is spent: a column with nowhere to put the plant costs nothing and says so, which is
+     * the same answer an occupied cell gives on an ordinary level.
+     */
+    private List<Integer> plantableRows(PlantDef def, int x, int y) {
+        if (!plantsWholeColumn()) {
+            return canPlacePlant(def, x, y) ? List.of(y) : List.of();
+        }
+        List<Integer> rows = new ArrayList<>();
+        for (int row = 0; row < height(); row++) {
+            if (canPlacePlant(def, x, row)) {
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * True when this level's cards plant their whole column for the price of one.
+     *
+     * <p>The "排山倒海" planting rule (see {@code PvzceIds.RULE_PLANT_WHOLE_COLUMN}); the client is
+     * told the same fact so its preview can draw the column it is about to fill.
+     */
+    public boolean plantsWholeColumn() {
+        return rules.getBoolean(PvzceIds.RULE_PLANT_WHOLE_COLUMN);
     }
 
     /**
@@ -3880,6 +4045,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public boolean forbidsSpeedChange() {
         return com.pvzce.common.level.mechanic.LevelMechanics.has(def, PvzceIds.MECHANIC_RHYTHM);
+    }
+
+    /**
+     * True when this level's plants wait to be told to attack instead of firing on their own clock.
+     *
+     * <p>The rhythm levels do: their whole loop is "the note you play is the attack", so a
+     * peashooter that shot by itself would be playing the level for the player. The answer is the
+     * chart's own field rather than a rule, because it is a fact about how that mode is played
+     * rather than a knob on a level, and it defaults on for exactly that reason.
+     *
+     * <p>Read by {@code PlantEntity} on every tick of every plant, and by nothing else: which
+     * capabilities that skips is {@code PlantCapability#holdsFire}'s answer, not this one's.
+     */
+    public boolean plantsHoldFire() {
+        return com.pvzce.common.level.mechanic.LevelMechanics
+                .dataOf(def, PvzceIds.MECHANIC_RHYTHM, com.pvzce.api.content.RhythmChartData.class)
+                .map(com.pvzce.api.content.RhythmChartData::plantsHoldFire)
+                .orElse(false);
     }
 
     /**
@@ -5212,6 +5395,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (slot == null) {
             return 0;
         }
+        // The preparation phase has no cooldowns. It is the one part of a level where the player
+        // spends a fixed purse and nothing else is happening yet: the original's Last Stand is
+        // built on that (its whole opening is "arrange a defence with the sun you were given"),
+        // and a seed packet that makes the player stand there waiting is a wait with nothing
+        // behind it - the level has not started. Answered here rather than at each till because
+        // this is the one place a card's recharge is worked out, so every card source - the bar,
+        // a belt, a tool - gets the same answer.
+        if (isPreparing()) {
+            return 0;
+        }
         // Two multipliers, multiplied: the level's own and the mutations'. Kept apart so that
         // undoing a mutation only has to divide out its own half (see the rule's own doc).
         float factor = rules.getFloat(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER)
@@ -5250,7 +5443,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     currentMusicCue.event().map(Identifier::toString).orElse(""),
                     currentMusicCue.loop(), false,
                     Math.max(0F, Math.min(1F, currentMusicCue.volume())),
-                    Math.max(0F, currentMusicCue.fadeSeconds())));
+                    Math.max(0F, currentMusicCue.fadeSeconds()), false));
         }
         bridge.send(waveProgressPacket());
         bridge.send(roundSyncPacket());
@@ -5317,7 +5510,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         root.putInt("Tick", tickCount);
         root.putLong("DayTicks", clock.dayTicks());
-        root.putInt("NextMusicCueIndex", nextMusicCueIndex);
+        root.putLong("MusicCuesFired", musicCuesFired);
+        root.putInt("WavesStartTick", wavesStartTick);
         waves.save(root);
         // The sky's own countdown, not the team's sun total (which is written with the teams
         // below): a resumed run has to keep the gap it was in, or continuing a save hands the
@@ -5492,18 +5686,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         zombieKills = Math.max(0, root.getInt("ZombieKills"));
         clock.setDayTicks(root.getLong("DayTicks"));
         waves.restore(root);
-        nextMusicCueIndex = Math.max(0, root.getInt("NextMusicCueIndex"));
-        // Replayed rather than saved: the cue that is playing is "the last one that fired", which
-        // the index already says. Storing the cue itself would be a second copy of the level's
-        // own music block, and the two could disagree after a data pack edit.
-        currentMusicCue = null;
-        List<LevelDef.MusicCue> cues = def.music().cues().stream()
-                .sorted(Comparator.comparingInt(LevelDef.MusicCue::atTick))
-                .toList();
-        for (int i = 0; i < Math.min(nextMusicCueIndex, cues.size()); i++) {
-            LevelDef.MusicCue cue = cues.get(i);
-            currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
-        }
+        restoreMusicCues(root);
         restoreScene(root.getList("Scene"));
         restoreVaseContents(root.getList("VaseContents"));
         restoreTeams(root.getCompound("Teams"));
