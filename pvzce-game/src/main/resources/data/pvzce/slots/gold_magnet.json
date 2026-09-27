@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:gold_magnet",
+  "kind": "plant",
+  "content": "pvzce:gold_magnet",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/gold_magnet"
+}

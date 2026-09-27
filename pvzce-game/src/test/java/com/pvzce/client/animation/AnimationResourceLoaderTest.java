@@ -543,6 +543,13 @@ class AnimationResourceLoaderTest {
                 if (shootTracks == null || shootTracks.scale().isEmpty()) {
                     continue;
                 }
+                // Only a bone the player can *see* at that instant. The gold magnet's sparkles sit
+                // at scale 1 for the first third of `idle` and at 0.48 for all of `shoot`, and they
+                // are hidden at the first frame of both - so the seam this test exists for is not
+                // there, and flagging it would be asking content to carry a scale it never draws.
+                if (!idleTracks.visible().sample(0, true) || !shootTracks.visible().sample(0, true)) {
+                    continue;
+                }
                 float[] idleAtStart = idleTracks.scale().sample(0, null);
                 float[] shootAtStart = shootTracks.scale().sample(0, null);
                 if (idleAtStart == null || shootAtStart == null) {

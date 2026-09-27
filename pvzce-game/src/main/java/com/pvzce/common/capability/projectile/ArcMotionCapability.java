@@ -23,6 +23,16 @@ public final class ArcMotionCapability implements ProjectileCapability {
 
     private float vy;
     private boolean launched;
+    /**
+     * Which way the shot travels: from the muzzle towards what it was aimed at.
+     *
+     * <p>+1 until a launch says otherwise, so a shot that never solves an arc (a straight-flying
+     * projectile) keeps going the way it always did. It is solved at launch rather than assumed
+     * because the cob cannon can be aimed at any cell on the lawn - including one <em>behind</em>
+     * it - and a lobber whose target has walked past it has the same problem. Assuming "rightwards"
+     * made both of those shots pop straight up and come down on the plant that fired them.
+     */
+    private float direction = 1F;
 
     public ArcMotionCapability(float speedCellsPerSecond, float gravityCellsPerSecondSquared) {
         this.speedCellsPerSecond = speedCellsPerSecond;
@@ -63,10 +73,19 @@ public final class ArcMotionCapability implements ProjectileCapability {
      * right after the projectile is created.
      */
     public void launch(float startX, float startHeight, float targetX, float targetHeight) {
-        float distance = Math.max(0.5F, targetX - startX);
+        float delta = targetX - startX;
+        this.direction = delta < 0F ? -1F : 1F;
+        // The absolute distance: a shot aimed behind the plant is the same flight, mirrored, and
+        // a signed one would give it a negative time of flight (and so a downward launch).
+        float distance = Math.max(0.5F, Math.abs(delta));
         float time = distance / Math.max(0.0001F, speedPerTick());
         this.vy = (targetHeight - startHeight) / time + 0.5F * gravityPerTick() * time;
         this.launched = true;
+    }
+
+    /** Which way the shot travels: -1 or +1. See {@link #direction}. */
+    public float direction() {
+        return direction;
     }
 
     public boolean launched() {
@@ -75,7 +94,7 @@ public final class ArcMotionCapability implements ProjectileCapability {
 
     @Override
     public boolean move(ProjectileEntity projectile, LevelAccess level) {
-        projectile.setCellX(projectile.cellX() + speedPerTick());
+        projectile.setCellX(projectile.cellX() + direction * speedPerTick());
         vy -= gravityPerTick();
         projectile.setHeight(Math.max(0F, projectile.height() + vy));
         return true;
@@ -85,11 +104,16 @@ public final class ArcMotionCapability implements ProjectileCapability {
     public void save(CompoundTag tag) {
         tag.putFloat("vy", vy);
         tag.putInt("launched", launched ? 1 : 0);
+        tag.putFloat("direction", direction);
     }
 
     @Override
     public void load(CompoundTag tag) {
         vy = tag.getFloat("vy");
         launched = tag.getInt("launched") != 0;
+        // A save written before the direction existed was written by a build where every arc went
+        // right, so +1 is not a guess about the old value - it *is* the old value.
+        float saved = tag.getFloat("direction");
+        direction = saved < 0F ? -1F : 1F;
     }
 }

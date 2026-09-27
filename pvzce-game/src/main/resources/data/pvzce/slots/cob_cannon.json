@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:cob_cannon",
+  "kind": "plant",
+  "content": "pvzce:cob_cannon",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/cob_cannon"
+}

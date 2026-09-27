@@ -128,7 +128,10 @@ public final class PvzcePackets {
     // 38: a key binding is a setting the player owns (the profile does not carry them: they are a
     // client preference and travel in pvzce-client.toml), and the chat line is its own packet -
     // ChatC2S - rather than an empty console command.
-    public static final int PROTOCOL_VERSION = 40;
+    // 39: the chat line got its own packet (ChatC2S).
+    // 40: the preparation phase's start button (StartWavesC2S).
+    // 41: a plant can be aimed by hand (FireAtC2S: which cannon, and which cell).
+    public static final int PROTOCOL_VERSION = 41;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -158,6 +161,8 @@ public final class PvzcePackets {
     public static final int C2S_SET_DIFFICULTY = 28;
     public static final int C2S_CHAT = 29;
     public static final int C2S_START_WAVES = 30;
+    /** A click that aims a loaded plant at a cell: the cob cannon's shot. */
+    public static final int C2S_FIRE_AT = 31;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -254,6 +259,9 @@ public final class PvzcePackets {
             def(C2S_START_WAVES, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.StartWavesC2S.class,
                     com.pvzce.common.network.packet.StartWavesC2S::decode),
+            def(C2S_FIRE_AT, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.FireAtC2S.class,
+                    com.pvzce.common.network.packet.FireAtC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

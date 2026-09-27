@@ -55,6 +55,14 @@ public class ProjectileEntity extends PvzceEntity {
     private final int targetId;
     private final float targetX;
     /**
+     * True when the shot was aimed at a cell rather than at a zombie.
+     *
+     * <p>The two are the same flight with different endings, and this is the flag that says which:
+     * without it the impact test below would read "names no zombie" as "has nowhere to be" and an
+     * aimed cob would fly off the end of the board instead of going off.
+     */
+    private final boolean aimedAtPoint;
+    /**
      * Where the shot was fired from and how far it may travel, in cells
      * ({@link ProjectileRef#UNLIMITED_RANGE} = the whole board).
      *
@@ -85,28 +93,61 @@ public class ProjectileEntity extends PvzceEntity {
 
     public ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
                             float cellX, float cellY, float startHeight) {
-        this(def, ref, ownerTeam, cellX, cellY, startHeight, null);
+        this(def, ref, ownerTeam, cellX, cellY, startHeight, (ZombieEntity) null);
     }
 
     /** Arc constructor: when {@code target} is given the motion capability solves the launch. */
     public ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
                             float cellX, float cellY, float startHeight, ZombieEntity target) {
+        this(def, ref, ownerTeam, cellX, cellY, startHeight, target,
+                target != null ? target.cellX() : -1F,
+                target != null ? target.height() : 0F, false);
+    }
+
+    /**
+     * Where a hand-aimed shot is to land.
+     *
+     * <p>A cell rather than a zombie, because the cob cannon's whole mechanic is "the player chose
+     * this square": the zombies standing there when the cob arrives are the blast's problem, not
+     * the shot's. {@code height} is the ground line of the target cell, so a shot into the pool or
+     * onto the roof lands on the surface rather than at y=0.
+     */
+    public record Aim(float x, float height) {
+    }
+
+    /**
+     * Aimed constructor: a shot at a cell the player picked, with no zombie behind it.
+     *
+     * <p>It still counts as having somewhere to be - that is what {@code aimedAtPoint} records, and
+     * without it the impact test below would never fire, because "has a target" is otherwise spelled
+     * "names a zombie". The arc solves its launch from the same numbers a homing shot uses, so the
+     * flight looks identical; only what it lands on differs.
+     */
+    public ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
+                            float cellX, float cellY, float startHeight, Aim aim) {
+        this(def, ref, ownerTeam, cellX, cellY, startHeight, null, aim.x(), aim.height(), true);
+    }
+
+    private ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
+                             float cellX, float cellY, float startHeight, ZombieEntity target,
+                             float targetX, float targetHeight, boolean aimedAtPoint) {
         super(def.id(), ownerTeam, cellX, cellY, 1);
         this.def = def;
         this.damage = ref != null ? ref.damage() : 0;
         this.direction = ref != null ? ref.direction() : 1F;
         this.targetId = target != null ? target.id() : -1;
-        this.targetX = target != null ? target.cellX() : -1F;
+        this.targetX = targetX;
+        this.aimedAtPoint = aimedAtPoint;
         this.originX = cellX;
         this.maxRange = ref != null ? ref.range() : ProjectileRef.UNLIMITED_RANGE;
         setHeight(startHeight);
         for (TypedCapability<ProjectileCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
         }
-        if (target != null) {
+        if (target != null || aimedAtPoint) {
             ArcMotionCapability arc = capability(ArcMotionCapability.class);
             if (arc != null) {
-                arc.launch(cellX, startHeight, target.cellX(), target.height());
+                arc.launch(cellX, startHeight, targetX, targetHeight);
             }
         }
     }
@@ -230,7 +271,8 @@ public class ProjectileEntity extends PvzceEntity {
                 remove();
                 return;
             }
-            if (targetId >= 0 && Math.abs(cellX() - targetX) < HIT_RADIUS_X && hasLanded()) {
+            if ((targetId >= 0 || aimedAtPoint)
+                    && Math.abs(cellX() - targetX) < HIT_RADIUS_X && hasLanded()) {
                 applyImpact(null, level);
             }
             return;

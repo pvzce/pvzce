@@ -1425,6 +1425,105 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * Every resource drop within a radius of a point, nearest first.
+     *
+     * <p>For the gold magnet, which needs to see the lawn the way the player does. A plant
+     * capability has no way to enumerate drops - {@code LevelAccess} has no such accessor, and
+     * adding one would put "what a drop is" into the API surface every mod compiles against - so
+     * the collector asks the level, which owns the entity list.
+     */
+    public List<com.pvzce.server.entity.ResourceDropEntity> resourceDropsInReach(
+            float centerX, float centerY, float radius) {
+        List<com.pvzce.server.entity.ResourceDropEntity> found = new ArrayList<>();
+        List<Float> distances = new ArrayList<>();
+        for (PvzceEntity entity : entities) {
+            if (!(entity instanceof com.pvzce.server.entity.ResourceDropEntity drop)
+                    || drop.isRemoved() || drop.collected()) {
+                continue;
+            }
+            float dx = drop.cellX() - centerX;
+            float dy = drop.cellY() - centerY;
+            float distance = dx * dx + dy * dy;
+            if (distance > radius * radius) {
+                continue;
+            }
+            // Sorted on the way out rather than left in entity order: the caller collects the first
+            // one it is allowed to, and "the nearest coin" is the one the player saw the magnet
+            // reach for.
+            int at = 0;
+            while (at < distances.size() && distances.get(at) <= distance) {
+                at++;
+            }
+            distances.add(at, distance);
+            found.add(at, drop);
+        }
+        return found;
+    }
+
+    /**
+     * Collects one drop on a plant's behalf, through every rule the player's own click goes through.
+     *
+     * <p>{@code silent} and {@code auto} are the pair the auto-pickup buff already uses: the receipt
+     * is not printed (the magnet does this dozens of times a level) and a refusal is not answered
+     * (nobody asked). Everything else is the same code, which is the point - a gold magnet that
+     * collected a resource the level had not unlocked would be a second, weaker set of rules.
+     *
+     * @return {@code true} when the drop was actually credited
+     */
+    public boolean autoCollectDrop(com.pvzce.server.entity.ResourceDropEntity drop) {
+        if (drop == null || drop.isRemoved() || drop.collected()) {
+            return false;
+        }
+        // Through the outbound bridge, because a plant's tick has no player action to ride on:
+        // `collectResourceInternal` answers the collect animation with three packets, and without
+        // a bridge the coin would vanish from the server's books while still lying on the lawn.
+        ServerBridge target = bridge != null ? bridge : outbound;
+        if (target == null) {
+            return false;
+        }
+        return collectResourceInternal(target, drop.id(), true, true);
+    }
+
+    /**
+     * Launches a shot at a cell rather than at a zombie: the cob cannon's shot.
+     *
+     * <p>The only shot in the game that is aimed at the ground. Everything else in this class
+     * resolves its target by looking for a zombie, because everything else fires by itself; a
+     * hand-aimed shot has no zombie to name, and the blast that follows is the projectile's own
+     * (see {@code pvzce:splash} with {@code square: true}).
+     *
+     * <p>The landing height comes from the scene at the target cell, so a cob aimed into the pool
+     * lands on the water and one aimed at a crater lands in the crater - the same lookup a lobbed
+     * shot does for the zombie it is homing on.
+     */
+    public void launchAimedProjectile(com.pvzce.api.util.Identifier projectileId, int damage,
+                                      PlantEntity source, int gridX, int gridY) {
+        if (source == null || !inBounds(gridX, gridY)) {
+            return;
+        }
+        com.pvzce.api.content.ProjectileDef projectileDef =
+                BuiltInRegistries.PROJECTILES.get(projectileId);
+        if (projectileDef == null) {
+            LOGGER.warn("A plant fired '{}', which is not a registered projectile", projectileId);
+            return;
+        }
+        com.pvzce.api.content.ProjectileRef ref = new com.pvzce.api.content.ProjectileRef(
+                projectileId, damage, 1, 0, false, 0,
+                com.pvzce.api.content.ProjectileRef.UNLIMITED_RANGE, 0, 0, false);
+        com.pvzce.api.content.ProjectileRef shot = scaledShot(ref, source);
+        float targetX = gridX + 0.5F;
+        SceneElementDef base = sceneAt(gridX, gridY);
+        float targetHeight = base == null ? 0F : base.heightAt(targetX, width());
+        addEntity(new ProjectileEntity(projectileDef, shot, source.team(),
+                source.cellX() + com.pvzce.common.capability.plant.PlantShots.MUZZLE_OFFSET_X, source.cellY(),
+                source.height(),
+                new ProjectileEntity.Aim(targetX, targetHeight)));
+        if (mutations != null) {
+            mutations.onProjectileFired(shot.projectile());
+        }
+    }
+
+    /**
      * The shot a plant actually fires, after the level's buffs have had their say.
      *
      * <p>Applied here, at the one place a projectile is born, rather than inside the plant's
@@ -3708,6 +3807,53 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Fires a hand-aimed plant at a cell: what the cob cannon's second click sends.
+     *
+     * <p>The id is looked up as a plant on the sender's own team, so a client cannot aim the other
+     * side's cannon. Everything else - loaded or not, cell on the board or not - belongs to the
+     * capability, which is the thing that owns the clock; this method's job is the ownership check
+     * and the two messages that say why nothing happened.
+     */
+    public boolean fireAt(ServerBridge bridge, int entityId, int gridX, int gridY) {
+        return withBridge(bridge, () -> {
+            if (!gameState.equals(GameStateS2C.RUNNING)) {
+                return false;
+            }
+            if (!humanTeamId.equals(PvzceIds.PLANT_TEAM)) {
+                bridge.send(new ServerMessageS2C("当前控制的是僵尸方，僵尸方由 AI 指挥。"));
+                return false;
+            }
+            PlantEntity plant = plantById(entityId);
+            if (plant == null || plant.isRemoved() || plant.team() != plantPlayer.team()) {
+                bridge.send(new ServerMessageS2C("这一格没有你的植物。"));
+                return false;
+            }
+            com.pvzce.common.capability.plant.CobCannonCapability cannon =
+                    plant.capability(com.pvzce.common.capability.plant.CobCannonCapability.class);
+            if (cannon == null) {
+                bridge.send(new ServerMessageS2C("这株植物不能指定目标。"));
+                return false;
+            }
+            if (!cannon.loaded()) {
+                // How long is left, rather than "no": the player is clicking a cannon they can see
+                // is still loading, and the number is the difference between a refusal and a wait.
+                // Rounded *up* and floored at one, because a refusal that says "0 seconds left" is
+                // a refusal that reads like the game is broken - and it is the message a player
+                // gets on the one tick where the wait is real but shorter than a second.
+                int seconds = Math.max(1, (int) Math.ceil(
+                        cannon.chargeLeft() / (double) PvzceConstants.TICKS_PER_SECOND));
+                bridge.send(new ServerMessageS2C("玉米加农炮还在装填（还剩 " + seconds + " 秒）。"));
+                return false;
+            }
+            if (!cannon.fireAt(plant, this, gridX, gridY)) {
+                bridge.send(new ServerMessageS2C("不能打到草坪外。"));
+                return false;
+            }
+            return true;
+        });
     }
 
     public boolean useTool(ServerBridge bridge, int slotIndex, int x, int y) {

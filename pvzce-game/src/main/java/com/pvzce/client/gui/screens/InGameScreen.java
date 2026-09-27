@@ -340,6 +340,20 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     private int selectedCard = -1;
     /**
+     * The plant the player is aiming right now, or -1.
+     *
+     * <p>The cob cannon's first click. Aiming is a <em>client</em> mode with no server mirror - the
+     * same shape as the card selection ({@code PickCardC2S} is sent and ignored) - because the only
+     * thing it changes is what the next click means, and the server re-derives everything that
+     * matters when the shot is actually fired: that entity, that cell, whether the cannon is loaded.
+     * A shot at a cannon the player is not allowed to fire is refused with a reason, which is what
+     * makes remembering it locally safe.
+     *
+     * <p>Held by entity id rather than by cell because the plant can be eaten while the player aims
+     * (and because two plants can stand in one cell, one on the other).
+     */
+    private int aimingPlantId = -1;
+    /**
      * The content id to put back in hand once the bar has been rebuilt, or {@code null}.
      *
      * <p>Set while the bar is being replaced and consumed on the same call, because the new bar is
@@ -1799,6 +1813,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         renderRisingZombies(camera);
 
         renderContainerHover(camera);
+
+        renderAimReticle();
 
         if (selectedCard >= 0) {
             int hoverX = camera.cellX(client.window().cursorX(), client.window().cursorY());
@@ -3549,6 +3565,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                         selectedCard = -1;
                         playCardSound(info);
                     } else {
+                        // Picking a card is the player changing their mind about the next click,
+                        // and a cannon they armed a moment ago is the previous answer to that
+                        // question. Two pending modes at once would make the next click ambiguous.
+                        cancelAiming();
                         selectedCard = slot;
                         client.connection().send(new PickCardC2S(slot));
                         playCardSound(info);
@@ -3617,7 +3637,21 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                         new com.pvzce.common.network.packet.ReleaseHeldCardC2S());
                 return;
             }
+            // Right-click gives up an aim before it gives up a card: while aiming, the card bar is
+            // not what the player is thinking about. (The original cancels a cob shot the same way.)
+            if (aimingPlantId >= 0) {
+                cancelAiming();
+                return;
+            }
             cancelSelection();
+            return;
+        }
+        // Aiming: this click is the target. Sent before everything else on purpose - a player who
+        // armed a cannon and then clicked a cell meant that cell, whatever is selected in the bar.
+        if (aimingPlantId >= 0) {
+            client.connection().send(new com.pvzce.common.network.packet.FireAtC2S(
+                    aimingPlantId, cellX, cellY));
+            cancelAiming();
             return;
         }
         // The packet in hand is planted by the next click on a cell, before any bar card is
@@ -3673,7 +3707,100 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // remembered to grant one.
         if (containerAt(cellX, cellY)) {
             summonMallet(cellX, cellY);
+            return;
         }
+        // A plant that is aimed by hand takes the bare click. Last of all because it is the
+        // narrowest case - one plant in the game answers to it - and a click that is already
+        // spoken for (a card, a carried plant, a granted tool, a container) must not be stolen.
+        ClientEntity targetable = targetablePlantAt(cellX, cellY);
+        if (targetable != null) {
+            swingDefaultToolCursor();
+            beginAiming(targetable.id());
+        }
+    }
+
+    /**
+     * The player's own plant in this cell that is fired by hand, or {@code null}.
+     *
+     * <p>Asked of the plant's own definition rather than of a list of ids kept here: whether a plant
+     * is aimed by hand is a fact about what it does, and it is already written down once, in the
+     * capability list of its content file. A client-side set of ids would be a second copy that a
+     * mod's cannon could never join.
+     */
+    private ClientEntity targetablePlantAt(int cellX, int cellY) {
+        for (ClientEntity entity : client.level().entities().values()) {
+            if (!com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())
+                    || entity.gridX() != cellX || entity.gridY() != cellY) {
+                continue;
+            }
+            Identifier defId = Identifier.tryParse(entity.defIdString());
+            com.pvzce.api.content.PlantDef def =
+                    defId == null ? null : com.pvzce.common.core.BuiltInRegistries.PLANTS.get(defId);
+            if (def == null) {
+                continue;
+            }
+            for (var capability : def.capabilities()) {
+                if (com.pvzce.common.PvzceIds.id("cob_cannon").equals(capability.type())) {
+                    return entity;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Starts aiming a plant, and says so in the hint box.
+     *
+     * <p>The message is not decoration: a mode with no visible change is a mode the player will not
+     * notice they are in, and the next click then goes somewhere they did not mean. The reticle
+     * (see {@link #renderAimReticle}) is the other half of the same sentence.
+     */
+    private void beginAiming(int entityId) {
+        aimingPlantId = entityId;
+        // The card is put down *without* going through cancelSelection: that method ends an aim as
+        // well as a selection - it is the shared "put that down" gesture - so calling it here
+        // cleared the mode this method had just entered, and the reticle never appeared.
+        if (selectedCard >= 0) {
+            SlotInfo info = slotInfo(selectedCard);
+            selectedCard = -1;
+            if (info != null) {
+                playCardSound(info);
+            }
+        }
+        // Not a level hint (those are content), just the box's own refusal channel: the line is
+        // about the mode the player is in, not about the level, and every level with a cannon
+        // should say it without the author having to write it down.
+        hints.refuse("瞄准一个格子开炮，右键取消");
+    }
+
+    /** Leaves the aiming mode. Called by the shot, by a cancel, and by anything that takes the click. */
+    private void cancelAiming() {
+        aimingPlantId = -1;
+    }
+
+    /**
+     * Draws the reticle over the cell a shot would land in, plus the cell itself.
+     *
+     * <p>A crosshair rather than the green placement square: the two mean different things (this
+     * one is "a blast lands here", not "a plant may go here"), and the blast covers nine cells -
+     * so the arms are drawn one cell beyond the target, which is the area the cob actually covers.
+     */
+    private void renderAimReticle() {
+        if (aimingPlantId < 0) {
+            return;
+        }
+        int hoverX = client.camera().cellX(client.window().cursorX(), client.window().cursorY());
+        int hoverY = client.camera().cellY(client.window().cursorX(), client.window().cursorY());
+        if (hoverX < 0 || hoverY < 0
+                || hoverX >= client.level().width() || hoverY >= client.level().height()) {
+            return;
+        }
+        client.drawSolid(hoverX, hoverY, 1F, 1F, 0.22F, 1F, 0.55F, 0.1F, 0.3F);
+        float z = 0.23F;
+        float thickness = 0.08F;
+        // The cross's arms: the whole 3x3 the cob covers, not just the cell under the pointer.
+        client.drawSolid(hoverX - 1F, hoverY + 0.5F - thickness / 2F, 3F, thickness, z, 1F, 0.6F, 0.15F, 0.85F);
+        client.drawSolid(hoverX + 0.5F - thickness / 2F, hoverY - 1F, thickness, 3F, z, 1F, 0.6F, 0.15F, 0.85F);
     }
 
     /**
@@ -3941,6 +4068,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     /** Drops the current selection, with the sound of putting the card back. */
     private void cancelSelection() {
+        // An aim is a pending mode like a selected card, and every "put that down" gesture ends
+        // both: right-click, a click outside the board, and the mower hold all come through here.
+        cancelAiming();
         if (selectedCard < 0) {
             return;
         }

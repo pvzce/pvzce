@@ -7,10 +7,12 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.capability.plant.BowlCapability;
 import com.pvzce.common.capability.plant.CharmCapability;
+import com.pvzce.common.capability.plant.CobCannonCapability;
 import com.pvzce.common.capability.plant.ConeAttackCapability;
 import com.pvzce.common.capability.plant.DragUnderCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
 import com.pvzce.common.capability.plant.FreezeAllCapability;
+import com.pvzce.common.capability.plant.GoldMagnetCapability;
 import com.pvzce.common.capability.plant.GraveBusterCapability;
 import com.pvzce.common.capability.plant.MeleeCapability;
 import com.pvzce.common.capability.plant.NocturnalCapability;
@@ -54,6 +56,18 @@ public final class PlantCapabilities {
     /** Stands on the ground and stabs whatever walks over it (the spikeweed). */
     public static final CapabilityType<SpikeCapability> SPIKE =
             type("spike", SpikeCapability.CODEC);
+    /**
+     * Loads a cob on a clock and waits for the player to aim it (the cob cannon).
+     *
+     * <p>The only plant in the game whose trigger is a click rather than a zombie: see
+     * {@link CobCannonCapability} for why that made it a capability of its own instead of an
+     * {@code explosive} with a longer fuse.
+     */
+    public static final CapabilityType<CobCannonCapability> COB_CANNON =
+            type("cob_cannon", CobCannonCapability.CODEC);
+    /** Picks coins up off the lawn before the player has to click them (the gold magnet). */
+    public static final CapabilityType<GoldMagnetCapability> GOLD_MAGNET =
+            type("gold_magnet", GoldMagnetCapability.CODEC);
     /** Sets alight the shots that fly through it (the torchwood). */
     public static final CapabilityType<TorchwoodCapability> TORCHWOOD =
             type("torchwood", TorchwoodCapability.CODEC);
@@ -128,6 +142,8 @@ public final class PlantCapabilities {
     /** Registers every built-in plant capability; called from {@code BuiltInRegistries}. */
     public static void bootstrap() {
         register(SHOOTER, "shooter");
+        register(COB_CANNON, "cob_cannon");
+        register(GOLD_MAGNET, "gold_magnet");
         register(THROWER, "thrower");
         register(PRODUCER, "producer");
         register(EXPLOSIVE, "explosive");

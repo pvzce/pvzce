@@ -71,6 +71,10 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
     "gloom_shroom": ("idle", 0.0),
     "cattail": ("idle", 0.0),
     "spikerock": ("idle", 0.0),
+    # The cob cannon's card is the *loaded* cannon: `idle` is an empty barrel, and a card that
+    # showed one would be a picture of a plant that is not ready to do anything.
+    "cob_cannon": ("armed_loop", 0.0),
+    "gold_magnet": ("idle", 0.0),
     # A tool card, drawn from Hammer.reanim's own idle pose.
     "hammer": ("idle", 0.0),
 }
@@ -89,6 +93,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "snow_pea": "plant/attacker",
     "repeater": "plant/attacker",
     "gatling_pea": "plant/attacker",
+    "cob_cannon": "plant/attacker",
     "threepeater": "plant/attacker",
     "split_pea": "plant/attacker",
     "cactus": "plant/attacker",
@@ -145,6 +150,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "starfruit": "plant/attacker",
     "pumpkin": "plant/defense",
     "magnet_shroom": "plant/special",
+    "gold_magnet": "plant/special",
 }
 
 PLANT_ENTITIES = [
@@ -172,6 +178,9 @@ PLANT_ENTITIES = [
     # The bowling line's two new nuts, both drawn from the wall-nut's model (the giant is the
     # same drawing enlarged; the explosive one is the generated red variant).
     "giant_nut", "explosive_nut",
+    # The last two purple packets: the cannon and the coin magnet. Both are converted reanims
+    # that have been in `refer/anim` since the beginning; only their mechanics were missing.
+    "cob_cannon", "gold_magnet",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

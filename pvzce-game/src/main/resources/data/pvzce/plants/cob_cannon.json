@@ -1,0 +1,30 @@
+{
+  "id": "pvzce:cob_cannon",
+  "upgrade": {
+    "base": "pvzce:kernel_pult",
+    "adjacent": 1
+  },
+  "cost": {
+    "resources": {
+      "pvzce:sun": 500
+    },
+    "cooldown": 3000
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:cob_cannon",
+      "initial_ticks": 300,
+      "reload_ticks": 2085,
+      "projectile": "pvzce:cob",
+      "damage": 1800
+    }
+  ],
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/coblaunch"
+  },
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/cob_cannon",
+  "render_scale": 0.85,
+  "order": 60
+}

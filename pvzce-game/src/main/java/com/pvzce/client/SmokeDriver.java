@@ -245,6 +245,22 @@ final public class SmokeDriver {
     private final double[] smokeHoverAt = parsePoint(System.getProperty("pvzce.smokeHover", ""));
     /** {@code pvzce.smokeHoverCell=<x>,<y>}: the same, for a board cell rather than a GUI point. */
     private final int[] smokeHoverCellAt = parseIntPair(System.getProperty("pvzce.smokeHoverCell", ""));
+    /**
+     * {@code pvzce.smokeClickCell=<x>,<y>[,...]}: click board cells rather than GUI points.
+     *
+     * <p>The sibling {@code smokeHoverCell} always implied: a cell's screen position is the
+     * camera's answer, and a script that hard-codes those pixels breaks on any other window size
+     * (and silently - a click that misses looks like a control that does not work). It is what a
+     * two-click interaction needs, because the first click and the second are on different cells
+     * and both have to be found the same way: the cob cannon's "click the plant, then click where
+     * the cob should land" cannot be photographed without it.
+     *
+     * <p>A list, because those two clicks are the point: each entry is one press, {@code
+     * smokeClickFrame + k * smokeClickPeriod} frames apart, the same clock {@code smokeClick}
+     * repeats on.
+     */
+    private final java.util.List<int[]> smokeClickCells = parseCells(
+            System.getProperty("pvzce.smokeClickCell", ""));
     private final int smokeHoverFrame = Integer.getInteger("pvzce.smokeHoverFrame", 3);
     private final int smokeClickFrame = Integer.getInteger("pvzce.smokeClickFrame", 45);
     /**
@@ -257,6 +273,7 @@ final public class SmokeDriver {
     private final int smokeClickRepeat = Integer.getInteger("pvzce.smokeClickRepeat", 1);
     private final int smokeClickPeriod = Integer.getInteger("pvzce.smokeClickPeriod", 12);
     private int smokeClicksSent;
+    private int smokeClickCellsSent;
     /**
      * {@code -Dpvzce.traceInput=true}: what the synthetic input is aimed at.
      *
@@ -843,6 +860,25 @@ final public class SmokeDriver {
                 client.deliverRawClick(rawX, rawY, 0);
             }
         }
+        // A list of cells rather than GUI points: the camera is asked where each one is, so the
+        // same script works at any resolution and on any board size (see smokeClickCell).
+        if (!smokeClickCells.isEmpty() && smokeClickCellsSent < smokeClickCells.size()
+                && clientTick >= smokeClickFrame
+                && (clientTick - smokeClickFrame) % Math.max(1, smokeClickPeriod) == 0) {
+            int[] cell = smokeClickCells.get(smokeClickCellsSent);
+            smokeClickCellsSent++;
+            smokeClickDone = true;
+            if (client.level() != null) {
+                com.pvzce.client.renderer.PvzceCamera camera = client.camera();
+                double rawX = camera.screenX(cell[0] + 0.5F);
+                double rawY = client.window().height() - camera.screenY(cell[1] + 0.5F);
+                if (traceInput) {
+                    System.out.println("[SMOKE] click cell=" + cell[0] + "," + cell[1]
+                            + " raw=" + rawX + "," + rawY);
+                }
+                client.deliverRawClick(rawX, rawY, 0);
+            }
+        }
         if (smokeHoverCellAt != null && clientTick >= smokeHoverFrame) {
             // A board cell by its grid coordinates: the camera is the only thing that knows where a
             // cell is on screen, and guessing those pixels is how a hover hook ends up pointing at
@@ -1125,6 +1161,30 @@ final public class SmokeDriver {
             return null;
         }
         return new int[] {(int) point[0], (int) point[1]};
+    }
+
+    /**
+     * {@code "3,2,5,2"} -> the board cells {@code (3,2)} then {@code (5,2)}.
+     *
+     * <p>Pairs rather than one cell because a click-cell hook is only worth having for
+     * interactions made of more than one click, and every one of those needs the same conversion
+     * twice.
+     */
+    private static java.util.List<int[]> parseCells(String raw) {
+        java.util.List<int[]> cells = new java.util.ArrayList<>();
+        if (raw == null || raw.isBlank()) {
+            return cells;
+        }
+        String[] parts = raw.split(",");
+        for (int i = 0; i + 1 < parts.length; i += 2) {
+            try {
+                cells.add(new int[]{Integer.parseInt(parts[i].trim()), Integer.parseInt(parts[i + 1].trim())});
+            } catch (NumberFormatException e) {
+                // A malformed entry is dropped rather than failing the run: the hook is a
+                // development tool, and a typo in a property should not be a crash.
+            }
+        }
+        return cells;
     }
 
     private static double[] parsePoint(String raw) {

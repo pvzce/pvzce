@@ -27,22 +27,49 @@ public final class SplashImpactCapability implements ProjectileCapability {
      * original too, so a cone does not turn 80 points of splash into 80 points of cone.
      */
     public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_SPLASH;
+    /** The melon's splash: what a thrown plant's blast has looked like since it was written. */
+    public static final Identifier DEFAULT_PARTICLE = PvzceParticles.POOL_SPLASH;
 
     private final float radius;
     private final Optional<Identifier> sound;
     private final Identifier damageType;
+    /**
+     * Whether the blast is a block of cells rather than a distance.
+     *
+     * <p>The melon's blast is round - it is a splash, and "the melon caught the neighbours" reads
+     * better as a radius. The cob cannon's is a 3x3 square, exactly like the cherry bomb's, and the
+     * difference is not cosmetic: with {@code radius 1.0} a round blast reaches 1.0 cells (five
+     * cells across the middle row and three in the ones beside it) while a square one reaches 1.5,
+     * which is the nine cells the original covers. See {@code LevelAccess.damageArea}'s
+     * {@code square} parameter.
+     */
+    private final boolean square;
+    /**
+     * What the blast looks like where it lands.
+     *
+     * <p>The melon's splash of water is the default because the melon is what this capability was
+     * written for; the cob cannon's blast is fire and smoke and says so. One field rather than two
+     * capabilities, because everything else about the two impacts is the same code.
+     */
+    private final Identifier particle;
 
-    public SplashImpactCapability(float radius, Optional<Identifier> sound, Identifier damageType) {
+    public SplashImpactCapability(float radius, Optional<Identifier> sound, Identifier damageType,
+                                  boolean square, Identifier particle) {
         this.radius = Math.max(0F, radius);
         this.sound = sound;
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
+        this.square = square;
+        this.particle = particle == null ? DEFAULT_PARTICLE : particle;
     }
 
     public static final MapCodec<SplashImpactCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.FLOAT.optionalFieldOf("radius", DEFAULT_RADIUS).forGetter(SplashImpactCapability::radius),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(SplashImpactCapability::sound),
             Identifier.CODEC.optionalFieldOf("damage_type", DEFAULT_DAMAGE_TYPE)
-                    .forGetter(SplashImpactCapability::damageType)
+                    .forGetter(SplashImpactCapability::damageType),
+            Codec.BOOL.optionalFieldOf("square", false).forGetter(SplashImpactCapability::square),
+            Identifier.CODEC.optionalFieldOf("particle", DEFAULT_PARTICLE)
+                    .forGetter(SplashImpactCapability::particle)
     ).apply(i, SplashImpactCapability::new));
 
     public float radius() {
@@ -56,6 +83,16 @@ public final class SplashImpactCapability implements ProjectileCapability {
     /** The registered damage type this blast lands as. */
     public Identifier damageType() {
         return damageType;
+    }
+
+    /** True when the blast covers a square block of cells rather than a radius. */
+    public boolean square() {
+        return square;
+    }
+
+    /** The effect drawn where the blast lands. */
+    public Identifier particle() {
+        return particle;
     }
 
     @Override
@@ -73,8 +110,8 @@ public final class SplashImpactCapability implements ProjectileCapability {
         float x = zombie != null ? zombie.cellX() : projectile.cellX();
         float y = zombie != null ? zombie.cellY() : projectile.cellY();
         level.damageArea(ZombieEntity.damageType(damageType), x, y, radius, projectile.damage(),
-                projectile.team());
-        level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), x, y,
+                projectile.team(), square);
+        level.emitEffect(particle.toString(), x, y,
                 sound.orElseGet(() -> projectile.def().sounds().impact().orElse(PvzceSounds.PROJECTILE_HIT)));
     }
 }

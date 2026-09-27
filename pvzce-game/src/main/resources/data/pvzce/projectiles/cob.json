@@ -1,0 +1,23 @@
+{
+  "id": "pvzce:cob",
+  "layer": "air",
+  "capabilities": [
+    {
+      "type": "pvzce:arc",
+      "speed": 3.2,
+      "gravity": 9.0
+    },
+    {
+      "type": "pvzce:splash",
+      "radius": 1.0,
+      "square": true,
+      "damage_type": "pvzce:ash",
+      "particle": "pvzce:pow"
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/effect/explosion"
+  },
+  "texture": "pvzce:textures/entities/projectile/cob",
+  "impact_particle": "pvzce:pow"
+}

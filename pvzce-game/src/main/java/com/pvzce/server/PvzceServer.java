@@ -1341,6 +1341,12 @@ public final class PvzceServer implements Runnable {
                 if (level != null) {
                     level.beginWaves();
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.FireAtC2S fire) {
+                // A hand-aimed shot. The level re-derives everything: which entity that id is,
+                // whether it is the sender's, whether it is loaded, and whether the cell exists.
+                if (level != null) {
+                    level.fireAt(bridge, fire.entityId(), fire.gridX(), fire.gridY());
+                }
             } else if (packet instanceof CreateWorldC2S create) {
                 createWorld(create.worldName(), create.unlockAll());
             } else if (packet instanceof com.pvzce.common.network.packet.UnlockLevelC2S unlockLevel) {
