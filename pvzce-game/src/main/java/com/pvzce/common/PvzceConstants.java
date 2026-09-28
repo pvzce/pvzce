@@ -137,6 +137,64 @@ public final class PvzceConstants {
     /** How long before a seed packet expires it starts flashing, in ticks. */
     public static final int CARD_DROP_FLASH_TICKS = 5 * TICKS_PER_SECOND;
 
+    // ------------------------------------------------------------------
+    // The rhythm levels' energy bar
+    //
+    // The mode's second economy, beside the sun a PERFECT note drops: every judgement is worth
+    // points, everything bleeds five a second, and what the bar buys is firepower - the plants
+    // double their bullets while it is high and triple them while it is higher. The numbers live
+    // here rather than in `RhythmChartData` because they are the *mode's* rules and not a chart's
+    // tuning: all four tiers play by these, the server runs them and the client draws the two
+    // thresholds, so both sides have to read the same constants.
+    // ------------------------------------------------------------------
+
+    /** What a PERFECT note is worth. */
+    public static final int ENERGY_PERFECT = 100;
+    /** What a GOOD note is worth. */
+    public static final int ENERGY_GOOD = 50;
+    /** What a FAIR note - the widest window, the one that only just counted - is worth. */
+    public static final int ENERGY_FAIR = 20;
+    /**
+     * What a note nobody played costs.
+     *
+     * <p>Negative, and the only entry of the four that is: the bar is the run's pressure, and a
+     * chart whose misses were free would be a chart with no reason to press anything.
+     */
+    public static final int ENERGY_MISS = -10;
+    /**
+     * How much the bar bleeds, per second, whatever the player is doing.
+     *
+     * <p>Five a second is three hundred a minute against a hundred per PERFECT, so the bar is
+     * something that has to be <em>kept</em> rather than something earned once. The drain is
+     * fractional per tick (see {@code RhythmMechanic}) so a second really is five points and not
+     * five rounded somewhere.
+     */
+    public static final int ENERGY_DRAIN_PER_SECOND = 5;
+    /** The bar's ceiling: a full bar, and the point past which a PERFECT pays nothing. */
+    public static final int ENERGY_MAX = 6000;
+    /**
+     * The bar's first gate: at or above this, every plant fires twice the bullets per attack.
+     *
+     * <p>Read as "at or above" rather than "above", and with no hysteresis: the bar crosses the
+     * line and the firepower changes on that tick. A gate that remembered being open would make
+     * the number on the bar stop meaning what it says.
+     */
+    public static final int ENERGY_DOUBLE_AT = 3000;
+    /** The second gate: at or above this, three times the bullets. */
+    public static final int ENERGY_TRIPLE_AT = 5000;
+
+    /**
+     * The consecutive-PERFECT counts that each set the lawn alight, in order.
+     *
+     * <p>Four of them, and they are the user's own numbers: the first is reachable inside a good
+     * chart's first half, the last is a near-flawless run. Past the last entry the streak keeps
+     * paying every {@link #PERFECT_STREAK_STEP} - see {@code RhythmMechanic.streakReward} - so a
+     * run that good does not stop being rewarded for it.
+     */
+    public static final int[] PERFECT_STREAK_MILESTONES = {30, 50, 80, 100};
+    /** How often the streak pays again once it is past the last named milestone. */
+    public static final int PERFECT_STREAK_STEP = 20;
+
     private PvzceConstants() {
     }
 }

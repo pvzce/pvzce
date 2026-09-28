@@ -28,6 +28,18 @@ import java.util.Optional;
 public final class ShooterCapability implements PlantCapability {
     public static final int DEFAULT_INTERVAL = 90;
 
+    /**
+     * How far apart the extra projectiles of a multiplied volley leave, when the shot has no
+     * burst delay of its own.
+     *
+     * <p>A peashooter's one pea at triple firepower is three peas, and three born on the same tick
+     * at the same point are one pea as far as the lawn is concerned - which is exactly why the
+     * repeater's second pea has a burst delay at all (see {@code ProjectileRef#burstDelay}). Six
+     * ticks is a tenth of a second: long enough that the shots are separate objects on the screen
+     * and separate hits, short enough that the volley still reads as one.
+     */
+    public static final int MULTIPLIED_BURST_DELAY = 6;
+
     private final int intervalTicks;
     private final List<ProjectileRef> shots;
     private final Optional<Identifier> sound;
@@ -209,27 +221,37 @@ public final class ShooterCapability implements PlantCapability {
      */
     private void fire(PlantEntity plant, LevelAccess level) {
         plant.setState(EntityAnimations.SHOOT);
+        // The level's say over how big a volley is (the rhythm levels' energy bar doubles and
+        // triples it). Read per volley, because the bar moves while the run is going.
+        int repeats = Math.max(1, level.projectileCountMultiplier(plant));
         for (ProjectileRef shot : shots) {
             // The muzzle sits on the firing side, so a backward shot leaves the plant
             // from its other edge instead of appearing inside it.
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
             float row = aimRow(shot, plant, level);
+            int count = shot.count() * repeats;
+            // A shot with a burst delay keeps it, multiplied or not - the repeater's rhythm is the
+            // plant's. One without one only needs spacing once the volley has been multiplied:
+            // three peas born on the same tick at the same point are one pea (see
+            // `ProjectileRef#burstDelay`), and a single-pea plant at 1x has nothing to space.
+            int burst = shot.burstDelay() > 0 ? shot.burstDelay()
+                    : (repeats > 1 ? MULTIPLIED_BURST_DELAY : 0);
             if (shot.initialDelay() > 0) {
                 // The whole entry waits - a volley that does not leave on the firing tick at all.
                 // No shipped shot does (see `ProjectileRef#initialDelay`); the field is kept for a
                 // content author whose art opens its heads one at a time. Every projectile of the
                 // entry rides the same countdown, spaced by its own burst delay on top.
-                for (int i = 0; i < shot.count(); i++) {
+                for (int i = 0; i < count; i++) {
                     pendingShots.add(new PendingShot(shot, muzzleX, row,
-                            shot.initialDelay() + i * shot.burstDelay()));
+                            shot.initialDelay() + i * burst));
                 }
                 continue;
             }
-            if (shot.burstDelay() <= 0) {
+            if (burst <= 0) {
                 // One tick, one volley: the shape every single-pea plant has, and the one a
                 // multi-row volley has to keep - the threepeater's three peas belong to different
                 // lanes, so they are not a burst at all and leave together.
-                for (int i = 0; i < shot.count(); i++) {
+                for (int i = 0; i < count; i++) {
                     level.spawnProjectile(shot, muzzleX, row, plant);
                 }
                 continue;
@@ -237,11 +259,11 @@ public final class ShooterCapability implements PlantCapability {
             // A burst: the first pea leaves now, the rest on their own ticks. This is the
             // repeater - see ProjectileRef#burstDelay for why firing them together is the same
             // as firing one.
-            if (shot.count() > 0) {
+            if (count > 0) {
                 level.spawnProjectile(shot, muzzleX, row, plant);
             }
-            for (int i = 1; i < shot.count(); i++) {
-                pendingShots.add(new PendingShot(shot, muzzleX, row, i * shot.burstDelay()));
+            for (int i = 1; i < count; i++) {
+                pendingShots.add(new PendingShot(shot, muzzleX, row, i * burst));
             }
         }
         level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),

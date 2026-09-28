@@ -168,7 +168,15 @@ public final class CobCannonCapability implements PlantCapability {
         shooting = shotTicks;
         plant.setState(EntityAnimations.SHOOT);
         server.requestEntitySync();
-        server.launchAimedProjectile(projectile, damage, plant, gridX, gridY);
+        // One load, one aimed shot - unless the level's rules multiply it. The rhythm levels'
+        // energy bar counts a plant's bullets per attack, and the cob cannon's attack is this
+        // shell; three of them land on the cell the player picked, which is the same rule the
+        // peashooter is under and reads the same way. No stagger: a shell is aimed at a cell and
+        // the three are one impact as far as the lawn is concerned, which is what "three bullets"
+        // means for a weapon that fires once.
+        for (int i = 0, shots = Math.max(1, level.projectileCountMultiplier(plant)); i < shots; i++) {
+            server.launchAimedProjectile(projectile, damage, plant, gridX, gridY);
+        }
         level.emitEffect("", plant.cellX(), plant.cellY(), sound.orElse(null));
         return true;
     }

@@ -34,23 +34,23 @@ class LevelTrophyTest {
 
     @Test
     void aBeatenMiniGameKeepsItsTrophyWhileAReplayIsInProgress() {
-        assertTrue(LevelSelectScreen.showsTrophy(row("minigame", LevelListS2C.LevelInfo.COMPLETED,
+        assertTrue(LevelRowRenderer.showsTrophy(row("minigame", LevelListS2C.LevelInfo.COMPLETED,
                 false, true)), "beaten and nothing running: the medal is on the row");
-        assertTrue(LevelSelectScreen.showsTrophy(row("minigame", LevelListS2C.LevelInfo.IN_PROGRESS,
+        assertTrue(LevelRowRenderer.showsTrophy(row("minigame", LevelListS2C.LevelInfo.IN_PROGRESS,
                         true, true)),
                 "an abandoned replay reads 进行中, and the level was still beaten");
     }
 
     @Test
     void anUnbeatenLevelAndAnOrdinaryCategoryHaveNoTrophy() {
-        assertFalse(LevelSelectScreen.showsTrophy(row("minigame", LevelListS2C.LevelInfo.IN_PROGRESS,
+        assertFalse(LevelRowRenderer.showsTrophy(row("minigame", LevelListS2C.LevelInfo.IN_PROGRESS,
                         true, false)),
                 "a mini-game that has never been finished has earned nothing");
-        assertFalse(LevelSelectScreen.showsTrophy(row("minigame", "", false, false)));
-        assertFalse(LevelSelectScreen.showsTrophy(row("adventure", LevelListS2C.LevelInfo.COMPLETED,
+        assertFalse(LevelRowRenderer.showsTrophy(row("minigame", "", false, false)));
+        assertFalse(LevelRowRenderer.showsTrophy(row("adventure", LevelListS2C.LevelInfo.COMPLETED,
                         false, true)),
                 "an adventure level is progress, not a medal - the category decides");
-        assertFalse(LevelSelectScreen.showsTrophy(row("nosuchcategory", LevelListS2C.LevelInfo.COMPLETED,
+        assertFalse(LevelRowRenderer.showsTrophy(row("nosuchcategory", LevelListS2C.LevelInfo.COMPLETED,
                         false, true)),
                 "an unknown category answers no rather than throwing");
     }

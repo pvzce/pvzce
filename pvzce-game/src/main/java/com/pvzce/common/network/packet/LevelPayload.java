@@ -51,6 +51,18 @@ public record LevelPayload(int width, int height, List<SeedOption> seedPool, int
     }
 
     /**
+     * The payload of a row that has no board: a collection's.
+     *
+     * <p>A collection is a box of levels and not a level, so there is nothing for it to describe -
+     * no size, no cards, no scene. An empty payload rather than a nullable field, because
+     * {@link LevelListS2C.LevelInfo} has carried a {@code LevelPayload} for every row since it was
+     * written and because zero is the honest description of a board that does not exist; the
+     * screens never ask a collection for one (see {@code LevelListS2C.LevelInfo#isCollection}).
+     */
+    public static final LevelPayload EMPTY = new LevelPayload(0, 0, List.of(), 0, List.of(), List.of(),
+            List.of(), List.of(), "", List.of(), false, List.of(), 0, List.of(), false);
+
+    /**
      * The board as it was before buffs existed: no buff page, no buff slots.
      *
      * <p>Kept because two thirds of the payload's callers are tests and fixtures describing a

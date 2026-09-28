@@ -167,6 +167,11 @@ final class LevelPage {
      *
      * <p>A level is on the tab whose ids equal its own resolved group, so a level that is
      * unclassified is on the unclassified tab and nowhere else.
+     *
+     * <p>A level that lives inside a collection is not on its page at all: the collection's own row
+     * is where it is reached from, and drawing it beside that row would be the same level twice on
+     * one page ({@code LevelListS2C.LevelInfo#collectionIdOrNull}). The box itself is on the page
+     * like any other row, because that is exactly what it looks like.
      */
     static Rows rowsFor(List<LevelListS2C.LevelInfo> levels, Tab tab) {
         if (tab == null) {
@@ -176,12 +181,69 @@ final class LevelPage {
         List<Integer> indexes = new ArrayList<>();
         for (int i = 0; i < levels.size(); i++) {
             LevelListS2C.LevelInfo info = levels.get(i);
-            if (belongsTo(info, tab)) {
+            if (belongsTo(info, tab) && info.collectionIdOrNull() == null) {
                 rows.add(info);
                 indexes.add(i);
             }
         }
         return new Rows(List.copyOf(rows), List.copyOf(indexes));
+    }
+
+    /**
+     * The rows of one collection, in the order the collection lists them.
+     *
+     * <p>Resolved by id out of the same list the pages are built from, so a member's row is the
+     * level's own - its lock, its trophy, its save - rather than a second summary of it. A member
+     * the list does not have (a hidden level, or one a pack removed) is skipped.
+     */
+    static Rows membersOf(List<LevelListS2C.LevelInfo> levels, LevelListS2C.LevelInfo collection) {
+        if (collection == null || !collection.isCollection()) {
+            return Rows.empty();
+        }
+        List<LevelListS2C.LevelInfo> rows = new ArrayList<>();
+        List<Integer> indexes = new ArrayList<>();
+        for (String memberId : collection.collection().members()) {
+            for (int i = 0; i < levels.size(); i++) {
+                LevelListS2C.LevelInfo info = levels.get(i);
+                if (memberId.equals(info.id())) {
+                    rows.add(info);
+                    indexes.add(i);
+                    break;
+                }
+            }
+        }
+        return new Rows(List.copyOf(rows), List.copyOf(indexes));
+    }
+
+    /** The collection row with this id, or {@code null}. */
+    static LevelListS2C.LevelInfo collection(List<LevelListS2C.LevelInfo> levels, String collectionId) {
+        for (LevelListS2C.LevelInfo info : levels) {
+            if (info.isCollection() && info.id().equals(collectionId)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A collection's display name.
+     *
+     * <p>{@code level_collection.<namespace>.<path>} - the same shape every other content id's name
+     * key has, minus the {@code collections/} directory the tag lives in: that directory is the
+     * convention that makes a tag a collection ({@code PvzceTags#COLLECTION_PREFIX}), and it is not
+     * part of what the thing is called. Falls back to the leaf, which is what a screen can still
+     * draw when a pack adds a collection without a translation.
+     */
+    static String collectionLabel(String collectionId) {
+        Identifier id = Identifier.tryParse(collectionId);
+        if (id == null) {
+            return collectionId == null ? "" : collectionId;
+        }
+        String path = id.path();
+        String leaf = path.startsWith(com.pvzce.common.tag.PvzceTags.COLLECTION_PREFIX)
+                ? path.substring(com.pvzce.common.tag.PvzceTags.COLLECTION_PREFIX.length())
+                : path;
+        return GuiLang.raw("level_collection." + id.namespace() + "." + leaf, leaf);
     }
 
     static boolean belongsTo(LevelListS2C.LevelInfo info, Tab tab) {

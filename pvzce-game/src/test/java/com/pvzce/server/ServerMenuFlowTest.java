@@ -74,6 +74,54 @@ class ServerMenuFlowTest {
         }
     }
 
+    /**
+     * The collections travel as rows of the list, and their members travel as levels inside one.
+     *
+     * <p>This is the regression for a bug no unit test could see: the server built the rows in a map
+     * keyed by each row's sort key, and a collection's sort key <em>is</em> its first member's id -
+     * so the box's row was overwritten by that member's, and since a member is a row the pages
+     * leave out, the whole collection disappeared from the list. Everything on both sides was
+     * individually correct; what was wrong was the list.
+     */
+    @Test
+    void collectionsTravelAsRowsAndTheirMembersAsLevelsInsideOne() throws Exception {
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
+            server.send(new RequestLevelListC2S("collectionworld"));
+            LevelListS2C list = server.awaitPacket(LevelListS2C.class, 5_000);
+
+            List<LevelListS2C.LevelInfo> boxes = list.levels().stream()
+                    .filter(LevelListS2C.LevelInfo::isCollection).toList();
+            assertEquals(6, boxes.size(), "the six shipped collections are rows of the list: "
+                    + boxes.stream().map(LevelListS2C.LevelInfo::id).toList());
+            for (LevelListS2C.LevelInfo box : boxes) {
+                assertFalse(box.collection().members().isEmpty(), box.id() + " has members");
+                assertTrue(box.isUncategorized() == false, box.id() + " is on a real page");
+            }
+
+            // And each member is in the list with a collectionId, which is what makes a page leave
+            // it out. A member the list did not carry would be a box whose contents cannot be drawn.
+            for (LevelListS2C.LevelInfo box : boxes) {
+                for (String member : box.collection().members()) {
+                    LevelListS2C.LevelInfo row = list.levels().stream()
+                            .filter(info -> info.id().equals(member)).findFirst().orElse(null);
+                    assertNotNull(row, member + " is named by " + box.id() + " and must be listed");
+                    assertNotNull(row.collectionIdOrNull(),
+                            member + " must say which box holds it, or the page shows it twice");
+                    assertEquals(box.id(), row.collectionIdOrNull().toString());
+                }
+            }
+
+            // The four adventure chapters sort before the two loose levels of that page, in
+            // chapter order rather than by their own names.
+            List<String> adventureOrder = list.levels().stream()
+                    .filter(info -> "pvzce:adventure".equals(info.category()))
+                    .filter(LevelListS2C.LevelInfo::isCollection)
+                    .map(LevelListS2C.LevelInfo::id).toList();
+            assertEquals(List.of("pvzce:collections/day_lawn", "pvzce:collections/night_lawn",
+                    "pvzce:collections/day_pool", "pvzce:collections/night_pool"), adventureOrder);
+        }
+    }
+
     @Test
     void requestLevelListThenEnterLevelCreatesWorldSave() throws Exception {
         try (ServerHarness server = ServerHarness.create(gameDir)) {

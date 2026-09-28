@@ -80,7 +80,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 | 语义 | 方法 | 调用点 |
 |---|---|---|
 | 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect`（＝`showTitle`）/ `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
-| 嵌套 | `openScreen` | `Title→LevelSelect`（点玩家名 / 开始游戏）、`Title→Shop/Packs`（左下托盘的两个格子）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
+| 嵌套 | `openScreen` | `Title→LevelSelect`（点玩家名 / 开始游戏）、`Title→Shop/Packs`（左下托盘的两个格子）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、**`LevelSelect→LevelCollectionScreen`（点一个关卡集合）**、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
 | 声明的目的地 | `Navigation.replaceRoot(...)` | `LevelSelectScreen.backTarget()`（无下层时）、`AwardScreen.backTarget()` |
 | 弹回 | `Navigation.POP`（默认） | 所有"返回/完成"按钮、`Screen.requestClose()` 默认实现、`Dialog` 的 ESC |
 
@@ -313,6 +313,12 @@ if (overlay != null) {                 // 覆盖层开着时，键盘整个归�
 `InGameScreen` 与 `EditorScreen` 自己处理 ESC（游戏内要开暂停框、编辑器按页处理）；
 其余界面走 `requestClose()`，默认实现就是 `client.navigateBack()`，
 `AwardScreen` / `ChooseSeedsScreen` / `LevelSelectScreen` 各自覆写。
+
+**关卡集合这一层是纯 push**：`LevelSelectScreen` 选中一个集合行后 `openScreen(new
+LevelCollectionScreen(client, id))`，那张屏 `backTarget()` **无条件 `POP`**（它只可能由列表压上来，
+而列表自己有"无下层时回标题页"的第二条路，见 `LevelSelectScreen.backTarget()`）。集合页不进关卡准备的
+决策链：它的「下一步」把选中的**成员关卡**交给同一个 `client.enterLevelFromMenu`，与列表上按那个关卡
+走的是同一条路（`UI切换与导航架构.md` §4 的入口表里属于第 ① 行）。
 
 `/` 与 `T` 在**没有文本输入焦点**时各开一个覆盖层：`/` 开控制台（`openConsole`，预填一个 `/`），
 `T` 开聊天行（`openChat`）。两者都抑制紧随其后的那一个字符事件（`suppressNextChar`），

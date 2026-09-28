@@ -95,6 +95,53 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
     }
 
     /**
+     * A row that is a box of levels rather than a level.
+     *
+     * <p>The original's worlds: 白天草坪 is one row of the adventure page that opens on 1-1 to 1-10.
+     * A collection is a <em>tag</em> over the level registry on the server
+     * ({@code LevelCollections}), and what travels here is everything the row needs that the client
+     * cannot work out for itself: the icon its first member would have drawn, and its members in
+     * the order the tag file lists them.
+     *
+     * <p>Its <b>name</b> is not on the wire, exactly as a category's and a theme's are not: it is
+     * the language key {@code level_collection.<ns>.<path>} built from this row's own id, which is
+     * the collection tag's id.
+     *
+     * <p>Its <b>progress</b> is not on the wire either: the members' own rows are all in this same
+     * list, each carrying whether it has been cleared, so counting them is a question the client
+     * can answer off what it already has - and one that cannot then disagree with the rows it is
+     * drawing.
+     */
+    public record CollectionInfo(String icon, List<String> members) {
+        /**
+         * The empty one, which is what every ordinary level carries.
+         *
+         * <p>{@link #isCollection()} reads "has members" rather than a flag beside the record: the
+         * server never sends a collection with nothing in it (see {@code LevelCollections.of}), so
+         * the two cannot disagree, and one field is one thing for a codec to carry.
+         */
+        public static final CollectionInfo NONE = new CollectionInfo("", List.of());
+
+        public CollectionInfo {
+            icon = icon == null ? "" : icon;
+            members = List.copyOf(members);
+        }
+
+        /** True when this row is a collection rather than a level. */
+        public boolean isCollection() {
+            return !members.isEmpty();
+        }
+
+        public static final PacketStruct.Codec<CollectionInfo> CODEC =
+                PacketStruct.<CollectionInfo>builder()
+                        .field(CollectionInfo::icon, PacketByteBuf::writeString,
+                                PacketByteBuf::readString)
+                        .stringList(CollectionInfo::members)
+                        .build(values -> new CollectionInfo((String) values.get(0),
+                                (List<String>) values.get(1)));
+    }
+
+    /**
      * One selectable level.
      *
      * <p>The board description is a shared {@link LevelPayload}, so this packet and
@@ -105,11 +152,18 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
      * {@link com.pvzce.api.util.LevelGrouping} on the server. They are a pair that is
      * always both set or both the unclassified sentinel, so {@link #isUncategorized()}
      * is the one check callers need.
+     *
+     * <p>{@code collection} is what this row <em>is</em> - empty for a level, a box of levels for a
+     * collection - and {@code collectionId} is which box this level lives in, or empty when the
+     * page lists it on its own. The two are one story told from both ends: a page leaves out the
+     * levels that have a {@code collectionId}, and the collection's own screen draws them from its
+     * member list.
      */
     public record LevelInfo(String id, String name, String description, String winTeam,
                             List<TeamInfo> teams, String status, String icon, String theme,
                             String category, boolean runningSave, boolean cleared,
-                            LevelPayload payload, UnlockInfo unlock) {
+                            LevelPayload payload, UnlockInfo unlock, CollectionInfo collection,
+                            String collectionId) {
         /** A resumable save exists for this level in the world the list was asked for. */
         public static final String IN_PROGRESS = "in_progress";
         /** Finished at least once and no resumable save is left. */
@@ -133,19 +187,36 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
                 .list(LevelInfo::teams, TeamInfo::encode, TeamInfo::decode)
                 .nested(LevelInfo::payload, LevelPayload.CODEC)
                 .nested(LevelInfo::unlock, UnlockInfo.CODEC)
+                .nested(LevelInfo::collection, CollectionInfo.CODEC)
+                .field(LevelInfo::collectionId, PacketByteBuf::writeString, PacketByteBuf::readString)
                 .build(values -> new LevelInfo((String) values.get(0), (String) values.get(1),
                         (String) values.get(2), (String) values.get(3),
                         (List<TeamInfo>) values.get(10), (String) values.get(4), (String) values.get(5),
                         (String) values.get(6), (String) values.get(7), (Boolean) values.get(8),
                         (Boolean) values.get(9), (LevelPayload) values.get(11),
-                        (UnlockInfo) values.get(12)));
+                        (UnlockInfo) values.get(12), (CollectionInfo) values.get(13),
+                        (String) values.get(14)));
 
         public static LevelInfo of(String id, String name, String description, String winTeam,
                                    List<TeamInfo> teams, String status, String icon,
                                    String theme, String category, boolean runningSave, boolean cleared,
                                    LevelPayload payload, UnlockInfo unlock) {
             return new LevelInfo(id, name, description, winTeam, teams, status, icon, theme,
-                    category, runningSave, cleared, payload, unlock);
+                    category, runningSave, cleared, payload, unlock, CollectionInfo.NONE, "");
+        }
+
+        /**
+         * A collection's own row: a box of levels, with nothing of a level about it.
+         *
+         * <p>Built here rather than at the server's call site so that "what a box carries" is one
+         * decision: no board ({@code LevelPayload} is empty), no teams, no save, and an unlock
+         * verdict that is always open - a box is not locked, its levels are, and each of them says
+         * so on its own row inside it.
+         */
+        public static LevelInfo ofCollection(String id, String name, String theme, String category,
+                                             String icon, List<String> members) {
+            return new LevelInfo(id, name, "", "", List.of(), "", icon, theme, category, false,
+                    false, LevelPayload.EMPTY, UnlockInfo.OPEN, new CollectionInfo(icon, members), "");
         }
 
         /**
@@ -158,6 +229,22 @@ public record LevelListS2C(List<LevelInfo> levels) implements PvzcePacket {
                                    LevelPayload payload, UnlockInfo unlock) {
             return of(id, name, description, winTeam, teams, status, icon, theme, category,
                     runningSave, false, payload, unlock);
+        }
+
+        /** True when this row is a box of levels rather than a level. */
+        public boolean isCollection() {
+            return collection != null && collection.isCollection();
+        }
+
+        /**
+         * Which box this level lives in, or {@code null} when it is listed on its own.
+         *
+         * <p>What the pages filter on: a level that is inside a collection is reached through the
+         * box, and drawing it beside the box would be the same level twice on one page.
+         */
+        public com.pvzce.api.util.Identifier collectionIdOrNull() {
+            return collectionId == null || collectionId.isEmpty()
+                    ? null : com.pvzce.api.util.Identifier.tryParse(collectionId);
         }
 
         /** True when the player may enter this level yet. */

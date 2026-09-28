@@ -72,6 +72,15 @@ public final class PvzceSounds {
     public static final Identifier ZOMBIE_JACK_SURPRISE = id("sfx/zombie/jack_surprise");
 
     public static final Identifier EFFECT_EXPLOSION = id("sfx/effect/explosion");
+    /**
+     * The jalapeno going off.
+     *
+     * <p>Named here although the plant's own definition also names it ({@code jalapeno.json}'s
+     * {@code sounds.explode}), because the rhythm levels fire the same blast with no plant behind
+     * it - a consecutive-PERFECT streak lights every row - and a caller that has no plant to read
+     * the sound off needs somewhere to read it off instead.
+     */
+    public static final Identifier PLANT_JALAPENO = id("sfx/plant/jalapeno");
     public static final Identifier EFFECT_BITE = id("sfx/effect/bite");
     public static final Identifier EFFECT_SHOVEL = id("sfx/effect/shovel");
     /** The mower starting up; the only sound it makes, played once per row. */

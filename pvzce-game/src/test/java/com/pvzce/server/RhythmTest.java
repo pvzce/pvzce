@@ -3,10 +3,12 @@ package com.pvzce.server;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.RhythmChartData;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.RhythmMechanic;
+import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.tag.TestContent;
@@ -519,7 +521,7 @@ class RhythmTest {
         String[] suffixes = {"easy", "normal", "hard", "expert"};
         for (int i = 0; i < suffixes.length; i++) {
             LevelDef def = BuiltInRegistries.LEVELS.get(
-                    PvzceIds.id("yard/minigame/rhythm_" + suffixes[i]));
+                    PvzceIds.id("yard/rhythm/rhythm_" + suffixes[i]));
             assertNotNull(def, "rhythm_" + suffixes[i] + " must load");
             RhythmChartData chart = LevelMechanics
                     .dataOf(def, PvzceIds.MECHANIC_RHYTHM, RhythmChartData.class)
@@ -609,5 +611,276 @@ class RhythmTest {
         List<String> errors = LevelMechanics.validate(demo, PvzceIds.MECHANIC_RHYTHM, chart(4D));
         assertTrue(errors.stream().anyMatch(error -> error.contains("notes after it")),
                 "a chart that ends before its own notes is refused: " + errors);
+    }
+
+    // ------------------------------------------------------------------
+    // The energy bar, the streak, and what they buy
+    // ------------------------------------------------------------------
+
+    /**
+     * One lane of consecutive notes, one beat apart.
+     *
+     * <p>The chart the rules below are played on. The two-note chart above cannot make a streak of
+     * thirty or fill a bar to three thousand, and both of those are rules about <em>long</em> runs
+     * of perfect notes - so the test plays a long one. What is under test is the threshold and what
+     * it buys, not the counting of notes, which the tests above pin.
+     */
+    private static RhythmChartData longChart(int notes) {
+        return longChart(notes, RhythmChartData.DEFAULT_ATTACK_VOLLEYS);
+    }
+
+    /** The same, with the verdict's worth written down: one volley makes a note a single attack. */
+    private static RhythmChartData longChart(int notes, int volleys) {
+        java.util.List<Double> beats = new java.util.ArrayList<>();
+        for (int i = 0; i < notes; i++) {
+            beats.add((double) i);
+        }
+        return new RhythmChartData(240D, 100, RhythmChartData.DEFAULT_APPROACH_TICKS,
+                RhythmChartData.DEFAULT_PERFECT_SUN, volleys,
+                true, 0D,
+                List.of(new RhythmChartData.Lane(RhythmChartData.LaneKind.COL, 5, beats)));
+    }
+
+    /**
+     * Plays {@code count} notes of {@link #longChart} dead on their ticks, and answers the level.
+     *
+     * <p>Returns the level so a test can carry on with it; every note is asserted, because a press
+     * the server refused would make every count below silently wrong.
+     */
+    private static LevelServer playPerfectly(RhythmChartData chart, int count,
+                                             CapturingBridge bridge) {
+        LevelServer level = board(chart);
+        for (int i = 0; i < count; i++) {
+            int tick = 100 + i * 15;
+            tickTo(level, bridge, tick);
+            assertTrue(level.rhythmHit("col", 5, tick, 0), "note " + i + " is playable on its tick");
+        }
+        return level;
+    }
+
+    /** Every fire tongue the clients were sent, as the effect events carry them. */
+    private static long fireTongues(CapturingBridge bridge) {
+        return bridge.packets.stream()
+                .filter(packet -> packet instanceof com.pvzce.common.network.packet.EffectEventS2C)
+                .map(packet -> (com.pvzce.common.network.packet.EffectEventS2C) packet)
+                .filter(effect -> effect.particle().equals(
+                        com.pvzce.common.PvzceParticles.JALAPENO_FIRE.toString()))
+                .count();
+    }
+
+    /**
+     * What each verdict is worth, measured as the step it makes in the bar.
+     *
+     * <p>Measured either side of the press and with no tick in between, so the number is the
+     * verdict's own and not the verdict's minus however much the bar happened to bleed in the same
+     * frame. A PERFECT pays a hundred, a GOOD fifty, a FAIR twenty.
+     */
+    @Test
+    void everyVerdictPaysTheBar() {
+        LevelServer level = board(chart());
+        CapturingBridge bridge = new CapturingBridge();
+
+        tickTo(level, bridge, 100);
+        int before = RhythmMechanic.score(level).energy();
+        assertTrue(level.rhythmHit("col", 5, 100, 0), "a perfect note");
+        assertEquals(PvzceConstants.ENERGY_PERFECT, RhythmMechanic.score(level).energy() - before,
+                "which is worth a hundred");
+
+        // The second column note is due at 160; six ticks late is inside the good window.
+        tickTo(level, bridge, 166);
+        before = RhythmMechanic.score(level).energy();
+        assertTrue(level.rhythmHit("col", 5, 160, 6), "a good note");
+        assertEquals(PvzceConstants.ENERGY_GOOD, RhythmMechanic.score(level).energy() - before);
+    }
+
+    /** And the bleed: five points a second, whatever the player is doing. */
+    @Test
+    void theBarBleedsFiveASecond() {
+        LevelServer level = board(chart());
+        CapturingBridge bridge = new CapturingBridge();
+        tickTo(level, bridge, 100);
+        assertTrue(level.rhythmHit("col", 5, 100, 0), "bank a hundred");
+        int before = RhythmMechanic.score(level).energy();
+
+        tick(level, bridge, PvzceConstants.TICKS_PER_SECOND);
+        assertEquals(PvzceConstants.ENERGY_DRAIN_PER_SECOND,
+                before - RhythmMechanic.score(level).energy(),
+                "a second of chart costs exactly five points, no matter what was banked");
+    }
+
+    /** A miss costs ten, on top of the bleed, and never takes the bar below empty. */
+    @Test
+    void aMissCostsTheBarTenPoints() {
+        LevelServer level = board(chart());
+        CapturingBridge bridge = new CapturingBridge();
+
+        // An empty bar first: the miss's ten points land on nothing, and the clamp is what keeps
+        // the bar from going negative.
+        tickTo(level, bridge, 173);
+        assertEquals(1, RhythmMechanic.score(level).missed(), "the first note went by unplayed");
+        assertEquals(0, RhythmMechanic.score(level).energy(),
+                "a miss on an empty bar leaves it empty rather than negative");
+    }
+
+    /** The bar has a ceiling, and a PERFECT at the top of it pays nothing. */
+    @Test
+    void theBarIsCapped() {
+        CapturingBridge bridge = new CapturingBridge();
+        LevelServer level = playPerfectly(longChart(120), 120, bridge);
+        assertEquals(PvzceConstants.ENERGY_MAX, RhythmMechanic.score(level).energy(),
+                "the bar fills and stops at " + PvzceConstants.ENERGY_MAX
+                        + " however many notes are played");
+    }
+
+    /**
+     * The gates: at three thousand every plant fires twice the bullets, at five thousand three.
+     *
+     * <p>Asked of the level rather than of the bar, because the level's answer is the one the lawn
+     * acts on - the bar is only what it is read from.
+     */
+    @Test
+    void theBarDecidesHowManyBulletsAPlantFires() {
+        LevelServer empty = board(chart());
+        PlantEntity shooter = plant(empty, "pea_shooter", 3, 2);
+        assertEquals(1, empty.projectileCountMultiplier(shooter), "an empty bar buys nothing");
+
+        // Thirty-one perfect notes is 3100 points against a bleed of about forty: over the gate.
+        CapturingBridge bridge = new CapturingBridge();
+        LevelServer doubling = playPerfectly(longChart(40), 31, bridge);
+        assertTrue(RhythmMechanic.score(doubling).energy() >= PvzceConstants.ENERGY_DOUBLE_AT,
+                "the bar is over the first gate: " + RhythmMechanic.score(doubling).energy());
+        assertEquals(2, doubling.projectileCountMultiplier(plant(doubling, "pea_shooter", 3, 2)));
+
+        LevelServer tripling = playPerfectly(longChart(60), 52, bridge);
+        assertTrue(RhythmMechanic.score(tripling).energy() >= PvzceConstants.ENERGY_TRIPLE_AT,
+                "and the second: " + RhythmMechanic.score(tripling).energy());
+        assertEquals(3, tripling.projectileCountMultiplier(plant(tripling, "pea_shooter", 3, 2)));
+    }
+
+    /**
+     * A doubled volley really is two peas, and the second one is a separate object.
+     *
+     * <p>The spacing is the half a count alone would not show: two peas born on the same tick at the
+     * same point are one pea on the screen and one hit on the zombie, which is why the repeater has
+     * a burst delay at all.
+     */
+    @Test
+    void aDoubledVolleyIsTwoPeasOnTheirOwnTicks() {
+        CapturingBridge bridge = new CapturingBridge();
+        // One volley per note, so the peas counted below are the volley's own and not the three a
+        // PERFECT is worth on a shipped chart (`RhythmChartData#volleys`).
+        LevelServer level = playPerfectly(longChart(40, 1), 31, bridge);
+        // In the lane the chart plays, which is the only one whose plants a note can order.
+        PlantEntity shooter = plant(level, "pea_shooter", 5, 2);
+        assertEquals(2, level.projectileCountMultiplier(shooter), "the bar is over the gate");
+
+        long before = projectilesOnTheLawn(level);
+        int tick = 100 + 31 * 15;
+        tickTo(level, bridge, tick);
+        assertTrue(level.rhythmHit("col", 5, tick, 0), "a note orders the column to fire");
+        // The order is queued on the plant rather than fired from the packet handler, so the pea
+        // leaves on the plant's own next tick (`PlantEntity.queueStrikes`).
+        tick(level, bridge, 1);
+        assertEquals(before + 1, projectilesOnTheLawn(level), "the first pea leaves on that tick");
+        tick(level, bridge, com.pvzce.common.capability.plant.ShooterCapability
+                .MULTIPLIED_BURST_DELAY);
+        assertEquals(before + 2, projectilesOnTheLawn(level),
+                "and the second a burst later, so the two are separate shots");
+    }
+
+    /**
+     * Thirty PERFECTs in a row sets every row of the board alight, and a GOOD breaks the streak.
+     *
+     * <p>The reward the mode is named after: a jalapeno in each row - "五行每行一个" - which between
+     * them burn the whole lawn. What is asserted is the volley (one row of fire per row of the
+     * board, all in one tick) and the streak that paid it.
+     */
+    @Test
+    void thirtyPerfectsInARowBurnEveryRow() {
+        CapturingBridge bridge = new CapturingBridge();
+        LevelServer level = playPerfectly(longChart(40), PvzceConstants.PERFECT_STREAK_MILESTONES[0],
+                bridge);
+        // The milestone is crossed in `judge`, which runs while the server handles packets - and a
+        // level can play no effect there, so the volley is owed until the level's own tick. One
+        // tick later the whole board is on fire, which is the half a test of the counter alone
+        // would never see.
+        tick(level, bridge, 1);
+        RhythmMechanic.Score score = RhythmMechanic.score(level);
+        assertEquals(PvzceConstants.PERFECT_STREAK_MILESTONES[0], score.perfectStreak());
+        assertEquals(1, score.jalapenos(), "the first milestone paid a volley");
+        assertEquals(level.height() * level.width(), fireTongues(bridge),
+                "one tongue per cell of every row, which is " + level.height() + " rows of "
+                        + level.width());
+    }
+
+    /** One short of the milestone pays nothing, which is what makes the number mean something. */
+    @Test
+    void twentyNinePerfectsBurnNothing() {
+        CapturingBridge bridge = new CapturingBridge();
+        LevelServer level = playPerfectly(longChart(40),
+                PvzceConstants.PERFECT_STREAK_MILESTONES[0] - 1, bridge);
+        assertEquals(0, RhythmMechanic.score(level).jalapenos(), "one short of the first milestone");
+        assertEquals(0, fireTongues(bridge), "so nothing on the lawn is on fire");
+    }
+
+    /** A GOOD is not a PERFECT, and the streak is named after what it counts. */
+    @Test
+    void aGoodBreaksThePerfectStreak() {
+        LevelServer level = board(chart());
+        CapturingBridge bridge = new CapturingBridge();
+        tickTo(level, bridge, 100);
+        assertTrue(level.rhythmHit("col", 5, 100, 0), "a perfect");
+        assertEquals(1, RhythmMechanic.score(level).perfectStreak());
+
+        tickTo(level, bridge, 166);
+        assertTrue(level.rhythmHit("col", 5, 160, 6), "then a good, six ticks late");
+        assertEquals(0, RhythmMechanic.score(level).perfectStreak(), "and the streak is gone");
+    }
+
+    /**
+     * Past the last named milestone the streak keeps paying, every twenty.
+     *
+     * <p>The four numbers are not where the rewards stop: a run that has played a flawless hundred
+     * notes keeps being paid for it rather than falling off a cliff exactly where it became
+     * impressive.
+     */
+    @Test
+    void pastTheLastMilestoneTheStreakKeepsPayingEveryTwenty() {
+        assertEquals(30, RhythmMechanic.nextStreakReward(0));
+        assertEquals(50, RhythmMechanic.nextStreakReward(30));
+        assertEquals(80, RhythmMechanic.nextStreakReward(50));
+        assertEquals(100, RhythmMechanic.nextStreakReward(80));
+        assertEquals(120, RhythmMechanic.nextStreakReward(100));
+        assertEquals(140, RhythmMechanic.nextStreakReward(120));
+        assertEquals(200, RhythmMechanic.nextStreakReward(181),
+                "a streak past a step is still paid at the next one");
+    }
+
+    /** The bar and the streak travel in the save, unrounded. */
+    @Test
+    void theBarAndTheStreakTravelInTheSave() {
+        CapturingBridge bridge = new CapturingBridge();
+        LevelServer level = playPerfectly(longChart(40), 12, bridge);
+        RhythmChartData chart = longChart(40);
+        int energy = RhythmMechanic.score(level).energy();
+        assertTrue(energy > 0, "some points were earned");
+
+        var typed = new com.pvzce.api.content.mechanic.TypedMechanic(
+                PvzceIds.MECHANIC_RHYTHM, chart);
+        CompoundTag save = new CompoundTag();
+        LevelMechanics.collectSave(typed, level, save);
+
+        LevelServer resumed = board(chart);
+        LevelMechanics.applySave(typed, resumed, save);
+        assertEquals(energy, RhythmMechanic.score(resumed).energy(),
+                "the bar comes back where it was");
+        assertEquals(12, RhythmMechanic.score(resumed).perfectStreak());
+    }
+
+    /** How many projectiles are on the lawn right now. */
+    private static long projectilesOnTheLawn(LevelServer level) {
+        return level.entities().stream()
+                .filter(entity -> entity instanceof com.pvzce.server.entity.ProjectileEntity)
+                .count();
     }
 }

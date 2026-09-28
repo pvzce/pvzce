@@ -27,10 +27,40 @@ import java.util.Set;
  * than one that is a frame behind. The misses are the same story read the other way: a note whose
  * window closed with no press is counted here so the player can be <em>told</em> (the server counts
  * its own, and the two agree because they are the same arithmetic on the same chart).
+ *
+ * <p>The energy bar and the PERFECT streak are the exception, and they are the server's outright:
+ * this class only holds the last {@code RhythmMechanic.Status} it was handed. Both are numbers the
+ * lawn is already acting on - the bar is what decides whether a plant fires two peas or six - and a
+ * HUD that computed its own would be able to disagree with the game about how much firepower the
+ * player has.
  */
 public final class RhythmPlay {
     /** How long a verdict stays on screen, in nanoseconds. */
     private static final long VERDICT_NANOS = 400_000_000L;
+    /**
+     * How long a lane's judgement line stays lit after a key was pressed, in nanoseconds.
+     *
+     * <p>Shorter than a verdict, and deliberately: this is the answer to "did my key register at
+     * all", which a player reads in the moment, and a lane that stayed lit for four hundred
+     * milliseconds would smear the chart into a row of glowing columns. A hundred and fifty is
+     * about two frames of key travel and reads as a flash.
+     */
+    private static final long PRESS_FLASH_NANOS = 150_000_000L;
+    /**
+     * How far into a VERDICT its pop-in is over, as a share of the verdict's life.
+     *
+     * <p>The word arrives at twice its size and snaps down to its resting size in the first
+     * seventh of the time it is on screen - which is the whole of the "打击感": a word that faded
+     * in at a fixed size would be a label, and a word that lands large and settles reads as an
+     * impact even though nothing else moved.
+     */
+    private static final float VERDICT_POP_SHARE = 0.14F;
+    /** How big the verdict is at the instant it appears, as a multiple of its resting size. */
+    private static final float VERDICT_POP_SCALE = 2.1F;
+    /** How far the verdict drifts upward over its life, in GUI units. */
+    private static final float VERDICT_RISE = 16F;
+    /** How much of the verdict's life is spent fading out, at the end. */
+    private static final float VERDICT_FADE_SHARE = 0.45F;
 
     private final RhythmChartData chart;
     /**
@@ -65,6 +95,46 @@ public final class RhythmPlay {
     private int bestCombo;
     /** The lane the last verdict landed in, for the flash: "col:2". */
     private String lastLane = "";
+    /**
+     * The lane a key was pressed in, whatever came of it, and the verdict if one did: "col:2".
+     *
+     * <p>Its own pair of fields rather than {@link #lastLane}, because they answer different
+     * questions and have different lifetimes. {@code lastLane} is "which lane was the last note
+     * played in" and lasts as long as the verdict does; this is "which lane did the player just
+     * touch" and lasts a flash - and a press nowhere near a note has the first answer and no
+     * second one, which is exactly the press the player most needs to see acknowledged.
+     */
+    private String pressedLane = "";
+    /** The verdict the pressed lane's flash is drawn in, or {@code null} for a press that missed. */
+    private RhythmChartData.Grade pressedGrade;
+    private long pressedNanos;
+
+    // ---- the server's numbers, as of the last Status that arrived (see RhythmMechanic.Status) ----
+
+    /**
+     * The energy bar, the run's tally, the PERFECT streak, the firepower and how many jalapeno
+     * volleys have been paid out.
+     *
+     * <p>These are the server's and are <em>not</em> mirrored here, unlike the counters above. The
+     * counters above are what the screen answers a keypress with - the verdict word and the lane's
+     * flash - and they have to be this side's, because the frame the key arrived in is this side's.
+     * Everything a player reads as <em>how the run is going</em> is counted once, on the server,
+     * and for a reason a film produced: the two sides grade a press slightly differently by design
+     * (the server takes the better of the two clocks - see {@code RhythmMechanic.judge}), so a HUD
+     * drawing the local counts beside the server's streak showed {@code PERFECT 0 · 连续 PERFECT ×1}
+     * - a contradiction rather than a lag. A resumed run is the other half: the local counters
+     * restart at zero with the client, and the server's carry on.
+     */
+    private int energy;
+    private int serverPerfect;
+    private int serverGood;
+    private int serverFair;
+    private int serverMissed;
+    private int serverCombo;
+    private int serverBestCombo;
+    private int streak;
+    private int multiplier = 1;
+    private int jalapenos;
 
     private RhythmPlay(RhythmChartData chart) {
         this.chart = chart;
@@ -170,14 +240,14 @@ public final class RhythmPlay {
      * {@code null} when the press was not near anything (a stray key, which costs nothing).
      */
     public RhythmHitC2S press(String laneKind, int laneIndex, double levelTicks) {
-        List<Integer> ticks = ticksByLane.get(laneKind + ":" + laneIndex);
+        String laneKey = laneKind + ":" + laneIndex;
+        List<Integer> ticks = ticksByLane.get(laneKey);
         if (ticks == null || startTicks < 0D) {
             // Still building: the chart has not begun, so a key is not a miss and not a note.
             return null;
         }
         double nowTicks = levelTicks - startTicks;
-        Set<Integer> already = pressed.computeIfAbsent(laneKind + ":" + laneIndex,
-                ignored -> new HashSet<>());
+        Set<Integer> already = pressed.computeIfAbsent(laneKey, ignored -> new HashSet<>());
         int best = -1;
         double bestDelta = Double.MAX_VALUE;
         for (int tick : ticks) {
@@ -202,8 +272,49 @@ public final class RhythmPlay {
         }
         combo++;
         bestCombo = Math.max(bestCombo, combo);
-        show(grade, laneKind + ":" + laneIndex);
+        show(grade, laneKey);
         return new RhythmHitC2S(laneKind, laneIndex, best, (int) Math.round(bestDelta));
+    }
+
+    /**
+     * A lane key went down, whatever it was for.
+     *
+     * <p>Called before the judgement, and separately from it, because the two are different events:
+     * a press that answers a note is a hit, and a press that answers nothing is still a press. The
+     * player has to see the second one - a lane that only lights up when it was right is a lane
+     * that cannot tell "I mistimed it" from "my key did not register", and those two send a player
+     * to two different places.
+     *
+     * <p>{@link #press} upgrades this to its verdict when the same key did answer something, so the
+     * flash ends up gold, blue or grey for a hit and stays neutral for a stray one.
+     */
+    public void pressed(String laneKind, int laneIndex) {
+        pressedLane = laneKind + ":" + laneIndex;
+        pressedGrade = null;
+        pressedNanos = System.nanoTime();
+    }
+
+    /** How brightly the lane named by {@code laneKind}/{@code laneIndex} is lit: 1 down to 0. */
+    public float pressFlash(String laneKind, int laneIndex) {
+        if (!pressedLane.equals(laneKind + ":" + laneIndex)) {
+            return 0F;
+        }
+        long age = System.nanoTime() - pressedNanos;
+        if (age >= PRESS_FLASH_NANOS) {
+            return 0F;
+        }
+        return 1F - age / (float) PRESS_FLASH_NANOS;
+    }
+
+    /**
+     * The verdict the lane's press flash is drawn in, or {@code null} for a press that found
+     * nothing.
+     *
+     * <p>{@code null} is the answer for a lane nobody just touched as well as for a stray press;
+     * the caller asks this only where {@link #pressFlash} is above zero.
+     */
+    public RhythmChartData.Grade pressedGrade(String laneKind, int laneIndex) {
+        return pressedLane.equals(laneKind + ":" + laneIndex) ? pressedGrade : null;
     }
 
     /** Puts a verdict on screen for its moment. */
@@ -212,6 +323,11 @@ public final class RhythmPlay {
         lastVerdict = grade.text();
         lastVerdictNanos = System.nanoTime();
         lastLane = lane;
+        // And the same event seen from the keyboard's side: the lane's flash takes the verdict's
+        // colour rather than staying neutral, so one press is one light and not two.
+        pressedLane = lane;
+        pressedGrade = grade;
+        pressedNanos = lastVerdictNanos;
     }
 
     /** The verdict to draw right now, or an empty string. */
@@ -220,6 +336,55 @@ public final class RhythmPlay {
             return "";
         }
         return lastVerdict;
+    }
+
+    /**
+     * How far through its life the verdict on screen is: 0 the instant it appears, 1 when it is
+     * gone.
+     *
+     * <p>What the pop-in, the drift and the fade are all curves of. Published rather than kept
+     * inside the three below so a caller that wants a fourth effect of its own - a shake on a MISS,
+     * a ring on a PERFECT - reads the same clock they do instead of starting a second one.
+     */
+    public float verdictProgress() {
+        if (lastVerdict.isEmpty()) {
+            return 1F;
+        }
+        long age = System.nanoTime() - lastVerdictNanos;
+        return Math.max(0F, Math.min(1F, age / (float) VERDICT_NANOS));
+    }
+
+    /**
+     * The verdict's size right now: {@link #VERDICT_POP_SCALE} at the instant it lands, 1 after
+     * {@link #VERDICT_POP_SHARE} of its life.
+     *
+     * <p>Scaling down rather than up is the whole trick: a word that grows reads as a caption
+     * arriving, and a word that lands too big and settles reads as something that hit.
+     */
+    public float verdictScale() {
+        float progress = verdictProgress();
+        if (progress >= VERDICT_POP_SHARE) {
+            return 1F;
+        }
+        float t = progress / VERDICT_POP_SHARE;
+        return VERDICT_POP_SCALE + (1F - VERDICT_POP_SCALE) * t;
+    }
+
+    /** The verdict's opacity right now: solid until its last {@link #VERDICT_FADE_SHARE}. */
+    public float verdictAlpha() {
+        float progress = verdictProgress();
+        if (progress <= 1F - VERDICT_FADE_SHARE) {
+            return 1F;
+        }
+        return Math.max(0F, (1F - progress) / VERDICT_FADE_SHARE);
+    }
+
+    /** How far above its resting line the verdict has drifted, in GUI units. */
+    public float verdictRise() {
+        // Eased rather than linear, so the word is moving fastest while it is still opaque: a
+        // verdict that drifts at a constant speed reads as sliding off rather than as thrown.
+        float progress = verdictProgress();
+        return VERDICT_RISE * progress * progress;
     }
 
     /** Which verdict {@link #visibleVerdict()} is, for its colour. */
@@ -264,11 +429,52 @@ public final class RhythmPlay {
     }
 
     /**
+     * The run's tally as the server counts it, for the HUD.
+     *
+     * <p>A record rather than four accessors so the line on screen and the numbers behind it are
+     * one thing: the four counters are always read together, and four getters invite a caller to
+     * take two of them from one message and two from the next.
+     */
+    public record Tally(int perfect, int good, int fair, int missed, int combo, int bestCombo) {
+    }
+
+    /** The tally to draw: the server's, for the reason the fields give. */
+    public Tally tally() {
+        return new Tally(serverPerfect, serverGood, serverFair, serverMissed, serverCombo,
+                serverBestCombo);
+    }
+
+    /** How full the energy bar is, in points, as the server last reported it. */
+    public int energy() {
+        return energy;
+    }
+
+    /** How many notes in a row have been PERFECT, as the server last reported it. */
+    public int streak() {
+        return streak;
+    }
+
+    /** How many times a plant's volley is repeated right now: 1, 2 or 3. */
+    public int multiplier() {
+        return multiplier;
+    }
+
+    /**
+     * How many jalapeno volleys the run has been paid, as a running total.
+     *
+     * <p>What the screen banners off: a total that goes up is an event it can see, and one that
+     * cannot be missed by a single lost packet the way "one just happened" can.
+     */
+    public int jalapenos() {
+        return jalapenos;
+    }
+
+    /**
      * Tells the chart where the level's clock has got to and where the server anchored it, then
      * sweeps for misses.
      *
      * <p>Called once a frame by the screen. The anchor is the server's number
-     * ({@code RhythmMechanic.Start}) and not this side's guess: the chart starts when the player
+     * ({@code RhythmMechanic.Status}) and not this side's guess: the chart starts when the player
      * says the waves may, and a client that read that moment off its own mirror of the preparation
      * phase was out by the whole build phase on the levels that have one - which is every rhythm
      * level. Until the number arrives the chart has not started, and a key does nothing.
@@ -276,13 +482,29 @@ public final class RhythmPlay {
      * <p>Once taken it never moves: a level that paused and resumed must not restart its chart, and
      * the server's clock does not.
      *
-     * @param chartStartTick the level tick the chart counts from, or a negative number while the
-     *                       server has not said
+     * <p>The same message carries the run's numbers - the bar, the streak, the firepower and the
+     * jalapeno count - and they are adopted whole every time one arrives, because they are the
+     * server's (see the fields). An empty status is "nothing has arrived yet", which is the opening
+     * of every run and the whole of a build phase.
+     *
+     * @param chartStatus the server's latest word on the run, or {@code null} before the first one
      */
-    public void tick(double levelTicks, double chartStartTick) {
+    public void tick(double levelTicks, com.pvzce.common.level.mechanic.RhythmMechanic.Status chartStatus) {
         lastLevelTicks = levelTicks;
-        if (startTicks < 0D && chartStartTick >= 0D) {
-            startTicks = chartStartTick;
+        if (chartStatus != null) {
+            if (startTicks < 0D && chartStatus.tick() >= 0) {
+                startTicks = chartStatus.tick();
+            }
+            energy = chartStatus.energy();
+            serverPerfect = chartStatus.perfect();
+            serverGood = chartStatus.good();
+            serverFair = chartStatus.fair();
+            serverMissed = chartStatus.missed();
+            serverCombo = chartStatus.combo();
+            serverBestCombo = chartStatus.bestCombo();
+            streak = chartStatus.streak();
+            multiplier = chartStatus.multiplier();
+            jalapenos = chartStatus.jalapenos();
         }
         if (startTicks < 0D) {
             return;

@@ -126,6 +126,43 @@ final public class SmokeDriver {
     private final int smokeCoins = Integer.getInteger("pvzce.smokeCoins", 0);
     private boolean smokeCoinsGranted;
 
+    /**
+     * {@code pvzce.smokeCollection=<collection id>}: open that collection's screen.
+     *
+     * <p>A collection is reached by picking its row in the level list, which is a click no
+     * screenshot run can make - the row it wants is not necessarily on the page the run opens on,
+     * and the list arrives a frame after the screen does. So the run stands up the level list
+     * (see {@code openNamedScreen}) and then pushes the collection's screen once its rows exist.
+     */
+    private final String smokeCollection = System.getProperty("pvzce.smokeCollection", "");
+    /**
+     * The collection waiting to be opened, or empty.
+     *
+     * <p>A field rather than a flag, because the hook is reachable twice: once from
+     * {@code pvzce.smokeCollection} at startup and once from a {@code collection:<id>} entry in
+     * {@code pvzce.smokePages}. Each sets it, and {@link #applySmokeCollection} clears it when the
+     * screen is up - so one run can film a level, then the list, then a box's own page.
+     */
+    private String pendingCollection = "";
+    /** True once the property's target has been handed to {@link #pendingCollection}. */
+    private boolean smokeCollectionOpenedOnce;
+
+    /**
+     * {@code pvzce.smokeStartWaves=<frame>}: press 开始 on the preparation phase's own clock.
+     *
+     * <p>A level that opens in its build phase waits for the player, and no other hook can answer
+     * it: {@code smokeClickLabel} only reaches buttons inside a dialog, and the 开始 button is a
+     * widget of the level's own HUD whose rectangle depends on the window size. Without this, any
+     * screenshot of a level that <em>starts</em> when the waves do - which is every rhythm level,
+     * where the chart's anchor is that very moment - shows the build phase and nothing else.
+     *
+     * <p>Fires on the first frame at or after the number that finds the level preparing, rather
+     * than exactly on it: how long the level takes to arrive is the server's business, and a hook
+     * that missed its frame would be a silent no-op.
+     */
+    private final int smokeStartWaves = Integer.getInteger("pvzce.smokeStartWaves", 0);
+    private boolean smokeStartWavesSent;
+
     /** Saves the editor once, so a smoke run can verify the write round trip. */
     private final boolean smokeSave = Boolean.getBoolean("pvzce.smokeSave");
     /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
@@ -402,10 +439,22 @@ final public class SmokeDriver {
                                 request.width(), request.height());
                     });
             levels.showDialog(create);
-        } else if ("levels".equals(smokeScreen)) {
+        } else if (smokeScreen.startsWith("collection:")) {
+            // One box's own page, reached the way the level list reaches it: stand the list up,
+            // then push the box once its row has arrived (see `applySmokeCollection`).
+            pendingCollection = smokeScreen.substring("collection:".length()).trim();
+            client.setCurrentWorld(System.getProperty("pvzce.smokeWorld", "world"));
+            client.setScreenReplacing(new LevelSelectScreen(client));
+            client.connection().send(new RequestLevelListC2S(client.currentWorld()));
+        } else if ("levels".equals(smokeScreen) || !smokeCollection.isBlank()) {
             // The level list is where "new level" and "edit level" now live, and it needs
             // a level list from the server to show anything. The world has to be named:
             // the list is per world, and an unnamed one comes back empty.
+            //
+            // `pvzce.smokeCollection` rides the same branch: a collection's screen is opened from
+            // a row of this list, and it draws its members out of the list itself, so the run has
+            // to stand the list up first either way. The push happens in `applySmokeCollection`,
+            // a frame or two later, once the rows have arrived.
             client.setCurrentWorld(System.getProperty("pvzce.smokeWorld", "world"));
             client.setScreenReplacing(new LevelSelectScreen(client));
             client.connection().send(new RequestLevelListC2S(client.currentWorld()));
@@ -577,9 +626,16 @@ final public class SmokeDriver {
     }
 
     void beforeFrame() {
+        if (pendingCollection.isEmpty() && !smokeCollection.isBlank()
+                && !smokeCollectionOpenedOnce) {
+            smokeCollectionOpenedOnce = true;
+            pendingCollection = smokeCollection;
+        }
         long clientTick = client.clientTick();
         applySmokeHold(clientTick);
         applySmokeCoins(clientTick);
+        applySmokeCollection(clientTick);
+        applySmokeStartWaves(clientTick);
         applyTrayClick();
         // Before the render, not after: the capture hook below runs after the buffers were
         // swapped, so a page turned in afterFrame would be one frame late in the PNG.
@@ -1019,7 +1075,11 @@ final public class SmokeDriver {
             return;
         }
         for (String item : smokePages.split(",")) {
-            String[] parts = item.trim().split(":");
+            // Split once: a page key may carry an argument of its own, as
+            // `collection:pvzce:collections/day_lawn` does, and splitting on every colon turned
+            // that into the bare word "collection" - which was reported as an unknown page and
+            // looked exactly like a hook that had not fired.
+            String[] parts = item.trim().split(":", 2);
             if (parts.length < 2) {
                 continue;
             }
@@ -1050,6 +1110,48 @@ final public class SmokeDriver {
      * only one that exists. It waits for the level list, which is what makes the server pick a
      * world: paying before that would pay whichever world the menu happened to default to.
      */
+    /**
+     * {@code pvzce.smokeCollection=<collection id>}: open that collection's screen.
+     *
+     * <p>A frame or two after the level list arrives, because the screen is built out of it: it
+     * resolves the collection's row and every member's row by id, exactly as a click would, so a
+     * run that pushed it before the list existed would screenshot an empty page and look like the
+     * feature was broken.
+     */
+    private void applySmokeStartWaves(long clientTick) {
+        if (smokeStartWaves <= 0 || smokeStartWavesSent || clientTick < smokeStartWaves) {
+            return;
+        }
+        if (!(client.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen)
+                || client.level() == null || !client.level().preparing()) {
+            return;
+        }
+        smokeStartWavesSent = true;
+        client.connection().send(new com.pvzce.common.network.packet.StartWavesC2S());
+        System.out.println("[SMOKE] frame " + clientTick + " pressed 开始 (waves start)");
+    }
+
+    private void applySmokeCollection(long clientTick) {
+        if (pendingCollection.isBlank() || clientTick < 3
+                || !(client.currentScreen() instanceof com.pvzce.client.gui.screens.LevelSelectScreen)) {
+            return;
+        }
+        String id = pendingCollection;
+        boolean listed = false;
+        for (com.pvzce.common.network.packet.LevelListS2C.LevelInfo info : client.levelList()) {
+            if (info.isCollection() && info.id().equals(id)) {
+                listed = true;
+                break;
+            }
+        }
+        if (!listed) {
+            return;
+        }
+        pendingCollection = "";
+        client.openScreen(new com.pvzce.client.gui.screens.LevelCollectionScreen(client, id));
+        System.out.println("[SMOKE] opened collection " + id);
+    }
+
     private void applySmokeCoins(long clientTick) {
         if (smokeCoins <= 0 || smokeCoinsGranted || clientTick < 20 || client.levelList().isEmpty()) {
             return;

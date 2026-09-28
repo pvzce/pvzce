@@ -49,6 +49,16 @@ public final class PvzceIds {
 
     /** The plant a fresh profile starts with, and the first level's only plant card. */
     public static final Identifier STARTER_PLANT = id("pea_shooter");
+    /**
+     * The jalapeno, named because one other thing hands it out without a plant.
+     *
+     * <p>The rhythm levels pay a long consecutive-PERFECT streak with a jalapeno in every row, and
+     * the blast that buys is read off the plant's own definition - its damage, its damage type,
+     * whether it melts ice, its sound. Spelled here rather than at that call site for the reason
+     * every other id in this class is: a plant renamed in two places is a reward that silently
+     * stops working.
+     */
+    public static final Identifier JALAPENO = id("jalapeno");
     /** The one tool a fresh profile starts with, so a misplaced plant can be dug up. */
     public static final Identifier STARTER_TOOL = id("shovel");
 

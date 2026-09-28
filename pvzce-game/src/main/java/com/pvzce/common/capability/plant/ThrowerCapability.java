@@ -84,6 +84,7 @@ public final class ThrowerCapability implements PlantCapability {
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
+        firePendingLobs(plant, level);
         if (cooldown > 0) {
             cooldown--;
             if (cooldown == 0) {
@@ -134,16 +135,84 @@ public final class ThrowerCapability implements PlantCapability {
     /** One volley of arc shots at a target; shared by the clock and by {@link #strike}. */
     private void lob(PlantEntity plant, LevelAccess level, ZombieEntity target) {
         plant.setState(EntityAnimations.SHOOT);
+        // How many times this volley is repeated: the rhythm levels' energy bar, the same number
+        // the straight shooters read (see `LevelAccess#projectileCountMultiplier`). A lob has no
+        // burst delay of its own to space the extra shots with, so it borrows the shooters': three
+        // cabbages born on the same tick at the same point are one cabbage on the screen and three
+        // hits on the zombie, which is a buff the player cannot see.
+        int repeats = Math.max(1, level.projectileCountMultiplier(plant));
+        float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X;
         for (ProjectileRef shot : shots) {
             boolean butter = butterChance > 0F && level.random().nextFloat() < butterChance;
             ProjectileRef ref = butter
                     ? new ProjectileRef(butterProjectile, shot.damage(), shot.count())
                     : shot;
-            level.spawnArcProjectile(ref, plant.cellX() + PlantShots.MUZZLE_OFFSET_X, plant.cellY(), plant, target);
+            // A lob is one projectile whatever its `count` says - the arc is aimed at a cell, and
+            // this capability has never read the field (see `ProjectileRef#count`). The level's
+            // multiplier is the only thing that makes it more than one.
+            level.spawnArcProjectile(ref, muzzleX, plant.cellY(), plant, target);
+            for (int i = 1; i < repeats; i++) {
+                pendingLobs.add(new PendingLob(ref, muzzleX, plant.cellY(), target,
+                        i * ShooterCapability.MULTIPLIED_BURST_DELAY));
+            }
         }
         level.emitEffect(PlantShots.MUZZLE_PARTICLE, plant.cellX() + 0.5F, plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_THROW)));
         cooldown = intervalTicks;
+    }
+
+    /** One lob ordered but not yet thrown; the shooter's twin, and there for the same reason. */
+    private record PendingLob(ProjectileRef ref, float x, float y, ZombieEntity target,
+                              int ticksLeft) {
+    }
+
+    /**
+     * Lobbed shots that are still on their way out, with the ticks left before each.
+     *
+     * <p>Only a multiplied volley has any: a kernel-pult at 1x leaves on the firing tick and never
+     * reads this list. Not part of {@link #save}, on the same reasoning the shooter's queue uses -
+     * the whole burst is a fifth of a second, and a save taken inside that window loses at most the
+     * tail of one volley.
+     */
+    private final List<PendingLob> pendingLobs = new java.util.ArrayList<>();
+
+    /** A lob still to come is work owed: without this a hold-fire level would swallow it. */
+    @Override
+    public boolean hasPendingWork(PlantEntity plant) {
+        return !pendingLobs.isEmpty();
+    }
+
+    @Override
+    public void tickPending(PlantEntity plant, LevelAccess level) {
+        firePendingLobs(plant, level);
+    }
+
+    /** Throws the lobs whose ticks have come; no cooldown, no target search, no new decision. */
+    private void firePendingLobs(PlantEntity plant, LevelAccess level) {
+        if (pendingLobs.isEmpty()) {
+            return;
+        }
+        // Reverse order so removing an entry does not shift the ones still to come - the shooter's
+        // own loop, and the same countdown: an entry with one tick left fires now.
+        for (int i = pendingLobs.size() - 1; i >= 0; i--) {
+            PendingLob pending = pendingLobs.get(i);
+            int ticksLeft = pending.ticksLeft() - 1;
+            if (ticksLeft > 0) {
+                pendingLobs.set(i, new PendingLob(pending.ref(), pending.x(), pending.y(),
+                        pending.target(), ticksLeft));
+                continue;
+            }
+            pendingLobs.remove(i);
+            // A target that died while the shot was in the air takes the shot with it: the arc's
+            // height is read off the target's own cell (see `LevelServer.spawnArcProjectile`), so a
+            // lob with nothing to fall on is a shot that lands nowhere. Aim is not re-decided -
+            // the lob was thrown, and looking again here would be a second answer to "what is it
+            // falling on".
+            if (pending.target() == null || pending.target().isRemoved()) {
+                continue;
+            }
+            level.spawnArcProjectile(pending.ref(), pending.x(), pending.y(), plant, pending.target());
+        }
     }
 
     @Override

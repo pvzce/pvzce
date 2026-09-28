@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "pvzce:yard/survival/mutation_easy",
+    "pvzce:yard/survival/mutation_normal",
+    "pvzce:yard/survival/mutation_hard",
+    "pvzce:yard/survival/mutation_hell",
+    "pvzce:yard/survival/mutation_tutorial"
+  ]
+}

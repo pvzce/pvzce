@@ -47,6 +47,8 @@ import com.pvzce.server.command.PvzceCommandSource;
 import com.pvzce.server.command.PvzceCommands;
 import com.pvzce.common.util.LevelKey;
 import com.pvzce.common.util.WorldPaths;
+import com.pvzce.server.level.LevelCollections;
+import com.pvzce.server.level.LevelIcons;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.level.LevelTabs;
 import com.pvzce.server.level.LevelValidator;
@@ -65,6 +67,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -391,7 +394,26 @@ public final class PvzceServer implements Runnable {
         Set<Identifier> cleared = clearedLevels(safeWorld);
         LevelUnlocks.Context unlockContext = new LevelUnlocks.Context(cleared,
                 profile.unlockedLevels(), profile::ownsCard, profile.coins(), profile.unlocksEverything());
-        List<LevelListS2C.LevelInfo> levels = new ArrayList<>();
+        // The collections first: every level inside one is marked as living there, and a level
+        // marked that way is one the pages leave out (see `LevelPage.rowsFor`). The rows are still
+        // all sent - the collection's own screen draws them - so this is about which list a level
+        // appears on, not about whether the client knows it exists.
+        List<LevelCollections.Collection> collections = LevelCollections.build();
+        Map<Identifier, Identifier> containedIn = new java.util.HashMap<>();
+        for (LevelCollections.Collection collection : collections) {
+            for (Identifier member : collection.members()) {
+                containedIn.putIfAbsent(member, collection.id());
+            }
+        }
+        // Every row of the list, collected and then sorted once: a collection sorts where its first
+        // level does, so an adventure page reads 白天草坪, 夜晚草坪, 白天泳池, 夜晚泳池 and then the
+        // loose levels, rather than the boxes in the alphabetical order of their own names.
+        //
+        // Pair by pair rather than a map keyed by the sort key, which is what this was first and
+        // what the film caught: a collection's sort key *is* its first member's id, so the box's
+        // row was overwritten by that member's - and since the member is one the pages leave out,
+        // the whole box vanished from the list.
+        List<Map.Entry<String, LevelListS2C.LevelInfo>> rows = new ArrayList<>();
         BuiltInRegistries.LEVELS.keySet().stream()
                 // Natural order, so 1-10 comes after 1-9 instead of after 1-1.
                 .sorted(Comparator.comparing(Identifier::toString,
@@ -420,12 +442,33 @@ public final class PvzceServer implements Runnable {
                     boolean beaten = cleared.contains(id);
                     String status = runningSave ? LevelListS2C.LevelInfo.IN_PROGRESS
                             : (beaten ? LevelListS2C.LevelInfo.COMPLETED : "");
-                    levels.add(LevelListS2C.LevelInfo.of(id.toString(), def.displayName(), def.description(),
-                            def.winTeam().toString(), teams, status, levelIcon(def),
-                            group.theme().toString(), group.category().toString(), runningSave, beaten,
+                    Identifier collection = containedIn.get(id);
+                    LevelListS2C.LevelInfo row = new LevelListS2C.LevelInfo(id.toString(),
+                            def.displayName(), def.description(), def.winTeam().toString(), teams,
+                            status, LevelIcons.of(def), group.theme().toString(),
+                            group.category().toString(), runningSave, beaten,
                             LevelServer.payloadFor(def, seeds),
-                            LevelListS2C.UnlockInfo.of(unlock)));
+                            LevelListS2C.UnlockInfo.of(unlock), LevelListS2C.CollectionInfo.NONE,
+                            collection == null ? "" : collection.toString());
+                    rows.add(Map.entry(id.toString(), row));
                 });
+        for (LevelCollections.Collection collection : collections) {
+            // The name is not the server's to give - it is a language key the client resolves off
+            // this id (see `LevelPage.collectionLabel`) - so the row carries the id and the client
+            // reads it in whatever language it is in. What the server does send is the page, the
+            // icon and the members, none of which the client could derive from a bare tag id.
+            LevelGrouping.Group group = groupOf(collection.members().get(0));
+            rows.add(Map.entry(collection.sortKey(), LevelListS2C.LevelInfo.ofCollection(
+                    collection.id().toString(), collection.id().toString(),
+                    group.theme().toString(), group.category().toString(), collection.icon(),
+                    collection.members().stream().map(Identifier::toString).toList())));
+        }
+        rows.sort(Comparator.comparing(Map.Entry::getKey,
+                com.pvzce.api.util.LevelGrouping.idOrder()));
+        List<LevelListS2C.LevelInfo> levels = new ArrayList<>(rows.size());
+        for (Map.Entry<String, LevelListS2C.LevelInfo> row : rows) {
+            levels.add(row.getValue());
+        }
         // Pages travel with the list they describe: a screen that received the levels but
         // not the tabs would have to invent them, and the two would be free to disagree.
         connection.send(profilePacket(profile));
@@ -871,29 +914,6 @@ public final class PvzceServer implements Runnable {
                     missing.size(), String.join(", ", missing));
         }
         return List.of();
-    }
-
-    /** Almanac-style icon theme sent to the level select screen. */
-    private static String levelIcon(LevelDef def) {
-        boolean night = false;
-        var nightRule = def.rules().get(Identifier.withDefaultNamespace("night_length"));
-        if (nightRule != null && nightRule.isJsonPrimitive()) {
-            try {
-                night = nightRule.getAsInt() > 0;
-            } catch (RuntimeException e) {
-                LOGGER.warn("Level {} has a non-numeric night_length; showing it as a day level",
-                        def.id(), e);
-            }
-        }
-        boolean roof = def.scene().keySet().stream().anyMatch(key -> key.path().contains("roof"));
-        boolean water = def.scene().keySet().stream().anyMatch(key -> key.path().contains("water"));
-        if (roof) {
-            return "roof";
-        }
-        if (water) {
-            return night ? "night_pool" : "pool";
-        }
-        return night ? "night" : "day";
     }
 
     /** A world's persistent player record: coins and unlocked cards. */

@@ -523,6 +523,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * playing state inside it (which notes have been pressed) has to survive every frame.
      */
     private com.pvzce.client.RhythmPlay rhythm;
+    /**
+     * The last jalapeno total the screen saw, and when the banner for the newest one started.
+     *
+     * <p>A total rather than a flag: the reward is announced when the number goes up, which is an
+     * event this side can see in the state it already receives (see {@code RhythmMechanic.Status}).
+     */
+    private int lastJalapenos;
+    private long jalapenoBannerNanos;
 
     /**
      * The card a press picked up, or {@code -1}.
@@ -1531,9 +1539,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (rhythm != null) {
             // The chart's clock is read here rather than in `tick()`: the first note may be pressed
             // on any frame, and the render loop is the one that runs on all of them.
-            rhythm.tick(client.level().smoothLevelTicks(), rhythmStartTick());
+            rhythm.tick(client.level().smoothLevelTicks(), rhythmStatus());
         }
         renderRhythmHud();
+        renderRhythmBanner();
         renderEntryBanner();
         renderFinalWaveBanner();
         mutationHud.renderBanner(client);
@@ -4487,19 +4496,20 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
-     * Where the server anchored this level's chart, or {@code -1} while it has not said.
+     * The run's numbers as the server last sent them, or {@code null} before the first message.
      *
-     * <p>The number comes from {@code RhythmMechanic.Start} through the mechanic sync channel -
-     * the same one the preparation phase uses for its flag - and it is the server's own tick, so
-     * the client's notes and the server's judgement are counting from the same place. Deriving the
-     * moment here instead (the build phase ending) was out by the whole build phase: the client's
-     * mirror of that phase is a packet behind, and false before the first packet arrives.
+     * <p>The message carries the chart's anchor - the level tick its first note counts from - and
+     * it is the server's own tick, so the client's notes and the server's judgement are counting
+     * from the same place. Deriving the moment here instead (the build phase ending) was out by the
+     * whole build phase: the client's mirror of that phase is a packet behind, and false before the
+     * first packet arrives.
+     *
+     * <p>Beside the anchor ride the energy bar, the PERFECT streak and the jalapeno count, for the
+     * reason a mechanic streams under one shape at all (see {@code RhythmMechanic.Status}).
      */
-    private double rhythmStartTick() {
-        com.pvzce.common.level.mechanic.RhythmMechanic.Start start =
-                client.level().mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM,
-                        com.pvzce.common.level.mechanic.RhythmMechanic.Start.class);
-        return start == null ? -1D : start.tick();
+    private com.pvzce.common.level.mechanic.RhythmMechanic.Status rhythmStatus() {
+        return client.level().mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM,
+                com.pvzce.common.level.mechanic.RhythmMechanic.Status.class);
     }
 
     /**
@@ -4509,6 +4519,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * to turn a key into "which note was that, and how far off was it" and to say so. A press that
      * is nowhere near a note sends nothing at all - a stray key is not a mistake, and a client that
      * reported every press would be filling the server's miss counter with the player's typing.
+     *
+     * <p>The lane is lit <em>before</em> that judgement, and whether or not there is a note under
+     * it: the flash answers "did my key register", which is a question a stray press asks just as
+     * loudly as a hit does (see {@code RhythmPlay#pressed}).
      */
     private boolean playRhythmLane(String laneKind, int laneIndex) {
         if (rhythm == null || !client.level().gameState().equals("running") || paused) {
@@ -4516,7 +4530,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // level has anything to do with them.
             return rhythm != null;
         }
-        rhythm.tick(client.level().smoothLevelTicks(), rhythmStartTick());
+        rhythm.tick(client.level().smoothLevelTicks(), rhythmStatus());
+        rhythm.pressed(laneKind, laneIndex);
         var packet = rhythm.press(laneKind, laneIndex, client.level().smoothLevelTicks());
         if (packet != null) {
             client.connection().send(packet);
@@ -4532,6 +4547,26 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      */
     /** How far apart the rhythm HUD's lines sit, in GUI units. */
     private static final float RHYTHM_HUD_LINE = 14F;
+    /** The verdict's resting size; the pop-in and the fade are its own curves (see `RhythmPlay`). */
+    private static final float RHYTHM_VERDICT_SCALE = 1.5F;
+    /** The energy bar's width and the tallest it may grow, in GUI units. */
+    private static final float RHYTHM_ENERGY_BAR_WIDTH = 18F;
+    private static final float RHYTHM_ENERGY_BAR_MAX_HEIGHT = 200F;
+    /**
+     * Where the energy bar hangs from, as a share of the window's height, and how tall it is.
+     *
+     * <p>Anchored from the top rather than stacked under the streak line: the right edge of this
+     * HUD holds the pause button at the very top and the level-progress badge at the very bottom,
+     * and a gauge that is pinned to the text above it grows into whichever of the two is in the way.
+     * 0.78 leaves the button its corner and 0.34 of the height is a bar long enough to read a
+     * three-thousand-point gate off without reaching the wave meter.
+     */
+    private static final float RHYTHM_ENERGY_BAR_TOP = 0.78F;
+    private static final float RHYTHM_ENERGY_BAR_HEIGHT = 0.34F;
+    /** What the streak's reward is called, on screen. */
+    private static final String JALAPENO_BANNER_TEXT = "火爆辣椒！";
+    /** How long the reward's banner stays up, in nanoseconds. */
+    private static final long JALAPENO_BANNER_NANOS = 1_200_000_000L;
     /**
      * Where the row keys sit, in world cells: inside the board's left edge.
      *
@@ -4632,13 +4667,20 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             float textWidth = client.fonts().body().width(key, scale);
             float width = Math.max(height, textWidth + height * 0.6F);
             boolean hot = rhythm.justPlayed(lane.kind().json(), lane.index());
+            // A key that was just pressed, whether or not it answered anything, and the light that
+            // says so (see `RhythmPlay#pressed`). Read separately from `hot`: `hot` is the answer to
+            // "did that note land", and this is "did my key register".
+            float flash = rhythm.pressFlash(lane.kind().json(), lane.index());
+            com.pvzce.api.content.RhythmChartData.Grade flashGrade =
+                    rhythm.pressedGrade(lane.kind().json(), lane.index());
             if (row) {
                 // A row chart keeps the letters on the left edge of its rows. No shipped tier plays
                 // this way any more; the mechanic still supports it, and a hand-written chart should
                 // not be told its keys are somewhere else.
                 float centerX = camera.screenX(RHYTHM_KEY_ROW_X) / guiScale;
                 float centerY = camera.screenY(lane.index() + 0.5F) / guiScale;
-                drawRhythmCapsule(centerX, centerY, width, height, key, scale, hot, false);
+                drawRhythmCapsule(centerX, centerY, width, height, key, scale, hot, false,
+                        flash, flashGrade);
                 continue;
             }
             float centerX = camera.screenX(lane.index() + 0.5F) / guiScale;
@@ -4648,11 +4690,20 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     camera.screenY(client.level().height() + RHYTHM_FLIGHT_HEADROOM) / guiScale - judgeY,
                     0.51F, 0.9F, 0.85F, 0.45F, 0.10F);
             // The judgement marker: the line the note has to be on. Bright while this lane is the
-            // one that was just played, so the answer and the question are drawn in one place.
+            // one that was just played, so the answer and the question are drawn in one place -
+            // and it is the key press, not the hit, that lights it: a press that answered nothing
+            // is the one the player is squinting at.
+            float[] lineColour = rhythmLaneColour(flashGrade, hot, flash);
             client.drawSolid(centerX - laneSize / 2F, judgeY - 2F, laneSize, 4F, 0.52F,
-                    hot ? 1F : 0.55F, hot ? 0.9F : 0.5F, 0.2F, 0.9F);
+                    lineColour[0], lineColour[1], lineColour[2], lineColour[3]);
+            // The lane's own glow, under the marker and wider than it, for the moment after a
+            // press: a four-pixel line is easy to miss while the eye is chasing a note.
+            if (flash > 0F) {
+                client.drawSolid(centerX - laneSize / 2F, judgeY - 6F, laneSize, 12F, 0.515F,
+                        lineColour[0], lineColour[1], lineColour[2], 0.30F * flash);
+            }
             drawRhythmCapsule(centerX, camera.screenY(RHYTHM_KEY_COL_Y) / guiScale, width, height, key,
-                    scale, hot, false);
+                    scale, hot, false, flash, flashGrade);
         }
         // The notes, over everything: they are the thing the player is reading.
         double topY = client.level().height() + RHYTHM_FLIGHT_HEADROOM;
@@ -4684,33 +4735,97 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // On the line is the moment that counts, so the note whitens as it arrives: a player
             // who presses when it is white is inside the perfect window by construction.
             boolean onLine = Math.abs(flight.ticksAhead()) <= rhythm.chart().perfectTicks();
-            drawRhythmCapsule(centerX, centerY, width, height, key, scale, onLine, true);
+            drawRhythmCapsule(centerX, centerY, width, height, key, scale, onLine, true, 0F, null);
         }
         if (columnChart && !rhythm.visibleVerdict().isEmpty()) {
             // Just above the line, where the player is looking. The tally is off to the right
             // (see `renderRhythmHud`); this is the answer to the press they just made.
-            String verdict = rhythm.visibleVerdict();
-            float scale = 1.5F;
-            float[] colour = verdictColour(rhythm.visibleGrade());
-            client.fonts().body().draw(verdict,
-                    (client.guiWidth() - client.fonts().body().width(verdict, scale)) / 2F,
-                    judgeY + RHYTHM_HUD_LINE * 2F, scale,
-                    colour[0], colour[1], colour[2], 1F);
+            drawRhythmVerdict(rhythm.visibleVerdict(), rhythm.visibleGrade(),
+                    client.guiWidth() / 2F, judgeY + RHYTHM_HUD_LINE * 2F, RHYTHM_VERDICT_SCALE);
         }
+    }
+
+    /**
+     * The verdict word, in the display face and with its own weight behind it.
+     *
+     * <p>{@link #drawRhythmCapsule}'s twin for the one string in this HUD that is a reaction rather
+     * than a readout, and it is drawn differently on purpose: 站酷快乐体 instead of 思源黑体
+     * ({@code client.fonts().button()}), lit at {@link RhythmPlay#verdictScale()} and drifting on
+     * {@link RhythmPlay#verdictRise()}. The face is the house's display one - the same one the sun
+     * counter's numbers and the wave banners use - so "PERFECT" landing on the judgement line looks
+     * like the game's own voice rather than like a debug label; the size and the drift are the
+     * impact.
+     *
+     * <p>An outline rather than a shadow, because the word lands on the lawn: a black halo keeps a
+     * gold PERFECT legible over grass, a zombie and a flame at once, which a drop shadow does not.
+     */
+    private void drawRhythmVerdict(String verdict, com.pvzce.api.content.RhythmChartData.Grade grade,
+                                   float centerX, float baseline, float baseScale) {
+        float[] colour = verdictColour(grade);
+        float scale = baseScale * rhythm.verdictScale();
+        float alpha = rhythm.verdictAlpha();
+        float y = baseline + rhythm.verdictRise();
+        client.fonts().button().drawCentered(verdict, centerX, y, scale,
+                colour[0], colour[1], colour[2], alpha,
+                com.pvzce.client.renderer.font.TextStyle.outline(0.03F, 0.02F, 0.02F, 0.9F * alpha, 1.6F));
+    }
+
+    /**
+     * The colour the lane's judgement marker and key cap are lit in.
+     *
+     * <p>Three states, in order of what the player most needs to know: a note that was just played
+     * takes its verdict's colour (gold, blue, grey - see {@link #verdictColour}); a key that was
+     * just pressed and answered nothing flashes a neutral white, which is the whole of "I saw your
+     * key, there was nothing there"; and a lane nobody has touched is the dim amber it always was.
+     *
+     * <p>{@code flash} is the press's own fade, used as the alpha so the light goes out rather than
+     * switching off.
+     */
+    private static float[] rhythmLaneColour(com.pvzce.api.content.RhythmChartData.Grade flashGrade,
+                                            boolean hot, float flash) {
+        if (hot) {
+            float[] colour = verdictColour(flashGrade == null ? rhythmGradeFallback() : flashGrade);
+            return new float[] {colour[0], colour[1], colour[2], 0.95F};
+        }
+        if (flash > 0F) {
+            return new float[] {0.92F, 0.95F, 1F, 0.35F + 0.55F * flash};
+        }
+        return new float[] {0.55F, 0.5F, 0.2F, 0.9F};
+    }
+
+    /**
+     * The verdict a lit lane falls back to when it was a hit whose grade the client no longer has.
+     *
+     * <p>Unreachable in practice - {@code justPlayed} and {@code pressedGrade} are both cleared by
+     * the same timer - but the alternative is a null check at the call site, and a lane lit in the
+     * wrong colour for one frame beats a crash in the render loop.
+     */
+    private static com.pvzce.api.content.RhythmChartData.Grade rhythmGradeFallback() {
+        return com.pvzce.api.content.RhythmChartData.Grade.PERFECT;
     }
 
     /** One capsule: a dark rim, a filled cap and the letter on it. */
     private void drawRhythmCapsule(float centerX, float centerY, float width, float height, String key,
-                                   float scale, boolean hot, boolean note) {
+                                   float scale, boolean hot, boolean note, float flash,
+                                   com.pvzce.api.content.RhythmChartData.Grade flashGrade) {
         // The white letters were all that showed in the first version of this, because the fifth
         // argument of `drawSolid` is z, not a corner radius: passing a radius-sized number there
         // draws the cap at a depth nothing else uses, which is to say nowhere.
-        float rimR = note ? 0.12F : 0.05F;
-        float rimG = note ? 0.1F : 0.05F;
-        float rimB = note ? 0.04F : 0.06F;
+        float[] pressedColour = rhythmLaneColour(flashGrade, false, flash);
         float fillR = hot ? 1F : note ? 0.95F : 0.17F;
         float fillG = hot ? 0.87F : note ? 0.78F : 0.17F;
         float fillB = hot ? 0.2F : note ? 0.18F : 0.23F;
+        if (flash > 0F && !hot) {
+            // A pressed lane's cap takes the flash's own colour, so the cap and the judgement line
+            // above it are one light. Mixed toward the flash by how bright it still is, so the cap
+            // settles back to its resting grey as the flash fades instead of snapping.
+            fillR = fillR + (pressedColour[0] - fillR) * flash;
+            fillG = fillG + (pressedColour[1] - fillG) * flash;
+            fillB = fillB + (pressedColour[2] - fillB) * flash;
+        }
+        float rimR = note ? 0.12F : 0.05F;
+        float rimG = note ? 0.1F : 0.05F;
+        float rimB = note ? 0.04F : 0.06F;
         client.drawSolid(centerX - width / 2F - 2F, centerY - height / 2F - 2F,
                 width + 4F, height + 4F, 0.52F, rimR, rimG, rimB, 0.85F);
         client.drawSolid(centerX - width / 2F, centerY - height / 2F, width, height,
@@ -4743,25 +4858,144 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 && rhythm.chart().lanes().get(0).kind()
                         == com.pvzce.api.content.RhythmChartData.LaneKind.COL;
         float right = width - 16F;
-        String verdict = rhythm.visibleVerdict();
-        if (!verdict.isEmpty() && !columnChart) {
+        if (!rhythm.visibleVerdict().isEmpty() && !columnChart) {
             // A row chart has no judgement line to hang the verdict on, so it keeps the middle of
             // the screen; a column chart's is drawn on its own line (see `renderRhythmHighway`).
-            float scale = 1.6F;
-            float[] colour = verdictColour(rhythm.visibleGrade());
-            client.fonts().body().draw(verdict,
-                    (width - client.fonts().body().width(verdict, scale)) / 2F,
-                    client.guiHeight() * 0.62F, scale, colour[0], colour[1], colour[2], 1F);
+            drawRhythmVerdict(rhythm.visibleVerdict(), rhythm.visibleGrade(),
+                    width / 2F, client.guiHeight() * 0.62F, RHYTHM_VERDICT_SCALE);
         }
         // The tally, down the right-hand side: every verdict the run has had, misses included -
-        // the mode tells the player what they failed to press, not only what they hit.
-        String tally = "PERFECT " + rhythm.perfect() + " · GOOD " + rhythm.good()
-                + " · FAIR " + rhythm.fair() + " · MISS " + rhythm.missed();
-        client.fonts().body().draw(tally, right - client.fonts().body().width(tally, 0.9F),
+        // the mode tells the player what they failed to press, not only what they hit. The server's
+        // counts and not this side's: the two sides grade a press slightly differently by design,
+        // and a line drawn from one of them beside a streak drawn from the other reads as a
+        // contradiction rather than as a lag (see `RhythmPlay`).
+        com.pvzce.client.RhythmPlay.Tally tally = rhythm.tally();
+        String tallyLine = "PERFECT " + tally.perfect() + " · GOOD " + tally.good()
+                + " · FAIR " + tally.fair() + " · MISS " + tally.missed();
+        client.fonts().body().draw(tallyLine, right - client.fonts().body().width(tallyLine, 0.9F),
                 height * 0.38F, 0.9F, 1F, 1F, 1F, 1F);
-        String combo = "连击 " + rhythm.combo() + " · 最高 " + rhythm.bestCombo();
+        String combo = "连击 " + tally.combo() + " · 最高 " + tally.bestCombo();
         client.fonts().body().draw(combo, right - client.fonts().body().width(combo, 0.9F),
                 height * 0.38F - RHYTHM_HUD_LINE, 0.9F, 1F, 0.9F, 0.45F, 1F);
+        // The streak, in the display face and larger than the two lines above it: this is the
+        // number the rewards are named after, and it is the one the player is counting.
+        String streak = "连续 PERFECT ×" + rhythm.streak();
+        client.fonts().button().draw(streak,
+                right - client.fonts().button().width(streak, 1.3F),
+                height * 0.38F - RHYTHM_HUD_LINE * 2.4F, 1.3F,
+                rhythm.streak() > 0 ? 1F : 0.75F, rhythm.streak() > 0 ? 0.9F : 0.75F,
+                rhythm.streak() > 0 ? 0.3F : 0.75F, 1F);
+        renderEnergyBar(right);
+    }
+
+    /**
+     * The energy bar: a vertical gauge down the right edge, with the two gates drawn on it.
+     *
+     * <p>Vertical because of where it lives: the right-hand side of this HUD is already a column of
+     * lines (the tally, the combo, the streak), and a bar under them that ran the other way would
+     * be the one horizontal thing in a vertical list. Downward because it drains - the level falls,
+     * which is what the player is watching.
+     *
+     * <p>The gates are drawn as ticks at their own heights rather than only as a colour change,
+     * because the number that matters is not "how full" but "am I above the line that doubles my
+     * fire" - a player defending 3000 needs to see 3000. The fill's colour is the firepower it is
+     * buying, so the bar answers the question it exists for at a glance.
+     *
+     * <p>It hangs from {@link #RHYTHM_ENERGY_BAR_TOP} rather than standing on the text below it, and
+     * that is the whole report the first film produced: anchored to the streak line's underside it
+     * grew <em>downward off the bottom of the screen</em>, and the only thing the screenshot showed
+     * was the top two inches of track behind the level-progress badge. A gauge is read against the
+     * top of what it is next to, so the top is the number that is fixed and the height is what gives.
+     *
+     * @param right the right-hand margin the HUD's lines are aligned to
+     */
+    private void renderEnergyBar(float right) {
+        float barWidth = RHYTHM_ENERGY_BAR_WIDTH;
+        float top = client.guiHeight() * RHYTHM_ENERGY_BAR_TOP;
+        float barHeight = Math.max(40F, Math.min(RHYTHM_ENERGY_BAR_MAX_HEIGHT,
+                client.guiHeight() * RHYTHM_ENERGY_BAR_HEIGHT));
+        float x = right - barWidth;
+        // `y` is the rect's lower edge: the bar hangs from `top` down to `top - barHeight`.
+        float y = top - barHeight;
+        int energy = rhythm.energy();
+        float fraction = Math.max(0F, Math.min(1F, energy / (float) PvzceConstants.ENERGY_MAX));
+        int multiplier = rhythm.multiplier();
+        // The firepower the bar is paying for: amber at 1x, cold blue at 2x, hot red at 3x. A
+        // colour rather than a word because it has to be readable while the player is watching the
+        // judgement line, not the corner of the screen.
+        float[] fill = multiplier >= 3 ? new float[] {1F, 0.35F, 0.3F}
+                : multiplier == 2 ? new float[] {0.45F, 0.85F, 1F}
+                : new float[] {1F, 0.78F, 0.25F};
+        // The track, a shade darker than the plate the level list uses so it reads as a gauge.
+        client.drawSolid(x - 2F, y - 2F, barWidth + 4F, barHeight + 4F, 0.14F, 0F, 0F, 0F, 0.55F);
+        client.drawSolid(x, y, barWidth, barHeight, 0.15F, 0.16F, 0.17F, 0.2F, 0.9F);
+        client.drawSolid(x, y, barWidth, barHeight * fraction, 0.16F, fill[0], fill[1], fill[2], 0.95F);
+        // The two gates. `ENERGY_DOUBLE_AT` first, so the higher line is drawn over the lower one
+        // where they would touch at a very short bar.
+        drawEnergyGate(x, y, barWidth, barHeight, PvzceConstants.ENERGY_DOUBLE_AT, "×2");
+        drawEnergyGate(x, y, barWidth, barHeight, PvzceConstants.ENERGY_TRIPLE_AT, "×3");
+        String value = Integer.toString(energy);
+        client.fonts().body().draw(value, right - client.fonts().body().width(value, 0.8F),
+                top + 6F, 0.8F, 1F, 1F, 1F, 1F);
+        if (multiplier > 1) {
+            // Beside the bar's middle, on the lawn side, in the display face: it is the one number
+            // on this HUD that is a statement about the plants rather than about the playing.
+            String badge = "×" + multiplier;
+            float badgeScale = 1.4F;
+            client.fonts().button().draw(badge,
+                    x - 8F - client.fonts().button().width(badge, badgeScale),
+                    y + barHeight * 0.5F + client.fonts().button().ascent(badgeScale) / 2F,
+                    badgeScale, fill[0], fill[1], fill[2], 1F);
+        }
+    }
+
+    /** One gate's tick across the bar, with its own label on the far side. */
+    private void drawEnergyGate(float x, float y, float barWidth, float barHeight, int gate,
+                                String label) {
+        float at = y + barHeight * (1F - gate / (float) PvzceConstants.ENERGY_MAX);
+        boolean passed = rhythm.energy() >= gate;
+        client.drawSolid(x, at - 1F, barWidth, 2F, 0.17F,
+                1F, 1F, 1F, passed ? 0.95F : 0.5F);
+        client.fonts().body().draw(label, x - 6F - client.fonts().body().width(label, 0.7F),
+                at + client.fonts().body().ascent(0.7F) / 2F, 0.7F,
+                passed ? 1F : 0.6F, passed ? 1F : 0.6F, passed ? 1F : 0.6F, 1F);
+    }
+
+    /**
+     * Announces a jalapeno volley, once per reward the streak has paid.
+     *
+     * <p>Read off the running total rather than off a flag in the packet, so a message that arrived
+     * late is still an announcement and one that was lost is caught by the next one (see
+     * {@code RhythmMechanic.Status}). The banner is the mode's own voice, in the display face like
+     * the verdict and the wave banners: five rows of fire is a thing that happened <em>to</em> the
+     * player, not a number they were meant to read.
+     */
+    private void renderRhythmBanner() {
+        if (rhythm == null) {
+            return;
+        }
+        int paid = rhythm.jalapenos();
+        if (paid != lastJalapenos) {
+            if (paid > lastJalapenos) {
+                jalapenoBannerNanos = System.nanoTime();
+            }
+            lastJalapenos = paid;
+        }
+        if (jalapenoBannerNanos == 0L) {
+            return;
+        }
+        long age = System.nanoTime() - jalapenoBannerNanos;
+        if (age >= JALAPENO_BANNER_NANOS) {
+            return;
+        }
+        float progress = age / (float) JALAPENO_BANNER_NANOS;
+        // The verdict's own curve, one size up: it lands large and settles, then fades where it
+        // stands. A banner that drifted would be competing with the notes for the same attention.
+        float scale = (progress < 0.14F ? 2.6F + (1.6F - 2.6F) * (progress / 0.14F) : 1.6F);
+        float alpha = progress <= 0.55F ? 1F : Math.max(0F, (1F - progress) / 0.45F);
+        client.fonts().button().drawCentered(JALAPENO_BANNER_TEXT, client.guiWidth() / 2F,
+                client.guiHeight() * 0.72F, scale, 1F, 0.55F, 0.15F, alpha,
+                com.pvzce.client.renderer.font.TextStyle.outline(0.05F, 0.01F, 0F, 0.9F * alpha, 1.8F));
     }
 
     private void openPause() {

@@ -47,7 +47,7 @@ class RhythmChartsTest {
     }
 
     private static Identifier idOf(RhythmCharts.Tier tier) {
-        return PvzceIds.id("yard/minigame/rhythm_" + tier.suffix());
+        return PvzceIds.id("yard/rhythm/rhythm_" + tier.suffix());
     }
 
     private static final int VOLLEYS = com.pvzce.api.content.RhythmChartData.DEFAULT_ATTACK_VOLLEYS;
@@ -63,7 +63,7 @@ class RhythmChartsTest {
     private static Path shippedPath(RhythmCharts.Tier tier) {
         Path root = SourceTree.root();
         return root == null ? null : root.resolve("pvzce-game/src/main/resources/data/pvzce/levels")
-                .resolve("yard/minigame/rhythm_" + tier.suffix() + ".json");
+                .resolve("yard/rhythm/rhythm_" + tier.suffix() + ".json");
     }
 
     /** The chart block of a generated level. */
@@ -335,7 +335,7 @@ class RhythmChartsTest {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
             Identifier id = idOf(tier);
             assertEquals("pvzce", id.namespace(), tier.suffix() + " is in this pack");
-            assertEquals("yard/minigame/rhythm_" + tier.suffix(), id.path(),
+            assertEquals("yard/rhythm/rhythm_" + tier.suffix(), id.path(),
                     tier.suffix() + "'s path is its file's path, which is what decides its page");
         }
         assertTrue(PvzceDataLoader.CONTENT_REGISTRIES.stream()

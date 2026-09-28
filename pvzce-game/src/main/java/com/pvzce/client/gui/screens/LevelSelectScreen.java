@@ -468,15 +468,18 @@ public final class LevelSelectScreen extends Screen {
         if (nextButton != null) {
             boolean locked = selected != null && selected.isLocked();
             boolean buyable = locked && selected.unlock().buyable();
-            // One button, three meanings. A locked level that cannot be bought yet stays
+            // One button, four meanings. A locked level that cannot be bought yet stays
             // disabled, so "下一步" never turns into a click that the server refuses.
-            nextButton.setLabel(buyable ? "解锁 " + selected.unlock().cost() + " 金币"
+            nextButton.setLabel(selected != null && selected.isCollection() ? "进入"
+                    : buyable ? "解锁 " + selected.unlock().cost() + " 金币"
                     : (locked ? "尚未解锁"
                     : (selected != null && selected.hasRunningSave() ? "继续游戏" : "下一步")));
             nextButton.setActive(selected != null && (!locked || buyable));
         }
         if (editButton != null) {
-            editButton.setActive(selected != null);
+            // A collection is not a level: there is no file behind it and nothing to open in the
+            // editor, so the button greys out rather than opening whatever shares its id.
+            editButton.setActive(selected != null && !selected.isCollection());
         }
     }
 
@@ -627,7 +630,16 @@ public final class LevelSelectScreen extends Screen {
             if (row >= 0 && row < visibleRows) {
                 int index = paging.firstRow() + row;
                 if (index >= 0 && index < rows.size()) {
+                    int previous = selectedRow;
                     selectRow(index);
+                    // A second click on the row that is already selected opens it - the one
+                    // interaction this screen has besides the button, and the one a player tries
+                    // first on a row that looks like a box. Read off "was it already selected"
+                    // rather than off a click timer: the selection is the state the player can see,
+                    // so a double click is exactly "clicked it twice", with no window to tune.
+                    if (previous == index) {
+                        openSetup();
+                    }
                 }
             }
         }
@@ -679,11 +691,18 @@ public final class LevelSelectScreen extends Screen {
      *
      * <p>Four cases, one button: enter a level, continue a run, buy a locked level, or
      * refuse - in which case the button is disabled and says why, so a click can never
-     * look like it did nothing.
+     * look like it did nothing. A collection adds the fifth: open the box, which is what
+     * "进入" says.
      */
     private void openSetup() {
         LevelListS2C.LevelInfo selected = selected();
         if (selected == null) {
+            return;
+        }
+        if (selected.isCollection()) {
+            // A box is not a level and has nothing to prepare: the row it opens is a list, and the
+            // levels inside it go through this same decision when they are picked from there.
+            client.openScreen(new LevelCollectionScreen(client, selected.id()));
             return;
         }
         if (selected.isLocked()) {
@@ -770,78 +789,14 @@ public final class LevelSelectScreen extends Screen {
     private void renderRows() {
         int firstRow = paging.firstRow();
         int lastRow = Math.min(totalRows, firstRow + visibleRows);
+        // Built once per frame rather than asked per row: a collection's progress line counts how
+        // many of its members are cleared, and the members are rows of this same list.
+        LevelRowRenderer renderer = new LevelRowRenderer(client, LevelRowRenderer.clearedIndex(levels));
         for (int row = firstRow; row < lastRow; row++) {
             LevelListS2C.LevelInfo level = rows.get(row);
             float cardX = gridX;
             float cardY = gridRenderTop - rowHeight - (row - firstRow) * (rowHeight + rowGap);
-            boolean selected = row == selectedRow;
-
-            client.drawSolid(cardX - 2, cardY - 2, gridWidth + 4, rowHeight + 4, 0.1F,
-                    0F, 0F, 0F, 0.35F);
-            client.drawSolid(cardX, cardY, gridWidth, rowHeight, 0.1F,
-                    0.22F, 0.14F, 0.06F, 0.88F);
-            if (selected) {
-                client.drawSolid(cardX - 3, cardY - 3, gridWidth + 6, rowHeight + 6, 0.2F,
-                        1F, 0.9F, 0.2F, 0.75F);
-            }
-
-            boolean locked = level.isLocked();
-            float iconSize = Math.max(20F, Math.min(rowHeight - 10F, 40F));
-            float iconX = cardX + 10F;
-            float iconY = cardY + (rowHeight - iconSize) / 2F;
-            // A locked level is drawn, but dimmed: hiding it would leave the player with no
-            // idea that there is more to do, and the original shows its next level too.
-            client.drawTexture(iconTexture(level.icon()), iconX, iconY, iconSize, iconSize,
-                    0.2F, 1F, 1F, 1F, locked ? 0.45F : 1F);
-
-            float textX = iconX + iconSize + 10F;
-            if (locked) {
-                float lockSize = Math.max(12F, iconSize * 0.5F);
-                client.drawTexture(LOCK_ICON, textX, cardY + (rowHeight - lockSize) / 2F,
-                        lockSize, lockSize, 0.3F, 1F, 1F, 1F, 0.9F);
-                textX += lockSize + 6F;
-            }
-            // The trophy a beaten trophy-category level has earned, pinned to the right.
-            // It reads `cleared` rather than the status label: a row that says 进行中 because
-            // a replay was abandoned is still a row the player has won, and the medal is not
-            // taken back by starting over. Everything else on the row yields to it, so a long
-            // level name shrinks instead of running underneath the cup.
-            float trophyHeight = showsTrophy(level) ? Math.max(16F, Math.min(rowHeight - 12F, iconSize)) : 0F;
-            float trophyWidth = trophyHeight * TROPHY_ART_WIDTH / TROPHY_ART_HEIGHT;
-            float reservedRight = 10F + (trophyHeight > 0F ? trophyWidth + 8F : 0F);
-            float availableWidth = Math.max(30F, cardX + gridWidth - reservedRight - textX);
-            String name = level.name().isEmpty() ? level.id() : level.name();
-            float nameScale = 1.1F;
-            while (nameScale > 0.55F && client.fonts().body().width(name, nameScale) > availableWidth) {
-                nameScale -= 0.05F;
-            }
-            // A locked row says what is missing instead of "未通关": the condition is the
-            // only thing the player can act on.
-            String status = locked ? level.unlock().reason() : statusLabel(level.status());
-            if (locked && level.unlock().cost() > 0) {
-                status = status + "，或 " + level.unlock().cost() + " 金币";
-            }
-            float nameY = cardY + rowHeight / 2F - client.fonts().body().lineHeight(nameScale) / 2F;
-            if (!status.isEmpty()) {
-                nameY += 6F;
-            }
-            client.fonts().body().draw(name, textX, nameY, nameScale,
-                    locked ? 0.65F : 1F, locked ? 0.65F : 1F, locked ? 0.6F : 1F, 1F);
-            if (!status.isEmpty()) {
-                client.fonts().body().draw(status, textX, cardY + rowHeight / 2F - 14F,
-                        0.7F, 1F, locked ? 0.6F : 0.9F, locked ? 0.4F : 0.5F, 1F);
-            }
-            if (selected) {
-                String id = level.id();
-                float idScale = 0.6F;
-                client.fonts().body().draw(id, cardX + gridWidth - reservedRight - client.fonts().body().width(id, idScale),
-                        cardY + 5F, idScale, 0.7F, 0.72F, 0.65F, 1F);
-            }
-            if (trophyHeight > 0F) {
-                client.drawTexture(TROPHY, cardX + gridWidth - 10F - trophyWidth,
-                        cardY + (rowHeight - trophyHeight) / 2F,
-                        trophyWidth, trophyHeight, 0.4F, 1F, 1F, 1F, locked ? 0.75F : 1F);
-            }
+            renderer.render(level, cardX, cardY, gridWidth, rowHeight, row == selectedRow);
         }
 
         drawArrow(true, prevArrowX, prevArrowY, paging.hasPrevious(), prevHover);
@@ -861,14 +816,7 @@ public final class LevelSelectScreen extends Screen {
     }
 
     private static Identifier iconTexture(String icon) {
-        String path = switch (icon == null ? "day" : icon) {
-            case "night" -> "almanac_groundnight";
-            case "pool" -> "almanac_groundpool";
-            case "night_pool" -> "almanac_groundnightpool";
-            case "roof" -> "almanac_groundroof";
-            default -> "almanac_groundday";
-        };
-        return Identifier.withDefaultNamespace("textures/gui/screen/level/" + path);
+        return LevelRowRenderer.iconTexture(icon);
     }
 
     /**
@@ -906,26 +854,6 @@ public final class LevelSelectScreen extends Screen {
     /** Shared with the level setup screen so the same state cannot read differently. */
     static String statusLabel(String status) {
         return com.pvzce.client.gui.GuiStatusText.label(status);
-    }
-
-    /**
-     * True when this row has earned the category's trophy: beaten, in a trophy category.
-     *
-     * <p>Both halves are needed. {@code cleared} is the durable fact the server sends beside
-     * the status label, and {@code trophy} is the category's own statement that beating one
-     * of its levels is a medal rather than just progress - asked of the registry the client
-     * loaded from the same packs, so a pack that marks another category earns trophies there
-     * without a code change. An unknown category answers false rather than throwing: a
-     * client that is missing the pack still draws the list.
-     */
-    static boolean showsTrophy(LevelListS2C.LevelInfo level) {
-        if (level == null || !level.cleared()) {
-            return false;
-        }
-        Identifier category = Identifier.tryParse(level.category() == null ? "" : level.category());
-        com.pvzce.api.content.LevelCategoryDef def =
-                category == null ? null : com.pvzce.common.core.BuiltInRegistries.LEVEL_CATEGORIES.get(category);
-        return def != null && def.trophy();
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.pvzce.common.tag;
 
+import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.ZombieDef;
@@ -212,6 +213,24 @@ public final class PvzceTags {
                     Identifier.withDefaultNamespace("mutation_crisis"));
 
     /**
+     * The levels a collection is made of, and the one convention that says a tag <em>is</em> a
+     * collection.
+     *
+     * <p>A collection - 白天草坪, 变异, 节奏草坪 - is a tag over the level registry whose path starts
+     * with this prefix: {@code data/pvzce/tags/levels/collections/day_lawn.json} is
+     * {@code #pvzce:collections/day_lawn}, and the file's {@code values} are its members in the
+     * order the list shows them (see {@link RegistryTagView#orderedIds}). The prefix is what keeps
+     * every <em>other</em> tag over levels - a pack's "these are the hard ones", a hidden level's
+     * group - from turning into a box in the level list: a tag becomes a collection by being filed
+     * under {@code collections/} and in no other way.
+     *
+     * <p>The display name is not in the file, exactly as a category's is not: it is the language
+     * key {@code level_collection.<ns>.<path-without-the-prefix>} (see
+     * {@code LevelCollections#nameKey}).
+     */
+    public static final String COLLECTION_PREFIX = "collections/";
+
+    /**
      * The plant-headed zombies the {@code zombotany} mutation sends.
      *
      * <p>A tag of its own rather than four names added to the crisis pool: a crisis rolls
@@ -229,6 +248,15 @@ public final class PvzceTags {
     public static final RegistryTagView<PlantDef> PLANTS = view(PvzceRegistries.PLANTS);
     /** Zombies, for the content queries that are about a kind of zombie rather than an entity. */
     public static final RegistryTagView<ZombieDef> ZOMBIES = view(PvzceRegistries.ZOMBIES);
+    /**
+     * Levels, for the queries that are about a <em>set</em> of levels rather than one.
+     *
+     * <p>Only the collections ask it today ({@link #COLLECTION_PREFIX}), and it is a view of its own
+     * because a level is the one thing in this game whose grouping is otherwise decided by its id
+     * path: everything else about which page a level lands on is {@code LevelGrouping}'s, and a tag
+     * is the way to say something about levels that the path cannot.
+     */
+    public static final RegistryTagView<LevelDef> LEVELS = view(PvzceRegistries.LEVELS);
 
     private PvzceTags() {
     }
@@ -331,6 +359,24 @@ public final class PvzceTags {
                 return Set.of();
             }
             return registry.getTag(tag).map(bound -> Set.copyOf(bound.ids())).orElse(Set.of());
+        }
+
+        /**
+         * Every entry id in {@code tag}, in the order the tag's own files list them.
+         *
+         * <p>The same answer {@link #ids} gives, as a list and in the authored order. A tag is a set
+         * and most callers want one - "is this zombie in the crisis pool" has no order to it - but a
+         * collection <em>is</em> an ordered list of levels (which chapter comes before which), and
+         * the order it is written in is the only place that can be said. Lower packs first, and
+         * within one file the order the values appear in, which is how the whole tag loader stacks
+         * a pack over another.
+         */
+        public List<Identifier> orderedIds(TagKey<T> tag) {
+            Registry<T> registry = registry();
+            if (registry == null) {
+                return List.of();
+            }
+            return registry.getTag(tag).map(bound -> List.copyOf(bound.ids())).orElse(List.of());
         }
 
         /** Every tag bound to this registry, whether or not a key was declared for it. */

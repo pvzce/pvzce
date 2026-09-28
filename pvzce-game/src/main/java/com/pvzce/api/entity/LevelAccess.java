@@ -94,6 +94,19 @@ public interface LevelAccess {
         return 1F;
     }
 
+    /**
+     * How many times a plant's volley is repeated: 1, 2 or 3.
+     *
+     * <p>The other half of the level's say over what a plant fires. Where
+     * {@link #sporeRangeMultiplier} lengthens a shot, this multiplies the <em>count</em> - the
+     * rhythm levels' energy bar buys it, and at the top of the bar a repeater fires six peas where
+     * it fired two. Beside the range multiplier rather than inside it because the two are separate
+     * facts about the same volley, and every capability that fires reads both.
+     */
+    default int projectileCountMultiplier(PlantEntity plant) {
+        return 1;
+    }
+
     void spawnProjectile(ProjectileRef ref, float x, float y, PlantEntity source);
 
     /**

@@ -2674,6 +2674,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
+     * How many times a plant's volley is repeated, or 1 when nothing applies.
+     *
+     * <p>The rhythm levels' energy bar, read per volley for the same reason the range multiplier is
+     * read per shot: the bar crosses its gates while the run is going, and a plant that had the
+     * answer baked in when it was planted would keep firing the old number for the rest of the
+     * level. One question, one answer, asked of the mechanic that owns the bar.
+     */
+    @Override
+    public int projectileCountMultiplier(PlantEntity plant) {
+        if (plant == null) {
+            return 1;
+        }
+        return com.pvzce.common.level.mechanic.RhythmMechanic.projectileCountMultiplier(this);
+    }
+
+    /**
      * Picks up resource drops on their own when a buff says so.
      *
      * <p>Runs after the drop entities have ticked, so a drop that is still falling has already

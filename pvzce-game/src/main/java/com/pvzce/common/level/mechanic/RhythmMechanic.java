@@ -4,7 +4,10 @@ import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.RhythmChartData;
 import com.pvzce.api.content.mechanic.FieldSpec;
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.PvzceSounds;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
@@ -34,6 +37,22 @@ import java.util.Map;
  * drops the sun the chart pays out of one of those plants, as an entity that the player's own
  * collection rules pick up.
  *
+ * <h2>The bar, and the streak that pays in fire</h2>
+ *
+ * <p>Two counters sit beside the tally, and they are what makes a run a run rather than a list of
+ * notes played. The <b>energy bar</b> takes a hundred points from a PERFECT, fifty from a GOOD,
+ * twenty from a FAIR and ten off for a miss nobody played, and bleeds five a second whatever the
+ * player does; while it is at or above {@code PvzceConstants.ENERGY_DOUBLE_AT} every plant in the
+ * game fires twice the bullets per attack, and at or above {@code ENERGY_TRIPLE_AT} three times.
+ * The <b>consecutive-PERFECT streak</b> is the stricter counter - a GOOD breaks it exactly as a
+ * miss does - and at 30, 50, 80 and 100 (and every twenty past that) it pays a jalapeno in every
+ * row of the board.
+ *
+ * <p>Both live here rather than in a mechanic of their own because they are what a chart's notes
+ * are <em>worth</em>, and a chart's notes are this mechanic's. They are also both the server's: the
+ * client mirrors the streak and the verdict so the screen can answer a keypress on the same frame,
+ * but every number the run is scored on - and every jalapeno - is decided here.
+ *
  * <h2>The clock is the level's own tick count</h2>
  *
  * <p>Not wall time: a level that was paused, or one that was saved and resumed, has a tick count
@@ -43,25 +62,67 @@ import java.util.Map;
  */
 public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
     /**
-     * The chart's anchor, as the client is told it: the level tick its first note counts from.
+     * The chart's anchor and the run's numbers, as the client is told them.
      *
-     * <p>On the wire because the client cannot work it out. The chart starts when the player says
-     * the waves may, and the client's mirror of that moment is a packet behind at best - and at
-     * worst absent, since {@code ClientLevel.preparing()} is false before the preparation phase's
-     * own state has arrived. A client that anchored on its own guess was therefore out by a hundred
-     * ticks on the shipped levels (the level's first tick instead of the tick the player pressed
-     * 开始), and every press it sent named a note the server was nowhere near: the film that found
-     * this showed the client at combo five and the server's save at zero hits and twenty misses.
+     * <p>The anchor - the level tick the chart counts from - is the first, and it is still on the
+     * wire because the client cannot work it out: the chart starts when the player says the waves
+     * may, and the client's mirror of that moment is a packet behind at best - and at worst absent,
+     * since {@code ClientLevel.preparing()} is false before the preparation phase's own state has
+     * arrived. A client that anchored on its own guess was therefore out by a hundred ticks on the
+     * shipped levels (the level's first tick instead of the tick the player pressed 开始), and every
+     * press it sent named a note the server was nowhere near: the film that found this showed the
+     * client at combo five and the server's save at zero hits and twenty misses.
      *
-     * <p>One number, sent once when it is taken and again after a resume. The client's clock is the
-     * same {@code smoothLevelTicks} it always was; only the origin is now the server's.
+     * <p>The <b>tally</b> rides it for a subtler reason, and one a film found: the two sides grade
+     * the same press slightly differently by design - the server takes the better of its own
+     * distance and the client's, so a press the client called GOOD can be a PERFECT here (see
+     * {@link #judge}) - and a HUD that drew the client's counts beside this record's streak showed
+     * {@code PERFECT 0 · 连续 PERFECT ×1}, which is not a difference anybody can read, only a
+     * contradiction. So everything a player reads as "how the run is going" is counted once, here,
+     * and the client's own counters are left to the one job they are better at: answering the press
+     * on the frame it happened (see {@code RhythmPlay}).
+     *
+     * <p>Energy, streak and the jalapeno count ride the same message rather than one of their own
+     * because a mechanic streams under <em>one</em> payload shape: {@code MechanicSyncS2C} is
+     * dispatched by mechanic id alone (see {@code ClientMechanics}), so a second record under
+     * {@code pvzce:rhythm} would be decoded as this one and read as nonsense. One record, sent
+     * once when the anchor is taken and then on a cadence (see {@link #STATUS_INTERVAL_TICKS}).
+     *
+     * <p>{@code jalapenos} is a running total and not a flag: the screen announces the reward when
+     * the number goes up, and a total cannot be missed by a dropped packet the way "one just
+     * happened" can.
      */
-    public record Start(int tick) {
-        public static final PacketStruct.Codec<Start> CODEC =
-                PacketStruct.<Start>builder()
-                        .field(Start::tick, PacketByteBuf::writeInt, PacketByteBuf::readInt)
-                        .build(values -> new Start((Integer) values.get(0)));
+    public record Status(int tick, int energy, int perfect, int good, int fair, int missed,
+                         int combo, int bestCombo, int streak, int multiplier, int jalapenos) {
+        public static final PacketStruct.Codec<Status> CODEC =
+                PacketStruct.<Status>builder()
+                        .field(Status::tick, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::energy, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::perfect, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::good, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::fair, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::missed, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::combo, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::bestCombo, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::streak, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::multiplier, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .field(Status::jalapenos, PacketByteBuf::writeInt, PacketByteBuf::readInt)
+                        .build(values -> new Status((Integer) values.get(0), (Integer) values.get(1),
+                                (Integer) values.get(2), (Integer) values.get(3),
+                                (Integer) values.get(4), (Integer) values.get(5),
+                                (Integer) values.get(6), (Integer) values.get(7),
+                                (Integer) values.get(8), (Integer) values.get(9),
+                                (Integer) values.get(10)));
     }
+
+    /**
+     * How often the run's numbers are re-sent, in ticks.
+     *
+     * <p>Six - ten times a second. The bar bleeds a twelfth of a point per tick, so anything
+     * slower would show the drop in visible steps, and anything faster would be a packet every
+     * tick for a number the eye cannot resolve.
+     */
+    private static final int STATUS_INTERVAL_TICKS = 6;
 
     /** Which notes have been counted, and the run's tally. */
     private static final class State {
@@ -91,6 +152,38 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         boolean startSynced;
         /** True once the track's end has been reached and the lawn swept, so it happens once. */
         boolean finished;
+        /**
+         * The energy bar, in points, kept fractional.
+         *
+         * <p>A {@code float} because the drain is five points a <em>second</em> - a twelfth of a
+         * point a tick - and an integer bar that lost the remainder would either drain nothing or
+         * drain six times too fast depending on which way it rounded. Clamped to
+         * {@code [0, PvzceConstants.ENERGY_MAX]} on every change; what the client draws is the
+         * rounded value (see {@link #statusOf}).
+         */
+        float energy;
+        /**
+         * How many notes in a row have been PERFECT.
+         *
+         * <p>Not {@link #combo}, which is the mode's older counter and counts every counted note
+         * whatever its verdict. This one is the streak the reward is named after: a GOOD breaks it
+         * exactly as a MISS does, which is what makes thirty of them mean something.
+         */
+        int perfectStreak;
+        /** The streak length that pays next; starts at the first milestone. */
+        int nextStreakReward = PvzceConstants.PERFECT_STREAK_MILESTONES[0];
+        /**
+         * How many whole-lawn volleys the streak has earned, as a running total.
+         *
+         * <p>The count the client banners off, and the reason {@link #pendingJalapenos} is a
+         * separate field: a reward is <em>earned</em> in {@code judge}, which runs while the
+         * server is handling packets, and <em>released</em> in {@link #tick}, which is the only
+         * place the level can play an effect. The two are the same tick in the shipped game and
+         * are still two fields, because "owed" and "paid" are two facts (see {@link #release}).
+         */
+        int streakRewards;
+        /** Volleys earned and not yet fired; drained one per tick by {@link #release}. */
+        int pendingJalapenos;
     }
 
     private static State state(LevelServer level) {
@@ -125,6 +218,15 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         }
         anchor(level, state);
         int tick = level.tickCount() - state.startTick;
+        // The bar bleeds before anything else is read, so a gate crossed this tick is crossed for
+        // this tick's shots: mechanics run before entities (see LevelServer.tick), and a plant
+        // firing later in the same tick reads the multiplier this drain decided on.
+        state.energy = clampEnergy(state.energy
+                - PvzceConstants.ENERGY_DRAIN_PER_SECOND / (float) PvzceConstants.TICKS_PER_SECOND);
+        // And what the streak has earned is paid here rather than where it was earned: a reward is
+        // crossed in `judge`, which runs while the server is handling packets - and a level can
+        // play no effect then (see `release`).
+        release(level, state);
         for (RhythmChartData.Lane lane : data.lanes()) {
             String key = laneKey(lane.kind(), lane.index());
             List<Integer> ticks = data.ticksOf(lane);
@@ -132,17 +234,22 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
                     ignored -> new java.util.HashSet<>());
             int from = state.next.getOrDefault(key, 0);
             // A note whose window has closed with nothing pressed is a miss, and it breaks the
-            // combo - which is the whole difficulty of the mode: the chart does not wait.
+            // combo - which is the whole difficulty of the mode: the chart does not wait. It
+            // breaks the PERFECT streak as well, and costs the bar its ten points: the two
+            // counters are the same event seen twice, and so is the price.
             while (from < ticks.size() && ticks.get(from) + data.fairTicks() < tick) {
                 int note = ticks.get(from);
                 if (judged.add(note)) {
                     state.missed++;
                     state.combo = 0;
+                    state.perfectStreak = 0;
+                    state.energy = clampEnergy(state.energy + PvzceConstants.ENERGY_MISS);
                 }
                 from++;
             }
             state.next.put(key, from);
         }
+        syncStatus(level, state);
         // The end of the track, and the mode's own way of winning: the song is the clock, so the
         // tick its last bar lands on is the tick the run is over - whatever is still walking is
         // swept, and the player who is still standing has survived it. Checked after the miss
@@ -159,7 +266,7 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
      * Takes the chart's anchor if it has none, and tells the client where it is.
      *
      * <p>Both halves are one method because they are one fact: the tick the chart counts from is
-     * the server's, and the client is not allowed to have a different one (see {@link Start}).
+     * the server's, and the client is not allowed to have a different one (see {@link Status}).
      */
     private static void anchor(LevelServer level, State state) {
         if (state.startTick < 0) {
@@ -169,8 +276,121 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
             return;
         }
         state.startSynced = true;
-        level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_RHYTHM, Start.CODEC,
-                new Start(state.startTick)));
+        level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_RHYTHM, Status.CODEC,
+                statusOf(state)));
+    }
+
+    /**
+     * Re-sends the run's numbers on their cadence.
+     *
+     * <p>{@code level.tickCount() % STATUS_INTERVAL_TICKS} rather than a counter of this
+     * mechanic's own: the level's tick is already in the save and already the clock the chart is
+     * measured against, so the cadence survives a save and resume without a second field to keep
+     * in step (the same reasoning {@code FogMechanic} uses).
+     */
+    private static void syncStatus(LevelServer level, State state) {
+        if (level.tickCount() % STATUS_INTERVAL_TICKS != 0) {
+            return;
+        }
+        level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_RHYTHM, Status.CODEC, statusOf(state)));
+    }
+
+    /** The run's numbers as the wire carries them: energy rounded, everything else as it is. */
+    private static Status statusOf(State state) {
+        return new Status(state.startTick, Math.round(state.energy), state.perfect, state.good,
+                state.fair, state.missed, state.combo, state.bestCombo, state.perfectStreak,
+                multiplierOf(state.energy), state.streakRewards);
+    }
+
+    /**
+     * How many times a plant's volley is repeated right now: 1, 2 or 3.
+     *
+     * <p>What the bar buys. Read per level by {@code LevelServer.projectileCountMultiplier}, which
+     * is the one place a plant can ask about it - so the answer is one function of one number
+     * rather than a rule each capability re-implements.
+     */
+    public static int projectileCountMultiplier(LevelServer level) {
+        State state = level.mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM, State.class);
+        return state == null ? 1 : multiplierOf(state.energy);
+    }
+
+    private static int multiplierOf(float energy) {
+        if (energy >= PvzceConstants.ENERGY_TRIPLE_AT) {
+            return 3;
+        }
+        return energy >= PvzceConstants.ENERGY_DOUBLE_AT ? 2 : 1;
+    }
+
+    /** Keeps the bar inside its own ends; every change to it goes through here. */
+    private static float clampEnergy(float energy) {
+        return Math.max(0F, Math.min(PvzceConstants.ENERGY_MAX, energy));
+    }
+
+    /**
+     * Fires the volleys the streak has earned, one per tick.
+     *
+     * <p>A jalapeno in every row of the board - "五行每行一个" - which between them burn the whole
+     * lawn. Each row is the plant's own blast, read off the jalapeno's definition rather than
+     * repeated here ({@code ExplosiveCapability.fireRow}): the damage, the damage type, whether it
+     * melts the zamboni's ice and the sound are all the plant's, so a pack that retunes its
+     * jalapeno retunes the reward too.
+     *
+     * <p>Released from {@code tick} and not from {@code judge}, which is where the streak is
+     * actually counted. A press arrives while the server is handling packets, and
+     * {@code LevelServer.emitEffect} is a no-op outside the level's own tick - the bridge that
+     * carries effects and sounds to the clients only exists for the duration of {@code tick} - so
+     * a row of fire lit at packet time would be silent and invisible. Damage and entity spawns
+     * would survive it; the fire would not, and half a reward is worse than a late one.
+     */
+    private static void release(LevelServer level, State state) {
+        while (state.pendingJalapenos > 0) {
+            state.pendingJalapenos--;
+            fireEveryRow(level);
+        }
+    }
+
+    /** One volley: a jalapeno's blast in each row, the sound riding the first row only. */
+    private static void fireEveryRow(LevelServer level) {
+        com.pvzce.api.content.PlantDef jalapeno =
+                com.pvzce.common.core.BuiltInRegistries.PLANTS.get(PvzceIds.JALAPENO);
+        com.pvzce.common.capability.plant.ExplosiveCapability blast = jalapeno == null ? null
+                : jalapeno.capability(com.pvzce.common.capability.plant.ExplosiveCapability.class)
+                        .orElse(null);
+        if (blast == null) {
+            // No jalapeno in this pack: the streak is earned and cannot be paid. Not an error -
+            // a total conversion may not ship the plant - so it is a quiet no-op rather than a
+            // crash, and the counter still moves so the HUD is not lying about the run.
+            return;
+        }
+        com.pvzce.server.Team team = level.team(level.humanTeamId());
+        Identifier sound = jalapeno.sounds().explode().orElse(PvzceSounds.PLANT_JALAPENO);
+        for (int row = 0; row < level.height(); row++) {
+            com.pvzce.common.capability.plant.ExplosiveCapability.fireRow(level, row, blast.damage(),
+                    blast.damageType(), blast.meltsIce(), row == 0 ? sound : null, team);
+        }
+    }
+
+    /**
+     * The streak length that pays next, given the one just paid.
+     *
+     * <p>Public because the rule is the mode's and a test can state it directly; the caller that
+     * matters is {@link #judge}.
+     *
+     * <p>The four named milestones in order, and then every {@link
+     * PvzceConstants#PERFECT_STREAK_STEP} past the last of them: a run that has already played a
+     * flawless hundred notes keeps being paid for it rather than falling off a cliff at exactly
+     * the point it became impressive.
+     */
+    public static int nextStreakReward(int paid) {
+        for (int milestone : PvzceConstants.PERFECT_STREAK_MILESTONES) {
+            if (milestone > paid) {
+                return milestone;
+            }
+        }
+        int last = PvzceConstants.PERFECT_STREAK_MILESTONES[
+                PvzceConstants.PERFECT_STREAK_MILESTONES.length - 1];
+        int steps = (paid - last) / PvzceConstants.PERFECT_STREAK_STEP + 1;
+        return last + steps * PvzceConstants.PERFECT_STREAK_STEP;
     }
 
     /**
@@ -232,12 +452,42 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         }
         state.combo++;
         state.bestCombo = Math.max(state.bestCombo, state.combo);
+        // What the note is worth, and what it does to the streak. The two are one switch because
+        // they are one fact - how well the note was played - and a second switch over the same
+        // grade is how a reward ends up disagreeing with the tally beside it.
+        state.energy = clampEnergy(state.energy + energyOf(grade));
+        if (grade == RhythmChartData.Grade.PERFECT) {
+            state.perfectStreak++;
+            // A streak that reaches the next milestone earns a volley. `while` rather than `if`
+            // because the milestones past the last named one are twenty apart, so a single note
+            // can only ever cross one - and the loop is what keeps that true if the table is ever
+            // written with two entries a hair apart.
+            while (state.perfectStreak >= state.nextStreakReward) {
+                state.streakRewards++;
+                state.pendingJalapenos++;
+                state.nextStreakReward = nextStreakReward(state.nextStreakReward);
+            }
+        } else {
+            // A GOOD keeps the combo and breaks the streak: "in a row" has to mean in a row, or
+            // the number the reward is named after is not the number the player is watching.
+            state.perfectStreak = 0;
+        }
         int volleys = data.volleys(grade);
         if (grade == RhythmChartData.Grade.PERFECT) {
             paySun(level, data, lane);
         }
         attack(level, data, lane, volleys);
         return true;
+    }
+
+    /** What one verdict pays the energy bar. */
+    private static int energyOf(RhythmChartData.Grade grade) {
+        return switch (grade) {
+            case PERFECT -> PvzceConstants.ENERGY_PERFECT;
+            case GOOD -> PvzceConstants.ENERGY_GOOD;
+            case FAIR -> PvzceConstants.ENERGY_FAIR;
+            case MISS -> PvzceConstants.ENERGY_MISS;
+        };
     }
 
     /**
@@ -332,16 +582,17 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
     }
 
     /** The run's tally, for the HUD and for the summary. */
-    public record Score(int perfect, int good, int fair, int missed, int combo, int bestCombo) {
+    public record Score(int perfect, int good, int fair, int missed, int combo, int bestCombo,
+                        int perfectStreak, int energy, int jalapenos) {
     }
 
     public static Score score(LevelServer level) {
         State state = level.mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM, State.class);
         if (state == null) {
-            return new Score(0, 0, 0, 0, 0, 0);
+            return new Score(0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
         return new Score(state.perfect, state.good, state.fair, state.missed, state.combo,
-                state.bestCombo);
+                state.bestCombo, state.perfectStreak, Math.round(state.energy), state.streakRewards);
     }
 
     @Override
@@ -408,6 +659,14 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         root.putInt("RhythmMissed", score.missed());
         root.putInt("RhythmBestCombo", score.bestCombo());
         root.putInt("RhythmStart", state(level).startTick);
+        // The bar and the streak, as the floats and counters they are rather than as the rounded
+        // numbers the HUD shows: a resumed run has to come back to the same multiplier, and
+        // rounding 2999.9 to 3000 on the way through a save would hand out firepower the player
+        // had not earned.
+        root.putFloat("RhythmEnergy", state(level).energy);
+        root.putInt("RhythmStreak", state(level).perfectStreak);
+        root.putInt("RhythmNextReward", state(level).nextStreakReward);
+        root.putInt("RhythmRewards", state(level).streakRewards);
     }
 
     @Override
@@ -424,9 +683,21 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         state.missed = Math.max(0, root.getInt("RhythmMissed"));
         state.bestCombo = Math.max(0, root.getInt("RhythmBestCombo"));
         state.startTick = root.getInt("RhythmStart");
+        // Same story for the bar and the streak, which postdate the first four saves in this
+        // format: absent means zero - an empty bar and no streak - which is where every run starts.
+        state.energy = clampEnergy(root.getFloat("RhythmEnergy"));
+        state.perfectStreak = Math.max(0, root.getInt("RhythmStreak"));
+        state.streakRewards = Math.max(0, root.getInt("RhythmRewards"));
+        // And the next milestone is recomputed from the streak when the save has none: a run
+        // resumed from a save written before the rewards existed must not be handed its first
+        // jalapeno by a default of 30 that its streak has already passed.
+        int saved = root.getInt("RhythmNextReward");
+        state.nextStreakReward = saved > state.perfectStreak
+                ? saved
+                : nextStreakReward(state.perfectStreak);
         // A resumed run's client has just started and knows nothing about the chart: the anchor is
         // sent again rather than kept, or the player would be playing against a chart that had not
-        // begun as far as the screen was concerned (see `Start`).
+        // begun as far as the screen was concerned (see `Status`).
         state.startSynced = false;
     }
 }

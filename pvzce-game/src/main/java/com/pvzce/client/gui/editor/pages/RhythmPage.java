@@ -171,7 +171,10 @@ public final class RhythmPage implements EditorPage {
 
         Identifier current = context.levelId();
         String theme = "yard";
-        String category = "minigame";
+        // The four tiers' own page when there is nothing to inherit from: 节奏草坪 is a category
+        // of its own rather than a corner of the mini-games, and a generated chart that landed in
+        // the wrong one would be a level nobody could find (see `LevelGrouping`).
+        String category = "rhythm";
         if (current != null) {
             String[] parts = current.path().split("/");
             if (parts.length >= 2) {

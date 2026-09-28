@@ -10,6 +10,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.server.Team;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
@@ -419,18 +420,16 @@ public final class ExplosiveCapability implements PlantCapability {
         }
         if (trigger == Trigger.ROW) {
             // The whole row, which is a shape and not a distance - see LevelAccess.damageRow.
-            level.damageRow(ZombieEntity.damageType(damageType), plant.gridY(), damage, plant.team());
+            // Through `fireRow` rather than inline, because a row blast is the one shape this
+            // class can be asked for with no plant behind it (see `fireRow`).
+            fireRow(level, plant.gridY(), damage, damageType, meltsIce, null, plant.team());
         } else {
             level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
                     blastRadius, damage, plant.team(), square);
-        }
-        if (meltsIce) {
-            // Fire takes the zamboni's lane back. The shape follows the blast the same way the
-            // damage did: a jalapeno burns one whole row and a cherry bomb burns the nine cells
-            // around itself, so the ice that goes is the ice that was in the fire.
-            if (trigger == Trigger.ROW) {
-                level.meltIceRow(plant.gridY());
-            } else {
+            if (meltsIce) {
+                // Fire takes the zamboni's lane back. The shape follows the blast the same way the
+                // damage did: a jalapeno burns one whole row and a cherry bomb burns the nine cells
+                // around itself, so the ice that goes is the ice that was in the fire.
                 level.meltIce(plant.cellX(), plant.cellY(), blastRadius, square);
             }
         }
@@ -451,21 +450,9 @@ public final class ExplosiveCapability implements PlantCapability {
                     i == 0 ? blastSound : null);
         }
         if (trigger == Trigger.ROW) {
-            // A row's worth of fire, one tongue per cell along it. The original draws the
-            // jalapeno's blast as one long flame animation spanning the lane, spawned cell by cell;
-            // here it is the same particle emitted down the row, which is what makes it a *row*
-            // rather than the round cloud the cherry bomb draws - the reported "火爆辣椒的特效错误
-            // ……应该是当前整行的火焰".
-            //
-            // The whole board and not the cells to the right: a jalapeno is planted in the middle
-            // of a lawn and burns both ways, and `damageRow` above already reaches every cell.
-            // Derived from the trigger rather than declared, because "a row" *is* this shape - the
-            // cherry bomb's square gets the cloud and no square blast is a wall of flame.
-            float rowY = plant.gridY() + 0.5F;
-            for (int cell = 0; cell < level.width(); cell++) {
-                level.emitEffect(PvzceParticles.JALAPENO_FIRE.toString(),
-                        cell + 0.5F, rowY, null);
-            }
+            // A row's worth of fire, one tongue per cell along it - the shape and not the
+            // damage, which `fireRow` above has already dealt. See `rowOfFire`.
+            rowOfFire(level, plant.gridY(), null);
         }
         // The blast is over as far as the simulation is concerned, but the plant stays for its
         // own linger so the client can actually draw what just happened - which for the
@@ -476,6 +463,57 @@ public final class ExplosiveCapability implements PlantCapability {
             server.requestEntitySync();
         }
         linger = lingerTicks;
+    }
+
+    /**
+     * One whole row of fire, with no plant behind it.
+     *
+     * <p>The jalapeno's blast as a thing a caller can ask for by row number: the damage, the ice
+     * it takes back, and the wall of flame down the lane. It exists because the rhythm levels
+     * hand out the same blast as a reward - a consecutive-PERFECT streak sets every row alight
+     * (see {@code RhythmMechanic}) - and there is no plant there to detonate. Written once and
+     * called from both places: a second copy of "what a row blast is" would be a second answer to
+     * how wide it reaches, which cell the fire starts in and whether it melts.
+     *
+     * <p>The plant path calls it with a {@code null} sound, because that path plays the blast's
+     * own sound with the plant's flash; the rhythm path has no flash to hang it on and puts it on
+     * the first tongue of the first row instead. Five rows asking for it at once is one sound as
+     * far as the ear is concerned: the sound engine folds a repeat of the same event inside 130 ms
+     * (see {@code LevelAccess#emitEffect}).
+     *
+     * @param row       which row burns, zero-based from the house
+     * @param damage    how much the row takes
+     * @param meltsIce  whether the fire also takes the zamboni's trail back
+     * @param sound     the event to play with the first tongue, or {@code null} for none
+     */
+    public static void fireRow(LevelAccess level, int row, int damage, Identifier damageType,
+                               boolean meltsIce, Identifier sound, Team team) {
+        level.damageRow(ZombieEntity.damageType(damageType), row, damage, team);
+        if (meltsIce) {
+            level.meltIceRow(row);
+        }
+        rowOfFire(level, row, sound);
+    }
+
+    /**
+     * The flame itself: one tongue per cell of the row, house to road.
+     *
+     * <p>The original draws the jalapeno's blast as one long flame animation spanning the lane,
+     * spawned cell by cell; here it is the same particle emitted down the row, which is what makes
+     * it a <em>row</em> rather than the round cloud the cherry bomb draws - the reported
+     * "火爆辣椒的特效错误……应该是当前整行的火焰".
+     *
+     * <p>The whole board and not the cells to the right: a jalapeno is planted in the middle of a
+     * lawn and burns both ways, and the damage has already reached every cell. Derived from the
+     * trigger rather than declared, because "a row" <em>is</em> this shape - the cherry bomb's
+     * square gets the cloud and no square blast is a wall of flame.
+     */
+    private static void rowOfFire(LevelAccess level, int row, Identifier sound) {
+        float rowY = row + 0.5F;
+        for (int cell = 0; cell < level.width(); cell++) {
+            level.emitEffect(PvzceParticles.JALAPENO_FIRE.toString(), cell + 0.5F, rowY,
+                    cell == 0 ? sound : null);
+        }
     }
 
     @Override

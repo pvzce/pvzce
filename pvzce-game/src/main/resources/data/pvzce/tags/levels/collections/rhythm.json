@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "pvzce:yard/rhythm/rhythm_easy",
+    "pvzce:yard/rhythm/rhythm_normal",
+    "pvzce:yard/rhythm/rhythm_hard",
+    "pvzce:yard/rhythm/rhythm_expert"
+  ]
+}
