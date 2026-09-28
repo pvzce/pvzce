@@ -88,8 +88,14 @@ python3 tools/exclude_pvz_assets.py             # 执行移动
 
 ## 许可
 
-- **本项目的代码**：GNU General Public License v3.0（[LICENSE](LICENSE)），
-  版权归 PVZCE 作者所有。
+- **本项目的代码**：GNU General Public License v3.0（[LICENSE](LICENSE)）。
+
+  Copyright (C) 2026 crystalneko
+
+  这一行是 GPL 的版权声明，它在这里而不在 `LICENSE` 里，是因为那个文件是 FSF 的许可原文，
+  一个字节都不该改（末节 "How to Apply These Terms" 是给使用者抄的模板，填进正文会让
+  许可文件的版本不可辨认）。同一行常量在代码里的单一出处是
+  `PvzceLicense.COPYRIGHT`，启动日志与设置里的"关于"页都读它。
 - **`pvzce-loader/` 中源自 Fabric Loader 的部分**：Apache License 2.0，
   版权归 FabricMC（[pvzce-loader/LICENSE](pvzce-loader/LICENSE)）。
   Apache-2.0 可单向并入 GPLv3，因此整包按 GPL-3.0 分发，子目录的许可原样保留。

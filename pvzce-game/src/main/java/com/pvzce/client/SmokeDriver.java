@@ -480,6 +480,10 @@ final public class SmokeDriver {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.OnboardingScreen(client));
         } else if ("difficulty".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.DifficultyScreen(client));
+        } else if ("about".equals(smokeScreen)) {
+            // 到这一页在游戏里要点"设置 → 关于"两次，而这张页面的内容（GPL 法律声明）只有截图
+            // 才能核对排版——文本长度是合规性的一部分，截断成省略号就白写了。
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.AboutScreen(client));
         } else if ("shop".equals(smokeScreen)) {
             // The shop is reached from the title screen in play, but a smoke run that had to click
             // its way there would be a smoke run that broke the next time the menu's layout moved.

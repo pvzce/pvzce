@@ -1,6 +1,7 @@
 package com.pvzce.launcher;
 
 import com.pvzce.client.PvzceClient;
+import com.pvzce.common.PvzceLicense;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.network.Connection;
 import com.pvzce.server.PvzceServer;
@@ -29,6 +30,9 @@ public final class PvzceGame {
         }
         Path gameDir = FabricLoader.getInstance().getGameDir();
         LOGGER.info("{} {} starting in {}", PvzceVersions.GAME_NAME, PvzceVersions.GAME_VERSION, gameDir);
+        // GPL-3.0 §5(d) 的 "Appropriate Legal Notices"：版权 + 无担保 + 许可去哪取。
+        // 展开的全文在设置里的"关于"页（AboutScreen），两处共用 PvzceLicense 那一份常量。
+        LOGGER.info(PvzceLicense.STARTUP_NOTICE);
 
         BuiltInRegistries.bootstrap();
 
