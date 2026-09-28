@@ -46,24 +46,32 @@ class RhythmChartsTest {
         TestContent.loadBuiltInContentAndTags();
     }
 
-    private static Identifier idOf(RhythmCharts.Tier tier) {
-        return PvzceIds.id("yard/rhythm/rhythm_" + tier.suffix());
+    private static Identifier idOf(RhythmCharts.Song song, RhythmCharts.Tier tier) {
+        return PvzceIds.id("yard/rhythm/" + song.levelFileName(tier));
+    }
+
+    /** The song the older tests are about: the first one, whose levels shipped first. */
+    private static RhythmCharts.Song first() {
+        return RhythmCharts.defaultSong();
     }
 
     private static final int VOLLEYS = com.pvzce.api.content.RhythmChartData.DEFAULT_ATTACK_VOLLEYS;
     private static final int PERFECT_SUN = com.pvzce.api.content.RhythmChartData.DEFAULT_PERFECT_SUN;
 
-    private static JsonObject generated(RhythmCharts.Tier tier) {
-        return JsonParser.parseString(RhythmCharts.levelJson(idOf(tier), tier.displayName(),
-                RhythmCharts.MUSIC, RhythmCharts.BPM, tier, VOLLEYS, PERFECT_SUN,
-                RhythmCharts.DEFAULT_INITIAL_SUN))
-                .getAsJsonObject();
+    private static JsonObject generated(RhythmCharts.Song song, RhythmCharts.Tier tier) {
+        return JsonParser.parseString(levelJson(song, tier)).getAsJsonObject();
     }
 
-    private static Path shippedPath(RhythmCharts.Tier tier) {
+    private static String levelJson(RhythmCharts.Song song, RhythmCharts.Tier tier) {
+        return RhythmCharts.levelJson(idOf(song, tier), song.levelDisplayName(tier), song,
+                song.music(), song.bpm(), tier, VOLLEYS, PERFECT_SUN,
+                RhythmCharts.DEFAULT_INITIAL_SUN);
+    }
+
+    private static Path shippedPath(RhythmCharts.Song song, RhythmCharts.Tier tier) {
         Path root = SourceTree.root();
         return root == null ? null : root.resolve("pvzce-game/src/main/resources/data/pvzce/levels")
-                .resolve("yard/rhythm/rhythm_" + tier.suffix() + ".json");
+                .resolve("yard/rhythm/" + song.levelFileName(tier) + ".json");
     }
 
     /** The chart block of a generated level. */
@@ -91,12 +99,10 @@ class RhythmChartsTest {
     /** Same arguments, same file: what makes "regenerate and compare" a meaningful check at all. */
     @Test
     void theGeneratorIsDeterministic() {
-        assertEquals(RhythmCharts.levelJson(idOf(RhythmCharts.TIERS[0]),
-                        RhythmCharts.TIERS[0].displayName(), RhythmCharts.MUSIC, RhythmCharts.BPM,
-                        RhythmCharts.TIERS[0], VOLLEYS, PERFECT_SUN, RhythmCharts.DEFAULT_INITIAL_SUN),
-                RhythmCharts.levelJson(idOf(RhythmCharts.TIERS[0]),
-                        RhythmCharts.TIERS[0].displayName(), RhythmCharts.MUSIC, RhythmCharts.BPM,
-                        RhythmCharts.TIERS[0], VOLLEYS, PERFECT_SUN, RhythmCharts.DEFAULT_INITIAL_SUN));
+        for (RhythmCharts.Song song : RhythmCharts.SONGS) {
+            assertEquals(levelJson(song, RhythmCharts.TIERS[0]), levelJson(song, RhythmCharts.TIERS[0]),
+                    song.music() + " generates the same file twice");
+        }
     }
 
     /**
@@ -108,14 +114,13 @@ class RhythmChartsTest {
      */
     @Test
     void theShippedTiersAreWhatTheGeneratorWrites() throws IOException {
-        Path file = shippedPath(RhythmCharts.TIERS[0]);
+        Path file = shippedPath(first(), RhythmCharts.TIERS[0]);
         Assumptions.assumeTrue(file != null, "not running from a source checkout");
         boolean write = Boolean.getBoolean(WRITE_FLAG);
+        for (RhythmCharts.Song song : RhythmCharts.SONGS) {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            Path path = shippedPath(tier);
-            String expected = RhythmCharts.levelJson(idOf(tier), tier.displayName(),
-                    RhythmCharts.MUSIC, RhythmCharts.BPM, tier, VOLLEYS, PERFECT_SUN,
-                    RhythmCharts.DEFAULT_INITIAL_SUN);
+            Path path = shippedPath(song, tier);
+            String expected = levelJson(song, tier);
             if (write) {
                 Files.writeString(path, expected + System.lineSeparator());
                 continue;
@@ -124,21 +129,22 @@ class RhythmChartsTest {
             JsonObject actual = JsonParser.parseString(Files.readString(path)).getAsJsonObject();
             JsonObject want = JsonParser.parseString(expected).getAsJsonObject();
             assertEquals(want.get("mechanics"), actual.get("mechanics"),
-                    tier.suffix() + " has been edited away from the generator;"
+                    path.getFileName() + " has been edited away from the generator;"
                             + " re-run with -Ppvzce.smoke=" + WRITE_FLAG + "=true");
             assertEquals(want.get("waves"), actual.get("waves"),
-                    tier.suffix() + "'s wave table is the generator's");
+                    path.getFileName() + "'s wave table is the generator's");
             assertEquals(want.get("name").getAsString(), actual.get("name").getAsString(),
-                    tier.suffix() + "'s name is the generator's");
+                    path.getFileName() + "'s name is the generator's");
             assertEquals(want.get("music"), actual.get("music"),
-                    tier.suffix() + "'s music timeline is the generator's");
+                    path.getFileName() + "'s music timeline is the generator's");
+        }
         }
         if (write) {
             return;
         }
         // And the shipped files are the ones the game loads, not copies beside it.
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            assertNotNull(BuiltInRegistries.LEVELS.get(idOf(tier)),
+            assertNotNull(BuiltInRegistries.LEVELS.get(idOf(first(), tier)),
                     "the game loads rhythm_" + tier.suffix());
         }
     }
@@ -153,7 +159,7 @@ class RhythmChartsTest {
     @Test
     void everyTierPlaysTheSameSixColumns() {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            JsonObject rhythm = rhythmBlock(generated(tier));
+            JsonObject rhythm = rhythmBlock(generated(first(), tier));
             JsonArray lanes = rhythm.getAsJsonArray("lanes");
             assertEquals(6, lanes.size(), tier.suffix() + " plays six columns");
             for (int i = 0; i < lanes.size(); i++) {
@@ -176,7 +182,7 @@ class RhythmChartsTest {
     @Test
     void theChartHoldsTheLawnsFireAndPaysForNotes() {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            JsonObject rhythm = rhythmBlock(generated(tier));
+            JsonObject rhythm = rhythmBlock(generated(first(), tier));
             assertTrue(rhythm.get("plants_hold_fire").getAsBoolean(),
                     tier.suffix() + " is played on the keyboard rather than by the plants");
             assertEquals(VOLLEYS, rhythm.get("attack_volleys").getAsInt(),
@@ -206,7 +212,7 @@ class RhythmChartsTest {
         double previousSpeed = 0D;
         double previousDifficulty = 0D;
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            JsonObject level = generated(tier);
+            JsonObject level = generated(first(), tier);
             JsonObject rules = level.getAsJsonObject("rules");
             double speed = rules.get("pvzce:zombie_speed_multiplier").getAsDouble();
             double cadence = rules.get("pvzce:zombie_spawn_speed_multiplier").getAsDouble();
@@ -235,7 +241,7 @@ class RhythmChartsTest {
     void theTiersAreACurve() {
         int previous = 0;
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            List<Double> notes = notesOf(rhythmBlock(generated(tier)));
+            List<Double> notes = notesOf(rhythmBlock(generated(first(), tier)));
             assertFalse(notes.isEmpty(), tier.suffix() + " has notes");
             assertTrue(notes.size() > previous,
                     tier.suffix() + " asks for more notes than the tier before it");
@@ -252,7 +258,7 @@ class RhythmChartsTest {
      */
     @Test
     void theNotesLandOnTheTracksAccents() {
-        JsonObject easy = rhythmBlock(generated(RhythmCharts.TIERS[0]));
+        JsonObject easy = rhythmBlock(generated(first(), RhythmCharts.TIERS[0]));
         List<Double> notes = notesOf(easy);
         int strong = 0;
         for (double beat : notes) {
@@ -264,8 +270,8 @@ class RhythmChartsTest {
         assertTrue(strong * 10 >= notes.size() * 7,
                 "the easy tier takes the strong beats: " + strong + " of " + notes.size());
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            for (double beat : notesOf(rhythmBlock(generated(tier)))) {
-                assertTrue(beat >= RhythmCharts.FIRST_BEAT && beat < RhythmCharts.END_BEAT,
+            for (double beat : notesOf(rhythmBlock(generated(first(), tier)))) {
+                assertTrue(beat >= first().firstBeat() && beat < first().endBeat(),
                         tier.suffix() + " has a note at beat " + beat + ", outside the track");
             }
         }
@@ -280,13 +286,16 @@ class RhythmChartsTest {
      */
     @Test
     void everyTierEndsWithTheTrack() {
-        for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            JsonObject rhythm = rhythmBlock(generated(tier));
-            assertEquals(RhythmCharts.END_BEAT, rhythm.get("end_beat").getAsDouble(), 0.0001D,
-                    tier.suffix() + " ends where the track's last bar lands");
-            for (double beat : notesOf(rhythm)) {
-                assertTrue(beat < RhythmCharts.END_BEAT,
-                        tier.suffix() + " has a note after its own end, which nobody could reach");
+        for (RhythmCharts.Song song : RhythmCharts.SONGS) {
+            for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
+                JsonObject rhythm = rhythmBlock(generated(song, tier));
+                assertEquals(song.endBeat(), rhythm.get("end_beat").getAsDouble(), 0.0001D,
+                        song.levelFileName(tier) + " ends where its track's last bar lands");
+                for (double beat : notesOf(rhythm)) {
+                    assertTrue(beat < song.endBeat(),
+                            song.levelFileName(tier) + " has a note after its own end,"
+                                    + " which nobody could reach");
+                }
             }
         }
     }
@@ -295,7 +304,7 @@ class RhythmChartsTest {
     @Test
     void theSongStartsWithTheWaves() {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            JsonArray cues = generated(tier).getAsJsonObject("music").getAsJsonArray("cues");
+            JsonArray cues = generated(first(), tier).getAsJsonObject("music").getAsJsonArray("cues");
             assertEquals(2, cues.size(), tier.suffix() + " silences the theme and then plays the song");
             JsonObject silence = cues.get(0).getAsJsonObject();
             assertEquals("level_start", silence.get("trigger").getAsString(),
@@ -316,7 +325,7 @@ class RhythmChartsTest {
     @Test
     void theBarHasNoCooldownsAndEnoughSun() {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            JsonObject level = generated(tier);
+            JsonObject level = generated(first(), tier);
             assertEquals(0.0D, level.getAsJsonObject("rules")
                     .get("pvzce:seed_cooldown_multiplier").getAsDouble(), 0.0001D,
                     tier.suffix() + " hands out cards with no recharge");
@@ -331,7 +340,7 @@ class RhythmChartsTest {
     @Test
     void theTierIdsAreWhereTheGeneratorWritesThem() {
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
-            Identifier id = idOf(tier);
+            Identifier id = idOf(first(), tier);
             assertEquals("pvzce", id.namespace(), tier.suffix() + " is in this pack");
             assertEquals("yard/rhythm/rhythm_" + tier.suffix(), id.path(),
                     tier.suffix() + "'s path is its file's path, which is what decides its page");

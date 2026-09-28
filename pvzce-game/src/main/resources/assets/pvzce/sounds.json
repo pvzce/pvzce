@@ -1415,6 +1415,14 @@
       }
     ]
   },
+  "music/ancient_egypt_minigame": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/ancient_egypt_minigame",
+        "stream": true
+      }
+    ]
+  },
   "music/ancient_egypt_ultimate_battle": {
     "sounds": [
       {

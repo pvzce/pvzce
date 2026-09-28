@@ -754,12 +754,35 @@ public final class ClientLevel {
         this.winTeam = winTeam;
     }
 
-    /** The run's tally as the server last reported it: waves, kills, ticks. */
-    public void setRunSummary(int wavesArrived, int kills, int survivedTicks) {
+    /**
+     * The run's tally as the server last reported it: waves, kills, ticks, and - on a rhythm level -
+     * the song's own report.
+     *
+     * <p>The rhythm block rides this call rather than one of its own because it is the same fact
+     * arriving at the same moment, and because the screens that read the run's numbers read all of
+     * them (see {@code GameStateS2C.RhythmScore}).
+     */
+    public void setRunSummary(int wavesArrived, int kills, int survivedTicks,
+                              com.pvzce.common.network.packet.GameStateS2C.RhythmScore score) {
         this.wavesArrived = wavesArrived;
         this.kills = kills;
         this.survivedTicks = survivedTicks;
+        this.rhythmScore = score == null
+                ? com.pvzce.common.network.packet.GameStateS2C.RhythmScore.NONE : score;
     }
+
+    /**
+     * How the run was played, on a level that has a chart.
+     *
+     * <p>Never null: a level with no chart answers {@code RhythmScore.NONE}, whose {@code played}
+     * flag is what a screen asks before it draws a report.
+     */
+    public com.pvzce.common.network.packet.GameStateS2C.RhythmScore rhythmScore() {
+        return rhythmScore;
+    }
+
+    private com.pvzce.common.network.packet.GameStateS2C.RhythmScore rhythmScore =
+            com.pvzce.common.network.packet.GameStateS2C.RhythmScore.NONE;
 
     /** How many waves this run released. */
     public int wavesArrived() {

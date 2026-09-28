@@ -170,6 +170,14 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
          * exactly as a MISS does, which is what makes thirty of them mean something.
          */
         int perfectStreak;
+        /**
+         * The longest that streak ever got, for the run's report.
+         *
+         * <p>The number the reward is named after, kept because the streak itself is zero by the
+         * end of any run that had a single GOOD in it - and "how close did I get" is the first
+         * thing a player wants to know after a run that ended one note short of a jalapeno.
+         */
+        int bestPerfectStreak;
         /** The streak length that pays next; starts at the first milestone. */
         int nextStreakReward = PvzceConstants.PERFECT_STREAK_MILESTONES[0];
         /**
@@ -488,6 +496,7 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         state.energy = clampEnergy(state.energy + energyOf(grade));
         if (grade == RhythmChartData.Grade.PERFECT) {
             state.perfectStreak++;
+            state.bestPerfectStreak = Math.max(state.bestPerfectStreak, state.perfectStreak);
             // A streak that reaches the next milestone earns a volley. `while` rather than `if`
             // because the milestones past the last named one are twenty apart, so a single note
             // can only ever cross one - and the loop is what keeps that true if the table is ever
@@ -613,16 +622,17 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
 
     /** The run's tally, for the HUD and for the summary. */
     public record Score(int perfect, int good, int fair, int missed, int combo, int bestCombo,
-                        int perfectStreak, int energy, int jalapenos) {
+                        int perfectStreak, int bestPerfectStreak, int energy, int jalapenos) {
     }
 
     public static Score score(LevelServer level) {
         State state = level.mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM, State.class);
         if (state == null) {
-            return new Score(0, 0, 0, 0, 0, 0, 0, 0, 0);
+            return new Score(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
         return new Score(state.perfect, state.good, state.fair, state.missed, state.combo,
-                state.bestCombo, state.perfectStreak, Math.round(state.energy), state.streakRewards);
+                state.bestCombo, state.perfectStreak, state.bestPerfectStreak,
+                Math.round(state.energy), state.streakRewards);
     }
 
     @Override
@@ -711,6 +721,7 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         // had not earned.
         root.putFloat("RhythmEnergy", state(level).energy);
         root.putInt("RhythmStreak", state(level).perfectStreak);
+        root.putInt("RhythmBestStreak", state(level).bestPerfectStreak);
         root.putInt("RhythmNextReward", state(level).nextStreakReward);
         root.putInt("RhythmRewards", state(level).streakRewards);
     }
@@ -733,6 +744,9 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         // format: absent means zero - an empty bar and no streak - which is where every run starts.
         state.energy = clampEnergy(root.getFloat("RhythmEnergy"));
         state.perfectStreak = Math.max(0, root.getInt("RhythmStreak"));
+        // A save written before the report existed has no best streak; the streak it did keep is the
+        // honest floor for it, and zero is what a run that never had one means.
+        state.bestPerfectStreak = Math.max(state.perfectStreak, root.getInt("RhythmBestStreak"));
         state.streakRewards = Math.max(0, root.getInt("RhythmRewards"));
         // And the next milestone is recomputed from the streak when the save has none: a run
         // resumed from a save written before the rewards existed must not be handed its first

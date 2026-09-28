@@ -117,7 +117,8 @@ public final class PvzceClientPacketListener implements PacketListener {
             com.pvzce.client.mechanic.ClientMechanics.applySync(level, sync);
         } else if (packet instanceof GameStateS2C state) {
             level.setGameState(state.state(), state.winTeamId());
-            level.setRunSummary(state.wavesArrived(), state.kills(), state.survivedTicks());
+            level.setRunSummary(state.wavesArrived(), state.kills(), state.survivedTicks(),
+                    state.score());
             client.onGameState(state.state(), state.winTeamId());
         } else if (packet instanceof MusicEventS2C music) {
             client.onMusicEvent(music.track(), music.event(), music.loop(), music.stop(),

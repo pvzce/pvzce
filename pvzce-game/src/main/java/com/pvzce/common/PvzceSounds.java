@@ -150,6 +150,18 @@ public final class PvzceSounds {
     public static final Identifier MUSIC_ANCIENT_EGYPT_ULTIMATE_BATTLE =
             id("music/ancient_egypt_ultimate_battle");
     /**
+     * The rhythm levels' second track.
+     *
+     * <p>The same treatment as the first: the file came from {@code refer/ms0/}, was measured by
+     * {@code tools/rhythm_onsets.py} (94.00 BPM, first beat 0.2862 s, last bar beat 295.75) and its
+     * measurements live beside the first song's in {@code RhythmCharts.SONGS}. Named here for the
+     * same reason the first one is: three places point at it - the level files' music block, the
+     * chart generator's analysis lookup, and the editor's song menu - and a track spelled by hand in
+     * three places can be renamed in two of them.
+     */
+    public static final Identifier MUSIC_ANCIENT_EGYPT_MINIGAME =
+            id("music/ancient_egypt_minigame");
+    /**
      * The two end-of-level stingers, played by the music controller as the run ends.
      *
      * <p>They are music rather than {@code sfx/ui/*}: the original ships one file per jingle and

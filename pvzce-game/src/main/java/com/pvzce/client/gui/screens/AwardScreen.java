@@ -398,6 +398,30 @@ public final class AwardScreen extends Screen {
         // band the original drew its three lines in is not always below the button.
         float coinY = Math.max(fit.mapY(NOTE_BOTTOM, ART_HEIGHT), continueTop + 10F);
         float y = fit.mapY(NOTE_TOP + 8F, ART_HEIGHT);
+        // The run's own report, on a level that has one: the score the rhythm mode is played for,
+        // and the subject of the page.
+        //
+        // It takes the strip's whole upper half and the three coin lines become one footnote, which
+        // is a layout decision the first film forced: with the report *added* to the three-line coin
+        // block, the two were drawn on top of each other - "PERFECT 8" and "本局收集的金币" in the same
+        // row - because one block grows down from the top of the strip and the other down from its
+        // foot, and the strip is five lines tall. A receipt with a report on it is the report and
+        // what it paid, in that order.
+        java.util.List<String> report = client.level() == null ? java.util.List.of()
+                : com.pvzce.client.gui.RhythmScoreText.lines(client.level().rhythmScore());
+        if (!report.isEmpty()) {
+            y = drawCentered(GuiLang.raw("pvzce.rhythm.score.title", "本局战报"),
+                    centerX, y, scale * 1.15F, 0.35F, 0.22F, 0.05F);
+            for (String text : report) {
+                y = drawCentered(text, centerX, y, scale, 0.45F, 0.3F, 0.08F);
+            }
+            y -= 2F;
+            drawCentered(GuiLang.raw("pvzce.award.coins_footnote", "金币 +{0} · 总数 {1}")
+                            .replace("{0}", String.valueOf(reward.awardedCoins()))
+                            .replace("{1}", String.valueOf(reward.totalCoins())),
+                    centerX, y, scale * 0.85F, 0.5F, 0.34F, 0.06F);
+            return;
+        }
         if (!reward.hasGrants()) {
             // Nothing was handed over: the level paid coins, and the page says so. Not "click the
             // bag to collect": there is no bag here any more, and the coins were collected on the

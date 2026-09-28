@@ -91,7 +91,7 @@ class ServerMenuFlowTest {
 
             List<LevelListS2C.LevelInfo> boxes = list.levels().stream()
                     .filter(LevelListS2C.LevelInfo::isCollection).toList();
-            assertEquals(6, boxes.size(), "the six shipped collections are rows of the list: "
+            assertEquals(7, boxes.size(), "the seven shipped collections are rows of the list: "
                     + boxes.stream().map(LevelListS2C.LevelInfo::id).toList());
             for (LevelListS2C.LevelInfo box : boxes) {
                 assertFalse(box.collection().members().isEmpty(), box.id() + " has members");
@@ -119,6 +119,17 @@ class ServerMenuFlowTest {
                     .map(LevelListS2C.LevelInfo::id).toList();
             assertEquals(List.of("pvzce:collections/day_lawn", "pvzce:collections/night_lawn",
                     "pvzce:collections/day_pool", "pvzce:collections/night_pool"), adventureOrder);
+
+            // The 节奏草坪 page holds one box per song, and the song the mode shipped with comes
+            // first: a collection sorts where its first level does, and `rhythm_easy` sorts before
+            // `minigame_easy` only because "rhythm" is what the older levels are called.
+            List<String> rhythmOrder = list.levels().stream()
+                    .filter(info -> "pvzce:rhythm".equals(info.category()))
+                    .filter(LevelListS2C.LevelInfo::isCollection)
+                    .map(LevelListS2C.LevelInfo::id).toList();
+            assertEquals(List.of("pvzce:collections/rhythm_minigame",
+                    "pvzce:collections/rhythm"), rhythmOrder,
+                    "both songs have a box on the rhythm page");
         }
     }
 

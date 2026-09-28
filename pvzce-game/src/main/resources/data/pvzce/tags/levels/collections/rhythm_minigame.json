@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "pvzce:yard/rhythm/minigame_easy",
+    "pvzce:yard/rhythm/minigame_normal",
+    "pvzce:yard/rhythm/minigame_hard",
+    "pvzce:yard/rhythm/minigame_expert"
+  ]
+}

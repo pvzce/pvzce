@@ -163,6 +163,71 @@ final public class SmokeDriver {
     private final int smokeStartWaves = Integer.getInteger("pvzce.smokeStartWaves", 0);
     private boolean smokeStartWavesSent;
 
+    /**
+     * {@code pvzce.smokeAutoPlay}: play the chart, on the chart's own clock.
+     *
+     * <p>What {@code smokeKeys} cannot do. A key script presses on frames, and a frame is not a tick:
+     * the client runs at whatever rate the machine manages, so a press meant for a beat lands tens of
+     * ticks away - and worse than random, because a note is consumed by the <em>first</em> press
+     * inside its window, so a script that presses continuously scores FAIR on every note and never a
+     * PERFECT. That makes every picture of this mode's rewards unreachable: no streak, no ×N beside
+     * the word, no jalapenos, and a report page whose numbers are whatever mashing produces.
+     *
+     * <p>So this plays as a player with perfect timing would: each lane is pressed when its next
+     * unplayed note is inside the perfect window, read from the level's own chart and the anchor the
+     * server sent. It is a development hook and only that - it is not a bot for a real run - which is
+     * why it lives here rather than behind a key: it presses the same keys through the same queue.
+     */
+    private final boolean smokeAutoPlay = Boolean.getBoolean("pvzce.smokeAutoPlay");
+    /** Lane key -> the last note this hook pressed, so one note is answered once. */
+    private final java.util.Map<String, Integer> autoPlayPressed = new java.util.HashMap<>();
+
+    private void applySmokeAutoPlay() {
+        if (!smokeAutoPlay || !(client.currentScreen()
+                instanceof com.pvzce.client.gui.screens.InGameScreen) || client.level() == null) {
+            return;
+        }
+        com.pvzce.api.content.RhythmChartData chart = client.level()
+                .mechanicData(com.pvzce.common.PvzceIds.MECHANIC_RHYTHM,
+                        com.pvzce.api.content.RhythmChartData.class);
+        com.pvzce.common.level.mechanic.RhythmMechanic.Status status = client.level()
+                .mechanicStateOrNull(com.pvzce.common.PvzceIds.MECHANIC_RHYTHM,
+                        com.pvzce.common.level.mechanic.RhythmMechanic.Status.class);
+        if (chart == null || status == null || status.tick() < 0) {
+            // No chart, or a build phase: nothing is due and no key is a note.
+            return;
+        }
+        double now = client.level().smoothLevelTicks() - status.tick();
+        for (com.pvzce.api.content.RhythmChartData.Lane lane : chart.lanes()) {
+            String key = com.pvzce.common.level.mechanic.RhythmMechanic.laneKey(lane.kind(),
+                    lane.index());
+            int last = autoPlayPressed.getOrDefault(key, Integer.MIN_VALUE);
+            for (int note : chart.ticksOf(lane)) {
+                if (note <= last) {
+                    continue;
+                }
+                double delta = note - now;
+                if (delta > chart.perfectTicks()) {
+                    // Still on its way down: the notes ascend, so nothing later is due either.
+                    break;
+                }
+                if (-delta > chart.perfectTicks()) {
+                    // Gone by while this hook was not looking; note it and move to the next one.
+                    autoPlayPressed.put(key, note);
+                    continue;
+                }
+                autoPlayPressed.put(key, note);
+                com.pvzce.client.input.KeyBindings.Action action =
+                        com.pvzce.client.input.KeyBindings.Action.forLane(lane.kind().json(),
+                                lane.index());
+                if (action != null) {
+                    client.window().injectKey(client.keyBindings().code(action));
+                }
+                break;
+            }
+        }
+    }
+
     /** Saves the editor once, so a smoke run can verify the write round trip. */
     private final boolean smokeSave = Boolean.getBoolean("pvzce.smokeSave");
     /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
@@ -636,6 +701,7 @@ final public class SmokeDriver {
         applySmokeCoins(clientTick);
         applySmokeCollection(clientTick);
         applySmokeStartWaves(clientTick);
+        applySmokeAutoPlay();
         applyTrayClick();
         // Before the render, not after: the capture hook below runs after the buffers were
         // swapped, so a page turned in afterFrame would be one frame late in the PNG.

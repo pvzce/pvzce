@@ -91,6 +91,27 @@ class LevelCollectionsTest {
                 "and the four boxes before the loose levels, which is where chapter numbers sit");
     }
 
+    /**
+     * Each song is a box of its own, side by side on the 节奏草坪 page.
+     *
+     * <p>Two tracks, four difficulties each: the mode is a track plus a coefficient per tier, so a
+     * second song is four more levels rather than a setting on the first four.
+     */
+    @Test
+    void everySongHasItsOwnBox() {
+        LevelCollections.Collection first = find("collections/rhythm");
+        LevelCollections.Collection second = find("collections/rhythm_minigame");
+        assertNotNull(second, "the second song's box is a collection too");
+        assertEquals(4, first.members().size(), "the first song has four tiers");
+        assertEquals(4, second.members().size(), "and so does the second");
+        assertEquals(Identifier.of("pvzce", "rhythm"), second.category(),
+                "both boxes are on the rhythm page");
+        for (Identifier member : second.members()) {
+            assertTrue(member.path().startsWith("yard/rhythm/minigame_"),
+                    member + " is one of the second song's levels");
+        }
+    }
+
     /** The 节奏草坪 category is its own page, and its one collection is on it. */
     @Test
     void theRhythmCollectionIsItsOwnCategory() {

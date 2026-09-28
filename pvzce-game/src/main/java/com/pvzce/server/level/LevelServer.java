@@ -3667,7 +3667,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             Team winnerTeam = teams.get(winner);
             LOGGER.info("Game over, winner={}", winner);
             bridge.send(new GameStateS2C(gameState, winner != null ? winner.toString() : "",
-                    completedWaves(), zombieKills, tickCount));
+                    completedWaves(), zombieKills, tickCount, rhythmScore()));
             if (winnerTeam != null) {
                 bridge.send(new ServerMessageS2C(winnerTeam.name() + " 获胜！"));
             }
@@ -5581,6 +5581,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             bridge.send(new GameStateS2C(gameState, winner != null ? winner.toString() : ""));
         }
+    }
+
+    /**
+     * The rhythm levels' run report, or "nothing to report" on every other level.
+     *
+     * <p>Read at the moment the level ends rather than streamed while it ran: this is the receipt,
+     * and the last note's verdict is part of it. The streamed {@code Status} is the HUD's own copy
+     * and is up to six ticks behind - which at the end of a song is the difference between the
+     * streak the player watched and the one the receipt claims.
+     */
+    private GameStateS2C.RhythmScore rhythmScore() {
+        if (com.pvzce.common.level.mechanic.RhythmMechanic.spawningChart(def) == null
+                && !com.pvzce.common.level.mechanic.LevelMechanics.has(def,
+                        PvzceIds.MECHANIC_RHYTHM)) {
+            return GameStateS2C.RhythmScore.NONE;
+        }
+        return GameStateS2C.RhythmScore.of(
+                com.pvzce.common.level.mechanic.RhythmMechanic.score(this));
     }
 
     private String teamName(Identifier teamId) {

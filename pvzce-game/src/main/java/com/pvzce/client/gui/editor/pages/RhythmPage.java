@@ -184,12 +184,19 @@ public final class RhythmPage implements EditorPage {
             RhythmCharts.Tier base0 = RhythmCharts.TIERS[i];
             int notes = (int) parse(noteBoxes[i], base0.notes());
             double difficulty = base * RhythmCharts.TIER_DIFFICULTY[i] / normal;
-            tiers[i] = new RhythmCharts.Tier(base0.suffix(), base0.displayName(), base0.subdivision(),
+            tiers[i] = new RhythmCharts.Tier(base0.suffix(), base0.label(), base0.subdivision(),
                     Math.max(1, notes), base0.chords(), base0.lanes(), base0.zombieSpeed(),
                     base0.spawnCadence(), difficulty);
         }
         String prefix = prefixBox.value().isBlank() ? "rhythm" : prefixBox.value().trim();
         String music = musicBox.value().trim();
+        // Whichever measured track the music field names, or the default one for an event nobody
+        // has analysed (in which case the analysis lookup inside the generator answers null and the
+        // chart comes out as a plain beat grid at the BPM above).
+        RhythmCharts.Song song = RhythmCharts.songOf(music);
+        if (song == null) {
+            song = RhythmCharts.defaultSong();
+        }
 
         Identifier current = context.levelId();
         String theme = "yard";
@@ -213,14 +220,19 @@ public final class RhythmPage implements EditorPage {
             for (RhythmCharts.Tier tier : tiers) {
                 String name = prefix + "_" + tier.suffix();
                 Path file = dir.resolve(name + ".json");
+                // The song decides the tempo, the beat grid and the end of the level; the music
+                // field is what names it, and a track nobody has measured is charted at the BPM
+                // typed above. The level's own name is the author's prefix plus the difficulty -
+                // the song is not in it, because the author chose the prefix.
                 Files.writeString(file, RhythmCharts.levelJson(
                         Identifier.of("pvzce", theme + "/" + category + "/" + name),
-                        tier.displayName(), music, bpm, tier, volleys, sun, initialSun));
+                        prefix + " · " + tier.label(), song, music, bpm, tier, volleys, sun,
+                        initialSun));
                 written++;
             }
             context.setStatus(GuiLang.raw("pvzce.editor.rhythm.done", "已写出 ")
                     + written + GuiLang.raw("pvzce.editor.rhythm.done_suffix", " 张谱面到 ")
-                    + dir + (RhythmCharts.MUSIC.equals(music)
+                    + dir + (RhythmCharts.songOf(music) != null
                             ? GuiLang.raw("pvzce.editor.rhythm.analysed", "（跟着这首歌的鼓点）")
                             : GuiLang.raw("pvzce.editor.rhythm.metronome",
                                     "（这首歌没有鼓点分析，写的是匀速拍点谱）")));

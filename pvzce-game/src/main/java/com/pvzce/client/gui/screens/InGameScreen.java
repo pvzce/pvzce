@@ -880,6 +880,21 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     /**
+     * What the run amounted to, as the lines a finished board shows.
+     *
+     * <p>A rhythm level gets the song's report instead of the wave line, and that is not a
+     * decoration: those levels have no waves at all (their zombies are generated from the chart),
+     * so "存活 0 波" is not a summary of the run, it is a wrong one. What a player wants to read
+     * there is how they played - the four verdicts and the streak - which is the same text the
+     * award page prints when they won.
+     */
+    private java.util.List<String> runSummaryLines() {
+        java.util.List<String> rhythm =
+                com.pvzce.client.gui.RhythmScoreText.lines(client.level().rhythmScore());
+        return rhythm.isEmpty() ? java.util.List.of(runSummary()) : rhythm;
+    }
+
+    /**
      * True when the level ended with the player losing.
      *
      * <p>Read from the game state rather than from which team won: {@code WON}/{@code LOST} are the
@@ -3524,13 +3539,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             com.pvzce.client.gui.components.DefeatScreen.render(client, seconds);
             if (com.pvzce.client.gui.components.DefeatScreen.settled(seconds)) {
                 // What the run amounted to, over the screen the original plays for a loss: on an
-                // endless level this is the only score there is, and on an ordinary one it is the
-                // same three numbers.
-                String summary = runSummary();
+                // endless level this is the only score there is, on an ordinary one it is the same
+                // three numbers, and on a rhythm level it is the song's own report - drawn upwards
+                // from the same baseline so a two-line report does not run into the hint below it.
+                java.util.List<String> summary = runSummaryLines();
                 float summaryScale = 1.4F;
-                client.fonts().body().draw(summary,
-                        (width - client.fonts().body().width(summary, summaryScale)) / 2F,
-                        height * 0.16F, summaryScale, 1F, 0.95F, 0.8F, 1F);
+                for (int line = 0; line < summary.size(); line++) {
+                    String text = summary.get(line);
+                    client.fonts().body().draw(text,
+                            (width - client.fonts().body().width(text, summaryScale)) / 2F,
+                            height * 0.16F + (summary.size() - 1 - line)
+                                    * client.fonts().body().lineHeight(summaryScale),
+                            summaryScale, 1F, 0.95F, 0.8F, 1F);
+                }
                 String hint = "点击任意处返回";
                 float hintScale = 1.2F;
                 client.fonts().body().draw(hint,
@@ -4765,9 +4786,29 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float scale = baseScale * rhythm.verdictScale();
         float alpha = rhythm.verdictAlpha();
         float y = baseline + rhythm.verdictRise();
+        com.pvzce.client.renderer.font.TextStyle outline =
+                com.pvzce.client.renderer.font.TextStyle.outline(0.03F, 0.02F, 0.02F, 0.9F * alpha, 1.6F);
         client.fonts().button().drawCentered(verdict, centerX, y, scale,
-                colour[0], colour[1], colour[2], alpha,
-                com.pvzce.client.renderer.font.TextStyle.outline(0.03F, 0.02F, 0.02F, 0.9F * alpha, 1.6F));
+                colour[0], colour[1], colour[2], alpha, outline);
+        // How many PERFECTs in a row this one makes, to the word's right - the number the whole mode
+        // is played for, written where the player is already looking rather than only in the corner
+        // of the screen. From two: the first one is not a streak, and a "×1" that appears and
+        // disappears on every other note is noise where the eye is chasing a moving note.
+        //
+        // LEFT-aligned off the word's right edge rather than centred on some fraction of the line,
+        // so it rides the pop-in with the word instead of sliding under it: the word grows about its
+        // own centre, and an anchor that ignored that would have the badge drift into it on the
+        // frame that matters most.
+        if (grade == com.pvzce.api.content.RhythmChartData.Grade.PERFECT && rhythm.streak() >= 2) {
+            String badge = "×" + rhythm.streak();
+            float badgeScale = scale * 0.62F;
+            float wordWidth = client.fonts().button().width(verdict, scale);
+            float baselineShift = (scale - badgeScale) * RHYTHM_HUD_LINE * 0.5F;
+            client.fonts().button().draw(badge,
+                    centerX + wordWidth / 2F + RHYTHM_HUD_LINE * 0.35F,
+                    y + baselineShift, badgeScale, colour[0], colour[1], colour[2],
+                    alpha * 0.95F, outline);
+        }
     }
 
     /**

@@ -138,7 +138,7 @@ public final class PvzcePackets {
     // placement preview can draw the column it is about to fill.
     // 45: a music cue can ask the client to preload instead of play (MusicEventS2C.preload), which
     // is how the level's song is decoded while it loads rather than nine ticks after it was due.
-    public static final int PROTOCOL_VERSION = 46;
+    public static final int PROTOCOL_VERSION = 47;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

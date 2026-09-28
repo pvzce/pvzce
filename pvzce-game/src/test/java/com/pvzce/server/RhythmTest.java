@@ -1042,6 +1042,51 @@ class RhythmTest {
         assertEquals(GameStateS2C.WON, level.gameState(),
                 "the last bar ends the level, generated waves and all");
         assertFalse(survivor.isAlive(), "and whatever was still walking is swept");
+
+        // And the receipt travels with the ending: what the page after the level reads.
+        GameStateS2C state = bridge.packets.stream()
+                .filter(packet -> packet instanceof GameStateS2C)
+                .map(packet -> (GameStateS2C) packet)
+                .reduce((first, second) -> second)
+                .orElse(null);
+        assertNotNull(state, "the level announced its outcome");
+        assertTrue(state.score().played(), "a rhythm level reports on the run");
+        RhythmMechanic.Score tally = RhythmMechanic.score(level);
+        assertEquals(tally.perfect(), state.score().perfect());
+        assertEquals(tally.missed(), state.score().missed());
+        assertEquals(tally.bestPerfectStreak(), state.score().bestPerfectStreak());
+        assertTrue(state.score().judged() > 0, "and the run judged something: " + state.score());
+    }
+
+    /** A level with no chart has nothing to report, and says so rather than reporting zeroes. */
+    @Test
+    void aLevelWithoutAChartReportsNothing() {
+        LevelServer level = board(chart());
+        CapturingBridge bridge = new CapturingBridge();
+        tickTo(level, bridge, 100);
+        // The chart above has no end, so this is the *other* thing the flag is for: a level that is
+        // not a rhythm level at all. Its own game state carries no report.
+        assertFalse(GameStateS2C.RhythmScore.NONE.played());
+        assertEquals(0, GameStateS2C.RhythmScore.NONE.judged());
+    }
+
+    /**
+     * The longest run of PERFECTs is remembered, which is the number the reward is named after.
+     *
+     * <p>The streak itself is zero by the end of any run with a single GOOD in it, so "how close did
+     * I get" has to be kept as it happens.
+     */
+    @Test
+    void theBestPerfectStreakSurvivesTheBreak() {
+        LevelServer level = board(chart());
+        CapturingBridge bridge = new CapturingBridge();
+        tickTo(level, bridge, 100);
+        assertTrue(level.rhythmHit("col", 5, 100, 0), "one perfect");
+        tickTo(level, bridge, 166);
+        assertTrue(level.rhythmHit("col", 5, 160, 6), "then a good, which breaks the streak");
+        RhythmMechanic.Score score = RhythmMechanic.score(level);
+        assertEquals(0, score.perfectStreak(), "the streak is gone");
+        assertEquals(1, score.bestPerfectStreak(), "but the best one is remembered");
     }
 
     /** A chart that spawns but never ends is a level that can only be lost, and is refused. */
