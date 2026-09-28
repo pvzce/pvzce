@@ -544,6 +544,28 @@ GLFW 报的**窗口坐标**，两者只在 contentScale = 1 时相等（本机�
 怎么做：一页一轮，页内**所有**字面量走 `GuiLang.raw` 并往两个语言文件里补键；顺手清掉任何
 "用标签文字反查设置"的写法（`VideoSettingsScreen` 那处已经这么改过，见 `架构变更记录.md` 的 W5）。
 
+### 游戏内没有 GPL-3.0 要求的法律声明
+
+`PvzceVersions` 有游戏名与版本，启动时 `PvzceGame.main` 只打一行
+`"{} {} starting in {}"`，`DebugOverlay` 有版本号——**只有版本，没有版权行、没有无担保声明、
+没有"到哪里取许可"**。GPL-3.0 §5(d) 要求有交互界面的作品显示 "Appropriate Legal Notices"
+（版权声明 + 无担保 + 许可取得方式），所以现在这一条**不合规**。
+怎么做：最小形状是在启动日志里补一段固定文本（版权行 + `This program comes with ABSOLUTELY NO
+WARRANTY` + 指向仓库 `LICENSE` 的说明），常量化放进 `PvzceVersions` 旁边；想做正式一点就在
+标题页或设置页加一个"关于"页，同一段文本两处共用。文本内容与措辞见 `THIRD-PARTY.md` §4.3。
+卡在：无，是纯增量。**但要注意别把它写成"EA 授权声明"**——那段是 PVZCE 自己代码的 GPL 声明。
+
+### git 历史里的素材与体积还没清理
+
+本轮把 1719 个原版素材移出了工作区（`tools/exclude_pvz_assets.py`），但**历史没重写**——
+`git filter-repo` 会改掉所有 commit hash，用户选择先备份（`.backup/pvzce-full-*.bundle`）再决定。
+另外历史里还留着早期被删的 `assets/pvzce/font/ui.png`（18 MB × 两份）与 36 MB 字体，
+`.git` 因此仍在 283 MB 上下。
+影响：`git log` / `git show` 仍能取出原版素材；仓库比必要的大。
+怎么做：仓库**首次 push 之前**（唯一干净的窗口期）跑一次 `git filter-repo --path` 摘掉
+`local-assets` 对应的历史路径与那个 ui.png，然后重新加 remote。备份已经在手，可回退。
+卡在：**要用户拍板**——这一步不可逆（hash 全变）。
+
 ## 明确不做的（不再重提）
 
 | 事项 | 结论 | 出处 |

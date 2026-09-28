@@ -181,3 +181,33 @@ shadowJar {
 }
 
 assemble.dependsOn shadowJar
+
+// ---------------------------------------------------------------------------
+// 本地素材（原版 PvZ 拆包资源）
+//
+// 原版素材的版权归 PopCap/EA，不能随公开仓库分发，所以它们被 `tools/exclude_pvz_assets.py`
+// 移到了仓库根的 `local-assets/`（由 .gitignore 排除）。这个任务在**该目录存在时**把它并回
+// 构建期资源，于是 `run`/`test`/冒烟照常拿得到贴图和音效；目录不存在（例如刚 clone 下来）
+// 时任务自动跳过，游戏仍然能启动，只是缺贴图的地方显示为棋盘格。
+//
+// 这不算"两套资源"：它只是让本机的构建期资源 = 入库的自产素材 + 本机的原版素材，依赖的
+// 单一出处仍是 `assets/pvzce/` 那一棵树，本任务不复制也不生成任何素材。
+// ---------------------------------------------------------------------------
+def localAssetsDir = rootProject.layout.projectDirectory.dir('local-assets')
+def stageLocalAssets = tasks.register('stageLocalAssets', Copy) {
+    description = '把 local-assets/ 里的原版素材并进构建期资源（目录不存在则跳过）'
+    onlyIf { localAssetsDir.dir('assets').asFile.exists() }
+    // 带上 `assets/` 这一层：classpath 资源根下面必须直接是 `assets/` 与 `data/`，
+    // 少一层的话 TextureManager 按 `assets/<id>.png` 找不到东西。
+    from localAssetsDir.dir('assets').asFile
+    into layout.buildDirectory.dir('localAssets/assets')
+}
+
+// 本机的原版素材要**排在入库素材前面**，同一个 id 才由本地那份胜出（addFirst）。
+// classpath 资源根必须是 `build/localAssets/`（它下面才是 `assets/`），
+// 而 Copy 的 destinationDir 指向的是 `.../localAssets/assets` —— 取它的父目录。
+def localAssetsRoot = stageLocalAssets.map { it.destinationDir.parentFile }
+tasks.named('test') { dependsOn stageLocalAssets }
+tasks.named('run') { dependsOn stageLocalAssets }
+sourceSets.test.runtimeClasspath = files(localAssetsRoot) + sourceSets.test.runtimeClasspath
+run.classpath = files(localAssetsRoot) + run.classpath

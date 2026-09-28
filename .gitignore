@@ -60,3 +60,13 @@ refer/
 ### Python bytecode from the tools/ scripts ###
 __pycache__/
 *.pyc
+
+### Local git backup bundles (git bundle create ...) ###
+.backup/
+
+### Scratch space (research notes, temporary extracts) ###
+.research/
+
+### Original PvZ assets: kept locally, never pushed ###
+### Moved here by tools/exclude_pvz_assets.py; see THIRD-PARTY.md §4 and docs/素材对照表.md.
+local-assets/
