@@ -6,6 +6,10 @@ build/
 .kotlin
 
 ### IntelliJ IDEA ###
+### 整目录忽略：跟着走的是机器相关的 .idea/*.xml（gradle.xml 记绝对路径），
+### 上游模板只忽略了其中几个文件，于是 .idea/.gitignore、gradle.xml、misc.xml、vcs.xml
+### 一路被跟踪到了公开仓库里。
+.idea/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
