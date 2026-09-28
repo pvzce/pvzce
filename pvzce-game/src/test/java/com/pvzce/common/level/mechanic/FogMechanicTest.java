@@ -226,33 +226,40 @@ class FogMechanicTest {
     }
 
     /**
-     * The baked gradient carries the curve the data describes.
+     * The cloud sheet is on the classpath, and it is a cloud sheet rather than a black rectangle.
      *
-     * <p>The engine has no per-vertex colour, so the ramp is a texture - which means the same curve
-     * exists twice, once in {@link FogData#alphaAt} and once in the PNG's alpha channel. Nothing
-     * else in the build compares them, and the failure mode is quiet: the fog is drawn at a
-     * slightly different place than the hiding test uses, so a zombie disappears a little before
-     * or after it visually should. Read from the classpath, because that is where the renderer
-     * reads it from.
+     * <p>The drawing half of the fog lives in {@code FogClientMechanic} (and its own test, which
+     * checks the sheet's <em>geometry</em>); what belongs here is the one thing the data side can
+     * say about the art: it has to be a light cloud with gaps in it. Both failure modes are quiet -
+     * a missing sheet falls back to the missing-texture placeholder, and a sheet that baked black
+     * would draw a black band, which is exactly the bug the tiles replaced.
      */
     @Test
-    void theBakedGradientMatchesTheCurveInTheData() throws Exception {
-        FogData fog = new FogData(0F, 1F, 1F);
+    void theCloudSheetIsOnTheClasspath() throws Exception {
         try (var stream = FogMechanicTest.class.getResourceAsStream(
-                "/assets/pvzce/textures/gui/screen/fog_alpha.png")) {
-            assertNotNull(stream, "the fog gradient sprite has to be on the classpath;"
-                    + " run tools/gen_fog_gradient.py");
+                "/assets/pvzce/textures/gui/screen/fog_cloud.png")) {
+            assertNotNull(stream, "the fog cloud sheet has to be on the classpath;"
+                    + " run tools/gen_fog_texture.py");
             java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(stream);
             assertNotNull(image, "and it has to decode as a PNG");
-            int width = image.getWidth();
-            for (int x = 0; x < width; x++) {
-                float column = x / (float) Math.max(1, width - 1);
-                float expected = fog.alphaAt(column);
-                float actual = ((image.getRGB(x, 0) >>> 24) & 0xFF) / 255F;
-                assertEquals(expected, actual, 1F / 255F,
-                        "the sprite and FogData.alphaAt disagree at x=" + x
-                                + " (expected " + expected + ", sprite says " + actual + ")");
+            int opaque = 0;
+            int clear = 0;
+            for (int y = 0; y < image.getHeight(); y += 3) {
+                for (int x = 0; x < image.getWidth(); x += 3) {
+                    int argb = image.getRGB(x, y);
+                    int alpha = (argb >>> 24) & 0xFF;
+                    if (alpha > 200) {
+                        opaque++;
+                    } else if (alpha < 40) {
+                        clear++;
+                    }
+                }
             }
+            int samples = (image.getWidth() / 3) * (image.getHeight() / 3);
+            assertTrue(opaque > samples * 0.1, "a cloud has to be mostly opaque where it is: only "
+                    + opaque + " of " + samples + " samples are");
+            assertTrue(clear > samples * 0.3, "and mostly absent between its puffs: only "
+                    + clear + " of " + samples + " samples are");
         }
     }
 }

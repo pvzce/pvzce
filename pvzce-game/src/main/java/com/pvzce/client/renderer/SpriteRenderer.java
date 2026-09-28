@@ -134,6 +134,36 @@ public final class SpriteRenderer {
         Tesselator.INSTANCE.draw(mesh);
     }
 
+    /**
+     * The same quad with one alpha per corner, which is how a soft round hole is drawn.
+     *
+     * <p>Corner order and UVs are {@link #texturedQuad}'s. The colour is shared because the one
+     * caller (the fog's lamps) varies only the opacity across the quad; a per-corner colour would
+     * be a second feature nobody has asked for.
+     */
+    public static void texturedQuad(com.pvzce.client.renderer.texture.Texture texture,
+                                    float x0, float y0, float x1, float y1,
+                                    float x2, float y2, float x3, float y3,
+                                    float u0, float v0, float u1, float v1,
+                                    float u2, float v2, float u3, float v3,
+                                    float z, float r, float g, float b,
+                                    float a0, float a1, float a2, float a3) {
+        RenderSystem.setShadowMode(false);
+        RenderSystem.bindTexture(texture.glId());
+        RenderSystem.setTextured(true);
+        BufferBuilder builder = Tesselator.INSTANCE.begin();
+        VertexConsumer v = builder;
+        v.vertex(x0, y0, z).color(r, g, b, a0).uv(u0, v0).endVertex();
+        v.vertex(x1, y1, z).color(r, g, b, a1).uv(u1, v1).endVertex();
+        v.vertex(x2, y2, z).color(r, g, b, a2).uv(u2, v2).endVertex();
+
+        v.vertex(x0, y0, z).color(r, g, b, a0).uv(u0, v0).endVertex();
+        v.vertex(x2, y2, z).color(r, g, b, a2).uv(u2, v2).endVertex();
+        v.vertex(x3, y3, z).color(r, g, b, a3).uv(u3, v3).endVertex();
+        var mesh = builder.build();
+        Tesselator.INSTANCE.draw(mesh);
+    }
+
     public static void solid(float x, float y, float width, float height, float z,
                              float r, float g, float b, float a) {
         RenderSystem.setShadowMode(false);

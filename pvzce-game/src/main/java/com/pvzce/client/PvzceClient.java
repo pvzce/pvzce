@@ -1695,6 +1695,49 @@ public final class PvzceClient {
     }
 
     /**
+     * The same draw as {@link #drawTextureRegion}, with one alpha per corner instead of one.
+     *
+     * <p>The engine has had per-vertex colour all along ({@code VertexConsumer.color}), it was
+     * just never given an entry point: every helper here takes a single tint for all four
+     * corners, so a soft circle used to have to be built out of small quads. The fog is what
+     * needs it - a lamp's light is a round hole in a square texture, and four alphas interpolated
+     * across a quad is exactly that circle.
+     *
+     * <p>Corner order is bottom-left, bottom-right, top-right, top-left; u/v are as in
+     * {@link #drawTextureRegion} (v increasing toward the world's +y). The tint is one colour for
+     * the whole quad, because the one caller varies only the opacity.
+     */
+    public void drawTextureShaded(Identifier id, float u0, float v0, float u1, float v1,
+                                  float x, float y, float w, float h, float z,
+                                  float r, float g, float b,
+                                  float aBottomLeft, float aBottomRight,
+                                  float aTopRight, float aTopLeft) {
+        float[] ink = entityInk();
+        float cr = r * ink[0];
+        float cg = g * ink[1];
+        float cb = b * ink[2];
+        float scale = ink[3];
+        try {
+            var texture = textures.getOrLoad(id);
+            // One triangle per corner pair rather than `textured`, and clockwise from the
+            // bottom-left so the winding matches every other quad in the renderer.
+            SpriteRenderer.texturedQuad(texture,
+                    x, y, x + w, y, x + w, y + h, x, y + h,
+                    TextureUv.normalizeU(u0, texture.width()), TextureUv.normalizeV(v0, texture.height()),
+                    TextureUv.normalizeU(u1, texture.width()), TextureUv.normalizeV(v0, texture.height()),
+                    TextureUv.normalizeU(u1, texture.width()), TextureUv.normalizeV(v1, texture.height()),
+                    TextureUv.normalizeU(u0, texture.width()), TextureUv.normalizeV(v1, texture.height()),
+                    z, cr, cg, cb,
+                    aBottomLeft * scale, aBottomRight * scale,
+                    aTopRight * scale, aTopLeft * scale);
+        } catch (Exception e) {
+            warnMissingTexture(id);
+            drawMissingTexture(x, y, w, h, z, cr, cg, cb, (aBottomLeft + aBottomRight
+                    + aTopRight + aTopLeft) / 4F * scale);
+        }
+    }
+
+    /**
      * Draws every texture the renderer falls back to: this one is what a missing reference
      * looks like.
      *
@@ -1754,6 +1797,24 @@ public final class PvzceClient {
     /** True when a texture can be resolved from the built-in pack or an active resource pack. */
     public boolean hasTexture(Identifier id) {
         return resources.hasTexture(id);
+    }
+
+    /**
+     * The size of a texture in pixels, loading it if this is the first ask.
+     *
+     * <p>For the callers whose layout is a property of the <em>art</em> rather than of the data
+     * they hold: the fog's cloud sheet is a row of frames, and how many there are and how wide
+     * each one is are facts about the PNG. Reading them back means reslicing the sheet needs no
+     * change here, and a sheet someone resliced wrongly is visible as fog in the wrong place
+     * rather than as an index out of bounds.
+     */
+    public int textureWidth(Identifier id) {
+        return textures.getOrLoad(id).width();
+    }
+
+    /** See {@link #textureWidth}. */
+    public int textureHeight(Identifier id) {
+        return textures.getOrLoad(id).height();
     }
 
     /**

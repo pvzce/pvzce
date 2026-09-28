@@ -111,6 +111,22 @@ public final class PvzceCamera {
     }
 
     /**
+     * How much bigger this board is drawn than the backdrop's own pixels.
+     *
+     * <p>{@link LevelStage.Geometry}'s numbers are the 1400x600 reference image's pixels: the
+     * pool's cell is 80x85 of them. A window is almost never that size, so the board is scaled to
+     * fit the stage's plantable area and one world cell becomes 144 screen pixels at 1920x1080.
+     * Anything sized in the backdrop's own pixels - the fog's cloud tiles, whose spacing is the
+     * original's own - multiplies by this to stay the size the art was drawn at.
+     *
+     * <p>One number for both axes: the board is scaled uniformly (see {@link LevelStage#board}),
+     * so the two can never disagree.
+     */
+    public float boardScale() {
+        return unitX / Math.max(0.0001F, geometry.cellWidth());
+    }
+
+    /**
      * The furthest this camera can look toward the house before the backdrop's own left
      * edge would come onto the screen.
      *

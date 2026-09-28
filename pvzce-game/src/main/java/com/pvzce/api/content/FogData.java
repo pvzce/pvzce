@@ -88,10 +88,14 @@ public record FogData(float startColumn, float endColumn, float maxAlpha) implem
     /**
      * How opaque the fog is at a column, 0 where it is clear and {@link #maxAlpha} at the far end.
      *
-     * <p>The one place the ramp is defined, so the drawing and any test that asks "is this cell
-     * hidden" cannot disagree. Linear in the span and raised to a power of its own: a straight
-     * alpha ramp reads as a hard edge where it tops out, because the eye is far more sensitive
-     * near full black than near nothing.
+     * <p>The one definition of "how dark is it here", and the answer the hiding test reads: an
+     * entity past {@link #hidingColumn()} is not drawn at all.
+     *
+     * <p>Linear in the span and raised to a power of its own: a straight alpha ramp reads as a hard
+     * edge where it tops out, because the eye is far more sensitive near full black than near
+     * nothing. Note what this is <em>not</em>: the shape the fog is drawn with. The cloud is a grid
+     * of sprites whose own alpha is the picture ({@code FogClientMechanic}), and this curve is what
+     * decides which cells are fogged and where something stops being drawn.
      */
     public float alphaAt(float column) {
         if (column <= startColumn) {
@@ -105,12 +109,11 @@ public record FogData(float startColumn, float endColumn, float maxAlpha) implem
     }
 
     /**
-     * The exposure curve, and it lives here rather than in the texture.
+     * The exposure curve: how fast the ramp climbs toward {@link #maxAlpha}.
      *
-     * <p>{@code tools/gen_fog_gradient.py} bakes the same curve into the sprite the renderer draws
-     * (`assets/pvzce/textures/gui/screen/fog_alpha.png`), because the engine has no per-vertex
-     * colour to ramp in the shader. Keeping the exponent in the data means a test can check the
-     * two agree rather than trusting that they were edited together.
+     * <p>Live data rather than a texture's business. It used to be baked into a gradient sprite the
+     * renderer drew (and a test compared the two pixel by pixel); the fog is drawn as cloud tiles
+     * now, so this curve has one home and one reader - {@link #alphaAt}.
      */
     public static final float FALLOFF = 1.6F;
 
