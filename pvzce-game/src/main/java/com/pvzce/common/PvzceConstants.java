@@ -170,8 +170,16 @@ public final class PvzceConstants {
      * five rounded somewhere.
      */
     public static final int ENERGY_DRAIN_PER_SECOND = 5;
-    /** The bar's ceiling: a full bar, and the point past which a PERFECT pays nothing. */
-    public static final int ENERGY_MAX = 6000;
+    /**
+     * The bar's ceiling: a full bar, and the point past which a PERFECT pays nothing.
+     *
+     * <p>Above both gates rather than equal to the lower one, because a ceiling that sat exactly
+     * on a gate would make the gate above it unreachable: with the bar capped at 6000 the 12000
+     * gate was a number no run could ever cross. Fifteen thousand is the second gate plus a
+     * quarter: enough slack that a player who has earned the tripling keeps it through a bad bar
+     * of notes, and still a number the HUD can draw a tick on without the ticks colliding.
+     */
+    public static final int ENERGY_MAX = 15000;
     /**
      * The bar's first gate: at or above this, every plant fires twice the bullets per attack.
      *
@@ -179,9 +187,9 @@ public final class PvzceConstants {
      * line and the firepower changes on that tick. A gate that remembered being open would make
      * the number on the bar stop meaning what it says.
      */
-    public static final int ENERGY_DOUBLE_AT = 3000;
+    public static final int ENERGY_DOUBLE_AT = 6000;
     /** The second gate: at or above this, three times the bullets. */
-    public static final int ENERGY_TRIPLE_AT = 5000;
+    public static final int ENERGY_TRIPLE_AT = 12000;
 
     /**
      * The consecutive-PERFECT counts that each set the lawn alight, in order.

@@ -726,7 +726,7 @@ class RhythmTest {
     @Test
     void theBarIsCapped() {
         CapturingBridge bridge = new CapturingBridge();
-        LevelServer level = playPerfectly(longChart(120), 120, bridge);
+        LevelServer level = playPerfectly(longChart(180), 155, bridge);
         assertEquals(PvzceConstants.ENERGY_MAX, RhythmMechanic.score(level).energy(),
                 "the bar fills and stops at " + PvzceConstants.ENERGY_MAX
                         + " however many notes are played");
@@ -744,14 +744,15 @@ class RhythmTest {
         PlantEntity shooter = plant(empty, "pea_shooter", 3, 2);
         assertEquals(1, empty.projectileCountMultiplier(shooter), "an empty bar buys nothing");
 
-        // Thirty-one perfect notes is 3100 points against a bleed of about forty: over the gate.
+        // A perfect note pays a hundred and the bleed over one is a point and a quarter, so the
+        // gates are a little over sixty notes and a little over a hundred and twenty.
         CapturingBridge bridge = new CapturingBridge();
-        LevelServer doubling = playPerfectly(longChart(40), 31, bridge);
+        LevelServer doubling = playPerfectly(longChart(80), 62, bridge);
         assertTrue(RhythmMechanic.score(doubling).energy() >= PvzceConstants.ENERGY_DOUBLE_AT,
                 "the bar is over the first gate: " + RhythmMechanic.score(doubling).energy());
         assertEquals(2, doubling.projectileCountMultiplier(plant(doubling, "pea_shooter", 3, 2)));
 
-        LevelServer tripling = playPerfectly(longChart(60), 52, bridge);
+        LevelServer tripling = playPerfectly(longChart(140), 124, bridge);
         assertTrue(RhythmMechanic.score(tripling).energy() >= PvzceConstants.ENERGY_TRIPLE_AT,
                 "and the second: " + RhythmMechanic.score(tripling).energy());
         assertEquals(3, tripling.projectileCountMultiplier(plant(tripling, "pea_shooter", 3, 2)));
@@ -769,13 +770,13 @@ class RhythmTest {
         CapturingBridge bridge = new CapturingBridge();
         // One volley per note, so the peas counted below are the volley's own and not the three a
         // PERFECT is worth on a shipped chart (`RhythmChartData#volleys`).
-        LevelServer level = playPerfectly(longChart(40, 1), 31, bridge);
+        LevelServer level = playPerfectly(longChart(80, 1), 62, bridge);
         // In the lane the chart plays, which is the only one whose plants a note can order.
         PlantEntity shooter = plant(level, "pea_shooter", 5, 2);
         assertEquals(2, level.projectileCountMultiplier(shooter), "the bar is over the gate");
 
         long before = projectilesOnTheLawn(level);
-        int tick = 100 + 31 * 15;
+        int tick = 100 + 62 * 15;
         tickTo(level, bridge, tick);
         assertTrue(level.rhythmHit("col", 5, tick, 0), "a note orders the column to fire");
         // The order is queued on the plant rather than fired from the packet handler, so the pea
@@ -882,5 +883,184 @@ class RhythmTest {
         return level.entities().stream()
                 .filter(entity -> entity instanceof com.pvzce.server.entity.ProjectileEntity)
                 .count();
+    }
+
+    // ------------------------------------------------------------------
+    // The zombie clock: no wave table, one coefficient, the song as the ramp
+    // ------------------------------------------------------------------
+
+    /**
+     * A long chart that runs the mode's own zombie clock.
+     *
+     * <p>Its coefficient is written out and it ends on its own last beat, which is what a chart
+     * that spawns has to do: the end of the track is the only way such a level can be won.
+     */
+    private static RhythmChartData spawningChart(int notes, double difficulty) {
+        java.util.List<Double> beats = new java.util.ArrayList<>();
+        for (int i = 0; i < notes; i++) {
+            beats.add((double) i);
+        }
+        return new RhythmChartData(240D, 100, RhythmChartData.DEFAULT_APPROACH_TICKS,
+                RhythmChartData.DEFAULT_PERFECT_SUN, RhythmChartData.DEFAULT_ATTACK_VOLLEYS,
+                true, notes, difficulty,
+                List.of(new RhythmChartData.Lane(RhythmChartData.LaneKind.COL, 5, beats)));
+    }
+
+    private static com.pvzce.api.content.EndlessScheduleDef rhythmSchedule() {
+        com.pvzce.api.content.EndlessScheduleDef schedule =
+                BuiltInRegistries.ENDLESS_SCHEDULES.get(PvzceIds.ENDLESS_SCHEDULE_RHYTHM);
+        assertNotNull(schedule, "the rhythm lawn schedule is registered");
+        return schedule;
+    }
+
+    /**
+     * The round is where in the song the run is - and the coefficient is how fast it gets there.
+     *
+     * <p>The whole difficulty rule in one assertion per line: bar one is round one, the last bar is
+     * the top of the ramp, the walk never goes backwards, and a higher coefficient reaches any
+     * given bar sooner.
+     */
+    @Test
+    void theSongWalksTheSchedulesRamp() {
+        com.pvzce.api.content.EndlessScheduleDef schedule = rhythmSchedule();
+        RhythmChartData chart = spawningChart(40, 1.0D);
+        int end = chart.endTick();
+        assertTrue(end > 0, "the chart ends");
+
+        assertEquals(1, com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, 0),
+                "the first bar is the bottom of the ramp");
+        assertEquals(1 + schedule.countRampRounds(),
+                com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, end),
+                "and the last bar walks it exactly once at difficulty 1");
+
+        int previous = 0;
+        for (int tick = -30; tick <= end + 500; tick += 37) {
+            int round = com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, tick);
+            assertTrue(round >= previous, "the ramp never goes backwards: " + round + " after " + previous);
+            previous = round;
+        }
+        assertEquals(previous, com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, end),
+                "and it stops at the top rather than climbing past the song");
+
+        RhythmChartData harder = spawningChart(40, 2.2D);
+        assertTrue(com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, harder, end / 2)
+                        > com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, end / 2),
+                "the same bar of the same song is deeper into the schedule on a harder tier");
+    }
+
+    /** What the coefficient buys: the roster at the end of the song is not the one it opened with. */
+    @Test
+    void theEndOfTheSongSendsWhatTheStartCannot() {
+        com.pvzce.api.content.EndlessScheduleDef schedule = rhythmSchedule();
+        RhythmChartData chart = spawningChart(40, 1.0D);
+        var opening = schedule.landPoolForRound(
+                com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, 0));
+        var closing = schedule.landPoolForRound(
+                com.pvzce.common.level.rhythm.RhythmWaves.roundFor(schedule, chart, chart.endTick()));
+        assertTrue(closing.size() > opening.size(),
+                "the last bar has a deeper roster than the first: " + closing.size()
+                        + " against " + opening.size());
+        assertTrue(opening.stream().noneMatch(entry -> entry.zombie().path().contains("football")),
+                "an opening bar does not send footballs");
+        assertTrue(closing.stream().anyMatch(entry -> entry.zombie().path().contains("football")),
+                "and the closing bar does");
+    }
+
+    /**
+     * A spawning level counts no waves and answers the director with generated ones.
+     *
+     * <p>The two halves of "these levels do not have waves": nothing on screen says how many there
+     * are, and the director still gets one when it asks - because a wave is how zombies reach the
+     * lawn at all, lane safety and all.
+     */
+    @Test
+    void aSpawningChartHasNoWaveCountButStillSendsWaves() {
+        LevelServer level = board(spawningChart(40, 1.0D));
+        assertTrue(level.isEndlessRun(), "the waves are generated, so the director never ends it");
+        assertFalse(level.showsWaveCount(), "and the player is not told how many there are");
+        assertEquals(0, level.totalWaves(), "so the meter has no denominator");
+        assertTrue(level.wavesInRound(1) > 0, "the director still has waves to walk");
+
+        tick(level, new CapturingBridge(), 120);
+        com.pvzce.api.content.WaveDef wave = level.waveAt(1, 0);
+        assertNotNull(wave, "the level generates its first wave from the song");
+        assertFalse(wave.entries().isEmpty(), "with zombies in it");
+        for (com.pvzce.api.content.WaveDef.Entry entry : wave.entries()) {
+            assertEquals(5, entry.rows().size(),
+                    "every row, so a row cannot be left alone - the mode's whole pressure");
+        }
+    }
+
+    /**
+     * A level with no wave table still shows what is coming, on the one screen that asks.
+     *
+     * <p>{@code previewZombieIds} walks the level's waves, so a level whose waves are generated
+     * previews nothing - which was true of the endless levels too, and is why this reads the
+     * opening bar instead.
+     */
+    @Test
+    void aSpawningChartPreviewsItsOpeningBar() {
+        LevelDef def = com.pvzce.testutil.TestLevels.copy(
+                        BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/demo_level")))
+                .waves(List.of())
+                .mechanics(List.of(new com.pvzce.api.content.mechanic.TypedMechanic(
+                        PvzceIds.MECHANIC_RHYTHM, spawningChart(40, 1.0D))))
+                .build();
+        assertEquals(List.of(), def.previewZombieIds(), "there is no table to read a preview off");
+        PlayerProfile profile = PlayerProfile.starter();
+        List<String> preview = LevelServer.payloadFor(def,
+                LevelServer.SeedContext.forProfile(def, profile)).previewZombies();
+        assertFalse(preview.isEmpty(), "the opening bar is what the seed screen shows");
+        for (String id : preview) {
+            assertTrue(id.contains("basic") || id.contains("conehead") || id.contains("flag")
+                            || id.contains("ducky"),
+                    "bar one sends the opening roster, not the whole schedule: " + id);
+        }
+    }
+
+    /** A chart that spawns but never ends is a level that can only be lost, and is refused. */
+    @Test
+    void aSpawningChartWithoutAnEndIsRefused() {
+        LevelDef demo = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/demo_level"));
+        assertNotNull(demo);
+        RhythmChartData noEnd = new RhythmChartData(240D, 100, RhythmChartData.DEFAULT_APPROACH_TICKS,
+                0, 1, true, 0D, 1.0D,
+                List.of(new RhythmChartData.Lane(RhythmChartData.LaneKind.COL, 5, List.of(0D, 1D))));
+        List<String> errors = LevelMechanics.validate(demo, PvzceIds.MECHANIC_RHYTHM, noEnd);
+        assertTrue(errors.stream().anyMatch(error -> error.contains("no end_beat")),
+                "a song with no end is refused: " + errors);
+    }
+
+    /** And so is one that both generates its waves and writes a table: two answers, one winner. */
+    @Test
+    void aSpawningChartThatAlsoWritesWavesIsRefused() {
+        LevelDef demo = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/demo_level"));
+        assertNotNull(demo);
+        LevelDef withWaves = com.pvzce.testutil.TestLevels.copy(demo)
+                .waves(List.of(new com.pvzce.api.content.WaveDef(
+                        com.pvzce.api.content.WaveDef.WaveType.SMALL, 300, 0,
+                        List.of(new com.pvzce.api.content.WaveDef.Entry(
+                                PvzceIds.id("basic_zombie"), 1, List.of(0), 1F)))))
+                .build();
+        List<String> errors = LevelMechanics.validate(withWaves, PvzceIds.MECHANIC_RHYTHM,
+                spawningChart(40, 1.0D));
+        assertTrue(errors.stream().anyMatch(error -> error.contains("generates the level's waves")),
+                "a chart with a clock and a table is refused: " + errors);
+    }
+
+    /**
+     * A chart that asks for no zombie clock keeps the level's own table.
+     *
+     * <p>The shape every hand-written chart and every test chart above has, and the reason
+     * {@code difficulty} defaults to zero rather than to one.
+     */
+    @Test
+    void aChartWithoutACoefficientKeepsTheLevelsTable() {
+        LevelServer level = board(chart());
+        assertFalse(level.isEndlessRun(), "no generated waves");
+        assertTrue(level.showsWaveCount(), "the level's own table is still counted");
+        assertTrue(com.pvzce.common.level.mechanic.RhythmMechanic.spawningChart(
+                        BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/demo_level"))) == null,
+                "and a level with no chart at all has no zombie clock either");
     }
 }

@@ -193,17 +193,18 @@ class RhythmChartsTest {
     }
 
     /**
-     * The horde is part of the tier, and every tier is faster than the tables are written for.
+     * The tiers are a curve, and the curve is now one number.
      *
-     * <p>The three numbers a tier is: how fast its zombies walk, how fast they arrive, and how many
-     * the table holds. The report this answers was "the zombies are too few and too slow", so the
-     * floors - twice the walk speed, faster than written arrival, every entry naming every row - are
-     * pinned rather than left to the eye.
+     * <p>What used to be pinned here was a wave table per tier - six waves, every row named, the
+     * counts climbing. None of those tables exist any more: what comes at the player is generated
+     * from the chart's own clock and the schedule's roster (see {@code RhythmWaves}), so what a tier
+     * <em>says</em> about difficulty is one coefficient and what it still says about pressure is the
+     * speed and cadence rules the mode has always had.
      */
     @Test
     void everyTierIsAHorde() {
         double previousSpeed = 0D;
-        int previousCount = 0;
+        double previousDifficulty = 0D;
         for (RhythmCharts.Tier tier : RhythmCharts.TIERS) {
             JsonObject level = generated(tier);
             JsonObject rules = level.getAsJsonObject("rules");
@@ -214,21 +215,18 @@ class RhythmChartsTest {
             assertTrue(speed > previousSpeed, tier.suffix() + " is faster than the tier below it");
             previousSpeed = speed;
 
-            int count = 0;
-            JsonArray waves = level.getAsJsonArray("waves");
-            assertTrue(waves.size() >= 6, tier.suffix() + " has a table long enough for the song");
-            for (var waveElement : waves) {
-                JsonObject wave = waveElement.getAsJsonObject();
-                for (var entryElement : wave.getAsJsonArray("entries")) {
-                    JsonObject entry = entryElement.getAsJsonObject();
-                    count += entry.get("count").getAsInt();
-                    assertEquals(5, entry.getAsJsonArray("rows").size(),
-                            tier.suffix() + " names every row, so no row can be left alone");
-                }
-            }
-            assertTrue(count > previousCount, tier.suffix() + " is a bigger horde than the last");
-            previousCount = count;
-            assertTrue(count >= 30, tier.suffix() + " is a horde and not a queue: " + count);
+            // No wave table at all: the zombies are the song's, and a level that wrote both would
+            // be a level with two answers to "what comes next".
+            assertEquals(0, level.getAsJsonArray("waves").size(),
+                    tier.suffix() + " writes no waves; its chart generates them");
+            JsonObject chart = rhythmBlock(level);
+            assertTrue(chart.has("difficulty"), tier.suffix() + " needs its coefficient written out");
+            double difficulty = chart.get("difficulty").getAsDouble();
+            assertTrue(difficulty > previousDifficulty,
+                    tier.suffix() + " is harder than the tier below it: " + difficulty);
+            previousDifficulty = difficulty;
+            assertTrue(chart.has("end_beat") && chart.get("end_beat").getAsDouble() > 0D,
+                    tier.suffix() + " has to end: the end of the track is the only way to win one");
         }
     }
 

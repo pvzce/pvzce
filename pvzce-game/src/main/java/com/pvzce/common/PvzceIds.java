@@ -549,6 +549,14 @@ public final class PvzceIds {
      */
     public static final Identifier ENDLESS_SCHEDULE_POOL = id("pool_endless");
     public static final Identifier ENDLESS_SCHEDULE_MUTATION = id("mutation_endless");
+    /**
+     * The rhythm levels' zombie clock.
+     *
+     * <p>A schedule like any other - the same record, the same generator - but its "round" is where
+     * in the song the run is rather than how far into an endless run it has got, so its ramp is the
+     * shape of one track. See {@code EndlessSchedules.rhythmLawn}.
+     */
+    public static final Identifier ENDLESS_SCHEDULE_RHYTHM = id("rhythm_lawn");
 
     /**
      * The built-in mutations, the catalogue {@code common.level.mutation.Mutations} registers.

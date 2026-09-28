@@ -195,6 +195,36 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         return kind.json() + ":" + index;
     }
 
+    /**
+     * The chart this level generates its zombies from, or {@code null} when it has no zombie clock.
+     *
+     * <p>A level's chart is its chart whether or not it spawns - {@code difficulty} is what decides
+     * that (see {@code RhythmChartData#generatesWaves}) - and this is the one question
+     * {@code LevelServer} asks to know which of the three wave sources it is: a table, an endless
+     * schedule, or a song.
+     */
+    public static RhythmChartData spawningChart(LevelDef def) {
+        RhythmChartData chart = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_RHYTHM,
+                RhythmChartData.class).orElse(null);
+        return chart != null && chart.generatesWaves() ? chart : null;
+    }
+
+    /**
+     * How far into the chart the level's clock has got, or {@code -1} before it has started.
+     *
+     * <p>The song's own clock, anchored by the server (see {@link Status}) and read by the wave
+     * source: where the music is is where the difficulty is. Negative before the player presses
+     * 开始, which the wave source reads as the song's first bar - the director is not sending
+     * anything during the build phase anyway.
+     */
+    public static int chartTick(LevelServer level) {
+        State state = level.mechanicStateOrNull(PvzceIds.MECHANIC_RHYTHM, State.class);
+        if (state == null || state.startTick < 0) {
+            return -1;
+        }
+        return level.tickCount() - state.startTick;
+    }
+
     @Override
     public MapCodec<RhythmChartData> codec() {
         return RhythmChartData.MAP_CODEC;
@@ -639,6 +669,22 @@ public final class RhythmMechanic implements LevelMechanic<RhythmChartData> {
         if (data.plantsHoldFire() && data.attackVolleys() <= 0) {
             errors.add("rhythm chart holds the plants' fire but its notes are worth no attacks:"
                     + " nothing on the lawn could ever act");
+        }
+        // The chart's zombie clock and the level's wave table are two answers to "what comes next",
+        // and one of them would lose silently - the same rule the endless mechanic states, for the
+        // same reason.
+        if (data.generatesWaves() && !def.waves().isEmpty()) {
+            errors.add("rhythm chart difficulty " + data.difficulty() + " generates the level's"
+                    + " waves, so the " + def.waves().size() + " waves it writes are ignored;"
+                    + " delete them or set difficulty to 0");
+        }
+        // And a chart that spawns zombies has to end: the song is the win condition, and a track
+        // with no end is a run that can only be lost - the wave director never declares victory on
+        // a level whose waves are generated (there is always another one).
+        if (data.generatesWaves() && !data.hasEnd()) {
+            errors.add("rhythm chart difficulty " + data.difficulty() + " generates the level's"
+                    + " waves but has no end_beat, so the level could never be won; write the"
+                    + " track's end or set difficulty to 0");
         }
         return errors;
     }

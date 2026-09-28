@@ -140,6 +140,19 @@ public final class WaveDirector {
         /** How many waves the round holds; zero means the round has none. */
         int wavesInRound(int round);
 
+        /**
+         * Whether the player is told how many waves this level has.
+         *
+         * <p>False on a level whose waves are the weather rather than a list: the meter and its
+         * denominator are hidden, while the huge-wave warning still travels - "something big is
+         * coming" is not a count. The director does not care either way; it is the host's answer
+         * to "is there an end the player is working towards", and a level that says no is one whose
+         * ending is something else's business.
+         */
+        default boolean showsWaveCount() {
+            return true;
+        }
+
         /** How many zombies of this one {@code healthScale} times its own health; 1 for ordinary. */
         ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale);
 
@@ -1328,8 +1341,10 @@ public final class WaveDirector {
 
     /** The HUD's view of the wave state. */
     public WaveProgressS2C progressPacket() {
-        return new WaveProgressS2C(waveInRound(), Math.max(0, roundWaves), waveProgress,
-                waveWarningActive, waveWarningFinal, round);
+        // The total is zero on a level that does not count its waves; the warning flags travel
+        // either way, because a huge wave is announced and not counted.
+        return new WaveProgressS2C(waveInRound(), host.showsWaveCount() ? Math.max(0, roundWaves) : 0,
+                waveProgress, waveWarningActive, waveWarningFinal, round);
     }
 
     /**

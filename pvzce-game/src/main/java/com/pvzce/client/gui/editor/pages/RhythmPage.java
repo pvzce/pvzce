@@ -40,6 +40,14 @@ public final class RhythmPage implements EditorPage {
     private EditBox damageBox;
     private EditBox sunBox;
     private EditBox initialSunBox;
+    /**
+     * The one zombie number the four generated levels carry.
+     *
+     * <p>One field for four levels rather than four: the tiers are a shape, not four independent
+     * settings, so the author says how hard the mode is and the shipped ratios
+     * ({@code RhythmCharts.TIER_DIFFICULTY}) spread it across the difficulties.
+     */
+    private EditBox difficultyBox;
     /** Draw-only labels, as {text, y, x}: the fields would otherwise be five bare numbers. */
     private final java.util.List<String[]> labels = new java.util.ArrayList<>();
 
@@ -108,6 +116,13 @@ public final class RhythmPage implements EditorPage {
         damageBox = context.own(new EditBox(x, y, fieldW, rowH, () -> { }));
         damageBox.setValue(String.valueOf(RhythmChartData.DEFAULT_ATTACK_VOLLEYS));
         y -= rowH + 8;
+        labels.add(new String[] {GuiLang.raw("pvzce.editor.rhythm.difficulty", "出怪难度系数"),
+                Integer.toString(y), Integer.toString(area.x() + 12)});
+        difficultyBox = context.own(new EditBox(x, y, fieldW, rowH, () -> { }));
+        // The普通档's coefficient: 1 walks the shared ramp once over the track, and the four
+        // difficulties come out at the shipped 0.6 / 1.0 / 1.5 / 2.2.
+        difficultyBox.setValue(String.valueOf(RhythmCharts.TIER_DIFFICULTY[1]));
+        y -= rowH + 8;
         labels.add(new String[] {GuiLang.raw("pvzce.editor.rhythm.sun", "PERFECT 掉多少阳光"),
                 Integer.toString(y), Integer.toString(area.x() + 12)});
         sunBox = context.own(new EditBox(x, y, fieldW, rowH, () -> { }));
@@ -158,13 +173,20 @@ public final class RhythmPage implements EditorPage {
         int volleys = (int) parse(damageBox, RhythmChartData.DEFAULT_ATTACK_VOLLEYS);
         int sun = (int) parse(sunBox, RhythmChartData.DEFAULT_PERFECT_SUN);
         int initialSun = (int) parse(initialSunBox, RhythmCharts.DEFAULT_INITIAL_SUN);
+        // One coefficient for all four: the shipped ratios spread it across the difficulties, so a
+        // pack author tunes "how hard is this mode" in one place instead of four.
+        double base = Math.max(RhythmChartData.MIN_DIFFICULTY,
+                Math.min(RhythmChartData.MAX_DIFFICULTY,
+                        parse(difficultyBox, RhythmCharts.TIER_DIFFICULTY[1])));
+        double normal = RhythmCharts.TIER_DIFFICULTY[1];
         RhythmCharts.Tier[] tiers = new RhythmCharts.Tier[RhythmCharts.TIERS.length];
         for (int i = 0; i < noteBoxes.length; i++) {
-            RhythmCharts.Tier base = RhythmCharts.TIERS[i];
-            int notes = (int) parse(noteBoxes[i], base.notes());
-            tiers[i] = new RhythmCharts.Tier(base.suffix(), base.displayName(), base.subdivision(),
-                    Math.max(1, notes), base.chords(), base.lanes(), base.zombieSpeed(),
-                    base.spawnCadence(), base.waves());
+            RhythmCharts.Tier base0 = RhythmCharts.TIERS[i];
+            int notes = (int) parse(noteBoxes[i], base0.notes());
+            double difficulty = base * RhythmCharts.TIER_DIFFICULTY[i] / normal;
+            tiers[i] = new RhythmCharts.Tier(base0.suffix(), base0.displayName(), base0.subdivision(),
+                    Math.max(1, notes), base0.chords(), base0.lanes(), base0.zombieSpeed(),
+                    base0.spawnCadence(), difficulty);
         }
         String prefix = prefixBox.value().isBlank() ? "rhythm" : prefixBox.value().trim();
         String music = musicBox.value().trim();

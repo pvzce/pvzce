@@ -50,7 +50,21 @@ import java.util.List;
  */
 public record RhythmChartData(double bpm, int offsetTicks, int approachTicks, int perfectSun,
                               int attackVolleys, boolean plantsHoldFire, double endBeat,
-                              List<Lane> lanes) implements MechanicData {
+                              double difficulty, List<Lane> lanes) implements MechanicData {
+    /**
+     * The chart as it was before the mode grew a zombie clock: no generated waves.
+     *
+     * <p>Kept because a chart is written without one in nine cases out of ten - the tests, a
+     * hand-written level, and every tier as it shipped before this field existed - and because
+     * "no generated waves" is a real shape rather than a missing value: such a level spawns from
+     * its own wave table exactly as it always did.
+     */
+    public RhythmChartData(double bpm, int offsetTicks, int approachTicks, int perfectSun,
+                           int attackVolleys, boolean plantsHoldFire, double endBeat,
+                           List<Lane> lanes) {
+        this(bpm, offsetTicks, approachTicks, perfectSun, attackVolleys, plantsHoldFire, endBeat,
+                NO_DIFFICULTY, lanes);
+    }
     /** Where the first beat lands, in ticks. */
     public static final int DEFAULT_OFFSET_TICKS = 240;
     /**
@@ -102,6 +116,27 @@ public record RhythmChartData(double bpm, int offsetTicks, int approachTicks, in
     /** Below this the chart is not a chart, and the tick arithmetic divides by nearly nothing. */
     public static final double MIN_BPM = 20D;
     public static final double MAX_BPM = 400D;
+
+    /**
+     * The difficulty a chart that generates no waves has, and the floor of the field.
+     *
+     * <p>Zero is "off", not "the easiest": a chart that does not ask for a zombie clock keeps the
+     * wave table its level writes, which is what every hand-written chart wants and what the four
+     * shipped tiers used before they grew one. A positive value turns the mode's own spawner on,
+     * and that value is <em>the</em> difficulty knob: it scales where on the shared schedule's
+     * ramp the song sits at any moment (see {@code RhythmWaves}).
+     */
+    public static final double NO_DIFFICULTY = 0D;
+    /** The easiest a level that does generate waves may be. */
+    public static final double MIN_DIFFICULTY = 0.1D;
+    /**
+     * The hardest, and a guard rather than a balance figure.
+     *
+     * <p>The coefficient multiplies how fast the song walks the schedule's ramp, so a chart that
+     * named ten would be at the schedule's top within the first bar - which is a legitimate thing
+     * to want once and a typo every other time.
+     */
+    public static final double MAX_DIFFICULTY = 10D;
 
     /** {@code "row"} or {@code "col"}: which way the lane runs. */
     public enum LaneKind {
@@ -168,6 +203,8 @@ public record RhythmChartData(double bpm, int offsetTicks, int approachTicks, in
                     .forGetter(RhythmChartData::plantsHoldFire),
             Codec.DOUBLE.optionalFieldOf("end_beat", DEFAULT_END_BEAT)
                     .forGetter(RhythmChartData::endBeat),
+            Codec.DOUBLE.optionalFieldOf("difficulty", NO_DIFFICULTY)
+                    .forGetter(RhythmChartData::difficulty),
             Lane.CODEC.listOf().optionalFieldOf("lanes", List.of()).forGetter(RhythmChartData::lanes)
     ).apply(i, RhythmChartData::new));
 
@@ -180,6 +217,11 @@ public record RhythmChartData(double bpm, int offsetTicks, int approachTicks, in
         perfectSun = Math.max(0, perfectSun);
         attackVolleys = Math.max(0, attackVolleys);
         endBeat = Math.max(0D, endBeat);
+        // Clamped rather than refused: a chart's own numbers are clamped the same way (BPM, the
+        // flight, the volleys), and a level whose coefficient was a typo still has to be playable.
+        // Zero stays exactly zero - it is the "off" value and must not be pulled up to the floor.
+        difficulty = difficulty <= 0D ? NO_DIFFICULTY
+                : Math.max(MIN_DIFFICULTY, Math.min(MAX_DIFFICULTY, difficulty));
         lanes = List.copyOf(lanes);
     }
 
@@ -294,6 +336,16 @@ public record RhythmChartData(double bpm, int offsetTicks, int approachTicks, in
     /** True when the chart was written with an end of its own (see {@link #DEFAULT_END_BEAT}). */
     public boolean hasEnd() {
         return endBeat > 0D;
+    }
+
+    /**
+     * True when this chart runs the mode's own zombie clock rather than the level's wave table.
+     *
+     * <p>What a positive {@link #difficulty} means, and the one question the level and the
+     * validator both ask of it.
+     */
+    public boolean generatesWaves() {
+        return difficulty > 0D;
     }
 
     /** One message per authoring problem, for {@code LevelMechanic.validate}. */

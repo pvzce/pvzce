@@ -35,6 +35,8 @@ public final class EndlessSchedules {
                 PvzceIds.ENDLESS_SCHEDULE_POOL.toString(), poolEndless());
         BuiltInRegistries.registerStatic(BuiltInRegistries.ENDLESS_SCHEDULES,
                 PvzceIds.ENDLESS_SCHEDULE_MUTATION.toString(), mutationEndless());
+        BuiltInRegistries.registerStatic(BuiltInRegistries.ENDLESS_SCHEDULES,
+                PvzceIds.ENDLESS_SCHEDULE_RHYTHM.toString(), rhythmLawn());
     }
 
     /**
@@ -115,6 +117,58 @@ public final class EndlessSchedules {
                 EndlessScheduleDef.DEFAULT_COUNT_START + 1,
                 EndlessScheduleDef.DEFAULT_COUNT_END,
                 EndlessScheduleDef.StatGrowth.DEFAULT,
+                pool);
+    }
+
+    /**
+     * The rhythm levels' zombie clock: one song's worth of ramp, walked by the coefficient.
+     *
+     * <p>Not a round-based endless at all, although it is the same record and the same generator -
+     * the difference is what the "round" means. On the four endless levels a round is a stretch of
+     * a run that never ends; here the round is <em>where in the song</em> the player is, computed
+     * from the chart's own clock times the level's difficulty coefficient (see
+     * {@code RhythmWaves.roundFor}). So the ramp below is a shape over one track rather than a
+     * curve that keeps climbing: it opens on plain walkers and ends a three-minute song with the
+     * armoured half of the roster, and the coefficient only decides how fast it gets there.
+     *
+     * <p>The unlocks are deliberately the adventure campaign's order minus everything that needs a
+     * different board or a different game: no Gargantuar (a wall the player cannot answer with the
+     * keyboard), no digger or balloon (a lane the judgement line does not cover), no floaters (the
+     * rhythm board is a lawn). What is left is a curve a player can read off the music.
+     */
+    public static EndlessScheduleDef rhythmLawn() {
+        List<EndlessScheduleDef.ZombieEntry> pool = List.of(
+                entry("basic_zombie", 1, 10),
+                entry("conehead_zombie", 2, 8),
+                entry("flag_zombie", 3, 2),
+                entry("pole_vaulter_zombie", 5, 5),
+                entry("buckethead_zombie", 7, 8),
+                entry("newspaper_zombie", 10, 5),
+                entry("football_zombie", 13, 5),
+                entry("door_zombie", 16, 5));
+        return new EndlessScheduleDef(
+                EndlessScheduleDef.DEFAULT_ROUND_WAVES_BASE,
+                EndlessScheduleDef.DEFAULT_ROUND_WAVES_PER_ROUND,
+                EndlessScheduleDef.DEFAULT_ROUND_WAVES_MAX,
+                EndlessScheduleDef.DEFAULT_HUGE_WAVES_PER_ROUND,
+                // Tighter than the endless levels' 420/150: a song is three minutes, not an
+                // evening, so the waves have to pour rather than trickle - and the coefficient
+                // moves the whole band (a harder tier reaches the tight end sooner).
+                360,
+                120,
+                EndlessScheduleDef.DEFAULT_SPAWN_INTERVAL_RAMP_ROUNDS,
+                // And the quiet between waves is short for the same reason: the player is busy
+                // with the chart, not watching an empty lawn.
+                420,
+                180,
+                EndlessScheduleDef.DEFAULT_GAP_RAMP_ROUNDS,
+                EndlessScheduleDef.DEFAULT_COUNT_RAMP_ROUNDS,
+                2,
+                7,
+                // Half the endless growth per round, because "a round" here is a slice of one
+                // song rather than a stretch of a run: at the shipped coefficients the hardest
+                // tier ends the track around round seventy and a health multiplier of two.
+                new EndlessScheduleDef.StatGrowth(0.02F, 2F),
                 pool);
     }
 

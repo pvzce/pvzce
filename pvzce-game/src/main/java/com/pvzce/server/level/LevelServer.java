@@ -120,6 +120,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * round's end pauses the level for a card selection.
      */
     private final boolean rounds;
+    /**
+     * The chart this level's zombies are generated from, or {@code null} when it has no zombie
+     * clock.
+     *
+     * <p>Non-null means "the song is the spawn table": the waves come from {@code RhythmWaves} on
+     * the chart's own clock, the level writes no {@code waves}, and the player's way to win is the
+     * end of the track rather than the end of a list.
+     */
+    private final com.pvzce.api.content.RhythmChartData rhythmChart;
     /** The schedule those waves grow on, or {@code null} on an ordinary level. */
     private final com.pvzce.api.content.EndlessScheduleDef endlessSchedule;
     /**
@@ -513,8 +522,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 ? com.pvzce.common.level.Difficulty.DEFAULT : seedContext.difficulty();
         applyDifficulty();
         this.sunDropClock.reset(this.rules);
-        this.rounds = com.pvzce.common.level.mechanic.EndlessMechanic.generatesWaves(def);
-        this.endlessSchedule = com.pvzce.common.level.mechanic.EndlessMechanic.scheduleOf(def);
+        // Two ways a level's waves can be generated, and they share everything below: the endless
+        // levels ask their schedule for round N, and a rhythm level asks the same generator for the
+        // round its song is at (see `RhythmWaves`). A level with neither reads its own table.
+        this.rhythmChart = com.pvzce.common.level.mechanic.RhythmMechanic.spawningChart(def);
+        // A rhythm level's schedule is the mode's own rather than one the level names: the chart
+        // carries the coefficient, and the roster is shared by all four tiers.
+        this.endlessSchedule = rhythmChart != null
+                ? BuiltInRegistries.ENDLESS_SCHEDULES.get(PvzceIds.ENDLESS_SCHEDULE_RHYTHM)
+                : com.pvzce.common.level.mechanic.EndlessMechanic.scheduleOf(def);
+        this.rounds = com.pvzce.common.level.mechanic.EndlessMechanic.generatesWaves(def)
+                || rhythmChart != null;
         this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier(),
                 WavePacingMechanic.of(def), rounds);
         this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
@@ -662,6 +680,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return null;
         }
         com.pvzce.common.level.endless.EndlessWaves.Rows rows = endlessRows();
+        if (rhythmChart != null) {
+            // The round the caller names is the director's own count of waves sent; what the wave
+            // is made of comes from where the song has got to. See `RhythmWaves`.
+            return com.pvzce.common.level.rhythm.RhythmWaves.wave(endlessSchedule, rhythmChart,
+                    com.pvzce.common.level.mechanic.RhythmMechanic.chartTick(this), index,
+                    rows.land(), rows.water(), random);
+        }
         return com.pvzce.common.level.endless.EndlessWaves.wave(endlessSchedule, round, index,
                 rows.land(), rows.water(), random);
     }
@@ -671,7 +696,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (!rounds || endlessSchedule == null) {
             return round == 1 ? def.waves().size() : 0;
         }
+        if (rhythmChart != null) {
+            // A song's waves are not counted out to the player and the director only needs "is
+            // there another one"; the rollover is silent (see `tickRoundClear`).
+            return com.pvzce.common.level.rhythm.RhythmWaves.WAVES_PER_ROUND;
+        }
         return com.pvzce.common.level.endless.EndlessRamp.wavesInRound(endlessSchedule, round);
+    }
+
+    /**
+     * True when this level's waves should not be counted on screen: no meter, no "wave 3 of 9".
+     *
+     * <p>A song's zombies are not a list the player is working through - they are the weather for
+     * the three minutes they are playing - and a meter with a denominator would invite them to
+     * read the end of the track as "nine waves to go". The huge-wave warning still travels: it is
+     * not a count, it is "something big is coming".
+     */
+    public boolean showsWaveCount() {
+        return rhythmChart == null;
     }
 
     /**
@@ -2811,7 +2853,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // The resolved bar size, not the raw field: a level with no max_seed_slots of its
         // own is sized by the backpack, and the payload is where the client learns which.
         return new LevelPayload(def.width(), def.height(), seeds.pool(), seeds.maxSeedSlots(),
-                def.previewZombieIds(), openingBoard(def, seeds), seeds.lockedSlotIds(),
+                previewZombies(def), openingBoard(def, seeds), seeds.lockedSlotIds(),
                 LevelMechanics.payloads(resolvedMechanics),
                 // The backdrop travels as its texture id rather than as a field the client
                 // looks up in its own copy of the level file: the board it draws has to be the
@@ -2830,6 +2872,40 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // follows the file, which is what the level list promised.
                 def.rules().get(PvzceIds.RULE_PLANT_WHOLE_COLUMN) != null
                         && def.rules().get(PvzceIds.RULE_PLANT_WHOLE_COLUMN).getAsBoolean());
+    }
+
+    /**
+     * The zombies a level list entry shows, for a level that has no wave table to read them off.
+     *
+     * <p>{@code LevelDef.previewZombieIds} walks the level's own waves, which is the right answer
+     * for a level that wrote them and no answer at all for one whose waves are generated: the
+     * endless levels and the rhythm ones both ship with an empty table, so both showed nothing on
+     * the one screen that exists to say what a level sends at you. What replaces it is the opening
+     * bar - the first round of the schedule, or the first bar of the song - which is the honest
+     * preview of a run whose later waves do not exist until it is played.
+     */
+    private static List<String> previewZombies(LevelDef def) {
+        List<String> written = def.previewZombieIds();
+        if (!written.isEmpty()) {
+            return written;
+        }
+        List<com.pvzce.api.content.WaveDef> opening;
+        com.pvzce.api.content.RhythmChartData chart =
+                com.pvzce.common.level.mechanic.RhythmMechanic.spawningChart(def);
+        if (chart != null) {
+            opening = com.pvzce.common.level.rhythm.RhythmWaves.preview(
+                    BuiltInRegistries.ENDLESS_SCHEDULES.get(PvzceIds.ENDLESS_SCHEDULE_RHYTHM),
+                    chart, def.height());
+        } else {
+            opening = com.pvzce.common.level.mechanic.EndlessMechanic.previewWaves(def);
+        }
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (com.pvzce.api.content.WaveDef wave : opening) {
+            for (com.pvzce.api.content.WaveDef.Entry entry : wave.entries()) {
+                ids.add(entry.id().toString());
+            }
+        }
+        return List.copyOf(ids);
     }
 
     private void processMusicCues(ServerBridge bridge) {
@@ -3026,7 +3102,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public int totalWaves() {
-        return waves.roundWaves();
+        // Zero on a level that does not count its waves: the meter is drawn from this, and a song
+        // has no denominator. See `showsWaveCount`.
+        return showsWaveCount() ? waves.roundWaves() : 0;
     }
 
     /** The round the run is in, one-based; always 1 on a level that does not generate waves. */
@@ -3404,6 +3482,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * @return true while the level is frozen for a card choice
      */
     private boolean tickRoundClear(ServerBridge bridge) {
+        if (rounds && rhythmChart != null && waves.pendingRoundClear()) {
+            // A rhythm level rolls over by itself: there is no card choice in the middle of a song,
+            // and the song is the clock rather than a list of rounds the player is working through.
+            // Reached only if a track outlasts `RhythmWaves.WAVES_PER_ROUND` waves - the round
+            // number is bookkeeping the player never sees - so this is a seam that must not show,
+            // which is why it says nothing on the message log.
+            beginNextRound(bridge, false);
+            return false;
+        }
         if (!rounds || !waves.pendingRoundClear()) {
             roundClearWaitedTicks = 0;
             return false;
@@ -3448,15 +3535,28 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return true;
     }
 
-    /** Closes the finished round, arms the next one, and tells the client about both. */
-    private void beginNextRound(ServerBridge bridge) {
+    /**
+     * Closes the finished round, arms the next one, and tells the client about both.
+     *
+     * @param announce whether to say so on the message log. A player's round boundary is worth a
+     *                 line; a rhythm level's silent rollover is not - it is bookkeeping, and a
+     *                 "第 2 轮开始" in the middle of a song would be a count the mode does not have
+     */
+    private void beginNextRound(ServerBridge bridge, boolean announce) {
         int next = waves.beginNextRound();
         roundClearWaitedTicks = 0;
         // The client's meter is drawn from the round's wave list, so the new round's list has to
         // arrive with the round number: a client told only the number would keep the old flags.
         bridge.send(roundSyncPacket());
         bridge.send(waveProgressPacket());
-        bridge.send(new ServerMessageS2C("第 " + next + " 轮开始"));
+        if (announce) {
+            bridge.send(new ServerMessageS2C("第 " + next + " 轮开始"));
+        }
+    }
+
+    /** The player's own round boundary: always announced. See the two-argument form. */
+    private void beginNextRound(ServerBridge bridge) {
+        beginNextRound(bridge, true);
     }
 
     /**

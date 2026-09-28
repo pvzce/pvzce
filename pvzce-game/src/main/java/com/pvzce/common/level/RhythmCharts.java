@@ -114,118 +114,18 @@ public final class RhythmCharts {
      * @param zombieSpeed  the level's {@code zombie_speed_multiplier}
      * @param spawnCadence the level's {@code zombie_spawn_speed_multiplier}, which <em>divides</em>
      *                     both the gap between waves and the gap between two zombies of one wave
-     * @param waves        the wave table, as raw JSON
+     * @param difficulty   the chart's own {@code difficulty}: the one number the level says about
+     *                     what comes at it. It scales where on the shared schedule's ramp the song
+     *                     sits at any moment (see {@code RhythmWaves}), so it decides the roster,
+     *                     the count and the tightness together - there is no wave table left to
+     *                     write, and no count of waves to tune
      */
     public record Tier(String suffix, String displayName, int subdivision, int notes, int chords,
-                       List<Integer> lanes, double zombieSpeed, double spawnCadence, String waves) {
+                       List<Integer> lanes, double zombieSpeed, double spawnCadence,
+                       double difficulty) {
     }
 
-    private static final String ROWS_JSON = "[0,1,2,3,4]";
-
-    /**
-     * The four wave tables: a horde, scaled by tier.
-     *
-     * <p>Every entry names all five rows, and counts are written so a wave with five of something
-     * puts exactly one in each - the mode's pressure is that a row cannot be left alone, not that
-     * one row gets a queue. The delays are written to fill the song: at each tier's own
-     * {@code zombie_spawn_speed_multiplier} the table runs about ten thousand ticks, which is the
-     * track's 340 beats at 110 BPM, so the chart and the horde end together.
-     *
-     * <p>The four are a curve on three axes at once - how fast the zombies walk, how fast they
-     * arrive, and how many of them there are - because a tier that only changed the note count
-     * would be the same level with a busier keyboard. Easy is the old pressure with twice the
-     * traffic; expert is a lawn that has to be played nearly perfectly to hold.
-     */
-    private static final String[] WAVES = {
-        "[{\"type\":\"small\",\"delay\":2400,\"spawn_interval\":260,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2300,\"spawn_interval\":240,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2200,\"spawn_interval\":220,\"entries\":["
-                + entry("basic_zombie", 3) + "," + entry("conehead_zombie", 2) + ","
-                + entry("buckethead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2100,\"spawn_interval\":200,\"entries\":["
-                + entry("conehead_zombie", 3) + "," + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":180,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 3) + ","
-                + entry("buckethead_zombie", 1) + "]},"
-                + "{\"type\":\"final\",\"delay\":2000,\"warning_ticks\":750,\"spawn_interval\":160,"
-                + "\"entries\":[" + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 3)
-                + "," + entry("buckethead_zombie", 2) + "]}]",
-        "[{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":240,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":220,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":210,\"entries\":["
-                + entry("conehead_zombie", 3) + "," + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":200,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 3) + ","
-                + entry("buckethead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":190,\"entries\":["
-                + entry("conehead_zombie", 4) + "," + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":180,\"entries\":["
-                + entry("basic_zombie", 5) + "," + entry("conehead_zombie", 3) + ","
-                + entry("pole_vaulter_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":170,\"entries\":["
-                + entry("conehead_zombie", 4) + "," + entry("buckethead_zombie", 3) + ","
-                + entry("football_zombie", 1) + "]},"
-                + "{\"type\":\"final\",\"delay\":2000,\"warning_ticks\":750,\"spawn_interval\":160,"
-                + "\"entries\":[" + entry("basic_zombie", 5) + "," + entry("conehead_zombie", 3)
-                + "," + entry("buckethead_zombie", 2) + "," + entry("football_zombie", 2) + "]}]",
-        "[{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":200,\"entries\":["
-                + entry("conehead_zombie", 3) + "," + entry("buckethead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":190,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 3) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":180,\"entries\":["
-                + entry("conehead_zombie", 4) + "," + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":175,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 3) + ","
-                + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":170,\"entries\":["
-                + entry("conehead_zombie", 4) + "," + entry("buckethead_zombie", 2) + ","
-                + entry("pole_vaulter_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":165,\"entries\":["
-                + entry("basic_zombie", 5) + "," + entry("conehead_zombie", 3) + ","
-                + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":160,\"entries\":["
-                + entry("conehead_zombie", 5) + "," + entry("buckethead_zombie", 3) + ","
-                + entry("football_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":155,\"entries\":["
-                + entry("basic_zombie", 5) + "," + entry("conehead_zombie", 4) + ","
-                + entry("buckethead_zombie", 3) + "]},"
-                + "{\"type\":\"final\",\"delay\":2000,\"warning_ticks\":750,\"spawn_interval\":150,"
-                + "\"entries\":[" + entry("basic_zombie", 6) + "," + entry("conehead_zombie", 4)
-                + "," + entry("buckethead_zombie", 3) + "," + entry("football_zombie", 2) + "]}]",
-        "[{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":170,\"entries\":["
-                + entry("conehead_zombie", 3) + "," + entry("buckethead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":165,\"entries\":["
-                + entry("basic_zombie", 4) + "," + entry("conehead_zombie", 3) + ","
-                + entry("buckethead_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":160,\"entries\":["
-                + entry("conehead_zombie", 4) + "," + entry("buckethead_zombie", 2) + ","
-                + entry("door_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":155,\"entries\":["
-                + entry("basic_zombie", 5) + "," + entry("conehead_zombie", 4) + ","
-                + entry("buckethead_zombie", 2) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":150,\"entries\":["
-                + entry("conehead_zombie", 5) + "," + entry("buckethead_zombie", 3) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":145,\"entries\":["
-                + entry("basic_zombie", 6) + "," + entry("conehead_zombie", 4) + ","
-                + entry("football_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":140,\"entries\":["
-                + entry("conehead_zombie", 6) + "," + entry("buckethead_zombie", 4) + ","
-                + entry("door_zombie", 1) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":135,\"entries\":["
-                + entry("basic_zombie", 6) + "," + entry("conehead_zombie", 5) + ","
-                + entry("buckethead_zombie", 3) + "]},"
-                + "{\"type\":\"small\",\"delay\":2000,\"spawn_interval\":130,\"entries\":["
-                + entry("conehead_zombie", 6) + "," + entry("buckethead_zombie", 4) + ","
-                + entry("football_zombie", 2) + "]},"
-                + "{\"type\":\"final\",\"delay\":2000,\"warning_ticks\":750,\"spawn_interval\":125,"
-                + "\"entries\":[" + entry("basic_zombie", 6) + "," + entry("conehead_zombie", 5)
-                + "," + entry("buckethead_zombie", 4) + "," + entry("football_zombie", 3) + "]}]",
-    };
-
+    /** The four tiers, in the order the level list shows them. */
     /**
      * The six columns every tier is played on.
      *
@@ -237,17 +137,24 @@ public final class RhythmCharts {
      */
     private static final List<Integer> LANES = List.of(0, 1, 2, 3, 4, 5);
 
-    /** The four tiers, in the order the level list shows them. */
-    public static final Tier[] TIERS = {
-        new Tier("easy", "节奏草坪 · 简单", 4, 96, 0, LANES, 2.0D, 1.4D, WAVES[0]),
-        new Tier("normal", "节奏草坪 · 普通", 4, 152, 0, LANES, 2.2D, 1.6D, WAVES[1]),
-        new Tier("hard", "节奏草坪 · 困难", 2, 300, 16, LANES, 2.4D, 1.8D, WAVES[2]),
-        new Tier("expert", "节奏草坪 · 专家", 1, 460, 24, LANES, 2.6D, 2.0D, WAVES[3]),
-    };
+    /**
+     * The four coefficients, one per tier, and the whole of what separates them on the zombie side.
+     *
+     * <p>They are the user's numbers. What they mean: a difficulty of 1 walks the shared schedule's
+     * ramp exactly once over the track, so the song ends at the top of the roster; 0.6 ends it a
+     * little over half way (no footballs before the last bar), and 2.2 has walked the ramp twice
+     * over and is into the capped part of every curve by the closing bars. The speed and cadence
+     * multipliers above are still separate rules - zombies have to be fast on a level played from
+     * the keyboard - but nothing about <em>what</em> arrives is written down anywhere but here.
+     */
+    public static final double[] TIER_DIFFICULTY = {0.6D, 1.0D, 1.5D, 2.2D};
 
-    private static String entry(String zombie, int count) {
-        return "{\"id\":\"pvzce:" + zombie + "\",\"count\":" + count + ",\"rows\":" + ROWS_JSON + "}";
-    }
+    public static final Tier[] TIERS = {
+        new Tier("easy", "节奏草坪 · 简单", 4, 96, 0, LANES, 2.0D, 1.4D, TIER_DIFFICULTY[0]),
+        new Tier("normal", "节奏草坪 · 普通", 4, 152, 0, LANES, 2.2D, 1.6D, TIER_DIFFICULTY[1]),
+        new Tier("hard", "节奏草坪 · 困难", 2, 300, 16, LANES, 2.4D, 1.8D, TIER_DIFFICULTY[2]),
+        new Tier("expert", "节奏草坪 · 专家", 1, 460, 24, LANES, 2.6D, 2.0D, TIER_DIFFICULTY[3]),
+    };
 
     private RhythmCharts() {
     }
@@ -502,7 +409,10 @@ public final class RhythmCharts {
         root.addProperty("seed_screen", false);
         root.addProperty("initial_sun", Math.max(0, initialSun));
         root.add("mechanics", mechanics(tempo, onsets, tier, endBeat, volleys, perfectSun));
-        root.add("waves", com.google.gson.JsonParser.parseString(tier.waves()));
+        // No wave table: the chart's coefficient is what says what arrives (see `RhythmWaves`),
+        // and a 0-wave level is one the wave director never declares a winner on - the song's own
+        // end is the ending.
+        root.add("waves", new JsonArray());
         root.add("music", music(music, onsets != null));
         root.addProperty("background", "pvzce:textures/gui/screen/level/background1");
         root.add("hidden_scene_elements", strings("pvzce:grass"));
@@ -599,6 +509,10 @@ public final class RhythmCharts {
         // RhythmMechanic). Written out rather than left to the default so the file says it.
         rhythm.addProperty("plants_hold_fire", true);
         rhythm.addProperty("end_beat", endBeat);
+        // The one number this level says about what comes at it: everything else about the horde is
+        // the shared schedule's and the song's own clock (see `RhythmWaves`). Written out rather
+        // than left to the default so the file says it, like `plants_hold_fire` above.
+        rhythm.addProperty("difficulty", tier.difficulty());
         JsonArray lanes = new JsonArray();
         for (RhythmChartData.Lane lane : lanes(tier, onsets)) {
             JsonObject laneJson = new JsonObject();
