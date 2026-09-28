@@ -26,7 +26,7 @@ public final class PvzceLicense {
     public static final String COPYRIGHT = "Copyright (C) 2026 crystalneko";
 
     /** 项目主页。许可原文与第三方声明都在这个仓库里。 */
-    public static final String SOURCE_URL = "https://github.com/crystalneko/pvzce";
+    public static final String SOURCE_URL = "https://github.com/pvzce/pvzce";
 
     /**
      * 启动时打的那一行。
