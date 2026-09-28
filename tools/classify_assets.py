@@ -15,11 +15,14 @@
 
 分类口径：
 
-    PvZ     原版素材。从 `refer/` 的拆包资源转换或直接拷贝而来，版权归 PopCap/EA。
-    DERIV   二次创作。用原版素材改色/拼合，或按原版形象重画（角色、UI、场景复刻）。
-            法律上仍是衍生作品，与 PvZ 同处理。
-    OWN     自产。程序生成或手绘，不依赖原版素材。
-    THIRD   第三方开源资源（字体，SIL OFL-1.1），可随仓库分发，但需随附许可。
+    PvZ      原版素材。从 `refer/` 的拆包资源转换或直接拷贝而来，版权归 PopCap/EA。
+    DERIV    基于原版 IP 的二次创作。用原版素材改色/拼合，或复刻原版的界面与美术版式
+             （卡面、图鉴、标题 logo、关卡缩略图）。法律上仍是衍生作品，与 PvZ 同处理。
+    ORIGINAL 原创。自己画或生成的，**没有**照原版的具体造型——四组角色立绘属于这一类：
+             题材是豌豆/蘑菇这类通用植物与真菌形象，角色的发型、服装、配色、性格是作者
+             自己的设计（所有者 2026-09 明确的口径）。
+    OWN      自产。程序生成或手绘的通用图形，不涉及任何角色形象。
+    THIRD    第三方开源资源（字体，SIL OFL-1.1），可随仓库分发，但需随附许可。
 """
 
 from __future__ import annotations
@@ -34,11 +37,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS = REPO_ROOT / "pvzce-game" / "src" / "main" / "resources" / "assets" / "pvzce"
 
-PvZ, DERIV, OWN, THIRD = "PvZ", "DERIV", "OWN", "THIRD"
+PvZ, DERIV, ORIGINAL, OWN, THIRD = "PvZ", "DERIV", "ORIGINAL", "OWN", "THIRD"
 
 LABEL = {
     PvZ: "原版素材",
     DERIV: "二次创作",
+    ORIGINAL: "原创",
     OWN: "自产",
     THIRD: "第三方开源",
 }
@@ -65,13 +69,16 @@ RULES: list[tuple[str, str, str]] = [
     (r"^sounds/sfx/", PvZ,
      "原版音效（chomp/awooga/readysetplant…）"),
 
-    # ---- 二次创作：用原版 IP 形象重画或改色 ----
+    # ---- 原创：自己画的，题材是通用形象 ----
+    (r"^textures/gui/dialogue/", ORIGINAL,
+     "作者自绘的角色立绘；题材是豌豆/蘑菇这类通用植物与真菌形象，"
+     "角色设计（发型、服装、配色、性格）为原创"),
+
+    # ---- 二次创作：复刻原版的界面与美术版式 ----
     # 注：zombotany 是「原版僵尸零件 + 原版植物头」拼合，按所有者口径与 PvZ 同类处理，
     # 因此规则在上面就划给了 PvZ，不在这里。
     (r"^textures/entities/plant/defense/explosive_nut/", DERIV,
      "`tools/gen_explosive_nut.py`：原版坚果改色，形体与线稿相同"),
-    (r"^textures/gui/dialogue/", DERIV,
-     "自绘/AI 立绘，角色为原版植物的拟人化"),
     (r"^textures/gui/cards/", DERIV,
      "卡面；植物形象源自原版（gen_ui_icons.py / render_controller_icons.py 生成）"),
     (r"^textures/gui/almanac/", DERIV,
@@ -206,7 +213,7 @@ def main() -> int:
             a = agg.setdefault((e.kind, top), [0, 0])
             a[0] += 1
             a[1] += e.size
-        for kind in (PvZ, DERIV, OWN, THIRD):
+        for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD):
             print(f"===== {LABEL[kind]}（{kind}）=====")
             n = s = 0
             for (k, top), (c, z) in sorted(agg.items()):
@@ -229,7 +236,7 @@ def main() -> int:
         print()
         print("| 汇总 | 文件数 | 体积 |")
         print("|---|---:|---:|")
-        for kind in (PvZ, DERIV, OWN, THIRD):
+        for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD):
             n, s = totals.get(kind, [0, 0])
             print(f"| {LABEL[kind]}（`{kind}`） | {n} | {fmt_size(s)} |")
         return 0
@@ -240,7 +247,7 @@ def main() -> int:
         size = sum(i.size for i in items)
         print(f"{LABEL[kind]:10} {directory:56} {len(items):5} {fmt_size(size):>10}")
     print()
-    for kind in (PvZ, DERIV, OWN, THIRD):
+    for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD):
         n, s = totals.get(kind, [0, 0])
         print(f"  {LABEL[kind]:10} {n:5} 文件  {fmt_size(s):>10}")
     return 0
