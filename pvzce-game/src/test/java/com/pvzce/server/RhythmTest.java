@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1016,6 +1017,31 @@ class RhythmTest {
                             || id.contains("ducky"),
                     "bar one sends the opening roster, not the whole schedule: " + id);
         }
+    }
+
+    /**
+     * The end of the song is the only way to win one, and it wins with zombies still walking.
+     *
+     * <p>The win condition the user asked for. It matters more on a spawning level than it did on a
+     * table-fed one, because the wave director <em>never</em> declares a winner here - there is
+     * always another wave - so if this path did not fire, the level could only be lost.
+     */
+    @Test
+    void theEndOfTheSongWinsASpawningLevel() {
+        LevelServer level = board(spawningChart(20, 1.0D));
+        CapturingBridge bridge = new CapturingBridge();
+        tick(level, bridge, 100);
+        ZombieEntity survivor = level.spawnZombie(PvzceIds.id("basic_zombie"),
+                level.team(ZOMBIE_TEAM), 4.5F, 1);
+        assertNotNull(survivor, "something is walking when the song ends");
+
+        int end = spawningChart(20, 1.0D).endTick();
+        tickTo(level, bridge, end - 1);
+        assertNotEquals(GameStateS2C.WON, level.gameState(), "the song has not finished yet");
+        tickTo(level, bridge, end + 1);
+        assertEquals(GameStateS2C.WON, level.gameState(),
+                "the last bar ends the level, generated waves and all");
+        assertFalse(survivor.isAlive(), "and whatever was still walking is swept");
     }
 
     /** A chart that spawns but never ends is a level that can only be lost, and is refused. */
