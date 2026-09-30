@@ -181,6 +181,30 @@ class ModelPartsJoinUpTest {
         }
     }
 
+    /**
+     * Every channel of every bone is the length it has to be, in every clip.
+     *
+     * <p>This is the crash guard, and it is here because the crash happened: a hand-written
+     * keyframe of {@code [0.0]} where a rotation is {@code [x, y, z]} reached
+     * {@code BonePose.toAffine} and threw {@code ArrayIndexOutOfBoundsException} out of the
+     * render loop - the game died mid-level. A model can be parsed and measured perfectly and
+     * still be unrenderable, so the shapes are asserted and not just the geometry.
+     */
+    @Test
+    void everyChannelIsTheLengthItsChannelHas() throws Exception {
+        ControllerFile file = load();
+        for (var clipEntry : file.clips().entrySet()) {
+            var clip = (com.pvzce.client.animation.ControllerClip) clipEntry.getValue();
+            for (var poseEntry : clip.samplePose(file.model(), 0.0).entrySet()) {
+                BonePose pose = poseEntry.getValue();
+                String where = clipEntry.getKey() + "/" + poseEntry.getKey();
+                assertEquals(2, pose.translation().length, where + " translation is (x, y)");
+                assertEquals(3, pose.rotation().length, where + " rotation is (x, y, z)");
+                assertEquals(2, pose.scale().length, where + " scale is (x, y)");
+            }
+        }
+    }
+
     /** Both clips the shooter asks for exist, and `shoot` hands back to `idle`. */
     @Test
     void theTwoClipsTheSimulationAsksForExist() throws Exception {

@@ -94,21 +94,35 @@ FIRST_IDLE_FRAME = 0.0
 TRANSPARENT = (0, 0, 0, 0)
 
 # --- Animation -----------------------------------------------------------------------
-IDLE_LENGTH = 2.4
-SHOOT_LENGTH = 0.75
+# The original's plants are not moved by an equation: their reanims carry ~25 keys per clip
+# over half a dozen bones, each with its own amplitude and phase, and their leaves lag the
+# head. This plant has three moving parts (cap, stalk, eyes) and one prop (the muzzle
+# flash), so the clips below are hand-timed rather than sampled from a sine:
+#
+#   * `idle`  - a two-second breath with the cap leading and the stalk answering a beat
+#               later, plus two blinks (the eyes are their own layer; see `eye_layer`).
+#   * `shoot` - anticipation, release, overshoot, settle. The release is two frames wide
+#               because that is when the bolt appears.
+#   * `blink` - its own short clip, so the interval between blinks is the server's business
+#               (the same reason the original ships blink bones rather than a blink cycle).
+IDLE_LENGTH = 2.2
+SHOOT_LENGTH = 0.55
+BLINK_LENGTH = 0.18
 
-# How far the cap bobs, in cells. The head sits on the stalk, so moving it far reads as
-# the cap leaving the body; a tenth of a cell is a breath.
-IDLE_BOB = 0.018
-IDLE_SQUASH = 0.015
+# How far each part travels in the breath, in cells. The cap leads; the stalk answers with
+# a quarter of the distance a fifth of a second later, which is what reads as weight.
+IDLE_CAP_RISE = 0.022
+IDLE_STALK_RISE = 0.006
+IDLE_CAP_SQUASH = 0.020
+IDLE_STALK_SQUASH = 0.012
 
-# The shot: the cap shoves forward and down, the body flattens under it, then both come
-# back. Rate 1.6 makes the clip play a little faster than it is authored, which is the
-# same trick the converted plants use (see the Snow Pea's `shoot`, rate 2.0).
-SHOOT_RATE = 1.6
-SHOOT_HEAD_PUSH = -0.055
-SHOOT_HEAD_DIP = -0.045
-SHOOT_BODY_SQUASH = 0.075
+# The shot: a short pull back (anticipation), a hard forward shove, an overshoot past rest,
+# then a settle. `SHOOT_RATE` plays the clip faster than authored, the same trick the
+# converted plants use (the Snow Pea's `shoot` is 2.0).
+SHOOT_RATE = 1.5
+SHOOT_PULL_BACK = 0.020
+SHOOT_PUSH = -0.070
+SHOOT_RECOVER = 0.022
 
 
 def log(message: str) -> None:
@@ -270,123 +284,263 @@ def scalar_track(pairs: dict[float, tuple[float, float]]) -> dict[str, list[floa
     return {f"{t:g}": [round(x, 4) for x in v] for t, v in pairs.items()}
 
 
-def animation_json(body_part: dict, head_part: dict, head_rest: float) -> dict:
-    """The controller model plus its two clips, in the shape the loader reads."""
+def track(pairs) -> dict:
+    """A keyframe track: ``[(t, value), ...]`` with the value a scalar or a list."""
+    out = {}
+    for t, value in pairs:
+        key = f"{round(t, 4):g}"
+        out[key] = list(value) if isinstance(value, (list, tuple)) else [round(value, 5)]
+    return out
+
+
+def vec(pairs) -> dict:
+    """A two-component track; every translation here is ``(x, y)``."""
+    return {f"{round(t, 4):g}": [round(x, 5), round(y, 5)] for t, (x, y) in pairs}
+
+
+def uniform(pairs) -> dict:
+    """A scale track: every key lists **both** components.
+
+    Not `[v]`. The engine reads a scale as `[sx, sy]`, and a one-component track silently
+    leaves `sy` at 1 - so a squash written on one axis does nothing at all. This is the shape
+    the loader's own `vec2`/`vec3` helpers produce, and the converted reanims match it.
+    """
+    return {f"{round(t, 4):g}": [round(v, 5), round(v, 5)] for t, v in pairs}
+
+
+def visible(value: bool = True) -> dict:
+    """A bone's visibility, as a JSON **boolean**.
+
+    Not `1`: the loader reads this channel with Gson's `getAsBoolean()`, which *throws* on a
+    number rather than coercing it, and a malformed key is dropped on the floor - so a bone
+    whose `visible` says `1` ends up with an empty track, and the plant is drawn every frame
+    with both bones hidden. Only the shadow shows. That is how this plant first shipped.
+    """
+    return {"0": value}
+
+
+def animation_json(parts: dict, head_rest: float) -> dict:
+    """The controller model plus its three clips, in the shape the loader reads.
+
+    Hand-timed, the way the converted plants are: the cap leads the breath and the stalk
+    answers it, the eyes blink on their own clip, and the shot has a pull-back, a release,
+    an overshoot and a settle. A sine on one bone reads as a diagram of breathing; uneven
+    spacing on three is what reads as a plant.
+    """
+    # Every bone states its whole rest transform, even when every number is the default.
+    # `parseRestPose` fills in `[0, 0, 0]` and `[1, 1]` for a bone that declares none, but a
+    # bone that leaves one channel out of a *clip* gets that channel sampled from the declared
+    # rest pose - so an undersized track is a crash waiting for the right frame. The converted
+    # reanims write all three; so does this.
+    rest = {"translation": [0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": [1.0, 1.0]}
+
+    def bone(name: str, part: dict) -> dict:
+        return {"name": name, "parent": None, "pivot": part["pivot"], "transform": dict(rest),
+                "parts": [part["part"]]}
+
     model = {
-        "size": [MODEL_WIDTH, body_part["model_height"]],
+        "size": [MODEL_WIDTH, parts["body"]["model_height"]],
         "bones": [
-            {
-                "name": "body",
-                "parent": None,
-                "pivot": body_part["pivot"],
-                "parts": [body_part["part"]],
-            },
-            {
-                "name": "head",
-                "parent": None,
-                "pivot": head_part["pivot"],
-                "parts": [head_part["part"]],
-            },
+            bone("body", parts["body"]),
+            # The muzzle flash sits *behind* the cap: the bolt leaves the plant's mouth line,
+            # and a glow drawn over the cap would hide the one part of the shot the player is
+            # meant to see.
+            bone("flash", parts["flash"]),
+            bone("head", parts["head"]),
+            bone("eyes", parts["eyes"]),
         ],
     }
-    # The pose a bone's clip carries is a **delta on top of the rest pose**, not the rest
-    # position: a part's `offset` already places its canvas, and a translation track with the
-    # same numbers in it moves the drawing by that much a second time. The first version of
-    # this model did exactly that and stood the stalk a whole canvas-height above the cap.
-    # A part's `offset` already places its canvas; a clip's `translation` is a delta on top of
-    # that. So the head's rest position is the *shift* the crop forces on it, and every key in
-    # the clip is that shift plus the animation.
-    body_y = 0.0
-    head_y = head_rest
-    # Idle: the cap breathes up and down, the stalk answers with a small counter-squash.
-    # Two seconds and a bit, so a lawn of them does not pulse in lockstep with the peas.
-    steps = 8
-    head_pairs: dict[float, tuple[float, float]] = {}
-    body_scale: dict[float, tuple[float, float]] = {}
-    for i in range(steps + 1):
-        t = IDLE_LENGTH * i / steps
-        phase = np.sin(2 * np.pi * i / steps)
-        head_pairs[round(t, 4)] = (0.0, head_y + IDLE_BOB * phase)
-        body_scale[round(t, 4)] = (1.0 + IDLE_SQUASH * -phase, 1.0 + IDLE_SQUASH * phase)
+    eye_rest = parts["eyes"]["pose_y"]
+    flash_rest = parts["flash"]["pose_y"]
+
+    # ---- idle: one breath, two blinks ------------------------------------------------
+    # The breath is 2.2s. The cap's rise holds at the top for a moment and comes down a
+    # little faster than it went up, which is what keeps it from reading as a sine.
+    cap = vec([(0.0, (0.0, head_rest)), (0.45, (0.0, head_rest + IDLE_CAP_RISE * 0.75)),
+               (0.75, (0.0, head_rest + IDLE_CAP_RISE)), (1.05, (0.0, head_rest + IDLE_CAP_RISE * 0.9)),
+               (1.45, (0.0, head_rest - IDLE_CAP_RISE * 0.35)), (1.75, (0.0, head_rest - IDLE_CAP_RISE * 0.2)),
+               (2.2, (0.0, head_rest))])
+    cap_scale = uniform([(0.0, 1.0), (0.75, 1.0 - IDLE_CAP_SQUASH), (1.45, 1.0 + IDLE_CAP_SQUASH),
+                        (2.2, 1.0)])
+    # The stalk answers a fifth of a second late and with a quarter of the travel: the
+    # lag is the whole point (a plant that moves as one piece is a sticker).
+    stalk = vec([(0.0, (0.0, 0.0)), (0.2, (0.0, -IDLE_STALK_RISE * 0.3)),
+                 (0.95, (0.0, IDLE_STALK_RISE * 0.75)), (1.25, (0.0, IDLE_STALK_RISE)),
+                 (1.65, (0.0, -IDLE_STALK_RISE * 0.5)), (2.2, (0.0, 0.0))])
+    stalk_scale = uniform([(0.0, 1.0), (0.95, 1.0 + IDLE_STALK_SQUASH), (1.65, 1.0 - IDLE_STALK_SQUASH),
+                          (2.2, 1.0)])
+    # The blinks are *in* the idle clip, not a clip of their own. The client plays the state
+    # the server publishes, and the server has no reason to publish "blink" - which is why the
+    # original's blinking is bone visibility inside the idle reanim and not a separate file.
+    # Two blinks, unevenly spaced; a shut is two frames wide and the open takes three, because
+    # an eye that opens as fast as it closes reads as a twitch.
+    def blink_at(t: float) -> list:
+        return [(t, (0.0, eye_rest)), (t + 0.06, (0.0, eye_rest - 0.030)),
+                (t + 0.10, (0.0, eye_rest - 0.026)), (t + 0.18, (0.0, eye_rest))]
+
+    eyes_idle = vec(sorted(blink_at(0.62) + blink_at(1.74) + [(0.0, (0.0, eye_rest)),
+                                                             (IDLE_LENGTH, (0.0, eye_rest))],
+                           key=lambda kv: kv[0]))
     idle = {
         "animation_length": IDLE_LENGTH,
         "loop": True,
         "transition": 0.12,
         "bones": {
-            "body": {
-                "translation": vec_track({0.0: (0.0, body_y)}),
-                "scale": scalar_track(body_scale),
-                "visible": visible_track(),
-            },
-            "head": {
-                "translation": vec_track(head_pairs),
-                "rotation": vec_track({0.0: (0.0, 0.0, 0.0)}),
-                "visible": visible_track(),
-            },
+            "body": {"translation": stalk, "scale": stalk_scale, "visible": visible()},
+            "head": {"translation": cap, "scale": cap_scale, "visible": visible()},
+            "eyes": {"translation": eyes_idle, "visible": visible()},
+            "flash": {"translation": vec([(0.0, (0.0, flash_rest))]),
+                      "scale": uniform([(0.0, 0.0)]), "visible": visible()},
         },
         "sound_effects": {},
         "particle_effects": {},
         "timeline": {},
     }
-    # Shoot: the cap rams forward and dips, the stalk flattens under it, everything is back
-    # where it started by the last key so the blend into `idle` is invisible.
+    # ---- blink: the eyes alone, on their own clip -------------------------------------
+    # The lens slides down under the upper lid (see `eye_layer`), so the blink is a
+    # translation and not a swap: shut in two frames, open over three.
+    blink = {
+        "animation_length": BLINK_LENGTH,
+        "loop": False,
+        "on_end": "idle",
+        "transition": 0.04,
+        "bones": {
+            "body": {"translation": vec([(0.0, (0.0, 0.0))]), "visible": visible()},
+            "head": {"translation": vec([(0.0, (0.0, head_rest))]), "visible": visible()},
+            "eyes": {"translation": vec([(0.0, (0.0, eye_rest)), (0.06, (0.0, eye_rest - 0.028)),
+                                         (0.1, (0.0, eye_rest - 0.022)), (0.18, (0.0, eye_rest))]),
+                     "visible": visible()},
+            "flash": {"translation": vec([(0.0, (0.0, flash_rest))]),
+                      "scale": uniform([(0.0, 0.0)]), "visible": visible()},
+        },
+        "sound_effects": {},
+        "particle_effects": {},
+        "timeline": {},
+    }
+
+    # ---- shoot: pull back, release, overshoot, settle ---------------------------------
+    # The release lands at 0.10s (three frames at 30fps) and the flash is at its brightest
+    # exactly there. The cap's overshoot at 0.22 goes *past* the rest pose, which is what
+    # gives the shot a snap; without it the plant returns to rest as if nothing happened.
+    shoot_cap = vec([(0.0, (0.0, head_rest)),
+                     (0.06, (0.0, head_rest + SHOOT_PULL_BACK)),
+                     (0.10, (0.0, head_rest + SHOOT_PUSH)),
+                     (0.22, (0.0, head_rest + SHOOT_RECOVER)),
+                     (0.38, (0.0, head_rest - SHOOT_RECOVER * 0.35)),
+                     (SHOOT_LENGTH, (0.0, head_rest))])
+    shoot_cap_scale = uniform([(0.0, 1.0), (0.06, 1.0 + 0.03), (0.10, 1.0 - 0.05),
+                              (0.22, 1.0 + 0.02), (SHOOT_LENGTH, 1.0)])
+    shoot_stalk = vec([(0.0, (0.0, 0.0)), (0.06, (0.0, 0.006)), (0.10, (0.0, -0.012)),
+                       (0.22, (0.0, 0.008)), (0.38, (0.0, -0.003)), (SHOOT_LENGTH, (0.0, 0.0))])
+    shoot_stalk_scale = uniform([(0.0, 1.0), (0.10, 1.0 + 0.045), (0.22, 1.0 - 0.02),
+                                (SHOOT_LENGTH, 1.0)])
+    # The flash: nothing, a bright core at the release, gone a fifth of a second later.
+    shoot_flash = uniform([(0.0, 0.0), (0.10, 1.15), (0.16, 0.85), (0.26, 0.0), (SHOOT_LENGTH, 0.0)])
     shoot = {
         "animation_length": SHOOT_LENGTH,
         "loop": False,
         "on_end": "idle",
         "rate": SHOOT_RATE,
-        "transition": 0.08,
+        "transition": 0.06,
         "bones": {
-            "body": {
-                "translation": vec_track({0.0: (0.0, body_y)}),
-                "scale": scalar_track({
-                    0.0: (1.0, 1.0),
-                    0.10: (1.0 + SHOOT_BODY_SQUASH, 1.0 - SHOOT_BODY_SQUASH),
-                    0.30: (1.0 - SHOOT_BODY_SQUASH * 0.5, 1.0 + SHOOT_BODY_SQUASH * 0.5),
-                    SHOOT_LENGTH: (1.0, 1.0),
-                }),
-                "visible": visible_track(),
-            },
-            "head": {
-                "translation": vec_track({
-                    0.0: (0.0, head_y),
-                    0.10: (SHOOT_HEAD_PUSH, head_y + SHOOT_HEAD_DIP),
-                    0.30: (-SHOOT_HEAD_PUSH * 0.5, head_y + IDLE_BOB),
-                    SHOOT_LENGTH: (0.0, head_y),
-                }),
-                "rotation": vec_track({
-                    0.0: (0.0, 0.0, 0.0),
-                    0.10: (0.0, 0.0, -6.0),
-                    0.30: (0.0, 0.0, 2.0),
-                    SHOOT_LENGTH: (0.0, 0.0, 0.0),
-                }),
-                "visible": visible_track(),
-            },
+            "body": {"translation": shoot_stalk, "scale": shoot_stalk_scale, "visible": visible()},
+            "head": {"translation": shoot_cap, "scale": shoot_cap_scale, "visible": visible()},
+            "flash": {"translation": vec([(0.0, (0.0, flash_rest))]),
+                      "scale": shoot_flash,
+                      "visible": visible()},
+            "eyes": {"translation": vec([(0.0, (0.0, eye_rest))]), "visible": visible()},
         },
         "sound_effects": {},
         "particle_effects": {},
         "timeline": {},
     }
-    return {"type": "controller", "model": model, "animations": {"idle": idle, "shoot": shoot}}
-
-
-def visible_track(value: bool = True) -> dict[str, bool]:
-    """A bone's visibility, as a JSON **boolean**.
-
-    <p>Not `1`: the loader reads this channel with Gson's `getAsBoolean()`, which *throws* on a
-    number rather than coercing it, and a malformed key is dropped on the floor - so a bone
-    whose `visible` says `1` ends up with an empty track, and an empty track samples the bone's
-    own rest pose. That is how the first version of this plant shipped a model that drew its
-    two bones with `visible=false` every frame: the plant was rendered, correctly sized, at the
-    right cell, and completely invisible - only its shadow showed.
-    """
-    return {"0": value}
+    return {"type": "controller", "model": model,
+            "animations": {"idle": idle, "blink": blink, "shoot": shoot}}
 
 
 def write_png(image: Image.Image, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
     log(f"wrote {path.relative_to(REPO_ROOT)} ({image.width}x{image.height})")
+
+
+def eye_layer(plant: Image.Image, width: int) -> tuple[Image.Image, np.ndarray]:
+    """The two eyes cut out of the body drawing, on the shared canvas.
+
+    Blinking needs the eyes to be a thing that can move on their own, and this drawing's eyes
+    happen to be built so moving them *is* blinking: each one is a dark pupil sitting in a
+    lighter blue lens with a pale highlight above it (the sclera). Sliding the whole eye down
+    under the upper lid therefore reads as a blink - the pupil disappears first, the lens
+    follows - without a second drawing, an eyelid, or a redraw of the art.
+
+    Found by colour rather than by hand: the eyes are the two large dark blobs in the lower
+    half, and the mouth (also dark, but a third of the size) is left on the body layer.
+    """
+    array = np.array(plant).astype(np.int16)
+    red, green, blue, alpha = array[..., 0], array[..., 1], array[..., 2], array[..., 3]
+    dark = (alpha > 40) & (red < 90) & (green < 110) & (blue < 170)
+
+    # The face, found by colour and then bounded: everything here is one connected web of navy
+    # line art (the pupils, the mouth, and the outline that ties them to the body), so "label
+    # the dark pixels" finds one blob the size of the plant. The eyes are separated by looking
+    # only at the band they sit in - the widest part of the stalk, above the feet - and by
+    # keeping the two large blobs left and right of the mouth.
+    face = dark[int(plant.height * 0.58): int(plant.height * 0.92)]
+    labels, count = ndimage.label(face)
+    if count == 0:
+        raise SystemExit("no face found in the source drawing")
+    found = []
+    for index in range(1, count + 1):
+        ys, xs = np.nonzero(labels == index)
+        found.append((len(xs), int(xs.min()), int(xs.max()), int(ys.min()), int(ys.max())))
+    # An eye is a tall-ish blob of a few hundred pixels; the mouth is about a third of that and
+    # sits between them, and anything larger is the outline the band clipped through.
+    eyes = [b for b in found if 120 <= b[0] <= 3000 and (b[2] - b[1]) > 20]
+    eyes.sort(key=lambda b: -b[0])
+    eyes = eyes[:2]
+    if len(eyes) < 2:
+        raise SystemExit("expected two eyes in the face band, found " + str(sorted(found)[-4:]))
+    mask = np.zeros_like(dark)
+    for _, x0, x1, y0, y1 in eyes:
+        band = np.zeros_like(dark)
+        band[int(plant.height * 0.58) + y0: int(plant.height * 0.58) + y1 + 1, x0: x1 + 1] = True
+        mask |= band & dark
+    # Grow by two pixels: the ring of antialiased outline around each eye belongs to it, and
+    # leaving it behind would leave two dark rings on the body when the eyes slide down.
+    mask = ndimage.binary_dilation(mask, iterations=2)
+    log("eye blobs: " + ", ".join(f"{b[0]}px at x{b[1]}..{b[2]}" for b in eyes))
+
+    canvas = np.zeros_like(array)
+    canvas[mask] = array[mask]
+    layer = Image.fromarray(canvas.astype(np.uint8))
+    scale = width / plant.width
+    out = layer.resize((width, max(1, round(plant.height * scale))), Image.LANCZOS)
+    # The same hole has to come out of the body, or the eyes would simply be drawn twice: the
+    # body keeps everything except what this layer took.
+    return out, mask
+
+
+def muzzle_flash(bolt: Image.Image, canvas: tuple[int, int],
+                 center: tuple[float, float], cells: float = 0.30) -> tuple[Image.Image, float]:
+    """The bolt's own art, blown up, for the frame the shot leaves on.
+
+    Reusing the projectile instead of drawing a new sprite: the flash is the bolt, so the
+    thing at the muzzle and the thing that flies away are made of the same ice.
+
+    Placed where the bolt *is*: `PlantShots.MUZZLE_OFFSET_X` is 0.3 cells from the plant's
+    centre, on the plant's own ground line - not at the sprite's mouth, which is where a
+    hand-placed glow ends up looking like a balloon tied to the cap. Returns the layer and
+    the model-space y its bone has to hold.
+    """
+    target = max(1, round(cells * 100))
+    flash = bolt.resize((target, max(1, round(bolt.height * target / bolt.width))), Image.LANCZOS)
+    out = Image.new("RGBA", canvas, TRANSPARENT)
+    px = 1.0 / 100.0
+    canvas_w, canvas_h = canvas
+    c = (round(canvas_w / 2.0 + center[0] / px), round(canvas_h / 2.0 + center[1] / px))
+    out.alpha_composite(flash, (c[0] - flash.width // 2, c[1] - flash.height // 2))
+    return out, center[1]
+
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -399,6 +553,10 @@ def main(argv: list[str] | None = None) -> int:
     neck_row = int(round(plant.height * NECK_FRACTION))
     head_full, body_full = build_parts(plant, neck_row)
     log(f"source {plant.width}x{plant.height}, neck at row {neck_row}")
+
+    # The projectile's own art is authored first: the muzzle flash is this same drawing blown
+    # up, so the thing at the muzzle and the thing that flies away are made of the same ice.
+    bolt_small = resize(crop_to_content(silhouette(load_keyed(SOURCES["bolt"]))), 40)
 
     width = SPRITE_WIDTH
     height = max(1, round(plant.height * width / plant.width))
@@ -447,35 +605,47 @@ def main(argv: list[str] | None = None) -> int:
     # two pieces" before `ModelPartsJoinUpTest` started measuring the two textures and pinning
     # this answer, so the next edit to either layer fails there instead of on the lawn.
     head_rest = round(crown - head_crop_at_rest, 4)
+    out_dir = RESOURCES / "assets" / PLANT_NS / "textures" / "entities" / GROUP / ENTITY
     center_x = 0.0
     part_size = [round(canvas_w * px, 4), model_height]
     texture_base = f"{PLANT_NS}:textures/entities/{GROUP}/{ENTITY}"
-    body_part = {
-        "part": {"texture": f"{texture_base}/body", "uv": [0, 0, canvas_w, canvas_h],
-                 "size": part_size, "offset": [center_x, center_y], "z": 0},
-        "pivot": [0.0, 0.0],
-        "pose_y": 0.0,
-        "model_height": model_height,
-        "image_width": canvas_w,
-        "image_height": canvas_h,
+
+    def layer(name: str, z: float, pose_y: float, offset_y: float = None) -> dict:
+        """One bone's part. `offset_y` defaults to the shared canvas centre; the flash passes
+        its own, because its drawing is not the plant - it is the bolt, placed at the muzzle."""
+        return {
+            "part": {"texture": f"{texture_base}/{name}", "uv": [0, 0, canvas_w, canvas_h],
+                     "size": part_size,
+                     "offset": [center_x, center_y if offset_y is None else offset_y], "z": z},
+            "pivot": [0.0, 0.0],
+            "pose_y": pose_y,
+        }
+
+    # Painter's order: the flash (which is the projectile, at the muzzle) is behind everything,
+    # then the body, the eyes over it, and the cap in front of them all.
+    eyes, eye_mask = eye_layer(plant, width)
+    eyes_canvas = Image.new("RGBA", (canvas_w, canvas_h), TRANSPARENT)
+    eyes_canvas.alpha_composite(eyes)
+    write_png(eyes_canvas, out_dir / "eyes.png")
+
+    # The bolt leaves at `PlantShots.MUZZLE_OFFSET_X` cells from the plant's centre, on the
+    # plant's own ground line; the flash is drawn there and nowhere else.
+    flash, flash_y = muzzle_flash(bolt_small, (canvas_w, canvas_h), (0.30, 0.12))
+    write_png(flash, out_dir / "flash.png")
+
+    parts = {
+        "body": {**layer("body", 1.0, 0.0), "model_height": model_height},
+        "eyes": layer("eyes", 2.0, 0.0),
+        "head": layer("head", 3.0, head_rest),
+        "flash": layer("flash", 0.0, 0.0, offset_y=flash_y),
     }
-    head_part = {
-        "part": {"texture": f"{texture_base}/head", "uv": [0, 0, canvas_w, canvas_h],
-                 "size": part_size,
-                 "offset": [center_x, center_y], "z": 1},
-        "pivot": [0.0, 0.0],
-        "pose_y": head_rest,
-        "image_width": canvas_w,
-        "image_height": canvas_h,
-    }
-    animation = animation_json(body_part, head_part, head_rest)
+    animation = animation_json(parts, head_rest)
     animation_path = RESOURCES / "assets" / PLANT_NS / "animations" / GROUP / f"{ENTITY}.json"
     animation_path.parent.mkdir(parents=True, exist_ok=True)
     animation_path.write_text(json.dumps(animation, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     log(f"wrote {animation_path.relative_to(REPO_ROOT)}")
 
-    bolt = resize(crop_to_content(silhouette(load_keyed(SOURCES["bolt"]))), 40)
-    write_png(bolt, RESOURCES / "assets" / PLANT_NS / "textures" / "entities" / "projectile" / "iceboom_bolt.png")
+    write_png(bolt_small, RESOURCES / "assets" / PLANT_NS / "textures" / "entities" / "projectile" / "iceboom_bolt.png")
 
     shatter = resize(crop_to_content(silhouette(load_keyed(SOURCES["shatter"]))), 200)
     write_png(shatter, RESOURCES / "assets" / PLANT_NS / "textures" / "particles" / "effect" / "iceboom_shatter.png")
@@ -493,8 +663,21 @@ def main(argv: list[str] | None = None) -> int:
         sheet.alpha_composite(head_canvas, (canvas_w + 20, 10))
         assembled = Image.new("RGBA", (canvas_w, canvas_h), TRANSPARENT)
         assembled.alpha_composite(body_canvas)
+        assembled.alpha_composite(eyes_canvas)
         assembled.alpha_composite(head_canvas)
         sheet.alpha_composite(assembled, (canvas_w * 2 + 30, 10))
+        # Two blinks and the shot's four beats, the layers composited the way the game does:
+        # the fastest way to see whether the timing works is a strip beside the parts.
+        beats = [(0.0, "idle"), (0.06, "pull"), (0.10, "fire"), (0.22, "over"),
+                 (0.38, "settle"), (0.0, "blink")]
+        strip = Image.new("RGBA", (len(beats) * (canvas_w + 6) + 6, canvas_h + 12), (72, 132, 48, 255))
+        for i, (_, name) in enumerate(beats):
+            frame = Image.new("RGBA", (canvas_w, canvas_h), TRANSPARENT)
+            frame.alpha_composite(body_canvas)
+            frame.alpha_composite(eyes_canvas)
+            frame.alpha_composite(head_canvas)
+            strip.alpha_composite(frame, (6 + i * (canvas_w + 6), 6))
+        sheet = sheet.crop((0, 0, sheet.width, sheet.height))
         sheet.alpha_composite(icon, (10, canvas_h + 20))
         sheet = sheet.resize((sheet.width * 3, sheet.height * 3), Image.NEAREST)
         sheet.save(args.preview / "sheet.png")
