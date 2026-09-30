@@ -1,0 +1,26 @@
+{
+  "id": "pvzce:iceboom_shatter",
+  "look": {
+    "spin": 0.0,
+    "spin_spread": 90.0,
+    "alpha_to": 0.0,
+    "scale": 0.72,
+    "life": 0.4,
+    "frames_per_second": 60.0,
+    "loop": true,
+    "color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "texture": "pvzce:textures/particles/effect/iceboom_shatter"
+  },
+  "motion": {
+    "speed": 0.4,
+    "angle": 90.0,
+    "angle_spread": 360.0,
+    "gravity": 1.0,
+    "bounce": false
+  },
+  "count": 1
+}

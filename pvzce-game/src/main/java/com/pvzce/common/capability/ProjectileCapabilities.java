@@ -10,6 +10,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.projectile.ArcMotionCapability;
 import com.pvzce.common.capability.projectile.LinearMotionCapability;
 import com.pvzce.common.capability.projectile.PierceCapability;
+import com.pvzce.common.capability.projectile.ShatterCapability;
 import com.pvzce.common.capability.projectile.SplashImpactCapability;
 import com.pvzce.common.capability.projectile.StatusOnHitCapability;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -26,6 +27,12 @@ public final class ProjectileCapabilities {
     public static final CapabilityType<StatusOnHitCapability> STATUS =
             type("status", StatusOnHitCapability.CODEC);
     public static final CapabilityType<PierceCapability> PIERCE = type("pierce", PierceCapability.CODEC);
+    /**
+     * Cold that stacks into ice, and a burst on a target the ice already holds (the ice-boom
+     * shroom's bolt). See {@link ShatterCapability} for what the count is attached to and why.
+     */
+    public static final CapabilityType<ShatterCapability> SHATTER =
+            type("shatter", ShatterCapability.CODEC);
 
     public static final Codec<TypedCapability<ProjectileCapability>> CODEC =
             TypedCapability.codec(BuiltInRegistries.PROJECTILE_CAPABILITIES, "projectile");
@@ -41,6 +48,7 @@ public final class ProjectileCapabilities {
         register(SPLASH, "splash");
         register(STATUS, "status");
         register(PIERCE, "pierce");
+        register(SHATTER, "shatter");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

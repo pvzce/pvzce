@@ -878,5 +878,11 @@
   "plant.pvzce.explosive_nut": "爆炸坚果",
   "plant.pvzce.explosive_nut.desc": "保龄球坚果的爆炸版：撞到第一只僵尸就炸开一片。",
   "plant.pvzce.explosive_nut.flavor": "「保龄球场上没有第二次机会。」",
-  "slot.pvzce.explosive_nut": "爆炸坚果"
+  "slot.pvzce.explosive_nut": "爆炸坚果",
+  "plant.pvzce.iceboom_shroom": "冰爆菇",
+  "plant.pvzce.iceboom_shroom.desc": "冰弹每命中一次就冻得更深一层，第三次把它冻成冰块；对已经冻住的僵尸，这一发会击碎它，伤害是三倍。",
+  "plant.pvzce.iceboom_shroom.flavor": "“别急着融化，”冰爆菇说，“先让它站住，再让它碎。”",
+  "slot.pvzce.iceboom_shroom": "冰爆菇",
+  "projectile.pvzce.iceboom_bolt": "冰弹",
+  "damage_type.pvzce.shatter": "碎冰"
 }

@@ -1,0 +1,27 @@
+{
+  "id": "pvzce:iceboom_bolt",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 4.0
+    },
+    {
+      "type": "pvzce:shatter",
+      "hits_to_freeze": 3,
+      "shatter_multiplier": 3.0,
+      "freeze_ticks": 195,
+      "chill": {
+        "status": "slow",
+        "ticks": 240,
+        "magnitude": 0.5
+      },
+      "shatter_damage_type": "pvzce:shatter"
+    }
+  ],
+  "sounds": {
+    "impact": "pvzce:sfx/plant/snow_pea_sparkles"
+  },
+  "texture": "pvzce:textures/entities/projectile/iceboom_bolt",
+  "impact_particle": "pvzce:snow_pea_splat"
+}

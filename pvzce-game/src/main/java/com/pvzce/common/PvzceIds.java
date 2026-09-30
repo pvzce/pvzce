@@ -401,6 +401,24 @@ public final class PvzceIds {
     public static final Identifier DAMAGE_PROJECTILE = id("projectile");
     public static final Identifier DAMAGE_SPLASH = id("splash");
     public static final Identifier DAMAGE_SPRAY = id("spray");
+    /**
+     * A shot that lands on a zombie the ice already holds (the ice-boom shroom).
+     *
+     * <p>Its own type rather than {@code projectile}, because the two differ in what armour does
+     * about them: the bolt that shatters a frozen zombie goes past what the zombie holds in front
+     * of itself, which is the payoff for freezing it first. The counterpart is the damage type's
+     * own file, not this constant.
+     */
+    public static final Identifier DAMAGE_SHATTER = id("shatter");
+    /**
+     * The tally the ice line's bolts add up on a zombie before it freezes (see
+     * {@code ZombieEntity#addBuildup} and {@code ShatterCapability}).
+     *
+     * <p>An id rather than a bare string because it is <em>shared</em>: two cold plants in a
+     * pack have to count towards the same ice, or a lawn of both would freeze nothing while
+     * looking like it should.
+     */
+    public static final Identifier ICEBOOM_CHILL = id("iceboom_chill");
     public static final Identifier DAMAGE_MOWER = id("mower");
     /**
      * A body pulled under the water (the tangle kelp).

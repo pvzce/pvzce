@@ -535,6 +535,11 @@ final public class SmokeDriver {
             com.pvzce.client.gui.screens.AlmanacScreen almanac =
                     new com.pvzce.client.gui.screens.AlmanacScreen(client);
             client.setScreenReplacing(almanac);
+            // Build the catalogue before navigating. It is built lazily on the first frame, and
+            // that build runs `init()` - which re-opens the page and resets the selection to its
+            // first entry - so a selection made here would be overwritten a frame later and the
+            // screenshot would show entry 0 whatever the property said.
+            almanac.initIfNeeded();
             String page = System.getProperty("pvzce.smokeAlmanacPage", "");
             if (!page.isBlank()) {
                 almanac.show(com.pvzce.client.gui.almanac.AlmanacEntries.Page.valueOf(

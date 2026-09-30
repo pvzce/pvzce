@@ -1,0 +1,30 @@
+{
+  "id": "pvzce:iceboom_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 175
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:shooter",
+      "interval": 90,
+      "shots": [
+        {
+          "projectile": "pvzce:iceboom_bolt",
+          "damage": 20,
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/iceboom_shroom",
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/snow_pea_sparkles"
+  },
+  "render_scale": 1.0,
+  "order": 62
+}

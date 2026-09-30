@@ -50,6 +50,23 @@ LABEL = {
 #: 分类规则，**顺序敏感**——第一条命中的生效，所以特例要写在通例前面。
 #: 每条 = (正则, 分类, 依据)。正则匹配的是相对 `assets/pvzce/` 的路径。
 RULES: list[tuple[str, str, str]] = [
+    # ---- 原创（**必须先判**，见下面那条注释：通例 `textures/entities/*/.+/` 会把它收走）----
+    # 冰爆菇：本项目第一株**不由原版 reanim 转换来的**植物。源图是文生图模型按"冰蓝色蘑菇"
+    # 这一通用形象生成的（`tools/art/iceboom_*.png`，随 GPL-3.0 留在仓库里），
+    # `tools/gen_iceboom_shroom.py` 把它切成部件贴图并写出卡面与冰弹。
+    # 位置在文件最前：`textures/entities/…/.+/`（原版 reanim 零件）与 `textures/gui/cards/`
+    # （二创卡面）两条通例都覆盖得到这些路径，规则是第一条命中生效。
+    (r"^textures/entities/plant/attacker/iceboom_shroom/", ORIGINAL,
+     "冰爆菇的部件贴图，由 `tools/gen_iceboom_shroom.py` 从 `tools/art/iceboom_shroom_body.png` 切出"),
+    (r"^textures/entities/projectile/iceboom_bolt\.png$", ORIGINAL,
+     "冰爆菇的冰弹，同上脚本由 `tools/art/iceboom_bolt.png` 缩放"),
+    (r"^textures/gui/cards/iceboom_shroom\.png$", ORIGINAL,
+     "冰爆菇的卡面，同上脚本由 `tools/art/iceboom_shroom_card.png` 缩放"),
+    # 这一份**在仓库里**（原版那 83 份动画 JSON 都被移到了 `local-assets/`）：它不是转换来的，
+    # 没有可分离的原版素材，骨骼与关键帧都是脚本按这份立绘现写的。
+    (r"^animations/plant/attacker/iceboom_shroom\.json$", ORIGINAL,
+     "冰爆菇的控制器动画，`tools/gen_iceboom_shroom.py` 手写关键帧"),
+
     # ---- 原版素材：由工具从 refer/ 转换而来 ----
     (r"^animations/(mechanic|plant|projectile|resource|tool|zombie)/.+\.json$", PvZ,
      "`tools/reanim_to_pvzce_all.py` 从 `refer/anim/*.reanim` 转换；"

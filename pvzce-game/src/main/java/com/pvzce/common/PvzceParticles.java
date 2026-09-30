@@ -112,6 +112,13 @@ public final class PvzceParticles {
     public static final Identifier ICE_SPARKLE = id("ice_trap");
     /** A snow pea's impact. */
     public static final Identifier SNOW_PEA_SPLAT = id("snow_puff");
+    /**
+     * The ice-boom shroom's bolt landing on a zombie the ice already holds.
+     *
+     * <p>Its own burst rather than {@link #ICE_SPARKLE}: the shatter is the plant's payoff and
+     * has to read as "that one broke", which a shared sparkle cannot say.
+     */
+    public static final Identifier ICEBOOM_SHATTER = id("iceboom_shatter");
     /** A soft glow on a pickup. */
     public static final Identifier LANTERN_SHINE = id("lantern_shine");
 
@@ -188,7 +195,7 @@ public final class PvzceParticles {
                 PUFF_SHROOM_MUZZLE, EXPLOSION_POW, EXPLOSION_POWIE, BLAST_MARK, DOOM,
                 POTATO_MINE_FLASH, POTATO_MINE_RISE, CHOMP, ZOMBIE_HEAD, ZOMBIE_ARM,
                 ZOMBIE_HELMET, ZOMBIE_TRAFFIC_CONE, ZOMBIE_PAIL, ZOMBIE_DOOR, ZOMBIE_NEWSPAPER,
-                ZOMBIE_FLAG, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT,
+                ZOMBIE_FLAG, DIRT_SMALL, DIRT_BIG, ICE_SPARKLE, SNOW_PEA_SPLAT, ICEBOOM_SHATTER,
                 LANTERN_SHINE, MOWERED_ZOMBIE_HEAD, MOWERED_ZOMBIE_ARM, MOWER_CLOUD,
                 MOWER_CLOUD_POWIE, JACK_EXPLODE_BIG_CLOUD, JACK_EXPLODE_SPROING,
                 ZAMBONI_WRECK.get(0), ZAMBONI_WRECK.get(1), ZAMBONI_WRECK.get(2),

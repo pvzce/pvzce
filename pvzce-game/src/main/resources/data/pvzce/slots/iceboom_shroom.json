@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:iceboom_shroom",
+  "kind": "plant",
+  "content": "pvzce:iceboom_shroom",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 175
+    },
+    "cooldown": 300
+  },
+  "icon": "pvzce:textures/gui/cards/iceboom_shroom"
+}

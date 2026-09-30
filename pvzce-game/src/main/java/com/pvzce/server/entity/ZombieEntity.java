@@ -25,7 +25,9 @@ import com.pvzce.server.level.LevelServer;
 import com.pvzce.common.PvzceParticles;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Data-driven zombie: walks and eats (the loop every zombie shares) and delegates
@@ -71,6 +73,11 @@ public class ZombieEntity extends PvzceEntity {
     private final ZombieDef def;
     private final List<Instance> capabilities = new ArrayList<>();
     private final List<StatusInstance> statuses = new ArrayList<>();
+    /**
+     * Running tallies of hits that stack, keyed by whatever the hitter calls them; see
+     * {@link #addBuildup}. Separate from {@link #statuses} because these have no clock.
+     */
+    private final Map<Identifier, Integer> buildups = new HashMap<>();
     private int biteCooldown;
     private int leftCountdown;
     private int speedBoostTicks;
@@ -950,6 +957,36 @@ public class ZombieEntity extends PvzceEntity {
         statuses.add(new StatusInstance(status, ticks, magnitude));
     }
 
+    /**
+     * A running count of hits of one kind that have landed on this zombie, by the key the
+     * caller chooses (the ice-boom shroom counts "cold" until the third one freezes it).
+     *
+     * <p>On the zombie rather than on the shot, and that is the whole reason this exists: a
+     * projectile is destroyed by the hit that lands it, so a counter it owns can never reach
+     * two - the plant that stacks cold would fire forever and never freeze anything. It is
+     * also not a {@link ZombieStatus}: statuses are strengths and durations, while this is a
+     * tally with no clock of its own (the chill status the same hits land is what the player
+     * watches run out).
+     *
+     * <p>Lives and dies with the body, and is written to the save with it: a lawn reloaded
+     * mid-stack carries the stack, which is what the player expects after the game told them
+     * "one more bolt and that one is ice".
+     */
+    public int addBuildup(Identifier key, int by) {
+        int next = Math.max(0, buildups.getOrDefault(key, 0) + by);
+        if (next == 0) {
+            buildups.remove(key);
+        } else {
+            buildups.put(key, next);
+        }
+        return next;
+    }
+
+    /** How many hits of this kind are stacked on the zombie right now. */
+    public int buildup(Identifier key) {
+        return buildups.getOrDefault(key, 0);
+    }
+
     /** Total remaining armor HP, or zero when the zombie has no armor capability. */
     public int armorHealth() {
         com.pvzce.common.capability.zombie.ArmorCapability armor =
@@ -1042,6 +1079,12 @@ public class ZombieEntity extends PvzceEntity {
             statusList.add(statusTag);
         }
         tag.put("statuses", statusList);
+
+        CompoundTag buildupTag = new CompoundTag();
+        for (Map.Entry<Identifier, Integer> entry : buildups.entrySet()) {
+            buildupTag.putInt(entry.getKey().toString(), entry.getValue());
+        }
+        tag.put("buildups", buildupTag);
         return tag;
     }
 
@@ -1058,6 +1101,16 @@ public class ZombieEntity extends PvzceEntity {
         CompoundTag saved = tag.getCompound("capabilities");
         for (Instance instance : capabilities) {
             instance.capability.load(saved.getCompound(instance.type.toString()));
+        }
+
+        buildups.clear();
+        CompoundTag buildupTag = tag.getCompound("buildups");
+        for (Map.Entry<String, com.pvzce.common.nbt.Tag> entry : buildupTag.entries().entrySet()) {
+            Identifier id = Identifier.tryParse(entry.getKey());
+            int count = buildupTag.getInt(entry.getKey());
+            if (id != null && count > 0) {
+                buildups.put(id, count);
+            }
         }
 
         statuses.clear();
