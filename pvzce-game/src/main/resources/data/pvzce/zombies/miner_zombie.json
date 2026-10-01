@@ -6,7 +6,7 @@
     {
       "type": "pvzce:dig",
       "speed": 1.2,
-      "emerge_ticks": 60
+      "emerge_ticks": 78
     }
   ],
   "sounds": {

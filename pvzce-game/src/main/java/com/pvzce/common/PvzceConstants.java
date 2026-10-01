@@ -9,6 +9,23 @@ package com.pvzce.common;
  */
 public final class PvzceConstants {
     public static final int TICKS_PER_SECOND = 60;
+    public static final int CACTUS_DAMAGE = 20;
+    public static final int CACTUS_SHOT_INTERVAL_TICKS = 90;
+    public static final int CACTUS_RISE_TICKS = 75;
+    public static final int CACTUS_LOWER_TICKS = 65;
+    public static final int MAGNET_RECOVERY_TICKS = 900;
+    public static final int MAGNET_PULL_TICKS = 130;
+    public static final int BLOVER_LINGER_TICKS = 30;
+    public static final int DIGGER_AXE_PAUSE_TICKS = 90;
+    public static final int BLOVER_FOG_CLEAR_TICKS = 2400;
+    public static final int BLOVER_FOG_RETURN_TICKS = 180;
+    public static final int DIGGER_RISE_TICKS = 78;
+    public static final int DIGGER_LAND_TICKS = 18;
+    public static final int DIGGER_DIZZY_TICKS = 210;
+    public static final int BALLOON_FALL_TICKS = 140;
+    public static final float BALLOON_AIR_SPEED = 0.47F;
+    public static final float BALLOON_GROUND_SPEED = 0.23F;
+
     public static final long NANOS_PER_TICK = 16_666_666L;
 
     public static final int DEFAULT_GRID_WIDTH = 9;

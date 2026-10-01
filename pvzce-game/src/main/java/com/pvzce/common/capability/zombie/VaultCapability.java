@@ -426,6 +426,16 @@ public final class VaultCapability implements ZombieCapability {
      * anything - but the consequences are identical and {@link #hasJumped()} is the one flag
      * both the walk loop and {@link #walkState} already read.
      */
+    @Override public Identifier magneticItem(ZombieEntity zombie) {
+        return bounce && !jumped ? com.pvzce.common.PvzceIds.id("pogo_stick") : null;
+    }
+    @Override public boolean removeMagneticItem(ZombieEntity zombie, LevelAccess level) {
+        if (!bounce || jumped) return false;
+        jumped = true; vaultTicks = 0; zombie.setHeight(vaultBaseHeight);
+        zombie.setAnimation(EntityAnimations.WALK);
+        return true;
+    }
+
     private void breakStick(ZombieEntity zombie, LevelAccess level) {
         jumped = true;
         zombie.setAnimation(EntityAnimations.WALK);

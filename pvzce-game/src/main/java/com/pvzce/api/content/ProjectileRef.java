@@ -40,7 +40,8 @@ import com.pvzce.api.util.Identifier;
  */
 public record ProjectileRef(Identifier projectile, int damage, int count,
                             int rowOffset, boolean backward, int rows, float range,
-                            int burstDelay, int initialDelay, boolean targetRow) {
+                            int burstDelay, int initialDelay, boolean targetRow,
+                            float vectorX, float vectorY, float launchHeight) {
     /** The original's straight shot: this row, forwards, no range limit. */
     public static final float UNLIMITED_RANGE = 0F;
 
@@ -70,8 +71,31 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
                     .forGetter(ProjectileRef::initialDelay),
             // Fires at whatever row the nearest target is in, rather than in the plant's own
             // (the cattail, which covers the whole lawn). See `ShooterCapability.aimRow`.
-            Codec.BOOL.optionalFieldOf("target_row", false).forGetter(ProjectileRef::targetRow)
+            Codec.BOOL.optionalFieldOf("target_row", false).forGetter(ProjectileRef::targetRow),
+            Codec.FLOAT.optionalFieldOf("vector_x", 1F).forGetter(ProjectileRef::vectorX),
+            Codec.FLOAT.optionalFieldOf("vector_y", 0F).forGetter(ProjectileRef::vectorY),
+            Codec.FLOAT.optionalFieldOf("launch_height", 0F).forGetter(ProjectileRef::launchHeight)
     ).apply(i, ProjectileRef::new));
+
+    /** Existing straight shots keep their direction, lane and launch height. */
+    public ProjectileRef(Identifier projectile, int damage, int count, int rowOffset,
+                         boolean backward, int rows, float range, int burstDelay,
+                         int initialDelay, boolean targetRow) {
+        this(projectile, damage, count, rowOffset, backward, rows, range, burstDelay,
+                initialDelay, targetRow, 1F, 0F, 0F);
+    }
+
+    /** Whether a target intersects this shot's ray on the lawn. */
+    public boolean covers(float originX, float originY, float targetX, float targetY) {
+        float dx = targetX - originX;
+        float dy = targetY - originY;
+        float vx = direction() * vectorX;
+        float length = (float) Math.hypot(vx, vectorY);
+        if (length == 0F) return false;
+        float along = (dx * vx + dy * vectorY) / length;
+        float across = Math.abs(dx * vectorY - dy * vx) / length;
+        return along > 0F && across < 0.45F && (hasUnlimitedRange() || along <= range);
+    }
 
     public ProjectileRef {
         range = Math.max(0F, range);
@@ -131,7 +155,8 @@ public record ProjectileRef(Identifier projectile, int damage, int count,
             return this;
         }
         return new ProjectileRef(projectile, damage, count, rowOffset, backward, rows,
-                Math.max(0F, range * multiplier), burstDelay, initialDelay, targetRow);
+                Math.max(0F, range * multiplier), burstDelay, initialDelay, targetRow,
+                vectorX, vectorY, launchHeight);
     }
 
     /**

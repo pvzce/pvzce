@@ -10,7 +10,8 @@
         {
           "id": "pvzce:door",
           "durability": 1100,
-          "position": "front"
+          "position": "front",
+          "magnetic": true
         }
       ]
     }

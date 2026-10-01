@@ -150,7 +150,7 @@
   "plant.pvzce.snow_pea.desc": "寒冰射手射出冰冻的豌豆，既能伤害敌人，又能让它减速。",
   "plant.pvzce.snow_pea.flavor": "大家总说寒冰射手有多“酷”，或者劝他“冷静点”。他们叫他“保持高冷”。寒冰射手只是翻个白眼——这些梗他全听过了。",
   "plant.pvzce.split_pea": "分裂豌豆",
-  "plant.pvzce.split_pea.desc": "分裂豌豆可以向前和向后发射豌豆。",
+  "plant.pvzce.split_pea.desc": "前脑单发、后脑双发，分别攻击前方和后方的僵尸。",
   "plant.pvzce.split_pea.flavor": "“没错，我是双子座，”分裂豌豆说，“我知道，很意外吧。但有两个脑袋——或者说，一个脑袋加上背后长出的一个很像脑袋的东西——在我这一行里收益很大。”",
   "plant.pvzce.squash": "窝瓜",
   "plant.pvzce.squash.desc": "窝瓜会砸扁第一只靠近它的僵尸。",
@@ -742,13 +742,13 @@
   "plant.pvzce.blover.desc": "吹起一阵大风，把空中所有的僵尸吹出草坪。",
   "plant.pvzce.starfruit": "杨桃",
   "slot.pvzce.starfruit": "杨桃",
-  "plant.pvzce.starfruit.desc": "向五个方向同时发射豌豆。",
+  "plant.pvzce.starfruit.desc": "向左、上、下、右上和右下发射星星。",
   "plant.pvzce.pumpkin": "南瓜头",
   "slot.pvzce.pumpkin": "南瓜头",
   "plant.pvzce.pumpkin.desc": "罩住同一格里的植物，先替你挨咬。",
   "plant.pvzce.magnet_shroom": "磁力菇",
   "slot.pvzce.magnet_shroom": "磁力菇",
-  "plant.pvzce.magnet_shroom.desc": "把附近僵尸身上的护甲整件吸走。",
+  "plant.pvzce.magnet_shroom.desc": "吸走附近僵尸的金属护具和道具，恢复后才能再次吸取；白天会睡觉。",
   "plant.pvzce.spikeweed.flavor": "「踩上去很疼。」——某只走过的僵尸",
   "plant.pvzce.torchwood.flavor": "烧焦的树桩，火焰一直没灭。豌豆飞进去，火豌豆飞出来。",
   "plant.pvzce.tall_nut.flavor": "坚果墙的表哥。撑杆僵尸看见它就收起杆子了。",
@@ -908,5 +908,7 @@
   "plant.pvzce.resonance_moss.flavor": "“请站上来。你的节拍，也能成为合唱的一部分。”",
   "gui.pvzce.resonance_moss.offline": "未接入铃兰",
   "gui.pvzce.resonance_moss.host_haste": "接入 ×%.2f",
-  "gui.pvzce.resonance_moss.host_linked": "已接入"
+  "gui.pvzce.resonance_moss.host_linked": "已接入",
+  "projectile.pvzce.star": "星星",
+  "projectile.pvzce.cactus_spike_air": "高位仙人掌尖刺"
 }

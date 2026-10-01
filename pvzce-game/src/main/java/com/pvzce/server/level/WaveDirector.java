@@ -1179,7 +1179,7 @@ public final class WaveDirector {
         }
         List<Integer> usable = new ArrayList<>();
         for (int lane : lanes) {
-            if (host.rowIsWater(lane) == def.canSwim()) {
+            if (def.spawnsAirborne() || host.rowIsWater(lane) == def.canSwim()) {
                 usable.add(lane);
             }
         }

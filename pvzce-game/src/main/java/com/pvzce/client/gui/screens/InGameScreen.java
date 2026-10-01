@@ -1952,6 +1952,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // caused. It used to be drawn under the particles, and the pot's own POW is a
         // three-quarter-second cloud - the swing is a third of a second, so the gesture the
         // player asked for was entirely hidden behind the hit it made.
+        com.pvzce.client.renderer.MagnetItems.renderWorld(client);
         renderMalletSwings();
     }
 
@@ -2234,7 +2235,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * is told: the climb is a height animation, so no new field travels for it.
      */
     private static boolean isRising(ClientEntity entity) {
-        return entity.kind().equals(com.pvzce.api.entity.EntityKind.ZOMBIE) && entity.height() < 0F;
+        return entity.kind().equals(com.pvzce.api.entity.EntityKind.ZOMBIE) && entity.height() < 0F
+                && entity.layer() != com.pvzce.api.entity.EntityLayers.UNDERGROUND;
     }
 
     /**
@@ -2390,7 +2392,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // The bungee zombie's rope and target go under its shadow and art: they are objects
         // around it rather than parts of it (see BungeeRig).
         com.pvzce.client.renderer.BungeeRig.render(client, entity);
-        drawShadow(client, entity, entityTexture(entity));
+        if (entity.layer() != com.pvzce.api.entity.EntityLayers.UNDERGROUND) {
+            drawShadow(client, entity, entityTexture(entity));
+        }
         // The ice goes under the art: it is around the zombie's feet, so the legs have to come
         // down into it. Drawn every frame while the freeze lasts rather than spawned as a
         // particle, because it lasts as long as the status does - a particle is a burst.
@@ -2625,8 +2629,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         Identifier texture = entityTexture(entity);
-        boolean underground = entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND;
-        if (!underground && client.animations() != null && client.animations().render(entity)) {
+        if (client.animations() != null && client.animations().render(entity)) {
             return;
         }
 
@@ -2667,7 +2670,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // Mirroring, for the one entity state that faces the other way (a charmed zombie). The
         // animated path does the same thing inside its own quads; this is the flat-sprite
         // fallback a content pack without a controller file lands on.
-        boolean flip = "zombie".equals(entity.kind()) && entity.charmed();
+        boolean flip = "zombie".equals(entity.kind()) && (entity.charmed() || entity.animation().endsWith("_right"));
         float left = flip
                 ? drawX - (visuals.spriteWidth() - visuals.spriteOffsetX()) * xScale
                 : drawX - visuals.spriteOffsetX() * xScale;

@@ -4,17 +4,20 @@
     "resources": {
       "pvzce:sun": 100
     },
-    "cooldown": 1800
+    "cooldown": 450
   },
   "health": 300,
   "capabilities": [
     {
       "type": "pvzce:blow_away",
-      "fuse_ticks": 60
+      "fuse_ticks": 30
     }
   ],
   "animation_dir": "plant/special",
   "texture": "pvzce:textures/entities/plant/special/blover",
   "render_scale": 0.85,
-  "order": 51
+  "order": 51,
+  "sounds": {
+    "shoot": "pvzce:sfx/plant/blover"
+  }
 }

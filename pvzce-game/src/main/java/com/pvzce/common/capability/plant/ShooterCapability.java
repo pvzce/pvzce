@@ -47,7 +47,10 @@ public final class ShooterCapability implements PlantCapability {
     /** Cells within which an enemy makes this plant hide instead of firing; 0 = never. */
     private final float hideWithin;
 
+    private final boolean independentShots;
+    private final String shootState;
     private int cooldown;
+    private final int[] shotCooldowns;
     /**
      * This shooter's own progress clock.
      *
@@ -83,12 +86,21 @@ public final class ShooterCapability implements PlantCapability {
 
     public ShooterCapability(int intervalTicks, List<ProjectileRef> shots, Optional<Identifier> sound,
                              int firstDelayTicks, float hideWithin) {
+        this(intervalTicks, shots, sound, firstDelayTicks, hideWithin, false, EntityAnimations.SHOOT);
+    }
+
+    public ShooterCapability(int intervalTicks, List<ProjectileRef> shots, Optional<Identifier> sound,
+                             int firstDelayTicks, float hideWithin, boolean independentShots, String shootState) {
+        this.independentShots = independentShots;
+        this.shootState = shootState;
         this.intervalTicks = Math.max(1, intervalTicks);
         this.shots = List.copyOf(shots);
         this.sound = sound;
         this.firstDelayTicks = Math.max(0, firstDelayTicks);
         this.hideWithin = Math.max(0F, hideWithin);
         this.cooldown = Math.min(this.intervalTicks, this.firstDelayTicks == 0 ? 1 : this.firstDelayTicks);
+        this.shotCooldowns = new int[shots.size()];
+        java.util.Arrays.fill(shotCooldowns, cooldown);
     }
 
     public static final MapCodec<ShooterCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
@@ -99,7 +111,9 @@ public final class ShooterCapability implements PlantCapability {
             com.mojang.serialization.Codec.INT.optionalFieldOf("first_delay", 0)
                     .forGetter(ShooterCapability::firstDelayTicks),
             com.mojang.serialization.Codec.FLOAT.optionalFieldOf("hide_within", 0F)
-                    .forGetter(ShooterCapability::hideWithin)
+                    .forGetter(ShooterCapability::hideWithin),
+            Codec.BOOL.optionalFieldOf("independent_shots", false).forGetter(c -> c.independentShots),
+            Codec.STRING.optionalFieldOf("shoot_state", EntityAnimations.SHOOT).forGetter(c -> c.shootState)
     ).apply(i, ShooterCapability::new));
 
     public int intervalTicks() {
@@ -130,7 +144,7 @@ public final class ShooterCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new ShooterCapability(intervalTicks, shots, sound, firstDelayTicks, hideWithin);
+        return new ShooterCapability(intervalTicks, shots, sound, firstDelayTicks, hideWithin, independentShots, shootState);
     }
 
     @Override
@@ -148,10 +162,24 @@ public final class ShooterCapability implements PlantCapability {
             plant.setState(EntityAnimations.HIDE);
             return;
         }
+        if (independentShots) {
+            int step = clock.step(plant.actionRate());
+            List<ProjectileRef> ready = new ArrayList<>();
+            for (int i = 0; i < shots.size(); i++) {
+                if (shotCooldowns[i] > 0) {
+                    shotCooldowns[i] = Math.max(0, shotCooldowns[i] - step);
+                } else if (hasTarget(shots.get(i), plant, level)) {
+                    ready.add(shots.get(i));
+                    shotCooldowns[i] = intervalTicks;
+                }
+            }
+            if (!ready.isEmpty()) fire(plant, level, ready);
+            return;
+        }
         if (cooldown > 0) {
             // The plant's own rate: watered counts a quarter faster, and a mutation may have
             // rewritten how fast plants work at all (see PlantEntity.actionRate).
-            cooldown -= clock.step(plant.actionRate());
+            cooldown = Math.max(0, cooldown - clock.step(plant.actionRate()));
             if (cooldown == 0) {
                 plant.setState(EntityAnimations.IDLE);
             }
@@ -161,7 +189,7 @@ public final class ShooterCapability implements PlantCapability {
             plant.setState(EntityAnimations.IDLE);
             return;
         }
-        fire(plant, level);
+        fire(plant, level, shots);
     }
 
     /**
@@ -203,7 +231,8 @@ public final class ShooterCapability implements PlantCapability {
         if (removed(plant)) {
             return false;
         }
-        fire(plant, level);
+        fire(plant, level, shots);
+        java.util.Arrays.fill(shotCooldowns, intervalTicks);
         return true;
     }
 
@@ -219,12 +248,14 @@ public final class ShooterCapability implements PlantCapability {
      * The cooldown is set here too: a play-ordered volley that did not reset it would let a plant
      * fire on its own the moment the level stopped holding fire, as if the note had never happened.
      */
-    private void fire(PlantEntity plant, LevelAccess level) {
-        plant.setState(EntityAnimations.SHOOT);
+    private void fire(PlantEntity plant, LevelAccess level, List<ProjectileRef> volley) {
+        boolean front = false;
+        boolean back = false;
         // The level's say over how big a volley is (the rhythm levels' energy bar doubles and
         // triples it). Read per volley, because the bar moves while the run is going.
         int repeats = Math.max(1, level.projectileCountMultiplier(plant));
-        for (ProjectileRef shot : shots) {
+        for (ProjectileRef shot : volley) {
+            if (shot.backward()) back = true; else front = true;
             // The muzzle sits on the firing side, so a backward shot leaves the plant
             // from its other edge instead of appearing inside it.
             float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
@@ -268,6 +299,8 @@ public final class ShooterCapability implements PlantCapability {
         }
         level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
+        plant.setState(independentShots && back
+                ? (front ? "shoot_both" : "shoot_back") : shootState);
         cooldown = intervalTicks;
     }
 
@@ -388,33 +421,27 @@ public final class ShooterCapability implements PlantCapability {
      * into its range. It is read through {@link PlantShots#scaled}, so a run rule that lengthens
      * the shot lengthens the reach that decides when to fire it - one number, both halves.
      */
-    private boolean hasTarget(PlantEntity plant, LevelAccess level) {
-        for (ProjectileRef raw : shots) {
-            // Aimed with the scaled shot, not the definition's own number: the projectile is born
-            // scaled (see LevelServer.spawnProjectile), and a plant that decided with the unscaled
-            // range would never fire at the zombies its shots can now reach.
-            ProjectileRef shot = PlantShots.scaled(raw, plant, level);
-            float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
-            if (shot.targetRow()) {
-                // Aimed across lanes: the same search that decides the row the shot leaves in
-                // decides whether there is anything to fire at, so the two cannot disagree.
-                if (nearestTarget(shot, plant, level) != null) {
-                    return true;
-                }
-                continue;
-            }
-            for (int rowOffset : shot.coveredRowOffsets()) {
-                int row = plant.gridY() + rowOffset;
-                if (row < 0 || row >= level.height()) {
-                    continue;
-                }
-                boolean found = level.enemiesInRow(row, plant.team()).stream()
-                        .filter(z -> !z.isRemoved() && z.canBeHitByGround())
-                        .anyMatch(z -> shot.covers(muzzleX, z.cellX()));
-                if (found) {
-                    return true;
-                }
-            }
+    public boolean hasTarget(PlantEntity plant, LevelAccess level) {
+        return shots.stream().anyMatch(shot -> hasTarget(shot, plant, level));
+    }
+
+    private boolean hasTarget(ProjectileRef raw, PlantEntity plant, LevelAccess level) {
+        ProjectileRef shot = PlantShots.scaled(raw, plant, level);
+        float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
+        var def = com.pvzce.common.core.BuiltInRegistries.PROJECTILES.get(shot.projectile());
+        boolean air = def != null && def.isAirLayer() && shot.launchHeight() > 0F;
+        if (shot.targetRow()) return nearestTarget(shot, plant, level) != null;
+        if (shot.vectorY() != 0F || shot.vectorX() != 1F) {
+            return level.enemiesOf(plant.team()).stream()
+                    .anyMatch(z -> !z.isRemoved() && z.canBeHitByGround()
+                            && shot.covers(muzzleX, plant.cellY(), z.cellX(), z.cellY()));
+        }
+        for (int offset : shot.coveredRowOffsets()) {
+            int row = plant.gridY() + offset;
+            if (row < 0 || row >= level.height()) continue;
+            if (level.enemiesInRow(row, plant.team()).stream().anyMatch(z -> !z.isRemoved()
+                    && (air ? !z.isGrounded() : z.canBeHitByGround())
+                    && shot.covers(muzzleX, z.cellX()))) return true;
         }
         return false;
     }
@@ -422,12 +449,18 @@ public final class ShooterCapability implements PlantCapability {
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
+        if (independentShots) {
+            for (int i = 0; i < shotCooldowns.length; i++) tag.putInt("shotCooldown" + i, shotCooldowns[i]);
+        }
         clock.save(tag);
     }
 
     @Override
     public void load(CompoundTag tag) {
         cooldown = tag.getInt("cooldown");
+        for (int i = 0; i < shotCooldowns.length; i++) {
+            shotCooldowns[i] = tag.contains("shotCooldown" + i) ? tag.getInt("shotCooldown" + i) : cooldown;
+        }
         clock.load(tag);
     }
 }

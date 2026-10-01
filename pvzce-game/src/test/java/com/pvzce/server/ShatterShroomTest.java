@@ -41,7 +41,7 @@ class ShatterShroomTest {
 
     private static LevelServer lawn() {
         return new LevelServer(com.pvzce.testutil.TestLevels.copy(
-                        BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/1_1")))
+                        BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/1_4")))
                 .waves(List.of()).build());
     }
 

@@ -9,132 +9,108 @@ import com.pvzce.api.entity.EntityLayers;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
-/**
- * Digger: burrows under the lawn, tunnels to the far side of the lawn, surfaces
- * facing right and then walks back through the plants.
- *
- * <p>The whole state machine (buried / surfacing / walking right / turning round)
- * lives here; {@code ZombieEntity} only exposes the movement primitives.
- */
+/** Tunnels once; after surfacing the shared walking and biting loop runs facing right. */
 public final class DigCapability implements ZombieCapability {
-    public static final float DEFAULT_SPEED = 1.5F;
-    public static final int DEFAULT_EMERGE_TICKS = 60;
-    /** The zombie digs as soon as it is this many cells from the right edge. */
-    public static final float DIG_TRIGGER_MARGIN = 2F;
-
+    public static final float DEFAULT_SPEED = 1.2F;
+    public static final int DEFAULT_EMERGE_TICKS = PvzceConstants.DIGGER_RISE_TICKS;
     private final float digSpeed;
     private final int emergeTicks;
     private final Optional<Identifier> sound;
-
-    private boolean underground;
+    private boolean underground = true;
     private boolean movingRight;
-    private int emergeCooldown;
+    private boolean hasAxe = true;
+    private boolean surfaced;
+    private int riseLeft;
+    private int dizzyLeft;
+    private int pauseLeft;
 
     public DigCapability(float digSpeed, int emergeTicks, Optional<Identifier> sound) {
         this.digSpeed = digSpeed;
-        this.emergeTicks = Math.max(0, emergeTicks);
+        this.emergeTicks = Math.max(1, emergeTicks);
         this.sound = sound;
     }
-
     public static final MapCodec<DigCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.FLOAT.optionalFieldOf("speed", DEFAULT_SPEED).forGetter(DigCapability::digSpeed),
             Codec.INT.optionalFieldOf("emerge_ticks", DEFAULT_EMERGE_TICKS).forGetter(DigCapability::emergeTicks),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(DigCapability::sound)
     ).apply(i, DigCapability::new));
-
-    public float digSpeed() {
-        return digSpeed;
+    public float digSpeed() { return digSpeed; }
+    public int emergeTicks() { return emergeTicks; }
+    public Optional<Identifier> sound() { return sound; }
+    public boolean isUnderground() { return underground; }
+    @Override public ZombieCapability instantiate() { return new DigCapability(digSpeed, emergeTicks, sound); }
+    @Override public float walkDirection(ZombieEntity zombie) { return movingRight ? 1F : -1F; }
+    @Override public String walkState(ZombieEntity zombie) {
+        return surfaced ? (movingRight ? (hasAxe ? "walk_right" : "walk_noaxe_right") : "walk_noaxe") : null;
     }
-
-    public int emergeTicks() {
-        return emergeTicks;
+    @Override public String eatState(ZombieEntity zombie) {
+        return movingRight ? (hasAxe ? "eat_right" : "eat_noaxe_right") : (!hasAxe ? "eat_noaxe" : null);
     }
-
-    public Optional<Identifier> sound() {
-        return sound;
+    @Override public String deathState(ZombieEntity zombie) {
+        return movingRight ? (hasAxe ? "death_right" : "death_noaxe_right") : (!hasAxe ? "death_noaxe" : null);
     }
-
-    public boolean isUnderground() {
-        return underground;
-    }
-
-    @Override
-    public ZombieCapability instantiate() {
-        return new DigCapability(digSpeed, emergeTicks, sound);
-    }
-
-    @Override
-    public boolean tickMovement(ZombieEntity zombie, LevelAccess level) {
-        float perTick = digSpeed / PvzceConstants.TICKS_PER_SECOND;
-
-        if (emergeCooldown > 0) {
-            emergeCooldown--;
-            zombie.setAnimation(EntityAnimations.DIG_EXIT);
-            return true;
-        }
-
-        if (!underground) {
-            if (movingRight) {
-                // Surfaced facing right: walk back across the lawn until the edge.
-                if (zombie.cellX() >= level.width() - 0.5F) {
-                    movingRight = false;
-                    return false;
-                }
-                zombie.setAnimation(EntityAnimations.WALK);
-                zombie.setCellX(zombie.cellX() + zombie.moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
-                return true;
+    @Override public boolean tickMovement(ZombieEntity zombie, LevelAccess level) {
+        if (zombie.isImmobilized()) return true;
+        if (pauseLeft > 0) { pauseLeft--; zombie.setAnimation("dig_noaxe"); return true; }
+        if (riseLeft > 0) {
+            zombie.setAnimation(riseLeft > PvzceConstants.DIGGER_LAND_TICKS
+                    ? (hasAxe ? "dig_rise" : "dig_rise_noaxe")
+                    : (hasAxe ? EntityAnimations.DIG_EXIT : "dig_exit_noaxe"));
+            // The drill artwork already contains the dirt and rising body. Height is the
+            // terrain anchor; burial and damage eligibility belong to the underground layer.
+            zombie.setHeight(0F);
+            if (--riseLeft == 0) {
+                underground = false; surfaced = true; zombie.setHeight(0F);
+                movingRight = hasAxe;
+                dizzyLeft = hasAxe ? PvzceConstants.DIGGER_DIZZY_TICKS : 0;
             }
-            if (zombie.cellX() > level.width() - DIG_TRIGGER_MARGIN) {
-                return false;
-            }
-            underground = true;
-            zombie.setAnimation(EntityAnimations.DIG);
-            level.emitEffect("", zombie.cellX(), zombie.cellY(),
-                    sound.orElseGet(() -> zombie.def().sounds().special().orElse(PvzceSounds.ZOMBIE_DIGGER)));
             return true;
         }
-
-        if (zombie.cellX() > 0.5F) {
-            zombie.setCellX(zombie.cellX() - perTick);
-            zombie.setAnimation(EntityAnimations.DIG);
+        if (dizzyLeft > 0) {
+            dizzyLeft--; zombie.setAnimation(hasAxe ? "dig_dizzy_right" : "dig_dizzy_noaxe_right"); return true;
+        }
+        if (surfaced) return false;
+        if (underground && (zombie.cellX() <= 0.5F || !hasAxe)) {
+            riseLeft = emergeTicks;
+            level.emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_DIRT_RISE);
             return true;
         }
-        // Reached the far side: surface facing right.
-        underground = false;
-        movingRight = true;
-        emergeCooldown = emergeTicks;
-        zombie.setAnimation(EntityAnimations.DIG_EXIT);
-        level.emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_DIRT_RISE);
+        zombie.setHeight(0F);
+        zombie.setAnimation(EntityAnimations.DIG);
+        zombie.setCellX(zombie.cellX() - digSpeed / PvzceConstants.TICKS_PER_SECOND
+                * zombie.moveSpeed(level) / zombie.def().moveSpeed());
         return true;
     }
-
-    @Override
-    public int layerOverride(ZombieEntity zombie) {
+    @Override public int layerOverride(ZombieEntity zombie) {
         return underground ? EntityLayers.UNDERGROUND : Integer.MIN_VALUE;
     }
-
-    @Override
-    public boolean canBeHitByGround(ZombieEntity zombie) {
-        return !underground;
+    @Override public boolean canBeHitByGround(ZombieEntity zombie) { return !underground; }
+    @Override public Identifier magneticItem(ZombieEntity zombie) {
+        return hasAxe ? PvzceIds.id("pickaxe") : null;
     }
-
-    @Override
-    public void save(CompoundTag tag) {
-        tag.putInt("underground", underground ? 1 : 0);
-        tag.putInt("movingRight", movingRight ? 1 : 0);
-        tag.putInt("emergeCooldown", emergeCooldown);
+    @Override public boolean removeMagneticItem(ZombieEntity zombie, LevelAccess level) {
+        if (!hasAxe) return false;
+        hasAxe = false;
+        if (underground && riseLeft == 0) pauseLeft = PvzceConstants.DIGGER_AXE_PAUSE_TICKS;
+        return true;
     }
-
-    @Override
-    public void load(CompoundTag tag) {
+    @Override public void save(CompoundTag tag) {
+        tag.putInt("underground", underground ? 1 : 0); tag.putInt("movingRight", movingRight ? 1 : 0);
+        tag.putInt("hasAxe", hasAxe ? 1 : 0); tag.putInt("surfaced", surfaced ? 1 : 0);
+        tag.putInt("riseLeft", riseLeft); tag.putInt("dizzyLeft", dizzyLeft); tag.putInt("pauseLeft", pauseLeft);
+    }
+    @Override public void load(CompoundTag tag) {
         underground = tag.getInt("underground") != 0;
         movingRight = tag.getInt("movingRight") != 0;
-        emergeCooldown = tag.getInt("emergeCooldown");
+        hasAxe = !tag.contains("hasAxe") || tag.getInt("hasAxe") != 0;
+        surfaced = tag.contains("surfaced") ? tag.getInt("surfaced") != 0 : movingRight;
+        riseLeft = tag.contains("riseLeft") ? tag.getInt("riseLeft") : tag.getInt("emergeCooldown");
+        dizzyLeft = tag.getInt("dizzyLeft"); pauseLeft = tag.getInt("pauseLeft");
     }
 }

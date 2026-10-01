@@ -90,8 +90,10 @@ public final class AnimationManager {
             return new float[]{0F, 0F};
         }
         float lift = com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
+        float height = entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND
+                ? 0F : entity.visualHeight();
         return new float[]{entity.visualCellX(),
-                entity.visualCellY() + entity.visualHeight() - lift + liquidDrop(entity)};
+                entity.visualCellY() + height - lift + liquidDrop(entity)};
     }
 
     /**
@@ -353,7 +355,7 @@ public final class AnimationManager {
         //   * a frozen zombie holds the pose it was in. The server already stops moving it;
         //     this stops the walk cycle playing on the spot, which is the difference between
         //     "frozen solid" and "walking without going anywhere".
-        playback.setFlipX(EntityKind.ZOMBIE.equals(entity.kind()) && entity.charmed());
+        playback.setFlipX(EntityKind.ZOMBIE.equals(entity.kind()) && (entity.charmed() || entity.animation().endsWith("_right")));
         // Dying is not walking: a frozen zombie that is killed plays its death, or the corpse
         // would stand there until the freeze ran out.
         playback.setPaused(EntityKind.ZOMBIE.equals(entity.kind()) && entity.frozen()

@@ -140,7 +140,8 @@ public final class PvzcePackets {
     // 45: a music cue can ask the client to preload instead of play (MusicEventS2C.preload), which
     // is how the level's song is decoded while it loads rather than nine ticks after it was due.
     // 48: authoritative lily network membership, charge and current haste.
-    public static final int PROTOCOL_VERSION = 48;
+    // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
+    public static final int PROTOCOL_VERSION = 49;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -212,6 +213,7 @@ public final class PvzcePackets {
     /** An endless round is over and the run is waiting for the player's next card choice. */
     public static final int S2C_ROUND_CLEAR = S2C_BASE + 29;
     public static final int S2C_ECHO_NETWORK = S2C_BASE + 31;
+    public static final int S2C_MAGNET_ITEM = S2C_BASE + 32;
     /**
      * The save prompt's 重新开始.
      *
@@ -302,6 +304,9 @@ public final class PvzcePackets {
             def(S2C_ENTITY_UPDATE, ConnectionDirection.CLIENTBOUND, EntityUpdateS2C.class, EntityUpdateS2C::decode),
             def(S2C_ENTITY_DESPAWN, ConnectionDirection.CLIENTBOUND, EntityDespawnS2C.class,
                     EntityDespawnS2C::decode),
+            def(S2C_MAGNET_ITEM, ConnectionDirection.CLIENTBOUND,
+                    com.pvzce.common.network.packet.MagnetItemS2C.class,
+                    com.pvzce.common.network.packet.MagnetItemS2C::decode),
             def(S2C_EFFECT_EVENT, ConnectionDirection.CLIENTBOUND, EffectEventS2C.class, EffectEventS2C::decode),
             def(S2C_CARRY_SYNC, ConnectionDirection.CLIENTBOUND, CarrySyncS2C.class, CarrySyncS2C::decode),
             def(S2C_HELD_CARD, ConnectionDirection.CLIENTBOUND, HeldCardS2C.class, HeldCardS2C::decode),

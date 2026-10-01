@@ -40,7 +40,7 @@ import java.util.Optional;
  */
 public final class BlowAwayCapability implements PlantCapability {
     /** The wind-up, in ticks. Long enough to see it coming and short enough to be a reaction. */
-    public static final int DEFAULT_FUSE_TICKS = 60;
+    public static final int DEFAULT_FUSE_TICKS = 30;
 
     private final int fuseTicks;
     private final Optional<Identifier> sound;
@@ -48,6 +48,7 @@ public final class BlowAwayCapability implements PlantCapability {
     /** Ticks left of the wind-up, or 0 before it has been triggered. */
     private int fuseLeft;
     private boolean blown;
+    private int lingerLeft;
 
     public BlowAwayCapability(int fuseTicks, Optional<Identifier> sound) {
         this.fuseTicks = Math.max(1, fuseTicks);
@@ -76,6 +77,7 @@ public final class BlowAwayCapability implements PlantCapability {
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
         if (blown) {
+            if (--lingerLeft <= 0) plant.remove();
             return;
         }
         if (fuseLeft == 0) {
@@ -95,6 +97,7 @@ public final class BlowAwayCapability implements PlantCapability {
 
     private void blow(PlantEntity plant, LevelAccess level) {
         blown = true;
+        level.blowFog(com.pvzce.common.PvzceConstants.BLOVER_FOG_CLEAR_TICKS);
         List<ZombieEntity> flying = new ArrayList<>();
         for (ZombieEntity zombie : level.enemiesOf(plant.team())) {
             if (!zombie.isRemoved() && zombie.layer() == EntityLayers.AIR) {
@@ -109,17 +112,19 @@ public final class BlowAwayCapability implements PlantCapability {
                         .orElse(PvzceSounds.PLANT_SHOOT_PEA)));
         // One use and it is gone: a blover that stayed would be a permanent "nothing may fly"
         // marker, which is a different plant from the one the original has.
-        plant.remove();
+        lingerLeft = com.pvzce.common.PvzceConstants.BLOVER_LINGER_TICKS;
     }
 
     @Override
     public void save(CompoundTag tag) {
+        tag.putInt("linger", lingerLeft);
         tag.putInt("fuse", fuseLeft);
         tag.putByte("blown", (byte) (blown ? 1 : 0));
     }
 
     @Override
     public void load(CompoundTag tag) {
+        lingerLeft = tag.getInt("linger");
         fuseLeft = Math.max(0, tag.getInt("fuse"));
         blown = tag.getInt("blown") != 0;
     }

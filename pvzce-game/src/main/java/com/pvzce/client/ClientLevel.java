@@ -46,6 +46,10 @@ public final class ClientLevel {
      * was not sun.
      */
     private final Map<Identifier, Map<Identifier, Integer>> teamResources = new ConcurrentHashMap<>();
+    private final Map<Integer, com.pvzce.common.network.packet.MagnetItemS2C> magnetItems = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public Map<Integer, com.pvzce.common.network.packet.MagnetItemS2C> magnetItems() { return magnetItems; }
+
     private final ConcurrentLinkedQueue<EffectEventS2C> effects = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<SuggestionsS2C> suggestions = new ConcurrentLinkedQueue<>();
     private final List<ResourceCollectAnimation> collectAnimations = new CopyOnWriteArrayList<>();
@@ -276,6 +280,7 @@ public final class ClientLevel {
     private void clearTransientState() {
         entities.clear();
         effects.clear();
+        magnetItems.clear();
         synchronized (suggestions) {
             suggestions.clear();
         }

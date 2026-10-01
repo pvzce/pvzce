@@ -303,6 +303,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final Map<Identifier, Object> mechanicState = new HashMap<>();
     /** A fog a mutation installed, or {@code null} while the level's own answer stands. */
     private com.pvzce.api.content.FogData fogOverride;
+    private int fogBlownUntil;
     private ServerBridge bridge;
     /**
      * The last bridge this level was driven with, which is where an unprompted packet goes.
@@ -843,7 +844,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return row;
         }
         int resolved = row;
-        if (!def.canSwim() && rowIsWater(resolved)) {
+        if (!def.canSwim() && !def.spawnsAirborne() && rowIsWater(resolved)) {
             resolved = nearestRow(resolved, landRows());
             LOGGER.debug("A zombie that cannot swim may not walk in water: lane {} becomes {}",
                     row, resolved);
@@ -1653,7 +1654,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         return new ProjectileRef(replacement, ref.damage(), ref.count(), ref.rowOffset(),
                 ref.backward(), ref.rows(), ref.range(), ref.burstDelay(), ref.initialDelay(),
-                ref.targetRow());
+                ref.targetRow(), ref.vectorX(), ref.vectorY(), ref.launchHeight());
     }
 
     @Override
@@ -1942,6 +1943,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public void emitMagnetItem(int plantId, Identifier item, float x, float y,
+                               int startTick, int pullTicks, int holdTicks) {
+        send(new com.pvzce.common.network.packet.MagnetItemS2C(plantId, item.toString(), x, y,
+                startTick, pullTicks, holdTicks));
+    }
+
+    @Override
     public void emitRippleAt(int cellX, int cellY, float strength) {
         SceneElementDef element = sceneAt(cellX, cellY);
         if (element == null || element.liquid().isEmpty()) {
@@ -2117,6 +2125,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         mechanicState.put(mechanicId, state);
     }
 
+    /** Extends the temporary clear period and publishes the new fog boundary. */
+    @Override public void blowFog(int ticks) {
+        fogBlownUntil = Math.max(fogBlownUntil, tickCount() + ticks);
+        com.pvzce.common.level.mechanic.FogMechanic.publish(this);
+    }
+
     /**
      * How much fog this board has right now, and where it starts.
      *
@@ -2135,7 +2149,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (base == null) {
             return NO_FOG;
         }
-        return base.retreatedBy(com.pvzce.common.buff.LevelBuffs.fogRetreat(activeBuffs));
+        base = base.retreatedBy(com.pvzce.common.buff.LevelBuffs.fogRetreat(activeBuffs));
+        int left = fogBlownUntil - tickCount();
+        float clear = Math.max(0F, Math.min(1F, left / (float) PvzceConstants.BLOVER_FOG_RETURN_TICKS));
+        return new com.pvzce.api.content.FogData(
+                base.startColumn() + (base.endColumn() - base.startColumn()) * clear,
+                base.endColumn(), base.maxAlpha());
     }
 
     /**
@@ -5593,6 +5612,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         for (PvzceEntity entity : entities) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
                 plant.syncEchoNetwork(this, bridge, true);
+                var magnet = plant.capability(com.pvzce.common.capability.plant.MagnetCapability.class);
+                if (magnet != null) {
+                    var item = magnet.itemSnapshot(plant, tickCount());
+                    if (item != null) bridge.send(item);
+                }
             }
         }
         // After the entities, so a client that joins a run whose player is carrying a packet
@@ -5665,6 +5689,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             root.putString("Winner", winner.toString());
         }
         root.putInt("Tick", tickCount);
+        root.putInt("FogBlownLeft", Math.max(0, fogBlownUntil - tickCount()));
         root.putLong("DayTicks", clock.dayTicks());
         root.putLong("MusicCuesFired", musicCuesFired);
         root.putInt("WavesStartTick", wavesStartTick);
@@ -5843,6 +5868,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         clock.setDayTicks(root.getLong("DayTicks"));
         waves.restore(root);
         restoreMusicCues(root);
+        fogBlownUntil = tickCount() + root.getInt("FogBlownLeft");
         restoreScene(root.getList("Scene"));
         restoreVaseContents(root.getList("VaseContents"));
         restoreTeams(root.getCompound("Teams"));

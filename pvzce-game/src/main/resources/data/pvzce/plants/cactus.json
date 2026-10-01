@@ -9,15 +9,7 @@
   "health": 300,
   "capabilities": [
     {
-      "type": "pvzce:shooter",
-      "interval": 90,
-      "shots": [
-        {
-          "projectile": "pvzce:cactus_spike",
-          "damage": 20,
-          "count": 1
-        }
-      ]
+      "type": "pvzce:cactus"
     }
   ],
   "animation_dir": "plant/attacker",

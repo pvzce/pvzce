@@ -20,10 +20,12 @@
         {
           "projectile": "pvzce:pea",
           "damage": 20,
-          "count": 1,
-          "backward": true
+          "count": 2,
+          "backward": true,
+          "burst_delay": 15
         }
-      ]
+      ],
+      "independent_shots": true
     }
   ],
   "animation_dir": "plant/attacker",

@@ -245,6 +245,11 @@ public record ZombieDef(
         return capabilities.isEmpty() ? ZombieBehaviorPresets.expand(behavior.orElse(null)) : capabilities;
     }
 
+    /** Airborne spawns can cross water without being swimmers. */
+    public boolean spawnsAirborne() {
+        return resolvedCapabilities().stream().anyMatch(c -> c.value().spawnsAirborne());
+    }
+
     /** First capability of the given implementation type, if present. */
     public <T extends ZombieCapability> Optional<T> capability(Class<T> type) {
         for (TypedCapability<ZombieCapability> entry : resolvedCapabilities()) {

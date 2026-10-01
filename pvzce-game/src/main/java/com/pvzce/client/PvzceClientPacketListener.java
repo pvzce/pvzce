@@ -92,6 +92,8 @@ public final class PvzceClientPacketListener implements PacketListener {
             }
         } else if (packet instanceof EntityDespawnS2C despawn) {
             level.removeEntity(despawn.entityId());
+        } else if (packet instanceof com.pvzce.common.network.packet.MagnetItemS2C item) {
+            level.magnetItems().put(item.plantId(), item);
         } else if (packet instanceof EffectEventS2C effect) {
             level.addEffect(effect);
         } else if (packet instanceof ResourceCollectS2C collect) {

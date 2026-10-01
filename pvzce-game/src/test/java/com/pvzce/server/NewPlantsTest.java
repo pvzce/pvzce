@@ -241,7 +241,9 @@ class NewPlantsTest {
     /** The magnet takes the bucket, and not the zombie wearing it. */
     @Test
     void theMagnetTakesTheArmourAndNotTheZombie() {
-        LevelServer level = lawn();
+        LevelServer level = new LevelServer(com.pvzce.testutil.TestLevels.copy(
+                BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/4_1")))
+                .waves(List.of()).build());
         place(level, "magnet_shroom", 2, 2);
         ZombieEntity bucket = level.spawnZombie(
                 Identifier.withDefaultNamespace("buckethead_zombie"),

@@ -8,7 +8,6 @@ import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.EntityLayers;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.common.PvzceConstants;
-import com.pvzce.common.PvzceSounds;
 import com.pvzce.server.entity.ZombieEntity;
 
 /**
@@ -19,6 +18,7 @@ public final class FlyCapability implements ZombieCapability {
     public static final float DEFAULT_HEIGHT = 1F;
 
     private final float height;
+    private int fallLeft;
 
     public FlyCapability(float height) {
         this.height = height;
@@ -32,9 +32,11 @@ public final class FlyCapability implements ZombieCapability {
         return height;
     }
 
+    public boolean falling() { return fallLeft > 0; }
+
     @Override
     public ZombieCapability instantiate() {
-        return this;
+        return new FlyCapability(height);
     }
 
     @Override
@@ -53,6 +55,11 @@ public final class FlyCapability implements ZombieCapability {
     @Override
     public boolean tickMovement(ZombieEntity zombie, LevelAccess level) {
         if (zombie.isGrounded()) {
+            if (fallLeft > 0) {
+                zombie.setAnimation(EntityAnimations.FALL);
+                zombie.setHeight(height * --fallLeft / PvzceConstants.BALLOON_FALL_TICKS);
+                return true;
+            }
             return false;
         }
         zombie.setAnimation(EntityAnimations.FLY);
@@ -75,7 +82,12 @@ public final class FlyCapability implements ZombieCapability {
     /** Called by the zombie when a hit pops the balloon. */
     public void pop(ZombieEntity zombie, LevelAccess level) {
         zombie.setGrounded(true);
-        level.emitEffect("", zombie.cellX(), zombie.cellY(),
-                zombie.def().sounds().special().orElse(PvzceSounds.ZOMBIE_BALLOON_POP));
+        fallLeft = PvzceConstants.BALLOON_FALL_TICKS;
     }
+    @Override public float speedMultiplier(ZombieEntity zombie) {
+        return zombie.isGrounded() ? PvzceConstants.BALLOON_GROUND_SPEED / PvzceConstants.BALLOON_AIR_SPEED : 1F;
+    }
+    @Override public void save(com.pvzce.common.nbt.CompoundTag tag) { tag.putInt("fallLeft", fallLeft); }
+    @Override public void load(com.pvzce.common.nbt.CompoundTag tag) { fallLeft = tag.getInt("fallLeft"); }
+
 }

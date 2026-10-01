@@ -106,6 +106,7 @@ public final class JackInTheBoxCapability implements ZombieCapability {
     private int popTicksLeft;
     /** True once it has gone off, so the blast can only ever happen once. */
     private boolean exploded;
+    private boolean disarmed;
 
     public JackInTheBoxCapability(float fuseCells, float fuseRollCells, int popTicks,
                                   float plantRadius, float zombieRadius,
@@ -175,7 +176,7 @@ public final class JackInTheBoxCapability implements ZombieCapability {
 
     @Override
     public void tick(ZombieEntity zombie, LevelAccess level) {
-        if (exploded) {
+        if (exploded || disarmed) {
             return;
         }
         if (popTicksLeft > 0) {
@@ -210,7 +211,7 @@ public final class JackInTheBoxCapability implements ZombieCapability {
      */
     @Override
     public void onReleased(ZombieEntity zombie, LevelAccess level) {
-        if (!exploded && popTicksLeft <= 0) {
+        if (!exploded && !disarmed && popTicksLeft <= 0) {
             openTheBox(zombie, level);
         }
     }
@@ -308,8 +309,24 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         }
     }
 
+    @Override public Identifier magneticItem(ZombieEntity zombie) {
+        return !disarmed && !exploded && popTicksLeft == 0
+                ? PvzceIds.id("jack_box") : null;
+    }
+    @Override public boolean removeMagneticItem(ZombieEntity zombie, LevelAccess level) {
+        if (magneticItem(zombie) == null) return false;
+        disarmed = true;
+        return true;
+    }
+    @Override public String eatState(ZombieEntity zombie) { return disarmed ? "eat_no_box" : null; }
+    @Override public String deathState(ZombieEntity zombie) { return disarmed ? "death_no_box" : null; }
+    @Override public String walkState(ZombieEntity zombie) {
+        return disarmed ? "walk_no_box" : null;
+    }
+
     @Override
     public void save(CompoundTag tag) {
+        tag.putInt("disarmed", disarmed ? 1 : 0);
         tag.putInt("armed", armed ? 1 : 0);
         tag.putFloat("fuseStartX", fuseStartX);
         tag.putFloat("fuse", fuse);
@@ -322,6 +339,7 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         // A save with no block - one written before this zombie existed - is read as a fresh
         // box: not armed, no fuse rolled, nothing exploded. That is also the only reading that
         // cannot skip a blast the player has not seen.
+        disarmed = tag.getInt("disarmed") != 0;
         armed = tag.getInt("armed") != 0;
         fuseStartX = tag.getFloat("fuseStartX");
         fuse = tag.contains("fuse") ? tag.getFloat("fuse") : fuseCells;

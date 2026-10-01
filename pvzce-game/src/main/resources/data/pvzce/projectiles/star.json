@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:star",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 4.16
+    }
+  ],
+  "texture": "pvzce:textures/entities/projectile/star",
+  "sounds": {
+    "impact": "pvzce:sfx/projectile/hit"
+  }
+}

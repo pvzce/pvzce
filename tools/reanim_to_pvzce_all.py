@@ -9,6 +9,7 @@ entity plus the referenced part PNGs under
 entity's ``<kind>/<category>`` (for example ``plant/attacker``). A content
 definition points at the animation with ``"animation_dir": "<group>"``; the part
 textures are named by the controller itself, so they need no declaration.
+Generated original artwork defaults to the ignored ``local-assets/`` directory.
 
 Run from the repository root:
 
@@ -49,7 +50,7 @@ def load_core():
 core = load_core()
 
 DEFAULT_INPUT_DIR = REPO_ROOT / "refer" / "anim"
-DEFAULT_RESOURCES = REPO_ROOT / "pvzce-game" / "src" / "main" / "resources"
+DEFAULT_RESOURCES = REPO_ROOT / "local-assets"
 DEFAULT_NAMESPACE = "pvzce"
 
 # Target visual boxes in world cells, matching the existing flat sprites.
@@ -2727,7 +2728,15 @@ def build_animation(
     # fullmatch, not search: a bone name is an identity, and "hide hair" must not also
     # hide the newspaper zombie's `hairpiece`, which is the whole point of its silhouette.
     force_visible_re = re.compile(config.force_visible_bones, re.IGNORECASE) if config.force_visible_bones else None
-    force_hidden_re = re.compile(config.force_hidden_bones, re.IGNORECASE) if config.force_hidden_bones else None
+    hidden = spec.get("force_hidden", config.force_hidden_bones)
+    force_hidden_re = re.compile(hidden, re.IGNORECASE) if hidden else None
+    # Separate heads may play different masks at the same time. Their poses and visibility
+    # both come from that mask; merely forcing a hidden head visible exposes unset transforms.
+    bone_masks = []
+    for pattern, mask in spec.get("bone_masks", {}).items():
+        track = next(t for t in tracks if t.name == mask)
+        start_mask, end_mask = core.visible_ranges(track)[0]
+        bone_masks.append((re.compile(pattern, re.IGNORECASE), start_mask, end_mask))
     # A per-clip "draw this bone whatever the source says". ``force_visible_hidden``
     # above only rescues bones that are hidden in *every* frame of the file, which does
     # not cover a reanim that splits one pose across several masks: the head parts of the
@@ -2758,7 +2767,10 @@ def build_animation(
         # off the hand, so the frame that hides the hand (the death clip) hides the flag
         # too rather than leaving it hovering over the collapsing body.
         source = host_bone if (attached_bones and bone.name in attached_bones) else bone
-        permanently_hidden = not any(source.visibility[index] for index in frames)
+        override = next(((a, b) for regex, a, b in bone_masks if any(regex.fullmatch(name) for name in [bone.name, *bone.track_names])), None)
+        mapped_frames = ([min(override[1], override[0] + i) for i in range(len(frames))]
+                         if override else frames)
+        permanently_hidden = not any(source.visibility[index] for index in mapped_frames)
         # A bone this clip never draws and that `force_visible_hidden` puts back on screen is
         # drawn in the pose the idle clip gives it, not in the pose its own track holds across
         # these frames. The two are not the same thing: a reanim that splits one character's
@@ -2790,11 +2802,13 @@ def build_animation(
             """
             if phase is not None:
                 return frame if phase[0] <= position <= phase[1] else idle_pose_frame
+            if override is not None:
+                return mapped_frames[position]
             return idle_pose_frame if rescued else frame
 
         visibility: List[bool] = []
         for position, frame in enumerate(frames):
-            is_visible = bool(source.visibility[frame])
+            is_visible = bool(source.visibility[mapped_frames[position]])
             if force_visible and permanently_hidden and not excluded_from_rescue(bone.name, exclude_prefixes):
                 is_visible = True
             if force_visible_re is not None and force_visible_re.fullmatch(bone.name):
@@ -3306,6 +3320,85 @@ def process_entity(
     }
 
 
+def configure_fog_actors() -> None:
+    for config in ENTITY_CONFIGS:
+        if config.output == "blover":
+            config.animations["shoot"]["rate"] = 5.0 / 3.0
+        elif config.output == "cactus":
+            config.animations.update({
+                "rise": {"mask": "anim_rise", "loop": False, "on_end": "idle_high", "transition": 0.05},
+                "lower": {"mask": "anim_lower", "loop": False, "on_end": "idle", "transition": 0.05},
+                "idle_high": {"mask": "anim_idlehigh", "loop": True},
+            })
+            config.animations["shoot_high"]["on_end"] = "idle_high"
+        elif config.output == "magnet_shroom":
+            config.animations["idle"]["mask"] = "anim_idle"
+            config.animations["shoot"]["on_end"] = "magnet_hold"
+            config.animations.update({
+                "sleep": {"mask": "anim_sleep", "loop": True},
+                "magnet_hold": {"mask": "anim_nonactive_idle2", "loop": True, "rate": 1.0 / 6.0},
+            })
+        elif config.output == "split_pea":
+            rear = r"SplitPea_.*|idle_SplitPea_.*"
+            front = r"idle_mouth|idle_shoot_blink"
+            config.animations["shoot"]["rate"] = 35.0 / 12.0
+            config.animations["shoot"]["bone_masks"] = {rear: "anim_splitpea_idle"}
+            config.animations["idle"]["bone_masks"] = {rear: "anim_splitpea_idle"}
+            config.animations["shoot_back"] = dict(config.animations["shoot"],
+                mask="anim_splitpea_shooting", bone_masks={front: "anim_head_idle"})
+            config.animations["shoot_both"] = dict(config.animations["shoot"],
+                bone_masks={rear: "anim_splitpea_shooting"})
+        elif config.output == "miner_zombie":
+            config.animations.update({
+                "dig_rise": {"mask": "anim_drill", "loop": True},
+                "dig_rise_noaxe": {"mask": "anim_drill", "loop": True, "force_hidden": r".*pickaxe.*"},
+                "dig_noaxe": dict(config.animations["dig"], force_hidden=r".*pickaxe.*"),
+                "dig_dizzy_right": {"mask": "anim_dizzy", "loop": True, "rate": 0.75},
+                "dig_dizzy_noaxe_right": {"mask": "anim_dizzy", "loop": True, "rate": 0.75,
+                    "force_hidden": r".*pickaxe.*"},
+                "dig_exit": {"mask": "anim_landing", "loop": False, "on_end": "hold", "rate": 35.0 / 12.0},
+                "dig_exit_noaxe": {"mask": "anim_landing", "loop": False, "on_end": "hold", "rate": 35.0 / 12.0,
+                    "force_hidden": r".*pickaxe.*"},
+                "walk_right": dict(config.animations["walk"]),
+                "eat_right": dict(config.animations["eat"]),
+                "walk_noaxe": dict(config.animations["walk"], force_hidden=r".*pickaxe.*"),
+                "eat_noaxe": dict(config.animations["eat"], force_hidden=r".*pickaxe.*"),
+                "walk_noaxe_right": dict(config.animations["walk"], force_hidden=r".*pickaxe.*"),
+                "eat_noaxe_right": dict(config.animations["eat"], force_hidden=r".*pickaxe.*"),
+                "death_right": dict(config.animations["death"]),
+                "death_noaxe": dict(config.animations["death"], force_hidden=r".*pickaxe.*"),
+                "death_noaxe_right": dict(config.animations["death"], force_hidden=r".*pickaxe.*"),
+            })
+        elif config.output == "jack_in_the_box_zombie":
+            config.animations["death_no_box"] = dict(config.animations["death"],
+                force_hidden=r".*(box|handle|clownneck|clownhead).*", force_visible_hidden=False)
+            config.animations["eat_no_box"] = dict(config.animations["eat"],
+                force_hidden=r".*(box|handle|clownneck|clownhead).*", force_visible_hidden=False)
+            config.animations["walk_no_box"] = dict(config.animations["walk"],
+                force_hidden=r".*(box|handle|clownneck|clownhead).*", force_visible_hidden=False)
+
+
+def copy_fog_item_sprites(resources: Path, wanted: Optional[Set[str]]) -> None:
+    import shutil
+    sprites = {
+        "cactus": [("im7/images/ProjectileCactus.png", "projectile/cactus_spike.png")],
+        "starfruit": [("im7/images/Projectile_star.png", "projectile/star.png")],
+        "magnet_shroom": [("anim/" + src, "magnet/" + dst + ".png") for src, dst in [
+            ("Zombie_bucket1.png", "bucket"), ("Zombie_football_helmet.png", "football_helmet"),
+            ("Zombie_screendoor1.png", "screen_door"), ("Zombie_ladder_1.png", "ladder"),
+            ("Zombie_digger_pickaxe.png", "pickaxe"), ("Zombie_pogo_stick.png", "pogo_stick"),
+            ("Zombie_jackbox_box.png", "jack_box"),
+        ]],
+    }
+    for entity, entries in sprites.items():
+        if wanted is not None and entity not in wanted:
+            continue
+        for src, dst in entries:
+            output = resources / "assets/pvzce/textures/entities" / dst
+            output.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(REPO_ROOT / "refer" / src, output)
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--entity", action="append", default=None,
@@ -3318,11 +3411,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     wanted = set(args.entity) if args.entity else None
+    configure_fog_actors()
     configs = [config for config in ENTITY_CONFIGS if wanted is None or config.output in wanted]
     if not configs:
         print("No matching entity configs", file=sys.stderr)
         return 2
 
+    copy_fog_item_sprites(args.resources, wanted)
     print(f"Converting {len(configs)} entities from {args.input_dir}")
     results = []
     for config in configs:

@@ -768,12 +768,21 @@ class RhythmTest {
      */
     @Test
     void aDoubledVolleyIsTwoPeasOnTheirOwnTicks() {
+        assertDoubledVolley("pea_shooter");
+    }
+
+    @Test
+    void cactusDeliversTheTailOfAnOrderedMultipliedVolley() {
+        assertDoubledVolley("cactus");
+    }
+
+    private static void assertDoubledVolley(String plantId) {
         CapturingBridge bridge = new CapturingBridge();
         // One volley per note, so the peas counted below are the volley's own and not the three a
         // PERFECT is worth on a shipped chart (`RhythmChartData#volleys`).
         LevelServer level = playPerfectly(longChart(80, 1), 62, bridge);
         // In the lane the chart plays, which is the only one whose plants a note can order.
-        PlantEntity shooter = plant(level, "pea_shooter", 5, 2);
+        PlantEntity shooter = plant(level, plantId, 5, 2);
         assertEquals(2, level.projectileCountMultiplier(shooter), "the bar is over the gate");
 
         long before = projectilesOnTheLawn(level);

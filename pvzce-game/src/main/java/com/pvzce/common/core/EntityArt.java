@@ -261,6 +261,18 @@ public final class EntityArt {
         return Identifier.of(defId.namespace(), prefix + defId.path());
     }
 
+    /** The one mapping from stolen equipment to its original sprite. */
+    public static Identifier magneticTexture(String item) {
+        Identifier id = Identifier.tryParse(item);
+        if (id == null || !"pvzce".equals(id.namespace())) return null;
+        return switch (id.path()) {
+            case "door" -> Identifier.withDefaultNamespace("textures/entities/magnet/screen_door");
+            case "bucket", "football_helmet", "screen_door", "ladder", "pickaxe", "pogo_stick", "jack_box" ->
+                    Identifier.withDefaultNamespace("textures/entities/magnet/" + id.path());
+            default -> null;
+        };
+    }
+
     private EntityArt() {
     }
 }

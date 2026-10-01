@@ -11,9 +11,10 @@
       "interval": 90,
       "shots": [
         {
-          "projectile": "pvzce:pea",
+          "projectile": "pvzce:puff",
           "damage": 20,
-          "count": 1
+          "count": 1,
+          "range": 3.0
         }
       ]
     },
@@ -23,7 +24,7 @@
     }
   ],
   "sounds": {
-    "shoot": "pvzce:sfx/plant/shoot_pea"
+    "shoot": "pvzce:sfx/plant/puff"
   },
   "animation_dir": "plant/attacker",
   "texture": "pvzce:textures/entities/plant/attacker/sea_shroom",

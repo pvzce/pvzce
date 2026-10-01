@@ -1,6 +1,6 @@
 {
-  "id": "pvzce:cactus_spike",
-  "layer": "ground",
+  "id": "pvzce:cactus_spike_air",
+  "layer": "air",
   "capabilities": [
     {
       "type": "pvzce:linear",

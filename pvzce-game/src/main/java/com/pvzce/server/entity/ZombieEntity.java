@@ -15,6 +15,7 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.capability.zombie.ArmorCapability;
+import com.pvzce.common.capability.zombie.FlyCapability;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
@@ -119,7 +120,7 @@ public class ZombieEntity extends PvzceEntity {
         for (TypedCapability<ZombieCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
         }
-        this.grounded = capabilities.stream().noneMatch(instance -> instance.capability.spawnsAirborne());
+        this.grounded = !def.spawnsAirborne();
     }
 
     public ZombieDef def() {
@@ -407,6 +408,8 @@ public class ZombieEntity extends PvzceEntity {
         if (!grounded || def.canSwim()) {
             return false;
         }
+        FlyCapability flight = capability(FlyCapability.class);
+        if (flight != null && flight.falling()) return false;
         var scene = level.sceneAt(gridX(), gridY());
         // The tag, not the surface class string: a pack that adds its own water tile
         // (swamp, pool) tags it #c:water and drowning follows without a code change.
@@ -512,17 +515,37 @@ public class ZombieEntity extends PvzceEntity {
         return null;
     }
 
-    /**
-     * Which way this zombie is travelling: {@code -1} toward the house, {@code +1} back up the
-     * lane.
-     *
-     * <p>One answer for the whole entity, because "which way do I walk", "what is in front of me"
-     * and (on the client) "which way am I drawn" are the same fact. A charmed zombie is the only
-     * one that answers {@code +1}: the hypno-shroom turns it around, and everything else about it
-     * - its legs, its jaws, the edge it eventually leaves by - follows from that one number.
-     */
+    private String eatState() {
+        for (Instance entry : capabilities) {
+            String state = entry.capability.eatState(this);
+            if (state != null) return state;
+        }
+        return EntityAnimations.EAT;
+    }
+
+    public Identifier magneticItem() {
+        for (Instance entry : capabilities) {
+            Identifier item = entry.capability.magneticItem(this);
+            if (item != null) return item;
+        }
+        return null;
+    }
+
+    public boolean removeMagneticItem(LevelAccess level) {
+        for (Instance entry : capabilities) {
+            if (entry.capability.removeMagneticItem(this, level)) return true;
+        }
+        return false;
+    }
+
+    /** Travel and bite direction, including charm and a surfaced miner's return journey. */
     public float walkDirection() {
-        return isCharmed() ? 1F : -1F;
+        if (isCharmed()) return 1F;
+        for (Instance entry : capabilities) {
+            float direction = entry.capability.walkDirection(this);
+            if (!Float.isNaN(direction)) return direction;
+        }
+        return -1F;
     }
 
     /**
@@ -534,7 +557,7 @@ public class ZombieEntity extends PvzceEntity {
      */
     private void biteOrWalk(LevelServer level, ZombieEntity target) {
         if (target != null) {
-            setAnimation(EntityAnimations.EAT);
+            setAnimation(eatState());
             if (biteCooldown > 0) {
                 biteCooldown--;
                 return;
@@ -564,7 +587,7 @@ public class ZombieEntity extends PvzceEntity {
      * sound still plays - it was a bite, whatever came of it.
      */
     private void bitePlant(LevelServer level, PlantEntity plant) {
-        setAnimation(EntityAnimations.EAT);
+        setAnimation(eatState());
         if (biteCooldown > 0) {
             biteCooldown--;
             return;
@@ -821,6 +844,8 @@ public class ZombieEntity extends PvzceEntity {
             return;
         }
         grounded = true;
+        var flight = capability(FlyCapability.class);
+        if (flight != null) flight.pop(this, level);
         setAnimation(EntityAnimations.FALL);
         level.emitEffect("", cellX(), cellY(),
                 def.sounds().special().orElse(PvzceSounds.ZOMBIE_BALLOON_POP));
@@ -887,7 +912,14 @@ public class ZombieEntity extends PvzceEntity {
             // through the definition's own `animations` map - a state the art does not define
             // falls back to `idle` on the client, so a definition that opts into fire deaths
             // has to map it at the charred file.
-            setAnimation(burns ? EntityAnimations.DEATH_BURNED : EntityAnimations.DEATH);
+            String death = burns ? EntityAnimations.DEATH_BURNED : EntityAnimations.DEATH;
+            if (!burns) {
+                for (Instance instance : capabilities) {
+                    String override = instance.capability.deathState(this);
+                    if (override != null) { death = override; break; }
+                }
+            }
+            setAnimation(death);
             // The head leaves the body as its own particle. The model keeps it hidden in the
             // death clip - that is how the original is authored - so this is the only thing
             // that puts one on the lawn, and the sprite's own motion is what makes it drop
@@ -1048,7 +1080,7 @@ public class ZombieEntity extends PvzceEntity {
         return isImmobilized();
     }
 
-    private boolean isImmobilized() {
+    public boolean isImmobilized() {
         return statuses.stream().anyMatch(status -> status.status == ZombieStatus.IMMOBILIZED);
     }
 

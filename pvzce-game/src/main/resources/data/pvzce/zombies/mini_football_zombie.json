@@ -13,7 +13,8 @@
         {
           "id": "pvzce:football_helmet",
           "durability": 700,
-          "position": "top"
+          "position": "top",
+          "magnetic": true
         }
       ]
     }

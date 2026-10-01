@@ -4,7 +4,7 @@
     "resources": {
       "pvzce:sun": 125
     },
-    "cooldown": 1800
+    "cooldown": 450
   },
   "health": 300,
   "capabilities": [
@@ -13,15 +13,39 @@
       "interval": 90,
       "shots": [
         {
-          "projectile": "pvzce:pea",
-          "damage": 20,
-          "count": 1
-        },
-        {
-          "projectile": "pvzce:pea",
+          "projectile": "pvzce:star",
           "damage": 20,
           "count": 1,
-          "backward": true
+          "vector_x": -1,
+          "vector_y": 0
+        },
+        {
+          "projectile": "pvzce:star",
+          "damage": 20,
+          "count": 1,
+          "vector_x": 0,
+          "vector_y": 1
+        },
+        {
+          "projectile": "pvzce:star",
+          "damage": 20,
+          "count": 1,
+          "vector_x": 0,
+          "vector_y": -1
+        },
+        {
+          "projectile": "pvzce:star",
+          "damage": 20,
+          "count": 1,
+          "vector_x": 0.8660254037844386,
+          "vector_y": 0.5
+        },
+        {
+          "projectile": "pvzce:star",
+          "damage": 20,
+          "count": 1,
+          "vector_x": 0.8660254037844386,
+          "vector_y": -0.5
         }
       ]
     }

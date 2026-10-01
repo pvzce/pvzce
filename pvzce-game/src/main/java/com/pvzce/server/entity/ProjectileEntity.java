@@ -50,7 +50,7 @@ public class ProjectileEntity extends PvzceEntity {
      * house. A split pea fires both at once, so the direction belongs to the shot
      * rather than to the projectile definition - the same pea is used for both.
      */
-    private final float direction;
+    private float direction;
     /** Id of the zombie this shot was aimed at, or -1 for a straight shot. */
     private final int targetId;
     private final float targetX;
@@ -71,8 +71,11 @@ public class ProjectileEntity extends PvzceEntity {
      * three cells, and a projectile definition that hard-coded a distance would make that
      * unreachable. The reference the plant fired is the only place the number exists.
      */
-    private final float originX;
-    private final float maxRange;
+    private float originX;
+    private float originY;
+    private float vectorX;
+    private float vectorY;
+    private float maxRange;
     /**
      * Zombies this shot has already damaged.
      *
@@ -139,8 +142,11 @@ public class ProjectileEntity extends PvzceEntity {
         this.targetX = targetX;
         this.aimedAtPoint = aimedAtPoint;
         this.originX = cellX;
+        this.originY = cellY;
+        this.vectorX = ref != null ? ref.vectorX() : 1F;
+        this.vectorY = ref != null ? ref.vectorY() : 0F;
         this.maxRange = ref != null ? ref.range() : ProjectileRef.UNLIMITED_RANGE;
-        setHeight(startHeight);
+        setHeight(startHeight + (ref != null ? ref.launchHeight() : 0F));
         for (TypedCapability<ProjectileCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
         }
@@ -206,6 +212,10 @@ public class ProjectileEntity extends PvzceEntity {
         return direction;
     }
 
+    public float vectorX() { return vectorX; }
+
+    public float vectorY() { return vectorY; }
+
     /** The zombie this shot is homing on, or {@code -1}. */
     public int targetId() {
         return targetId;
@@ -249,14 +259,15 @@ public class ProjectileEntity extends PvzceEntity {
                 break;
             }
         }
-        if (cellX() > level.width() + 1F) {
+        if (cellX() > level.width() + 1F || cellX() < -1F
+                || cellY() < -1F || cellY() > level.height() + 1F) {
             remove();
             return;
         }
         // A short-ranged shot dies where its plant's reach ends. Measured from the muzzle,
         // which is both where this projectile was born and what the shooter's target search
         // measures from - one origin, so "worth firing at" and "can actually reach" agree.
-        if (maxRange > 0F && Math.abs(cellX() - originX) >= maxRange) {
+        if (maxRange > 0F && Math.hypot(cellX() - originX, cellY() - originY) >= maxRange) {
             remove();
             return;
         }
@@ -336,7 +347,7 @@ public class ProjectileEntity extends PvzceEntity {
 
     private ZombieEntity findTarget(LevelServer level) {
         boolean groundLayer = !def.isAirLayer();
-        for (ZombieEntity zombie : level.enemiesInRow(gridY(), team())) {
+        for (ZombieEntity zombie : (vectorY != 0F ? level.enemiesOf(team()) : level.enemiesInRow(gridY(), team()))) {
             if (zombie.isRemoved()) {
                 continue;
             }
@@ -356,7 +367,8 @@ public class ProjectileEntity extends PvzceEntity {
             if (groundLayer && !zombie.canBeHitByGround()) {
                 continue;
             }
-            if (Math.abs(zombie.cellX() - cellX()) < HIT_RADIUS_X + 0.05F
+            if ((vectorY == 0F || Math.abs(zombie.cellY() - cellY()) < 0.45F)
+                    && Math.abs(zombie.cellX() - cellX()) < HIT_RADIUS_X + 0.05F
                     && Math.abs(height() - zombie.height()) < HIT_TOLERANCE_Y) {
                 return zombie;
             }
@@ -370,6 +382,12 @@ public class ProjectileEntity extends PvzceEntity {
         tag.putInt("damage", damage);
         tag.putInt("targetId", targetId);
         tag.putFloat("targetX", targetX);
+        tag.putFloat("direction", direction);
+        tag.putFloat("vectorX", vectorX);
+        tag.putFloat("vectorY", vectorY);
+        tag.putFloat("originX", originX);
+        tag.putFloat("originY", originY);
+        tag.putFloat("maxRange", maxRange);
         CompoundTag saved = new CompoundTag();
         for (Instance instance : capabilities) {
             CompoundTag capabilityTag = new CompoundTag();
@@ -383,6 +401,13 @@ public class ProjectileEntity extends PvzceEntity {
     @Override
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
+        damage = tag.getInt("damage");
+        direction = tag.contains("direction") ? tag.getFloat("direction") : 1F;
+        vectorX = tag.contains("vectorX") ? tag.getFloat("vectorX") : 1F;
+        vectorY = tag.getFloat("vectorY");
+        originX = tag.contains("originX") ? tag.getFloat("originX") : cellX();
+        originY = tag.contains("originY") ? tag.getFloat("originY") : cellY();
+        maxRange = tag.getFloat("maxRange");
         CompoundTag saved = tag.getCompound("capabilities");
         for (Instance instance : capabilities) {
             instance.capability.load(saved.getCompound(instance.type.toString()));

@@ -15,6 +15,19 @@ import com.pvzce.server.entity.ZombieEntity;
  * can never silently disable base movement.
  */
 public interface ZombieCapability {
+    /** A carried metal object, independent of whether it protects the body. */
+    default com.pvzce.api.util.Identifier magneticItem(ZombieEntity zombie) { return null; }
+
+    default boolean removeMagneticItem(ZombieEntity zombie, LevelAccess level) { return false; }
+
+    /** NaN leaves the shared walking direction in charge. */
+    default float walkDirection(ZombieEntity zombie) { return Float.NaN; }
+
+    default String eatState(ZombieEntity zombie) { return null; }
+
+    /** Ordinary death may retain facing and removed-equipment state. */
+    default String deathState(ZombieEntity zombie) { return null; }
+
     default ZombieCapability instantiate() {
         return this;
     }

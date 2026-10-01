@@ -176,6 +176,20 @@ public final class ArmorCapability implements ZombieCapability {
      *
      * @return true when something came off
      */
+    @Override public Identifier magneticItem(ZombieEntity zombie) {
+        return pieces.stream().filter(p -> p.hp > 0 && p.def.magnetic())
+                .map(p -> p.def.id()).findFirst().orElse(null);
+    }
+
+    @Override public boolean removeMagneticItem(ZombieEntity zombie, LevelAccess level) {
+        Piece piece = pieces.stream().filter(p -> p.hp > 0 && p.def.magnetic()).findFirst().orElse(null);
+        if (piece == null) return false;
+        // Equipment taken by a magnet must not also fall as damage debris.
+        piece.hp = 0;
+
+        return true;
+    }
+
     public boolean strip(ZombieEntity zombie, LevelAccess level) {
         Piece piece = pieces.stream().filter(p -> p.hp > 0).findFirst().orElse(null);
         if (piece == null) {

@@ -150,7 +150,7 @@
   "plant.pvzce.snow_pea.desc": "Snow Peas shoot frozen peas that damage and slow the enemy.",
   "plant.pvzce.snow_pea.flavor": "Folks often tell Snow Pea how \"cool\" he is, or exhort him to \"chill out.\" They tell him to \"stay frosty.\" Snow Pea just rolls his eyes. He's heard 'em all.",
   "plant.pvzce.split_pea": "Split Pea",
-  "plant.pvzce.split_pea.desc": "Split Peas shoot peas forward and backwards.",
+  "plant.pvzce.split_pea.desc": "Its front head fires one pea; its rear head fires two. Each watches its own side.",
   "plant.pvzce.split_pea.flavor": "Yeah, I'm a Gemini,\" says Split Pea. \"I know, big surprise. But having two heads -- or really, one head with a large head-like growth on the back -- pays off big in my line of work.\"",
   "plant.pvzce.squash": "Squash",
   "plant.pvzce.squash.desc": "Squashes will smash the first zombie that gets close to it.",
@@ -742,13 +742,13 @@
   "plant.pvzce.blover.desc": "One gust blows every flying zombie off the lawn.",
   "plant.pvzce.starfruit": "Starfruit",
   "slot.pvzce.starfruit": "Starfruit",
-  "plant.pvzce.starfruit.desc": "Fires peas in five directions at once.",
+  "plant.pvzce.starfruit.desc": "Shoots stars left, up, down and diagonally forward.",
   "plant.pvzce.pumpkin": "Pumpkin",
   "slot.pvzce.pumpkin": "Pumpkin",
   "plant.pvzce.pumpkin.desc": "Shells the plant in its cell and takes the bites for it.",
   "plant.pvzce.magnet_shroom": "Magnet-shroom",
   "slot.pvzce.magnet_shroom": "Magnet-shroom",
-  "plant.pvzce.magnet_shroom.desc": "Pulls the armour off a nearby zombie in one piece.",
+  "plant.pvzce.magnet_shroom.desc": "Takes nearby metal equipment, then recharges. Sleeps in daylight.",
   "plant.pvzce.spikeweed.flavor": "\"It hurts to walk on.\" - a zombie, walking on it",
   "plant.pvzce.torchwood.flavor": "A burnt stump that never went out. Peas go in, fire peas come out.",
   "plant.pvzce.tall_nut.flavor": "A wall-nut's cousin. Pole vaulters put the pole away when they see it.",
@@ -907,5 +907,7 @@
   "plant.pvzce.resonance_moss.flavor": "Step up. Your beat belongs in this choir too.",
   "gui.pvzce.resonance_moss.offline": "No lily connected",
   "gui.pvzce.resonance_moss.host_haste": "Linked ×%.2f",
-  "gui.pvzce.resonance_moss.host_linked": "Linked"
+  "gui.pvzce.resonance_moss.host_linked": "Linked",
+  "projectile.pvzce.star": "Star",
+  "projectile.pvzce.cactus_spike_air": "Raised Cactus Spike"
 }

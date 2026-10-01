@@ -8,13 +8,14 @@ import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.network.packet.MagnetItemS2C;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 
 import java.util.Optional;
 
 /**
- * Pulls the armour off a nearby zombie (the magnet-shroom).
+ * Takes one magnetic armour piece or carried item from a nearby zombie.
  *
  * <p>The answer to a lane of bucketheads: instead of out-damaging the armour, it takes the armour
  * away, and every plant behind it is suddenly shooting at a bare zombie. One target at a time, on
@@ -27,7 +28,7 @@ import java.util.Optional;
  * to lose a piece (that is what happens when its durability runs out), so this asks it to and lets
  * the existing consequences follow - the equipment stops being drawn, the zombie's speed and its
  * eating rate go back to the bare ones, and a subsequent hit reaches the body. Nothing about that
- * is re-implemented here, which is why the capability is twenty lines of targeting around one call.
+ * is re-implemented here. Carried equipment has the same hook on its own capability.
  *
  * <p>A zombie with nothing to take is not a target, so a magnet-shroom on a lawn of bare zombies
  * simply waits: it is a counter to armour rather than a damage plant, and pretending otherwise
@@ -37,7 +38,7 @@ public final class MagnetCapability implements PlantCapability {
     /** How far it reaches, in cells. Longer than a shooter's lane: it is a utility, not a gun. */
     public static final float DEFAULT_RANGE = 4.5F;
     /** How often it can pull, in ticks. */
-    public static final int DEFAULT_INTERVAL_TICKS = 300;
+    public static final int DEFAULT_INTERVAL_TICKS = com.pvzce.common.PvzceConstants.MAGNET_RECOVERY_TICKS;
 
     private final float range;
     private final int intervalTicks;
@@ -45,6 +46,9 @@ public final class MagnetCapability implements PlantCapability {
 
     private int cooldown;
     private boolean pulling;
+    private String heldItem = "";
+    private float itemX, itemY;
+    private boolean resync;
 
     public MagnetCapability(float range, int intervalTicks, Optional<Identifier> sound) {
         this.range = Math.max(0.5F, range);
@@ -81,17 +85,23 @@ public final class MagnetCapability implements PlantCapability {
         pulling = false;
         if (cooldown > 0) {
             cooldown -= 1;
-            plant.setState(EntityAnimations.IDLE);
+            int elapsed = intervalTicks - cooldown;
+            plant.setState(elapsed < com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS
+                    ? EntityAnimations.SHOOT : "magnet_hold");
+            if (resync) { sendItem(plant, level, elapsed); resync = false; }
             return;
         }
         ZombieEntity target = nearestArmoured(plant, level);
         if (target == null) {
             // Nothing wearing anything within reach. The clock is *not* reset, so the pull happens
-            // on the tick armour walks into range rather than up to five seconds later.
+            // on the tick equipment walks into range rather than another recovery later.
             plant.setState(EntityAnimations.IDLE);
             return;
         }
-        if (target.stripArmor(level)) {
+        var item = target.magneticItem();
+        if (target.removeMagneticItem(level)) {
+            heldItem = item.toString(); itemX = target.cellX(); itemY = target.cellY();
+            sendItem(plant, level, 0);
             pulling = true;
             plant.setState(EntityAnimations.SHOOT);
             level.emitEffect("", plant.cellX(), plant.cellY(),
@@ -116,9 +126,10 @@ public final class MagnetCapability implements PlantCapability {
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;
         for (ZombieEntity zombie : level.enemiesOf(plant.team())) {
-            if (zombie.isRemoved() || !zombie.hasArmor()) {
+            if (zombie.isRemoved() || zombie.magneticItem() == null) {
                 continue;
             }
+            if (Math.abs(zombie.gridY() - plant.gridY()) > 2) continue;
             float dx = zombie.cellX() - plant.cellX();
             float dy = zombie.cellY() - plant.cellY();
             float distance = (float) Math.sqrt(dx * dx + dy * dy);
@@ -130,13 +141,31 @@ public final class MagnetCapability implements PlantCapability {
         return best;
     }
 
+    private void sendItem(PlantEntity plant, LevelAccess level, int elapsed) {
+        level.emitMagnetItem(plant.id(), Identifier.parse(heldItem), itemX, itemY,
+                level.tickCount() - elapsed, com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS, intervalTicks);
+    }
+
+    /** Current held object, retaining its elapsed pull/recovery time on a joining client. */
+    public MagnetItemS2C itemSnapshot(PlantEntity plant, int tick) {
+        if (cooldown <= 0 || heldItem.isEmpty()) return null;
+        return new MagnetItemS2C(plant.id(), heldItem, itemX, itemY,
+                tick - (intervalTicks - cooldown),
+                com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS, intervalTicks);
+    }
+
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
+        tag.putString("heldItem", heldItem);
+        tag.putFloat("itemX", itemX); tag.putFloat("itemY", itemY);
     }
 
     @Override
     public void load(CompoundTag tag) {
         cooldown = Math.max(0, tag.getInt("cooldown"));
+        heldItem = tag.getString("heldItem");
+        itemX = tag.getFloat("itemX"); itemY = tag.getFloat("itemY");
+        resync = cooldown > 0 && !heldItem.isEmpty();
     }
 }

@@ -112,6 +112,8 @@ public interface LevelAccess {
         return 1;
     }
 
+    default void blowFog(int ticks) { }
+
     void spawnProjectile(ProjectileRef ref, float x, float y, PlantEntity source);
 
     /**
@@ -262,6 +264,10 @@ public interface LevelAccess {
     void meltIceRow(int row);
 
     void emitEffect(String particle, float x, float y, Identifier sound);
+
+    /** Publishes an already-decided equipment transfer for the client to animate. */
+    default void emitMagnetItem(int plantId, Identifier item, float x, float y,
+                                int startTick, int pullTicks, int holdTicks) { }
 
     /**
      * The same, with the volume and pitch the sound is played at.

@@ -13,7 +13,8 @@
         {
           "id": "pvzce:bucket",
           "durability": 1100,
-          "position": "top"
+          "position": "top",
+          "magnetic": true
         }
       ]
     },
