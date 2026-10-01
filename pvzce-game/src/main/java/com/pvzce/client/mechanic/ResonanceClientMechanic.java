@@ -63,8 +63,8 @@ public final class ResonanceClientMechanic implements ClientMechanic {
         String text = String.format(GuiLang.raw("gui.pvzce.resonance.status",
                 "Resonance row %d · next row in %ds: %d"), current, seconds, next);
         String rule = String.format(GuiLang.raw("gui.pvzce.resonance.rule",
-                "%d%% faster zombies · lily attack rate ×%.1f"),
-                Math.round((data.zombieSpeed() - 1F) * 100F), data.plantRate());
+                "%d%% faster zombies · network-dependent haste, up to ×%.1f"),
+                Math.round((data.zombieSpeed() - 1F) * 100F), Math.min(data.plantRate(), PvzceConstants.ECHO_RESONANCE_RATE));
         float scale = 0.8F;
         float width = Math.max(client.fonts().body().width(text, scale),
                 client.fonts().body().width(rule, scale)) + 16F;

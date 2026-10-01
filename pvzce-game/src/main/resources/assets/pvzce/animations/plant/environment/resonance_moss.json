@@ -1,0 +1,185 @@
+{
+  "type": "controller",
+  "model": {
+    "size": [
+      0.96,
+      0.463125
+    ],
+    "bones": [
+      {
+        "name": "moss",
+        "parent": null,
+        "pivot": [
+          0,
+          0
+        ],
+        "transform": {
+          "translation": [
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1
+          ]
+        },
+        "parts": [
+          {
+            "texture": "pvzce:textures/entities/plant/environment/resonance_moss/body",
+            "uv": [
+              0,
+              0,
+              512,
+              247
+            ],
+            "size": [
+              0.96,
+              0.463125
+            ],
+            "offset": [
+              0,
+              0.1
+            ],
+            "z": 1
+          }
+        ]
+      }
+    ]
+  },
+  "animations": {
+    "idle": {
+      "animation_length": 2.4,
+      "loop": true,
+      "rate": 1,
+      "transition": 0.08,
+      "bones": {
+        "moss": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "1.2": [
+              1.015,
+              0.985
+            ],
+            "2.4": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {}
+    },
+    "linked": {
+      "animation_length": 1.5,
+      "loop": true,
+      "rate": 1,
+      "transition": 0.08,
+      "bones": {
+        "moss": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.75": [
+              1.025,
+              0.975
+            ],
+            "1.5": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {}
+    },
+    "charged": {
+      "animation_length": 0.9,
+      "loop": true,
+      "rate": 1,
+      "transition": 0.08,
+      "bones": {
+        "moss": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.45": [
+              1.05,
+              0.95
+            ],
+            "0.9": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {}
+    }
+  }
+}

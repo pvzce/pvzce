@@ -1896,7 +1896,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // mini-game's red line is: a level that only accepts the left half must not
                 // look like it accepts a click it is going to refuse.
                 boolean allowed = client.level().inPlacementZone(hoverX, hoverY);
-                if (PvzceIds.ECHO_LILY.toString().equals(selectedCardId())) {
+                if (PvzceIds.ECHO_LILY.toString().equals(selectedCardId())
+                        || PvzceIds.RESONANCE_MOSS.toString().equals(selectedCardId())) {
                     echoLilyLinks.renderPreview(client, hoverX, hoverY);
                 }
                 // On a level whose cards plant a whole column, the tint covers the column - which

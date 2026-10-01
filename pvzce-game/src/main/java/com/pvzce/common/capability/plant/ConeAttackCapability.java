@@ -87,6 +87,7 @@ public final class ConeAttackCapability implements PlantCapability {
      */
     public static final int DEFAULT_CLOUD_COUNT = 32;
 
+    private final com.pvzce.common.level.RateClock clock = new com.pvzce.common.level.RateClock();
     private final int intervalTicks;
     private final int damage;
     private final float range;
@@ -177,7 +178,7 @@ public final class ConeAttackCapability implements PlantCapability {
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
         if (cooldown > 0) {
-            cooldown--;
+            cooldown = Math.max(0, cooldown - clock.step(plant.actionRate()));
             if (cooldown == 0) {
                 plant.setState(EntityAnimations.IDLE);
             }
@@ -292,11 +293,13 @@ public final class ConeAttackCapability implements PlantCapability {
      */
     @Override
     public void save(CompoundTag tag) {
+        clock.save(tag);
         tag.putInt("cooldown", cooldown);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        clock.load(tag);
         cooldown = tag.getInt("cooldown");
     }
 }

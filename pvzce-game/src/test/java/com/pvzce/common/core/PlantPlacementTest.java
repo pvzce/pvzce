@@ -119,6 +119,18 @@ class PlantPlacementTest {
     }
 
     @Test
+    void resonanceMossIsALandCarrierWithAnOrdinaryUpperPlant() {
+        assertTrue(canPlace("resonance_moss", "grass"));
+        assertTrue(canPlace("resonance_moss", "roof_flat"));
+        assertFalse(canPlace("resonance_moss", "water"));
+        assertFalse(canPlace("resonance_moss", "grass", "flower_pot"));
+        assertFalse(canPlace("resonance_moss", "water", "lily_pad"));
+        assertTrue(canPlace("pea_shooter", "grass", "resonance_moss"));
+        assertTrue(canPlace("sunflower", "ground", "resonance_moss"));
+        assertFalse(canPlace("sunflower", "grass", "resonance_moss", "pea_shooter"));
+    }
+
+    @Test
     void grassAcceptsAPlantDirectly() {
         assertTrue(canPlace("pea_shooter", "grass"));
         assertTrue(canPlace("sunflower", "grass"));

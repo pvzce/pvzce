@@ -540,6 +540,7 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_PORTAL = id("portal");
     public static final Identifier MECHANIC_RESONANCE = id("resonance");
     public static final Identifier ECHO_LILY = id("echo_lily");
+    public static final Identifier RESONANCE_MOSS = id("resonance_moss");
     public static final Identifier ECHO_WAVE = id("echo_wave");
     public static final Identifier ECHO_RING = id("echo_ring");
     public static final Identifier ECHO_CHIME = id("original/echo_chime");

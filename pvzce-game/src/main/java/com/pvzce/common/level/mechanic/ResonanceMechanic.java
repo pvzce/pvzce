@@ -6,6 +6,7 @@ import com.pvzce.api.content.ResonanceData;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.capability.plant.EchoRelayCapability;
+import com.pvzce.common.capability.plant.EchoNetwork;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
@@ -58,12 +59,12 @@ public final class ResonanceMechanic implements LevelMechanic<ResonanceData> {
         Set<PlantEntity> visited = new HashSet<>();
         for (int x = 0; x < level.width(); x++) {
             for (PlantEntity plant : level.plantsAt(x, status.row())) {
-                if (visited.contains(plant) || plant.capability(EchoRelayCapability.class) == null
+                if (visited.contains(plant) || !EchoNetwork.node(plant, level)
                         || !plant.team().id().equals(PvzceIds.PLANT_TEAM)) {
                     continue;
                 }
                 var choir = EchoRelayCapability.choir(plant, level);
-                visited.addAll(choir.keySet());
+                visited.addAll(EchoNetwork.nodes(plant, level).keySet());
                 EchoRelayCapability.boost(choir, level, data.plantRate());
             }
         }

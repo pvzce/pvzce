@@ -11,12 +11,11 @@ package com.pvzce.common.level;
  *
  * <p>The arithmetic is exact rather than rounded per tick: an accumulator that added
  * {@code round(rate)} every tick would drift, and one that rounded down would make a plant at 1.5x
- * fire no faster at all. Steps are derived from the tick count instead, so 1.5 delivers three steps
- * every two ticks and 4/3 - what being watered is worth - delivers four every three, forever.
+ * fire no faster at all. Only this tick's rate enters the accumulator; changing a rate never
+ * revalues previously earned work. Fractional progress is preserved across saving.
  */
 public final class RateClock {
-    private int ticks;
-    private int steps;
+    private double fraction;
 
     /**
      * One tick of progress.
@@ -26,12 +25,17 @@ public final class RateClock {
      * @return the whole steps earned this tick, which may be zero or more than one
      */
     public int step(float rate) {
-        ticks++;
-        // Steps so far, truncated from the exact product: the fraction is carried in `ticks`
-        // rather than lost, which is what makes a fractional rate come out even in the long run.
-        int total = (int) (ticks * Math.max(0F, rate));
-        int gain = Math.max(0, total - steps);
-        steps = total;
+        double progress = fraction + Math.max(0F, rate);
+        int gain = (int) progress;
+        fraction = progress - gain;
         return gain;
+    }
+
+    public void save(com.pvzce.common.nbt.CompoundTag tag) {
+        tag.putDouble("rateFraction", fraction);
+    }
+
+    public void load(com.pvzce.common.nbt.CompoundTag tag) {
+        fraction = Math.max(0D, Math.min(Math.nextDown(1D), tag.getDouble("rateFraction")));
     }
 }

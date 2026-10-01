@@ -10,6 +10,7 @@ import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
+import com.pvzce.common.network.packet.EchoNetworkS2C;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
@@ -83,6 +84,11 @@ public final class PvzceClientPacketListener implements PacketListener {
             ClientEntity entity = level.entities().get(update.entityId());
             if (entity != null) {
                 entity.apply(update);
+            }
+        } else if (packet instanceof EchoNetworkS2C status) {
+            ClientEntity entity = level.entities().get(status.entityId());
+            if (entity != null) {
+                entity.apply(status);
             }
         } else if (packet instanceof EntityDespawnS2C despawn) {
             level.removeEntity(despawn.entityId());

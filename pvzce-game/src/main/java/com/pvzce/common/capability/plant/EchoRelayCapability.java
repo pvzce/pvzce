@@ -70,7 +70,7 @@ public final class EchoRelayCapability implements PlantCapability {
             relay(member).advance(member, level);
         }
         if (choir.isEmpty() || choir.keySet().stream().anyMatch(p -> relay(p).restRemaining > 0F
-                || level.tickCount() < relay(p).relayUntil) || !hasTarget(choir, level)) {
+                || level.tickCount() < relay(p).relayUntil) || !hasTarget(EchoNetwork.nodes(plant, level), level)) {
             return;
         }
         schedule(choir, level);
@@ -86,42 +86,35 @@ public final class EchoRelayCapability implements PlantCapability {
         // Accumulate only the current tick's rate. Multiplying elapsed time by a changing
         // rate would retroactively award a burst of attacks, then stall when haste ends.
         if (now > relayUntil) {
-            restRemaining = Math.max(0F, restRemaining - plant.actionRate(resonanceRate(now)));
+            restRemaining = Math.max(0F, restRemaining - plant.actionRate(resonanceRate(plant, level)));
         }
     }
 
-    private float resonanceRate(int now) {
-        return Math.max(now < resonanceUntil ? PvzceConstants.ECHO_RESONANCE_RATE : 1F,
-                rowBoostTick == now ? rowBoostRate : 1F);
+    private float resonanceRate(PlantEntity plant, LevelAccess level) {
+        return EchoNetwork.status(plant, level).rate();
     }
 
-    /** Orthogonal neighbours only; dead, sleeping and opposing plants never carry a signal. */
+    int charge() {
+        return charge;
+    }
+
+    int resonanceUntil() {
+        return resonanceUntil;
+    }
+
+    float rowRate(int now) {
+        return rowBoostTick == now ? rowBoostRate : 1F;
+    }
+
+    /** Lily voices and their shortest cell distances, including paths through moss. */
     public static Map<PlantEntity, Integer> choir(PlantEntity root, LevelAccess level) {
-        Map<PlantEntity, Integer> distances = new LinkedHashMap<>();
-        if (!eligible(root, level)) {
-            return distances;
-        }
-        distances.put(root, 0);
-        List<PlantEntity> queue = new ArrayList<>();
-        queue.add(root);
-        for (int index = 0; index < queue.size(); index++) {
-            PlantEntity current = queue.get(index);
-            for (int[] step : new int[][]{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}) {
-                int x = current.gridX() + step[0];
-                int y = current.gridY() + step[1];
-                if (x < 0 || x >= level.width() || y < 0 || y >= level.height()) {
-                    continue;
-                }
-                for (PlantEntity neighbour : level.plantsAt(x, y)) {
-                    if (eligible(neighbour, level) && neighbour.team().id().equals(root.team().id())
-                            && !distances.containsKey(neighbour)) {
-                        distances.put(neighbour, distances.get(current) + 1);
-                        queue.add(neighbour);
-                    }
-                }
+        Map<PlantEntity, Integer> result = new LinkedHashMap<>();
+        EchoNetwork.nodes(root, level).forEach((plant, distance) -> {
+            if (relay(plant) != null) {
+                result.put(plant, distance);
             }
-        }
-        return distances;
+        });
+        return result;
     }
 
     private static boolean eligible(PlantEntity plant, LevelAccess level) {
@@ -156,7 +149,7 @@ public final class EchoRelayCapability implements PlantCapability {
         int charge = choir.keySet().stream().mapToInt(p -> relay(p).charge).min().orElse(0);
         int resonanceUntil = choir.keySet().stream().mapToInt(p -> relay(p).resonanceUntil).max().orElse(0);
         boolean ownResonance = now < resonanceUntil;
-        if (choir.size() > 1 && !ownResonance) {
+        if (EchoNetwork.nodes(choir.keySet().iterator().next(), level).size() > 1 && !ownResonance) {
             charge++;
         }
         boolean charged = charge >= PvzceConstants.ECHO_CHARGE_VOLLEYS;
@@ -165,9 +158,12 @@ public final class EchoRelayCapability implements PlantCapability {
             capability.charge = charged ? 0 : charge;
             capability.resonanceUntil = charged ? now + tail + PvzceConstants.ECHO_RESONANCE_TICKS
                     : resonanceUntil;
+        }
+        for (Map.Entry<PlantEntity, Integer> entry : choir.entrySet()) {
+            EchoRelayCapability capability = relay(entry.getKey());
             int amount = choir.size() > 1 ? capability.linkedDamage : capability.damage;
             capability.pending.add(new Pulse(now + entry.getValue() * PvzceConstants.ECHO_RELAY_TICKS,
-                    amount, capability.resonanceRate(now) > 1F, entry.getValue() == 0));
+                    amount, capability.resonanceRate(entry.getKey(), level) > 1F, entry.getValue() == 0));
             capability.restRemaining = capability.interval;
             capability.relayUntil = now + tail;
             capability.clockTick = now;
@@ -194,7 +190,7 @@ public final class EchoRelayCapability implements PlantCapability {
             animationUntil = 0;
         }
         if (animationUntil == 0) {
-            plant.setState(resonanceRate(now) > 1F ? "charged" : charge > 0 ? "charge_" + charge : "idle");
+            plant.setState(resonanceRate(plant, level) > 1F ? "charged" : charge > 0 ? "charge_" + charge : "idle");
         }
         for (int i = 0; i < pending.size();) {
             Pulse pulse = pending.get(i);

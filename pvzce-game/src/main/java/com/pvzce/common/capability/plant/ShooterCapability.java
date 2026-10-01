@@ -422,10 +422,12 @@ public final class ShooterCapability implements PlantCapability {
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
+        clock.save(tag);
     }
 
     @Override
     public void load(CompoundTag tag) {
         cooldown = tag.getInt("cooldown");
+        clock.load(tag);
     }
 }

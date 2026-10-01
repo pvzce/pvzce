@@ -23,6 +23,7 @@ import java.util.Optional;
 public final class ThrowerCapability implements PlantCapability {
     public static final int DEFAULT_INTERVAL = 90;
 
+    private final com.pvzce.common.level.RateClock clock = new com.pvzce.common.level.RateClock();
     private final int intervalTicks;
     private final List<ProjectileRef> shots;
     private final float butterChance;
@@ -86,7 +87,7 @@ public final class ThrowerCapability implements PlantCapability {
     public void tick(PlantEntity plant, LevelAccess level) {
         firePendingLobs(plant, level);
         if (cooldown > 0) {
-            cooldown--;
+            cooldown = Math.max(0, cooldown - clock.step(plant.actionRate()));
             if (cooldown == 0) {
                 plant.setState(EntityAnimations.IDLE);
             }
@@ -217,11 +218,13 @@ public final class ThrowerCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        clock.save(tag);
         tag.putInt("cooldown", cooldown);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        clock.load(tag);
         cooldown = tag.getInt("cooldown");
     }
 }

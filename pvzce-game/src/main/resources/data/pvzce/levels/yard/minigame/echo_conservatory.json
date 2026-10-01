@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/echo_conservatory",
   "name": "回声温室",
-  "description": "原创小游戏：青绿色共鸣行每12秒向上一行移动，最后回到最下行。该行僵尸移动加快35%，接入该行的回声铃兰网络攻速翻倍。上下左右相邻的铃兰会接力，连续三轮接力蓄满能量后，在任何关卡都能进入6秒共鸣爆发。开场的两株教你接线，别忘了向新行延伸。通关解锁回声铃兰，可带入普通关卡。",
+  "description": "原创小游戏：共鸣行每12秒移动，该行僵尸加速35%，触及它的铃兰或共鸣苔激活整个网络。铃兰越多，加速越强，最高3倍。把攻击植物或向日葵种在共鸣苔上，它们也能分享网络加速；相邻共鸣苔可延伸线路。普通关卡里，三轮接力可触发6秒共鸣。通关解锁回声铃兰与共鸣苔，已通关的玩家重玩也可领取共鸣苔。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -81,13 +81,14 @@
   "slots": [
     "pvzce:sun",
     "pvzce:echo_lily",
+    "pvzce:resonance_moss",
     "pvzce:sunflower",
     "pvzce:wall_nut",
     "pvzce:pea_shooter",
     "pvzce:cherry_bomb",
     "pvzce:shovel"
   ],
-  "max_seed_slots": 7,
+  "max_seed_slots": 8,
   "seed_screen": false,
   "initial_sun": 325,
   "mechanics": [
@@ -274,12 +275,12 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "把铃兰种在上下左右相邻格：金线接通，声波接力；接力三轮蓄满能量，在普通关卡也能爆发6秒！",
+      "text": "铃兰越多，共鸣加速越强：1株1.5倍，3株2倍，最多3倍。三轮接力可在普通关卡触发6秒共鸣！",
       "duration_ticks": 540
     },
     {
       "trigger": "on_start",
-      "text": "青绿色共鸣行：僵尸加速35%；连到这行的铃兰网络攻速翻倍。每次仍各发一枚，出手节奏更快！",
+      "text": "先铺共鸣苔，再种攻击植物或向日葵，让它们接入网络。相邻苔可延伸线路；共鸣行触及铃兰或苔都会激活网络！",
       "duration_ticks": 540
     },
     {
@@ -294,6 +295,10 @@
     "first_clear": [
       {
         "type": "unlock",
+        "id": "pvzce:resonance_moss"
+      },
+      {
+        "type": "unlock",
         "id": "pvzce:echo_lily"
       },
       {
@@ -302,6 +307,10 @@
       }
     ],
     "repeat": [
+      {
+        "type": "unlock",
+        "id": "pvzce:resonance_moss"
+      },
       {
         "type": "coins",
         "amount": 250

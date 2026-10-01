@@ -23,6 +23,7 @@ public final class MeleeCapability implements PlantCapability {
     public static final float DEFAULT_RANGE = 0.7F;
     public static final int DEFAULT_CHEW_TICKS = 240;
 
+    private final com.pvzce.common.level.RateClock clock = new com.pvzce.common.level.RateClock();
     private final float range;
     private final int swallowMaxHealth;
     private final int chewTicks;
@@ -99,7 +100,7 @@ public final class MeleeCapability implements PlantCapability {
         if (remainingChewTicks <= 0) {
             return false;
         }
-        remainingChewTicks--;
+        remainingChewTicks = Math.max(0, remainingChewTicks - clock.step(plant.actionRate()));
         plant.setState(EntityAnimations.CHEW);
         if (remainingChewTicks == 0) {
             plant.remove();
@@ -144,11 +145,13 @@ public final class MeleeCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        clock.save(tag);
         tag.putInt("chew", remainingChewTicks);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        clock.load(tag);
         remainingChewTicks = tag.getInt("chew");
     }
 }

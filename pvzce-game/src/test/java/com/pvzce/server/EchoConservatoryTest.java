@@ -6,6 +6,8 @@ import com.pvzce.api.content.ZombieStatus;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.capability.plant.EchoRelayCapability;
+import com.pvzce.common.capability.plant.EchoNetwork;
+import com.pvzce.common.network.packet.EchoNetworkS2C;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ProjectileEntity;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -49,6 +51,9 @@ class EchoConservatoryTest {
         int zombies;
         int resonantShots;
         MechanicSyncS2C resonance;
+        final java.util.Map<Integer, EchoNetworkS2C> networks = new java.util.HashMap<>();
+        final java.util.Map<Integer, Integer> peas = new java.util.HashMap<>();
+        final java.util.Map<Integer, Integer> suns = new java.util.HashMap<>();
         final java.util.Map<Integer, String> animations = new java.util.HashMap<>();
 
         @Override
@@ -57,9 +62,18 @@ class EchoConservatoryTest {
                 if (PvzceIds.ECHO_WAVE.toString().equals(spawn.defId())) {
                     waves++;
                 }
+                if ("pvzce:pea".equals(spawn.defId())) {
+                    peas.merge((int) spawn.cellY(), 1, Integer::sum);
+                }
+                if (PvzceIds.SUN.toString().equals(spawn.defId()) && (Math.abs(spawn.cellX() - 2.56F) < 0.0001F || Math.abs(spawn.cellX() - 2.5F) < 0.0001F)) {
+                    suns.merge((int) spawn.cellY(), 1, Integer::sum);
+                }
                 if ("zombie".equals(spawn.entityKind())) {
                     zombies++;
                 }
+            }
+            if (packet instanceof EchoNetworkS2C status) {
+                networks.put(status.entityId(), status);
             }
             if (packet instanceof EntityUpdateS2C update) {
                 animations.put(update.entityId(), update.animation());
@@ -190,7 +204,7 @@ class EchoConservatoryTest {
             assertEquals(bridge.waves, restoredBridge.waves, "same next-shot timing after restore");
             assertEquals(bridge.resonantShots, restoredBridge.resonantShots);
         }
-        assertEquals(8, bridge.waves, "four further finite volleys fit into the charged cadence");
+        assertEquals(6, bridge.waves, "two lilies earn 1.75x haste, with three further finite volleys");
     }
 
     @Test
@@ -206,8 +220,8 @@ class EchoConservatoryTest {
         level.installMechanic(shipped.mechanics().getFirst());
         tick(level, bridge, 1);
         assertEquals(1, bridge.waves, "entering haste does not multiply the 120 ticks already elapsed");
-        tick(level, bridge, 29);
-        assertEquals(1, bridge.waves, "haste accelerates the remaining 61 steps only");
+        tick(level, bridge, 39);
+        assertEquals(1, bridge.waves, "one lily earns 1.5x on the remaining 61 steps only");
         tick(level, bridge, 1);
         assertEquals(2, bridge.waves);
         level.removeMechanic(PvzceIds.MECHANIC_RESONANCE);
@@ -218,6 +232,102 @@ class EchoConservatoryTest {
         CompoundTag capabilitySave = new CompoundTag();
         lily.capability(EchoRelayCapability.class).save(capabilitySave);
         assertEquals(0, capabilitySave.getInt("charge"), "a solo shot cannot charge a relay");
+    }
+
+    private static PlantEntity plant(LevelServer level, String id, int x, int y) {
+        return level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id(id)),
+                level.team(PvzceIds.PLANT_TEAM), x, y);
+    }
+
+    @Test
+    void mossCarriesFiniteRelaysAcrossGapsAndDisconnectsItsUpperPlant() {
+        LevelServer level = quiet(false);
+        Bridge bridge = new Bridge();
+        lily(level, 1, 2);
+        PlantEntity link = plant(level, "resonance_moss", 2, 2);
+        plant(level, "resonance_moss", 3, 2);
+        PlantEntity host = plant(level, "pea_shooter", 3, 2);
+        lily(level, 4, 2);
+        plant(level, "resonance_moss", 5, 3);
+        PlantEntity diagonal = plant(level, "sunflower", 5, 3);
+        ZombieEntity target = zombie(level, "gargantuar", 8F, 2);
+        target.applyStatus(ZombieStatus.IMMOBILIZED, 2000, 1F);
+        level.flushPending(bridge);
+        tick(level, bridge, 24);
+        assertEquals(1, bridge.waves, "the second voice is three cells away, not an instant bonus shot");
+        tick(level, bridge, 1);
+        assertEquals(2, bridge.waves, "moss transports the signal without firing its own projectile");
+        tick(level, bridge, 425);
+        assertEquals(1.75F, host.actionRate(), 0.0001F);
+        assertEquals(2, bridge.networks.get(host.id()).lilies(), "empty conduits add no strength");
+        assertEquals(0, EchoNetwork.status(diagonal, level).lilies(), "a diagonal does not connect");
+        lily(level, 1, 1);
+        tick(level, bridge, 1);
+        assertEquals(2F, host.actionRate(), "a newly joined third lily changes the current rate immediately");
+        link.remove();
+        tick(level, bridge, 1);
+        assertEquals(1.5F, host.actionRate(), "the detached right branch has only one charged lily");
+        level.plantsAt(4, 2).getFirst().remove();
+        tick(level, bridge, 1);
+        assertEquals(1F, host.actionRate());
+        assertEquals(0, bridge.networks.get(host.id()).networkId(), "the streamed badge explicitly clears");
+    }
+
+    @Test
+    void aMossOnlyIntersectionExcitesHostedAttacksAndProductionAndRestoresTheirClocks() {
+        LevelServer level = quiet(false);
+        level.random().setSeed(17);
+        Bridge bridge = new Bridge();
+        // The row touches moss at y=2; neither source lily stands in the resonant row.
+        lily(level, 1, 1);
+        lily(level, 1, 0);
+        plant(level, "resonance_moss", 2, 1);
+        plant(level, "resonance_moss", 2, 2);
+        plant(level, "sunflower", 2, 2);
+        plant(level, "resonance_moss", 3, 2);
+        PlantEntity fastPea = plant(level, "pea_shooter", 3, 2);
+        plant(level, "sunflower", 2, 4);
+        plant(level, "pea_shooter", 3, 4);
+        for (int row : new int[]{2, 4}) {
+            ZombieEntity target = zombie(level, "gargantuar", 8F, row);
+            target.applyStatus(ZombieStatus.IMMOBILIZED, 2000, 1F);
+        }
+        level.installMechanic(shipped.mechanics().getFirst());
+        level.flushPending(bridge);
+        tick(level, bridge, 700);
+        assertEquals(1.75F, fastPea.actionRate());
+        assertTrue(bridge.peas.get(2) > bridge.peas.get(4), "real single peas arrive more often");
+        assertTrue(bridge.suns.get(2) > bridge.suns.get(4), "real produced suns arrive more often");
+        System.out.printf("[moss] window=%.2fs sources=2 rate=1.75x peaClockInterval=%.3fs effectivePeaInterval=0.867..0.883s basePeaInterval=1.517s sunInterval=%.3fs baseSunInterval=18.000s linkedPeas=%d ordinaryPeas=%d linkedSun=%d ordinarySun=%d paidCarrierCost=75%n",
+                700 / 60F, 1.5F / 1.75F, 18F / 1.75F, bridge.peas.get(2), bridge.peas.get(4),
+                bridge.suns.get(2) * 25, bridge.suns.get(4) * 25);
+        LevelServer resumed = quiet(false);
+        resumed.installMechanic(shipped.mechanics().getFirst());
+        resumed.restore(level.save());
+        Bridge restored = new Bridge();
+        resumed.sendFullState(restored);
+        Bridge joining = new Bridge();
+        level.sendFullState(joining);
+        assertEquals(bridge.networks.get(fastPea.id()), joining.networks.get(fastPea.id()),
+                "a paused joining client receives the actual network rate");
+        PlantEntity restoredPea = resumed.plantsAt(3, 2).stream()
+                .filter(p -> p.defId().equals(fastPea.defId())).findFirst().orElseThrow();
+        assertEquals(1.75F, restored.networks.get(restoredPea.id()).rate(),
+                "restored entities have new runtime ids, but preserve their network rate");
+        bridge.peas.clear();
+        bridge.suns.clear();
+        restored.peas.clear();
+        restored.suns.clear();
+        for (int i = 0; i < 150; i++) {
+            tick(level, bridge, 1);
+            tick(resumed, restored, 1);
+            assertEquals(bridge.peas, restored.peas, "same next attack after fractional progress was saved");
+            assertEquals(bridge.suns, restored.suns, "same next production after fractional progress was saved");
+        }
+        level.removeMechanic(PvzceIds.MECHANIC_RESONANCE);
+        level.zombiesInRow(2).forEach(ZombieEntity::remove);
+        tick(level, bridge, 400); // The intrinsic burst may finish; row 4 keeps the quiet fixture running.
+        assertEquals(1F, fastPea.actionRate(), "no stale row acceleration after excitation and intrinsic charge end");
     }
 
     private record Purchase(Identifier card, int x, int y) {
@@ -239,6 +349,9 @@ class EchoConservatoryTest {
         level.flushPending(bridge);
         List<Purchase> plan = new ArrayList<>();
         for (int y = 0; y < 4; y++) {
+            if (y == 1 || y == 2) {
+                plan.add(new Purchase("resonance_moss", 0, y));
+            }
             plan.add(new Purchase("sunflower", 0, y));
         }
         for (int y : new int[]{0, 3, 4}) {
@@ -282,7 +395,7 @@ class EchoConservatoryTest {
             }
         }
         int remaining = level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
-        System.out.printf("[echo] seed=%d difficulty=%s state=%s seconds=%.1f spawned=%d peak=%d waves=%d resonantShots=%d purchases=%d spent=%d collected=%d remaining=%d rowEvery=12.0s lilyRate=2x speed=1.35x%n",
+        System.out.printf("[echo] seed=%d difficulty=%s state=%s seconds=%.1f spawned=%d peak=%d waves=%d resonantShots=%d purchases=%d spent=%d collected=%d remaining=%d rowEvery=12.0s lilyRate=1.5..3x speed=1.35x%n",
                 seed, level.difficulty(), level.gameState(), level.tickCount() / 60F, bridge.zombies,
                 peakZombies, bridge.waves, bridge.resonantShots, next, spent, collected, remaining);
         assertEquals(GameStateS2C.WON, level.gameState(), "the paid, connected defence wins");
@@ -290,5 +403,8 @@ class EchoConservatoryTest {
         assertTrue(spent >= 1075, "the win used purchased lilies and producers, with no free planting");
         assertTrue(shipped.rewards().firstClear().stream().anyMatch(r -> r.isUnlock()
                 && r.id().orElse(null).equals(PvzceIds.ECHO_LILY)), "the clear unlocks ordinary use");
+        assertTrue(shipped.rewards().repeat().stream().anyMatch(r -> r.isUnlock()
+                && r.id().orElse(null).equals(PvzceIds.RESONANCE_MOSS)),
+                "returning players can unlock moss by replaying the level");
     }
 }

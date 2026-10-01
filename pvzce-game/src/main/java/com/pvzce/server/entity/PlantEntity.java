@@ -8,6 +8,9 @@ import com.pvzce.api.entity.EntityLayers;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.capability.plant.EchoNetwork;
+import com.pvzce.common.capability.plant.EchoRelayCapability;
+import com.pvzce.common.network.packet.EchoNetworkS2C;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
 
@@ -71,6 +74,8 @@ public class PlantEntity extends PvzceEntity {
      * handle - the shooter and the producer spend it, and neither was written to ask.
      */
     private float actionSpeedMultiplier = 1F;
+    private float echoRate = 1F;
+    private EchoNetworkS2C lastEchoStatus;
 
     /**
      * What being watered is worth, as a rate rather than as "a tick every third one".
@@ -220,7 +225,7 @@ public class PlantEntity extends PvzceEntity {
      */
     public float actionRate(float extraRate) {
         return actionSpeedMultiplier * Math.max(0.1F, extraRate)
-                * (wateredTicks > 0 ? WATERED_ACTION_SPEED : 1F);
+                * (wateredTicks > 0 ? WATERED_ACTION_SPEED : 1F) * echoRate;
     }
 
     /**
@@ -373,6 +378,8 @@ public class PlantEntity extends PvzceEntity {
             tickVanish();
             return;
         }
+        // Lilies own their finite relay clock; hosted plants use the shared action rate.
+        echoRate = capability(EchoRelayCapability.class) != null ? 1F : EchoNetwork.status(this, level).rate();
         age++;
         if (wateredTicks > 0) {
             wateredTicks--;
@@ -418,6 +425,18 @@ public class PlantEntity extends PvzceEntity {
             // happened to produce on. Publishing here rather than suppressing the producer is
             // deliberate: the sun still has to arrive.
             setState(com.pvzce.api.entity.EntityAnimations.SLEEP);
+        }
+    }
+
+    /** Stream changed membership/charge/rate; also explicitly clears a severed connection. */
+    public void syncEchoNetwork(LevelServer level, LevelServer.ServerBridge bridge, boolean full) {
+        EchoNetworkS2C status = EchoNetwork.status(this, level);
+        if ((full || !status.equals(lastEchoStatus))
+                && (status.lilies() > 0 || lastEchoStatus != null && lastEchoStatus.lilies() > 0)) {
+            bridge.send(status);
+        }
+        if (!full) {
+            lastEchoStatus = status;
         }
     }
 
@@ -651,6 +670,7 @@ public class PlantEntity extends PvzceEntity {
         CompoundTag tag = saveBaseState();
         tag.putInt("age", age);
         tag.putInt("watered", wateredTicks);
+        sharedClock.save(tag);
         CompoundTag saved = new CompoundTag();
         for (Instance instance : capabilities) {
             CompoundTag capabilityTag = new CompoundTag();
@@ -675,6 +695,7 @@ public class PlantEntity extends PvzceEntity {
         // A save written before watering existed has no key, and getInt answers 0 - the plant
         // reads back dry, which is what it was.
         wateredTicks = Math.max(0, tag.getInt("watered"));
+        sharedClock.load(tag);
         restoreCapabilities(tag);
     }
 
@@ -691,6 +712,7 @@ public class PlantEntity extends PvzceEntity {
         restoreBaseState(tag);
         age = tag.getInt("age");
         wateredTicks = Math.max(0, tag.getInt("watered"));
+        sharedClock.load(tag);
         restoreCapabilities(tag);
     }
 

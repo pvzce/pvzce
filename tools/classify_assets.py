@@ -50,6 +50,8 @@ LABEL = {
 #: 分类规则，**顺序敏感**——第一条命中的生效，所以特例要写在通例前面。
 #: 每条 = (正则, 分类, 依据)。正则匹配的是相对 `assets/pvzce/` 的路径。
 RULES: list[tuple[str, str, str]] = [
+    (r"^(textures/entities/plant/environment/resonance_moss/|textures/gui/cards/resonance_moss\.png$|animations/plant/environment/resonance_moss\.json$)", ORIGINAL,
+     "GPT Image 原创共鸣苔，源图 tools/art/resonance_moss.png；tools/build_resonance_moss.py 打包高清贴图、卡面与原生动画"),
     (r"^(textures/entities/plant/attacker/echo_lily/|textures/gui/cards/echo_lily\.png$|animations/plant/attacker/echo_lily\.json$)", ORIGINAL,
      "GPT Image 原创回声铃兰，源图 tools/art/echo_lily.png；tools/build_echo_lily.sh 打包卡面与手写动画"),
     (r"^(textures/entities/projectile/echo_wave\.png$|textures/particles/effect/echo_ring\.png$|sounds/original/echo_chime\.ogg$)", OWN,

@@ -1,0 +1,23 @@
+{
+  "id": "pvzce:resonance_moss",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 75
+    },
+    "cooldown": 300
+  },
+  "health": 300,
+  "placement": {
+    "layer": 0,
+    "count": 1,
+    "group": "carrier"
+  },
+  "capabilities": [
+    {
+      "type": "pvzce:echo_conduit"
+    }
+  ],
+  "animation_dir": "plant/environment",
+  "texture": "pvzce:textures/entities/plant/environment/resonance_moss/body",
+  "order": 64
+}

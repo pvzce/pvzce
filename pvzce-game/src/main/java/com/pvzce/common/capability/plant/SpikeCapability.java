@@ -52,6 +52,7 @@ public final class SpikeCapability implements PlantCapability {
      */
     public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_IMPACT;
 
+    private final com.pvzce.common.level.RateClock clock = new com.pvzce.common.level.RateClock();
     private final int intervalTicks;
     private final int damage;
     private final Identifier damageType;
@@ -124,7 +125,7 @@ public final class SpikeCapability implements PlantCapability {
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
         stabbing = false;
-        cooldown -= 1;
+        cooldown -= clock.step(plant.actionRate());
         if (cooldown > 0) {
             plant.setState(EntityAnimations.IDLE);
             return;
@@ -133,7 +134,7 @@ public final class SpikeCapability implements PlantCapability {
             stabbing = true;
             // The plant's own rate: watered counts faster, and a mutation that rewrites how fast
             // plants work at all reaches this clock for free.
-            cooldown = Math.max(1, Math.round(intervalTicks / Math.max(0.1F, plant.actionRate(1F))));
+            cooldown = intervalTicks;
             plant.setState(EntityAnimations.ATTACK);
             if (sound.isPresent()) {
                 level.emitEffect("", plant.cellX(), plant.cellY(), sound.get());
@@ -214,11 +215,13 @@ public final class SpikeCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        clock.save(tag);
         tag.putInt("cooldown", cooldown);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        clock.load(tag);
         cooldown = Math.max(0, tag.getInt("cooldown"));
     }
 }

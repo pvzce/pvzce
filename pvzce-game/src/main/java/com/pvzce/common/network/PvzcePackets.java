@@ -15,6 +15,7 @@ import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
+import com.pvzce.common.network.packet.EchoNetworkS2C;
 import com.pvzce.common.network.packet.GameSpeedS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
@@ -138,7 +139,8 @@ public final class PvzcePackets {
     // placement preview can draw the column it is about to fill.
     // 45: a music cue can ask the client to preload instead of play (MusicEventS2C.preload), which
     // is how the level's song is decoded while it loads rather than nine ticks after it was due.
-    public static final int PROTOCOL_VERSION = 47;
+    // 48: authoritative lily network membership, charge and current haste.
+    public static final int PROTOCOL_VERSION = 48;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -209,6 +211,7 @@ public final class PvzcePackets {
     public static final int S2C_ROUND_SYNC = S2C_BASE + 28;
     /** An endless round is over and the run is waiting for the player's next card choice. */
     public static final int S2C_ROUND_CLEAR = S2C_BASE + 29;
+    public static final int S2C_ECHO_NETWORK = S2C_BASE + 31;
     /**
      * The save prompt's 重新开始.
      *
@@ -295,6 +298,7 @@ public final class PvzcePackets {
             def(S2C_OPEN_EDITOR, ConnectionDirection.CLIENTBOUND, OpenEditorS2C.class, OpenEditorS2C::decode),
             def(S2C_SCENE_SYNC, ConnectionDirection.CLIENTBOUND, SceneSyncS2C.class, SceneSyncS2C::decode),
             def(S2C_ENTITY_SPAWN, ConnectionDirection.CLIENTBOUND, EntitySpawnS2C.class, EntitySpawnS2C::decode),
+            def(S2C_ECHO_NETWORK, ConnectionDirection.CLIENTBOUND, EchoNetworkS2C.class, EchoNetworkS2C::decode),
             def(S2C_ENTITY_UPDATE, ConnectionDirection.CLIENTBOUND, EntityUpdateS2C.class, EntityUpdateS2C::decode),
             def(S2C_ENTITY_DESPAWN, ConnectionDirection.CLIENTBOUND, EntityDespawnS2C.class,
                     EntityDespawnS2C::decode),

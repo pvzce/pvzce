@@ -48,6 +48,7 @@ public final class CobCannonCapability implements PlantCapability {
     /** How long the "just became loaded" clip plays before the waiting loop takes over. */
     public static final int DEFAULT_ARM_TICKS = 75;
 
+    private final com.pvzce.common.level.RateClock clock = new com.pvzce.common.level.RateClock();
     private final int initialTicks;
     private final int reloadTicks;
     private final Identifier projectile;
@@ -189,7 +190,7 @@ public final class CobCannonCapability implements PlantCapability {
             return;
         }
         if (charge > 0) {
-            charge--;
+            charge = Math.max(0, charge - clock.step(plant.actionRate()));
             if (charge > 0) {
                 plant.setState(EntityAnimations.IDLE);
                 return;
@@ -210,6 +211,7 @@ public final class CobCannonCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        clock.save(tag);
         tag.putInt("charge", charge);
         tag.putInt("shooting", shooting);
         tag.putInt("arming", arming);
@@ -218,6 +220,7 @@ public final class CobCannonCapability implements PlantCapability {
 
     @Override
     public void load(CompoundTag tag) {
+        clock.load(tag);
         charge = Math.max(0, tag.getInt("charge"));
         shooting = Math.max(0, tag.getInt("shooting"));
         arming = Math.max(0, tag.getInt("arming"));

@@ -241,6 +241,7 @@ public final class ProducerCapability implements PlantCapability {
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("cooldown", cooldown);
+        clock.save(tag);
         tag.putInt("growTicks", growTicks);
         tag.putInt("growingTicks", growingTicks);
     }
@@ -248,6 +249,7 @@ public final class ProducerCapability implements PlantCapability {
     @Override
     public void load(CompoundTag tag) {
         cooldown = tag.getInt("cooldown");
+        clock.load(tag);
         // A plant saved mid-growth finishes growing where it left off; one saved by a build
         // without growth, or by a definition that has none, keeps the timer it was built
         // with (see the constructor), so the block below only applies to a real growth.

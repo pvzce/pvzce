@@ -2437,6 +2437,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 plantAi.tick(this);
                 flushPending(bridge);
             }
+            for (PvzceEntity entity : entities) {
+                if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
+                    plant.syncEchoNetwork(this, bridge, false);
+                }
+            }
             tickEntities(ZombieEntity.class, bridge);
             tickEntities(ProjectileEntity.class, bridge);
             tickEntities(ResourceDropEntity.class, bridge);
@@ -5584,6 +5589,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         for (PvzceEntity entity : entities) {
             bridge.send(entity.spawnPacket());
+        }
+        for (PvzceEntity entity : entities) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
+                plant.syncEchoNetwork(this, bridge, true);
+            }
         }
         // After the entities, so a client that joins a run whose player is carrying a packet
         // learns both where the packet was and that it is in the hand rather than on the lawn.

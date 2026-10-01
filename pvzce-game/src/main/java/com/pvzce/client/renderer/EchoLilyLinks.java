@@ -27,7 +27,8 @@ public final class EchoLilyLinks {
             return List.of();
         }
         return client.level().entities().values().stream()
-                .filter(e -> PvzceIds.ECHO_LILY.equals(e.defId()) && e.health() > 0
+                .filter(e -> (PvzceIds.ECHO_LILY.equals(e.defId())
+                        || PvzceIds.RESONANCE_MOSS.equals(e.defId())) && e.health() > 0
                         && !"sleep".equals(e.animation())
                         && !FogClientMechanic.hides(client.level(), e.cellX(), e.cellY())).toList();
     }
@@ -35,15 +36,6 @@ public final class EchoLilyLinks {
     private static boolean adjacent(ClientEntity a, ClientEntity b) {
         return a.teamId().equals(b.teamId())
                 && Math.abs(a.gridX() - b.gridX()) + Math.abs(a.gridY() - b.gridY()) == 1;
-    }
-
-    static boolean resonating(String animation) {
-        return "charged".equals(animation) || "resonate".equals(animation);
-    }
-
-    static int charge(String animation) {
-        return resonating(animation) ? PvzceConstants.ECHO_CHARGE_VOLLEYS
-                : animation.endsWith("charge_2") ? 2 : animation.endsWith("charge_1") ? 1 : 0;
     }
 
     private static boolean shooting(String animation) {
@@ -64,8 +56,18 @@ public final class EchoLilyLinks {
         seenAnimations.keySet().retainAll(live);
         shotTicks.keySet().retainAll(live);
         var ring = BuiltInRegistries.PARTICLES.get(PvzceIds.ECHO_RING);
+        if (ring != null) {
+            for (ClientEntity host : client.level().entities().values()) {
+                if (!lilies.contains(host) && host.echoNetwork().rate() > 1F && host.health() > 0
+                        && !StormClientMechanic.hides(client.level())
+                        && !FogClientMechanic.hides(client.level(), host.cellX(), host.cellY())) {
+                    client.drawTexture(ring.look().texture(), host.cellX() - 0.54F,
+                            host.cellY() - 0.54F, 1.08F, 1.08F, 0.07F, 1F, 0.95F, 0.55F, 0.8F);
+                }
+            }
+        }
         for (ClientEntity a : lilies) {
-            boolean resonating = resonating(a.animation());
+            boolean resonating = a.echoNetwork().rate() > 1F;
             if (resonating && ring != null) {
                 float size = 1.18F + (float) Math.sin(now / 10F) * 0.04F;
                 client.drawTexture(ring.look().texture(),
@@ -76,7 +78,7 @@ public final class EchoLilyLinks {
                 if (b.id() <= a.id() || !adjacent(a, b)) {
                     continue;
                 }
-                float thickness = resonating || resonating(b.animation()) ? 0.08F : 0.05F;
+                float thickness = resonating || b.echoNetwork().rate() > 1F ? 0.08F : 0.05F;
                 client.drawSolid(Math.min(a.cellX(), b.cellX()) - thickness / 2F,
                         Math.min(a.cellY(), b.cellY()) - thickness / 2F,
                         Math.abs(a.cellX() - b.cellX()) + thickness,
@@ -134,14 +136,16 @@ public final class EchoLilyLinks {
         List<ClientEntity> lilies = visibleLilies(client);
         Set<Integer> labelled = new HashSet<>();
         for (ClientEntity lily : lilies) {
-            int charge = charge(lily.animation());
+            int charge = lily.echoNetwork().charge();
             float[] anchor = gaugeAnchor(client, lily);
             float x = anchor[0];
             float y = anchor[1];
-            client.drawSolid(x - 15F, y, 30F, 6F, 8F, 0.03F, 0.16F, 0.13F, 0.95F);
-            for (int i = 0; i < PvzceConstants.ECHO_CHARGE_VOLLEYS; i++) {
-                client.drawSolid(x - 13F + i * 9F, y + 1.5F, 8F, 3F, 8.1F,
-                        i < charge ? 1F : 0.22F, i < charge ? 0.85F : 0.36F, 0.28F, 1F);
+            if (PvzceIds.ECHO_LILY.equals(lily.defId())) {
+                client.drawSolid(x - 15F, y, 30F, 6F, 8F, 0.03F, 0.16F, 0.13F, 0.95F);
+                for (int i = 0; i < PvzceConstants.ECHO_CHARGE_VOLLEYS; i++) {
+                    client.drawSolid(x - 13F + i * 9F, y + 1.5F, 8F, 3F, 8.1F,
+                            i < charge ? 1F : 0.22F, i < charge ? 0.85F : 0.36F, 0.28F, 1F);
+                }
             }
             if (labelled.contains(lily.id())) {
                 continue;
@@ -149,18 +153,22 @@ public final class EchoLilyLinks {
             List<ClientEntity> group = new ArrayList<>();
             group.add(lily);
             labelled.add(lily.id());
-            for (int i = 0; i < group.size(); i++) {
-                for (ClientEntity other : lilies) {
-                    if (!labelled.contains(other.id()) && adjacent(group.get(i), other)) {
-                        labelled.add(other.id());
-                        group.add(other);
-                    }
+            for (ClientEntity other : lilies) {
+                if (lily.echoNetwork().networkId() != 0
+                        && other.echoNetwork().networkId() == lily.echoNetwork().networkId()
+                        && !labelled.contains(other.id())) {
+                    labelled.add(other.id());
+                    group.add(other);
                 }
             }
             ClientEntity top = group.stream().max(java.util.Comparator.comparingInt(ClientEntity::gridY)
                     .thenComparingInt(e -> -e.gridX())).orElse(lily);
-            String text = resonating(top.animation()) ? GuiLang.raw("gui.pvzce.echo_lily.resonating", "RESONANCE · RAPID FIRE")
-                    : group.size() > 1 ? String.format(GuiLang.raw("gui.pvzce.echo_lily.charging", "Relay %d/3"), charge(top.animation()))
+            var status = top.echoNetwork();
+            String text = status.rate() > 1F
+                    ? String.format(GuiLang.raw("gui.pvzce.echo_lily.resonating", "%d lilies · rate ×%.2f"),
+                            status.lilies(), status.rate())
+                    : status.lilies() == 0 ? GuiLang.raw("gui.pvzce.resonance_moss.offline", "No lily connected")
+                    : group.size() > 1 ? String.format(GuiLang.raw("gui.pvzce.echo_lily.charging", "Relay %d/3"), status.charge())
                     : GuiLang.raw("gui.pvzce.echo_lily.solo", "Solo · connect neighbours");
             float scale = 0.7F;
             float width = client.fonts().body().width(text, scale) + 8F;
@@ -171,6 +179,29 @@ public final class EchoLilyLinks {
                     0.03F, 0.16F, 0.13F, 0.95F);
             client.fonts().body().draw(text, labelX - width / 2F + 4F, labelY + 2F,
                     scale, 1F, 0.9F, 0.45F, 1F);
+        }
+        if (!StormClientMechanic.hides(client.level())) {
+            for (ClientEntity host : client.level().entities().values()) {
+                if (host.echoNetwork().lilies() == 0 || lilies.contains(host) || host.health() <= 0
+                        || FogClientMechanic.hides(client.level(), host.cellX(), host.cellY())) {
+                    continue;
+                }
+                String text = host.echoNetwork().rate() > 1F
+                        ? String.format(GuiLang.raw("gui.pvzce.resonance_moss.host_haste", "Linked ×%.2f"), host.echoNetwork().rate())
+                        : GuiLang.raw("gui.pvzce.resonance_moss.host_linked", "Linked · charging");
+                float scale = 0.65F;
+                // Each host's badge stays inside its cell; adjacent plants cannot cover its text.
+                float available = client.camera().unitX() / client.guiScale() - 8F;
+                float textWidth = client.fonts().body().width(text, scale);
+                scale *= Math.min(1F, Math.max(1F, available - 6F) / Math.max(1F, textWidth));
+                float width = client.fonts().body().width(text, scale) + 6F;
+                float x = client.camera().screenX(host.cellX()) / client.guiScale();
+                // The bottom row's feet overlap the mechanic HUD, which ends at y=46.
+                float y = Math.max(54F, client.camera().screenY(host.cellY() - 0.27F) / client.guiScale());
+                client.drawSolid(x - width / 2, y, width, 11F, 8F, 0.03F, 0.16F, 0.13F, 0.95F);
+                client.fonts().body().draw(text, x - width / 2 + 3F, y + 2F,
+                        scale, 1F, 0.9F, 0.45F, 1F);
+            }
         }
     }
 }

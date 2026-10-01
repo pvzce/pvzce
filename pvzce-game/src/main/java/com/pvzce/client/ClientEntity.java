@@ -7,6 +7,7 @@ import com.pvzce.client.animation.AnimationHandle;
 import com.pvzce.client.animation.AnimationManager;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
+import com.pvzce.common.network.packet.EchoNetworkS2C;
 
 /**
  * Client-side half of an entity.
@@ -18,6 +19,16 @@ import com.pvzce.common.network.packet.EntityUpdateS2C;
  * server decision (a zombie's layer changes while it digs or flies).
  */
 public final class ClientEntity extends Entity implements com.pvzce.client.api.MovingTarget {
+    private EchoNetworkS2C echoNetwork;
+
+    public EchoNetworkS2C echoNetwork() {
+        return echoNetwork == null ? EchoNetworkS2C.empty(id()) : echoNetwork;
+    }
+
+    public void apply(EchoNetworkS2C status) {
+        echoNetwork = status;
+    }
+
     private final String kind;
     private final int layer;
     /** Owning team id as sent by the server; drives per-team rendering and access checks. */
