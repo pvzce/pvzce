@@ -41,6 +41,7 @@ public final class ClientMechanics {
         register(new RakeClientMechanic());
         register(new PreparationClientMechanic());
         register(new PortalClientMechanic());
+        register(new ResonanceClientMechanic());
         register(new RhythmClientMechanic());
     }
 
@@ -50,6 +51,15 @@ public final class ClientMechanics {
 
     public static ClientMechanic get(Identifier id) {
         return REGISTRY.get(id);
+    }
+
+    public static void renderHud(PvzceClient client) {
+        for (Identifier id : client.level().mechanicIds()) {
+            ClientMechanic mechanic = REGISTRY.get(id);
+            if (mechanic != null) {
+                mechanic.renderHud(client);
+            }
+        }
     }
 
     /** Every mechanic this client knows, in registration order. */

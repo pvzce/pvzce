@@ -36,6 +36,10 @@ public interface ClientMechanic {
     default void applySync(ClientLevel level, PacketByteBuf payload) {
     }
 
+    /** Extra information drawn in GUI space after the ordinary HUD. */
+    default void renderHud(com.pvzce.client.PvzceClient client) {
+    }
+
     /** A card bar this mechanic replaces the ordinary seed bar with, or {@code null}. */
     default CardBar createCardBar(CardBar.Host host) {
         return null;

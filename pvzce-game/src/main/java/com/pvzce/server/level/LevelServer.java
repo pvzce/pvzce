@@ -1000,6 +1000,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public float zombieSpeedMultiplier(ZombieEntity zombie) {
+        float factor = 1F;
+        for (TypedMechanic typed : mechanics) {
+            factor *= LevelMechanics.zombieSpeedMultiplier(typed, this, zombie);
+        }
+        return factor;
+    }
+
+    @Override
     public Random random() {
         return random;
     }
@@ -5550,6 +5559,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return null;
         });
         bridge.send(new SceneSyncS2C(SceneCells.forGrid(sceneIds())));
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanics.sendState(typed, this, bridge);
+        }
         // What is playing, for a client that arrived after the cue did: a resumed run, or a
         // second player joining. Sent after the init packet so the client has a level to attach
         // the track to, and harmless when the track is the one it already started - the music

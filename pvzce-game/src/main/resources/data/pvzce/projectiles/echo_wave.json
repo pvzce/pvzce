@@ -1,0 +1,8 @@
+{
+  "id": "pvzce:echo_wave",
+  "layer": "ground",
+  "capabilities": [{"type": "pvzce:linear", "speed": 4.0}],
+  "texture": "pvzce:textures/entities/projectile/echo_wave",
+  "impact_particle": "pvzce:echo_ring",
+  "render_scale": 0.6
+}

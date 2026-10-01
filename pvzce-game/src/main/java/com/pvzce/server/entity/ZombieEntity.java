@@ -643,7 +643,8 @@ public class ZombieEntity extends PvzceEntity {
                 speed *= status.magnitude;
             }
         }
-        return speed * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER);
+        return speed * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER)
+                * level.zombieSpeedMultiplier(this);
     }
 
     /** Leaving the board by the edge this zombie walks towards; see {@link #checkReachedEdge}. */

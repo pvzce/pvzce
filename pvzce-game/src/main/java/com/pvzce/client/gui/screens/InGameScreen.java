@@ -1551,6 +1551,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // banner are messages about it.
         mutationHud.renderDarkness(client);
         renderHud();
+        com.pvzce.client.mechanic.ClientMechanics.renderHud(client);
         if (rhythm != null) {
             // The chart's clock is read here rather than in `tick()`: the first note may be pressed
             // on any frame, and the render loop is the one that runs on all of them.

@@ -538,6 +538,11 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_PREPARATION = id("preparation");
     /** 斗转星移: pairs of cells a ground zombie travels between. */
     public static final Identifier MECHANIC_PORTAL = id("portal");
+    public static final Identifier MECHANIC_RESONANCE = id("resonance");
+    public static final Identifier ECHO_LILY = id("echo_lily");
+    public static final Identifier ECHO_WAVE = id("echo_wave");
+    public static final Identifier ECHO_RING = id("echo_ring");
+    public static final Identifier ECHO_CHIME = id("original/echo_chime");
     /** 种子雨: seed packets the level drops onto the lawn on a clock. */
     public static final Identifier MECHANIC_SEED_RAIN = id("seed_rain");
     /** 我是僵尸: the enemy's garden, laid out round by round. */

@@ -15,6 +15,14 @@ public final class PvzceConstants {
     public static final int DEFAULT_GRID_HEIGHT = 5;
 
     public static final int PLANT_CARD_COOLDOWN_TICKS = 300;
+    public static final int ECHO_INTERVAL_TICKS = 180;
+    public static final int ECHO_DAMAGE = 40;
+    public static final int ECHO_LINKED_DAMAGE = 60;
+    public static final int ECHO_RELAY_TICKS = 8;
+    public static final int RESONANCE_INTERVAL_TICKS = 720;
+    public static final int RESONANCE_PULSE_TICKS = 180;
+    public static final int RESONANCE_DAMAGE = 30;
+    public static final float RESONANCE_ZOMBIE_SPEED = 1.35F;
     public static final int PEA_SHOOTER_COST = 100;
     public static final int INITIAL_SUN = 150;
     public static final int SUN_VALUE = 25;

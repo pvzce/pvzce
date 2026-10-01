@@ -11,6 +11,7 @@ import com.pvzce.common.capability.plant.CobCannonCapability;
 import com.pvzce.common.capability.plant.ConeAttackCapability;
 import com.pvzce.common.capability.plant.DragUnderCapability;
 import com.pvzce.common.capability.plant.ExplosiveCapability;
+import com.pvzce.common.capability.plant.EchoRelayCapability;
 import com.pvzce.common.capability.plant.FreezeAllCapability;
 import com.pvzce.common.capability.plant.GoldMagnetCapability;
 import com.pvzce.common.capability.plant.GraveBusterCapability;
@@ -41,6 +42,7 @@ import java.util.List;
  */
 public final class PlantCapabilities {
     public static final CapabilityType<ShooterCapability> SHOOTER = type("shooter", ShooterCapability.CODEC);
+    public static final CapabilityType<EchoRelayCapability> ECHO_RELAY = type("echo_relay", EchoRelayCapability.CODEC);
     public static final CapabilityType<ThrowerCapability> THROWER = type("thrower", ThrowerCapability.CODEC);
     public static final CapabilityType<ProducerCapability> PRODUCER = type("producer", ProducerCapability.CODEC);
     public static final CapabilityType<ExplosiveCapability> EXPLOSIVE = type("explosive", ExplosiveCapability.CODEC);
@@ -142,6 +144,7 @@ public final class PlantCapabilities {
     /** Registers every built-in plant capability; called from {@code BuiltInRegistries}. */
     public static void bootstrap() {
         register(SHOOTER, "shooter");
+        register(ECHO_RELAY, "echo_relay");
         register(COB_CANNON, "cob_cannon");
         register(GOLD_MAGNET, "gold_magnet");
         register(THROWER, "thrower");

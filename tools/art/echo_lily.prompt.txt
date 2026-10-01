@@ -1,0 +1,7 @@
+Generation tool: built-in image_gen / GPT Image. Genuine transparent alpha requested.
+Original output: exec-ffe7dc8b-a8aa-43ad-95ff-ea789fa788fb.png
+Project source: tools/art/echo_lily.png
+Packaging: tools/build_echo_lily.sh (resize, card canvas, native controller tracks).
+
+Generation prompt:
+Use case: stylized-concept. Asset type: original 2D tower-defense plant game sprite, production art on genuine transparent alpha. Create an ORIGINAL character called Echo Lily (回声铃兰): a small cheerful lily-of-the-valley plant, an elegantly curved mint-green stem holding THREE large bell-shaped flowers, teal outer petals with warm golden glowing inner rims. The biggest center bell has a readable expressive little face with dark eyes and a confident smile; two smaller bells flank it. Broad low green leaves form sturdy feet. The bells suggest sound resonance, with tiny gold stamens, but no floating music notes or effects. Cartoon hand-painted game art, clean dark green outlines, simple rounded forms, warm soft highlights, uncluttered silhouette readable when reduced to 70 pixels tall, view from slightly above, front three-quarter view with the flowers tilted subtly to the right, full body including leaf feet. One single character centered, fills roughly 80 percent of a square image, generous transparent margins, completely isolated. No shadow painted into the sprite; no grass, ground, planter pot, text, lettering, logos, border, watermark, extra characters, background, or sprite sheet. This must be a fresh character design, not a recognizable existing character.

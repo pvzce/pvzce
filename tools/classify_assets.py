@@ -50,6 +50,10 @@ LABEL = {
 #: 分类规则，**顺序敏感**——第一条命中的生效，所以特例要写在通例前面。
 #: 每条 = (正则, 分类, 依据)。正则匹配的是相对 `assets/pvzce/` 的路径。
 RULES: list[tuple[str, str, str]] = [
+    (r"^(textures/entities/plant/attacker/echo_lily/|textures/gui/cards/echo_lily\.png$|animations/plant/attacker/echo_lily\.json$)", ORIGINAL,
+     "GPT Image 原创回声铃兰，源图 tools/art/echo_lily.png；tools/build_echo_lily.sh 打包卡面与手写动画"),
+    (r"^(textures/entities/projectile/echo_wave\.png$|textures/particles/effect/echo_ring\.png$|sounds/original/echo_chime\.ogg$)", OWN,
+     "tools/build_echo_lily.sh 生成的声波几何图形与合成铃声，无原版素材"),
     # ---- 原创（**必须先判**，见下面那条注释：通例 `textures/entities/*/.+/` 会把它收走）----
     # 冰爆菇：本项目第一株**不由原版 reanim 转换来的**植物。源图是文生图模型按"冰蓝色蘑菇"
     # 这一通用形象生成的（`tools/art/iceboom_*.png`，随 GPL-3.0 留在仓库里），

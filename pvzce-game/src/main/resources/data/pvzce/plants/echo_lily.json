@@ -1,0 +1,9 @@
+{
+  "id": "pvzce:echo_lily",
+  "cost": {"resources": {"pvzce:sun": 125}, "cooldown": 300},
+  "health": 300,
+  "capabilities": [{"type": "pvzce:echo_relay"}],
+  "animation_dir": "plant/attacker",
+  "texture": "pvzce:textures/entities/plant/attacker/echo_lily/body",
+  "order": 63
+}

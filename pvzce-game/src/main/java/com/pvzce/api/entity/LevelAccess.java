@@ -26,6 +26,11 @@ public interface LevelAccess {
 
     int tickCount();
 
+    /** The movement multiplier of the mechanics affecting this zombie right now. */
+    default float zombieSpeedMultiplier(ZombieEntity zombie) {
+        return 1F;
+    }
+
     /** The level's own {@link Random}; capabilities must never allocate their own. */
     Random random();
 

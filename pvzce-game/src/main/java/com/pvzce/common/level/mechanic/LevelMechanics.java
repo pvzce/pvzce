@@ -51,6 +51,7 @@ public final class LevelMechanics {
     public static final PreparationMechanic PREPARATION = new PreparationMechanic();
     /** Pairs of portals a ground zombie travels between. */
     public static final PortalMechanic PORTAL = new PortalMechanic();
+    public static final ResonanceMechanic RESONANCE = new ResonanceMechanic();
     /** Seed packets the level drops onto the lawn on a clock. */
     public static final SeedRainMechanic SEED_RAIN = new SeedRainMechanic();
     /** I, Zombie's board: the enemy's garden, round by round. */
@@ -92,6 +93,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_ENDLESS, ENDLESS);
         register(PvzceIds.MECHANIC_PREPARATION, PREPARATION);
         register(PvzceIds.MECHANIC_PORTAL, PORTAL);
+        register(PvzceIds.MECHANIC_RESONANCE, RESONANCE);
         register(PvzceIds.MECHANIC_SEED_RAIN, SEED_RAIN);
         register(PvzceIds.MECHANIC_PLANT_GARDEN, PLANT_GARDEN);
         register(PvzceIds.MECHANIC_RHYTHM, RHYTHM);
@@ -499,6 +501,22 @@ public final class LevelMechanics {
     // ------------------------------------------------------------------
     // Erased-to-typed bridges. One unchecked cast each, in one file.
     // ------------------------------------------------------------------
+
+    @SuppressWarnings("unchecked")
+    public static <D extends MechanicData> float zombieSpeedMultiplier(TypedMechanic typed,
+            LevelServer level, com.pvzce.server.entity.ZombieEntity zombie) {
+        LevelMechanic<D> mechanic = (LevelMechanic<D>) get(typed.type());
+        return mechanic == null ? 1F : mechanic.zombieSpeedMultiplier(level, (D) typed.value(), zombie);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <D extends MechanicData> void sendState(TypedMechanic typed, LevelServer level,
+                                                         LevelServer.ServerBridge bridge) {
+        LevelMechanic<D> mechanic = (LevelMechanic<D>) get(typed.type());
+        if (mechanic != null) {
+            mechanic.sendState(level, (D) typed.value(), bridge);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     private static <D extends MechanicData> MapCodec<TypedMechanic> typedBlock(

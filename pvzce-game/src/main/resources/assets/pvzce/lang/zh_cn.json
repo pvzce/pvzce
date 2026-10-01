@@ -884,5 +884,20 @@
   "plant.pvzce.iceboom_shroom.flavor": "“别急着融化，”冰爆菇说，“先让它站住，再让它碎。”",
   "slot.pvzce.iceboom_shroom": "冰爆菇",
   "projectile.pvzce.iceboom_bolt": "冰弹",
-  "damage_type.pvzce.shatter": "碎冰"
+  "damage_type.pvzce.shatter": "碎冰",
+  "plant.pvzce.echo_lily": "回声铃兰",
+  "slot.pvzce.echo_lily": "回声铃兰",
+  "plant.pvzce.echo_lily.desc": "125阳光。单株每3秒发射40伤害声波；上下左右相邻的铃兰组成网络，每株依次发射60伤害声波，最后一株响完后休息3秒。每轮每株只响应一次，斜邻不相连。",
+  "plant.pvzce.echo_lily.flavor": "“一朵唱不完的歌，就交给下一朵。”叶子牵起叶子，整个温室便有了回声。",
+  "projectile.pvzce.echo_wave": "回声声波",
+  "particle.pvzce.echo_ring": "回声光环",
+  "pvzce.mechanic.resonance": "移动共鸣行",
+  "pvzce.mechanic.resonance.desc": "共鸣行周期移动，僵尸加速；触及此行的铃兰网络得到额外声波。",
+  "pvzce.mechanic.resonance.field.interval_ticks": "换行间隔（tick）",
+  "pvzce.mechanic.resonance.field.pulse_ticks": "额外声波间隔（tick）",
+  "pvzce.mechanic.resonance.field.opening_row": "起始行（从下方0起）",
+  "pvzce.mechanic.resonance.field.zombie_speed": "僵尸移动倍率",
+  "pvzce.mechanic.resonance.field.damage": "额外声波伤害",
+  "gui.pvzce.resonance.status": "共鸣第%d行 · %d秒后移至第%d行",
+  "gui.pvzce.resonance.rule": "该行僵尸加速%d%% · 相连铃兰获得额外声波"
 }
