@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** A connected choir, with one wave per member and a shared rest after the last echo. */
+/** A finite relay which stores three beats, then accelerates its own attack clock. */
 public final class EchoRelayCapability implements PlantCapability {
     public static final MapCodec<EchoRelayCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.intRange(1, 7200).optionalFieldOf("interval", PvzceConstants.ECHO_INTERVAL_TICKS)
@@ -32,12 +32,17 @@ public final class EchoRelayCapability implements PlantCapability {
     private final int interval;
     private final int damage;
     private final int linkedDamage;
-    private int readyAt;
-    private int resonanceReadyAt;
+    private float restRemaining;
+    private int relayUntil;
+    private int clockTick = -1;
+    private int charge;
+    private int resonanceUntil;
+    private int rowBoostTick = -1;
+    private float rowBoostRate = 1F;
     private int animationUntil;
     private final List<Pulse> pending = new ArrayList<>();
 
-    private record Pulse(int at, int damage, String animation) {
+    private record Pulse(int at, int damage, boolean resonating, boolean root) {
     }
 
     public EchoRelayCapability(int interval, int damage, int linkedDamage) {
@@ -54,18 +59,40 @@ public final class EchoRelayCapability implements PlantCapability {
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
         tickPending(plant, level);
-        if (level.tickCount() < readyAt) {
+        advance(plant, level);
+        if (restRemaining > 0F || level.tickCount() < relayUntil) {
             return;
         }
         Map<PlantEntity, Integer> choir = choir(plant, level);
-        // Every member shares this gate. Adding a leaf to a choir cannot buy another volley,
-        // and a square of four plants cannot keep ringing itself forever.
-        if (choir.keySet().stream().anyMatch(p -> level.tickCount() < relay(p).readyAt)
-                || !hasTarget(choir, level)) {
+        // Advance each member once, before checking the shared gate. Tick order must not give
+        // a late member a second clock step or delay a whole choir by one member's iteration.
+        for (PlantEntity member : choir.keySet()) {
+            relay(member).advance(member, level);
+        }
+        if (choir.isEmpty() || choir.keySet().stream().anyMatch(p -> relay(p).restRemaining > 0F
+                || level.tickCount() < relay(p).relayUntil) || !hasTarget(choir, level)) {
             return;
         }
-        schedule(choir, level, false, 0, interval);
+        schedule(choir, level);
         tickPending(plant, level);
+    }
+
+    private void advance(PlantEntity plant, LevelAccess level) {
+        int now = level.tickCount();
+        if (clockTick == now) {
+            return;
+        }
+        clockTick = now;
+        // Accumulate only the current tick's rate. Multiplying elapsed time by a changing
+        // rate would retroactively award a burst of attacks, then stall when haste ends.
+        if (now > relayUntil) {
+            restRemaining = Math.max(0F, restRemaining - plant.actionRate(resonanceRate(now)));
+        }
+    }
+
+    private float resonanceRate(int now) {
+        return Math.max(now < resonanceUntil ? PvzceConstants.ECHO_RESONANCE_RATE : 1F,
+                rowBoostTick == now ? rowBoostRate : 1F);
     }
 
     /** Orthogonal neighbours only; dead, sleeping and opposing plants never carry a signal. */
@@ -112,34 +139,38 @@ public final class EchoRelayCapability implements PlantCapability {
                         && z.cellX() >= plant.cellX()));
     }
 
-    /** A level's extra beat has its own clock and does not postpone the ordinary attack. */
-    public static boolean resonate(PlantEntity root, LevelAccess level, int damage, int interval) {
-        Map<PlantEntity, Integer> choir = choir(root, level);
-        if (choir.isEmpty() || !hasTarget(choir, level)
-                || choir.keySet().stream().anyMatch(p -> level.tickCount() < relay(p).resonanceReadyAt)) {
-            return false;
+    /** Lend this tick's haste to an intersecting choir; moving the row leaves no stale buff. */
+    public static void boost(Map<PlantEntity, Integer> choir, LevelAccess level, float rate) {
+        for (PlantEntity plant : choir.keySet()) {
+            EchoRelayCapability capability = relay(plant);
+            capability.rowBoostTick = level.tickCount();
+            capability.rowBoostRate = rate;
         }
-        schedule(choir, level, true, damage, interval);
-        return true;
     }
 
-    private static void schedule(Map<PlantEntity, Integer> choir, LevelAccess level,
-                                 boolean resonance, int bonusDamage, int rest) {
+    private static void schedule(Map<PlantEntity, Integer> choir, LevelAccess level) {
         int now = level.tickCount();
         int tail = choir.values().stream().mapToInt(Integer::intValue).max().orElse(0)
                 * PvzceConstants.ECHO_RELAY_TICKS;
+        // Take the least-charged member: a newly attached plant cannot mint a full charge.
+        int charge = choir.keySet().stream().mapToInt(p -> relay(p).charge).min().orElse(0);
+        int resonanceUntil = choir.keySet().stream().mapToInt(p -> relay(p).resonanceUntil).max().orElse(0);
+        boolean ownResonance = now < resonanceUntil;
+        if (choir.size() > 1 && !ownResonance) {
+            charge++;
+        }
+        boolean charged = charge >= PvzceConstants.ECHO_CHARGE_VOLLEYS;
         for (Map.Entry<PlantEntity, Integer> entry : choir.entrySet()) {
             EchoRelayCapability capability = relay(entry.getKey());
-            int amount = resonance ? bonusDamage
-                    : choir.size() > 1 ? capability.linkedDamage : capability.damage;
-            int at = now + entry.getValue() * PvzceConstants.ECHO_RELAY_TICKS;
-            capability.pending.add(new Pulse(at, amount,
-                    resonance ? "resonate" : entry.getValue() == 0 ? "shoot" : "echo"));
-            if (resonance) {
-                capability.resonanceReadyAt = now + rest;
-            } else {
-                capability.readyAt = now + rest + tail;
-            }
+            capability.charge = charged ? 0 : charge;
+            capability.resonanceUntil = charged ? now + tail + PvzceConstants.ECHO_RESONANCE_TICKS
+                    : resonanceUntil;
+            int amount = choir.size() > 1 ? capability.linkedDamage : capability.damage;
+            capability.pending.add(new Pulse(now + entry.getValue() * PvzceConstants.ECHO_RELAY_TICKS,
+                    amount, capability.resonanceRate(now) > 1F, entry.getValue() == 0));
+            capability.restRemaining = capability.interval;
+            capability.relayUntil = now + tail;
+            capability.clockTick = now;
         }
     }
 
@@ -150,24 +181,32 @@ public final class EchoRelayCapability implements PlantCapability {
 
     @Override
     public boolean hasPendingWork(PlantEntity plant) {
-        return !pending.isEmpty() || animationUntil > 0;
+        return !pending.isEmpty() || animationUntil > 0 || charge > 0 || resonanceUntil > 0;
     }
 
     @Override
     public void tickPending(PlantEntity plant, LevelAccess level) {
-        if (animationUntil > 0 && level.tickCount() >= animationUntil) {
-            plant.setState("idle");
+        int now = level.tickCount();
+        if (now >= resonanceUntil) {
+            resonanceUntil = 0;
+        }
+        if (animationUntil > 0 && now >= animationUntil) {
             animationUntil = 0;
+        }
+        if (animationUntil == 0) {
+            plant.setState(resonanceRate(now) > 1F ? "charged" : charge > 0 ? "charge_" + charge : "idle");
         }
         for (int i = 0; i < pending.size();) {
             Pulse pulse = pending.get(i);
-            if (pulse.at() > level.tickCount()) {
+            if (pulse.at() > now) {
                 i++;
                 continue;
             }
             pending.remove(i);
-            fire(plant, level, pulse.damage(), pulse.animation());
-            animationUntil = level.tickCount() + ("resonate".equals(pulse.animation()) ? 39 : 29);
+            String animation = pulse.resonating() ? "resonate"
+                    : (pulse.root() ? "shoot" : "echo") + (charge > 0 ? "_charge_" + charge : "");
+            fire(plant, level, pulse.damage(), animation);
+            animationUntil = now + (pulse.resonating() ? 39 : 29);
         }
     }
 
@@ -184,22 +223,28 @@ public final class EchoRelayCapability implements PlantCapability {
         if (!eligible(plant, level)) {
             return false;
         }
-        schedule(choir(plant, level), level, false, 0, interval);
+        schedule(choir(plant, level), level);
         tickPending(plant, level);
         return true;
     }
 
     @Override
     public void save(CompoundTag tag) {
-        tag.putInt("readyAt", readyAt);
-        tag.putInt("resonanceReadyAt", resonanceReadyAt);
+        tag.putFloat("restRemaining", restRemaining);
+        tag.putInt("relayUntil", relayUntil);
+        tag.putInt("clockTick", clockTick);
+        tag.putInt("charge", charge);
+        tag.putInt("resonanceUntil", resonanceUntil);
+        tag.putInt("rowBoostTick", rowBoostTick);
+        tag.putFloat("rowBoostRate", rowBoostRate);
         tag.putInt("animationUntil", animationUntil);
         ListTag pulses = new ListTag();
         for (Pulse pulse : pending) {
             CompoundTag saved = new CompoundTag();
             saved.putInt("at", pulse.at());
             saved.putInt("damage", pulse.damage());
-            saved.putString("animation", pulse.animation());
+            saved.putInt("resonating", pulse.resonating() ? 1 : 0);
+            saved.putInt("root", pulse.root() ? 1 : 0);
             pulses.add(saved);
         }
         tag.put("pending", pulses);
@@ -207,14 +252,21 @@ public final class EchoRelayCapability implements PlantCapability {
 
     @Override
     public void load(CompoundTag tag) {
-        readyAt = tag.getInt("readyAt");
-        resonanceReadyAt = tag.getInt("resonanceReadyAt");
+        // Old saves used an absolute readyAt and an animation string for promised pulses.
+        clockTick = tag.contains("clockTick") ? tag.getInt("clockTick") : -1;
+        restRemaining = Math.max(0F, tag.getFloat("restRemaining"));
+        relayUntil = tag.contains("relayUntil") ? tag.getInt("relayUntil") : tag.getInt("readyAt");
+        charge = Math.max(0, Math.min(PvzceConstants.ECHO_CHARGE_VOLLEYS - 1, tag.getInt("charge")));
+        resonanceUntil = tag.getInt("resonanceUntil");
+        rowBoostTick = tag.contains("rowBoostTick") ? tag.getInt("rowBoostTick") : -1;
+        rowBoostRate = Math.max(1F, tag.getFloat("rowBoostRate"));
         animationUntil = tag.getInt("animationUntil");
         pending.clear();
         for (Tag item : tag.getList("pending").values()) {
             if (item instanceof CompoundTag saved) {
                 pending.add(new Pulse(saved.getInt("at"), saved.getInt("damage"),
-                        saved.getString("animation")));
+                        saved.getInt("resonating") != 0 || "resonate".equals(saved.getString("animation")),
+                        saved.getInt("root") != 0 || "shoot".equals(saved.getString("animation"))));
             }
         }
     }

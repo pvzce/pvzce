@@ -339,6 +339,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final long ANNOUNCEMENT_ONCE_NANOS = 90_000_000_000L;
 
     private int selectedCard = -1;
+    private final com.pvzce.client.renderer.EchoLilyLinks echoLilyLinks =
+            new com.pvzce.client.renderer.EchoLilyLinks();
     /**
      * The plant the player is aiming right now, or -1.
      *
@@ -1550,6 +1552,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // Under the HUD and over the board: the wash belongs to the level, and the panel and the
         // banner are messages about it.
         mutationHud.renderDarkness(client);
+        echoLilyLinks.renderHud(client);
         renderHud();
         com.pvzce.client.mechanic.ClientMechanics.renderHud(client);
         if (rhythm != null) {
@@ -1870,6 +1873,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             overlay.render(client, camera);
         }
 
+        echoLilyLinks.renderWorld(client);
+
         // After the lawn, not before it: a riser is drawn at its standing position and cut
         // off at its row's ground line (see renderRisingZombies), so nothing of it may end up
         // behind the grass - and the part that is out has to be in front of it, like every
@@ -1891,6 +1896,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // mini-game's red line is: a level that only accepts the left half must not
                 // look like it accepts a click it is going to refuse.
                 boolean allowed = client.level().inPlacementZone(hoverX, hoverY);
+                if (PvzceIds.ECHO_LILY.toString().equals(selectedCardId())) {
+                    echoLilyLinks.renderPreview(client, hoverX, hoverY);
+                }
                 // On a level whose cards plant a whole column, the tint covers the column - which
                 // is the one thing the player has to know before clicking, and the reason the rule
                 // travels to the client at all. The hovered cell is drawn again on top, brighter,

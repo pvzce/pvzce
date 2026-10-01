@@ -114,6 +114,192 @@
       "particle_effects": {},
       "timeline": {}
     },
+    "charge_1": {
+      "animation_length": 2.4,
+      "loop": true,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.65": [
+              0,
+              0,
+              -1.5
+            ],
+            "1.55": [
+              0,
+              0,
+              1.2
+            ],
+            "2.4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.65": [
+              0.99,
+              1.015
+            ],
+            "1.55": [
+              1.01,
+              0.99
+            ],
+            "2.4": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {}
+    },
+    "charge_2": {
+      "animation_length": 2.4,
+      "loop": true,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.65": [
+              0,
+              0,
+              -1.5
+            ],
+            "1.55": [
+              0,
+              0,
+              1.2
+            ],
+            "2.4": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.65": [
+              0.99,
+              1.015
+            ],
+            "1.55": [
+              1.01,
+              0.99
+            ],
+            "2.4": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {}
+    },
+    "charged": {
+      "animation_length": 1.2,
+      "loop": true,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.3": [
+              0,
+              0,
+              -3
+            ],
+            "0.8": [
+              0,
+              0,
+              3
+            ],
+            "1.2": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.3": [
+              1.03,
+              0.97
+            ],
+            "0.8": [
+              0.97,
+              1.04
+            ],
+            "1.2": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {}
+    },
     "shoot": {
       "animation_length": 0.48,
       "loop": false,
@@ -321,6 +507,294 @@
               0.97
             ],
             "0.65": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {},
+      "on_end": "idle"
+    },
+    "shoot_charge_1": {
+      "animation_length": 0.48,
+      "loop": false,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.07": [
+              0,
+              0,
+              -5
+            ],
+            "0.15": [
+              0,
+              0,
+              7
+            ],
+            "0.27": [
+              0,
+              0,
+              -3
+            ],
+            "0.48": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.07": [
+              1.04,
+              0.93
+            ],
+            "0.15": [
+              0.95,
+              1.08
+            ],
+            "0.27": [
+              1.025,
+              0.98
+            ],
+            "0.48": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {},
+      "on_end": "idle"
+    },
+    "echo_charge_1": {
+      "animation_length": 0.48,
+      "loop": false,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.07": [
+              0,
+              0,
+              -5
+            ],
+            "0.15": [
+              0,
+              0,
+              7
+            ],
+            "0.27": [
+              0,
+              0,
+              -3
+            ],
+            "0.48": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.07": [
+              1.04,
+              0.93
+            ],
+            "0.15": [
+              0.95,
+              1.08
+            ],
+            "0.27": [
+              1.025,
+              0.98
+            ],
+            "0.48": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {},
+      "on_end": "idle"
+    },
+    "shoot_charge_2": {
+      "animation_length": 0.48,
+      "loop": false,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.07": [
+              0,
+              0,
+              -5
+            ],
+            "0.15": [
+              0,
+              0,
+              7
+            ],
+            "0.27": [
+              0,
+              0,
+              -3
+            ],
+            "0.48": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.07": [
+              1.04,
+              0.93
+            ],
+            "0.15": [
+              0.95,
+              1.08
+            ],
+            "0.27": [
+              1.025,
+              0.98
+            ],
+            "0.48": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0": true
+          }
+        }
+      },
+      "sound_effects": {},
+      "particle_effects": {},
+      "timeline": {},
+      "on_end": "idle"
+    },
+    "echo_charge_2": {
+      "animation_length": 0.48,
+      "loop": false,
+      "rate": 1,
+      "transition": 0.06,
+      "bones": {
+        "flower": {
+          "translation": {
+            "0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0": [
+              0,
+              0,
+              0
+            ],
+            "0.07": [
+              0,
+              0,
+              -5
+            ],
+            "0.15": [
+              0,
+              0,
+              7
+            ],
+            "0.27": [
+              0,
+              0,
+              -3
+            ],
+            "0.48": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0": [
+              1,
+              1
+            ],
+            "0.07": [
+              1.04,
+              0.93
+            ],
+            "0.15": [
+              0.95,
+              1.08
+            ],
+            "0.27": [
+              1.025,
+              0.98
+            ],
+            "0.48": [
               1,
               1
             ]

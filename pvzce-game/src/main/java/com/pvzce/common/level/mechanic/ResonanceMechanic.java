@@ -55,17 +55,16 @@ public final class ResonanceMechanic implements LevelMechanic<ResonanceData> {
         State state = state(level);
         state.elapsed++;
         Status status = status(level, data);
-        if (state.elapsed % data.pulseTicks() == 0) {
-            Set<PlantEntity> visited = new HashSet<>();
-            for (int x = 0; x < level.width(); x++) {
-                for (PlantEntity plant : level.plantsAt(x, status.row())) {
-                    if (visited.contains(plant) || plant.capability(EchoRelayCapability.class) == null
-                            || !plant.team().id().equals(PvzceIds.PLANT_TEAM)) {
-                        continue;
-                    }
-                    visited.addAll(EchoRelayCapability.choir(plant, level).keySet());
-                    EchoRelayCapability.resonate(plant, level, data.damage(), data.pulseTicks());
+        Set<PlantEntity> visited = new HashSet<>();
+        for (int x = 0; x < level.width(); x++) {
+            for (PlantEntity plant : level.plantsAt(x, status.row())) {
+                if (visited.contains(plant) || plant.capability(EchoRelayCapability.class) == null
+                        || !plant.team().id().equals(PvzceIds.PLANT_TEAM)) {
+                    continue;
                 }
+                var choir = EchoRelayCapability.choir(plant, level);
+                visited.addAll(choir.keySet());
+                EchoRelayCapability.boost(choir, level, data.plantRate());
             }
         }
         if (state.elapsed % 6 == 0 || status.ticksLeft() == data.intervalTicks()) {
@@ -97,17 +96,15 @@ public final class ResonanceMechanic implements LevelMechanic<ResonanceData> {
     @Override
     public List<String> validate(LevelDef def, ResonanceData data) {
         return data.openingRow() >= def.height() ? List.of("Resonance opening_row is off the board")
-                : data.pulseTicks() > data.intervalTicks()
-                ? List.of("Resonance pulse_ticks exceeds interval_ticks") : List.of();
+                : List.of();
     }
 
     @Override
     public List<FieldSpec> editorFields() {
         return List.of(
                 new FieldSpec.Number("interval_ticks", "pvzce.mechanic.resonance.field.interval_ticks", 60, 7200, true),
-                new FieldSpec.Number("pulse_ticks", "pvzce.mechanic.resonance.field.pulse_ticks", 60, 7200, true),
                 new FieldSpec.Number("opening_row", "pvzce.mechanic.resonance.field.opening_row", 0, 63, true),
                 new FieldSpec.Number("zombie_speed", "pvzce.mechanic.resonance.field.zombie_speed", 1F, 3F, false),
-                new FieldSpec.Number("damage", "pvzce.mechanic.resonance.field.damage", 1, 1000, true));
+                new FieldSpec.Number("plant_rate", "pvzce.mechanic.resonance.field.plant_rate", 1F, 4F, false));
     }
 }

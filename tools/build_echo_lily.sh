@@ -44,10 +44,15 @@ shoot = clip(0.48, [(0, 0), (0.07, -5), (0.15, 7), (0.27, -3), (0.48, 0)],
              [(0, 1, 1), (0.07, 1.04, 0.93), (0.15, 0.95, 1.08), (0.27, 1.025, 0.98), (0.48, 1, 1)])
 resonate = clip(0.65, [(0, 0), (0.1, -8), (0.22, 9), (0.36, -5), (0.5, 2), (0.65, 0)],
                 [(0, 1, 1), (0.1, 1.08, 0.9), (0.22, 0.94, 1.12), (0.4, 1.04, 0.97), (0.65, 1, 1)])
+charged = clip(1.2, [(0, 0), (0.3, -3), (0.8, 3), (1.2, 0)],
+               [(0, 1, 1), (0.3, 1.03, 0.97), (0.8, 0.97, 1.04), (1.2, 1, 1)], True)
 animation = {'type': 'controller', 'model': model,
-             'animations': {'idle': idle, 'shoot': shoot, 'echo': shoot, 'resonate': resonate}}
+             'animations': {'idle': idle, 'charge_1': idle, 'charge_2': idle, 'charged': charged,
+                            'shoot': shoot, 'echo': shoot, 'resonate': resonate,
+                            'shoot_charge_1': shoot, 'echo_charge_1': shoot,
+                            'shoot_charge_2': shoot, 'echo_charge_2': shoot}}
 output = root / 'assets/pvzce/animations/plant/attacker/echo_lily.json'
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(animation, indent=2) + '\n')
-print(f'Echo Lily packed: {width}x{height}, clips idle/shoot/echo/resonate')
+print(f'Echo Lily packed: {width}x{height}, clips idle/charge_1/charge_2/charged/shoot/echo/resonate')
 PY

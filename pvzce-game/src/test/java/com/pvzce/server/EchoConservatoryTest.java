@@ -5,11 +5,15 @@ import com.pvzce.api.content.ResonanceData;
 import com.pvzce.api.content.ZombieStatus;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.capability.plant.EchoRelayCapability;
+import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.server.entity.ProjectileEntity;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.ResonanceMechanic;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
+import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
@@ -43,8 +47,9 @@ class EchoConservatoryTest {
     private static final class Bridge implements LevelServer.ServerBridge {
         int waves;
         int zombies;
-        int extraWaves;
+        int resonantShots;
         MechanicSyncS2C resonance;
+        final java.util.Map<Integer, String> animations = new java.util.HashMap<>();
 
         @Override
         public void send(PvzcePacket packet) {
@@ -56,12 +61,15 @@ class EchoConservatoryTest {
                     zombies++;
                 }
             }
+            if (packet instanceof EntityUpdateS2C update) {
+                animations.put(update.entityId(), update.animation());
+            }
             if (packet instanceof MechanicSyncS2C sync && sync.mechanic().equals(PvzceIds.MECHANIC_RESONANCE)) {
                 resonance = sync;
             }
             if (packet instanceof EffectEventS2C effect && PvzceIds.ECHO_CHIME.toString().equals(effect.sound())
                     && effect.pitch() > 1.1F) {
-                extraWaves++;
+                resonantShots++;
             }
         }
     }
@@ -143,7 +151,73 @@ class EchoConservatoryTest {
         assertEquals(base * 0.5F, oldRow.moveSpeed(level), 0.0001F);
         assertEquals(base * 1.35F, nextRow.moveSpeed(level), 0.0001F);
         assertFalse(LevelMechanics.validate(shipped, PvzceIds.MECHANIC_RESONANCE,
-                new ResonanceData(720, 180, 5, 1.35F, 30)).isEmpty());
+                new ResonanceData(720, 5, 1.35F, 2F)).isEmpty());
+    }
+
+    @Test
+    void ordinaryRelaysChargeTheirOwnHasteAndSaveItsClockWithoutAnExtraVolley() {
+        LevelServer level = quiet(false);
+        Bridge bridge = new Bridge();
+        PlantEntity first = lily(level, 1, 1);
+        PlantEntity second = lily(level, 1, 2);
+        ZombieEntity target = zombie(level, "gargantuar", 8F, 2);
+        target.applyStatus(ZombieStatus.IMMOBILIZED, 2000, 1F);
+        level.flushPending(bridge);
+        tick(level, bridge, 14);
+        assertEquals("shoot_charge_1", bridge.animations.get(first.id()),
+                "the root's charge stays visible during its firing animation");
+        assertEquals("echo_charge_1", bridge.animations.get(second.id()),
+                "the relayed flower publishes its charge during the response too");
+        tick(level, bridge, 386);
+        assertEquals(6, bridge.waves, "three volleys, one wave per member, including the charge trigger");
+        assertEquals(2, bridge.resonantShots, "the third relay lights up without emitting a bonus volley");
+        var flying = level.entities().stream().filter(e -> e instanceof ProjectileEntity)
+                .map(e -> (ProjectileEntity) e).toList();
+        assertFalse(flying.isEmpty());
+        assertTrue(flying.stream().allMatch(e -> e.damage() == 60), "haste preserves wave damage");
+        LevelServer resumed = quiet(false);
+        resumed.restore(level.save());
+        Bridge restoredBridge = new Bridge();
+        resumed.flushPending(restoredBridge);
+        bridge.waves = 0;
+        bridge.resonantShots = 0;
+        restoredBridge.waves = 0;
+        restoredBridge.resonantShots = 0;
+        // Compare every tick, so saving cannot hide a shifted next volley or duplicate a promise.
+        for (int i = 0; i < 420; i++) {
+            tick(level, bridge, 1);
+            tick(resumed, restoredBridge, 1);
+            assertEquals(bridge.waves, restoredBridge.waves, "same next-shot timing after restore");
+            assertEquals(bridge.resonantShots, restoredBridge.resonantShots);
+        }
+        assertEquals(8, bridge.waves, "four further finite volleys fit into the charged cadence");
+    }
+
+    @Test
+    void enteringAndLeavingTheRowChangesOnlyFutureCooldownProgress() {
+        LevelServer level = quiet(false);
+        Bridge bridge = new Bridge();
+        PlantEntity lily = lily(level, 1, 2);
+        ZombieEntity target = zombie(level, "gargantuar", 8F, 2);
+        target.applyStatus(ZombieStatus.IMMOBILIZED, 2000, 1F);
+        level.flushPending(bridge);
+        tick(level, bridge, 120);
+        assertEquals(1, bridge.waves);
+        level.installMechanic(shipped.mechanics().getFirst());
+        tick(level, bridge, 1);
+        assertEquals(1, bridge.waves, "entering haste does not multiply the 120 ticks already elapsed");
+        tick(level, bridge, 29);
+        assertEquals(1, bridge.waves, "haste accelerates the remaining 61 steps only");
+        tick(level, bridge, 1);
+        assertEquals(2, bridge.waves);
+        level.removeMechanic(PvzceIds.MECHANIC_RESONANCE);
+        tick(level, bridge, 179);
+        assertEquals(2, bridge.waves, "leaving haste keeps the remaining cooldown, without a burst");
+        tick(level, bridge, 1);
+        assertEquals(3, bridge.waves, "a solo lily resumes its normal three-second clock");
+        CompoundTag capabilitySave = new CompoundTag();
+        lily.capability(EchoRelayCapability.class).save(capabilitySave);
+        assertEquals(0, capabilitySave.getInt("charge"), "a solo shot cannot charge a relay");
     }
 
     private record Purchase(Identifier card, int x, int y) {
@@ -208,9 +282,9 @@ class EchoConservatoryTest {
             }
         }
         int remaining = level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
-        System.out.printf("[echo] seed=%d difficulty=%s state=%s seconds=%.1f spawned=%d peak=%d waves=%d extraWaves=%d purchases=%d spent=%d collected=%d remaining=%d rowEvery=12.0s bonusEvery=3.0s speed=1.35x%n",
+        System.out.printf("[echo] seed=%d difficulty=%s state=%s seconds=%.1f spawned=%d peak=%d waves=%d resonantShots=%d purchases=%d spent=%d collected=%d remaining=%d rowEvery=12.0s lilyRate=2x speed=1.35x%n",
                 seed, level.difficulty(), level.gameState(), level.tickCount() / 60F, bridge.zombies,
-                peakZombies, bridge.waves, bridge.extraWaves, next, spent, collected, remaining);
+                peakZombies, bridge.waves, bridge.resonantShots, next, spent, collected, remaining);
         assertEquals(GameStateS2C.WON, level.gameState(), "the paid, connected defence wins");
         assertEquals(35, bridge.zombies, "all authored enemies were fought");
         assertTrue(spent >= 1075, "the win used purchased lilies and producers, with no free planting");

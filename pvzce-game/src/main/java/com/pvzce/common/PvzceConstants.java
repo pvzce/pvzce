@@ -20,8 +20,10 @@ public final class PvzceConstants {
     public static final int ECHO_LINKED_DAMAGE = 60;
     public static final int ECHO_RELAY_TICKS = 8;
     public static final int RESONANCE_INTERVAL_TICKS = 720;
-    public static final int RESONANCE_PULSE_TICKS = 180;
-    public static final int RESONANCE_DAMAGE = 30;
+    public static final int ECHO_CHARGE_VOLLEYS = 3;
+    public static final int ECHO_RESONANCE_TICKS = 360;
+    public static final float ECHO_RESONANCE_RATE = 2F;
+    public static final float RESONANCE_PLANT_RATE = 2F;
     public static final float RESONANCE_ZOMBIE_SPEED = 1.35F;
     public static final int PEA_SHOOTER_COST = 100;
     public static final int INITIAL_SUN = 150;

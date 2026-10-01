@@ -2,7 +2,6 @@ package com.pvzce.client.mechanic;
 
 import com.pvzce.api.util.Identifier;
 import com.pvzce.api.content.ResonanceData;
-import com.pvzce.client.ClientEntity;
 import com.pvzce.client.ClientLevel;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
@@ -11,9 +10,7 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.mechanic.ResonanceMechanic.Status;
 import com.pvzce.common.network.PacketByteBuf;
 
-import java.util.List;
-
-/** The server's row and countdown, with visible neighbour connections beneath the lilies. */
+/** The server's row and countdown, with the active lane and the next-lane warning. */
 public final class ResonanceClientMechanic implements ClientMechanic {
     @Override
     public Identifier id() {
@@ -44,23 +41,6 @@ public final class ResonanceClientMechanic implements ClientMechanic {
                             0.05F, 1F, 0.8F, 0.25F, 0.55F);
                 }
             }
-            List<ClientEntity> lilies = client.level().entities().values().stream()
-                    .filter(e -> PvzceIds.ECHO_LILY.equals(e.defId()) && e.health() > 0
-                            && PvzceIds.PLANT_TEAM.toString().equals(e.teamId())).toList();
-            for (ClientEntity a : lilies) {
-                for (ClientEntity b : lilies) {
-                    if (b.id() <= a.id() || Math.abs(a.gridX() - b.gridX())
-                            + Math.abs(a.gridY() - b.gridY()) != 1) {
-                        continue;
-                    }
-                    float left = Math.min(a.cellX(), b.cellX());
-                    float bottom = Math.min(a.cellY(), b.cellY());
-                    client.drawSolid(left - 0.025F, bottom - 0.025F,
-                            Math.abs(a.cellX() - b.cellX()) + 0.05F,
-                            Math.abs(a.cellY() - b.cellY()) + 0.05F,
-                            0.06F, 1F, 0.83F, 0.3F, 0.7F);
-                }
-            }
         };
     }
 
@@ -83,7 +63,8 @@ public final class ResonanceClientMechanic implements ClientMechanic {
         String text = String.format(GuiLang.raw("gui.pvzce.resonance.status",
                 "Resonance row %d · next row in %ds: %d"), current, seconds, next);
         String rule = String.format(GuiLang.raw("gui.pvzce.resonance.rule",
-                "%d%% faster zombies · linked lilies echo"), Math.round((data.zombieSpeed() - 1F) * 100F));
+                "%d%% faster zombies · lily attack rate ×%.1f"),
+                Math.round((data.zombieSpeed() - 1F) * 100F), data.plantRate());
         float scale = 0.8F;
         float width = Math.max(client.fonts().body().width(text, scale),
                 client.fonts().body().width(rule, scale)) + 16F;
