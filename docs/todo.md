@@ -394,12 +394,20 @@ wave 后端（`ALSOFT_CONF` 指一份 `[wave] file=…` 的配置）把实际输
 
 ## 数值与美术
 
-### 骨架僵尸的静态阴影探测误报缺图
+### 骨架实体的静态阴影探测误报缺图
 
 回声温室冒烟中，普通与铁桶僵尸的 `texture` 指向部件目录，`PvzceClient.drawEntityShadow`
 仍用 `getOrLoad` 尝试整身贴图并输出缺图警告；骨架角色正常显示，阴影回落到椭圆。
 影响：日志把正常的“没有整身静态图”写成缺失资源。怎么做：先用 `hasTexture` 探测再选投影或椭圆，
 沿用 `踩坑清单.md` 的纹理探测约定。卡在：本轮只验证原创植物与关卡，没有扩展到既有阴影渲染修复。
+
+高清化冒烟里冰爆菇也命中同一路径：骨架正文可正常显示，静态阴影仍尝试读取纹理目录。
+
+### 冰冻事件的 ice_trap 粒子路径仍有缺图警告
+
+高清化胶片出现 `pvzce:textures/particles/plant/ice_trap` 加载警告（`ParticleEngine.renderOne`）。
+数据定义的 `look.texture` 实际是 `whitepixel`；需要单独核对粒子纹理选择与资源回退路径，不能把
+名称回退误当成真实贴图。此次只完成原创植物资源密度提升，没有更改通用粒子解析。
 
 ### 粒子单位只覆盖"抛掷物"那一族
 `tools/particles_to_pvzce.py` 的 `PROP_SPEED_DIVISOR` 只作用于原版用 `GroundConstraint` 标出的抛掷物

@@ -17,8 +17,8 @@ What it does, in order:
    the pixels where the two overlap are cap pixels and nothing else. Lifting the cap even a
    little would open a see-through hole, so the body layer gets a procedurally filled neck
    in the stalk's own colour;
-4. **Downsamples to the board's scale** and writes the two part textures plus the projectile
-   texture, the card icon and the shatter particle;
+4. **Exports dense textures independently of the board's scale** and writes all part textures,
+   the projectile, card icon and shatter particle;
 5. **Writes the animation JSON** (model + `idle` + `shoot`) by hand-authoring keyframes.
 
 Run from the repository root:
@@ -67,6 +67,11 @@ SOURCES = {
 # well into the row above. It is therefore fitted by height: 0.68 cells wide, 0.97 tall,
 # which reads the same size as a Snow Pea with its crystals up.
 SPRITE_WIDTH = 57
+# The established 57x81 layout is a model-space ruler, not the output texture resolution.
+# Six texels per layout pixel keep the parts near the source's native detail (342x486).
+TEXTURE_DENSITY = 6
+CARD_SIZE = 512
+CARD_INSET_SIZE = 432
 
 # Where the cap ends and the stalk begins, as a fraction of the drawing's height measured
 # from the top. Measured, not guessed: scanning the source's centre column puts the cap's
@@ -513,7 +518,7 @@ def write_png(image: Image.Image, path: Path) -> None:
     log(f"wrote {path.relative_to(REPO_ROOT)} ({image.width}x{image.height})")
 
 
-def eye_layer(plant: Image.Image, width: int) -> tuple[Image.Image, np.ndarray]:
+def eye_layer(plant: Image.Image, width: int, height: int | None = None) -> tuple[Image.Image, np.ndarray]:
     """The two eyes cut out of the body drawing, on the shared canvas.
 
     Blinking needs the eyes to be a thing that can move on their own, and this drawing's eyes
@@ -563,14 +568,16 @@ def eye_layer(plant: Image.Image, width: int) -> tuple[Image.Image, np.ndarray]:
     canvas[mask] = array[mask]
     layer = Image.fromarray(canvas.astype(np.uint8))
     scale = width / plant.width
-    out = layer.resize((width, max(1, round(plant.height * scale))), Image.LANCZOS)
+    out = layer.resize((width, height if height is not None else max(1, round(plant.height * scale))),
+                       Image.LANCZOS)
     # The same hole has to come out of the body, or the eyes would simply be drawn twice: the
     # body keeps everything except what this layer took.
     return out, mask
 
 
 def muzzle_flash(bolt: Image.Image, canvas: tuple[int, int],
-                 center: tuple[float, float], cells: float = 0.30) -> tuple[Image.Image, float]:
+                 center: tuple[float, float], cells: float = 0.30,
+                 pixels_per_cell: int = 100) -> tuple[Image.Image, float]:
     """The bolt's own art, blown up, for the frame the shot leaves on.
 
     Reusing the projectile instead of drawing a new sprite: the flash is the bolt, so the
@@ -581,10 +588,10 @@ def muzzle_flash(bolt: Image.Image, canvas: tuple[int, int],
     hand-placed glow ends up looking like a balloon tied to the cap. Returns the layer and
     the model-space y its bone has to hold.
     """
-    target = max(1, round(cells * 100))
+    target = max(1, round(cells * pixels_per_cell))
     flash = bolt.resize((target, max(1, round(bolt.height * target / bolt.width))), Image.LANCZOS)
     out = Image.new("RGBA", canvas, TRANSPARENT)
-    px = 1.0 / 100.0
+    px = 1.0 / pixels_per_cell
     canvas_w, canvas_h = canvas
     c = (round(canvas_w / 2.0 + center[0] / px), round(canvas_h / 2.0 + center[1] / px))
     out.alpha_composite(flash, (c[0] - flash.width // 2, c[1] - flash.height // 2))
@@ -605,7 +612,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # The projectile's own art is authored first: the muzzle flash is this same drawing blown
     # up, so the thing at the muzzle and the thing that flies away are made of the same ice.
-    bolt_small = resize(crop_to_content(silhouette(load_keyed(SOURCES["bolt"]))), 40)
+    bolt_full = crop_to_content(silhouette(load_keyed(SOURCES["bolt"])))
+    bolt_small = resize(bolt_full, 40)
 
     width = SPRITE_WIDTH
     height = max(1, round(plant.height * width / plant.width))
@@ -615,6 +623,7 @@ def main(argv: list[str] | None = None) -> int:
     # One part canvas for both layers: they share a coordinate system, so the two halves line
     # up at rest by construction and the model needs no per-part bookkeeping.
     canvas_w, canvas_h = width, height
+    texture_canvas = (canvas_w * TEXTURE_DENSITY, canvas_h * TEXTURE_DENSITY)
     head_canvas = Image.new("RGBA", (canvas_w, canvas_h), TRANSPARENT)
     body_canvas = Image.new("RGBA", (canvas_w, canvas_h), TRANSPARENT)
     head_canvas.alpha_composite(head_small)
@@ -663,7 +672,7 @@ def main(argv: list[str] | None = None) -> int:
         """One bone's part. `offset_y` defaults to the shared canvas centre; the flash passes
         its own, because its drawing is not the plant - it is the bolt, placed at the muzzle."""
         return {
-            "part": {"texture": f"{texture_base}/{name}", "uv": [0, 0, canvas_w, canvas_h],
+            "part": {"texture": f"{texture_base}/{name}", "uv": [0, 0, *texture_canvas],
                      "size": part_size,
                      "offset": [center_x, center_y if offset_y is None else offset_y], "z": z},
             "pivot": [0.0, 0.0],
@@ -675,12 +684,19 @@ def main(argv: list[str] | None = None) -> int:
     eyes, eye_mask = eye_layer(plant, width)
     eyes_canvas = Image.new("RGBA", (canvas_w, canvas_h), TRANSPARENT)
     eyes_canvas.alpha_composite(eyes)
-    write_png(eyes_canvas, out_dir / "eyes.png")
+    # Export from the full source, never by enlarging the old small textures. The low-resolution
+    # ruler above retains the established pivots and animation poses across texture changes.
+    eyes_dense, _ = eye_layer(plant, *texture_canvas)
+    write_png(eyes_dense, out_dir / "eyes.png")
+    write_png(head_full.resize(texture_canvas, Image.LANCZOS), out_dir / "head.png")
+    write_png(body_full.resize(texture_canvas, Image.LANCZOS), out_dir / "body.png")
 
     # The bolt leaves at `PlantShots.MUZZLE_OFFSET_X` cells from the plant's centre, on the
     # plant's own ground line; the flash is drawn there and nowhere else.
     flash, flash_y = muzzle_flash(bolt_small, (canvas_w, canvas_h), (0.30, 0.12))
-    write_png(flash, out_dir / "flash.png")
+    flash_dense, _ = muzzle_flash(bolt_full, texture_canvas, (0.30, 0.12),
+                                  pixels_per_cell=100 * TEXTURE_DENSITY)
+    write_png(flash_dense, out_dir / "flash.png")
 
     parts = {
         "body": {**layer("body", 1.0, 0.0), "model_height": model_height},
@@ -694,15 +710,18 @@ def main(argv: list[str] | None = None) -> int:
     animation_path.write_text(json.dumps(animation, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     log(f"wrote {animation_path.relative_to(REPO_ROOT)}")
 
-    write_png(bolt_small, RESOURCES / "assets" / PLANT_NS / "textures" / "entities" / "projectile" / "iceboom_bolt.png")
+    bolt_dense = bolt_full.resize((bolt_small.width * TEXTURE_DENSITY,
+                                  bolt_small.height * TEXTURE_DENSITY), Image.LANCZOS)
+    write_png(bolt_dense, RESOURCES / "assets" / PLANT_NS / "textures" / "entities" / "projectile" / "iceboom_bolt.png")
 
-    shatter = resize(crop_to_content(silhouette(load_keyed(SOURCES["shatter"]))), 200)
+    shatter = crop_to_content(silhouette(load_keyed(SOURCES["shatter"])))
+    shatter.thumbnail((512, 512), Image.LANCZOS)
     write_png(shatter, RESOURCES / "assets" / PLANT_NS / "textures" / "particles" / "effect" / "iceboom_shatter.png")
 
     card = crop_to_content(load_keyed(SOURCES["card"]))
-    card.thumbnail((108, 108), Image.LANCZOS)
-    icon = Image.new("RGBA", (128, 128), TRANSPARENT)
-    icon.alpha_composite(card, ((128 - card.width) // 2, (128 - card.height) // 2))
+    card.thumbnail((CARD_INSET_SIZE, CARD_INSET_SIZE), Image.LANCZOS)
+    icon = Image.new("RGBA", (CARD_SIZE, CARD_SIZE), TRANSPARENT)
+    icon.alpha_composite(card, ((CARD_SIZE - card.width) // 2, (CARD_SIZE - card.height) // 2))
     write_png(icon, RESOURCES / "assets" / PLANT_NS / "textures" / "gui" / "cards" / f"{ENTITY}.png")
 
     if args.preview is not None:
@@ -727,7 +746,8 @@ def main(argv: list[str] | None = None) -> int:
             frame.alpha_composite(head_canvas)
             strip.alpha_composite(frame, (6 + i * (canvas_w + 6), 6))
         sheet = sheet.crop((0, 0, sheet.width, sheet.height))
-        sheet.alpha_composite(icon, (10, canvas_h + 20))
+        preview_icon = icon.resize((128, 128), Image.LANCZOS)
+        sheet.alpha_composite(preview_icon, (10, canvas_h + 20))
         sheet = sheet.resize((sheet.width * 3, sheet.height * 3), Image.NEAREST)
         sheet.save(args.preview / "sheet.png")
         log(f"preview: {args.preview / 'sheet.png'}")
