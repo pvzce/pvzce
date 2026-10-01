@@ -111,7 +111,7 @@ BLINK_LENGTH = 0.18
 
 # How far each part travels in the breath, in cells. The cap leads; the stalk answers with
 # a quarter of the distance a fifth of a second later, which is what reads as weight.
-IDLE_CAP_RISE = 0.022
+IDLE_CAP_RISE = 0.014
 IDLE_STALK_RISE = 0.006
 IDLE_CAP_SQUASH = 0.020
 IDLE_STALK_SQUASH = 0.012
@@ -353,34 +353,81 @@ def animation_json(parts: dict, head_rest: float) -> dict:
     eye_rest = parts["eyes"]["pose_y"]
     flash_rest = parts["flash"]["pose_y"]
 
-    # ---- idle: one breath, two blinks ------------------------------------------------
-    # The breath is 2.2s. The cap's rise holds at the top for a moment and comes down a
-    # little faster than it went up, which is what keeps it from reading as a sine.
-    cap = vec([(0.0, (0.0, head_rest)), (0.45, (0.0, head_rest + IDLE_CAP_RISE * 0.75)),
-               (0.75, (0.0, head_rest + IDLE_CAP_RISE)), (1.05, (0.0, head_rest + IDLE_CAP_RISE * 0.9)),
-               (1.45, (0.0, head_rest - IDLE_CAP_RISE * 0.35)), (1.75, (0.0, head_rest - IDLE_CAP_RISE * 0.2)),
-               (2.2, (0.0, head_rest))])
-    cap_scale = uniform([(0.0, 1.0), (0.75, 1.0 - IDLE_CAP_SQUASH), (1.45, 1.0 + IDLE_CAP_SQUASH),
-                        (2.2, 1.0)])
-    # The stalk answers a fifth of a second late and with a quarter of the travel: the
-    # lag is the whole point (a plant that moves as one piece is a sticker).
-    stalk = vec([(0.0, (0.0, 0.0)), (0.2, (0.0, -IDLE_STALK_RISE * 0.3)),
-                 (0.95, (0.0, IDLE_STALK_RISE * 0.75)), (1.25, (0.0, IDLE_STALK_RISE)),
-                 (1.65, (0.0, -IDLE_STALK_RISE * 0.5)), (2.2, (0.0, 0.0))])
-    stalk_scale = uniform([(0.0, 1.0), (0.95, 1.0 + IDLE_STALK_SQUASH), (1.65, 1.0 - IDLE_STALK_SQUASH),
-                          (2.2, 1.0)])
-    # The blinks are *in* the idle clip, not a clip of their own. The client plays the state
-    # the server publishes, and the server has no reason to publish "blink" - which is why the
-    # original's blinking is bone visibility inside the idle reanim and not a separate file.
-    # Two blinks, unevenly spaced; a shut is two frames wide and the open takes three, because
-    # an eye that opens as fast as it closes reads as a twitch.
-    def blink_at(t: float) -> list:
-        return [(t, (0.0, eye_rest)), (t + 0.06, (0.0, eye_rest - 0.030)),
-                (t + 0.10, (0.0, eye_rest - 0.026)), (t + 0.18, (0.0, eye_rest))]
+    # ---- how the two halves stay one plant ------------------------------------------
+    # THIS is the rule this file learned the hard way (twice reported by the user as "the head
+    # and the body look separated"): the cap's ink is cut at the neck and the body's crown is
+    # that same line, so whatever the cap does, the crown has to do nearly the same thing. A
+    # cap that bobs while the stalk stands still opens a hole between them that grows to 3px in
+    # the breath and 8px in the shot.
+    #
+    # `FOLLOW` is how much of the cap's travel the body takes, **on the cap's own beats**. The
+    # body must not answer *late*: a delay of a fifth of a second is a 0.027-cell gap at the
+    # top of the breath, which is the 3px hole the user reported. Moving the same beats at 80%
+    # of the distance keeps the neck's length constant instead - and the life comes from the
+    # two squashing out of phase, which is secondary motion that cannot open a seam.
+    FOLLOW = 0.80
 
-    eyes_idle = vec(sorted(blink_at(0.62) + blink_at(1.74) + [(0.0, (0.0, eye_rest)),
-                                                             (IDLE_LENGTH, (0.0, eye_rest))],
-                           key=lambda kv: kv[0]))
+    def follow(cap_keys, rest: float) -> list:
+        """The body's track: the cap's own beats, `FOLLOW` of the distance *travelled*.
+
+        Subtracting the cap's rest position matters more than it looks. The cap's keys are
+        absolute (`rest + travel`); the body's bone sits at its own rest of zero. Scaling the
+        absolute numbers by `FOLLOW` gives the body a different *slope* through every
+        transition - the ends match and the middle does not - which reopened the neck to 3.7px
+        halfway through the shot, the one frame the player is looking at. Scaling the travel
+        keeps the two curves parallel everywhere, so the neck's length only ever changes by
+        (1 - FOLLOW) of a distance the cap has already been drawn at.
+        """
+        return [(t, (0.0, round(rest + (y - rest) * FOLLOW, 5))) for t, (_, y) in cap_keys]
+
+    # ---- idle: one breath, two blinks ------------------------------------------------
+    # The cap leads with 0.014 cells and holds at the top for a beat before coming down a
+    # little faster than it went up; the body takes four fifths of it on the same beats, so the
+    # neck stretches by 0.003 cells at the top of the breath - a third of a pixel, which is
+    # under the art's own antialiasing. Both squash on their own beat.
+    cap_rise = [(0.0, (0.0, head_rest)), (0.45, (0.0, head_rest + IDLE_CAP_RISE * 0.75)),
+                (0.75, (0.0, head_rest + IDLE_CAP_RISE)), (1.05, (0.0, head_rest + IDLE_CAP_RISE * 0.9)),
+                (1.45, (0.0, head_rest - IDLE_CAP_RISE * 0.35)),
+                (1.75, (0.0, head_rest - IDLE_CAP_RISE * 0.2)),
+                (IDLE_LENGTH, (0.0, head_rest))]
+    cap = vec(cap_rise)
+    cap_scale_keys = [(0.0, 1.0), (0.75, 1.0 - IDLE_CAP_SQUASH), (1.45, 1.0 + IDLE_CAP_SQUASH),
+                      (IDLE_LENGTH, 1.0)]
+    cap_scale = uniform(cap_scale_keys)
+    stalk = vec(follow(cap_rise, head_rest))
+    # The stalk's own squash runs a beat behind the cap's, so the two are never a single blob.
+    # The body's scale follows the cap's *squash*, not a beat of its own: a part is scaled about
+    # its bone's pivot, so when the cap is at 0.95 and the body at 1.05 the two drawings are
+    # pulled in opposite directions along the very line they are supposed to share - which is
+    # 3.6px of air in the middle of the shot, with both translation tracks running parallel.
+    # Same beats, a fraction of the amount; the neck's own secondary motion is the difference.
+    stalk_scale = uniform([(t, 1.0 + (v - 1.0) * 0.6) for t, v in cap_scale_keys])
+
+    # ---- the blink: a squash, not a slide ---------------------------------------------
+    # The eyes are their own layer, and the first version *moved* them down under the upper
+    # lid. Two problems, and the user reported the second: the pupils did not really disappear
+    # (the drawing's own outline came along), and the whole face appeared to jump down a couple
+    # of pixels because a 0.03-cell translation is three pixels at this scale.
+    #
+    # A closed eye is a squashed eye, and the renderer's `scale` is a two-axis squash, so that
+    # is what this does: the layer collapses towards the lid line and springs back. Three
+    # frames shut, three open, and the cap dips a fifth of a pixel with it so the lid has
+    # something to close against.
+    def blink_at(t: float) -> tuple[list, list]:
+        return ([(t, (0.0, eye_rest)), (t + 0.04, (0.0, eye_rest)),
+                 (t + 0.07, (0.0, eye_rest - 0.004)), (t + 0.16, (0.0, eye_rest))],
+                [(t, 1.0), (t + 0.04, 1.0), (t + 0.07, 0.10), (t + 0.11, 0.22),
+                 (t + 0.16, 1.0)])
+
+    eye_keys = [(0.0, (0.0, eye_rest)), (IDLE_LENGTH, (0.0, eye_rest))]
+    eye_scale_keys = [(0.0, 1.0), (IDLE_LENGTH, 1.0)]
+    for when in (0.62, 1.74):
+        move, squash = blink_at(when)
+        eye_keys += move
+        eye_scale_keys += squash
+    eyes_idle = vec(sorted(eye_keys, key=lambda kv: kv[0]))
+    eyes_scale = uniform(sorted(eye_scale_keys, key=lambda kv: kv[0]))
+
     idle = {
         "animation_length": IDLE_LENGTH,
         "loop": True,
@@ -388,7 +435,7 @@ def animation_json(parts: dict, head_rest: float) -> dict:
         "bones": {
             "body": {"translation": stalk, "scale": stalk_scale, "visible": visible()},
             "head": {"translation": cap, "scale": cap_scale, "visible": visible()},
-            "eyes": {"translation": eyes_idle, "visible": visible()},
+            "eyes": {"translation": eyes_idle, "scale": eyes_scale, "visible": visible()},
             "flash": {"translation": vec([(0.0, (0.0, flash_rest))]),
                       "scale": uniform([(0.0, 0.0)]), "visible": visible()},
         },
@@ -396,9 +443,11 @@ def animation_json(parts: dict, head_rest: float) -> dict:
         "particle_effects": {},
         "timeline": {},
     }
-    # ---- blink: the eyes alone, on their own clip -------------------------------------
-    # The lens slides down under the upper lid (see `eye_layer`), so the blink is a
-    # translation and not a swap: shut in two frames, open over three.
+
+    # ---- blink: the same squash, as its own clip --------------------------------------
+    # Shipped for the same reason the original ships blink bones: a level that wants a plant to
+    # blink on an event of its own can ask for this by name. The idle clip already blinks, so
+    # nothing has to.
     blink = {
         "animation_length": BLINK_LENGTH,
         "loop": False,
@@ -407,8 +456,8 @@ def animation_json(parts: dict, head_rest: float) -> dict:
         "bones": {
             "body": {"translation": vec([(0.0, (0.0, 0.0))]), "visible": visible()},
             "head": {"translation": vec([(0.0, (0.0, head_rest))]), "visible": visible()},
-            "eyes": {"translation": vec([(0.0, (0.0, eye_rest)), (0.06, (0.0, eye_rest - 0.028)),
-                                         (0.1, (0.0, eye_rest - 0.022)), (0.18, (0.0, eye_rest))]),
+            "eyes": {"translation": vec([(0.0, (0.0, eye_rest))]),
+                     "scale": uniform([(0.0, 1.0), (0.05, 0.10), (0.10, 0.22), (BLINK_LENGTH, 1.0)]),
                      "visible": visible()},
             "flash": {"translation": vec([(0.0, (0.0, flash_rest))]),
                       "scale": uniform([(0.0, 0.0)]), "visible": visible()},
@@ -419,22 +468,22 @@ def animation_json(parts: dict, head_rest: float) -> dict:
     }
 
     # ---- shoot: pull back, release, overshoot, settle ---------------------------------
-    # The release lands at 0.10s (three frames at 30fps) and the flash is at its brightest
-    # exactly there. The cap's overshoot at 0.22 goes *past* the rest pose, which is what
-    # gives the shot a snap; without it the plant returns to rest as if nothing happened.
-    shoot_cap = vec([(0.0, (0.0, head_rest)),
-                     (0.06, (0.0, head_rest + SHOOT_PULL_BACK)),
-                     (0.10, (0.0, head_rest + SHOOT_PUSH)),
-                     (0.22, (0.0, head_rest + SHOOT_RECOVER)),
-                     (0.38, (0.0, head_rest - SHOOT_RECOVER * 0.35)),
-                     (SHOOT_LENGTH, (0.0, head_rest))])
-    shoot_cap_scale = uniform([(0.0, 1.0), (0.06, 1.0 + 0.03), (0.10, 1.0 - 0.05),
-                              (0.22, 1.0 + 0.02), (SHOOT_LENGTH, 1.0)])
-    shoot_stalk = vec([(0.0, (0.0, 0.0)), (0.06, (0.0, 0.006)), (0.10, (0.0, -0.012)),
-                       (0.22, (0.0, 0.008)), (0.38, (0.0, -0.003)), (SHOOT_LENGTH, (0.0, 0.0))])
-    shoot_stalk_scale = uniform([(0.0, 1.0), (0.10, 1.0 + 0.045), (0.22, 1.0 - 0.02),
-                                (SHOOT_LENGTH, 1.0)])
-    # The flash: nothing, a bright core at the release, gone a fifth of a second later.
+    # The release lands at 0.10s and the flash is brightest exactly there. What sells the shot
+    # is not how far the cap goes but that the body goes with it: the neck stretches a little
+    # on the pull-back and compresses on the shove, and never by more than a pixel at this
+    # scale. Without that, the cap lunges off the stalk - which is what the user saw.
+    shoot_cap_rise = [(0.0, (0.0, head_rest)),
+                      (0.06, (0.0, head_rest + SHOOT_PULL_BACK)),
+                      (0.10, (0.0, head_rest + SHOOT_PUSH)),
+                      (0.22, (0.0, head_rest + SHOOT_RECOVER)),
+                      (0.38, (0.0, head_rest - SHOOT_RECOVER * 0.35)),
+                      (SHOOT_LENGTH, (0.0, head_rest))]
+    shoot_cap = vec(shoot_cap_rise)
+    shoot_cap_scale_keys = [(0.0, 1.0), (0.06, 1.0 + 0.03), (0.10, 1.0 - 0.05),
+                            (0.22, 1.0 + 0.02), (SHOOT_LENGTH, 1.0)]
+    shoot_cap_scale = uniform(shoot_cap_scale_keys)
+    shoot_stalk = vec(follow(shoot_cap_rise, head_rest))
+    shoot_stalk_scale = uniform([(t, 1.0 + (v - 1.0) * 0.6) for t, v in shoot_cap_scale_keys])
     shoot_flash = uniform([(0.0, 0.0), (0.10, 1.15), (0.16, 0.85), (0.26, 0.0), (SHOOT_LENGTH, 0.0)])
     shoot = {
         "animation_length": SHOOT_LENGTH,
@@ -446,9 +495,9 @@ def animation_json(parts: dict, head_rest: float) -> dict:
             "body": {"translation": shoot_stalk, "scale": shoot_stalk_scale, "visible": visible()},
             "head": {"translation": shoot_cap, "scale": shoot_cap_scale, "visible": visible()},
             "flash": {"translation": vec([(0.0, (0.0, flash_rest))]),
-                      "scale": shoot_flash,
-                      "visible": visible()},
-            "eyes": {"translation": vec([(0.0, (0.0, eye_rest))]), "visible": visible()},
+                      "scale": shoot_flash, "visible": visible()},
+            "eyes": {"translation": vec([(0.0, (0.0, eye_rest))]),
+                     "scale": uniform([(0.0, 1.0)]), "visible": visible()},
         },
         "sound_effects": {},
         "particle_effects": {},

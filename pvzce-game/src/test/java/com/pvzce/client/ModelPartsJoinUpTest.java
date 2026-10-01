@@ -103,11 +103,19 @@ class ModelPartsJoinUpTest {
         }
         assertTrue(first >= 0, "the layer has to have drawn pixels: " + path);
         // One sprite pixel is 1/100 cell, the canvas bottom is the model's origin, and the bone's
-        // clip translation moves the drawing by that many cells.
+        // clip transforms the drawing: a translation moves it, a scale squashes every row
+        // towards the bone's pivot. Both have to be folded in, or this measures the rest pose
+        // while the clip is doing something else - which is exactly the mistake that let a
+        // "the two halves touch" assertion pass while the board showed a 3px hole.
+        BonePose pose = poses.getOrDefault(bone, b.restPose());
         float px = part.sizeY() / image.getHeight();
-        float canvasBottom = part.offsetY() - part.sizeY() / 2F + poses.getOrDefault(bone, b.restPose()).translation()[1];
-        return new Ink(canvasBottom + (image.getHeight() - 1 - last) * px,
-                canvasBottom + (image.getHeight() - first) * px);
+        float canvasBottom = part.offsetY() - part.sizeY() / 2F;
+        float base = canvasBottom + pose.translation()[1];
+        float scale = pose.scale().length > 1 ? pose.scale()[1] : 1F;
+        float pivotY = b.pivot().length > 1 ? b.pivot()[1] : 0F;
+        float anchorY = base + pivotY;
+        return new Ink(anchorY + (canvasBottom + (image.getHeight() - 1 - last) * px - anchorY) * scale,
+                anchorY + (canvasBottom + (image.getHeight() - first) * px - anchorY) * scale);
     }
 
     /**
@@ -134,38 +142,39 @@ class ModelPartsJoinUpTest {
     }
 
     /**
-     * The cap sits on the stalk, and the two travel together through the idle bob.
+     * The cap sits on the stalk - for the whole clip, not just at rest.
      *
-     * <p>Two independent numbers place the head - its part {@code offset} and the clip's
-     * {@code translation} - and they <b>add</b>. The first version carried the same value in both,
-     * which raised the cap by a whole canvas; the assertion is therefore on the number a player
-     * sees, the gap between the two drawings, and not on either field.
-     *
-     * <p>The variation across the clip is bounded by the bob's own amplitude: a cap that breathes
-     * is the point, a cap that leaves is the bug.
+     * <p>Two independent numbers place the head (its part {@code offset} and the clip's
+     * {@code translation}), and they <b>add</b>. The first version carried the same value in
+     * both and raised the cap by a whole canvas. The second got that right and then bobbed the
+     * cap while the stalk stood still, which the user reported as "the head and the body look
+     * separated": the cap's ink is cut at the neck and the body's crown is that same line, so
+     * the two drawings may never open more than a hair between them. Sampled across the clip
+     * because that is where the hole was - a rest-pose assertion passed the whole time.
      */
     @Test
-    void theCapSitsOnTheStalkThroughIdle() throws Exception {
+    void theCapNeverLeavesTheStalk() throws Exception {
         ControllerFile file = load();
-        com.pvzce.client.animation.ControllerClip idle = file.clips().get("idle");
-        assertNotNull(idle, "idle");
-        float atRest = 0F;
-        float worst = 0F;
-        for (int step = 0; step <= 12; step++) {
-            double t = idle.duration() * step / 12.0;
-            Map<String, BonePose> poses = idle.samplePose(file.model(), t);
-            float gap = ink(file.model(), poses, "head", HEAD_TEXTURE).bottom()
-                    - ink(file.model(), poses, "body", BODY_TEXTURE).top();
-            if (step == 0) {
-                atRest = gap;
-                assertEquals(0.0F, gap, 0.03F,
-                        "standing still, the cap's cut line has to meet the stalk's crown");
+        for (String clipName : new String[]{"idle", "shoot", "blink"}) {
+            com.pvzce.client.animation.ControllerClip clip = file.clips().get(clipName);
+            assertNotNull(clip, clipName + " has to exist");
+            float worst = 0F;
+            double worstAt = 0;
+            for (int step = 0; step <= 40; step++) {
+                double t = clip.duration() * step / 40.0;
+                Map<String, BonePose> poses = clip.samplePose(file.model(), t);
+                float gap = ink(file.model(), poses, "head", HEAD_TEXTURE).bottom()
+                        - ink(file.model(), poses, "body", BODY_TEXTURE).top();
+                if (Math.abs(gap) > Math.abs(worst)) {
+                    worst = gap;
+                    worstAt = t;
+                }
             }
-            worst = Math.max(worst, Math.abs(gap));
+            assertTrue(Math.abs(worst) < 0.02F,
+                    clipName + ": the neck opened by " + worst + " cells (" + Math.abs(worst) * 100
+                            + "px) at t=" + worstAt + "; the body has to take most of the cap's"
+                            + " travel on the cap's own beats, not lag behind it");
         }
-        assertTrue(worst < 0.06F,
-                "and it has to stay on the stalk while it breathes; the worst gap was " + worst
-                        + " cells (at rest " + atRest + ")");
     }
 
     /** Every bone is drawn in the clip the plant stands in; a hidden bone is an invisible plant. */

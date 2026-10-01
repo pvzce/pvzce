@@ -108,15 +108,23 @@ public final class PvzceParticles {
     public static final Identifier DIRT_SMALL = id("dirt_clump");
     /** A larger dirt burst; the same clump sprite, spawned in a bigger burst. */
     public static final Identifier DIRT_BIG = id("dirt_clump");
-    /** Ice and snow. */
+    /**
+     * The whole-lawn freeze flash: the ice-shroom going off.
+     *
+     * <p>Read its definition before reusing it ({@code particles/effect/ice_trap.json}): it is
+     * <b>one white pixel scaled 1600x</b> at half opacity, which is the original's screen-wide
+     * white-out and not a per-zombie effect. A plant that froze one zombie with it lit the whole
+     * board every time (the user's "很晃眼"), so the ice-boom shroom uses
+     * {@link #SNOW_PEA_SPLAT} for that moment instead - a local puff at the zombie's feet.
+     */
     public static final Identifier ICE_SPARKLE = id("ice_trap");
-    /** A snow pea's impact. */
+    /** A snow pea's impact: four small snowflakes, also the per-zombie freeze puff. */
     public static final Identifier SNOW_PEA_SPLAT = id("snow_puff");
     /**
      * The ice-boom shroom's bolt landing on a zombie the ice already holds.
      *
-     * <p>Its own burst rather than {@link #ICE_SPARKLE}: the shatter is the plant's payoff and
-     * has to read as "that one broke", which a shared sparkle cannot say.
+     * <p>Its own burst rather than {@link #SNOW_PEA_SPLAT}: the shatter is the plant's payoff and
+     * has to read as "that one broke", which the same puff the bolt lands with cannot say.
      */
     public static final Identifier ICEBOOM_SHATTER = id("iceboom_shatter");
     /** A soft glow on a pickup. */

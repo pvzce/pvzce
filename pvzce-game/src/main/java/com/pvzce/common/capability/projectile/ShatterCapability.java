@@ -155,7 +155,11 @@ public final class ShatterCapability implements ProjectileCapability {
                 target.applyStatus(ZombieStatus.IMMOBILIZED,
                         StatusDurations.scale(level, freezeTicks), 1F);
             }
-            level.emitEffect(PvzceParticles.ICE_SPARKLE.toString(),
+            // A local puff, not `ICE_SPARKLE`: that one is the ice-shroom's *whole-lawn*
+            // white-out (one 1600x white pixel at half opacity), and freezing a single zombie
+            // with it flashed the entire board - the user's "很晃眼". The plant's own colours
+            // are what should say "that one is ice".
+            level.emitEffect(PvzceParticles.SNOW_PEA_SPLAT.toString(),
                     target.cellX(), target.cellY(), null);
             return;
         }
