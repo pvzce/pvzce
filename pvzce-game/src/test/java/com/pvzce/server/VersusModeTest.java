@@ -365,8 +365,10 @@ class VersusModeTest {
             int ticks = 0;
             int peakZombies = 0;
             int spawns = 0;
+            int overlapped = 0;
             int lastSpawnTick = 0;
             long totalGap = 0;
+            java.util.Map<String, Integer> zombieMix = new java.util.LinkedHashMap<>();
             while (ticks < limit && "running".equals(level.gameState())) {
                 level.tick(bridge);
                 ticks++;
@@ -382,6 +384,19 @@ class VersusModeTest {
                         spawns++;
                         totalGap += ticks - lastSpawnTick;
                         lastSpawnTick = ticks;
+                        zombieMix.merge(shortName(spawn.defId()), 1, Integer::sum);
+                        // "It waits for the last one to die" is exactly this: an arrival with the
+                        // lawn already empty. Counting the arrivals that overlap says whether the
+                        // stream is a stream.
+                        int alive = 0;
+                        for (PvzceEntity entity : level.entities()) {
+                            if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                                alive++;
+                            }
+                        }
+                        if (alive > 1) {
+                            overlapped++;
+                        }
                     }
                 }
                 bridge.packets.clear();
@@ -406,6 +421,8 @@ class VersusModeTest {
                     + " avgGapSeconds=" + (spawns <= 1 ? "-"
                             : String.format(java.util.Locale.ROOT, "%.1f",
                                     totalGap / (double) (spawns - 1) / 60.0))
+                    + " overlapped=" + overlapped + "/" + spawns
+                    + " mix=" + zombieMix
                     + " fizzled=" + level.jevBrain().status());
             assertFalse("running".equals(level.gameState()),
                     id + " never ended within " + (limit / 60) + " seconds of simulated play");
@@ -709,6 +726,97 @@ class VersusModeTest {
                 "this level's zombie side never affords a card");
         assertTrue(seen.size() >= 2 && seen.get(0) < seen.get(seen.size() - 1),
                 "the wallet grew on screen while the opponent stayed idle: " + seen);
+    }
+
+    /**
+     * The other direction: the built-in <em>plant</em> opponent against a scripted zombie side.
+     *
+     * <p>Everything else in this file measures "AI zombies versus a scripted plant side". The
+     * reverse is what a player sees when they pick the zombie side, and it is where the plant
+     * policy's own bug lived: the first version bought "the cheapest card it could afford" whenever
+     * the lawn was quiet, which is the sun producer on every deck a level has written, so the plant
+     * opponent spent whole matches planting sunflowers and never bought a shooter or a wall.
+     *
+     * <p>The scripted zombie side spends through {@code spawnZombie} rather than the card bar
+     * (a test has no client to send a placement packet), which is the same server-side door the
+     * opponent uses - so what is measured here is the plant policy, not the zombie player.
+     */
+    @Test
+    void thePlantOpponentBuildsARealDefense() {
+        LevelDef def = BuiltInRegistries.LEVELS.get(
+                Identifier.withDefaultNamespace("yard/versus/duel_1"));
+        assertNotNull(def, "the shipped versus level is registered");
+        LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def), null,
+                null, Identifier.parse(ZOMBIE));
+        CapturingBridge bridge = new CapturingBridge();
+        java.util.Map<String, Integer> plantMix = new java.util.LinkedHashMap<>();
+        int limit = 60 * 60 * 30;
+        int ticks = 0;
+        while (ticks < limit && "running".equals(level.gameState())) {
+            level.tick(bridge);
+            ticks++;
+            if (ticks % 60 == 0) {
+                playTheZombieSide(level);
+            }
+            for (PvzcePacket packet : bridge.packets) {
+                if (packet instanceof EntitySpawnS2C spawn && "plant".equals(spawn.entityKind())) {
+                    plantMix.merge(shortName(spawn.defId()), 1, Integer::sum);
+                }
+            }
+            bridge.packets.clear();
+        }
+        System.out.println("VERSUS-PLANT-AI minutes=" + (ticks / 3600) + ":"
+                + String.format("%02d", (ticks / 60) % 60)
+                + " state=" + level.gameState() + " winner=" + level.winner()
+                + " collected=" + VersusMechanic.run(level).collected + " mix=" + plantMix);
+        assertFalse("running".equals(level.gameState()),
+                "the match ended within " + (limit / 60) + " seconds of simulated play");
+        assertTrue(plantMix.size() >= 3,
+                "the plant opponent builds an economy, a defense and a wall rather than one card: "
+                        + plantMix);
+        assertTrue(plantMix.getOrDefault("sunflower", 0) >= 3, plantMix.toString());
+        assertTrue(plantMix.getOrDefault("pea_shooter", 0) >= 3, plantMix.toString());
+    }
+
+    /** Advances the scripted zombie side: the cheapest card it can afford, into the thinnest lane. */
+    private static void playTheZombieSide(LevelServer level) {
+        Team team = level.team(Identifier.parse(ZOMBIE));
+        int sun = team.resourcesOf(PvzceIds.SUN);
+        int[] perLane = new int[Math.max(1, level.height())];
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                    && zombie.gridY() >= 0 && zombie.gridY() < perLane.length) {
+                perLane[zombie.gridY()]++;
+            }
+        }
+        int lane = 0;
+        for (int row = 1; row < perLane.length; row++) {
+            if (perLane[row] < perLane[lane]) {
+                lane = row;
+            }
+        }
+        for (String kind : List.of("basic_zombie", "conehead_zombie", "buckethead_zombie")) {
+            var def = BuiltInRegistries.ZOMBIES.get(Identifier.withDefaultNamespace(kind));
+            var slot = com.pvzce.common.core.SlotResolver
+                    .resolve(Identifier.withDefaultNamespace(kind)).orElse(null);
+            if (def == null || slot == null || slot.costSun() > sun) {
+                continue;
+            }
+            int cost = slot.costSun();
+            if (!team.consume(PvzceIds.SUN, cost)) {
+                return;
+            }
+            if (level.spawnZombie(def.id(), team, 5.5F, lane) == null) {
+                team.addResource(PvzceIds.SUN, cost);
+            }
+            return;
+        }
+    }
+
+    /** The path part of a content id, for a readable mix. */
+    private static String shortName(String id) {
+        Identifier parsed = Identifier.tryParse(id);
+        return parsed == null ? id : parsed.path();
     }
 
     private static ResourceDropEntity firstDrop(LevelServer level) {

@@ -73,8 +73,8 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": -1,
-    "pvzce:sun_spawn_interval_min": 360,
-    "pvzce:sun_spawn_interval_max": 540,
+    "pvzce:sun_spawn_interval_min": 300,
+    "pvzce:sun_spawn_interval_max": 420,
     "pvzce:sun_spawn_initial_ticks": 300,
     "pvzce:zombie_sun_drop_chance": 0.0
   },
@@ -91,7 +91,7 @@
       "sun_goal": 5000,
       "plant_initial_sun": 800,
       "zombie_initial_sun": 50,
-      "zombie_income_sun": 50,
+      "zombie_income_sun": 35,
       "zombie_income_ticks": 300,
       "eat_refund_percent": 50,
       "decision_ticks": 180,

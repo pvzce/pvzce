@@ -60,6 +60,15 @@ public final class JevBrain {
     private static final int AUTO_PICKUP_INTERVAL_TICKS = 6;
     /** A retry this soon after being refused by an in-flight request, rather than a whole interval. */
     private static final int BUSY_RETRY_TICKS = 20;
+    /**
+     * How often the built-in policy may act: twice a second.
+     *
+     * <p>A player clicks as fast as their sun allows, and the policy is a stand-in for one. The
+     * three-second cadence belongs to the network half (asking Jev), not to the half that is a few
+     * comparisons - and measuring this was the difference between an opponent that holds a lawn and
+     * one that is overrun while it thinks.
+     */
+    private static final int FALLBACK_INTERVAL_TICKS = 30;
     /** How close a zombie has to be to the house before the fallback spends its best card. */
     private static final float DANGER_CELL_X = 2F;
 
@@ -142,7 +151,13 @@ public final class JevBrain {
             decisionCountdown--;
             return;
         }
-        decisionCountdown = Math.max(BUSY_RETRY_TICKS, data.decisionTicks());
+        // Two cadences, because they are two different costs. Asking Jev is a network round trip, so
+        // it happens every `decision_ticks` (three seconds); the built-in policy costs a few
+        // comparisons, and at three seconds it was three times slower to react than a player - which
+        // is how the plant opponent lost a match in 78 seconds to a rush a person would have held.
+        decisionCountdown = level.jevSettings().configured()
+                ? Math.max(BUSY_RETRY_TICKS, data.decisionTicks())
+                : FALLBACK_INTERVAL_TICKS;
         ask(level, data, opponent, plantSide);
     }
 
@@ -168,7 +183,7 @@ public final class JevBrain {
                 status = Status.BUILTIN;
                 dirty = true;
             }
-            playFallback(level, opponent, plantSide, hand);
+            playFallback(level, data, opponent, plantSide, hand);
             return;
         }
         JevPrompt prompt = prompt(level, data, opponent, plantSide, hand);
@@ -214,7 +229,7 @@ public final class JevBrain {
         }
         status = Status.FALLBACK;
         dirty = true;
-        playFallback(level, opponent, plantSide, hand(level, data, opponent, plantSide));
+        playFallback(level, data, opponent, plantSide, hand(level, data, opponent, plantSide));
     }
 
     /**
@@ -317,7 +332,7 @@ public final class JevBrain {
      * allows, which is both the most aggressive placement and the one a player would call "the
      * zombies are already among the plants".
      */
-    private void playFallback(LevelServer level, Team opponent, boolean plantSide,
+    private void playFallback(LevelServer level, VersusData data, Team opponent, boolean plantSide,
                               List<CardChoice> hand) {
         int sun = opponent.resourcesOf(PvzceIds.SUN);
         List<CardChoice> affordable = new ArrayList<>();
@@ -327,27 +342,129 @@ public final class JevBrain {
             }
         }
         if (affordable.isEmpty()) {
+            // Nothing it can buy. Doing nothing *is* the policy here: saving toward the next card
+            // is a turn spent, not a turn wasted.
             return;
         }
         affordable.sort(Comparator.comparingInt(CardChoice::cost));
-        boolean inDanger = plantSide && threatened(level);
-        if (inDanger) {
-            // Spending the best card it has is the only thing that helps a lane that is about to
-            // be lost, and hoarding through a breach is how a fallback looks broken.
-            affordable.sort(Comparator.comparingInt(CardChoice::cost).reversed());
-        }
         if (plantSide) {
-            playPlantFallback(level, opponent, affordable, inDanger);
+            playPlantFallback(level, opponent, affordable);
             return;
         }
-        int row = emptiestRow(level);
-        int column = frontColumn(level, plantSide);
-        for (CardChoice card : affordable) {
-            if (tryZombie(level, opponent, card.card(), column, row)) {
-                record(card, column, row);
-                return;
+        playZombieFallback(level, data, opponent, hand, affordable);
+    }
+
+    /**
+     * The zombie side's turn without Jev: spread out first, then spend the surplus on something
+     * that survives.
+     *
+     * <p>The version before this always bought the <em>cheapest</em> card it could afford, which on
+     * a level that pays fifty sun at a time and sells a fifty-sun zombie meant a match of nothing
+     * but basic zombies - every payment was spent the moment it arrived, so the coneheads and
+     * bucketheads were never reachable. The policy is now:
+     *
+     * <ol>
+     *   <li>a lane with no zombie in it gets the cheapest card, because pressure in an empty lane
+     *       is worth more than quality in a busy one;</li>
+     *   <li>otherwise, if the best card in hand is one payment away, <b>hold this turn</b> and buy
+     *       it next time - that is the "wait once" the mode was missing;</li>
+     *   <li>otherwise buy the strongest card it can afford, so a surplus becomes a zombie that the
+     *       lawn has to work for.</li>
+     * </ol>
+     */
+    private void playZombieFallback(LevelServer level, VersusData data, Team opponent,
+                                    List<CardChoice> hand, List<CardChoice> affordable) {
+        CardChoice chosen = chooseZombieCard(level, data, opponent, hand, affordable);
+        if (chosen == null) {
+            return;
+        }
+        int column = frontColumn(level, false);
+        int row = laneWithoutZombies(level);
+        if (row < 0) {
+            row = emptiestRow(level);
+        }
+        if (tryZombie(level, opponent, chosen.card(), column, row)) {
+            record(chosen, column, row);
+        }
+    }
+
+    /**
+     * Which card the zombie side buys, or {@code null} for "wait this turn".
+     *
+     * <p>Separate from where it goes, and that separation is the fix for a real bug: the first
+     * version decided the lane first - "a lane with no zombie in it gets the cheapest card" - and
+     * because a lane is almost always empty in a running match, the cheapest card was the only card
+     * it ever bought. The measurement was unambiguous: 191 zombies, all of them basic.
+     *
+     * <p>The order is about money, not about lanes:
+     * <ol>
+     *   <li>a surplus (the best card plus a reserve) buys the best card, so the lawn has to answer
+     *       something with hit points;</li>
+     *   <li>if the best card is one payment away, <b>wait one turn</b> for it instead of spending
+     *       the same sun on a weaker one - the "allow the AI to wait once" the mode was missing;</li>
+     *   <li>otherwise the strongest card it can afford, which is what keeps pressure on between the
+     *       big ones.</li>
+     * </ol>
+     */
+    private CardChoice chooseZombieCard(LevelServer level, VersusData data, Team opponent,
+                                        List<CardChoice> hand, List<CardChoice> affordable) {
+        int sun = opponent.resourcesOf(PvzceIds.SUN);
+        CardChoice cheapest = affordable.get(0);
+        CardChoice strongest = affordable.get(affordable.size() - 1);
+        CardChoice best = hand.get(hand.size() - 1);
+
+        // Every third purchase is a quality one. A fixed ratio rather than "save whenever the next
+        // upgrade is close", because that rule fed back into the level's income: a richer level made
+        // the upgrade reachable, the upgrade doubled the damage per sun, and the same income went
+        // from fair to overwhelming (measured: peak 20 zombies, matches over in three minutes).
+        // A fixed mix keeps the damage per sun a property of the ratio instead of of the paycheck.
+        boolean qualityTurn = ++placements % QUALITY_EVERY == 0;
+        if (!qualityTurn) {
+            return cheapest;
+        }
+        if (best.cost() <= sun) {
+            return best;
+        }
+        // A quality turn that cannot afford quality waits for it, up to one payment: that is the
+        // "let the AI wait once" the mode was missing. With nothing on the board it sends the cheap
+        // one instead - an opponent that opens with nothing is not an opponent.
+        if (best.cost() - sun <= Math.max(1, data.zombieIncomeSun()) && boardHasAZombie(level)) {
+            placements--;
+            return null;
+        }
+        return strongest;
+    }
+
+    /** One purchase in this many is the best the side can afford; the rest keep the pressure on. */
+    private static final int QUALITY_EVERY = 3;
+    /** How many purchases this opponent has made, for the mix above. */
+    private int placements;
+
+    /** True when at least one of this side's zombies is alive. */
+    private static boolean boardHasAZombie(LevelServer level) {
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                return true;
             }
         }
+        return false;
+    }
+
+    /** A lane with no living zombie in it, or {@code -1} when every lane has one. */
+    private static int laneWithoutZombies(LevelServer level) {
+        boolean[] occupied = new boolean[Math.max(1, level.height())];
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                    && zombie.gridY() >= 0 && zombie.gridY() < occupied.length) {
+                occupied[zombie.gridY()] = true;
+            }
+        }
+        for (int row = 0; row < occupied.length; row++) {
+            if (!occupied[row]) {
+                return row;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -362,35 +479,196 @@ public final class JevBrain {
      * <p>Measured against the same routine the versus soak drives the plant side with: it is a
      * policy a competent player would recognise, not a stub that idles.
      */
-    private void playPlantFallback(LevelServer level, Team opponent, List<CardChoice> affordable,
-                                   boolean inDanger) {
-        int lane = -1;
-        if (inDanger) {
-            lane = mostThreatenedRow(level);
-        } else {
-            lane = anyLaneWithAZombie(level);
-        }
-        if (lane >= 0) {
-            int column = frontColumn(level, true);
-            int behind = Math.max(backColumn(level, true), column - 1);
-            // Best first: stopping what is already walking is worth more than a cheaper plant that
-            // will be eaten before it fires twice.
-            for (int i = affordable.size() - 1; i >= 0; i--) {
-                CardChoice card = affordable.get(i);
-                if (tryPlant(level, opponent, card.card(), behind, lane)) {
-                    record(card, behind, lane);
-                    return;
-                }
-            }
-        }
-        int back = backColumn(level, true);
-        for (CardChoice card : affordable) {
-            if (tryPlant(level, opponent, card.card(), back, lane >= 0 ? lane : 0)
-                    || tryPlant(level, opponent, card.card(), back, anyLaneWithoutPlants(level))) {
-                record(card, back, lane >= 0 ? lane : 0);
+    private void playPlantFallback(LevelServer level, Team opponent, List<CardChoice> affordable) {
+        // Roles, not prices. The version before this bought "the cheapest card it had" whenever the
+        // lawn was quiet, which on every deck a level has written is the sun producer - so the plant
+        // opponent spent whole matches planting sunflowers and never bought a repeater or a wall.
+        // Three questions, in this order, and each of them picks the best card *for that job*:
+        List<CardChoice> producers = withRole(affordable, Role.PRODUCER);
+        List<CardChoice> defenders = withRole(affordable, Role.SHOOTER);
+        List<CardChoice> walls = withRole(affordable, Role.WALL);
+
+        // 1. A lane that is about to be walked into and has nothing to shoot back with.
+        int openLane = laneWithZombieAndNoShooter(level);
+        if (openLane >= 0 && !defenders.isEmpty()) {
+            CardChoice strongest = defenders.get(defenders.size() - 1);
+            int behind = shooterColumn(level);
+            if (tryPlant(level, opponent, strongest.card(), behind, openLane)) {
+                record(strongest, behind, openLane);
                 return;
             }
         }
+
+        // 2. A wall in front of the lane a zombie has nearly reached: the zombie stops to eat it,
+        //    which is the time the shooter behind it needs. Before the economy, because a lane that
+        //    is being walked into does not need another sunflower.
+        int pressed = mostThreatenedRow(level);
+        if (pressed >= 0 && !walls.isEmpty() && frontmostZombieX(level) < WALL_DISTANCE
+                && shooters(level, pressed) > 0
+                && tryPlant(level, opponent, walls.get(walls.size() - 1).card(),
+                        frontColumn(level, true), pressed)) {
+            record(walls.get(walls.size() - 1), frontColumn(level, true), pressed);
+            return;
+        }
+
+        // 3. The economy, up to a point: past five producers another sunflower is a lane the lawn
+        //    cannot defend.
+        if (!producers.isEmpty() && producers(level) < PRODUCER_TARGET) {
+            CardChoice cheapest = producers.get(0);
+            int back = backColumn(level, true);
+            int lane = anyLaneWithoutPlants(level);
+            if (tryPlant(level, opponent, cheapest.card(), back, lane)) {
+                record(cheapest, back, lane);
+                return;
+            }
+        }
+
+        // 4. Otherwise widen the defense: the lane with the fewest shooters gets the best shooter
+        //    the side can afford.
+        if (!defenders.isEmpty()) {
+            CardChoice strongest = defenders.get(defenders.size() - 1);
+            int lane = laneWithFewestShooters(level);
+            int column = shooterColumn(level);
+            if (tryPlant(level, opponent, strongest.card(), column, lane)) {
+                record(strongest, column, lane);
+            }
+        }
+    }
+
+    /**
+     * Where a shooter goes: one cell behind the front of the plantable area.
+     *
+     * <p>Not the front cell, because that is where the wall goes and where the first zombie arrives;
+     * not the back, because a lane's shots travel the whole lane from anywhere and the front column
+     * is the one a zombie reaches last. The calibrated stand-in for a player uses the same column,
+     * which is what makes the two comparable.
+     */
+    private static int shooterColumn(LevelServer level) {
+        return Math.max(backColumn(level, true) + 1, frontColumn(level, true) - 2);
+    }
+
+    /** How close a zombie has to be before a wall is worth planting in front of it. */
+    private static final float WALL_DISTANCE = 6.5F;
+
+    /** The x of the frontmost living zombie, or {@code Float.MAX_VALUE} when there is none. */
+    private static float frontmostZombieX(LevelServer level) {
+        float closest = Float.MAX_VALUE;
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive() && zombie.cellX() < closest) {
+                closest = zombie.cellX();
+            }
+        }
+        return closest;
+    }
+
+    /** How many sun producers a level's plant deck is worth building before defense takes over. */
+    private static final int PRODUCER_TARGET = 5;
+
+    /** What a card is for, read from its own capabilities rather than guessed from its id. */
+    private enum Role {
+        PRODUCER,
+        SHOOTER,
+        WALL,
+        OTHER
+    }
+
+    /** The role of one card, from the capabilities its content declares. */
+    private static Role roleOf(SlotResolver.ResolvedCard card) {
+        return roleOf(BuiltInRegistries.PLANTS.get(card.content()));
+    }
+
+    /** The role of one plant definition, read from the capability types it declares. */
+    private static Role roleOf(PlantDef plant) {
+        if (plant == null) {
+            return Role.OTHER;
+        }
+        boolean shooter = false;
+        for (var capability : plant.capabilities()) {
+            String path = capability.type().path();
+            if ("producer".equals(path) || "gold_magnet".equals(path)) {
+                return Role.PRODUCER;
+            }
+            if ("shooter".equals(path) || "thrower".equals(path) || "cactus".equals(path)
+                    || "melee".equals(path) || "spike".equals(path) || "cob_cannon".equals(path)
+                    || "torchwood".equals(path)) {
+                shooter = true;
+            }
+        }
+        // A wall is a plant that is only a wall: the ones with a shooter capability are shooters
+        // (a tall-nut has none, a pumpkin has none, a peashooter does).
+        if (!shooter && plant.health() >= WALL_HEALTH) {
+            return Role.WALL;
+        }
+        return shooter ? Role.SHOOTER : Role.OTHER;
+    }
+
+    /** Health from which a plant with no attack of its own counts as a wall. */
+    private static final int WALL_HEALTH = 1000;
+
+    /** The affordable cards of one role, cheapest first. */
+    private static List<CardChoice> withRole(List<CardChoice> affordable, Role role) {
+        List<CardChoice> found = new ArrayList<>();
+        for (CardChoice card : affordable) {
+            if (roleOf(card.card()) == role) {
+                found.add(card);
+            }
+        }
+        return found;
+    }
+
+    /** How many sun producers are standing, whatever their kind. */
+    private static int producers(LevelServer level) {
+        int found = 0;
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved()
+                    && roleOfEntity(plant) == Role.PRODUCER) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    private static Role roleOfEntity(PlantEntity plant) {
+        return roleOf(BuiltInRegistries.PLANTS.get(plant.defId()));
+    }
+
+    /** A lane with a zombie in it and no shooter of ours, or {@code -1}. */
+    private static int laneWithZombieAndNoShooter(LevelServer level) {
+        int best = -1;
+        float closest = Float.MAX_VALUE;
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                    && shooters(level, zombie.gridY()) == 0 && zombie.cellX() < closest) {
+                closest = zombie.cellX();
+                best = Math.max(0, zombie.gridY());
+            }
+        }
+        return best;
+    }
+
+    /** The lane with the fewest shooters of ours; ties go to the lowest lane. */
+    private static int laneWithFewestShooters(LevelServer level) {
+        int best = 0;
+        for (int row = 1; row < level.height(); row++) {
+            if (shooters(level, row) < shooters(level, best)) {
+                best = row;
+            }
+        }
+        return best;
+    }
+
+    /** How many shooters stand in one lane. */
+    private static int shooters(LevelServer level, int row) {
+        int found = 0;
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridY() == row) {
+                Role role = roleOfEntity(plant);
+                if (role == Role.SHOOTER) {
+                    found++;
+                }
+            }
+        }
+        return found;
     }
 
     /** The lane of any living zombie, or {@code -1} when the lawn is clear. */
@@ -439,9 +717,9 @@ public final class JevBrain {
         return false;
     }
 
-    /** The lane whose frontmost zombie is closest to the house, or zero when no lane has one. */
+    /** The lane whose frontmost zombie is closest to the house, or {@code -1} when there is none. */
     private static int mostThreatenedRow(LevelServer level) {
-        int best = 0;
+        int best = -1;
         float bestX = Float.MAX_VALUE;
         for (PvzceEntity entity : level.entities()) {
             if (entity instanceof ZombieEntity zombie && zombie.isAlive()

@@ -188,7 +188,10 @@ public record JevPrompt(
                 "Play nothing this turn and bank the sun for something better.");
         questions.add(KEY_ACTION, question("choice",
                 "Which single card should " + side.wireName() + " play this turn, and where? "
-                        + "Pick hold when spending now would be worse than waiting.", criteria));
+                        + "Cards you cannot afford yet are listed as well: if the card you actually "
+                        + "want is one payment away, choose hold and buy it next turn instead of "
+                        + "spending the same sun on a weaker card now. A cheap card every turn is "
+                        + "not better than a strong card every other turn.", criteria));
 
         JsonObject rowCriteria = new JsonObject();
         for (RowOption row : rows) {
