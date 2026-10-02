@@ -107,7 +107,8 @@
       "zombie_cards": [
         "pvzce:basic_zombie",
         "pvzce:conehead_zombie"
-      ]
+      ],
+      "plant_ai_initial_sun_percent": 250
     },
     {
       "type": "pvzce:mower",

@@ -4,7 +4,7 @@
     "resources": {
       "pvzce:sun": 50
     },
-    "cooldown": 300
+    "cooldown": 1800
   },
   "health": 4000,
   "capabilities": [],
