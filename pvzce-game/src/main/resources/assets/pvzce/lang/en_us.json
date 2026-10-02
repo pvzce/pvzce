@@ -412,6 +412,8 @@
   "pvzce.mechanic.versus.field.zombie_income_ticks": "Zombie income interval (ticks)",
   "pvzce.mechanic.versus.field.eat_refund_percent": "Refund for eating a plant (%)",
   "pvzce.mechanic.versus.field.decision_ticks": "Decision interval (ticks)",
+  "pvzce.mechanic.versus.field.plant_ai_initial_sun_percent": "Plant AI opening sun (%)",
+  "pvzce.mechanic.versus.field.plant_ai_income_percent": "Plant AI sun rate (%)",
   "pvzce.mechanic.zombie_zone": "Zombie area",
   "pvzce.mechanic.zombie_zone.field.min_x": "First column",
   "pvzce.mechanic.zombie_zone.field.max_x": "Last column",

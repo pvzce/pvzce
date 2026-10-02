@@ -51,6 +51,9 @@ import java.util.List;
  * @param zombieIncomeSun   sun paid to the zombie side every {@link #zombieIncomeTicks}
  * @param zombieIncomeTicks how often that payment lands
  * @param eatRefundPercent  percent of a eaten plant's sun cost paid to the side that ate it
+ * @param plantAiInitialSunPercent the plant side's opening purse <b>when the AI plays it</b>, as a
+ *                                 percentage of the level's own number
+ * @param aiIncomePercent   the opponent's periodic income as a percentage of the level's own numbers
  * @param decisionTicks     how often the opponent is asked what to do next
  * @param plantCards        the plant side's bar, in card order
  * @param zombieCards       the zombie side's bar, in card order
@@ -63,6 +66,8 @@ public record VersusData(
         int zombieIncomeTicks,
         int eatRefundPercent,
         int decisionTicks,
+        int plantAiInitialSunPercent,
+        int plantAiIncomePercent,
         List<Identifier> plantCards,
         List<Identifier> zombieCards) implements MechanicData {
 
@@ -71,6 +76,26 @@ public record VersusData(
 
     /** Three seconds: the pacing the mode shipped with, and the default for a level that omits it. */
     public static final int DEFAULT_DECISION_TICKS = 180;
+    /**
+     * The plant side's opening purse when the <b>AI</b> is the one playing it, as a percentage.
+     *
+     * <p>The user's call, after the mowers came out and the plant side's opening dropped to 400:
+     * "让AI那一方的初始阳光更多，阳光速率快一点". It is paid to the AI only, so the player's own run of
+     * the same level is unchanged.
+     *
+     * <p><b>Why the plant side and not both.</b> Measured, not assumed: with the same help the plant
+     * opponent went from walked-through-in-50-seconds to a seven-minute match it wins, while the
+     * zombie opponent - which needs no help - lost nothing by not getting any: as soon as it was
+     * helped too (opening x2, income 125%), the plant side of the same three levels was overrun in
+     * 39 seconds to 1 minute 41. An opponent is helped where it is weak, and the zombie half of this
+     * mode has never been the weak one.
+     *
+     * <p>A percentage rather than a flat sum: +400 flat is one fifth of the plant's 400 and nine
+     * times the zombie's 50, so one number can only be a handicap to one of them.
+     */
+    public static final int DEFAULT_PLANT_AI_INITIAL_SUN_PERCENT = 200;
+    /** The plant opponent's sky rate as a percentage: 125 means the wait is four fifths as long. */
+    public static final int DEFAULT_PLANT_AI_INCOME_PERCENT = 125;
     /** Four seconds between the zombie side's payments. */
     public static final int DEFAULT_INCOME_TICKS = 240;
     public static final int DEFAULT_INCOME_SUN = 25;
@@ -92,6 +117,12 @@ public record VersusData(
                     .forGetter(VersusData::eatRefundPercent),
             Codec.INT.optionalFieldOf("decision_ticks", DEFAULT_DECISION_TICKS)
                     .forGetter(VersusData::decisionTicks),
+            Codec.INT.optionalFieldOf("plant_ai_initial_sun_percent",
+                            DEFAULT_PLANT_AI_INITIAL_SUN_PERCENT)
+                    .forGetter(VersusData::plantAiInitialSunPercent),
+            Codec.INT.optionalFieldOf("plant_ai_income_percent",
+                            DEFAULT_PLANT_AI_INCOME_PERCENT)
+                    .forGetter(VersusData::plantAiIncomePercent),
             Identifier.CODEC.listOf().optionalFieldOf("plant_cards", List.of())
                     .forGetter(VersusData::plantCards),
             Identifier.CODEC.listOf().optionalFieldOf("zombie_cards", List.of())
@@ -136,7 +167,11 @@ public record VersusData(
                 FieldSpec.integer("eat_refund_percent", "pvzce.mechanic.versus.field.eat_refund_percent",
                         0, 100),
                 FieldSpec.integer("decision_ticks", "pvzce.mechanic.versus.field.decision_ticks",
-                        20, 36_000));
+                        20, 36_000),
+                FieldSpec.integer("plant_ai_initial_sun_percent",
+                        "pvzce.mechanic.versus.field.plant_ai_initial_sun_percent", 100, 1_000),
+                FieldSpec.integer("plant_ai_income_percent",
+                        "pvzce.mechanic.versus.field.plant_ai_income_percent", 10, 1_000));
     }
 
     /**

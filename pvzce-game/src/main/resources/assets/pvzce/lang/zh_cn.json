@@ -412,6 +412,8 @@
   "pvzce.mechanic.versus.field.zombie_income_ticks": "僵尸方收入间隔（tick）",
   "pvzce.mechanic.versus.field.eat_refund_percent": "吃植物返还（%）",
   "pvzce.mechanic.versus.field.decision_ticks": "决策间隔（tick）",
+  "pvzce.mechanic.versus.field.plant_ai_initial_sun_percent": "植物方 AI 的开局阳光（百分比）",
+  "pvzce.mechanic.versus.field.plant_ai_income_percent": "植物方 AI 的阳光速度（百分比）",
   "pvzce.mechanic.zombie_zone": "僵尸放置区",
   "pvzce.mechanic.zombie_zone.field.min_x": "最小列",
   "pvzce.mechanic.zombie_zone.field.max_x": "最大列",

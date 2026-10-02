@@ -107,6 +107,18 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         return VersusData.editorFields();
     }
 
+    /**
+     * The team the AI plays on this run: whoever the human is not.
+     *
+     * <p>The mode's handicap fields are phrased as "the AI's", and which side that is depends on what
+     * the player chose when they entered - so it is derived here, once, rather than being spelled as
+     * "the plant side's bonus" and being wrong half the time.
+     */
+    public static Team aiTeam(LevelServer level) {
+        return PvzceIds.ZOMBIE_TEAM.equals(level.humanTeamId())
+                ? level.team(PvzceIds.PLANT_TEAM) : level.team(PvzceIds.ZOMBIE_TEAM);
+    }
+
     @Override
     public void onLevelCreated(LevelServer level, VersusData data) {
         Team plant = level.team(PvzceIds.PLANT_TEAM);
@@ -128,11 +140,24 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         if (zombie != null) {
             zombie.unlockResource(PvzceIds.SUN);
         }
+        // The handicap is the plant opponent's, and only while it *is* the opponent: the same level
+        // played from the plant side gives the player the level's own 400 and its own sky rate.
+        Team ai = aiTeam(level);
+        boolean plantIsTheAi = plant != null && ai == plant;
         if (plant != null && data.plantInitialSun() > 0) {
-            plant.addResource(PvzceIds.SUN, data.plantInitialSun());
+            plant.addResource(PvzceIds.SUN, plantIsTheAi
+                    ? scaleSun(data.plantInitialSun(), Math.max(100, data.plantAiInitialSunPercent()))
+                    : data.plantInitialSun());
         }
         if (zombie != null && data.zombieInitialSun() > 0) {
             zombie.addResource(PvzceIds.SUN, data.zombieInitialSun());
+        }
+        // The plant side's income is the sky, and it is a level-wide clock rather than a per-team
+        // counter - so the opponent's faster rate is the level's own interval scaled at the moment
+        // the match starts. Only when the opponent *is* the plant side: the sky's sun belongs to the
+        // plant team, so scaling it while the human plants would speed up the player's own economy.
+        if (plantIsTheAi) {
+            scaleSkyForTheOpponent(level, data.plantAiIncomePercent());
         }
         Run run = run(level);
         run.incomeCountdown = Math.max(1, data.zombieIncomeTicks());
@@ -183,6 +208,8 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         if (zombie == null) {
             return;
         }
+        // The level's own rate, unhandicapped: the zombie half of this mode needs no help, and
+        // measured, giving it some overruns the plant side inside two minutes.
         zombie.addResource(PvzceIds.SUN, data.zombieIncomeSun());
         publishIfHuman(level, zombie);
     }
@@ -250,6 +277,25 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         run.sentCommanderPlan = "";
         if (tag.contains("Income")) {
             run.incomeCountdown = Math.max(0, tag.getInt("Income"));
+        }
+    }
+
+    /** One sun total, as the mode pays it to its opponent. */
+    private static int scaleSun(int sun, int percent) {
+        return Math.max(1, Math.round(sun * percent / 100F));
+    }
+
+    /** Divides the sky's interval so the plant side's sun arrives at {@code percent} of the wait. */
+    private static void scaleSkyForTheOpponent(LevelServer level, int percent) {
+        if (percent == 100) {
+            return;
+        }
+        for (Identifier rule : new Identifier[]{PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN,
+                PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, PvzceIds.RULE_SUN_SPAWN_INITIAL_TICKS}) {
+            int ticks = level.rules().getInt(rule);
+            if (ticks > 0) {
+                level.setRule(rule, Math.max(1, Math.round(ticks * 100F / percent)));
+            }
         }
     }
 
