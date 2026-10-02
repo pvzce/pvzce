@@ -739,6 +739,39 @@ class VersusModeTest {
         }
     }
 
+    /**
+     * The shipped versus levels hand out no free zombie removal: no mower, no rake.
+     *
+     * <p>Both are the same kind of gift - the first zombie in a lane dies without the player having
+     * built anything - and the user took both out, in that order ("小推车也要去掉", "这关不要有钉耙").
+     * Checked here rather than trusted to the JSON because the rake is not the level's to give: it
+     * arrives from the player's own profile whenever the level does not say otherwise, so deleting a
+     * block that says "none" would silently bring it back for anyone who bought one.
+     */
+    @Test
+    void theVersusLevelsGiveAwayNoFreeKills() {
+        for (String name : new String[]{"duel_1", "duel_2", "duel_3"}) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(id("yard/versus/" + name));
+            assertNotNull(def, name + " is a shipped level");
+
+            // `dataOf` reads the block the level declared; the default that a missing block means is
+            // exactly what this test exists to keep out of the versus levels.
+            com.pvzce.api.content.MowerData mower = LevelMechanics
+                    .dataOf(def, PvzceIds.MECHANIC_MOWER, com.pvzce.api.content.MowerData.class)
+                    .orElse(null);
+            assertNotNull(mower, name + " says what its mowers are");
+            assertEquals(java.util.Optional.of(List.<Integer>of()), mower.rows(),
+                    name + " has no mowers");
+
+            com.pvzce.api.content.RakeData rake = LevelMechanics
+                    .dataOf(def, PvzceIds.MECHANIC_RAKE, com.pvzce.api.content.RakeData.class)
+                    .orElse(null);
+            assertNotNull(rake, name + " says what its rakes are");
+            assertEquals(java.util.Optional.of(List.<Integer>of()), rake.rows(),
+                    name + " has no rake, whatever the player's profile owns");
+        }
+    }
+
     @Test
     void theModeReportsItsOwnMistakes() {
         LevelDef wrongDeck = level(defaultMode(),

@@ -114,6 +114,10 @@
       "rows": []
     },
     {
+      "type": "pvzce:rake",
+      "rows": []
+    },
+    {
       "type": "pvzce:placement_zone",
       "min_x": 0,
       "max_x": 4
