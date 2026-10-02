@@ -807,6 +807,105 @@ class VersusModeTest {
                 "and the sun it had went into the defense instead");
     }
 
+    /**
+     * With the opt-in on, a zombie at the door makes the commander play the move itself.
+     *
+     * <p>Two stubs, and the assertion is about *which* one was asked: the tactical model must not be
+     * consulted while the strategist is holding the board, and the move that appears on the lawn must be
+     * the one the strategist named - a card, a lane and a column.
+     */
+    @Test
+    void theCommanderPlaysTheMoveItselfWhenAZombieIsAtTheDoor() throws IOException {
+        List<String> jevBodies = new ArrayList<>();
+        List<String> orderBodies = new ArrayList<>();
+        startStubThatEchoesTheFirstOption(jevBodies::add);
+        HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        commander.createContext("/chat/completions", exchange -> {
+            String body = readBody(exchange);
+            orderBodies.add(body);
+            // The three-line order the mode asks for: a card, a lane, a column.
+            JsonObject message = new JsonObject();
+            message.addProperty("role", "assistant");
+            message.addProperty("content", "pvzce:basic_zombie\n3\n5\n先补这一路。");
+            JsonObject answer = new JsonObject();
+            answer.add("message", message);
+            JsonArray choices = new JsonArray();
+            choices.add(answer);
+            JsonObject response = new JsonObject();
+            response.add("choices", choices);
+            respond(exchange, response.toString());
+        });
+        commander.start();
+        try {
+            LevelDef def = level(new Mode(1_000_000, 10_000, 10_000, 35, 300, 0, 60),
+                    "[\"pvzce:sun\", \"pvzce:sunflower\"]",
+                    "[\"pvzce:basic_zombie\"]", "[]", 5);
+            // The human is the plant side, so the AI plays zombies - and the zombie it is ordered to
+            // place is its own, which is the side that has somewhere to put one at the door.
+            LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def),
+                    null, null, Identifier.parse(PLANT));
+            level.setAiSettings(new AiSettings(
+                    "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
+                    "stub", "test-key"));
+            level.setCommanderSettings(new AiSettings(
+                    "http://127.0.0.1:" + commander.getAddress().getPort() + "/chat/completions",
+                    "stub", "test-key"));
+            level.setCommanderTakesOverAtTheDoor(true);
+            CapturingBridge bridge = new CapturingBridge();
+            level.tick(bridge);
+            // A zombie two cells from the house: the emergency the opt-in is for. It is the AI's own
+            // zombie (the AI plays the zombie side here), and a wall in front of it keeps the match
+            // alive long enough for an order to be asked for - without it the zombie walks in and the
+            // level is over inside one commander cycle.
+            assertNotNull(level.spawnPlant(
+                    com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id("wall_nut")),
+                    level.team(Identifier.parse(PLANT)), 1, 3), "a wall for it to stop and eat");
+            assertNotNull(level.spawnZombie(id("basic_zombie"), level.team(Identifier.parse(ZOMBIE)),
+                    2.0F, 3), "a zombie at the door");
+
+            // The count starts once the takeover is under way *and* the question the level asked on its
+            // own account has landed. Ticking first and counting later is the difference between "no
+            // request was made during the takeover" and "a request made a moment before it arrived a
+            // moment after", which is not a claim about this feature at all.
+            tick(level, bridge, 200);
+            int before = jevBodies.size();
+
+            // Waited for the *order*, not for the first briefing: the commander is asked once before
+            // the zombie exists, and that request is a plan-shaped one.
+            String orderMarker = "第一行只写名单里的一个卡 id";
+            long deadline = System.nanoTime() + 20_000_000_000L;
+            while (System.nanoTime() < deadline
+                    && orderBodies.stream().noneMatch(body -> body.contains(orderMarker))) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertTrue(orderBodies.stream().anyMatch(body -> body.contains(orderMarker)),
+                    "the commander was asked to act, and told the shape of an order");
+
+            // A zombie in the lane the order named, still in its entry column. Checked as it lands
+            // rather than at the end of the window: a zombie walks, so "in column 5" is true for about
+            // four seconds of a thirty-second match, and asking the question later asks it of a zombie
+            // that has left.
+            deadline = System.nanoTime() + 20_000_000_000L;
+            while (System.nanoTime() < deadline && level.entities().stream()
+                    .filter(ZombieEntity.class::isInstance).map(ZombieEntity.class::cast)
+                    .noneMatch(zombie -> zombie.gridY() == 3 && zombie.cellX() >= 5F)) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertTrue(level.entities().stream().filter(ZombieEntity.class::isInstance)
+                            .map(ZombieEntity.class::cast)
+                            .anyMatch(zombie -> zombie.gridY() == 3 && zombie.cellX() >= 5F),
+                    "the order's zombie went into the lane it named, at its entry column: state="
+                            + level.gameState() + " fallbacks=" + level.jevBrain().fallbacks()
+                            + " orders=" + orderBodies.size());
+            assertEquals(before, jevBodies.size(),
+                    "and the tactical model was not asked while the strategist held the board");
+        } finally {
+            stopStub();
+        }
+    }
+
     @Test
     void theModeReportsItsOwnMistakes() {
         LevelDef wrongDeck = level(defaultMode(),

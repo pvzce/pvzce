@@ -25,6 +25,8 @@ public final class PvzceClientConfig {
     public static final int DEFAULT_MAX_FPS = 120;
     public static final int UNLIMITED_FPS = 260;
     public static final boolean DEFAULT_VSYNC = true;
+    /** See {@link #commanderTakesOverAtTheDoor}: an opt-in, not the shipped behaviour. */
+    public static final boolean DEFAULT_COMMANDER_TAKES_OVER = false;
     public static final boolean DEFAULT_FULLSCREEN = false;
     /**
      * Whether this client asks for the X11 backend when the session could give it either one.
@@ -161,6 +163,16 @@ public final class PvzceClientConfig {
     private String commanderUrl = com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_URL;
     private String commanderModel = com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL;
     private String commanderKey = "";
+    /**
+     * Whether the commander is allowed to play the move itself when the zombies are at the door.
+     *
+     * <p>The user's request ("在设置里面允许极度危险（三格以内）时，让指挥直接操作而不是jev来操作"):
+     * a strategist that has just been told "a zombie is two cells from the house" is better placed to
+     * answer "what now" than a model that is asked that question every second and a half - and the
+     * tactical model's answer arrives after the moment has passed. Off by default, because it hands the
+     * commander the board.
+     */
+    private boolean commanderTakesOverAtTheDoor = DEFAULT_COMMANDER_TAKES_OVER;
     private Path file;
 
     public static PvzceClientConfig load(Path gameDir) {
@@ -197,6 +209,8 @@ public final class PvzceClientConfig {
                 config.commanderModel = getString(toml, "commander_model",
                         com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL);
                 config.commanderKey = getString(toml, "commander_key", "");
+                config.commanderTakesOverAtTheDoor = getBoolean(toml, "commander_takes_over_at_the_door",
+                        DEFAULT_COMMANDER_TAKES_OVER);
             } else {
                 config.save();
             }
@@ -282,7 +296,8 @@ public final class PvzceClientConfig {
                     + "\njev_key = \"" + jevKey + "\""
                     + "\ncommander_url = \"" + commanderUrl + "\""
                     + "\ncommander_model = \"" + commanderModel + "\""
-                    + "\ncommander_key = \"" + commanderKey + "\"\n"
+                    + "\ncommander_key = \"" + commanderKey + "\""
+                    + "\ncommander_takes_over_at_the_door = " + commanderTakesOverAtTheDoor + "\n"
                     + "\n[keys]\n"
                     + keyBinds();
             Files.writeString(file, content);
@@ -530,6 +545,15 @@ public final class PvzceClientConfig {
     public void setCommanderModel(String model) {
         this.commanderModel = model == null || model.isBlank()
                 ? com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL : model.trim();
+    }
+
+    /** Whether the commander plays the move itself when a zombie is at the door; see the field. */
+    public boolean commanderTakesOverAtTheDoor() {
+        return commanderTakesOverAtTheDoor;
+    }
+
+    public void setCommanderTakesOverAtTheDoor(boolean value) {
+        this.commanderTakesOverAtTheDoor = value;
     }
 
     /** The commander's bearer token, or empty. */

@@ -207,6 +207,15 @@ public final class JevBrain {
             return;
         }
         boolean plantSide = PvzceIds.PLANT_TEAM.equals(opponent.id());
+        if (takeoverActive(level)) {
+            // The strategist holds the board, so neither the tactical loop nor the *plan* loop runs while
+            // this lasts. Checked before `tickCommander` because that one polls the same client, and the
+            // first version let it read the order's three lines as a plan - which it accepted, leaving
+            // the lane unplayed and the order unread (measured: five orders, no zombie).
+            decisionCountdown = Math.max(decisionCountdown, FALLBACK_INTERVAL_TICKS);
+            tickTakeover(level, data, opponent, plantSide);
+            return;
+        }
         tickCommander(level, data, opponent, plantSide);
         drainAnswers(level, data, opponent, plantSide);
         if (decisionCountdown > 0) {
@@ -277,6 +286,26 @@ public final class JevBrain {
      * inner four of the five a zombie has to cross.
      */
     private static final float DOORSTEP_CELLS = 3F;
+    /**
+     * Extreme danger: the first three columns, the tier the commander may act in.
+     *
+     * <p>Narrower than {@link #DOORSTEP_CELLS} on purpose, and it is the user's own distinction: the
+     * danger zone (four columns) is what the prompts shout about and what tightens the pacing, while
+     * this is the tier where the strategist is handed the board because a tactical answer would arrive
+     * after the moment had passed.
+     */
+    private static final float EXTREME_CELLS = 2F;
+
+    /** True when at least one zombie is inside {@link #EXTREME_CELLS} of the house. */
+    static boolean extremeDanger(LevelServer level) {
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                    && zombie.cellX() <= EXTREME_CELLS) {
+                return true;
+            }
+        }
+        return false;
+    }
     private static final int COMMANDER_PRESSED_TICKS = 15 * 60;
     private static final int COMMANDER_DOORSTEP_TICKS = 10 * 60;
     /** Two thirds of the calm interval once a zombie is in the plant zone. */
@@ -341,21 +370,160 @@ public final class JevBrain {
             acceptPlan(level, data, opponent, plantSide, answer.get());
             answer = commander.poll();
         }
-        // The plan is not part of "has anything the HUD draws changed": it is debug-only, so it
-        // travels in the mechanic's own state when it changes (see VersusMechanic), not through this
-        // flag - one dirty flag for one consumer, or every collection would re-send the whole board.
         if (commanderCountdown > 0) {
             commanderCountdown--;
             return;
         }
-        // Asked even while a previous answer is in flight? No: one strategy line about one board is
-        // worth one request, and a slow model must not build a queue of stale plans.
         int interval = commanderInterval(plantSide, pressure(level));
         if (commander.request(settings, commanderSnapshot(level, data, opponent, plantSide))) {
             commanderCountdown = interval;
         } else {
             commanderCountdown = interval / 4;
         }
+    }
+
+    /** True while an order is out; the answer to it is played, not filed. */
+    private boolean awaitingOrders;
+
+    /**
+     * True when the commander is the one playing: the player asked for it, there is a commander, and a
+     * zombie is inside three cells of the house.
+     */
+    private static boolean takeoverActive(LevelServer level) {
+        return level.commanderTakesOverAtTheDoor() && level.commanderSettings().configured()
+                && extremeDanger(level);
+    }
+
+    /**
+     * One tick of "the commander is playing this lane".
+     *
+     * <p>Orders are asked for on the door's own cadence (ten seconds) and one at a time; between them
+     * nothing else plays, because that is what the opt-in means. A request that cannot go out, or an
+     * order that cannot be carried out, is answered by the built-in policy for that turn - the board is
+     * three cells from losing and cannot wait for a second round trip.
+     */
+    private void tickTakeover(LevelServer level, VersusData data, Team opponent, boolean plantSide) {
+        CommanderClient client = commander;
+        if (client == null) {
+            rescueThisTurn(level, data, opponent, plantSide);
+            return;
+        }
+        commanderBusy = client.busy();
+        Optional<String> answer = client.poll();
+        while (answer.isPresent()) {
+            awaitingOrders = false;
+            actOnOrders(level, data, opponent, plantSide, answer.get());
+            answer = client.poll();
+        }
+        if (awaitingOrders) {
+            return;
+        }
+        if (commanderCountdown > 0) {
+            commanderCountdown--;
+            // Nothing is in flight and the next order is not due: the built-in policy keeps the lane
+            // alive rather than leaving the board unplayed for up to ten seconds.
+            rescueThisTurn(level, data, opponent, plantSide);
+            return;
+        }
+        awaitingOrders = true;
+        String snapshot = orderSnapshot(commanderSnapshot(level, data, opponent, plantSide), level,
+                plantSide);
+        if (client.request(level.commanderSettings(), snapshot)) {
+            commanderCountdown = COMMANDER_DOORSTEP_TICKS;
+        } else {
+            awaitingOrders = false;
+            commanderCountdown = COMMANDER_DOORSTEP_TICKS / 4;
+        }
+    }
+
+    /**
+     * The briefing, plus the three lines an order has to be in.
+     *
+     * <p>Appended rather than written twice: everything before this is what the strategist reads to
+     * decide, and the tail is the only difference between "tell me the plan" and "make the move".
+     */
+    private static String orderSnapshot(String briefing, LevelServer level, boolean plantSide) {
+        List<String> rows = new ArrayList<>();
+        for (int y = 0; y < level.height(); y++) {
+            rows.add(String.valueOf(y));
+        }
+        return briefing
+                + "\n现在有一只僵尸已经到了最靠近房子的三列以内，这一手由你直接下（不再问战术模型）。"
+                + "请严格按三行回答：第一行只写名单里的一个卡 id（或 hold）；第二行只写行号，"
+                + "取值 " + String.join("/", rows) + "；第三行只写列号，取值 "
+                + String.join("/", legalColumns(level, plantSide).stream().map(String::valueOf)
+                        .toList())
+                + "。之后可以再写不超过两句话的理由。";
+    }
+
+    /**
+     * Plays an order: a card, a lane and a column.
+     *
+     * <p>Refused as a whole if any of the three cannot be carried out - and the built-in policy then
+     * plays this turn, because a board this close to losing cannot wait for a second round trip.
+     */
+    private void actOnOrders(LevelServer level, VersusData data, Team opponent, boolean plantSide,
+                             String answer) {
+        List<CardChoice> hand = hand(level, data, opponent, plantSide);
+        String[] lines = answer.split("\\n");
+        String cardLine = lines.length > 0 ? lines[0] : "";
+        String card = cardIdIn(cardLine, hand);
+        if (card == null && !isHold(cardLine)) {
+            countFallback("orders:card");
+            LOGGER.warn("commander's order named '{}', which this side cannot play; it is not played",
+                    firstLine(answer));
+            rescueThisTurn(level, data, opponent, plantSide);
+            return;
+        }
+        if (card == null) {
+            return;
+        }
+        int row = numberIn(lines.length > 1 ? lines[1] : "", level.height());
+        int column = numberIn(lines.length > 2 ? lines[2] : "", level.width());
+        if (row < 0 || column < 0) {
+            countFallback("orders:placement");
+            LOGGER.warn("commander's order had no usable lane/column ('{}'); it is not played",
+                    firstLine(answer));
+            rescueThisTurn(level, data, opponent, plantSide);
+            return;
+        }
+        JevDecision order = new JevDecision(card, row, column, 1D, "commander");
+        if (play(level, opponent, plantSide, order)) {
+            status = Status.JEV;
+            dirty = true;
+            lastCardId = card;
+            lastRow = row;
+            lastColumn = column;
+            LOGGER.info("the commander played {} at {},{}", card, row, column);
+        } else {
+            countFallback("orders:refused:" + lastRefusal);
+            LOGGER.info("the commander's order {} at {},{} could not be executed ({})", card, row,
+                    column, lastRefusal);
+            rescueThisTurn(level, data, opponent, plantSide);
+        }
+    }
+
+    /**
+     * Plays one move from the built-in policy after an order that could not be carried out.
+     *
+     * <p>The board is three cells from losing and the strategist's answer was unusable: this is not the
+     * moment for another round trip. The built-in policy is the mode's own competent stand-in, and the
+     * next commander cycle is ten seconds away.
+     */
+    private void rescueThisTurn(LevelServer level, VersusData data, Team opponent, boolean plantSide) {
+        playFallback(level, data, opponent, plantSide, hand(level, data, opponent, plantSide));
+    }
+
+    /** The first whole number in a line, or {@code -1}. Tolerates "row_2", "2", "第 2 行". */
+    private static int numberIn(String line, int limit) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\d+").matcher(line);
+        while (matcher.find()) {
+            int value = Integer.parseInt(matcher.group());
+            if (value >= 0 && value < limit) {
+                return value;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -406,26 +574,52 @@ public final class JevBrain {
      * {@code pvzce:conehead_zombie}, or wraps the id in backticks, and all three mean the same card.
      */
     private static String cardIdIn(String line, List<CardChoice> hand) {
-        String head = line;
-        for (String separator : new String[]{"：", ":", "，", ",", "。", ".", " ", "\t", "-", "—"}) {
-            int at = head.indexOf(separator);
-            if (at >= 0) {
-                head = head.substring(0, at);
-            }
-        }
-        head = head.strip();
-        if (head.isEmpty()) {
-            return null;
-        }
-        for (CardChoice card : hand) {
-            String id = card.card().slotId().toString();
-            String path = card.card().slotId().path();
-            if (id.equalsIgnoreCase(head) || path.equalsIgnoreCase(head)
-                    || ("pvzce:" + head).equalsIgnoreCase(id)) {
-                return id;
+        for (String candidate : cardCandidates(line)) {
+            for (CardChoice card : hand) {
+                String id = card.card().slotId().toString();
+                String path = card.card().slotId().path();
+                if (id.equalsIgnoreCase(candidate) || path.equalsIgnoreCase(candidate)
+                        || ("pvzce:" + candidate).equalsIgnoreCase(id)) {
+                    return id;
+                }
             }
         }
         return null;
+    }
+
+    /**
+     * Every way a line could be naming a card, most literal first.
+     *
+     * <p>The first version of this cut the line at the first separator, and one of the separators was
+     * {@code ":"} - which every namespaced card id contains. {@code pvzce:basic_zombie} became
+     * {@code pvzce} and never matched, which the plan path never noticed because a model writing a plan
+     * tends to write the bare name ({@code conehead_zombie}); the order path asks for the id exactly as
+     * the briefing lists it, and every order was refused for it. So: the whole line, then the pieces, and
+     * separately anything that looks like a namespaced id.
+     */
+    private static List<String> cardCandidates(String line) {
+        List<String> candidates = new ArrayList<>();
+        String whole = line.strip().replace("`", "").replace("*", "").strip();
+        if (!whole.isEmpty()) {
+            candidates.add(whole);
+        }
+        java.util.regex.Matcher namespaced =
+                java.util.regex.Pattern.compile("[A-Za-z0-9_.-]+:[A-Za-z0-9_./-]+").matcher(whole);
+        while (namespaced.find()) {
+            candidates.add(namespaced.group());
+        }
+        for (String piece : whole.split("[\\s：，,。.\\t—]+")) {
+            String text = piece.strip();
+            // A trailing colon is punctuation here ("conehead_zombie: ..."), so it is trimmed rather
+            // than split on - the id's own colon is inside the piece and stays.
+            while (text.endsWith(":")) {
+                text = text.substring(0, text.length() - 1).strip();
+            }
+            if (!text.isEmpty()) {
+                candidates.add(text);
+            }
+        }
+        return candidates;
     }
 
     /** True when the first line says "wait", in the two languages the prompt is written in. */

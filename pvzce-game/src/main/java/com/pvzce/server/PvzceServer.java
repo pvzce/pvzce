@@ -1013,6 +1013,12 @@ public final class PvzceServer implements Runnable {
      * launched with its own credential for that tier.
      */
     public void setAiSettings(AiSettings jev, AiSettings commander) {
+        setAiSettings(jev, commander, false);
+    }
+
+    /** The same, with the commander's "act for me at the door" opt-in. */
+    public void setAiSettings(AiSettings jev, AiSettings commander,
+                              boolean commanderTakesOverAtTheDoor) {
         if (!jevFromLaunchArguments) {
             jevSettings = jev == null ? AiSettings.NONE : jev;
             LOGGER.info("Jev settings from the client: {}", jevSettings.redacted());
@@ -1027,14 +1033,19 @@ public final class PvzceServer implements Runnable {
             LOGGER.info("Ignoring the client's commander settings: this server was launched with {}",
                     commanderSettings.redacted());
         }
+        this.commanderTakesOverAtTheDoor = commanderTakesOverAtTheDoor;
         applyAiSettings(level);
     }
+
+    /** See {@code AiSettingsC2S}: the commander plays the move itself when a zombie is at the door. */
+    private boolean commanderTakesOverAtTheDoor;
 
     /** Carries both credentials into one run; called wherever a level is created. */
     private void applyAiSettings(LevelServer target) {
         if (target != null) {
             target.setAiSettings(jevSettings);
             target.setCommanderSettings(commanderSettings);
+            target.setCommanderTakesOverAtTheDoor(commanderTakesOverAtTheDoor);
         }
     }
 
@@ -1465,7 +1476,8 @@ public final class PvzceServer implements Runnable {
                 say(chat.text());
             } else if (packet instanceof com.pvzce.common.network.packet.AiSettingsC2S ai) {
                 setAiSettings(new AiSettings(ai.url(), ai.model(), ai.key()),
-                        new AiSettings(ai.commanderUrl(), ai.commanderModel(), ai.commanderKey()));
+                        new AiSettings(ai.commanderUrl(), ai.commanderModel(), ai.commanderKey()),
+                        ai.commanderTakesOverAtTheDoor());
             } else if (packet instanceof SetDifficultyC2S difficulty) {
                 setDifficulty(difficulty.difficulty());
             } else if (packet instanceof PauseGameC2S pause) {

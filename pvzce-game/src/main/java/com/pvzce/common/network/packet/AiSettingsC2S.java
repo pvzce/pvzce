@@ -31,7 +31,8 @@ import com.pvzce.common.network.PvzcePacket;
  * @param key   the bearer token
  */
 public record AiSettingsC2S(String url, String model, String key, String commanderUrl,
-                           String commanderModel, String commanderKey) implements PvzcePacket {
+                           String commanderModel, String commanderKey,
+                           boolean commanderTakesOverAtTheDoor) implements PvzcePacket {
     public AiSettingsC2S {
         url = trim(url);
         model = trim(model);
@@ -58,18 +59,20 @@ public record AiSettingsC2S(String url, String model, String key, String command
         buf.writeString(commanderUrl);
         buf.writeString(commanderModel);
         buf.writeString(commanderKey);
+        buf.writeBoolean(commanderTakesOverAtTheDoor);
     }
 
     public static AiSettingsC2S decode(PacketByteBuf buf) {
         return new AiSettingsC2S(buf.readString(), buf.readString(), buf.readString(),
-                buf.readString(), buf.readString(), buf.readString());
+                buf.readString(), buf.readString(), buf.readString(), buf.readBoolean());
     }
 
     /** Never prints a key: a packet's {@code toString} ends up in logs by accident. */
     @Override
     public String toString() {
         return "AiSettingsC2S[jev=" + url + "/" + model + keyPart(key)
-                + ", commander=" + commanderUrl + "/" + commanderModel + keyPart(commanderKey) + "]";
+                + ", commander=" + commanderUrl + "/" + commanderModel + keyPart(commanderKey)
+                + (commanderTakesOverAtTheDoor ? ", takes over at the door" : "") + "]";
     }
 
     private static String keyPart(String value) {

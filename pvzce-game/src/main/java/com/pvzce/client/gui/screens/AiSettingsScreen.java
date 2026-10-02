@@ -64,8 +64,8 @@ public final class AiSettingsScreen extends Screen {
     private EditBox commanderUrlBox;
     private EditBox commanderModelBox;
     private EditBox commanderKeyBox;
-    /** Four labelled rows: Jev's three, then the commander's. */
-    private final int[] labelY = new int[5];
+    /** Six labelled rows: Jev's three, the commander's heading, and its two settings. */
+    private final int[] labelY = new int[6];
     private int titleY;
     private float titleScale;
 
@@ -78,8 +78,8 @@ public final class AiSettingsScreen extends Screen {
         int margin = 16;
         int guiH = client.guiHeight();
         int titleReserve = Math.max(34, Math.min(52, guiH / 6));
-        // Seven rows now that the commander has a block of its own.
-        int rowHeight = GuiLayout.fitHeight(guiH, 38, 7, titleReserve, 10);
+        // Eight rows now that the commander has a block of its own plus the takeover switch.
+        int rowHeight = GuiLayout.fitHeight(guiH, 38, 8, titleReserve, 10);
         int gap = GuiLayout.gapFor(rowHeight);
         int fullWidth = client.guiWidth() - margin * 2;
         int labelWidth = 96;
@@ -164,10 +164,39 @@ public final class AiSettingsScreen extends Screen {
         commanderKeyBox = new EditBox(fieldX, y, commanderKeyWidth, rowHeight, 300, null);
         commanderKeyBox.setValue(client.config().commanderKey());
         addWidget(commanderKeyBox);
+        labelY[4] = center(y, rowHeight);
+        y -= rowHeight + gap;
+
+        // The opt-in the user asked for, as one row of its own rather than a hidden config key: it
+        // changes who is playing the game, and a player should be able to see that they turned it on.
+        addWidget(new Button(fieldX, y, fieldWidth, rowHeight,
+                takesOverLabel(), this::toggleTakesOver));
+        labelY[5] = center(y, rowHeight);
         addWidget(new Button(fieldX + commanderKeyWidth + gap, y, buttonWidth, rowHeight,
                 GuiLang.raw("gui.pvzce.jev.cancel", "取消"), this::requestClose));
         addWidget(new Button(fieldX + commanderKeyWidth + gap + buttonWidth + gap, y, buttonWidth,
                 rowHeight, GuiLang.raw("gui.pvzce.jev.done", "完成"), this::save));
+    }
+
+    /** The takeover row's own text, which says which state it is in. */
+    private String takesOverLabel() {
+        return GuiLang.raw("gui.pvzce.jev.commander.takeover", "危险时由指挥官直接出手：%s")
+                .formatted(client.config().commanderTakesOverAtTheDoor()
+                        ? GuiLang.raw("gui.pvzce.jev.commander.on", "开")
+                        : GuiLang.raw("gui.pvzce.jev.commander.off", "关"));
+    }
+
+    private void toggleTakesOver() {
+        client.config().setCommanderTakesOverAtTheDoor(
+                !client.config().commanderTakesOverAtTheDoor());
+        // Saved on the spot rather than with 完成: a switch whose state is drawn from the config would
+        // otherwise need the page's own copy of it, and the two would drift.
+        client.config().save();
+        client.syncAiSettings();
+        // The row draws its state from the config, so the widgets are rebuilt rather than the label
+        // being refreshed in place: one source for the text, read again.
+        clearWidgets();
+        init();
     }
 
     private static int center(int y, int rowHeight) {
@@ -204,6 +233,7 @@ public final class AiSettingsScreen extends Screen {
         label(2, GuiLang.raw("gui.pvzce.jev.key", "API Key"));
         label(3, GuiLang.raw("gui.pvzce.jev.commander.label", "指挥官（选填）"));
         label(4, GuiLang.raw("gui.pvzce.jev.commander.url", "接口地址 / 模型"));
+        label(5, GuiLang.raw("gui.pvzce.jev.commander.takeover_label", "临门一脚"));
         for (var widget : widgets) {
             widget.render(client);
         }

@@ -2269,7 +2269,8 @@ public final class PvzceClient {
         if (jev.configured() || commander.configured()) {
             connection.send(new com.pvzce.common.network.packet.AiSettingsC2S(
                     jev.url(), jev.model(), jev.key(),
-                    commander.url(), commander.model(), commander.key()));
+                    commander.url(), commander.model(), commander.key(),
+                    config.commanderTakesOverAtTheDoor()));
         }
     }
 

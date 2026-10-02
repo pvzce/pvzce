@@ -143,7 +143,7 @@ public final class PvzcePackets {
     // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
     // 50: the human's chosen side travels with the level entry (PlayLevelC2S/RestartLevelC2S),
     //     and the client hands the server its Jev credential (AiSettingsC2S).
-    public static final int PROTOCOL_VERSION = 52;
+    public static final int PROTOCOL_VERSION = 53;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

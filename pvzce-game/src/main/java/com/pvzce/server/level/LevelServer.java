@@ -230,6 +230,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private com.pvzce.common.jev.AiSettings jevSettings = com.pvzce.common.jev.AiSettings.NONE;
     /** The commander tier's endpoint; see {@link #setCommanderSettings}. */
     private com.pvzce.common.jev.AiSettings commanderSettings = com.pvzce.common.jev.AiSettings.NONE;
+    /** See {@link #setCommanderTakesOverAtTheDoor}; off unless the player asked for it. */
+    private boolean commanderTakesOverAtTheDoor;
     /**
      * Where this level's cards come from: the ordinary deck, a conveyor belt, or whatever
      * a registered mechanic deals. Never null while there is a plant player.
@@ -1201,6 +1203,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     public com.pvzce.common.jev.AiSettings commanderSettings() {
         return commanderSettings;
+    }
+
+    /** See {@code AiSettingsC2S}: whether the strategist plays the move itself at the door. */
+    public boolean commanderTakesOverAtTheDoor() {
+        return commanderTakesOverAtTheDoor;
+    }
+
+    public void setCommanderTakesOverAtTheDoor(boolean value) {
+        this.commanderTakesOverAtTheDoor = value;
     }
 
     /** The strategist tier's endpoint, if the player configured one. */
