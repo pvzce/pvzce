@@ -59,7 +59,11 @@ final class VersusClientMechanic implements ClientMechanic {
         float width = Math.max(client.fonts().body().width(progress, TEXT_SCALE),
                 client.fonts().body().width(opponent, TEXT_SCALE)) + PADDING * 2F;
         float height = LINE_HEIGHT * 2F + PADDING * 2F;
-        float x = (client.guiWidth() - width) / 2F;
+        // Bottom-right, which a versus level has to itself: the wave meter that normally lives
+        // there is drawn from the level's wave table, and a versus level has no waves. The
+        // bottom-centre - where this started - is the level's opening hint for the first half
+        // minute, and the panel was hidden behind it exactly when a player reads it most.
+        float x = client.guiWidth() - width - 16F;
         float y = 14F;
         client.drawSolid(x, y, width, height, 8F, 0.05F, 0.14F, 0.10F, 0.85F);
         // Bottom line first: the panel is drawn top-down in GUI space, so the progress the player

@@ -265,7 +265,22 @@ final public class SmokeDriver {
     private boolean smokeSeedOpened;
     private boolean smokeEditorOpened;
     /** A GUI point to click, as {@code x,y} in logical GUI coordinates. */
-    private final double[] smokeClickAt = parsePoint(System.getProperty("pvzce.smokeClick", ""));
+    /**
+     * Where to click, once per {@code smokeClickPeriod} frame, in order.
+     *
+     * <p>A <b>list</b>, because entering a level from the menu is more than one click and the
+     * screens in between decide where the next one lands: the level list, then 关卡准备's
+     * 开始游戏. One point per period, so the flow can be photographed the way a player performs
+     * it - and a menu that stops working is exactly the kind of bug a single click cannot see
+     * (the first version of the team choice re-opened its own screen forever, and no server-side
+     * test could notice because the server was never reached).
+     *
+     * <p>{@code x,y} or {@code x,y;x,y;...}. The first point is {@link #smokeClickAt}, which the
+     * drag, touch and release hooks keep using.
+     */
+    private final java.util.List<double[]> smokeClickPoints = parsePoints(
+            System.getProperty("pvzce.smokeClick", ""));
+    private final double[] smokeClickAt = smokeClickPoints.isEmpty() ? null : smokeClickPoints.get(0);
     /**
      * Development smoke hook: drag from {@code pvzce.smokeClick} to this GUI point and let go.
      *
@@ -983,12 +998,16 @@ final public class SmokeDriver {
                 }
             }
         }
-        if (smokeClickAt != null && smokeClicksSent < Math.max(1, smokeClickRepeat)
+        if (smokeClickAt != null
+                && smokeClicksSent < Math.max(Math.max(1, smokeClickRepeat), smokeClickPoints.size())
                 && clientTick >= smokeClickFrame
                 && (clientTick - smokeClickFrame) % Math.max(1, smokeClickPeriod) == 0) {
+            // Past the end of the list, a repeat presses the last point again: a conversation is
+            // advanced by clicking the same place several times, and a multi-step flow ends on the
+            // button it was walking towards.
+            double[] gui = smokeClickPoints.get(Math.min(smokeClicksSent, smokeClickPoints.size() - 1));
             smokeClicksSent++;
             smokeClickDone = true;
-            double[] gui = smokeClickAt;
             double rawX = gui[0] * client.window().width() / (double) Math.max(1, client.guiWidth());
             double rawY = client.window().height()
                     - gui[1] * client.window().height() / (double) Math.max(1, client.guiHeight());
@@ -1377,6 +1396,21 @@ final public class SmokeDriver {
             }
         }
         return cells;
+    }
+
+    /** {@code x,y} or {@code x,y;x,y;...}; entries that do not parse are dropped. */
+    private static java.util.List<double[]> parsePoints(String raw) {
+        java.util.List<double[]> points = new java.util.ArrayList<>();
+        if (raw == null || raw.isBlank()) {
+            return java.util.List.copyOf(points);
+        }
+        for (String part : raw.split(";")) {
+            double[] point = parsePoint(part);
+            if (point != null) {
+                points.add(point);
+            }
+        }
+        return java.util.List.copyOf(points);
     }
 
     private static double[] parsePoint(String raw) {

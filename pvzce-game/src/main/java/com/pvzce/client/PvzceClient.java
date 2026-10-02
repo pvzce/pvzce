@@ -2421,15 +2421,20 @@ public final class PvzceClient {
      * two there may be a card screen that is not about the side at all. Every entrance sets it, so
      * it cannot be a leftover from the last level.
      *
+     * <p>A blank answer is what sends the player to 关卡准备 in the first place
+     * ({@link #asksForTeamChoice}); a named one goes straight on to the card screen or into the
+     * run, which is what makes 开始游戏 on that screen an entrance rather than a loop.
+     *
      * @param humanTeam the side's id, or blank for "the level decides"
      */
     public void enterLevelFromMenu(LevelListS2C.LevelInfo info, String humanTeam) {
         pendingHumanTeam = humanTeam == null ? "" : humanTeam;
         if (info.hasRunningSave()) {
             requestLevel(info.id(), false);
-        } else if (offersTeamChoice(info)) {
+        } else if (asksForTeamChoice(info, pendingHumanTeam)) {
             // The level names more than one side, so which one to play is a real question and
-            // this is the screen that asks it. The screen forwards back here when answered.
+            // this is the screen that asks it. The screen forwards back here when answered - which
+            // is why the question has to check whether it has already been answered.
             openScreen(new com.pvzce.client.gui.screens.LevelSetupScreen(this, info));
         } else if (skipsSeedScreen(info)) {
             // Nothing to choose and nothing to preview: straight in, with the bar the server
@@ -2441,6 +2446,22 @@ public final class PvzceClient {
             // opening conversation and zombie line-up are shown before it starts.
             openSeedSelection(info, false);
         }
+    }
+
+    /**
+     * Whether entering this level still has to ask which side the player is on.
+     *
+     * <p>Its own method because the screen that asks the question forwards the answer back into
+     * {@link #enterLevelFromMenu}, so the flow must be able to tell "nobody has answered yet" from
+     * "here is the answer" - and asking again after an answer is not a wasted screen, it is an
+     * inescapable loop: 开始游戏 re-opens the page the player just clicked it on. That is what
+     * shipping the first version of the team choice did.
+     */
+    public static boolean asksForTeamChoice(LevelListS2C.LevelInfo info, String chosenTeam) {
+        if (info == null || !offersTeamChoice(info)) {
+            return false;
+        }
+        return chosenTeam == null || chosenTeam.isBlank();
     }
 
     /**
