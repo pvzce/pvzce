@@ -1,0 +1,20 @@
+{
+  "id": "pvzce:catapult",
+  "health": 850,
+  "move_speed": 0.22,
+  "capabilities": [
+    {
+      "type": "pvzce:catapult"
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop"
+  },
+  "animation_dir": "zombie/special",
+  "texture": "pvzce:textures/entities/zombie/special/catapult",
+  "drops_arm": false,
+  "drops_head": false
+}

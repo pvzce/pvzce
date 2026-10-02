@@ -208,6 +208,12 @@ public final class PvzceCamera {
         return board.y() + worldY * unitY;
     }
 
+    /** Centre of a board cell, including the roof's rise, in framebuffer pixels. */
+    public float cellScreenY(int x, int y) {
+        return screenY(y + 0.5F + ("roof".equals(geometry.name())
+                ? com.pvzce.api.content.SceneElementDef.roofHeightAt(x + 0.5F) : 0F));
+    }
+
     public float worldX(double mouseX, double mouseY) {
         return (float) ((mouseX - board.x()) / unitX) - panX;
     }
@@ -222,7 +228,9 @@ public final class PvzceCamera {
     }
 
     public int cellY(double mouseX, double mouseY) {
-        return (int) Math.floor(worldY(mouseX, mouseY));
+        float height = "roof".equals(geometry.name())
+                ? com.pvzce.api.content.SceneElementDef.roofHeightAt(worldX(mouseX, mouseY)) : 0F;
+        return (int) Math.floor(worldY(mouseX, mouseY) - height);
     }
 
     /**
@@ -236,6 +244,10 @@ public final class PvzceCamera {
      * clicked, and a strip above the board was accepted instead.
      */
     public boolean inBoard(double mouseX, double mouseY) {
+        if ("roof".equals(geometry.name())) {
+            int x = cellX(mouseX, mouseY), y = cellY(mouseX, mouseY);
+            return x >= 0 && x < columns && y >= 0 && y < rows;
+        }
         double flippedY = screenHeight - mouseY;
         float left = board.x() + panX * unitX;
         return mouseX >= left && mouseX < left + board.width()

@@ -127,7 +127,7 @@ public final class ThrowerCapability implements PlantCapability {
     /** The nearest zombie in front of this plant, which is what a lob would come down on. */
     private ZombieEntity targetOf(PlantEntity plant, LevelAccess level) {
         return level.enemiesInRow(plant.gridY(), plant.team()).stream()
-                .filter(z -> !z.isRemoved() && z.cellX() > plant.cellX())
+                .filter(z -> z.isAlive() && z.canBeHitByArc() && z.cellX() > plant.cellX())
                 .sorted((a, b) -> Float.compare(a.cellX(), b.cellX()))
                 .findFirst()
                 .orElse(null);
@@ -144,7 +144,8 @@ public final class ThrowerCapability implements PlantCapability {
         int repeats = Math.max(1, level.projectileCountMultiplier(plant));
         float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X;
         for (ProjectileRef shot : shots) {
-            boolean butter = butterChance > 0F && level.random().nextFloat() < butterChance;
+            float chance = level.butterChance(plant, butterChance);
+            boolean butter = chance > 0F && level.random().nextFloat() < chance;
             ProjectileRef ref = butter
                     ? new ProjectileRef(butterProjectile, shot.damage(), shot.count())
                     : shot;

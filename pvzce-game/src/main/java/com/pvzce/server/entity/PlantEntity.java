@@ -65,6 +65,21 @@ public class PlantEntity extends PvzceEntity {
      * a per-capability copy would be several answers to one question.
      */
     private int wateredTicks;
+    private int fertilizedTicks;
+    private boolean laddered;
+    private com.pvzce.common.network.packet.PlantCareS2C lastCare;
+
+    public boolean laddered() { return laddered; }
+    public void setLaddered(boolean value) { laddered = value; }
+
+    /** Refreshes the single fertilizer timer; no healing, ripening or stacked multiplier. */
+    public void fertilize() {
+        fertilizedTicks = com.pvzce.common.PvzceConstants.FERTILIZER_DURATION_TICKS;
+    }
+
+    public int fertilizedTicks() {
+        return fertilizedTicks;
+    }
 
     /**
      * How fast this plant works, as a multiplier on the rate.
@@ -225,7 +240,9 @@ public class PlantEntity extends PvzceEntity {
      */
     public float actionRate(float extraRate) {
         return actionSpeedMultiplier * Math.max(0.1F, extraRate)
-                * (wateredTicks > 0 ? WATERED_ACTION_SPEED : 1F) * echoRate;
+                * Math.max(wateredTicks > 0 ? WATERED_ACTION_SPEED : 1F,
+                        fertilizedTicks > 0 ? com.pvzce.common.PvzceConstants.FERTILIZER_ACTION_SPEED : 1F)
+                * echoRate;
     }
 
     /**
@@ -381,6 +398,7 @@ public class PlantEntity extends PvzceEntity {
         // Lilies own their finite relay clock; hosted plants use the shared action rate.
         echoRate = capability(EchoRelayCapability.class) != null ? 1F : EchoNetwork.status(this, level).rate();
         age++;
+        // Spend the final accelerated tick before expiring, just like a timed capability.
         if (wateredTicks > 0) {
             wateredTicks--;
         }
@@ -417,6 +435,9 @@ public class PlantEntity extends PvzceEntity {
         if (!removed) {
             tickOrderedStrikes(level);
         }
+        if (fertilizedTicks > 0) {
+            fertilizedTicks--;
+        }
         if (asleep && !removed) {
             // The sleeping pose wins, whatever else ticked this tick. A capability that keeps
             // working while its plant sleeps (a Sun-shroom's producer) publishes its own state as
@@ -428,7 +449,15 @@ public class PlantEntity extends PvzceEntity {
         }
     }
 
-    /** Stream changed membership/charge/rate; also explicitly clears a severed connection. */
+    /** Stream changed fertilizer/ladder flags and replay them during a full sync. */
+    public void syncCare(LevelServer.ServerBridge bridge, boolean full) {
+        var state = new com.pvzce.common.network.packet.PlantCareS2C(id(), fertilizedTicks > 0, laddered);
+        if (full || !state.equals(lastCare)) {
+            bridge.send(state);
+            lastCare = state;
+        }
+    }
+
     public void syncEchoNetwork(LevelServer level, LevelServer.ServerBridge bridge, boolean full) {
         EchoNetworkS2C status = EchoNetwork.status(this, level);
         if ((full || !status.equals(lastEchoStatus))
@@ -670,6 +699,8 @@ public class PlantEntity extends PvzceEntity {
         CompoundTag tag = saveBaseState();
         tag.putInt("age", age);
         tag.putInt("watered", wateredTicks);
+        tag.putInt("fertilized", fertilizedTicks);
+        tag.putByte("laddered", (byte) (laddered ? 1 : 0));
         sharedClock.save(tag);
         CompoundTag saved = new CompoundTag();
         for (Instance instance : capabilities) {
@@ -695,6 +726,8 @@ public class PlantEntity extends PvzceEntity {
         // A save written before watering existed has no key, and getInt answers 0 - the plant
         // reads back dry, which is what it was.
         wateredTicks = Math.max(0, tag.getInt("watered"));
+        fertilizedTicks = Math.max(0, tag.getInt("fertilized"));
+        laddered = tag.getInt("laddered") != 0;
         sharedClock.load(tag);
         restoreCapabilities(tag);
     }
@@ -712,6 +745,8 @@ public class PlantEntity extends PvzceEntity {
         restoreBaseState(tag);
         age = tag.getInt("age");
         wateredTicks = Math.max(0, tag.getInt("watered"));
+        fertilizedTicks = Math.max(0, tag.getInt("fertilized"));
+        laddered = tag.getInt("laddered") != 0;
         sharedClock.load(tag);
         restoreCapabilities(tag);
     }

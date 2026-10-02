@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:basketball",
+  "layer": "air",
+  "capabilities": [
+    {
+      "type": "pvzce:arc",
+      "speed": 4.0,
+      "gravity": 9.0
+    }
+  ],
+  "texture": "pvzce:textures/entities/projectile/basketball"
+}

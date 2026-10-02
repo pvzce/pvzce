@@ -1,0 +1,19 @@
+{
+  "id": "pvzce:garlic",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 450
+  },
+  "health": 400,
+  "capabilities": [
+    {
+      "type": "pvzce:garlic"
+    }
+  ],
+  "animation_dir": "plant/support",
+  "texture": "pvzce:textures/entities/plant/support/garlic",
+  "render_scale": 0.85,
+  "order": 37
+}

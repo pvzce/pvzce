@@ -66,14 +66,15 @@ public final class AlmanacEntries {
             // the original's book expects the sled team to follow the Zomboni.
             "zamboni_zombie",               // 13 Zomboni
             "bobsled_zombie",               // 14 Zombie Bobsled Team
-            // 20 Zombie Yeti, 22 Ladder Zombie, 23 Catapult Zombie: none of these are
-            // implemented.
+            // 20 Zombie Yeti is not implemented.
             "dolphin_rider_zombie",         // 15 Dolphin Rider Zombie
             "jack_in_the_box_zombie",       // 16 Jack-in-the-Box Zombie
             "balloon_zombie",               // 17 Balloon Zombie
             "miner_zombie",                 // 18 Digger Zombie
             "pogo_zombie",                  // 19 Pogo Zombie
             "bungee_zombie",                // 21 Bungee Zombie
+            "ladder",                       // 22 Ladder Zombie
+            "catapult",                     // 23 Catapult Zombie
             "gargantuar",                   // 24 Gargantuar
             "imp",                          // 25 Imp
             "zombie_boss",                  // 26 Dr. Zomboss

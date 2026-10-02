@@ -85,6 +85,9 @@ public final class PvzceClientPacketListener implements PacketListener {
             if (entity != null) {
                 entity.apply(update);
             }
+        } else if (packet instanceof com.pvzce.common.network.packet.PlantCareS2C state) {
+            ClientEntity entity = level.entities().get(state.entityId());
+            if (entity != null) entity.apply(state);
         } else if (packet instanceof EchoNetworkS2C status) {
             ClientEntity entity = level.entities().get(status.entityId());
             if (entity != null) {

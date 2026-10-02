@@ -28,6 +28,10 @@ import java.util.List;
 
 /** Registration + JSON codec for zombie capabilities. */
 public final class ZombieCapabilities {
+    public static final CapabilityType<com.pvzce.common.capability.zombie.LadderCapability> LADDER =
+            type("ladder", com.pvzce.common.capability.zombie.LadderCapability.CODEC);
+    public static final CapabilityType<com.pvzce.common.capability.zombie.CatapultCapability> CATAPULT =
+            type("catapult", com.pvzce.common.capability.zombie.CatapultCapability.CODEC);
     public static final CapabilityType<ArmorCapability> ARMOR = type("armor", ArmorCapability.CODEC);
     public static final CapabilityType<VaultCapability> VAULT = type("vault", VaultCapability.CODEC);
     /**
@@ -109,6 +113,8 @@ public final class ZombieCapabilities {
     }
 
     public static void bootstrap() {
+        register(LADDER, "ladder");
+        register(CATAPULT, "catapult");
         register(ARMOR, "armor");
         register(VAULT, "vault");
         register(BOUNCE, "bounce");

@@ -11,6 +11,10 @@ import com.pvzce.api.util.Identifier;
  * here so the two copies cannot drift.
  */
 public final class PvzceIds {
+    public static final Identifier FERTILIZER = id("fertilizer");
+    public static final Identifier KERNEL_PULT = id("kernel_pult");
+    public static final Identifier UMBRELLA_LEAF = id("umbrella_leaf");
+    public static final Identifier BUFF_BUTTER_PLENTY = id("butter_plenty");
     public static final Identifier SUN = id("sun");
     public static final Identifier REDSTONE = id("redstone");
     public static final Identifier ENERGY_BEAN = id("energy_bean");

@@ -160,7 +160,7 @@ class SeedPlanTest {
         assertFalse(offered.contains("pvzce:basic_zombie"),
                 "a plant level's chooser does not offer a zombie");
         assertTrue(SeedOptions.forLevel(zombieLevel()).stream().map(SeedOption::slotId)
-                        .allMatch(id -> id.endsWith("_zombie") || id.equals("pvzce:gargantuar")),
+                        .allMatch(id -> SlotResolver.resolve(Identifier.parse(id)).orElseThrow().kind() == Slot.Kind.ZOMBIE),
                 "and a zombie level's chooser offers only zombies");
     }
 

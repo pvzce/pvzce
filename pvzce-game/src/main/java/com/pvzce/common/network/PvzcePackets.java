@@ -143,7 +143,8 @@ public final class PvzcePackets {
     // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
     // 50: the human's chosen side travels with the level entry (PlayLevelC2S/RestartLevelC2S),
     //     and the client hands the server its Jev credential (AiSettingsC2S).
-    public static final int PROTOCOL_VERSION = 53;
+    // 54: fertilizer and attached ladders travel as PlantCareS2C.
+    public static final int PROTOCOL_VERSION = 54;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -216,6 +217,7 @@ public final class PvzcePackets {
     public static final int S2C_ROUND_SYNC = S2C_BASE + 28;
     /** An endless round is over and the run is waiting for the player's next card choice. */
     public static final int S2C_ROUND_CLEAR = S2C_BASE + 29;
+    public static final int S2C_PLANT_CARE = S2C_BASE + 33;
     public static final int S2C_ECHO_NETWORK = S2C_BASE + 31;
     public static final int S2C_MAGNET_ITEM = S2C_BASE + 32;
     /**
@@ -307,6 +309,7 @@ public final class PvzcePackets {
             def(S2C_OPEN_EDITOR, ConnectionDirection.CLIENTBOUND, OpenEditorS2C.class, OpenEditorS2C::decode),
             def(S2C_SCENE_SYNC, ConnectionDirection.CLIENTBOUND, SceneSyncS2C.class, SceneSyncS2C::decode),
             def(S2C_ENTITY_SPAWN, ConnectionDirection.CLIENTBOUND, EntitySpawnS2C.class, EntitySpawnS2C::decode),
+            def(S2C_PLANT_CARE, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.PlantCareS2C.class, com.pvzce.common.network.packet.PlantCareS2C::decode),
             def(S2C_ECHO_NETWORK, ConnectionDirection.CLIENTBOUND, EchoNetworkS2C.class, EchoNetworkS2C::decode),
             def(S2C_ENTITY_UPDATE, ConnectionDirection.CLIENTBOUND, EntityUpdateS2C.class, EntityUpdateS2C::decode),
             def(S2C_ENTITY_DESPAWN, ConnectionDirection.CLIENTBOUND, EntityDespawnS2C.class,

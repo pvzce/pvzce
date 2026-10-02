@@ -1793,6 +1793,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public void spawnZombieArcProjectile(ProjectileRef ref, ZombieEntity source, PlantEntity target) {
+        ProjectileDef def = BuiltInRegistries.PROJECTILES.get(ref.projectile());
+        if (def != null) {
+            addEntity(new ProjectileEntity(def, ref, source.team(), source.cellX(), source.cellY(),
+                    source.height() + 0.65F, new ProjectileEntity.Aim(target.cellX(), target.height())));
+        }
+    }
+
+    @Override
     public void spawnArcProjectile(ProjectileRef ref, float x, float y, PlantEntity source, ZombieEntity target) {
         ProjectileRef shot = scaledShot(ref, source);
         ProjectileDef projectileDef = BuiltInRegistries.PROJECTILES.get(shot.projectile());
@@ -2006,6 +2015,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return spawnZombie(zombieId, zombieTeam(), x, row, healthScale);
     }
 
+    @Override
+    public ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale) {
+        if (!def.id().equals(PvzceIds.id("yard/adventure/5_5")) || id.equals(PvzceIds.id("bungee_zombie"))) {
+            return spawnZombie(id, x, row, healthScale);
+        }
+        ZombieEntity carrier = spawnZombie(PvzceIds.id("bungee_zombie"), x, row, 1F);
+        if (carrier != null) {
+            carrier.capability(com.pvzce.common.capability.zombie.BungeeCapability.class)
+                    .deliver(id, 4 + random().nextInt(Math.max(1, width() - 4)), healthScale);
+        }
+        return carrier;
+    }
+
     public ZombieEntity spawnZombie(Identifier zombieId, float x, int row) {
         return spawnZombie(zombieId, zombieTeam(), x, row, 1F);
     }
@@ -2121,6 +2143,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // short of the zombie standing in it.
         float limit = square ? radius + 0.5F : radius;
         for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (type != null && type.burns() && entity instanceof PlantEntity plant
+                    && Math.abs(plant.cellX() - centerX) <= limit && Math.abs(plant.cellY() - centerY) <= limit) {
+                plant.setLaddered(false);
+            }
             if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                 continue;
             }
@@ -2139,6 +2165,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam) {
         for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (type != null && type.burns() && entity instanceof PlantEntity plant && plant.gridY() == row) {
+                plant.setLaddered(false);
+            }
             if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                 continue;
             }
@@ -2755,6 +2784,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             for (PvzceEntity entity : entities) {
                 if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
                     plant.syncEchoNetwork(this, bridge, false);
+                    plant.syncCare(bridge, false);
                 }
             }
             tickEntities(ZombieEntity.class, bridge);
@@ -3046,6 +3076,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** The buffs this run is played with, locked and chosen already resolved. */
     public List<com.pvzce.api.content.LevelBuff> activeBuffs() {
         return activeBuffs;
+    }
+
+    @Override
+    public float butterChance(PlantEntity plant, float base) {
+        if (plant == null || !PvzceIds.KERNEL_PULT.equals(plant.definitionId())) {
+            return base;
+        }
+        float chance = base;
+        for (com.pvzce.api.content.LevelBuff buff : activeBuffs) {
+            chance = Math.max(chance, buff.butterChanceFloor());
+        }
+        return Math.min(1F, chance);
     }
 
     /**
@@ -5078,6 +5120,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 yield hitSomething || smashed;
             }
             case "pvzce:water" -> waterPlant(x, y);
+            case "pvzce:fertilize" -> fertilizePlant(x, y);
             // The vase: place it, fill it, or smash it. Which of the three depends on the cell and
             // on what the player is holding, and the rule is the user's own wording ("选一张植物卡
             // 再点它可以把它存进去，空手点它直接砸开").
@@ -5778,6 +5821,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return true;
     }
 
+    private boolean fertilizePlant(int x, int y) {
+        PlantEntity plant = plantAt(x, y);
+        if (plant == null || plant.isRemoved() || plant.capabilityInstances().stream().noneMatch(i ->
+                i.capability().holdsFire(plant)
+                        || i.capability() instanceof com.pvzce.common.capability.plant.ProducerCapability producer
+                        && PvzceIds.SUN.equals(producer.resource()))) {
+            return false;
+        }
+        plant.fertilize();
+        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(), plant.cellX(), plant.cellY(),
+                PvzceIds.id("sfx/plant/fertilizer"));
+        return true;
+    }
+
     /**
      * One click of the glove: lift, or drop.
      *
@@ -6083,6 +6140,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         for (PvzceEntity entity : entities) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
                 plant.syncEchoNetwork(this, bridge, true);
+                plant.syncCare(bridge, true);
                 var magnet = plant.capability(com.pvzce.common.capability.plant.MagnetCapability.class);
                 if (magnet != null) {
                     var item = magnet.itemSnapshot(plant, tickCount());
@@ -6487,7 +6545,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
             case com.pvzce.api.entity.EntityKind.PROJECTILE -> {
                 ProjectileDef def = BuiltInRegistries.PROJECTILES.get(defId);
-                yield def == null ? null : new ProjectileEntity(def, null, teams.get(PvzceIds.PLANT_TEAM),
+                Identifier owner = Identifier.tryParse(tag.getString("ownerTeam"));
+                yield def == null ? null : new ProjectileEntity(def, null, teams.getOrDefault(owner, teams.get(PvzceIds.PLANT_TEAM)),
                         tag.getFloat("x"), tag.getFloat("y"), tag.getFloat("height"));
             }
             // A seed packet is the one drop that is restored rather than dropped with the save:

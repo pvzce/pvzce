@@ -1907,11 +1907,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 if (client.level().plantsWholeColumn()) {
                     for (int row = 0; row < client.level().height(); row++) {
                         boolean rowAllowed = client.level().inPlacementZone(hoverX, row);
-                        client.drawSolid(hoverX, row, 1F, 1F, 0.19F,
+                        client.drawSolid(hoverX, row + terrainHeight(hoverX, row), 1F, 1F, 0.19F,
                                 rowAllowed ? 0.2F : 1F, rowAllowed ? 1F : 0.2F, 0.2F, 0.18F);
                     }
                 }
-                client.drawSolid(hoverX, hoverY, 1F, 1F, 0.2F,
+                client.drawSolid(hoverX, hoverY + terrainHeight(hoverX, hoverY), 1F, 1F, 0.2F,
                         allowed ? 0.2F : 1F, allowed ? 1F : 0.2F, 0.2F, 0.25F);
             }
         }
@@ -2176,12 +2176,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // straight in drew the ghost half a cell down and to the left of the cell it was
         // hovering - the preview and the plant it promised were never in the same place.
         //
-        // The height is left at zero (a plant resting on the ground). A ghost on a lily pad
-        // or in a flower pot therefore sits one stack lower than the plant will; working
-        // that out here would mean a second copy of the stacking rule on the client, and the
-        // hover tint already says which cell is meant.
         preview.setCellX(cellX + 0.5F);
         preview.setCellY(cellY + 0.5F);
+        preview.setHeight(terrainHeight(cellX, cellY));
         preview.playAnimation(com.pvzce.api.entity.EntityAnimations.IDLE);
         client.pushEntityAlpha(PLACEMENT_PREVIEW_ALPHA);
         try {
@@ -2189,6 +2186,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         } finally {
             client.popEntityAlpha();
         }
+    }
+
+    private float terrainHeight(int x, int y) {
+        return terrainHeight(x + 0.5F, y);
+    }
+
+    private float terrainHeight(float x, int y) {
+        Identifier id = Identifier.tryParse(client.level().sceneAt((int) Math.floor(x), y));
+        var terrain = id == null ? null : com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(id);
+        return terrain == null ? 0F : terrain.heightAt(x, client.level().width());
     }
 
     /**
@@ -2423,6 +2430,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             drawFrozenSpikes(entity);
         }
         drawEntityArt(entity);
+        if (entity.fertilized()) {
+            client.drawSolid(entity.visualCellX() - 0.22F, entity.visualCellY() + entity.visualHeight() + 0.3F,
+                    0.44F, 0.045F, 0.55F, 0.35F, 0.9F, 0.2F, 0.9F);
+        }
+        if (entity.laddered()) {
+            client.drawTexture(com.pvzce.api.util.Identifier.withDefaultNamespace("textures/entities/plant/environment/roof_ladder"),
+                    entity.visualCellX() - 0.18F, entity.visualCellY() + entity.visualHeight() - 0.45F,
+                    0.36F, 1.25F, 0.24F, 1F, 1F, 1F, 1F);
+        }
         drawHealthBar(entity);
     }
 
@@ -2673,6 +2689,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float drawX = entity.visualCellX();
         float drawY = entity.visualCellY();
         float drawHeight = entity.visualHeight();
+        drawY += terrainHeight(drawX, entity.gridY());
         if (entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND) {
             // Burrowing zombies are shown as a mound instead of a sprite.
             client.drawSolid(drawX - 0.3F, drawY - 0.2F, 0.6F, 0.4F, 0.05F,
@@ -2734,7 +2751,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             client.drawEntityShadow(texture, drawX, drawY - contact + liquidDrop(entity),
                     width * renderScale, height * renderScale, 0.4F);
         } else if (entity.kind().equals("zombie") && entity.layer() != -1) {
-            float lift = Math.max(0F, drawHeight);
+            float lift = Math.max(0F, drawHeight - terrainHeight(drawX, entity.gridY()));
             float alpha = Math.max(0.14F, 0.34F - lift * 0.14F);
             float width = (visual == null
                     ? Math.max(0.46F, 0.62F - lift * 0.06F)

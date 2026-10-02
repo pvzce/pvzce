@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:garlic",
+  "kind": "plant",
+  "content": "pvzce:garlic",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/garlic"
+}

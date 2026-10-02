@@ -8,6 +8,20 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    /** Fertilizer speeds one plant up for twenty seconds; the tool recharges in forty-five. */
+    public static final float FERTILIZER_ACTION_SPEED = 1.5F;
+    public static final int FERTILIZER_DURATION_TICKS = 1200;
+    public static final float BUTTER_BUFF_CHANCE = 0.40F;
+    /** Original roof: five sloped columns, rising 20 pixels per column in an 85-pixel row. */
+    public static final float ROOF_SLOPE_COLUMNS = 5F;
+    public static final float ROOF_HEIGHT = 100F / 85F;
+    public static final int UMBRELLA_BLOCK_TICKS = 45;
+    public static final int LADDER_PLACE_TICKS = 100;
+    public static final int CATAPULT_AMMO = 20;
+    public static final int CATAPULT_INTERVAL_TICKS = 300;
+    public static final int CATAPULT_SHOOT_TICKS = 60;
+    public static final int CATAPULT_BALL_DAMAGE = 75;
+    public static final float CATAPULT_STOP_X = 7.125F;
     /** Seed packets descend across the lawn at this many cells per second. */
     public static final float SEED_RAIN_FALL_SPEED = 0.8F;
     public static final int PORTAL_WARNING_TICKS = 300;

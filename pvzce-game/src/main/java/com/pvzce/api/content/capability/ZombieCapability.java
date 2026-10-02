@@ -84,6 +84,11 @@ public interface ZombieCapability {
         return true;
     }
 
+    /** Whether a lob can target this phase; flight alone does not make an arc miss. */
+    default boolean canBeHitByArc(ZombieEntity zombie) {
+        return true;
+    }
+
     /**
      * Intercepts incoming projectile damage.
      *

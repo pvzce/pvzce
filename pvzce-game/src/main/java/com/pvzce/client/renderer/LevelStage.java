@@ -50,6 +50,9 @@ public final class LevelStage {
             256F, 80F, 720F, 510F, 80F, 85F, new LiquidFrame(-0.0375F, 0.2235294F, 0.9833333F, 0.8117647F));
 
     public static final int BOARD_COLUMNS = 9;
+    /** Board::GridToPixelY: roof rows start at y=70; the left edge is 100 pixels lower. */
+    public static final Geometry ROOF = new Geometry("roof",
+            256F, 170F, 720F, 425F, 80F, 85F, LiquidFrame.CELL);
     public static final int BOARD_ROWS = 5;
 
     private LevelStage() {
@@ -117,7 +120,7 @@ public final class LevelStage {
      *
      * <p>The original draws every stage on the same 1400x600 canvas, but not with the same
      * grid: the front lawn is 9x5 cells of 80x100, the backyard is 9x6 of 80x85, and the
-     * roof is 9x5 of 80x85 (unused so far). A backdrop therefore selects a geometry, and
+     * roof is 9x5 of 80x85. A backdrop therefore selects a geometry, and
      * {@link #geometryFor} is the one place that decision is made.
      *
      * @param name       the stage's name, for diagnostics and tests
@@ -150,6 +153,9 @@ public final class LevelStage {
             return YARD;
         }
         String path = background.path();
+        if (path.contains("background5") || path.contains("background6")) {
+            return ROOF;
+        }
         if (path.contains("background3") || path.contains("background4")) {
             return POOL;
         }

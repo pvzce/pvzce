@@ -99,6 +99,11 @@ public interface LevelAccess {
         return 1F;
     }
 
+    /** The live kernel-pult butter chance; the default preserves unbuffed shots. */
+    default float butterChance(PlantEntity plant, float base) {
+        return base;
+    }
+
     /**
      * How many times a plant's volley is repeated: 1, 2 or 3.
      *
@@ -129,6 +134,10 @@ public interface LevelAccess {
                                com.pvzce.server.entity.ZombieEntity source);
 
     void spawnArcProjectile(ProjectileRef ref, float x, float y, PlantEntity source, ZombieEntity target);
+
+    /** A basketball aimed at a plant, using the same arc solver as plant lobs. */
+    default void spawnZombieArcProjectile(ProjectileRef ref, ZombieEntity source, PlantEntity target) {
+    }
 
     void spawnResource(Identifier resourceId, int amount, float x, float y, Team team);
 
@@ -167,6 +176,10 @@ public interface LevelAccess {
      * {@code null} when the id names no registered zombie.
      */
     ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row);
+
+    default ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row, float healthScale) {
+        return spawnZombie(zombieId, team, x, row);
+    }
 
     /**
      * Opens every container within {@code radius} cells of a point.

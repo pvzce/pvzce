@@ -322,7 +322,7 @@ public final class BuiltInRegistries {
         registerStatic(SCENE_ELEMENTS, "pvzce:roof_flat", new SceneElementDef(
                 PvzceIds.id("roof_flat"), PvzceIds.SURFACE_ROOF, 0F));
         registerStatic(SCENE_ELEMENTS, "pvzce:roof_slope", new SceneElementDef(
-                PvzceIds.id("roof_slope"), PvzceIds.SURFACE_ROOF_SLOPE, 0.4F));
+                PvzceIds.id("roof_slope"), PvzceIds.SURFACE_ROOF_SLOPE, 0F));
         registerStatic(SCENE_ELEMENTS, "pvzce:grave", new SceneElementDef(
                 PvzceIds.id("grave"), PvzceIds.SURFACE_GRAVE, 0F));
         registerStatic(SCENE_ELEMENTS, "pvzce:crater", new SceneElementDef(

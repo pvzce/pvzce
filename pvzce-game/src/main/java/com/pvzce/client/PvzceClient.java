@@ -691,7 +691,7 @@ public final class PvzceClient {
                 }
                 return false;
             }
-            case CHAT, TOOL_SHOVEL, TOOL_GLOVE, TOOL_HAMMER, TOOL_WATERING_CAN, TOOL_VASE -> {
+            case CHAT, TOOL_SHOVEL, TOOL_GLOVE, TOOL_HAMMER, TOOL_WATERING_CAN, TOOL_VASE, TOOL_FERTILIZER -> {
                 // Not the window's business: the chat line and the tool hotkeys need whatever is on
                 // screen, so they travel on and the in-game screen answers them (see
                 // `InGameScreen.keyAction`). T used to open an empty console here, which is what

@@ -101,8 +101,8 @@ class PlantPlacementTest {
         List<Expect> expected = List.of(
                 new Expect("grass", true, true, false, false),
                 new Expect("ground", true, false, false, false),
-                new Expect("roof_flat", true, true, false, false),
-                new Expect("roof_slope", true, true, false, false),
+                new Expect("roof_flat", true, false, false, false),
+                new Expect("roof_slope", true, false, false, false),
                 new Expect("water", false, false, true, false),
                 new Expect("grave", false, false, false, true),
                 new Expect("crater", false, false, false, true));
@@ -138,9 +138,9 @@ class PlantPlacementTest {
     }
 
     @Test
-    void roofsAcceptPlantsDirectlyAndAlsoCarryPots() {
+    void roofsRequirePotsForPlants() {
         for (String roof : new String[]{"roof_flat", "roof_slope"}) {
-            assertTrue(canPlace("pea_shooter", roof), roof + " is plantable ground");
+            assertFalse(canPlace("pea_shooter", roof), roof + " requires a pot");
             assertTrue(canPlace("flower_pot", roof), roof + " accepts a flower pot");
             assertTrue(canPlace("pea_shooter", roof, "flower_pot"), "and a pot on it also carries a plant");
         }

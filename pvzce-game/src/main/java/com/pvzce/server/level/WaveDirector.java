@@ -160,6 +160,11 @@ public final class WaveDirector {
         /** How many zombies of this one {@code healthScale} times its own health; 1 for ordinary. */
         ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale);
 
+        /** A scripted wave may deliver a walker by air instead of the road. */
+        default ZombieEntity spawnWaveZombie(Identifier zombieId, float x, int row, float healthScale) {
+            return spawnZombie(zombieId, x, row, healthScale);
+        }
+
         /**
          * The total health still standing of one wave's own zombies, armour included, or
          * {@code -1} when this level cannot total it.
@@ -1107,7 +1112,7 @@ public final class WaveDirector {
             }
             return first;
         }
-        return host.spawnZombie(queued.id(), host.width() + 0.6F, row, queued.healthScale());
+        return host.spawnWaveZombie(queued.id(), host.width() + 0.6F, row, queued.healthScale());
     }
 
     /** This zombie's bobsled capability, or {@code null} when it is not a sled. */

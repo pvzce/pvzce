@@ -126,9 +126,9 @@ class BungeeAndZamboniTest {
         assertFalse(bungee.isAlive(), "nothing to take, so it leaves rather than hovering");
     }
 
-    /** It cannot be shot while it works; the only answer is to have nothing worth taking. */
+    /** Only the bottom phase is reachable by ground fire and lobs. */
     @Test
-    void theBungeeZombieCannotBeShotWhileItWorks() {
+    void theBungeeZombieIsReachableOnlyAtTheBottom() {
         LevelServer level = lawn();
         place(level, "pea_shooter", 3, 2);
         ZombieEntity bungee = level.spawnZombie(
@@ -140,6 +140,10 @@ class BungeeAndZamboniTest {
         tick(level, 20);
         assertTrue(bungee.cellY() >= 2F, "it is on the lawn, mid-raid");
         assertFalse(bungee.canBeHitByGround(), "and ground fire cannot reach it");
+        assertFalse(bungee.canBeHitByArc(), "a descending bungee is also unreachable by lobs");
+        tick(level, 70);
+        assertTrue(bungee.canBeHitByGround(), "ground fire can reach it while it grabs");
+        assertTrue(bungee.canBeHitByArc(), "lobs can reach the same bottom phase");
     }
 
     /**

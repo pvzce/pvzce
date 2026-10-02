@@ -215,7 +215,10 @@ class MutationGroupOneTest {
     /** 卡槽轮盘: a card changes, keeps changing, and an eviction hands the player's bar back. */
     @Test
     void slotRouletteKeepsSwappingCardsAndGivesTheBarBack() {
-        LevelServer level = levelWithMutations();
+        // A fixed owned pool keeps the seeded rolls independent of additions to the catalogue.
+        var owned = java.util.Set.of(PvzceIds.id("repeater"), PvzceIds.id("snow_pea"));
+        LevelServer level = new LevelServer(endless, endless.slots(),
+                LevelServer.SeedContext.all(endless), List.of(), owned::contains);
         Mutation roulette = MutationRegistry.get(PvzceIds.MUTATION_SLOT_ROULETTE);
         assertNotNull(roulette);
         // Seeded, because every swap is two dice: *which* card changes, and *what* it becomes.

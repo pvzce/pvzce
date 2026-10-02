@@ -1089,7 +1089,7 @@ final public class SmokeDriver {
             if (client.level() != null) {
                 com.pvzce.client.renderer.PvzceCamera camera = client.camera();
                 double rawX = camera.screenX(cell[0] + 0.5F);
-                double rawY = client.window().height() - camera.screenY(cell[1] + 0.5F);
+                double rawY = client.window().height() - camera.cellScreenY(cell[0], cell[1]);
                 if (traceInput) {
                     System.out.println("[SMOKE] click cell=" + cell[0] + "," + cell[1]
                             + " raw=" + rawX + "," + rawY);
@@ -1111,7 +1111,7 @@ final public class SmokeDriver {
             // right in a screenshot while the click was one row off.)
             com.pvzce.client.renderer.PvzceCamera camera = client.camera();
             double rawX = camera.screenX(smokeHoverCellAt[0] + 0.5F);
-            double rawY = client.window().height() - camera.screenY(smokeHoverCellAt[1] + 0.5F);
+            double rawY = client.window().height() - camera.cellScreenY(smokeHoverCellAt[0], smokeHoverCellAt[1]);
             client.window().warpCursor(rawX, rawY);
         } else if (smokeHoverAt != null && clientTick >= smokeHoverFrame) {
             // The same conversion smokeClick uses, and for the same reason: the cursor is

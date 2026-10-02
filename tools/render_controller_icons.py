@@ -34,6 +34,8 @@ PADDING = 8.0
 
 # entity -> (animation clip, sample time seconds)
 ICON_POSES: Dict[str, Tuple[str, float]] = {
+    "garlic": ("idle", 0.0), "umbrella_leaf": ("idle", 0.0),
+    "ladder": ("idle", 0.0), "catapult": ("idle", 0.0),
     "pea_shooter": ("idle", 0.0),
     "sunflower": ("idle", 0.0),
     "cherry_bomb": ("idle", 0.0),
@@ -83,6 +85,8 @@ ICON_POSES: Dict[str, Tuple[str, float]] = {
 # ``animation_dir``. The art is grouped by kind while the ids stay flat, so this table
 # is what lets a tool that reads the files directly find them.
 ANIMATION_DIRS: Dict[str, str] = {
+    "garlic": "plant/support", "umbrella_leaf": "plant/support",
+    "ladder": "zombie/armored", "catapult": "zombie/special",
     "sun": "resource",
     "coin_silver": "resource",
     "coin_gold": "resource",
@@ -163,6 +167,7 @@ ANIMATION_DIRS: Dict[str, str] = {
 }
 
 PLANT_ENTITIES = [
+    "garlic", "umbrella_leaf", "ladder", "catapult",
     "pea_shooter", "sunflower", "cherry_bomb", "wall_nut", "potato_mine",
     "chomper", "kernel_pult", "marigold", "lily_pad", "flower_pot", "coffee_bean",
     # The shooter and pult lines, converted from the original's own reanims.

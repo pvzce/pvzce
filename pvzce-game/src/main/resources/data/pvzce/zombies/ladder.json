@@ -1,0 +1,41 @@
+{
+  "id": "pvzce:ladder",
+  "health": 200,
+  "move_speed": 0.36,
+  "capabilities": [
+    {
+      "type": "pvzce:ladder"
+    },
+    {
+      "type": "pvzce:armor",
+      "post_armor_speed": 0.18,
+      "pieces": [
+        {
+          "id": "pvzce:ladder",
+          "durability": 500,
+          "position": "front",
+          "magnetic": true
+        }
+      ]
+    }
+  ],
+  "sounds": {
+    "spawn": "pvzce:sfx/zombie/groan",
+    "hit": "pvzce:sfx/projectile/hit",
+    "bite": "pvzce:sfx/effect/bite",
+    "death": "pvzce:sfx/zombie/limbs_pop",
+    "armor_hit": "pvzce:sfx/zombie/shieldhit"
+  },
+  "animation_dir": "zombie/armored",
+  "texture": "pvzce:textures/entities/zombie/armored/ladder",
+  "equipment": [
+    {
+      "art": "ladder",
+      "piece": "pvzce:ladder"
+    }
+  ],
+  "drops_arm": false,
+  "animations": {
+    "death_burned": "pvzce:zombie/charred/zombie_charred"
+  }
+}

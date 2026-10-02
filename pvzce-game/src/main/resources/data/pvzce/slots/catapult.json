@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:catapult",
+  "kind": "zombie",
+  "content": "pvzce:catapult",
+  "cost": {
+    "resources": {
+      "pvzce:brains": 200
+    },
+    "cooldown": 600
+  },
+  "icon": "pvzce:textures/gui/cards/catapult"
+}

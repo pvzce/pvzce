@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write all forty adventure levels, 1-1 to 4-10.
+"""Write the shipped adventure levels, 1-1 to 5-9.
 
 This is the only producer of the shipped adventure level files. It replaces the four per-world
 scripts that used to sit beside it (`write_night_levels.py`, `write_pool_levels.py`,
@@ -46,6 +46,7 @@ BACKGROUND = {
     "night": "pvzce:textures/gui/screen/level/background2",
     "pool": "pvzce:textures/gui/screen/level/background3",
     "fog": "pvzce:textures/gui/screen/level/background4",
+    "roof": "pvzce:textures/gui/screen/level/background5",
 }
 BACKGROUND_1_ROW = "pvzce:textures/gui/screen/level/background1_1row"
 BACKGROUND_3_ROW = "pvzce:textures/gui/screen/level/background1_3row"
@@ -54,6 +55,7 @@ MUSIC = {
     "night": "pvzce:music/moongrains",
     "pool": "pvzce:music/watery_graves",
     "fog": "pvzce:music/rigor_mormist",
+    "roof": "pvzce:music/graze_the_roof",
 }
 #: The two conveyor levels that are their own minigame, the three mini-boss levels, and the
 #: puzzle level.
@@ -105,6 +107,8 @@ SPECIAL_REWARDS: Dict[int, dict] = {
     29: {"type": "buff", "id": "pvzce:kelp_spread"},
     34: {"type": "unlock", "id": "pvzce:vase"},
     39: {"type": "buff", "id": "pvzce:fog_retreat"},
+    44: {"type": "unlock", "id": "pvzce:fertilizer"},
+    49: {"type": "buff", "id": "pvzce:butter_plenty"},
 }
 
 #: Replay money, per level. The world finals pay more, and the two "nothing new" levels of an
@@ -114,6 +118,7 @@ COINS = {
     11: 200, 12: 200, 13: 200, 14: 300, 15: 300, 16: 300, 17: 300, 18: 300, 19: 100, 20: 300,
     21: 300, 22: 300, 23: 300, 24: 300, 25: 300, 26: 300, 27: 300, 28: 300, 29: 300, 30: 300,
     31: 400, 32: 400, 33: 400, 34: 400, 35: 400, 36: 400, 37: 400, 38: 400, 39: 400, 40: 400,
+    41: 400, 42: 400, 43: 400, 44: 400, 45: 400, 46: 400, 47: 400, 48: 400, 49: 400,
 }
 
 #: The conveyor card tables. The original's conveyor levels deal from a list of the area's
@@ -122,6 +127,9 @@ COINS = {
 #: ``(card, weight)`` or ``(card, weight, max_count)`` - the third number is the original's
 #: "max count", the one belt card that runs out (one grave buster per gravestone).
 CONVEYORS: Dict[int, dict] = {
+    45: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
+         "cards": [("pvzce:flower_pot", 50, 35), ("pvzce:chomper", 25),
+                   ("pvzce:pumpkin", 15), ("pvzce:cherry_bomb", 10)]},
     5: {"interval_ticks": 150, "capacity": 6, "initial_cards": 2,
         "cards": [("pvzce:bowling_nut", 1)]},
     10: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
@@ -421,6 +429,20 @@ MINI_FORMS = {
 }
 
 
+
+PROSE.update({
+    41: ("5-1·屋顶初战", "屋顶左侧是斜坡，平射子弹会撞上瓦面。用卷心菜投手守住五排花盆，留意从天而降的蹦极僵尸；获胜后解锁花盆。", ["植物需要花盆；这关已经铺好五列。", "斜坡上的投手可以越过瓦面攻击。"]),
+    42: ("5-2·玉米登场", "带上花盆向屋顶右侧扩展防线。撑过两面旗帜，解锁会投出黄油的玉米投手。", ["补种花盆需要阳光，别让蹦极把空盆偷光。"]),
+    43: ("5-3·梯子来了", "梯子僵尸会把梯子架在坚果与南瓜上，让后来者翻过防线。投手越过梯子攻击，磁力菇可以拆掉它；获胜后解锁咖啡豆。", ["白天的蘑菇要用咖啡豆唤醒。", "梯子会留在植物所在的格子上。"]),
+    44: ("5-4·屋顶园艺", "三面旗帜的屋顶战。首次获胜解锁肥料工具：单株攻击与产阳光速度提高50%，持续20秒，免费，冷却45秒。", ["肥料不恢复生命；与浇水的加速取较高倍率。"]),
+    45: ("5-5·蹦极空投", "敌人由蹦极僵尸空投到右半边屋顶，旗帜波还会偷走植物。传送带提供花盆、大嘴花、南瓜与樱桃炸弹；获胜后解锁大蒜。", ["从三列花盆起步，及时给正在咀嚼的大嘴花套南瓜。", "樱桃炸弹可以清理扎堆落下的敌人。"]),
+    46: ("5-6·篮球越线", "投篮车停在屋顶右侧，向后排植物投掷篮球。用投手尽快消灭它，获胜后解锁叶子保护伞。", ["投篮车会碾碎挡住它的植物。", "大蒜会把咬它的步行僵尸赶到相邻行。"]),
+    47: ("5-7·撑开保护伞", "叶子保护伞保护自己与周围八格，挡住篮球并赶走蹦极僵尸。守住三面旗帜后解锁金盏花。", ["保护伞覆盖九宫格，合理摆放可保护整个后排。"]),
+    48: ("5-8·巨人上屋顶", "巨人僵尸第一次登上屋顶，会砸碎植物并抛出小鬼。准备爆炸植物与控制，获胜后解锁西瓜投手。", ["玉米的黄油能为集中火力争取时间。"]),
+    49: ("5-9·最后的屋顶防线", "综合应对梯子、投篮车与巨人，撑过三面旗帜。首次获胜解锁黄油充足增益：玉米投手的黄油概率由25%提高到40%。", ["叶子保护伞拦截空中威胁，西瓜投手处理密集敌人。"]),
+})
+
+
 def mini_form(card: str) -> str:
     return MINI_FORMS.get(card, card)
 
@@ -445,6 +467,9 @@ WHACK_A_ZOMBIE_GRAVES = {
 
 def scene(facts: original.LevelFacts) -> Dict[str, List[str]]:
     """The board's cells: every row full width, the middle two under water in a pool level."""
+    if facts.kind == "roof":
+        return {"pvzce:roof_slope": [f"{x},{y}" for y in range(facts.rows) for x in range(5)],
+                "pvzce:roof_flat": [f"{x},{y}" for y in range(facts.rows) for x in range(5, WIDTH)]}
     graves = WHACK_A_ZOMBIE_GRAVES if facts.whack_a_zombie else {}
     taken = {cell for cells in graves.values() for cell in cells}
     grass, water = [], []
@@ -469,6 +494,9 @@ def mower(facts: original.LevelFacts) -> Optional[dict]:
     out would be noise - and noise with a cost: the effective list is ordered, and a level that
     names the default explicitly reads differently from one that does not.
     """
+    if facts.kind == "roof":
+        # Board::InitLawnMowers: roof cleaners are a shop purchase. No purchase is implemented yet.
+        return {"type": "pvzce:mower", "rows": []}
     if not facts.pool:
         return None
     return {
@@ -526,6 +554,9 @@ def tool(tool_id: str, default: bool = True, cooldown: int = 0) -> dict:
 def mechanics_for(facts: original.LevelFacts) -> List[dict]:
     """Everything the level declares about how its board behaves."""
     out: List[dict] = []
+    # These fixed-deck challenges explicitly opt out of the world's bought rake.
+    if facts.number in (5, 15, 35) or facts.kind == "roof":
+        out.append({"type": "pvzce:rake", "rows": []})
 
     if facts.scary_potter:
         # No mowers: a vase level is not lost by letting a zombie through, it is lost by running
@@ -665,7 +696,7 @@ def music_for(facts: original.LevelFacts) -> Optional[str]:
         return None
     if facts.mini_boss:
         return MUSIC_MINI_BOSS
-    if facts.whack_a_zombie or facts.number in (5, 25):
+    if facts.whack_a_zombie or facts.number in (5, 25, 45):
         return MUSIC_MINIGAME
     if facts.scary_potter:
         return MUSIC_PUZZLE
@@ -758,7 +789,7 @@ def unlock_for(facts: original.LevelFacts) -> dict:
 
 def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
     deck = facts.deck
-    slots = [] if deck is None else [f"pvzce:{card}" for card in deck]
+    slots = ["pvzce:shovel"] if facts.number in (10, 20, 25, 30, 40, 45) else ([] if deck is None else [f"pvzce:{card}" for card in deck])
     if deck is not None and facts.sun > 0:
         slots.append("pvzce:sun")
 
@@ -792,6 +823,13 @@ def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
 
     if facts.sun > 0:
         level["unlock_resources"] = {"pvzce:sun": True}
+    if facts.kind == "roof":
+        # Board::InitLevel: normal roof levels have five columns, Bungee Blitz has three.
+        level["hidden_scene_elements"] = ["pvzce:grass", "pvzce:roof_flat", "pvzce:roof_slope"]
+        pot_columns = 3 if facts.bungee_blitz else 5
+        level["initial_entities"] = [
+            {"kind": "plant", "id": "pvzce:flower_pot", "x": x, "y": y}
+            for y in range(facts.rows) for x in range(pot_columns)]
     # A level whose cards are not chosen says so by filling its own bar: "nothing to choose"
     # is `total slots - the level's fixed cards <= 0`, which is what sends the seed screen into
     # its preview-only mode. 4-5 is the case that matters here - the vase level hands the player

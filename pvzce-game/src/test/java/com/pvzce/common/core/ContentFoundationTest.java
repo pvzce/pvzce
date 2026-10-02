@@ -89,7 +89,8 @@ class ContentFoundationTest {
         assertEquals(ProjectileDef.LAYER_AIR, kernel.layer());
 
         SceneElementDef slope = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.withDefaultNamespace("roof_slope"));
-        assertEquals(0.4F, slope.maxHeight(), 0.0001F);
+        assertEquals(0F, slope.heightAt(0F, 9), 0.0001F);
+        assertEquals(100F / 85F, slope.heightAt(5F, 9), 0.0001F);
         // Water no longer lists "lily" by name: terrain rules live in the tag files
         // under data/c/tags/scene_element/, so what is asserted here is that the tag
         // reached the registry. PlantPlacementTest covers the resulting matrix.

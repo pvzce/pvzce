@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The forty adventure levels, against the game they claim to be.
+ * The first forty-nine adventure levels, against the game they claim to be.
  *
  * <p>Every wave table under {@code yard/adventure} is a replay of the original's own wave
  * generator, and the tables at the bottom of this file are the original's
@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       {@code PutInMissingZombies});</li>
  *   <li>that a level's newly introduced zombie arrives where the original puts it - the middle
  *       wave and the final one, or the seventh and the final for the digger and the balloon;</li>
- *   <li>that the reward chain is the original's, with this project's own eight substitutions on
+ *   <li>that the reward chain is the original's, with this project's own ten substitutions on
  *       the levels the original leaves empty;</li>
  *   <li>the stage facts that come with the level's number: its background, whether it is night,
  *       how tall the board is, where the fog starts, which levels deal their own cards, and how
@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * decompiled function each table comes from.
  */
 class OriginalAdventureLevelsTest {
-    /** The eight levels the original leaves empty, filled with this project's own tools/buffs. */
+    /** The ten levels the original leaves empty, filled with this project's own tools/buffs. */
     private static final Map<Integer, String> SUBSTITUTE_REWARDS = Map.of(
             4, "glove",
             9, "auto_collect",
@@ -62,7 +62,9 @@ class OriginalAdventureLevelsTest {
             24, "watering_can",
             29, "kelp_spread",
             34, "vase",
-            39, "fog_retreat");
+            39, "fog_retreat",
+            44, "fertilizer",
+            49, "butter_plenty");
 
     /**
      * 3-5's miniatures fold back onto their parents, for the same reason the pool forms do.
@@ -131,6 +133,7 @@ class OriginalAdventureLevelsTest {
     /** The types a level's random picks may draw (its {@code mZombieAllowed}). */
     private static Set<String> poolFor(int number) {
         Set<String> pool = new LinkedHashSet<>();
+        if (number == 45) return Set.of("basic_zombie", "conehead_zombie", "buckethead_zombie", "ladder");
         for (ZombieType zombie : ZOMBIES) {
             if (zombie.pickableOn(number)) {
                 pool.add(zombie.id());
@@ -169,7 +172,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void everyLevelHasTheOriginalsWaveCount() {
-        for (int number = 1; number <= 40; number++) {
+        for (int number = 1; number <= 49; number++) {
             assertEquals(waveCount(number), level(number).waves().size(),
                     label(number) + " must have the original's number of waves");
         }
@@ -177,7 +180,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void flagsStandWhereTheOriginalRaisesThem() {
-        for (int number = 1; number <= 40; number++) {
+        for (int number = 1; number <= 49; number++) {
             LevelDef def = level(number);
             int count = def.waves().size();
             Set<Integer> flags = flagWaves(number);
@@ -205,7 +208,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void noLevelEverSendsAZombieItDoesNotAllow() {
-        for (int number = 1; number <= 40; number++) {
+        for (int number = 1; number <= 49; number++) {
             if (number == 15 || number == 35) {
                 continue; // the two levels whose zombies do not arrive in waves
             }
@@ -213,7 +216,7 @@ class OriginalAdventureLevelsTest {
             LevelDef def = level(number);
             for (int index = 0; index < def.waves().size(); index++) {
                 for (String id : sentBy(def.waves().get(index))) {
-                    if (id.equals("flag_zombie")) {
+                    if (id.equals("flag_zombie") || number == 45 && id.equals("bungee_zombie") && flagWaves(number).contains(index + 1)) {
                         continue; // placed by the flag-wave rule, never picked
                     }
                     assertTrue(pool.contains(id), label(number) + " wave " + (index + 1) + " sends "
@@ -225,7 +228,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void theFinalWaveSendsEveryZombieTheLevelAllows() {
-        for (int number = 1; number <= 40; number++) {
+        for (int number = 1; number <= 49; number++) {
             if (number == 15 || number == 35) {
                 continue; // the two levels whose zombies do not arrive in waves
             }
@@ -241,7 +244,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void newlyIntroducedZombiesArriveWhereTheOriginalPutsThem() {
-        for (int number = 2; number <= 40; number++) {
+        for (int number = 2; number <= 49; number++) {
             ZombieType intro = null;
             for (ZombieType zombie : ZOMBIES) {
                 if (zombie.startingLevel() != number) {
@@ -278,7 +281,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void theRewardChainIsTheOriginals() {
-        for (int number = 1; number <= 40; number++) {
+        for (int number = 1; number <= 49; number++) {
             LevelDef def = level(number);
             String expected = SUBSTITUTE_REWARDS.get(number);
             if (expected == null) {
@@ -303,14 +306,14 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void theStageFactsComeFromTheLevelNumber() {
-        for (int number = 1; number <= 40; number++) {
+        for (int number = 1; number <= 49; number++) {
             LevelDef def = level(number);
             String name = label(number);
 
             int expectedHeight = switch (number) {
                 case 1 -> 1;
                 case 2, 3 -> 3;
-                default -> number >= 21 && number != 35 ? 6 : 5;
+                default -> number >= 21 && number <= 40 && number != 35 ? 6 : 5;
             };
             assertEquals(expectedHeight, def.height(), name + "'s board height");
 
@@ -324,12 +327,14 @@ class OriginalAdventureLevelsTest {
                     case 0 -> "day";
                     case 1 -> "night";
                     case 2 -> "pool";
-                    default -> "fog";
+                    case 3 -> "fog";
+                    default -> "roof";
                 }) {
                     case "day" -> "background1";
                     case "night" -> "background2";
                     case "pool" -> "background3";
-                    default -> "background4";
+                    case "fog" -> "background4";
+                    default -> "background5";
                 };
                 assertTrue(background.endsWith(expected),
                         name + " must use " + expected + ", and uses " + background);
@@ -337,7 +342,7 @@ class OriginalAdventureLevelsTest {
 
             // 2-x and 4-x are night (`StageIsNight` covers the fog background), and 4-5 -
             // the vase level - is played on the night lawn rather than in the fog.
-            boolean night = number >= 11 && number <= 20 || number >= 31;
+            boolean night = number >= 11 && number <= 20 || number >= 31 && number <= 40;
             var sunInterval = def.rules().get(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX);
             boolean skySun = !night && !isConveyor(number);
             assertEquals(skySun, sunInterval != null && sunInterval.getAsFloat() > 0F,
@@ -347,7 +352,7 @@ class OriginalAdventureLevelsTest {
             // The two area-4 levels that are not foggy boards: 4-5 is the vase level on the night
             // lawn, and 4-10 is the storm - the level the fog world spends nine levels building up
             // to, and the one level in the original's Fog area with no fog in it.
-            if (number >= 31 && number != 35 && number != 40) {
+            if (number >= 31 && number <= 40 && number != 35 && number != 40) {
                 assertNotNull(fog, name + " is a fog level");
                 float expectedFog = number == 31 ? 6F : number <= 36 ? 5F : 4F;
                 assertEquals(expectedFog, fog.startColumn(), 0.001F,
@@ -381,7 +386,7 @@ class OriginalAdventureLevelsTest {
      */
     private static boolean isConveyor(int number) {
         return number == 5 || number == 10 || number == 20 || number == 25 || number == 30
-                || number == 40;
+                || number == 40 || number == 45;
     }
 
     @Test

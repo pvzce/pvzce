@@ -208,6 +208,13 @@ public class ZombieEntity extends PvzceEntity {
         return true;
     }
 
+    public boolean canBeHitByArc() {
+        for (Instance instance : capabilities) {
+            if (!instance.capability.canBeHitByArc(this)) return false;
+        }
+        return true;
+    }
+
     /** The live capability instance of the given type, or {@code null}. */
     public <T extends ZombieCapability> T capability(Class<T> type) {
         for (Instance instance : capabilities) {
@@ -466,7 +473,7 @@ public class ZombieEntity extends PvzceEntity {
         PlantEntity plant = level instanceof LevelServer server
                 ? server.biteTargetAt(gridX(), gridY())
                 : level.plantAt(gridX(), gridY());
-        if (plant != null) {
+        if (plant != null && !plant.laddered()) {
             bitePlant(level, plant);
             return;
         }

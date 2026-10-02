@@ -16,25 +16,8 @@ import com.pvzce.server.entity.ZombieEntity;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Drops out of the sky, takes a plant, and leaves with it (the bungee zombie).
- *
- * <p>A raid rather than an assault: it appears above the lawn, picks one plant - losing it, not
- * just damaging it - and is gone. The player cannot shoot it on the way down; the only answers are
- * to have nothing worth taking, or to be somewhere else when it lands.
- *
- * <h2>Why it is invulnerable while it works</h2>
- *
- * <p>Because the alternative is a zombie that arrives, is shot once and dies, and the plant is
- * never in danger - which makes the whole raid a free kill rather than a threat. The original gives
- * it the same protection for the same reason. It stops being invulnerable the moment it leaves, by
- * which time it is off the board anyway.
- *
- * <h2>The four beats</h2>
- *
- * <p>{@code bungee_drop} → {@code bungee_grab} → {@code bungee_hold} → {@code bungee_rise}, each
- * one the clip the reanim draws for it. Every one is published as a state, so the art and the
- * simulation agree about which beat is running without either inferring it from the other.
+/** A roof raid: descends, steals a plant or delivers a wave zombie, then rises away.
+ * Only the time spent at the bottom is reachable by ordinary plant attacks.
  */
 public final class BungeeCapability implements ZombieCapability {
     public static final int DEFAULT_DROP_TICKS = 80;
@@ -67,6 +50,15 @@ public final class BungeeCapability implements ZombieCapability {
     private int targetColumn = -1;
     private int targetPlantId = -1;
     private int attemptsLeft;
+    private Identifier cargo;
+    private float cargoHealthScale = 1F;
+
+    /** Wave-only delivery; the cargo appears at touchdown and is saved independently thereafter. */
+    public void deliver(Identifier id, int column, float healthScale) {
+        cargo = id;
+        targetColumn = column;
+        cargoHealthScale = healthScale;
+    }
 
     private enum Stage {
         ARRIVING, DROPPING, GRABBING, HOLDING, RISING, DONE
@@ -133,23 +125,19 @@ public final class BungeeCapability implements ZombieCapability {
                 retries, sound);
     }
 
-    /** It flies: nothing on the lawn can reach it, and it never drowns. */
     @Override
     public int layerOverride(ZombieEntity zombie) {
-        return EntityLayers.AIR;
+        return stage == Stage.GRABBING || stage == Stage.HOLDING ? EntityLayers.GROUND : EntityLayers.AIR;
     }
 
-    /**
-     * Unreachable by ground fire while it works; see the class doc.
-     *
-     * <p>{@code canBeHitByGround} rather than an invulnerability flag: the answer is about
-     * <em>what can reach it</em>, and the balloon zombie's own capability answers the same
-     * question the same way. "Invulnerable" would also have stopped a mower, which is a
-     * different statement.
-     */
     @Override
     public boolean canBeHitByGround(ZombieEntity zombie) {
-        return stage == Stage.DONE;
+        return stage == Stage.GRABBING || stage == Stage.HOLDING || stage == Stage.DONE;
+    }
+
+    @Override
+    public boolean canBeHitByArc(ZombieEntity zombie) {
+        return canBeHitByGround(zombie);
     }
 
     /**
@@ -162,26 +150,28 @@ public final class BungeeCapability implements ZombieCapability {
     @Override
     public boolean tickMovement(ZombieEntity zombie, LevelAccess level) {
         phaseTicks++;
+        var terrain = level.sceneAt(targetColumn, zombie.gridY());
+        float ground = terrain == null ? 0F : terrain.heightAt(targetColumn + 0.5F, level.width());
         return switch (stage) {
             case ARRIVING -> arrive(zombie, level);
             case DROPPING -> {
                 // The cord is paying out: the body comes down over the clip's whole length.
-                zombie.setHeight(dropHeight * (1F - progress(dropTicks)));
+                zombie.setHeight(ground + dropHeight * (1F - progress(dropTicks)));
                 yield advance(zombie, level, dropTicks, Stage.GRABBING,
                         EntityAnimations.BUNGEE_DROP);
             }
             case GRABBING -> {
-                zombie.setHeight(0F);
+                zombie.setHeight(ground);
                 yield grab(zombie, level);
             }
             case HOLDING -> {
-                zombie.setHeight(0F);
+                zombie.setHeight(ground);
                 yield advance(zombie, level, holdTicks, Stage.RISING,
                         EntityAnimations.BUNGEE_HOLD);
             }
             case RISING -> {
                 // Hauled back up with whatever it took; `rise` removes it at the top.
-                zombie.setHeight(dropHeight * progress(riseTicks));
+                zombie.setHeight(ground + dropHeight * progress(riseTicks));
                 yield rise(zombie, level);
             }
             case DONE -> true;
@@ -196,7 +186,7 @@ public final class BungeeCapability implements ZombieCapability {
     /** Picks a column with something in it, or leaves if there is nothing worth taking. */
     private boolean arrive(ZombieEntity zombie, LevelAccess level) {
         attemptsLeft = retries;
-        targetColumn = pickColumn(zombie, level);
+        if (cargo == null) targetColumn = pickColumn(zombie, level);
         zombie.setAnimation(EntityAnimations.BUNGEE_HOLD);
         if (targetColumn < 0) {
             // Nothing on the lawn to steal. It leaves rather than hovering forever: a raid that
@@ -208,7 +198,8 @@ public final class BungeeCapability implements ZombieCapability {
         }
         zombie.setAnimation(EntityAnimations.BUNGEE_DROP);
         zombie.setCellX(targetColumn + 0.5F);
-        zombie.setHeight(dropHeight);
+        var terrain = level.sceneAt(targetColumn, zombie.gridY());
+        zombie.setHeight(dropHeight + (terrain == null ? 0F : terrain.heightAt(zombie.cellX(), level.width())));
         stage = Stage.DROPPING;
         phaseTicks = 0;
         return true;
@@ -218,7 +209,7 @@ public final class BungeeCapability implements ZombieCapability {
      * same seed steals from the same column. */
     private int pickColumn(ZombieEntity zombie, LevelAccess level) {
         List<Integer> candidates = new java.util.ArrayList<>();
-        for (int x = 0; x < 9; x++) {
+        for (int x = 0; x < level.width(); x++) {
             if (level.plantAt(x, zombie.gridY()) != null) {
                 candidates.add(x);
             }
@@ -243,6 +234,20 @@ public final class BungeeCapability implements ZombieCapability {
     /** Takes the plant. It is gone from the lawn, not damaged. */
     private boolean grab(ZombieEntity zombie, LevelAccess level) {
         zombie.setAnimation(EntityAnimations.BUNGEE_GRAB);
+        if (com.pvzce.common.capability.plant.UmbrellaLeafCapability.block(level, targetColumn,
+                zombie.gridY(), null)) {
+            cargo = null;
+            stage = Stage.RISING;
+            phaseTicks = 0;
+            return true;
+        }
+        if (cargo != null) {
+            level.spawnZombie(cargo, zombie.team(), targetColumn + 0.5F, zombie.gridY(), cargoHealthScale);
+            cargo = null;
+            stage = Stage.RISING;
+            phaseTicks = 0;
+            return true;
+        }
         if (phaseTicks == 1) {
             PlantEntity plant = level.plantAt(targetColumn, zombie.gridY());
             if (plant == null) {
@@ -291,6 +296,8 @@ public final class BungeeCapability implements ZombieCapability {
         tag.putInt("target", targetColumn);
         tag.putInt("plant", targetPlantId);
         tag.putInt("stage", stage.ordinal());
+        tag.putString("cargo", cargo == null ? "" : cargo.toString());
+        tag.putFloat("cargo_scale", cargoHealthScale);
     }
 
     @Override
@@ -298,6 +305,8 @@ public final class BungeeCapability implements ZombieCapability {
         phaseTicks = Math.max(0, tag.getInt("phase"));
         targetColumn = tag.getInt("target");
         targetPlantId = tag.getInt("plant");
+        cargo = Identifier.tryParse(tag.getString("cargo"));
+        cargoHealthScale = tag.contains("cargo_scale") ? tag.getFloat("cargo_scale") : 1F;
         int ordinal = tag.getInt("stage");
         stage = ordinal >= 0 && ordinal < Stage.values().length
                 ? Stage.values()[ordinal] : Stage.ARRIVING;

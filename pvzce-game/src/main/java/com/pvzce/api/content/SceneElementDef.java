@@ -65,12 +65,24 @@ public record SceneElementDef(
         return art.orElse(SceneElementArt.NONE);
     }
 
-    /** Height at a cell coordinate; sloped roofs interpolate 0..maxHeight. */
+    /** Native roof profile; other raised surfaces interpolate their declared maxHeight. */
     @Override
     public float heightAt(float x, int width) {
+        if ("ROOF_SLOPE".equals(surfaceClass)) {
+            return roofHeightAt(x);
+        }
+        if ("ROOF".equals(surfaceClass)) {
+            return com.pvzce.common.PvzceConstants.ROOF_HEIGHT;
+        }
         if (maxHeight <= 0 || width <= 1) {
             return 0F;
         }
         return maxHeight * (x / Math.max(1, width - 1));
+    }
+
+    /** The shared roof profile used by simulation and mouse picking. */
+    public static float roofHeightAt(float x) {
+        return com.pvzce.common.PvzceConstants.ROOF_HEIGHT
+                * Math.max(0F, Math.min(1F, x / com.pvzce.common.PvzceConstants.ROOF_SLOPE_COLUMNS));
     }
 }

@@ -348,6 +348,29 @@ def zombie_animations(*, walk: bool = True, angry: bool = False,
 ZOMBIE_NEVER_VISIBLE = ("tongue", "hair")
 
 ENTITY_CONFIGS: List[EntityConfig] = [
+    EntityConfig(output="garlic", group="plant/support", reanim="Garlic.reanim", target_box=PLANT_BOX,
+                 animations={"idle": {"mask": "anim_idle", "loop": True}}),
+    EntityConfig(output="umbrella_leaf", group="plant/support", reanim="Umbrellaleaf.reanim", target_box=PLANT_BOX,
+                 animations={"idle": {"mask": "anim_idle", "loop": True},
+                             "umbrella_block": {"mask": "anim_block", "loop": False, "on_end": "hold"}}),
+    EntityConfig(output="ladder", group="zombie/armored", reanim="Zombie_ladder.reanim", target_box=ZOMBIE_BOX,
+                 bone_renames={"1": "ladder_1"},
+                 measure_exclude_regex=r"^(ladder_|[1-5]$)",
+                 damage_states={"ladder_1": (("ladder_2", "Zombie_ladder_1_damage1.png"),
+                                            ("ladder_3", "Zombie_ladder_1_damage2.png"))},
+                 animations={"idle": {"mask": "anim_idle", "loop": True},
+                             "ladder_walk": {"mask": "anim_ladderwalk", "loop": True},
+                             "ladder_eat": {"mask": "anim_laddereat", "loop": True},
+                             "walk": {"mask": "anim_walk", "loop": True},
+                             "eat": {"mask": "anim_eat", "loop": True},
+                             "place_ladder": {"mask": "anim_placeladder", "loop": False, "on_end": "hold"},
+                             "death": {"mask": "anim_death", "loop": False, "on_end": "hold"}}),
+    EntityConfig(output="catapult", group="zombie/special", reanim="Zombie_catapult.reanim", target_box=(1.6, 1.0),
+                 animations={"idle": {"mask": "anim_idle", "loop": True},
+                             "walk": {"mask": "anim_walk", "loop": True},
+                             "shoot": {"mask": "anim_shoot", "loop": False, "on_end": "hold"},
+                             "death": {"mask": "anim_bounce", "loop": False, "on_end": "hold"}}),
+
     # ------------------------------------------------------------------
     # Resource drops
     # ------------------------------------------------------------------

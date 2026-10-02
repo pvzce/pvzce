@@ -120,6 +120,11 @@ public interface LevelBuff {
         return false;
     }
 
+    /** Minimum butter chance for a kernel-pult; zero leaves its definition alone. */
+    default float butterChanceFloor() {
+        return 0F;
+    }
+
     /** A texture and, optionally, the sub-rectangle of it this icon occupies. */
     record BuffIcon(Identifier texture, float u0, float v0, float u1, float v1) {
         /** No icon: the chooser draws the level's placeholder and the tooltip still names it. */

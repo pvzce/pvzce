@@ -1,0 +1,19 @@
+{
+  "id": "pvzce:umbrella_leaf",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 100
+    },
+    "cooldown": 450
+  },
+  "health": 300,
+  "capabilities": [
+    {
+      "type": "pvzce:umbrella"
+    }
+  ],
+  "animation_dir": "plant/support",
+  "texture": "pvzce:textures/entities/plant/support/umbrella_leaf",
+  "render_scale": 0.85,
+  "order": 38
+}

@@ -45,7 +45,7 @@ public final class KeyBindings {
         /** The command line. */
         COMMAND("command", GLFW.GLFW_KEY_SLASH),
         /**
-         * The five tools, by identity rather than by card position.
+         * Tools, by identity rather than by card position.
          *
          * <p>"1 is the shovel" and not "1 is the first card": a bar's order is the level's, and a
          * key that meant a different tool in every level would be worse than no key at all. The
@@ -58,6 +58,7 @@ public final class KeyBindings {
         TOOL_WATERING_CAN("tool_watering_can", GLFW.GLFW_KEY_4),
         /** The vase tool; unbound by default, and the row a player is most likely to fill in. */
         TOOL_VASE("tool_vase", GLFW.GLFW_KEY_UNKNOWN),
+        TOOL_FERTILIZER("tool_fertilizer", GLFW.GLFW_KEY_5),
 
         /**
          * The rhythm levels' lanes: six columns on {@code S D F J K L}, and everything else on
@@ -110,10 +111,10 @@ public final class KeyBindings {
             return defaultCode;
         }
 
-        /** True for the five tool actions; what the in-game hotkey path switches on. */
+        /** True for tool actions; what the in-game hotkey path switches on. */
         public boolean isTool() {
             return this == TOOL_SHOVEL || this == TOOL_GLOVE || this == TOOL_HAMMER
-                    || this == TOOL_WATERING_CAN || this == TOOL_VASE;
+                    || this == TOOL_WATERING_CAN || this == TOOL_VASE || this == TOOL_FERTILIZER;
         }
 
         /**
@@ -175,6 +176,7 @@ public final class KeyBindings {
                 case TOOL_HAMMER -> "pvzce:hammer";
                 case TOOL_WATERING_CAN -> "pvzce:watering_can";
                 case TOOL_VASE -> "pvzce:vase";
+                case TOOL_FERTILIZER -> "pvzce:fertilizer";
                 default -> null;
             };
         }

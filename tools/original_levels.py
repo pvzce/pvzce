@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The original Plants vs. Zombies adventure levels, as data.
 
-The forty shipped adventure levels are not invented here: every wave table is a *replay* of the
+The forty-nine shipped adventure levels are not invented here: every wave table is a *replay* of the
 original game's own wave generator. The original does not store waves anywhere - it stores four
 tables and a loop, and this module is those four tables plus that loop, so that a reader can
 check a level against the game it claims to be:
@@ -273,7 +273,7 @@ GRAVE_LAYOUTS: Dict[int, tuple] = {
     20: (13, 3),
 }
 
-AREA_KINDS = ("day", "night", "pool", "fog")
+AREA_KINDS = ("day", "night", "pool", "fog", "roof")
 
 
 @dataclass(frozen=True)
@@ -301,6 +301,7 @@ class LevelFacts:
     #: card table is keyed by level number, the fact that says "this level deals cards at all" is
     #: this one - a conveyor table nobody reads is exactly how 4-10 shipped as an ordinary level.
     storm: bool = False
+    bungee_blitz: bool = False
 
     @property
     def name(self) -> str:
@@ -337,7 +338,8 @@ class LevelFacts:
         the player its cards off a belt like the other area finales, and the area's own table
         (``CONVEYORS[40]`` in the level writer) is what it deals.
         """
-        return self.mini_boss or self.wallnut_bowling or self.little_trouble or self.storm
+        return (self.mini_boss or self.wallnut_bowling or self.little_trouble
+                or self.storm or self.bungee_blitz)
 
     @property
     def fog_column(self) -> Optional[float]:
@@ -440,6 +442,8 @@ class LevelFacts:
         """``IsMiniBossLevel`` / ``IsLittleTroubleLevel`` / ``IsWallnutBowlingLevel``."""
         if self.mini_boss:
             return 3
+        if self.bungee_blitz:
+            return 2
         if self.little_trouble or self.wallnut_bowling:
             return 4
         return 1
@@ -459,11 +463,12 @@ def level_facts(number: int) -> LevelFacts:
         whack_a_zombie=number == 15,
         scary_potter=number == 35,
         storm=number == 40,
+        bungee_blitz=number == 45,
     )
 
 
-#: Levels 1..40 - the whole shipped adventure mode.
-LEVELS: Tuple[LevelFacts, ...] = tuple(level_facts(n) for n in range(1, 41))
+#: Levels 1..49 - the shipped adventure, before the roof boss.
+LEVELS: Tuple[LevelFacts, ...] = tuple(level_facts(n) for n in range(1, 50))
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +491,10 @@ class Wave:
 
 def pool_for(level: int) -> List[ZombieType]:
     """Every type the level's random picks may draw (``mZombieAllowed``)."""
+    if level == 45:
+        # Challenge::InitZombieWaves: the bungees are scripted flag-wave raids, not random picks.
+        return [BY_NAME[n] for n in ("ZOMBIE_NORMAL", "ZOMBIE_TRAFFIC_CONE",
+                                     "ZOMBIE_PAIL", "ZOMBIE_LADDER")]
     return [z for z in ZOMBIES if z.pickable_on(level)]
 
 
@@ -569,7 +578,13 @@ def waves_for(level: int) -> List[Wave]:
             rolled.append(zombie.name)
             budget -= zombie.value
 
-        if is_flag:
+        raid_only = facts.bungee_blitz and is_flag and not is_final
+        if facts.bungee_blitz and is_flag:
+            # The five raiders are inserted before the point budget is assigned.
+            rolled.extend(["ZOMBIE_BUNGEE"] * 5)
+        if raid_only:
+            budget = 0
+        elif is_flag:
             plain = min(budget, 8)
             budget = int(budget * 2.5)
             for _ in range(plain):
@@ -580,7 +595,7 @@ def waves_for(level: int) -> List[Wave]:
         # multiplies the picker's remaining points).
         budget *= facts.budget_multiplier
 
-        if intro is not None:
+        if intro is not None and not raid_only:
             # A new zombie is shown off: the digger and the balloon arrive in the seventh wave,
             # everything else in the middle of the level - and all of them in the final wave.
             if intro.name in ("ZOMBIE_DIGGER", "ZOMBIE_BALLOON"):

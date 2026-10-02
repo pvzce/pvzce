@@ -10,6 +10,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Geometry contract for fitting level boards into the original 1400x600 stages. */
 class LevelStageTest {
+    @Test
+    void roofPickingReachesEveryCellIncludingTheRaisedTopRow() {
+        var camera = new PvzceCamera(1920, 1080, 9, 5, LevelStage.ROOF, 0F);
+        for (int x = 0; x < 9; x++) for (int y = 0; y < 5; y++) {
+            float px = camera.screenX(x + 0.5F), py = 1080 - camera.cellScreenY(x, y);
+            assertTrue(camera.inBoard(px, py));
+            assertEquals(x, camera.cellX(px, py));
+            assertEquals(y, camera.cellY(px, py));
+        }
+    }
     /** The front lawn's own numbers, quoted from the docs rather than read twice. */
     private static final float LAWN_LEFT = 256F;
     private static final float LAWN_WIDTH = 720F;

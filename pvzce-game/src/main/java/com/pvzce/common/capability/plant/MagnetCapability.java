@@ -93,6 +93,19 @@ public final class MagnetCapability implements PlantCapability {
         }
         ZombieEntity target = nearestArmoured(plant, level);
         if (target == null) {
+            PlantEntity ladder = nearestLadder(plant, level);
+            if (ladder != null) {
+                ladder.setLaddered(false);
+                heldItem = com.pvzce.common.PvzceIds.id("ladder").toString();
+                itemX = ladder.cellX(); itemY = ladder.cellY();
+                sendItem(plant, level, 0);
+                pulling = true;
+                cooldown = intervalTicks;
+                plant.setState(EntityAnimations.SHOOT);
+                level.emitEffect("", plant.cellX(), plant.cellY(),
+                        sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
+                return;
+            }
             // Nothing wearing anything within reach. The clock is *not* reset, so the pull happens
             // on the tick equipment walks into range rather than another recovery later.
             plant.setState(EntityAnimations.IDLE);
@@ -136,6 +149,22 @@ public final class MagnetCapability implements PlantCapability {
             if (distance <= range && distance < bestDistance) {
                 best = zombie;
                 bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private PlantEntity nearestLadder(PlantEntity plant, LevelAccess level) {
+        PlantEntity best = null;
+        double distance = range;
+        for (int row = Math.max(0, plant.gridY() - 2); row <= Math.min(level.height() - 1, plant.gridY() + 2); row++) {
+            for (int col = 0; col < level.width(); col++) {
+                for (PlantEntity candidate : level.plantsAt(col, row)) {
+                    double d = Math.hypot(candidate.cellX() - plant.cellX(), candidate.cellY() - plant.cellY());
+                    if (candidate.laddered() && !candidate.isRemoved() && d <= distance) {
+                        best = candidate; distance = d;
+                    }
+                }
             }
         }
         return best;

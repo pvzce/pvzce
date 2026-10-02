@@ -12,7 +12,7 @@
   "health": 300,
   "capabilities": [
     {
-      "type": "pvzce:shooter",
+      "type": "pvzce:thrower",
       "interval": 130,
       "shots": [
         {

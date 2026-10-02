@@ -29,7 +29,7 @@ import java.util.List;
  * terrain (#c:)        ground  plantable  water  unplantable
  *   grass                -        yes       -        -
  *   ground              yes        -        -        -
- *   roof_flat/slope     yes       yes       -        -
+ *   roof_flat/slope     yes       -         -        -
  *   water                -         -       yes       -
  *   grave/crater         -         -        -       yes
  *
@@ -42,8 +42,7 @@ import java.util.List;
  * </pre>
  *
  * <p>{@code #c:ground} and {@code #c:plantable} are not the same thing: bare
- * ground and roofs accept a carrier but not a plant directly, while grass and
- * roofs accept a plant directly. A tile may carry both.
+ * ground and roofs accept a carrier but not a plant directly; grass accepts a plant directly.
  *
  * <h2>Beneath, not "in the cell"</h2>
  *
@@ -203,6 +202,9 @@ public final class PlantPlacement {
             return terrainTagged(terrain, PvzceTags.SCENE_GRAVE);
         }
         if (is(def, PvzceTags.REQUIRES_GROUND)) {
+            if (terrain.def() != null && terrain.def().surfaceClass().startsWith("ROOF") && !isCarrier(def)) {
+                return has(below, PvzceTags.PLANTABLE);
+            }
             // Flower pot, potato mine: pushed into the ground itself. Never water,
             // never a plant, never a carrier - a mine belongs in the dirt.
             return terrainTagged(terrain, PvzceTags.SCENE_GROUND)

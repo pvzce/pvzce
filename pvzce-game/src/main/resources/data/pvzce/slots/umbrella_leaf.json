@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:umbrella_leaf",
+  "kind": "plant",
+  "content": "pvzce:umbrella_leaf",
+  "cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/umbrella_leaf"
+}

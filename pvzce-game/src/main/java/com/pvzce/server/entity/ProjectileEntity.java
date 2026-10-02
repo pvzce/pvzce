@@ -52,8 +52,9 @@ public class ProjectileEntity extends PvzceEntity {
      */
     private float direction;
     /** Id of the zombie this shot was aimed at, or -1 for a straight shot. */
-    private final int targetId;
-    private final float targetX;
+    private int targetId;
+    private float targetX;
+    private float targetHeight;
     /**
      * True when the shot was aimed at a cell rather than at a zombie.
      *
@@ -61,7 +62,7 @@ public class ProjectileEntity extends PvzceEntity {
      * without it the impact test below would read "names no zombie" as "has nowhere to be" and an
      * aimed cob would fly off the end of the board instead of going off.
      */
-    private final boolean aimedAtPoint;
+    private boolean aimedAtPoint;
     /**
      * Where the shot was fired from and how far it may travel, in cells
      * ({@link ProjectileRef#UNLIMITED_RANGE} = the whole board).
@@ -140,6 +141,7 @@ public class ProjectileEntity extends PvzceEntity {
         this.direction = ref != null ? ref.direction() : 1F;
         this.targetId = target != null ? target.id() : -1;
         this.targetX = targetX;
+        this.targetHeight = targetHeight;
         this.aimedAtPoint = aimedAtPoint;
         this.originX = cellX;
         this.originY = cellY;
@@ -227,7 +229,7 @@ public class ProjectileEntity extends PvzceEntity {
 
     /** True once a homing shot has come back down to lawn level. */
     public boolean hasLanded() {
-        return height() <= LANDED_HEIGHT;
+        return height() <= targetHeight + LANDED_HEIGHT;
     }
 
     public <T extends ProjectileCapability> T capability(Class<T> type) {
@@ -287,6 +289,12 @@ public class ProjectileEntity extends PvzceEntity {
             remove();
             return;
         }
+        var terrain = level.sceneAt(gridX(), gridY());
+        if (!def.isAirLayer() && terrain != null && terrain.surfaceClass().startsWith("ROOF")
+                && height() < terrain.heightAt(cellX(), level.width())) {
+            remove();
+            return;
+        }
         ZombieEntity hit = findTarget(level);
         if (hit == null) {
             PlantEntity plant = findPlantTarget(level);
@@ -294,7 +302,7 @@ public class ProjectileEntity extends PvzceEntity {
                 // A shot fired by the zombies. It is the only shot in the game that travels the
                 // other way, and everything about it is the same except which registry it looks
                 // in - see `findPlantTarget`.
-                plant.damage(damage);
+                plant.damageFrom(damage);
                 remove();
                 return;
             }
@@ -354,6 +362,15 @@ public class ProjectileEntity extends PvzceEntity {
             }
             PlantEntity plant = level.plantAt(column, gridY());
             if (plant != null && !plant.isRemoved()) {
+                if ("basketball".equals(def.id().path())) {
+                    if (Math.abs(cellX() - targetX) > HIT_RADIUS_X
+                            || height() > plant.height() + LANDED_HEIGHT) continue;
+                    if (com.pvzce.common.capability.plant.UmbrellaLeafCapability.block(
+                            level, column, gridY(), plant.team())) {
+                        remove();
+                        return null;
+                    }
+                }
                 if (com.pvzce.common.core.PlantPlacement.is(plant.def(),
                         com.pvzce.common.tag.PvzceTags.ZOMBIE_PEA_PASSES_OVER)) {
                     continue;
@@ -371,6 +388,7 @@ public class ProjectileEntity extends PvzceEntity {
             if (zombie.isRemoved()) {
                 continue;
             }
+            if (!groundLayer && !zombie.canBeHitByArc()) continue;
             // A shot that has already landed on this one keeps flying - it does not land again.
             if (hitIds.contains(zombie.id())) {
                 continue;
@@ -399,9 +417,12 @@ public class ProjectileEntity extends PvzceEntity {
     @Override
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
+        tag.putString("ownerTeam", team() == null ? "" : team().id().toString());
         tag.putInt("damage", damage);
         tag.putInt("targetId", targetId);
         tag.putFloat("targetX", targetX);
+        tag.putFloat("targetHeight", targetHeight);
+        tag.putByte("aimedAtPoint", (byte) (aimedAtPoint ? 1 : 0));
         tag.putFloat("direction", direction);
         tag.putFloat("vectorX", vectorX);
         tag.putFloat("vectorY", vectorY);
@@ -422,6 +443,10 @@ public class ProjectileEntity extends PvzceEntity {
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
         damage = tag.getInt("damage");
+        targetId = tag.contains("targetId") ? tag.getInt("targetId") : -1;
+        targetX = tag.getFloat("targetX");
+        targetHeight = tag.getFloat("targetHeight");
+        aimedAtPoint = tag.getInt("aimedAtPoint") != 0;
         direction = tag.contains("direction") ? tag.getFloat("direction") : 1F;
         vectorX = tag.contains("vectorX") ? tag.getFloat("vectorX") : 1F;
         vectorY = tag.getFloat("vectorY");

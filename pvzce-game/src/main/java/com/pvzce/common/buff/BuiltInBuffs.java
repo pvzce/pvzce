@@ -108,7 +108,15 @@ public enum BuiltInBuffs implements LevelBuff {
         public boolean spreadsKelp() {
             return true;
         }
+    },
+    BUTTER_PLENTY(PvzceIds.BUFF_BUTTER_PLENTY,
+            Identifier.withDefaultNamespace("textures/gui/buff/butter_plenty")) {
+        @Override
+        public float butterChanceFloor() {
+            return com.pvzce.common.PvzceConstants.BUTTER_BUFF_CHANCE;
+        }
     };
+
 
     /** What "1.5x" is, in one place: the codec's default and the buff's answer agree. */
     public static final float MUSHROOM_RANGE_FACTOR = 1.5F;

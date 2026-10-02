@@ -1,0 +1,14 @@
+{
+  "id": "pvzce:fertilizer",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 2700,
+  "targets": [
+    "plant"
+  ],
+  "effect": "pvzce:fertilize",
+  "uses": -1,
+  "texture": "pvzce:textures/gui/cards/fertilizer"
+}

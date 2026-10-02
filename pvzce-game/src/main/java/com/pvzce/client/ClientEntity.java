@@ -20,6 +20,14 @@ import com.pvzce.common.network.packet.EchoNetworkS2C;
  */
 public final class ClientEntity extends Entity implements com.pvzce.client.api.MovingTarget {
     private EchoNetworkS2C echoNetwork;
+    private boolean fertilized;
+    private boolean laddered;
+    public boolean fertilized() { return fertilized; }
+    public boolean laddered() { return laddered; }
+    public void apply(com.pvzce.common.network.packet.PlantCareS2C state) {
+        fertilized = state.fertilized();
+        laddered = state.laddered();
+    }
 
     public EchoNetworkS2C echoNetwork() {
         return echoNetwork == null ? EchoNetworkS2C.empty(id()) : echoNetwork;
