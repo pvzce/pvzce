@@ -1,7 +1,7 @@
 package com.pvzce.server.ai;
 
 import com.pvzce.common.jev.JevPrompt;
-import com.pvzce.common.jev.JevSettings;
+import com.pvzce.common.jev.AiSettings;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -58,7 +58,7 @@ class JevClientTest {
     }
 
     /** Starts the stand-in and answers every request with {@code status}/{@code body}. */
-    private JevSettings startServer(int status, String body, long delayMillis) throws IOException {
+    private AiSettings startServer(int status, String body, long delayMillis) throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/systemone", exchange -> {
             lastAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
@@ -69,7 +69,7 @@ class JevClientTest {
             respond(exchange, status, body);
         });
         server.start();
-        return new JevSettings("http://127.0.0.1:" + server.getAddress().getPort() + "/v1/systemone",
+        return new AiSettings("http://127.0.0.1:" + server.getAddress().getPort() + "/v1/systemone",
                 "typesafe/jev-1.13", "test-key");
     }
 
@@ -112,7 +112,7 @@ class JevClientTest {
     void aDecisionTravelsTheWholeWayFromPromptToQueue() throws IOException {
         String answer = "{\"answers\":{\"action\":{\"choice\":\"pvzce:basic_zombie\",\"confidence\":0.7},"
                 + "\"row\":{\"choice\":\"row_2\"},\"column\":{\"choice\":\"7\"}}}";
-        JevSettings settings = startServer(200, answer, 0);
+        AiSettings settings = startServer(200, answer, 0);
         client = new JevClient();
 
         assertTrue(client.request(settings, prompt(), 7L));
@@ -135,7 +135,7 @@ class JevClientTest {
 
     @Test
     void anHttpFailureIsReportedRatherThanThrown() throws IOException {
-        JevSettings settings = startServer(401, "{\"error\":\"no credits\"}", 0);
+        AiSettings settings = startServer(401, "{\"error\":\"no credits\"}", 0);
         client = new JevClient();
 
         assertTrue(client.request(settings, prompt(), 1L));
@@ -149,7 +149,7 @@ class JevClientTest {
 
     @Test
     void anAnswerThatNamesNothingUsableIsAnError() throws IOException {
-        JevSettings settings = startServer(200, "{\"code\":0,\"data\":{\"answers\":{}}}", 0);
+        AiSettings settings = startServer(200, "{\"code\":0,\"data\":{\"answers\":{}}}", 0);
         client = new JevClient();
 
         assertTrue(client.request(settings, prompt(), 1L));
@@ -163,7 +163,7 @@ class JevClientTest {
     void oneRequestAtATime() throws IOException {
         String answer = "{\"answers\":{\"action\":{\"choice\":\"hold\"},"
                 + "\"row\":{\"choice\":\"row_2\"},\"column\":{\"choice\":\"col_7\"}}}";
-        JevSettings settings = startServer(200, answer, 400);
+        AiSettings settings = startServer(200, answer, 400);
         client = new JevClient();
 
         assertTrue(client.request(settings, prompt(), 1L), "the first request should go out");
@@ -178,7 +178,7 @@ class JevClientTest {
 
     @Test
     void aProviderThatNeverAnswersBecomesAnErrorAndFreesTheSlot() throws IOException {
-        JevSettings settings = startServer(200, "{}", 2000);
+        AiSettings settings = startServer(200, "{}", 2000);
         client = new JevClient(Duration.ofSeconds(2), Duration.ofMillis(250));
 
         assertTrue(client.request(settings, prompt(), 1L));
@@ -194,8 +194,8 @@ class JevClientTest {
         startServer(200, "{}", 0);
         client = new JevClient();
 
-        assertFalse(client.request(JevSettings.NONE, prompt(), 1L));
-        assertFalse(client.request(new JevSettings("http://127.0.0.1:1/x", "", ""), prompt(), 1L));
+        assertFalse(client.request(AiSettings.NONE, prompt(), 1L));
+        assertFalse(client.request(new AiSettings("http://127.0.0.1:1/x", "", ""), prompt(), 1L));
         assertFalse(client.busy());
         assertTrue(client.poll().isEmpty());
     }

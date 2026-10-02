@@ -82,7 +82,7 @@
   "wave_interval_end_multiplier": 1.0,
   "waves": [],
   "slots": [],
-  "max_seed_slots": 8,
+  "max_seed_slots": 10,
   "seed_screen": false,
   "initial_sun": 0,
   "mechanics": [
@@ -103,7 +103,8 @@
         "pvzce:wall_nut",
         "pvzce:potato_mine",
         "pvzce:cherry_bomb",
-        "pvzce:snow_pea"
+        "pvzce:snow_pea",
+        "pvzce:shovel"
       ],
       "zombie_cards": [
         "pvzce:basic_zombie",

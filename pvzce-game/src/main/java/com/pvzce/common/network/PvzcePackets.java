@@ -142,8 +142,8 @@ public final class PvzcePackets {
     // 48: authoritative lily network membership, charge and current haste.
     // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
     // 50: the human's chosen side travels with the level entry (PlayLevelC2S/RestartLevelC2S),
-    //     and the client hands the server its Jev credential (JevSettingsC2S).
-    public static final int PROTOCOL_VERSION = 51;
+    //     and the client hands the server its Jev credential (AiSettingsC2S).
+    public static final int PROTOCOL_VERSION = 52;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -289,8 +289,8 @@ public final class PvzcePackets {
                     com.pvzce.common.network.packet.RhythmHitC2S.class,
                     com.pvzce.common.network.packet.RhythmHitC2S::decode),
             def(C2S_JEV_SETTINGS, ConnectionDirection.SERVERBOUND,
-                    com.pvzce.common.network.packet.JevSettingsC2S.class,
-                    com.pvzce.common.network.packet.JevSettingsC2S::decode),
+                    com.pvzce.common.network.packet.AiSettingsC2S.class,
+                    com.pvzce.common.network.packet.AiSettingsC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

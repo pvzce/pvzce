@@ -178,13 +178,13 @@ class JevProtocolTest {
 
     @Test
     void settingsRefuseToBeARequestWithoutAUrlAndAKey() {
-        assertFalse(JevSettings.NONE.configured());
-        assertFalse(new JevSettings("https://example.test/v1/systemone", "", "").configured());
-        assertTrue(new JevSettings("https://example.test/v1/systemone", "", "k").configured());
+        assertFalse(AiSettings.NONE.configured());
+        assertFalse(new AiSettings("https://example.test/v1/systemone", "", "").configured());
+        assertTrue(new AiSettings("https://example.test/v1/systemone", "", "k").configured());
         // A blank model falls back to the default rather than making the setting unusable.
-        assertEquals(JevSettings.DEFAULT_MODEL,
-                new JevSettings("u", "  ", "k").model());
-        assertNotNull(JevSettings.NONE.redacted().toString());
-        assertFalse(JevSettings.NONE.redacted().toString().contains("null"));
+        assertEquals(AiSettings.DEFAULT_MODEL,
+                new AiSettings("u", "  ", "k").model());
+        assertNotNull(AiSettings.NONE.redacted().toString());
+        assertFalse(AiSettings.NONE.redacted().toString().contains("null"));
     }
 }

@@ -3,7 +3,7 @@ package com.pvzce.server.ai;
 import com.google.gson.JsonObject;
 import com.pvzce.common.jev.JevDecision;
 import com.pvzce.common.jev.JevPrompt;
-import com.pvzce.common.jev.JevSettings;
+import com.pvzce.common.jev.AiSettings;
 
 import org.slf4j.Logger;
 
@@ -104,7 +104,7 @@ public final class JevClient implements AutoCloseable {
      *
      * @return false when a request is already in flight or the settings cannot make one
      */
-    public boolean request(JevSettings settings, JevPrompt prompt, long ticket) {
+    public boolean request(AiSettings settings, JevPrompt prompt, long ticket) {
         if (settings == null || !settings.configured() || prompt == null) {
             return false;
         }
@@ -141,7 +141,7 @@ public final class JevClient implements AutoCloseable {
         completed.clear();
     }
 
-    private Result exchange(JevSettings settings, JevPrompt prompt, String body, long ticket,
+    private Result exchange(AiSettings settings, JevPrompt prompt, String body, long ticket,
                             long started) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(settings.url()))
                 .header("Authorization", "Bearer " + settings.key())

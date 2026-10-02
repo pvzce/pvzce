@@ -288,6 +288,12 @@ public final class PvzceClient {
     };
     private char suppressNextChar;
     private boolean debugOverlayEnabled;
+
+    /** See {@code pvzce.smokeDebug}: a smoke run cannot press F3, and the overlay is the only place
+     * the commander's plan is drawn. */
+    public void setDebugOverlayEnabled(boolean value) {
+        this.debugOverlayEnabled = value;
+    }
     /**
      * Set by the F2 action and consumed after the frame is drawn.
      *
@@ -2211,7 +2217,7 @@ public final class PvzceClient {
      * seed chooser would produce for a level that fixes its whole deck.
      */
     public void requestLevel(String levelId, boolean restart) {
-        syncJevSettings();
+        syncAiSettings();
         connection.send(restart
                 ? new RestartLevelC2S(levelId, currentWorld, List.of(), pendingHumanTeam)
                 : new ContinueLevelC2S(levelId, currentWorld));
@@ -2226,11 +2232,13 @@ public final class PvzceClient {
      * Nothing is sent when no key is configured - an empty value would be a statement that could
      * overwrite a server launched with its own.
      */
-    public void syncJevSettings() {
-        com.pvzce.common.jev.JevSettings settings = config.jevSettings();
-        if (settings.configured()) {
-            connection.send(new com.pvzce.common.network.packet.JevSettingsC2S(
-                    settings.url(), settings.model(), settings.key()));
+    public void syncAiSettings() {
+        com.pvzce.common.jev.AiSettings jev = config.jevSettings();
+        com.pvzce.common.jev.AiSettings commander = config.commanderSettings();
+        if (jev.configured() || commander.configured()) {
+            connection.send(new com.pvzce.common.network.packet.AiSettingsC2S(
+                    jev.url(), jev.model(), jev.key(),
+                    commander.url(), commander.model(), commander.key()));
         }
     }
 
@@ -2254,7 +2262,7 @@ public final class PvzceClient {
 
     void requestFreshRunDirectly(String levelId, boolean restart) {
         directDialogueLevelId = levelId;
-        syncJevSettings();
+        syncAiSettings();
         connection.send(restart
                 ? new RestartLevelC2S(levelId, currentWorld, List.of(), pendingHumanTeam)
                 : new ContinueLevelC2S(levelId, currentWorld));
@@ -2362,7 +2370,7 @@ public final class PvzceClient {
      */
     public void startLevelWithSeedsAndBuffs(String levelId, boolean restart,
                                             List<String> selectedSeeds, List<String> selectedBuffs) {
-        syncJevSettings();
+        syncAiSettings();
         connection.send(new PlayLevelC2S(levelId, currentWorld, restart,
                 List.copyOf(selectedSeeds), List.copyOf(selectedBuffs), pendingHumanTeam));
     }

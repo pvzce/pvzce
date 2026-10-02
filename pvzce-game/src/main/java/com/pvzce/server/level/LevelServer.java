@@ -212,13 +212,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     private com.pvzce.server.ai.JevBrain jevBrain;
     /**
-     * Where Jev is for this run, or {@link com.pvzce.common.jev.JevSettings#NONE}.
+     * Where Jev is for this run, or {@link com.pvzce.common.jev.AiSettings#NONE}.
      *
      * <p>Set by the server from the player's own settings when a level is created (and again if
      * they change them), never read from a save: a credential is not part of a run, and a save
      * that carried one would be a key on disk under the player's world directory.
      */
-    private com.pvzce.common.jev.JevSettings jevSettings = com.pvzce.common.jev.JevSettings.NONE;
+    private com.pvzce.common.jev.AiSettings jevSettings = com.pvzce.common.jev.AiSettings.NONE;
+    /** The commander tier's endpoint; see {@link #setCommanderSettings}. */
+    private com.pvzce.common.jev.AiSettings commanderSettings = com.pvzce.common.jev.AiSettings.NONE;
     /**
      * Where this level's cards come from: the ordinary deck, a conveyor belt, or whatever
      * a registered mechanic deals. Never null while there is a plant player.
@@ -306,6 +308,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * clicked, eaten or despawned takes its timer with it.
      */
     private final Map<Integer, Integer> autoCollectTimers = new HashMap<>();
+    /** See {@link #setBothSidesCollect}; true on a versus run, false on everything else. */
+    private boolean bothSidesCollect;
     /**
      * Zombies killed this run, for the end-of-level summary.
      *
@@ -1063,7 +1067,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return jevBrain;
     }
 
-    public com.pvzce.common.jev.JevSettings jevSettings() {
+    public com.pvzce.common.jev.AiSettings jevSettings() {
         return jevSettings;
     }
 
@@ -1075,8 +1079,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * unconfigured value is a real setting (it is how a player says "use the built-in opponent"),
      * which is why it is not ignored here - the caller decides where a value came from.
      */
-    public void setJevSettings(com.pvzce.common.jev.JevSettings settings) {
-        this.jevSettings = settings == null ? com.pvzce.common.jev.JevSettings.NONE : settings;
+    public void setAiSettings(com.pvzce.common.jev.AiSettings settings) {
+        this.jevSettings = settings == null ? com.pvzce.common.jev.AiSettings.NONE : settings;
+    }
+
+    public com.pvzce.common.jev.AiSettings commanderSettings() {
+        return commanderSettings;
+    }
+
+    /** The strategist tier's endpoint, if the player configured one. */
+    public void setCommanderSettings(com.pvzce.common.jev.AiSettings settings) {
+        this.commanderSettings = settings == null ? com.pvzce.common.jev.AiSettings.NONE : settings;
     }
 
     public String gameState() {
@@ -2939,10 +2952,52 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * moved and its collect animation starts from where the player last saw it.
      */
     private void tickAutoCollect() {
-        if (activeBuffs.isEmpty() || !com.pvzce.common.buff.LevelBuffs.autoCollects(activeBuffs)) {
+        boolean buffed = !activeBuffs.isEmpty()
+                && com.pvzce.common.buff.LevelBuffs.autoCollects(activeBuffs);
+        if (!buffed && !bothSidesCollect) {
+            // Neither mechanism wants the lawn swept, so nothing is waiting: clearing here is what
+            // keeps the timer table the set of drops still waiting rather than every drop that has
+            // ever existed. (It is also the reason this cannot be done unconditionally: a versus
+            // level has no buff and still collects, and clearing every tick reset the very timers
+            // that were about to ripen.)
             if (!autoCollectTimers.isEmpty()) {
                 autoCollectTimers.clear();
             }
+            return;
+        }
+        if (buffed) {
+            // The buff is the player's own quality-of-life setting, so it picks up the player's own
+            // drops: identical to what a click would collect, and nothing for a level where the
+            // player owns none of them (I, Zombie's zombie side).
+            autoCollectDropsFor(plantPlayer == null ? null : plantPlayer.team());
+        }
+        if (bothSidesCollect) {
+            autoCollectDropsFor(team(PvzceIds.PLANT_TEAM));
+            autoCollectDropsFor(team(PvzceIds.ZOMBIE_TEAM));
+        }
+    }
+
+    /**
+     * Whether this run sweeps the lawn for <b>both</b> sides; the versus mode turns it on.
+     *
+     * <p>The mode's reason is that neither side is necessarily a person: the plant side may be the
+     * opponent, which cannot click, and a match where one player clicks and the other is handed its
+     * sun is not the same match. Set as a fact about the run, once, at level creation.
+     */
+    public void setBothSidesCollect(boolean value) {
+        this.bothSidesCollect = value;
+    }
+
+    /**
+     * Picks up one team's resource drops on their own, a quarter of a second after each lands.
+     *
+     * <p>The versus mode's two sides both ask for this, through the same loop: an AI cannot click,
+     * and the mode's own rules say both sides collect automatically. The delay and the rules are the
+     * auto-pickup buff's, not a second set - {@code collectResourceFor} is the same door a click
+     * goes through, so an auto-collected drop can never skip a rule a clicked one obeys.
+     */
+    public void autoCollectDropsFor(Team owner) {
+        if (owner == null) {
             return;
         }
         // One pass collects, the other prunes, and the pruning set is filled by the first: a
@@ -2957,12 +3012,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 gone.add(drop.id());
                 continue;
             }
+            if (!owner.equals(drop.team())) {
+                continue;
+            }
             boolean ripe = autoCollectTimers.computeIfAbsent(drop.id(), id -> tickCount)
                     + AUTO_COLLECT_DELAY_TICKS <= tickCount;
             if (ripe) {
                 // The drop is not removed here - the collect path marks it and the next
                 // flushPending takes it off the field - so the id stays out of ``gone``.
-                collectResourceInternal(bridge, drop.id(), true, true);
+                collectResourceFor(bridge != null ? bridge : outbound, drop.id(), true, true, owner);
             }
         }
         if (!gone.isEmpty()) {

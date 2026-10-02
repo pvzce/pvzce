@@ -47,7 +47,19 @@ public record JevPrompt(
         int elapsedSeconds,
         List<CardOption> cards,
         List<RowOption> rows,
-        List<ColumnOption> columns) {
+        List<ColumnOption> columns,
+        String directive) {
+
+    /** {@link #directive} for a match without a commander: no plan, not an empty one. */
+    public static final String NO_DIRECTIVE = "";
+
+    /** The same prompt for a match with no commander: no plan rather than an empty one. */
+    public JevPrompt(Side side, String objective, int sun, int goalTarget, int goalCollected,
+                     int elapsedSeconds, List<CardOption> cards, List<RowOption> rows,
+                     List<ColumnOption> columns) {
+        this(side, objective, sun, goalTarget, goalCollected, elapsedSeconds, cards, rows, columns,
+                NO_DIRECTIVE);
+    }
 
     /** {@link #goalTarget} for a side whose win condition is not a sun total. */
     public static final int NO_GOAL = -1;
@@ -114,6 +126,7 @@ public record JevPrompt(
         rows = List.copyOf(rows);
         columns = List.copyOf(columns);
         objective = objective == null ? "" : objective;
+        directive = directive == null ? NO_DIRECTIVE : directive.trim();
     }
 
     /** The criteria keys the {@code action} question offers, {@code hold} included. */
@@ -148,6 +161,12 @@ public record JevPrompt(
         state.addProperty("objective", objective);
         state.addProperty("sun_available", sun);
         state.addProperty("seconds_elapsed", elapsedSeconds);
+        if (!directive.isEmpty()) {
+            // The strategist's standing order, as its own state field rather than folded into the
+            // objective: an order and a win condition are different things, and a model that can tell
+            // them apart can follow one while still reporting the other.
+            state.addProperty("commander_plan", directive);
+        }
         if (goalTarget > 0) {
             JsonObject goal = new JsonObject();
             goal.addProperty("sun_target", goalTarget);
@@ -186,6 +205,15 @@ public record JevPrompt(
         }
         criteria.addProperty(KEY_HOLD,
                 "Play nothing this turn and bank the sun for something better.");
+        if (!directive.isEmpty()) {
+            // Said as an instruction, not as data: the plan is advice from a slower model that saw an
+            // older board, so the tactical model is told to follow it *unless* the board in front of it
+            // says otherwise. Obeying a stale order into a lost lane is worse than ignoring it.
+            criteria.addProperty(KEY_ACTION + "_plan_note",
+                    "你的指挥官给出的方向是：" + directive
+                            + " —— 优先按它执行；如果眼前的局面与它明显冲突（那一条车道即将失守、"
+                            + "手里的阳光买不起它说的卡），按局面办，不要为了服从它而放弃一条车道。");
+        }
         questions.add(KEY_ACTION, question("choice",
                 "Which single card should " + side.wireName() + " play this turn, and where? "
                         + "Cards you cannot afford yet are listed as well: if the card you actually "

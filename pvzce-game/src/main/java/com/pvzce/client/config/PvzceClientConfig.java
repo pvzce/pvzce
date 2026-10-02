@@ -144,15 +144,23 @@ public final class PvzceClientConfig {
      * Where Jev is, and with which key.
      *
      * <p>A client preference like the volume: it is about this player's account, not about a world
-     * or a run, and it travels to the server with the level entry ({@code JevSettingsC2S}) rather
+     * or a run, and it travels to the server with the level entry ({@code AiSettingsC2S}) rather
      * than being written into any save. The URL and the model default to the provider that was
      * verified while this was built, so a player who has a key only has to paste the key - but both
      * are editable, because the endpoint is not one service and the players are not all on the same
      * one.
      */
-    private String jevUrl = com.pvzce.common.jev.JevSettings.DEFAULT_URL;
-    private String jevModel = com.pvzce.common.jev.JevSettings.DEFAULT_MODEL;
+    private String jevUrl = com.pvzce.common.jev.AiSettings.DEFAULT_URL;
+    private String jevModel = com.pvzce.common.jev.AiSettings.DEFAULT_MODEL;
     private String jevKey = "";
+    /**
+     * The commander tier: a chat model that reads the board once a minute and writes the strategy
+     * line the tactical model follows. Same shape, its own rows - a player may run the commander on
+     * a different service (see {@code AiSettings.commander()}).
+     */
+    private String commanderUrl = com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_URL;
+    private String commanderModel = com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL;
+    private String commanderKey = "";
     private Path file;
 
     public static PvzceClientConfig load(Path gameDir) {
@@ -180,10 +188,15 @@ public final class PvzceClientConfig {
                 config.language = getString(toml, "language", DEFAULT_LANGUAGE);
                 config.onboarded = getBoolean(toml, "onboarded", true);
                 config.keyBindings = com.pvzce.client.input.KeyBindings.from(readKeys(toml));
-                config.jevUrl = getString(toml, "jev_url", com.pvzce.common.jev.JevSettings.DEFAULT_URL);
+                config.jevUrl = getString(toml, "jev_url", com.pvzce.common.jev.AiSettings.DEFAULT_URL);
                 config.jevModel = getString(toml, "jev_model",
-                        com.pvzce.common.jev.JevSettings.DEFAULT_MODEL);
+                        com.pvzce.common.jev.AiSettings.DEFAULT_MODEL);
                 config.jevKey = getString(toml, "jev_key", "");
+                config.commanderUrl = getString(toml, "commander_url",
+                        com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_URL);
+                config.commanderModel = getString(toml, "commander_model",
+                        com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL);
+                config.commanderKey = getString(toml, "commander_key", "");
             } else {
                 config.save();
             }
@@ -266,7 +279,10 @@ public final class PvzceClientConfig {
                     // never prints this file's contents, and nothing else copies the key anywhere.
                     + "\njev_url = \"" + jevUrl + "\""
                     + "\njev_model = \"" + jevModel + "\""
-                    + "\njev_key = \"" + jevKey + "\"\n"
+                    + "\njev_key = \"" + jevKey + "\""
+                    + "\ncommander_url = \"" + commanderUrl + "\""
+                    + "\ncommander_model = \"" + commanderModel + "\""
+                    + "\ncommander_key = \"" + commanderKey + "\"\n"
                     + "\n[keys]\n"
                     + keyBinds();
             Files.writeString(file, content);
@@ -463,7 +479,7 @@ public final class PvzceClientConfig {
 
     public void setJevUrl(String url) {
         this.jevUrl = url == null || url.isBlank()
-                ? com.pvzce.common.jev.JevSettings.DEFAULT_URL : url.trim();
+                ? com.pvzce.common.jev.AiSettings.DEFAULT_URL : url.trim();
     }
 
     /** The provider's model name; never blank. */
@@ -473,7 +489,7 @@ public final class PvzceClientConfig {
 
     public void setJevModel(String model) {
         this.jevModel = model == null || model.isBlank()
-                ? com.pvzce.common.jev.JevSettings.DEFAULT_MODEL : model.trim();
+                ? com.pvzce.common.jev.AiSettings.DEFAULT_MODEL : model.trim();
     }
 
     /** The bearer token, or empty when this player has not set one up. */
@@ -492,7 +508,41 @@ public final class PvzceClientConfig {
      * told" are the same three values in the same order, and so there is one place that knows a
      * blank key means the built-in opponent.
      */
-    public com.pvzce.common.jev.JevSettings jevSettings() {
-        return new com.pvzce.common.jev.JevSettings(jevUrl, jevModel, jevKey);
+    public com.pvzce.common.jev.AiSettings jevSettings() {
+        return new com.pvzce.common.jev.AiSettings(jevUrl, jevModel, jevKey);
+    }
+
+    /** The commander endpoint's URL; never blank. */
+    public String commanderUrl() {
+        return commanderUrl;
+    }
+
+    public void setCommanderUrl(String url) {
+        this.commanderUrl = url == null || url.isBlank()
+                ? com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_URL : url.trim();
+    }
+
+    /** The commander provider's model name; never blank. */
+    public String commanderModel() {
+        return commanderModel;
+    }
+
+    public void setCommanderModel(String model) {
+        this.commanderModel = model == null || model.isBlank()
+                ? com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL : model.trim();
+    }
+
+    /** The commander's bearer token, or empty. */
+    public String commanderKey() {
+        return commanderKey;
+    }
+
+    public void setCommanderKey(String key) {
+        this.commanderKey = key == null ? "" : key.trim();
+    }
+
+    /** The commander tier as one value, for the packet. */
+    public com.pvzce.common.jev.AiSettings commanderSettings() {
+        return new com.pvzce.common.jev.AiSettings(commanderUrl, commanderModel, commanderKey);
     }
 }

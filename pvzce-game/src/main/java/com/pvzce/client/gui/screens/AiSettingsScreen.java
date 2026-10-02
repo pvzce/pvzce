@@ -10,7 +10,13 @@ import com.pvzce.client.gui.layout.GuiLayout;
 import java.util.List;
 
 /**
- * Where the player tells the game how to reach Jev.
+ * Where the player tells the game how to reach its two AI tiers.
+ *
+ * <p><b>Tactical (Jev) and commander (a chat model)</b>, in two blocks of three rows: which service
+ * (buttons that fill the row below them), the endpoint and model, and the key. They are separate
+ * blocks rather than one because they are separate services - Jev's own decisions endpoint is not a
+ * chat endpoint - and because a player may want a cheap fast model for the three-second decisions
+ * and a slower, better one for the once-a-minute strategy.
  *
  * <p>Three rows and a hint: which service (three buttons that fill the row below them), the
  * endpoint and model, and the key. The key row is the reason this page is not part of the ordinary
@@ -24,7 +30,7 @@ import java.util.List;
  * <p>Saved on 完成 rather than on every keystroke: the config file is written whole, and a page that
  * saved as you typed would rewrite it once per character.
  */
-public final class JevSettingsScreen extends Screen {
+public final class AiSettingsScreen extends Screen {
     /**
      * The services that were verified while this was built.
      *
@@ -44,14 +50,26 @@ public final class JevSettingsScreen extends Screen {
             new Preset("gui.pvzce.jev.preset.official", "JevAI 官方",
                     "https://www.jevai.org/api/v1/decisions", "jev-latest"));
 
+    /** The commander's default endpoints, offered as one button beside its own rows. */
+    private static final List<Preset> COMMANDER_PRESETS = List.of(
+            new Preset("gui.pvzce.jev.preset.deepseek", "DeepSeek",
+                    com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_URL,
+                    com.pvzce.common.jev.AiSettings.COMMANDER_DEFAULT_MODEL),
+            new Preset("gui.pvzce.jev.preset.openrouter_chat", "OpenRouter",
+                    "https://openrouter.ai/api/v1/chat/completions", "deepseek/deepseek-chat"));
+
     private EditBox urlBox;
     private EditBox modelBox;
     private EditBox keyBox;
-    private final int[] labelY = new int[3];
+    private EditBox commanderUrlBox;
+    private EditBox commanderModelBox;
+    private EditBox commanderKeyBox;
+    /** Four labelled rows: Jev's three, then the commander's. */
+    private final int[] labelY = new int[5];
     private int titleY;
     private float titleScale;
 
-    public JevSettingsScreen(PvzceClient client) {
+    public AiSettingsScreen(PvzceClient client) {
         super(client);
     }
 
@@ -60,7 +78,8 @@ public final class JevSettingsScreen extends Screen {
         int margin = 16;
         int guiH = client.guiHeight();
         int titleReserve = Math.max(34, Math.min(52, guiH / 6));
-        int rowHeight = GuiLayout.fitHeight(guiH, 38, 3, titleReserve, 10);
+        // Seven rows now that the commander has a block of its own.
+        int rowHeight = GuiLayout.fitHeight(guiH, 38, 7, titleReserve, 10);
         int gap = GuiLayout.gapFor(rowHeight);
         int fullWidth = client.guiWidth() - margin * 2;
         int labelWidth = 96;
@@ -109,25 +128,64 @@ public final class JevSettingsScreen extends Screen {
         keyBox.setValue(client.config().jevKey());
         addWidget(keyBox);
         labelY[2] = center(y, rowHeight);
-        addWidget(new Button(fieldX + keyWidth + gap, y, buttonWidth, rowHeight,
+        y -= rowHeight + gap;
+
+        // The commander's block: one preset button, then the same three rows under their own
+        // heading. Laid out from the same y cursor so the two blocks stay aligned whatever the row
+        // height works out to.
+        int commanderPresetGap = 6;
+        int commanderPresetWidth = (fieldWidth - commanderPresetGap * (COMMANDER_PRESETS.size() - 1))
+                / COMMANDER_PRESETS.size();
+        for (int i = 0; i < COMMANDER_PRESETS.size(); i++) {
+            Preset preset = COMMANDER_PRESETS.get(i);
+            int x = fieldX + i * (commanderPresetWidth + commanderPresetGap);
+            addWidget(new Button(x, y, commanderPresetWidth, rowHeight,
+                    GuiLang.raw(preset.labelKey(), preset.fallback()),
+                    () -> {
+                        commanderUrlBox.setValue(preset.url());
+                        commanderModelBox.setValue(preset.model());
+                    }));
+        }
+        labelY[3] = center(y, rowHeight);
+        y -= rowHeight + gap;
+
+        int commanderModelWidth = Math.min(240, fieldWidth / 3);
+        commanderUrlBox = new EditBox(fieldX, y, fieldWidth - commanderModelWidth - gap, rowHeight,
+                300, null);
+        commanderUrlBox.setValue(client.config().commanderUrl());
+        addWidget(commanderUrlBox);
+        commanderModelBox = new EditBox(fieldX + fieldWidth - commanderModelWidth, y,
+                commanderModelWidth, rowHeight, 120, null);
+        commanderModelBox.setValue(client.config().commanderModel());
+        addWidget(commanderModelBox);
+        y -= rowHeight + gap;
+
+        int commanderKeyWidth = fieldWidth - buttonWidth * 2 - gap * 2;
+        commanderKeyBox = new EditBox(fieldX, y, commanderKeyWidth, rowHeight, 300, null);
+        commanderKeyBox.setValue(client.config().commanderKey());
+        addWidget(commanderKeyBox);
+        addWidget(new Button(fieldX + commanderKeyWidth + gap, y, buttonWidth, rowHeight,
                 GuiLang.raw("gui.pvzce.jev.cancel", "取消"), this::requestClose));
-        addWidget(new Button(fieldX + keyWidth + gap + buttonWidth + gap, y, buttonWidth, rowHeight,
-                GuiLang.raw("gui.pvzce.jev.done", "完成"), this::save));
+        addWidget(new Button(fieldX + commanderKeyWidth + gap + buttonWidth + gap, y, buttonWidth,
+                rowHeight, GuiLang.raw("gui.pvzce.jev.done", "完成"), this::save));
     }
 
     private static int center(int y, int rowHeight) {
         return y + rowHeight / 2 - 5;
     }
 
-    /** Writes the three rows into the client config and hands them to the server. */
+    /** Writes both blocks into the client config and hands them to the server. */
     private void save() {
         client.config().setJevUrl(urlBox.value());
         client.config().setJevModel(modelBox.value());
         client.config().setJevKey(keyBox.value());
+        client.config().setCommanderUrl(commanderUrlBox.value());
+        client.config().setCommanderModel(commanderModelBox.value());
+        client.config().setCommanderKey(commanderKeyBox.value());
         client.config().save();
         // The server's copy is a session copy: sending it here means a key pasted mid-run is in play
         // on the next decision rather than on the next level.
-        client.syncJevSettings();
+        client.syncAiSettings();
         requestClose();
     }
 
@@ -144,6 +202,8 @@ public final class JevSettingsScreen extends Screen {
         label(0, GuiLang.raw("gui.pvzce.jev.preset.label", "服务商"));
         label(1, GuiLang.raw("gui.pvzce.jev.url", "接口地址 / 模型"));
         label(2, GuiLang.raw("gui.pvzce.jev.key", "API Key"));
+        label(3, GuiLang.raw("gui.pvzce.jev.commander.label", "指挥官（选填）"));
+        label(4, GuiLang.raw("gui.pvzce.jev.commander.url", "接口地址 / 模型"));
         for (var widget : widgets) {
             widget.render(client);
         }
@@ -151,6 +211,10 @@ public final class JevSettingsScreen extends Screen {
         // empty key does, where the key is kept, and how to get a long key into the field at all.
         client.fonts().body().draw(GuiLang.raw("gui.pvzce.jev.hint",
                         "Key 留空就用内置策略；填写并保存后，进入对战关即由 Jev 指挥对手。"),
+                16, 72, 0.8F, 0.85F, 0.9F, 0.95F, 1F);
+        client.fonts().body().draw(GuiLang.raw("gui.pvzce.jev.commander.hint",
+                        "指挥官选填：填了它就会每 30 秒看一次局面，"
+                                + "把接下来一分钟的方向写进 Jev 的提示词（F3 里能看到那句话）。"),
                 16, 58, 0.8F, 0.85F, 0.9F, 0.95F, 1F);
         client.fonts().body().draw(GuiLang.raw("gui.pvzce.jev.note",
                         "Key 只保存在本机 config/pvzce-client.toml，不会写进存档或日志。"),

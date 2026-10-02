@@ -77,6 +77,9 @@ class VersusSideChoiceTest {
             assertTrue(cards.contains("pvzce:sun"),
                     "the plant side needs the collection card to race for its goal: " + cards);
             assertTrue(cards.contains("pvzce:sunflower"), cards.toString());
+            assertTrue(cards.contains("pvzce:shovel"),
+                    "the plant side digs its own plants up when it misplaces one, and the shovel is a "
+                            + "card in its bar like any other: " + cards);
             assertFalse(cards.contains("pvzce:basic_zombie"), cards.toString());
         }
     }

@@ -71,7 +71,7 @@ public final class SettingsScreen extends Screen {
             screen -> () -> screen.client().openScreen(new KeybindScreen(screen.client())),
             // The opponent's endpoint and key. Its own page rather than a config row: the ordinary
             // config entries are numbers and switches, and a credential needs a text field.
-            screen -> () -> screen.client().openScreen(new JevSettingsScreen(screen.client())),
+            screen -> () -> screen.client().openScreen(new AiSettingsScreen(screen.client())),
             // 合规项，不是装饰：GPL-3.0 §5(d) 要求图形界面显示版权与无担保声明（见 AboutScreen）。
             screen -> () -> screen.client().openScreen(new AboutScreen(screen.client())),
             screen -> screen::requestClose

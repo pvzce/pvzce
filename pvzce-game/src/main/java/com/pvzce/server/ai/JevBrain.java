@@ -11,7 +11,7 @@ import com.pvzce.common.core.Slot;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.jev.JevDecision;
 import com.pvzce.common.jev.JevPrompt;
-import com.pvzce.common.jev.JevSettings;
+import com.pvzce.common.jev.AiSettings;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.server.Team;
 import com.pvzce.server.entity.PlantEntity;
@@ -56,8 +56,6 @@ public final class JevBrain {
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/Jev");
 
-    /** How often the opponent sweeps the lawn for its own drops. */
-    private static final int AUTO_PICKUP_INTERVAL_TICKS = 6;
     /** A retry this soon after being refused by an in-flight request, rather than a whole interval. */
     private static final int BUSY_RETRY_TICKS = 20;
     /**
@@ -87,11 +85,23 @@ public final class JevBrain {
     }
 
     private final JevClient client = new JevClient();
+    /**
+     * The strategist tier, built the first time a level actually has one configured.
+     *
+     * <p>Lazy so that the ordinary case - a player who never opened the AI settings page - pays for
+     * neither the thread nor the HTTP client.
+     */
+    private CommanderClient commander;
+    /** The standing plan the strategist last wrote, or empty; it rides in every Jev prompt. */
+    private String directive = "";
+    /** Ticks until the strategist is asked again; see {@link #COMMANDER_INTERVAL_TICKS}. */
+    private int commanderCountdown;
+    /** True while a strategy request is out, for the debug overlay and for the snapshot's wording. */
+    private boolean commanderBusy;
     private Status status = Status.BUILTIN;
     private boolean dirty = true;
     private boolean fallbackReported;
     private int decisionCountdown;
-    private int pickupCountdown;
     private long nextTicket = 1L;
     private long pendingTicket = -1L;
     private String lastCardId = "";
@@ -127,6 +137,26 @@ public final class JevBrain {
     /** Stops the worker thread. Called when the level is left, so a closed run holds no thread. */
     public void close() {
         client.close();
+        if (commander != null) {
+            commander.close();
+            commander = null;
+        }
+    }
+
+    /**
+     * The strategist's standing plan, or empty.
+     *
+     * <p>Shown in the F3 overlay and nothing else: a player watching the match should not have the
+     * other side's intentions handed to them, but a developer asking "why did it do that" needs the
+     * sentence the tactical model was given.
+     */
+    public String commanderPlan() {
+        return directive;
+    }
+
+    /** True while the strategist is thinking; part of the F3 line. */
+    public boolean commanderBusy() {
+        return commanderBusy;
     }
 
     // ------------------------------------------------------------------
@@ -143,9 +173,7 @@ public final class JevBrain {
             return;
         }
         boolean plantSide = PvzceIds.PLANT_TEAM.equals(opponent.id());
-        if (plantSide) {
-            collectOwnDrops(level, opponent);
-        }
+        tickCommander(level, data, opponent, plantSide);
         drainAnswers(level, data, opponent, plantSide);
         if (decisionCountdown > 0) {
             decisionCountdown--;
@@ -169,6 +197,119 @@ public final class JevBrain {
     }
 
     // ------------------------------------------------------------------
+    // The strategist tier
+    // ------------------------------------------------------------------
+
+    /**
+     * How often the commander is asked to look at the board: thirty seconds.
+     *
+     * <p>Slower than the tactical loop by two orders of magnitude, and that is the design: the
+     * tactical model answers "which card, where" every three seconds and must be cheap and stupid
+     * about the long run; the commander answers "what is this match about" and must be neither. Thirty
+     * seconds is the user's number, and it is roughly how long it takes a wave to change the answer.
+     */
+    private static final int COMMANDER_INTERVAL_TICKS = 30 * 60;
+
+    private void tickCommander(LevelServer level, VersusData data, Team opponent, boolean plantSide) {
+        AiSettings settings = level.commanderSettings();
+        if (!settings.configured()) {
+            return;
+        }
+        if (commander == null) {
+            commander = new CommanderClient();
+        }
+        commanderBusy = commander.busy();
+        Optional<String> answer = commander.poll();
+        while (answer.isPresent()) {
+            directive = answer.get();
+            LOGGER.info("commander's plan: {}", directive);
+            answer = commander.poll();
+        }
+        // The plan is not part of "has anything the HUD draws changed": it is debug-only, so it
+        // travels in the mechanic's own state when it changes (see VersusMechanic), not through this
+        // flag - one dirty flag for one consumer, or every collection would re-send the whole board.
+        if (commanderCountdown > 0) {
+            commanderCountdown--;
+            return;
+        }
+        // Asked even while a previous answer is in flight? No: one strategy line about one board is
+        // worth one request, and a slow model must not build a queue of stale plans.
+        if (commander.request(settings, commanderSnapshot(level, data, opponent, plantSide))) {
+            commanderCountdown = COMMANDER_INTERVAL_TICKS;
+        } else {
+            commanderCountdown = COMMANDER_INTERVAL_TICKS / 4;
+        }
+    }
+
+    /**
+     * The board, as the prose a general model can read.
+     *
+     * <p>Written in the player's language (the model is told to answer in it) and shaped like a
+     * briefing rather than a dump: which side it is, what the win condition is, how far along it is,
+     * what it can afford, what is standing where, what is walking in, and what the previous plan was.
+     * The last one matters most - a strategist that cannot see its own last order repeats it, and one
+     * that can see it either keeps it or explains the change.
+     */
+    private String commanderSnapshot(LevelServer level, VersusData data, Team opponent,
+                                     boolean plantSide) {
+        StringBuilder text = new StringBuilder();
+        text.append("你是").append(plantSide ? "植物方" : "僵尸方").append("的指挥官。\n");
+        if (plantSide && data.races()) {
+            text.append("胜利条件：在僵尸方攻破草坪之前收集到 ").append(data.sunGoal())
+                    .append(" 阳光，当前 ").append(collected(level)).append("。\n");
+        } else if (plantSide) {
+            text.append("胜利条件：守住草坪。\n");
+        } else {
+            text.append("胜利条件：在植物方收集到足够阳光之前攻破草坪。\n");
+        }
+        text.append("当前阳光：").append(opponent.resourcesOf(PvzceIds.SUN)).append("。\n");
+        if (!directive.isEmpty()) {
+            text.append("你上次给的计划：").append(directive).append("\n");
+        }
+        text.append("手里的卡（括号里是价格，负号表示现在买不起）：");
+        List<CardChoice> hand = hand(level, data, opponent, plantSide);
+        int sun = opponent.resourcesOf(PvzceIds.SUN);
+        List<String> cards = new ArrayList<>();
+        for (CardChoice card : hand) {
+            cards.add(shortCardName(card.card().slotId()) + "("
+                    + (card.cost() <= sun ? "" : "-") + card.cost() + ")");
+        }
+        text.append(String.join("，", cards)).append("。\n");
+        text.append("草坪（第 1 行在最上面，x 越小越靠近房子/左侧）：\n");
+        for (int row = 0; row < level.height(); row++) {
+            text.append("第 ").append(row + 1).append(" 行：");
+            List<String> ours = new ArrayList<>();
+            List<String> theirs = new ArrayList<>();
+            for (PvzceEntity entity : level.entities()) {
+                if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridY() == row) {
+                    ours.add(shortCardName(plant.defId()) + "@" + String.format(
+                            java.util.Locale.ROOT, "%.0f", plant.cellX() + 0.5F));
+                }
+                if (entity instanceof ZombieEntity zombie && zombie.isAlive()
+                        && zombie.gridY() == row) {
+                    theirs.add(shortCardName(zombie.defId()) + "@" + String.format(
+                            java.util.Locale.ROOT, "%.1f", zombie.cellX()) + " hp"
+                            + Math.round(zombie.health()));
+                }
+            }
+            text.append(plantSide
+                    ? (ours.isEmpty() ? "我方没有植物" : "我方 " + String.join("、", ours))
+                    : (ours.isEmpty() ? "对方没有植物" : "对方 " + String.join("、", ours)));
+            if (!theirs.isEmpty()) {
+                text.append("；对方僵尸 ").append(String.join("、", theirs));
+            }
+            text.append("。\n");
+        }
+        text.append("请给出接下来一分钟的总体方向（最多两句话）。");
+        return text.toString();
+    }
+
+    /** A content id without its namespace, for a briefing rather than a wire dump. */
+    private static String shortCardName(Identifier id) {
+        return id == null ? "?" : id.path();
+    }
+
+    // ------------------------------------------------------------------
     // Asking
     // ------------------------------------------------------------------
 
@@ -177,7 +318,7 @@ public final class JevBrain {
         if (hand.isEmpty()) {
             return;
         }
-        JevSettings settings = level.jevSettings();
+        AiSettings settings = level.jevSettings();
         if (!settings.configured()) {
             if (status != Status.BUILTIN) {
                 status = Status.BUILTIN;
@@ -186,7 +327,7 @@ public final class JevBrain {
             playFallback(level, data, opponent, plantSide, hand);
             return;
         }
-        JevPrompt prompt = prompt(level, data, opponent, plantSide, hand);
+        JevPrompt prompt = prompt(level, data, opponent, plantSide, hand, directive);
         long ticket = nextTicket++;
         if (client.request(settings, prompt, ticket)) {
             pendingTicket = ticket;
@@ -836,7 +977,8 @@ public final class JevBrain {
     }
 
     private static JevPrompt prompt(LevelServer level, VersusData data, Team opponent,
-                                    boolean plantSide, List<CardChoice> hand) {
+                                    boolean plantSide, List<CardChoice> hand,
+                                    String directive) {
         int sun = opponent.resourcesOf(PvzceIds.SUN);
         List<JevPrompt.CardOption> cards = new ArrayList<>();
         for (CardChoice choice : hand) {
@@ -857,7 +999,8 @@ public final class JevBrain {
                 level.tickCount() / PvzceConstants.TICKS_PER_SECOND,
                 cards,
                 describeRows(level),
-                columnOptions);
+                columnOptions,
+                directive);
     }
 
     /**
@@ -926,33 +1069,4 @@ public final class JevBrain {
                         : "a column behind the front line");
     }
 
-    // ------------------------------------------------------------------
-    // The plant side's own sun
-    // ------------------------------------------------------------------
-
-    /**
-     * Picks up the opponent's own fallen sun.
-     *
-     * <p>Deliberately not "collect everything the other team owns": a drop is collected by its own
-     * team, so the human's sun is the human's. Deliberately only once it has landed, too - it is
-     * what a player's click looks like from the outside, and a sun that vanishes in mid-air reads
-     * as a bug even when it is the opponent's.
-     */
-    private void collectOwnDrops(LevelServer level, Team opponent) {
-        if (pickupCountdown > 0) {
-            pickupCountdown--;
-            return;
-        }
-        pickupCountdown = AUTO_PICKUP_INTERVAL_TICKS;
-        List<ResourceDropEntity> mine = new ArrayList<>();
-        for (PvzceEntity entity : level.entities()) {
-            if (entity instanceof ResourceDropEntity drop && drop.landed() && !drop.collected()
-                    && !drop.isRemoved() && opponent.equals(drop.team())) {
-                mine.add(drop);
-            }
-        }
-        for (ResourceDropEntity drop : mine) {
-            level.autoCollectDrop(drop);
-        }
-    }
 }

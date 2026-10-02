@@ -101,7 +101,8 @@
         "pvzce:pea_shooter",
         "pvzce:wall_nut",
         "pvzce:potato_mine",
-        "pvzce:snow_pea"
+        "pvzce:snow_pea",
+        "pvzce:shovel"
       ],
       "zombie_cards": [
         "pvzce:basic_zombie",

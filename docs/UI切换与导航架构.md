@@ -102,7 +102,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
           │ push     │ push            ┌─────────────▼──────────────┐
           ▼          ▼                 │ConfigScreen / VideoSettings│
    ┌────────────┐  ┌──────────────┐    │KeybindScreen /             │
-   │LevelSetup  │  │ EditorScreen │    │JevSettingsScreen /         │
+   │LevelSetup  │  │ EditorScreen │    │AiSettingsScreen /         │
    │(关卡准备)   │  │ (编辑器)      │    │ShopScreen / PackScreen     │
    └──┬─────────┘  └──────────────┘    └────────────────────────────┘
       │

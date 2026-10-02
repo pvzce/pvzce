@@ -3,7 +3,7 @@ package com.pvzce.server;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.jev.JevSettings;
+import com.pvzce.common.jev.AiSettings;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.ai.JevBrain;
@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -45,16 +46,20 @@ class JevLiveTest {
 
     @Test
     void aRealEndpointPlaysTheOpponent() {
-        JevSettings settings = JevSettings.fromSystemProperties();
+        AiSettings settings = AiSettings.jev();
         Assumptions.assumeTrue(settings.configured(),
-                "no Jev credential supplied; see JevSettings.PROPERTY_KEY / ENV_KEY");
+                "no Jev credential supplied; see AiSettings.PROPERTY_KEY / ENV_KEY");
+        // The commander is optional here on purpose: without a credential this is the same test it
+        // has always been (one tier, end to end), and with one it also proves the two tiers talk.
+        AiSettings commander = AiSettings.commander();
 
         LevelDef def = BuiltInRegistries.LEVELS.get(
                 Identifier.withDefaultNamespace("yard/versus/duel_1"));
         assertTrue(def != null, "the shipped versus level is registered");
         LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def), null,
                 null, Identifier.parse("pvzce:plant_team"));
-        level.setJevSettings(settings);
+        level.setAiSettings(settings);
+        level.setCommanderSettings(commander);
         CapturingBridge bridge = new CapturingBridge();
         level.tick(bridge);
 
@@ -80,7 +85,15 @@ class JevLiveTest {
         }
         System.out.println("JEV-LIVE: ticks=" + ticks + " status=" + level.jevBrain().status()
                 + " last=" + level.jevBrain().lastCardId() + " at "
-                + level.jevBrain().lastRow() + "," + level.jevBrain().lastColumn());
+                + level.jevBrain().lastRow() + "," + level.jevBrain().lastColumn()
+                + " commander=" + (commander.configured() ? "configured" : "none")
+                + " plan=" + (level.jevBrain().commanderPlan().isEmpty()
+                        ? "<none yet>" : level.jevBrain().commanderPlan()));
+        if (commander.configured()) {
+            assertFalse(level.jevBrain().commanderPlan().isEmpty(),
+                    "the commander answered within the same run (it is asked after thirty seconds "
+                            + "of game time, and this loop paced itself to the wall clock)");
+        }
         assertEquals(JevBrain.Status.JEV, level.jevBrain().status(),
                 "the real endpoint answered with a move this level could execute");
         assertTrue(level.jevBrain().lastCardId().startsWith("pvzce:"),

@@ -9,7 +9,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
-import com.pvzce.common.jev.JevSettings;
+import com.pvzce.common.jev.AiSettings;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.VersusMechanic;
 import com.pvzce.common.network.PvzcePacket;
@@ -299,7 +299,7 @@ class VersusModeTest {
         LevelDef def = level(new Mode(0, 0, 200, 50, 20, 100, 20));
         LevelServer level = new LevelServer(def);
         CapturingBridge bridge = new CapturingBridge();
-        level.setJevSettings(new JevSettings(
+        level.setAiSettings(new AiSettings(
                 "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
                 "typesafe/jev-1.13", "test-key"));
         level.tick(bridge);
@@ -314,6 +314,97 @@ class VersusModeTest {
                 "the opponent remembers what it played: " + level.jevBrain().lastCardId());
         assertTrue(level.entities().stream().anyMatch(ZombieEntity.class::isInstance),
                 "and the move is on the board");
+    }
+
+    /**
+     * The two tiers talk to each other: the commander's plan rides into the next Jev request.
+     *
+     * <p>Two stubs, because the two tiers are two services: one answers Jev's typed questions, the
+     * other answers a chat completion with a sentence. The assertion is that the sentence shows up in
+     * the body Jev is sent - which is the whole feature, and the part that a test of either client
+     * alone cannot see.
+     */
+    @Test
+    void theCommanderPlanReachesTheTacticalPrompt() throws IOException {
+        List<String> jevRequests = new ArrayList<>();
+        startStubThatEchoesTheFirstOption(jevRequests::add);
+        String plan = "先把第 3 行补上坚果，其余阳光继续铺向日葵。";
+        HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        commander.createContext("/chat/completions", exchange -> {
+            JsonObject message = new JsonObject();
+            message.addProperty("role", "assistant");
+            message.addProperty("content", plan);
+            JsonObject answer = new JsonObject();
+            answer.add("message", message);
+            JsonArray choices = new JsonArray();
+            choices.add(answer);
+            JsonObject response = new JsonObject();
+            response.add("choices", choices);
+            respond(exchange, response.toString());
+        });
+        commander.start();
+        try {
+            // No zombie income, so the match cannot end while the two tiers talk: a level that
+            // finishes under a test's loop stops being asked questions, and the failure looks like
+            // "the plan never arrived" rather than "the match was over".
+            LevelDef def = level(new Mode(0, 800, 0, 0, 240, 0, 20));
+            LevelServer level = new LevelServer(def);
+            CapturingBridge bridge = new CapturingBridge();
+            level.setAiSettings(new AiSettings(
+                    "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
+                    "typesafe/jev-1.13", "test-key"));
+            level.setCommanderSettings(new AiSettings(
+                    "http://127.0.0.1:" + commander.getAddress().getPort() + "/chat/completions",
+                    "some-chat-model", "test-key"));
+
+            long deadline = System.nanoTime() + 15_000_000_000L;
+            while (System.nanoTime() < deadline && !level.jevBrain().commanderPlan().equals(plan)) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertEquals(plan, level.jevBrain().commanderPlan(),
+                    "the commander's answer is kept as the standing plan");
+            // The next tactical question is asked after the plan arrived, and it must carry it.
+            deadline = System.nanoTime() + 15_000_000_000L;
+            while (System.nanoTime() < deadline
+                    && jevRequests.stream().noneMatch(body -> body.contains(plan))) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertTrue(jevRequests.stream().anyMatch(body -> body.contains(plan)),
+                    "a Jev request carried the commander's plan: " + jevRequests.size()
+                            + " requests seen");
+        } finally {
+            commander.stop(0);
+        }
+    }
+
+    /**
+     * Both sides collect their own sun without anyone clicking.
+     *
+     * <p>The user asked for it and an AI cannot click; the human side gets it for the same reason -
+     * a versus match is not a clicking contest. The drop is spawned for the player's team and left
+     * alone: if the mode did not collect it, the counter would stay at zero.
+     */
+    @Test
+    void bothSidesCollectTheirOwnSunWithoutAClick() {
+        LevelDef def = level(new Mode(1000, 200, 100, 50, 20, 100, 20));
+        LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def), null,
+                null, Identifier.parse(PLANT));
+        CapturingBridge bridge = new CapturingBridge();
+        level.tick(bridge);
+        assertTrue(level.dropSkySun(4, 0), "the sky drops a sun");
+        level.tick(bridge);
+        assertNotNull(firstDrop(level), "the sun is on the lawn and nobody has clicked it");
+        int before = sunOf(level, PLANT);
+        // Long enough for the sun to land: the pickup waits a quarter of a second *and* the drop
+        // waits for gravity, exactly as it does for a player who has to watch it arrive.
+        tick(level, bridge, 150);
+        int value = level.rules().getInt(PvzceIds.RULE_SUN_VALUE);
+        assertEquals(before + value, sunOf(level, PLANT),
+                "the mode collected the player's own drop");
+        assertEquals(value, VersusMechanic.run(level).collected,
+                "and picking it up is what the race counts");
     }
 
     @Test
@@ -775,7 +866,15 @@ class VersusModeTest {
                 "the plant opponent builds an economy, a defense and a wall rather than one card: "
                         + plantMix);
         assertTrue(plantMix.getOrDefault("sunflower", 0) >= 3, plantMix.toString());
-        assertTrue(plantMix.getOrDefault("pea_shooter", 0) >= 3, plantMix.toString());
+        // "A defender" rather than "three pea shooters": which shooter it buys (pea, snow pea,
+        // repeater) depends on what it can afford at the moment, and an assertion about the mix was
+        // an assertion about the dice. The regression this guards is the version that bought nothing
+        // but sun producers, and any shooter at all fails it.
+        int defenders = plantMix.getOrDefault("pea_shooter", 0) + plantMix.getOrDefault("snow_pea", 0)
+                + plantMix.getOrDefault("repeater", 0);
+        assertTrue(defenders >= 3, "the lawn has shooters on it: " + plantMix);
+        int walls = plantMix.getOrDefault("wall_nut", 0) + plantMix.getOrDefault("tall_nut", 0);
+        assertTrue(walls >= 1, "and at least one wall: " + plantMix);
     }
 
     /** Advances the scripted zombie side: the cheapest card it can afford, into the thinnest lane. */
@@ -840,9 +939,16 @@ class VersusModeTest {
      * the assertion is about the path (ask - answer - re-check - spawn) and not about a fixture.
      */
     private void startStubThatEchoesTheFirstOption() throws IOException {
+        startStubThatEchoesTheFirstOption(body -> {
+        });
+    }
+
+    private void startStubThatEchoesTheFirstOption(java.util.function.Consumer<String> seen)
+            throws IOException {
         stub = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         stub.createContext("/v1/systemone", exchange -> {
             String body = readBody(exchange);
+            seen.accept(body);
             JsonObject request = JsonParser.parseString(body).getAsJsonObject();
             JsonObject questions = request.getAsJsonObject("questions");
             JsonObject answers = new JsonObject();
@@ -855,6 +961,20 @@ class VersusModeTest {
             respond(exchange, response.toString());
         });
         stub.start();
+    }
+
+    /**
+     * A millisecond per simulated tick or so.
+     *
+     * <p>Without it a test's loop runs the whole match in the time one HTTP round trip takes, and
+     * every wall-clock deadline in the test measures the loop rather than the network.
+     */
+    private static void sleepABit() {
+        try {
+            Thread.sleep(1L);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String firstKey(JsonObject question) {

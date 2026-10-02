@@ -5,7 +5,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.api.util.LevelGrouping;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.jev.JevSettings;
+import com.pvzce.common.jev.AiSettings;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PacketListener;
@@ -994,7 +994,7 @@ public final class PvzceServer implements Runnable {
      *                       world's auto list decides (see {@code LevelBuffSelection.plan})
      */
     /**
-     * Where Jev is for this server, or {@link JevSettings#NONE}.
+     * Where Jev is for this server, or {@link AiSettings#NONE}.
      *
      * <p>Two doors into one field, and the order between them is the whole rule: a launch argument
      * ({@code -Dpvzce.jev.url} / {@code -Dpvzce.jev.key}) is a statement about <em>this server</em>
@@ -1002,27 +1002,39 @@ public final class PvzceServer implements Runnable {
      * client cannot overwrite it. That is what lets a headless run or a smoke test drive a real
      * opponent while the client on the same machine has nothing configured.
      */
-    private JevSettings jevSettings = JevSettings.fromSystemProperties();
+    private AiSettings jevSettings = AiSettings.jev();
+    private AiSettings commanderSettings = AiSettings.commander();
+    /** True when either tier was launched with its own credential; see {@link #setAiSettings}. */
     private final boolean jevFromLaunchArguments = jevSettings.configured();
+    private final boolean commanderFromLaunchArguments = commanderSettings.configured();
 
-    /** The client's own Jev settings; ignored when this server was launched with its own. */
-    public void setJevSettings(JevSettings settings) {
-        if (jevFromLaunchArguments) {
+    /**
+     * The client's own AI settings for both tiers; each tier is ignored when this server was
+     * launched with its own credential for that tier.
+     */
+    public void setAiSettings(AiSettings jev, AiSettings commander) {
+        if (!jevFromLaunchArguments) {
+            jevSettings = jev == null ? AiSettings.NONE : jev;
+            LOGGER.info("Jev settings from the client: {}", jevSettings.redacted());
+        } else {
             LOGGER.info("Ignoring the client's Jev settings: this server was launched with {}",
                     jevSettings.redacted());
-            return;
         }
-        jevSettings = settings == null ? JevSettings.NONE : settings;
-        LOGGER.info("Jev settings from the client: {}", jevSettings.redacted());
-        if (level != null) {
-            level.setJevSettings(jevSettings);
+        if (!commanderFromLaunchArguments) {
+            commanderSettings = commander == null ? AiSettings.NONE : commander;
+            LOGGER.info("Commander settings from the client: {}", commanderSettings.redacted());
+        } else {
+            LOGGER.info("Ignoring the client's commander settings: this server was launched with {}",
+                    commanderSettings.redacted());
         }
+        applyAiSettings(level);
     }
 
-    /** Carries the credential into one run; called wherever a level is created. */
-    private void applyJevSettings(LevelServer target) {
+    /** Carries both credentials into one run; called wherever a level is created. */
+    private void applyAiSettings(LevelServer target) {
         if (target != null) {
-            target.setJevSettings(jevSettings);
+            target.setAiSettings(jevSettings);
+            target.setCommanderSettings(commanderSettings);
         }
     }
 
@@ -1126,7 +1138,7 @@ public final class PvzceServer implements Runnable {
                 LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard, humanTeam);
         // The opponent's credential, for the runs that have one: handed in before the first tick,
         // so the very first decision of a versus level already knows where Jev is.
-        applyJevSettings(newLevel);
+        applyAiSettings(newLevel);
         // "The buffs I last went in with." Written from the resolved list, so a buff the level
         // refused never becomes a preference and a buff the level pinned joins it for the levels
         // that leave the choice open. Skipped while a save is being loaded: that run's buffs were
@@ -1451,8 +1463,9 @@ public final class PvzceServer implements Runnable {
                 connection.send(new GameSpeedS2C(tickRate.tickRate()));
             } else if (packet instanceof com.pvzce.common.network.packet.ChatC2S chat) {
                 say(chat.text());
-            } else if (packet instanceof com.pvzce.common.network.packet.JevSettingsC2S jev) {
-                setJevSettings(new JevSettings(jev.url(), jev.model(), jev.key()));
+            } else if (packet instanceof com.pvzce.common.network.packet.AiSettingsC2S ai) {
+                setAiSettings(new AiSettings(ai.url(), ai.model(), ai.key()),
+                        new AiSettings(ai.commanderUrl(), ai.commanderModel(), ai.commanderKey()));
             } else if (packet instanceof SetDifficultyC2S difficulty) {
                 setDifficulty(difficulty.difficulty());
             } else if (packet instanceof PauseGameC2S pause) {

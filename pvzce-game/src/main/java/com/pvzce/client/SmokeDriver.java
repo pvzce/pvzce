@@ -135,6 +135,14 @@ final public class SmokeDriver {
      * (see {@code openNamedScreen}) and then pushes the collection's screen once its rows exist.
      */
     private final String smokeCollection = System.getProperty("pvzce.smokeCollection", "");
+
+    /**
+     * {@code pvzce.smokeDebug=true}: turn the F3 diagnostic overlay on for the whole run.
+     *
+     * <p>A smoke run presses no keys, and the overlay is where the versus mode's strategist line is
+     * drawn - so without this the only claim that could be checked was "the server logged a plan".
+     */
+    private final boolean smokeDebug = Boolean.getBoolean("pvzce.smokeDebug");
     /**
      * The collection waiting to be opened, or empty.
      *
@@ -471,6 +479,7 @@ final public class SmokeDriver {
      * normal run and a mistyped smoke run behave the same way.
      */
     void applyInitialScreen() {
+        applyDebugOverlay();
         if (!openNamedScreen(System.getProperty("pvzce.smokeScreen", ""))) {
             // Not `new TitleScreen(...)`: a fresh install opens the first-run page, and the smoke
             // hook must be able to reach the same screen a player would (see
@@ -487,11 +496,23 @@ final public class SmokeDriver {
      * {@code docs/冒烟与截图指南.md}), so a round that touches three menus has to shoot all three
      * in one run - and "the page the key names" must mean exactly the same thing in both.
      */
+    /** Turned on before the first frame when {@code pvzce.smokeDebug} asked for it. */
+    void applyDebugOverlay() {
+        if (smokeDebug) {
+            client.setDebugOverlayEnabled(true);
+        }
+    }
+
     boolean openNamedScreen(String smokeScreen) {
         if ("mods".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.mods.ModsScreen(client));
         } else if ("settings".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.SettingsScreen(client));
+        } else if ("ai_settings".equals(smokeScreen)) {
+            // Two blocks of credential rows, which is the one page where the layout has to hold a
+            // lot of text fields: reached in play through 设置, and shot from here for the same
+            // reason every other named page is.
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.AiSettingsScreen(client));
         } else if ("keybinds".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.KeybindScreen(client));
         } else if ("onboarding".equals(smokeScreen)) {

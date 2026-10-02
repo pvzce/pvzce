@@ -117,6 +117,11 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         // `unlock_resources` reaches the human's team only, and on a versus level the plant side may
         // be the opponent - which cannot click, and would otherwise be unable to pick up the
         // resource its win condition is counted in.
+        // Both sides collect on their own: an AI cannot click, and a match where one player clicks
+        // while the other is handed its sun is not the same match. The loop and the delay are the
+        // auto-pickup buff's, so a drop a player would have clicked is worth exactly what an
+        // auto-collected one is.
+        level.setBothSidesCollect(true);
         if (plant != null) {
             plant.unlockResource(PvzceIds.SUN);
         }
@@ -148,10 +153,18 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         // one number while the pressure behind it grew. (The build window's countdown was the same
         // mistake in the version before this one.)
         int opponentSun = opponentSun(level);
+        // The strategist's plan and whether it is thinking are drawn by the F3 overlay only, and they
+        // are the two fields that change on the commander's own clock - once a minute, plus a blink
+        // when a request goes out. They ride the same payload because they are the same panel.
+        String plan = level.jevBrain().commanderPlan();
+        boolean busy = level.jevBrain().commanderBusy();
         if (run.collected != run.sentCollected || opponentSun != run.sentOpponentSun
+                || !plan.equals(run.sentCommanderPlan) || busy != run.sentCommanderBusy
                 || level.jevBrain().dirty()) {
             run.sentCollected = run.collected;
             run.sentOpponentSun = opponentSun;
+            run.sentCommanderPlan = plan;
+            run.sentCommanderBusy = busy;
             level.jevBrain().clearDirty();
             sendState(level, data, null);
         }
@@ -234,6 +247,7 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         run.collected = Math.max(0, tag.getInt("Collected"));
         run.sentCollected = run.collected;
         run.sentOpponentSun = Integer.MIN_VALUE;
+        run.sentCommanderPlan = "";
         if (tag.contains("Income")) {
             run.incomeCountdown = Math.max(0, tag.getInt("Income"));
         }
@@ -246,7 +260,8 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_VERSUS, State.CODEC,
                 new State(data.sunGoal(), run.collected, opponentSide(level), brain.status().ordinal(),
                         brain.lastCardId(), brain.lastRow(), brain.lastColumn(),
-                        opponentSun(level), opponentHand(level))));
+                        opponentSun(level), opponentHand(level), brain.commanderPlan(),
+                        brain.commanderBusy())));
     }
 
     /** The side the opponent plays: the one the human is not on. */
@@ -268,7 +283,7 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
      */
     public record State(int sunGoal, int sunCollected, String opponentSide, int opponentStatus,
                         String lastCardId, int lastRow, int lastColumn, int opponentSun,
-                        List<String> opponentHand) {
+                        List<String> opponentHand, String commanderPlan, boolean commanderBusy) {
         public State {
             opponentHand = List.copyOf(opponentHand);
         }
@@ -292,10 +307,17 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
                         .field(State::opponentSun, com.pvzce.common.network.PacketByteBuf::writeInt,
                                 com.pvzce.common.network.PacketByteBuf::readInt)
                         .stringList(State::opponentHand)
+                        .field(State::commanderPlan,
+                                com.pvzce.common.network.PacketByteBuf::writeString,
+                                com.pvzce.common.network.PacketByteBuf::readString)
+                        .field(State::commanderBusy,
+                                com.pvzce.common.network.PacketByteBuf::writeBoolean,
+                                com.pvzce.common.network.PacketByteBuf::readBoolean)
                         .build(values -> new State((Integer) values.get(0), (Integer) values.get(1),
                                 (String) values.get(2), (Integer) values.get(3), (String) values.get(4),
                                 (Integer) values.get(5), (Integer) values.get(6), (Integer) values.get(7),
-                                castStrings(values.get(8))));
+                                castStrings(values.get(8)), (String) values.get(9),
+                                (Boolean) values.get(10)));
     }
 
     /** The opponent's sun, so the other player can watch the pressure build. */
@@ -337,6 +359,9 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         public int sentCollected = -1;
         /** The opponent's wallet as the client last heard it; it moves on its own clock. */
         public int sentOpponentSun = Integer.MIN_VALUE;
+        /** The strategist's plan as the client last heard it, and whether it was thinking. */
+        public String sentCommanderPlan = "";
+        public boolean sentCommanderBusy;
         /** Ticks until the zombie side's next payment. */
         public int incomeCountdown;
     }
