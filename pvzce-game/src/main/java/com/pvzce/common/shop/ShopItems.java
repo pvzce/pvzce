@@ -62,16 +62,6 @@ public final class ShopItems {
     private ShopItems() {
     }
 
-    /** The eight purple packets, by the plant each one grants. */
-    public static final Identifier UPGRADE_GATLING_PEA = Identifier.of("pvzce", "gatling_pea");
-    public static final Identifier UPGRADE_TWIN_SUNFLOWER = Identifier.of("pvzce", "twin_sunflower");
-    public static final Identifier UPGRADE_GLOOM_SHROOM = Identifier.of("pvzce", "gloom_shroom");
-    public static final Identifier UPGRADE_CATTAIL = Identifier.of("pvzce", "cattail");
-    public static final Identifier UPGRADE_SPIKEROCK = Identifier.of("pvzce", "spikerock");
-    public static final Identifier UPGRADE_WINTER_MELON = Identifier.of("pvzce", "winter_melon");
-    public static final Identifier UPGRADE_COB_CANNON = Identifier.of("pvzce", "cob_cannon");
-    public static final Identifier UPGRADE_GOLD_MAGNET = Identifier.of("pvzce", "gold_magnet");
-
     /**
      * One line of the shop.
      *
@@ -90,9 +80,8 @@ public final class ShopItems {
             /**
              * Grants one id into the profile's unlocked set.
              *
-             * <p>Which covers both halves of what the shop sells besides the two above: a purple
-             * card (a plant the chooser then offers), and a standalone unlock such as the rake
-             * (something the game reads out of the same set but that is not a card at all).
+             * <p>The built-in catalogue uses this for the rake. Upgrade plants are adventure
+             * rewards; old profiles keep any plants they already own.
              */
             UNLOCK
         }
@@ -109,22 +98,7 @@ public final class ShopItems {
                     - com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS, Item.Kind.CARD_SLOTS),
             // 1500: the most expensive thing in the shop, because it changes every level from then
             // on rather than one run.
-            new Item(SUN_SHOVEL, 1500, 1, Item.Kind.BUFF),
-    // The purple packets, at the prices the original's Crazy Dave charges
-            // ($3000..$20000, i.e. the same coins the rest of this table is priced in). They are
-            // `UNLOCK` items like the rake: buying one puts the plant in the player's bag, and the
-            // seed chooser offers it from then on. What makes them purple is not here - it is the
-            // plant's own `upgrade` block, which is what the card is drawn from.
-            new Item(UPGRADE_GOLD_MAGNET, 3000, 1, Item.Kind.UNLOCK),
-            new Item(UPGRADE_GATLING_PEA, 5000, 1, Item.Kind.UNLOCK),
-            new Item(UPGRADE_TWIN_SUNFLOWER, 5000, 1, Item.Kind.UNLOCK),
-            new Item(UPGRADE_GLOOM_SHROOM, 7500, 1, Item.Kind.UNLOCK),
-            new Item(UPGRADE_SPIKEROCK, 7500, 1, Item.Kind.UNLOCK),
-            new Item(UPGRADE_CATTAIL, 10000, 1, Item.Kind.UNLOCK),
-            new Item(UPGRADE_WINTER_MELON, 10000, 1, Item.Kind.UNLOCK),
-            // The most expensive thing Crazy Dave sells, and the only card in the shop whose
-            // price is in five figures: the cannon is a manual 3x3 that never runs out.
-            new Item(UPGRADE_COB_CANNON, 20000, 1, Item.Kind.UNLOCK));
+            new Item(SUN_SHOVEL, 1500, 1, Item.Kind.BUFF));
 
     /**
      * How many times a world with these collections has bought the item.

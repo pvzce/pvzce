@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The original Plants vs. Zombies adventure levels, as data.
 
-The forty-nine shipped adventure levels are not invented here: every wave table is a *replay* of the
-original game's own wave generator. The original does not store waves anywhere - it stores four
+Levels 1..49 replay the original game's own wave generator. This project's 5-10 instead uses
+the roof finale's thirty waves, the 5-9 zombie pool and the mini-boss conveyor budget; it has no
+Zomboss encounter. The original does not store waves anywhere - it stores four
 tables and a loop, and this module is those four tables plus that loop, so that a reader can
 check a level against the game it claims to be:
 
@@ -120,8 +121,7 @@ class ZombieType:
         return self.pick_weight > 0 and self.starting_level <= level and self.allowed_on(level)
 
 
-#: ``gZombieDefs`` order. The last five types only ever appear on the roof and in the boss fight,
-#: and are listed for completeness - the forty shipped levels cannot draw them.
+#: ``gZombieDefs`` order, including the roof enemies and the unused boss entry.
 ZOMBIES: Tuple[ZombieType, ...] = (
     ZombieType("ZOMBIE_NORMAL", "basic_zombie", 1, 1, 1, 4000,
                "11111111111111111111111111111111111111111111111111"),
@@ -279,7 +279,7 @@ AREA_KINDS = ("day", "night", "pool", "fog", "roof")
 @dataclass(frozen=True)
 class LevelFacts:
     number: int
-    #: "day" / "night" / "pool" / "fog" - the original's four adventure backgrounds. 4-5 is the
+    #: "day" / "night" / "pool" / "fog" / "roof". 4-5 is the
     #: exception inside the fog area: `PickBackground` sends a Scary Potter level back to the
     #: night lawn, which is why that level has no fog and no pool.
     kind: str
@@ -288,7 +288,7 @@ class LevelFacts:
     #: 1-5 rolls wall-nuts, 3-5 throws miniature zombies: both are conveyor levels.
     wallnut_bowling: bool
     little_trouble: bool
-    #: `IsMiniBossLevel`: 1-10, 2-10 and 3-10. Conveyor, triple budget, no waiting around.
+    #: `IsMiniBossLevel`: 1-10, 2-10 and 3-10, plus this project's 5-10 finale.
     mini_boss: bool
     #: 2-5 is Whack-a-Zombie (a hammer and gravestones, no walk-ins) and 4-5 is Scary Potter
     #: (three rounds of vases, no waves at all).
@@ -459,7 +459,7 @@ def level_facts(number: int) -> LevelFacts:
         award=award_seed(number),
         wallnut_bowling=number == 5,
         little_trouble=number == 25,
-        mini_boss=number in (10, 20, 30),
+        mini_boss=number in (10, 20, 30, 50),
         whack_a_zombie=number == 15,
         scary_potter=number == 35,
         storm=number == 40,
@@ -467,8 +467,8 @@ def level_facts(number: int) -> LevelFacts:
     )
 
 
-#: Levels 1..49 - the shipped adventure, before the roof boss.
-LEVELS: Tuple[LevelFacts, ...] = tuple(level_facts(n) for n in range(1, 50))
+#: Levels 1..50; the last level is this project's daytime roof conveyor finale.
+LEVELS: Tuple[LevelFacts, ...] = tuple(level_facts(n) for n in range(1, 51))
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +491,8 @@ class Wave:
 
 def pool_for(level: int) -> List[ZombieType]:
     """Every type the level's random picks may draw (``mZombieAllowed``)."""
+    if level == 50:
+        return pool_for(49)
     if level == 45:
         # Challenge::InitZombieWaves: the bungees are scripted flag-wave raids, not random picks.
         return [BY_NAME[n] for n in ("ZOMBIE_NORMAL", "ZOMBIE_TRAFFIC_CONE",
@@ -507,7 +509,7 @@ def introduced_zombie(level: int) -> Optional[ZombieType]:
     A type whose ``mStartingLevel`` is this level but which the player has not unlocked at all
     is skipped - which is what keeps the yeti out of 4-10.
     """
-    if level == 1:
+    if level in (1, 50):
         return None
     for zombie in ZOMBIES:
         if zombie.starting_level != level or not zombie.repo_id:

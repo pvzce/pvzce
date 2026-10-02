@@ -70,6 +70,11 @@ class ShopTest {
     @Test
     void theCatalogueIsWellFormed() {
         assertTrue(ShopItems.ITEMS.size() >= 3, "the shop has to sell something");
+        for (var id : BuiltInRegistries.PLANTS.keySet()) {
+            if (BuiltInRegistries.PLANTS.get(id).upgrade().isPresent()) {
+                assertFalse(ShopPurchases.sells(id), id + " is earned in adventure, not bought");
+            }
+        }
         for (ShopItems.Item item : ShopItems.ITEMS) {
             assertTrue(item.price() > 0, item.id() + " has to cost something");
             assertTrue(item.maxOwned() >= 1, item.id() + " has to be buyable at least once");
@@ -205,19 +210,20 @@ class ShopTest {
         }
     }
 
-    /** An id the shop does not sell is refused, and charges nothing. */
+    /** A delisted purple packet cannot be bought over the wire or erase an earlier purchase. */
     @Test
-    void anUnknownItemIsRefusedAndCostsNothing(@org.junit.jupiter.api.io.TempDir Path gameDir)
+    void aDelistedUpgradeIsRefusedAndPreservesTheWalletAndExistingPlants(@org.junit.jupiter.api.io.TempDir Path gameDir)
             throws Exception {
         try (com.pvzce.testutil.ServerHarness harness =
                      com.pvzce.testutil.ServerHarness.createWithWorld(gameDir, WORLD, true)) {
             PlayerProfile wallet = harness.server().worlds().profileFor(WORLD);
-            wallet.setCoins(500);
+            wallet.setCoins(50000);
+            wallet.unlock(PvzceIds.id("gatling_pea"));
             harness.server().worlds().saveProfile(WORLD, wallet);
             harness.clear();
 
             harness.send(new com.pvzce.common.network.packet.BuyShopItemC2S(
-                    "pvzce:not_a_thing", WORLD));
+                    "pvzce:gloom_shroom", WORLD));
             com.pvzce.common.network.packet.ServerMessageS2C message =
                     harness.awaitPacket(com.pvzce.common.network.packet.ServerMessageS2C.class,
                             5_000);
@@ -225,11 +231,13 @@ class ShopTest {
                     "it has to say what went wrong, got: " + message.message());
 
             Path profileFile = gameDir.resolve("saves/" + WORLD + "/profile.dat");
-            if (java.nio.file.Files.exists(profileFile)) {
-                PlayerProfile onDisk = PlayerProfile.load(
-                        com.pvzce.common.nbt.NbtIo.readCompressed(profileFile));
-                assertEquals(500, onDisk.coins(), "and nothing was charged");
-            }
+            PlayerProfile onDisk = PlayerProfile.load(
+                    com.pvzce.common.nbt.NbtIo.readCompressed(profileFile));
+            assertEquals(50000, onDisk.coins(), "and nothing was charged");
+            assertTrue(onDisk.unlocked().contains(PvzceIds.id("gatling_pea")),
+                    "earlier upgrade purchases remain owned");
+            assertFalse(onDisk.unlocked().contains(PvzceIds.id("gloom_shroom")),
+                    "a rejected purchase grants nothing");
         }
     }
 

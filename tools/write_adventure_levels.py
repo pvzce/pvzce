@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the shipped adventure levels, 1-1 to 5-9.
+"""Write the shipped adventure levels, 1-1 to 5-10.
 
 This is the only producer of the shipped adventure level files. It replaces the four per-world
 scripts that used to sit beside it (`write_night_levels.py`, `write_pool_levels.py`,
@@ -97,7 +97,7 @@ UNLOCK_OVERRIDES: Dict[int, dict] = {
     ], "cost": 500},
 }
 
-#: The eight levels the original leaves empty, filled with this project's own tools and buffs.
+#: Empty original rewards filled with tools/buffs, plus the customized 5-10 plant reward.
 SPECIAL_REWARDS: Dict[int, dict] = {
     4: {"type": "unlock", "id": "pvzce:glove"},
     9: {"type": "buff", "id": "pvzce:auto_collect"},
@@ -109,6 +109,8 @@ SPECIAL_REWARDS: Dict[int, dict] = {
     39: {"type": "buff", "id": "pvzce:fog_retreat"},
     44: {"type": "unlock", "id": "pvzce:fertilizer"},
     49: {"type": "buff", "id": "pvzce:butter_plenty"},
+    # User-defined roof conveyor finale, starting the adventure's upgrade-plant reward chain.
+    50: {"type": "unlock", "id": "pvzce:gloom_shroom"},
 }
 
 #: Replay money, per level. The world finals pay more, and the two "nothing new" levels of an
@@ -118,7 +120,7 @@ COINS = {
     11: 200, 12: 200, 13: 200, 14: 300, 15: 300, 16: 300, 17: 300, 18: 300, 19: 100, 20: 300,
     21: 300, 22: 300, 23: 300, 24: 300, 25: 300, 26: 300, 27: 300, 28: 300, 29: 300, 30: 300,
     31: 400, 32: 400, 33: 400, 34: 400, 35: 400, 36: 400, 37: 400, 38: 400, 39: 400, 40: 400,
-    41: 400, 42: 400, 43: 400, 44: 400, 45: 400, 46: 400, 47: 400, 48: 400, 49: 400,
+    41: 400, 42: 400, 43: 400, 44: 400, 45: 400, 46: 400, 47: 400, 48: 400, 49: 400, 50: 400,
 }
 
 #: The conveyor card tables. The original's conveyor levels deal from a list of the area's
@@ -127,6 +129,13 @@ COINS = {
 #: ``(card, weight)`` or ``(card, weight, max_count)`` - the third number is the original's
 #: "max count", the one belt card that runs out (one grave buster per gravestone).
 CONVEYORS: Dict[int, dict] = {
+    # Five columns of pots are already on the roof. Extra pots let the player expand and
+    # replace losses; every other card works on the daytime roof without a wake-up prerequisite.
+    50: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
+         "cards": [("pvzce:flower_pot", 15), ("pvzce:cabbage_pult", 20),
+                   ("pvzce:kernel_pult", 20), ("pvzce:melon_pult", 20),
+                   ("pvzce:umbrella_leaf", 5), ("pvzce:pumpkin", 10),
+                   ("pvzce:cherry_bomb", 5), ("pvzce:jalapeno", 5)]},
     45: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
          "cards": [("pvzce:flower_pot", 50, 35), ("pvzce:chomper", 25),
                    ("pvzce:pumpkin", 15), ("pvzce:cherry_bomb", 10)]},
@@ -440,6 +449,7 @@ PROSE.update({
     47: ("5-7·撑开保护伞", "叶子保护伞保护自己与周围八格，挡住篮球并赶走蹦极僵尸。守住三面旗帜后解锁金盏花。", ["保护伞覆盖九宫格，合理摆放可保护整个后排。"]),
     48: ("5-8·巨人上屋顶", "巨人僵尸第一次登上屋顶，会砸碎植物并抛出小鬼。准备爆炸植物与控制，获胜后解锁西瓜投手。", ["玉米的黄油能为集中火力争取时间。"]),
     49: ("5-9·最后的屋顶防线", "综合应对梯子、投篮车与巨人，撑过三面旗帜。首次获胜解锁黄油充足增益：玉米投手的黄油概率由25%提高到40%。", ["叶子保护伞拦截空中威胁，西瓜投手处理密集敌人。"]),
+    50: ("5-10·屋顶终章", "白天屋顶的传送带终章：免费发牌，守住三十波梯子、投篮车与巨人的进攻。首次获胜解锁忧郁菇，可将大喷菇升级为周围范围攻击的紫卡植物。", ["开场已有五列花盆，传送带免费送卡，不用收集阳光。", "投手负责输出，保护伞防空；樱桃炸弹与火爆辣椒留给密集敌人。", "忧郁菇种在大喷菇上；白天仍需要咖啡豆唤醒。"]),
 })
 
 
@@ -789,7 +799,7 @@ def unlock_for(facts: original.LevelFacts) -> dict:
 
 def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
     deck = facts.deck
-    slots = ["pvzce:shovel"] if facts.number in (10, 20, 25, 30, 40, 45) else ([] if deck is None else [f"pvzce:{card}" for card in deck])
+    slots = ["pvzce:shovel"] if facts.number in (10, 20, 25, 30, 40, 45, 50) else ([] if deck is None else [f"pvzce:{card}" for card in deck])
     if deck is not None and facts.sun > 0:
         slots.append("pvzce:sun")
 

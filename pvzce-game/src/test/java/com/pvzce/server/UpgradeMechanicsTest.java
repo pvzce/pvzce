@@ -259,9 +259,9 @@ class UpgradeMechanicsTest {
 
     // ---------------------------------------------------------------- content
 
-    /** Both cards exist, resolve, and say what they can do. */
+    /** Both cards remain usable plants even though upgrades are now adventure rewards. */
     @Test
-    void bothNewCardsAreSellablePlants() {
+    void bothCardsRemainRegisteredOutsideTheShop() {
         for (String id : List.of("cob_cannon", "gold_magnet")) {
             Identifier card = Identifier.withDefaultNamespace(id);
             var resolved = SlotResolver.resolve(card);
@@ -270,16 +270,8 @@ class UpgradeMechanicsTest {
                     id + " is a plant card");
             assertNotNull(BuiltInRegistries.PLANTS.get(card), id + " has to be a registered plant");
         }
-        // And both are sold, at the original's prices - `ShopTest` pins the catalogue itself.
-        assertNotNull(shopItem("cob_cannon"), "the cannon is in the shop");
-        assertNotNull(shopItem("gold_magnet"), "and so is the magnet");
-        assertEquals(20000, shopItem("cob_cannon").price(), "at Crazy Dave's 20,000");
-        assertEquals(3000, shopItem("gold_magnet").price(), "and 3,000");
-    }
-
-    private static com.pvzce.common.shop.ShopItems.Item shopItem(String path) {
-        Identifier id = Identifier.withDefaultNamespace(path);
-        return com.pvzce.common.shop.ShopItems.byId(id).orElse(null);
+        assertFalse(com.pvzce.server.shop.ShopPurchases.sells(PvzceIds.id("cob_cannon")));
+        assertFalse(com.pvzce.server.shop.ShopPurchases.sells(PvzceIds.id("gold_magnet")));
     }
 
     // ---------------------------------------------------------------- helpers

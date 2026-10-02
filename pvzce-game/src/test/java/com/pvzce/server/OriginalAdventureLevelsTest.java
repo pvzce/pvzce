@@ -23,9 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The first forty-nine adventure levels, against the game they claim to be.
+ * The adventure tables, including the explicitly customized 5-10 conveyor finale.
  *
- * <p>Every wave table under {@code yard/adventure} is a replay of the original's own wave
+ * <p>Levels 1..49 replay the original's own wave
  * generator, and the tables at the bottom of this file are the original's
  * ({@code gZombieWaves}, {@code gZombieDefs}, {@code gZombieAllowedLevels},
  * {@code LawnApp::GetAwardSeedForLevel}). This test re-derives the parts of a level that are
@@ -51,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * only prove the generator agrees with itself; this one is a second, independent statement of
  * what the original says, and the two have to agree. {@code tools/original_levels.py} names the
  * decompiled function each table comes from.
+ * The user-defined 5-10 has thirty waves, the 5-9 enemy pool and a Gloom-shroom reward;
+ * it deliberately replaces the original's boss encounter.
  */
 class OriginalAdventureLevelsTest {
     /** The ten levels the original leaves empty, filled with this project's own tools/buffs. */
@@ -133,6 +135,7 @@ class OriginalAdventureLevelsTest {
     /** The types a level's random picks may draw (its {@code mZombieAllowed}). */
     private static Set<String> poolFor(int number) {
         Set<String> pool = new LinkedHashSet<>();
+        if (number == 50) return poolFor(49); // User-defined finale: the preceding roof's enemies.
         if (number == 45) return Set.of("basic_zombie", "conehead_zombie", "buckethead_zombie", "ladder");
         for (ZombieType zombie : ZOMBIES) {
             if (zombie.pickableOn(number)) {
@@ -172,7 +175,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void everyLevelHasTheOriginalsWaveCount() {
-        for (int number = 1; number <= 49; number++) {
+        for (int number = 1; number <= 50; number++) {
             assertEquals(waveCount(number), level(number).waves().size(),
                     label(number) + " must have the original's number of waves");
         }
@@ -180,7 +183,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void flagsStandWhereTheOriginalRaisesThem() {
-        for (int number = 1; number <= 49; number++) {
+        for (int number = 1; number <= 50; number++) {
             LevelDef def = level(number);
             int count = def.waves().size();
             Set<Integer> flags = flagWaves(number);
@@ -208,7 +211,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void noLevelEverSendsAZombieItDoesNotAllow() {
-        for (int number = 1; number <= 49; number++) {
+        for (int number = 1; number <= 50; number++) {
             if (number == 15 || number == 35) {
                 continue; // the two levels whose zombies do not arrive in waves
             }
@@ -228,7 +231,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void theFinalWaveSendsEveryZombieTheLevelAllows() {
-        for (int number = 1; number <= 49; number++) {
+        for (int number = 1; number <= 50; number++) {
             if (number == 15 || number == 35) {
                 continue; // the two levels whose zombies do not arrive in waves
             }
@@ -280,10 +283,10 @@ class OriginalAdventureLevelsTest {
     }
 
     @Test
-    void theRewardChainIsTheOriginals() {
-        for (int number = 1; number <= 49; number++) {
+    void theRewardChainMatchesTheApprovedAdventure() {
+        for (int number = 1; number <= 50; number++) {
             LevelDef def = level(number);
-            String expected = SUBSTITUTE_REWARDS.get(number);
+            String expected = number == 50 ? "gloom_shroom" : SUBSTITUTE_REWARDS.get(number);
             if (expected == null) {
                 int before = seedsAvailable(number);
                 int after = seedsAvailable(number + 1);
@@ -306,7 +309,7 @@ class OriginalAdventureLevelsTest {
 
     @Test
     void theStageFactsComeFromTheLevelNumber() {
-        for (int number = 1; number <= 49; number++) {
+        for (int number = 1; number <= 50; number++) {
             LevelDef def = level(number);
             String name = label(number);
 
@@ -386,7 +389,7 @@ class OriginalAdventureLevelsTest {
      */
     private static boolean isConveyor(int number) {
         return number == 5 || number == 10 || number == 20 || number == 25 || number == 30
-                || number == 40 || number == 45;
+                || number == 40 || number == 45 || number == 50;
     }
 
     @Test
