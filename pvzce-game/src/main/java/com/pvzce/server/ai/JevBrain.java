@@ -106,7 +106,19 @@ public final class JevBrain {
     private int commanderCountdown;
     /** True while a strategy request is out, for the debug overlay and for the snapshot's wording. */
     private boolean commanderBusy;
+    /** Why the last move was refused, for the counters: see {@code tryPlant}/{@code tryZombie}. */
+    private String lastRefusal = "other";
     private Status status = Status.BUILTIN;
+    /**
+     * Why the opponent stopped being Jev, counted per reason.
+     *
+     * <p>Split rather than one total because the reasons call for different fixes, and the user's report
+     * ("the plant side falls back far more often than the zombie side") is a claim about the split:
+     * {@code busy} is pacing, {@code transport} is the network, {@code refused} is a well-formed answer
+     * the level would not carry out, and {@code noMoney} is the question being asked when the only
+     * possible answer was "hold".
+     */
+    private final java.util.Map<String, Integer> fallbacks = new java.util.LinkedHashMap<>();
     private boolean dirty = true;
     private boolean fallbackReported;
     private int decisionCountdown;
@@ -127,6 +139,15 @@ public final class JevBrain {
 
     public Status status() {
         return status;
+    }
+
+    /** The fallback counts, as {@code reason=count} pairs, for the balance reports. */
+    public java.util.Map<String, Integer> fallbacks() {
+        return java.util.Map.copyOf(fallbacks);
+    }
+
+    private void countFallback(String reason) {
+        fallbacks.merge(reason, 1, Integer::sum);
     }
 
     /** The card of the opponent's last accepted move, or empty when it has not moved yet. */
@@ -214,14 +235,20 @@ public final class JevBrain {
     // ------------------------------------------------------------------
 
     /**
-     * How often the commander is asked to look at the board: thirty seconds.
+     * How often the commander is asked to look at the board, per side.
      *
      * <p>Slower than the tactical loop by two orders of magnitude, and that is the design: the
      * tactical model answers "which card, where" every three seconds and must be cheap and stupid
-     * about the long run; the commander answers "what is this match about" and must be neither. Thirty
-     * seconds is the user's number, and it is roughly how long it takes a wave to change the answer.
+     * about the long run; the commander answers "what is this match about" and must be neither.
+     *
+     * <p><b>Twenty seconds on the plant side, thirty on the zombie side</b>, which is the user's call
+     * ("植物方为jev时，指挥官要更敏锐一点，20s一次") and matches what the two sides are doing: a plant
+     * board changes shape every time a shooter or a wall goes down and a plan that is twenty seconds
+     * stale is a plan about a lawn that no longer exists, while the zombie side's board changes when
+     * something arrives, which is slower and cheaper to lose.
      */
     private static final int COMMANDER_INTERVAL_TICKS = 30 * 60;
+    private static final int COMMANDER_PLANT_INTERVAL_TICKS = 20 * 60;
 
     private void tickCommander(LevelServer level, VersusData data, Team opponent, boolean plantSide) {
         AiSettings settings = level.commanderSettings();
@@ -246,10 +273,11 @@ public final class JevBrain {
         }
         // Asked even while a previous answer is in flight? No: one strategy line about one board is
         // worth one request, and a slow model must not build a queue of stale plans.
+        int interval = plantSide ? COMMANDER_PLANT_INTERVAL_TICKS : COMMANDER_INTERVAL_TICKS;
         if (commander.request(settings, commanderSnapshot(level, data, opponent, plantSide))) {
-            commanderCountdown = COMMANDER_INTERVAL_TICKS;
+            commanderCountdown = interval;
         } else {
-            commanderCountdown = COMMANDER_INTERVAL_TICKS / 4;
+            commanderCountdown = interval / 4;
         }
     }
 
@@ -447,6 +475,13 @@ public final class JevBrain {
         if (hand.isEmpty()) {
             return;
         }
+        if (!canPlayAnything(opponent, hand)) {
+            // Every card is either recharging or unaffordable, so the only answer that could be carried
+            // out is "hold" - and the built-in policy's answer to this position *is* to wait, because
+            // it has nothing affordable either. Asking anyway spends a round trip and, when the model
+            // names a card it cannot have, costs a fallback that reads like a broken opponent.
+            return;
+        }
         AiSettings settings = level.jevSettings();
         if (!settings.configured()) {
             if (status != Status.BUILTIN) {
@@ -464,7 +499,25 @@ public final class JevBrain {
         }
         // The previous question is still on the wire. Waiting for it is better than asking a second
         // one about a board that is about to change under both of them.
+        countFallback("busy");
         decisionCountdown = BUSY_RETRY_TICKS;
+    }
+
+    /**
+     * True when at least one card could actually be played this turn.
+     *
+     * <p>Ready <em>and</em> affordable: a ready card the side cannot pay for is a card the model may
+     * still name (it is listed so it can say "save for me"), but a question whose every answer is
+     * either impossible or "wait" is not a question.
+     */
+    private static boolean canPlayAnything(Team opponent, List<CardChoice> hand) {
+        int sun = opponent.resourcesOf(PvzceIds.SUN);
+        for (CardChoice card : hand) {
+            if (card.ready() && card.cost() <= sun) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void drainAnswers(LevelServer level, VersusData data, Team opponent, boolean plantSide) {
@@ -492,8 +545,10 @@ public final class JevBrain {
             return;
         }
         if (!result.usable()) {
+            countFallback("transport");
             reportFallback(level, result.error());
         } else {
+            countFallback("refused:" + lastRefusal);
             LOGGER.info("Jev chose {}, which this level cannot execute; using the built-in policy",
                     result.decision());
         }
@@ -538,9 +593,35 @@ public final class JevBrain {
         // board - which is exactly what the versus test caught the first time it ran.
         int x = decision.column();
         int y = decision.row();
-        return plantSide
-                ? tryPlant(level, opponent, card, x, y)
-                : tryZombie(level, opponent, card, x, y);
+        if (!plantSide) {
+            return tryZombie(level, opponent, card, x, y);
+        }
+        if (tryPlant(level, opponent, card, x, y)) {
+            return true;
+        }
+        if (!"cellTaken".equals(lastRefusal)) {
+            return false;
+        }
+        // The cell it named is occupied. The card and the lane are still a good decision, so the
+        // plant goes in the nearest free column of the *same* lane rather than the whole answer being
+        // thrown away for the built-in policy. Measured, this was the plant side's entire fallback
+        // rate: twenty-five refusals out of twenty-five were "that cell already has a plant", because
+        // a model asked "which column" for a lane that is filling up keeps naming the first one.
+        for (int column : freeColumnsNear(level, decision.column())) {
+            if (tryPlant(level, opponent, card, column, y)) {
+                LOGGER.debug("Jev's cell ({},{}) was taken; planted in column {} of the same lane",
+                        x, y, column);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The plantable columns, nearest to {@code wanted} first. */
+    private static List<Integer> freeColumnsNear(LevelServer level, int wanted) {
+        List<Integer> columns = new ArrayList<>(legalColumns(level, true));
+        columns.sort(java.util.Comparator.comparingInt(column -> Math.abs(column - wanted)));
+        return columns;
     }
 
     private static boolean kindMatches(Slot.Kind kind, boolean plantSide) {
@@ -548,10 +629,19 @@ public final class JevBrain {
     }
 
     /** Spends the card and plants it, or answers false without having spent anything. */
-    private static boolean tryPlant(LevelServer level, Team team, SlotResolver.ResolvedCard card,
-                                    int x, int y) {
+    private boolean tryPlant(LevelServer level, Team team, SlotResolver.ResolvedCard card,
+                             int x, int y) {
         PlantDef def = BuiltInRegistries.PLANTS.get(card.content());
-        if (def == null || !level.inBounds(x, y) || !level.canPlacePlant(def, x, y)) {
+        if (def == null) {
+            lastRefusal = "notAPlant";
+            return false;
+        }
+        if (!level.inBounds(x, y)) {
+            lastRefusal = "offBoard";
+            return false;
+        }
+        if (!level.canPlacePlant(def, x, y)) {
+            lastRefusal = "cellTaken";
             return false;
         }
         // Through the opponent's own bar, which is the same bar a player's clicks go through: a card
@@ -560,6 +650,7 @@ public final class JevBrain {
         Slot slot = level.opponentSlot(card.slotId());
         String refusal = level.chargeCard(team, slot);
         if (refusal != null) {
+            lastRefusal = slot == null ? "noCard" : (slot.ready() ? "noSun" : "cooldown");
             return false;
         }
         int cost = slot.costSun();
@@ -583,23 +674,27 @@ public final class JevBrain {
     }
 
     /** The zombie side's half: paid for, placed, and refunded if the board refuses it. */
-    private static boolean tryZombie(LevelServer level, Team team, SlotResolver.ResolvedCard card,
-                                     int x, int y) {
+    private boolean tryZombie(LevelServer level, Team team, SlotResolver.ResolvedCard card,
+                              int x, int y) {
         if (BuiltInRegistries.ZOMBIES.get(card.content()) == null) {
+            lastRefusal = "notAZombie";
             return false;
         }
         if (!level.inBounds(x, y) || !level.canPlaceZombie(x, y)) {
+            lastRefusal = "outsideZone";
             return false;
         }
         Slot slot = level.opponentSlot(card.slotId());
         String refusal = level.chargeCard(team, slot);
         if (refusal != null) {
+            lastRefusal = slot == null ? "noCard" : (slot.ready() ? "noSun" : "cooldown");
             return false;
         }
         int cost = slot.costSun();
         ZombieEntity spawned = level.spawnZombie(card.content(), team, x + 0.5F, y);
         if (spawned == null) {
             refundCard(level, team, slot, cost);
+            lastRefusal = "spawnRefused";
             return false;
         }
         return true;
@@ -1223,6 +1318,9 @@ public final class JevBrain {
         return List.copyOf(columns);
     }
 
+    /** The placeholder card offered when every real card is recharging; see {@link #ask}. */
+    private static final String NO_CARD_TO_PLAY = "nothing_ready";
+
     /**
      * One card the opponent may play, with the sentence the prompt shows for it.
      *
@@ -1250,9 +1348,19 @@ public final class JevBrain {
         int sun = opponent.resourcesOf(PvzceIds.SUN);
         List<JevPrompt.CardOption> cards = new ArrayList<>();
         for (CardChoice choice : hand) {
+            if (!choice.ready()) {
+                // Not offered at all. The description says it is recharging, but a model asked "which
+                // card" reaches for the one it wanted last turn - measured, every remaining refused
+                // plant answer was a card that was still on cooldown. What may not be played this turn
+                // does not belong in the list of what may be played this turn.
+                continue;
+            }
             cards.add(new JevPrompt.CardOption(choice.card().slotId().toString(), choice.cost(),
                     choice.cost() <= sun, choice.description(), choice.ready(),
                     choice.cooldownSeconds()));
+        }
+        if (cards.isEmpty()) {
+            cards.add(new JevPrompt.CardOption(NO_CARD_TO_PLAY, 0, false, NO_CARD_TO_PLAY, true, 0));
         }
         List<Integer> columns = legalColumns(level, plantSide);
         List<JevPrompt.ColumnOption> columnOptions = new ArrayList<>();
@@ -1267,7 +1375,7 @@ public final class JevBrain {
                 plantSide && data.races() ? collected(level) : 0,
                 level.tickCount() / PvzceConstants.TICKS_PER_SECOND,
                 cards,
-                describeRows(level),
+                describeRows(level, plantSide),
                 columnOptions,
                 directive,
                 commanderCard);
@@ -1311,6 +1419,17 @@ public final class JevBrain {
 
     /** One line per lane: what is in it, and how far up it is. */
     static List<JevPrompt.RowOption> describeRows(LevelServer level) {
+        return describeRows(level, null);
+    }
+
+    /**
+     * The same lines, with the legal columns of {@code plantSide} and which of them are still free.
+     *
+     * <p>Spelled out because the row and the column are asked as two separate questions: a model
+     * choosing a column for a lane it has already filled has nothing but this prose to tell it so, and
+     * measured, that was the plant side's whole fallback rate.
+     */
+    static List<JevPrompt.RowOption> describeRows(LevelServer level, Boolean plantSide) {
         List<JevPrompt.RowOption> rows = new ArrayList<>();
         for (int y = 0; y < level.height(); y++) {
             StringBuilder text = new StringBuilder("row_" + y + ": ");
@@ -1331,9 +1450,33 @@ public final class JevBrain {
             // separately, and it is one clause.
             text.append(parts.isEmpty() ? "empty (no plants, no zombies)" : String.join("; ", parts));
             text.append(" — x0 is the house end, x").append(level.width() - 1).append(" the far end");
+            if (plantSide != null) {
+                // Which cells this side may still put something in. A row and a column are two
+                // questions, so without this the model chooses a lane and a column without ever being
+                // told the cell is taken - which is what every refused plant answer turned out to be.
+                List<Integer> free = new ArrayList<>();
+                for (int x : legalColumns(level, plantSide)) {
+                    if (isFree(level, x, y)) {
+                        free.add(x);
+                    }
+                }
+                text.append("; free columns: ").append(free.isEmpty() ? "none"
+                        : String.join(",", free.stream().map(String::valueOf).toList()));
+            }
             rows.add(new JevPrompt.RowOption(y, text.toString()));
         }
         return List.copyOf(rows);
+    }
+
+    /** True when nothing is standing on that cell, as far as the placement rules are concerned. */
+    private static boolean isFree(LevelServer level, int x, int y) {
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridX() == x
+                    && plant.gridY() == y) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String describeColumn(LevelServer level, boolean plantSide, int column) {

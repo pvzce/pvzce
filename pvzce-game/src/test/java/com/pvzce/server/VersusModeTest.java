@@ -348,7 +348,10 @@ class VersusModeTest {
             // No zombie income, so the match cannot end while the two tiers talk: a level that
             // finishes under a test's loop stops being asked questions, and the failure looks like
             // "the plan never arrived" rather than "the match was over".
-            LevelDef def = level(new Mode(0, 800, 0, 0, 240, 0, 20));
+            // The zombie side needs *something* it can afford: a side that can play nothing is never
+            // asked (the only answer would be "hold"), so a broke level would never send a request for
+            // the plan to ride in.
+            LevelDef def = level(new Mode(0, 800, 200, 35, 300, 0, 20));
             LevelServer level = new LevelServer(def);
             CapturingBridge bridge = new CapturingBridge();
             level.setAiSettings(new AiSettings(
@@ -605,6 +608,38 @@ class VersusModeTest {
                 .count();
     }
 
+    /**
+     * How often a real (stubbed) Jev's answers are refused, per side.
+     *
+     * <p>The user's report: "the plant side falls back to the built-in policy far more often than the
+     * zombie side". This measures it rather than guessing - the stub answers the first option of every
+     * question, which is what a model that reads the board no better than the option order does, and
+     * the counter says whether a refusal is about the answer or about the question.
+     */
+    @Test
+    void bothSidesReportWhyTheyStopBeingJev() throws IOException {
+        startStubThatEchoesTheFirstOption();
+        try {
+            for (String human : new String[]{PLANT, ZOMBIE}) {
+                LevelDef def = level(new Mode(1_000_000, 20_000, 20_000, 35, 300, 0, 180),
+                        "[\"pvzce:sun\", \"pvzce:sunflower\", \"pvzce:pea_shooter\", "
+                                + "\"pvzce:wall_nut\"]",
+                        "[\"pvzce:basic_zombie\", \"pvzce:conehead_zombie\"]", "[]", 5);
+                LevelServer level = new LevelServer(def, def.slots(),
+                        LevelServer.SeedContext.all(def), null, null, Identifier.parse(human));
+                level.setAiSettings(new AiSettings(
+                        "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
+                        "stub", "test-key"));
+                CapturingBridge bridge = new CapturingBridge();
+                tick(level, bridge, 60 * 90);
+                String side = PLANT.equals(human) ? "jev-plays-zombies" : "jev-plays-plants";
+                System.out.println("JEV-FALLBACKS " + side + "=" + level.jevBrain().fallbacks());
+            }
+        } finally {
+            stopStub();
+        }
+    }
+
     @Test
     void theModeReportsItsOwnMistakes() {
         LevelDef wrongDeck = level(defaultMode(),
@@ -712,7 +747,8 @@ class VersusModeTest {
                                     totalGap / (double) (spawns - 1) / 60.0))
                     + " overlapped=" + overlapped + "/" + spawns
                     + " mix=" + zombieMix
-                    + " fizzled=" + level.jevBrain().status());
+                    + " fizzled=" + level.jevBrain().status()
+                    + " fallbacks=" + level.jevBrain().fallbacks());
             assertFalse("running".equals(level.gameState()),
                     id + " never ended within " + (limit / 60) + " seconds of simulated play");
         }
@@ -1057,7 +1093,8 @@ class VersusModeTest {
         System.out.println("VERSUS-PLANT-AI minutes=" + (ticks / 3600) + ":"
                 + String.format("%02d", (ticks / 60) % 60)
                 + " state=" + level.gameState() + " winner=" + level.winner()
-                + " collected=" + VersusMechanic.run(level).collected + " mix=" + plantMix);
+                + " collected=" + VersusMechanic.run(level).collected + " mix=" + plantMix
+                + " fallbacks=" + level.jevBrain().fallbacks());
         assertFalse("running".equals(level.gameState()),
                 "the match ended within " + (limit / 60) + " seconds of simulated play");
         assertTrue(plantMix.size() >= 3,
@@ -1154,7 +1191,7 @@ class VersusModeTest {
             JsonObject questions = request.getAsJsonObject("questions");
             JsonObject answers = new JsonObject();
             answers.add("action", choice(firstKey(questions.getAsJsonObject("action"))));
-            answers.add("row", choice(firstKey(questions.getAsJsonObject("row"))));
+            answers.add("row", choice(roomyRow(questions.getAsJsonObject("row"))));
             answers.add("column", choice(firstKey(questions.getAsJsonObject("column"))));
             JsonObject response = new JsonObject();
             response.addProperty("model", "stub");
@@ -1285,6 +1322,26 @@ class VersusModeTest {
 
     private static String firstKey(JsonObject question) {
         return question.getAsJsonObject("criteria").keySet().iterator().next();
+    }
+
+    /**
+     * A row that still has room, the way a model that reads the board would pick one.
+     *
+     * <p>The first-option stub is a degenerate opponent: it names the same lane every time, so once
+     * that lane's five cells are full every answer is refused and the measurement says more about the
+     * stub than about the opponent. This one reads the row lines - which now name the free columns -
+     * and answers with the first lane that has any, falling back to the literal first option when the
+     * level does not describe its rows that way.
+     */
+    private static String roomyRow(JsonObject question) {
+        JsonObject criteria = question.getAsJsonObject("criteria");
+        for (String key : criteria.keySet()) {
+            String text = criteria.get(key).getAsString();
+            if (text.contains("free columns:") && !text.contains("free columns: none")) {
+                return key;
+            }
+        }
+        return criteria.keySet().iterator().next();
     }
 
     private static JsonObject choice(String key) {
