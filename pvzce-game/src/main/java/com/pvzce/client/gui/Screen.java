@@ -646,6 +646,27 @@ public abstract class Screen {
         return focusManager.hasTextFocus();
     }
 
+    /**
+     * Routes pasted text into whichever field has the keyboard, if any.
+     *
+     * <p>Goes through the focus manager rather than "the first EditBox on the page": a page may hold
+     * several fields, and the one that owns the keyboard is the same one a typed character would
+     * have reached. The modal is asked first, because that is where the keyboard is when one is up.
+     *
+     * @return true when some field took the text
+     */
+    public boolean pasteText(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        EditBox box = focusManager.focused();
+        if (box != null && box.isFocused() && box.appendText(text)) {
+            return true;
+        }
+        Dialog modal = modalDialog();
+        return modal != null && modal.pasteText(text);
+    }
+
     /** Helper: centered horizontal position in logical GUI pixels. */
     protected int centerX(int width) {
         return (client.guiWidth() - width) / 2;

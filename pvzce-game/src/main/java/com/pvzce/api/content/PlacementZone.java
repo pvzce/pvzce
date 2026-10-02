@@ -6,7 +6,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.mechanic.MechanicData;
 
 /**
- * The part of the board a level lets the player plant on.
+ * The part of the board a level reserves for one side of it.
  *
  * <p>Everything else about "can this go here" is terrain and stacking
  * ({@code PlantPlacement}, driven by {@code #c:} tags). This is the other half of
@@ -15,13 +15,19 @@ import com.pvzce.api.content.mechanic.MechanicData;
  * grass, so a tile-based answer would have to call that grass something else and
  * would then lose the lawn under the line.
  *
+ * <p>Two mechanics decode this record, because "this part of the board is not yours" is one
+ * idea with two subjects: {@code pvzce:placement_zone} restricts where a plant may go (through
+ * {@code LevelMechanic.canPlacePlant}) and {@code pvzce:zombie_zone} restricts where a zombie
+ * card may be spent (through {@code LevelMechanic.canPlaceZombie}). A versus level declares
+ * both, which is how "plants on the left five columns, zombies on the right four" is written
+ * down without either side's rule being hidden inside the other's.
+ *
  * <p>Bounds are inclusive cell indices, and an omitted bound means "the board's
  * edge", so {@code {"min_x": 0, "max_x": 3}} is "the four leftmost columns" without
- * the level having to know how wide it is. This record is the block of the
- * {@code pvzce:placement_zone} level mechanic, declared in the level's
- * {@code mechanics} list; the zone is enforced by {@code LevelServer.canPlacePlant}
- * through that mechanic - the one path players, the AI and the entity spawner all go
- * through - and {@code LevelValidator} reports a zone that cannot be satisfied.
+ * the level having to know how wide it is. The zone is enforced by
+ * {@code LevelServer.canPlacePlant} / {@code LevelServer.canPlaceZombie} - the paths players,
+ * the AI and the entity spawner all go through - and {@code LevelValidator} reports a zone that
+ * cannot be satisfied.
  */
 public record PlacementZone(int minX, int maxX, int minY, int maxY) implements MechanicData {
     /** No restriction: every cell of the board. */
@@ -47,18 +53,31 @@ public record PlacementZone(int minX, int maxX, int minY, int maxY) implements M
 
     /** One message per impossible bound, for {@code LevelValidator}. */
     public java.util.List<String> validate(int width, int height) {
+        return validate(width, height, "placement_zone");
+    }
+
+    /**
+     * The same messages under a caller's own name.
+     *
+     * <p>Two mechanics decode this record - {@code pvzce:placement_zone} for the plantable area
+     * and {@code pvzce:zombie_zone} for where a zombie card may be spent - and "one placement
+     * area, one validator" is the whole reason they share a type. The label is the only thing
+     * that has to differ, because a message that says {@code placement_zone} about a broken
+     * zombie zone sends the author to the wrong block.
+     */
+    public java.util.List<String> validate(int width, int height, String label) {
         java.util.List<String> errors = new java.util.ArrayList<>();
         if (minX < 0 || minY < 0) {
-            errors.add("placement_zone has a negative bound (min_x=" + minX + ", min_y=" + minY + ")");
+            errors.add(label + " has a negative bound (min_x=" + minX + ", min_y=" + minY + ")");
         }
         if (maxX < minX || maxY < minY) {
-            errors.add("placement_zone is empty (min_x=" + minX + ", max_x=" + maxX
+            errors.add(label + " is empty (min_x=" + minX + ", max_x=" + maxX
                     + ", min_y=" + minY + ", max_y=" + maxY + ")");
         }
         if (restrictedOutside(width, height)) {
-            errors.add("placement_zone lies outside the " + width + "x" + height + " board (min_x="
+            errors.add(label + " lies outside the " + width + "x" + height + " board (min_x="
                     + minX + ", max_x=" + maxX + ", min_y=" + minY + ", max_y=" + maxY
-                    + "): no cell could ever be planted");
+                    + "): no cell could ever be used");
         }
         return errors;
     }

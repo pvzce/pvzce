@@ -204,6 +204,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private final PvzceClock clock = new PvzceClock();
     private final PlantAIPlayer plantAi = new PlantAIPlayer();
     /**
+     * The versus mode's opponent, built the first time a level asks for it.
+     *
+     * <p>Lazy because it owns a worker thread and an HTTP client, and every ordinary level would
+     * pay for both: only a level running {@code pvzce:versus} ever asks, and it asks on its first
+     * tick.
+     */
+    private com.pvzce.server.ai.JevBrain jevBrain;
+    /**
+     * Where Jev is for this run, or {@link com.pvzce.common.jev.JevSettings#NONE}.
+     *
+     * <p>Set by the server from the player's own settings when a level is created (and again if
+     * they change them), never read from a save: a credential is not part of a run, and a save
+     * that carried one would be a key on disk under the player's world directory.
+     */
+    private com.pvzce.common.jev.JevSettings jevSettings = com.pvzce.common.jev.JevSettings.NONE;
+    /**
      * Where this level's cards come from: the ordinary deck, a conveyor belt, or whatever
      * a registered mechanic deals. Never null while there is a plant player.
      *
@@ -510,12 +526,51 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
                        List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard) {
-        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, null);
+        // Cast because the sixth argument is otherwise ambiguous between "no side chosen" and "no
+        // fixed random seed", and the two nulls mean genuinely different things.
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, (Identifier) null);
+    }
+
+    /**
+     * Creates a level for a player who has said which side they are on.
+     *
+     * <p>A level with more than one playable side is a real question ({@code
+     * LevelDef.playableTeams}), and the answer has to reach the constructor rather than be applied
+     * afterwards: the side decides the seat, the card bar and the win condition, and a level built
+     * for the plant side and then re-seated would have to rebuild all three. {@code null} means
+     * "nobody was asked", which is the level's own first playable side.
+     *
+     * @param humanTeam the side the player chose, or {@code null} for the level's default
+     */
+    public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                       List<Identifier> selectedBuffs,
+                       java.util.function.Predicate<Identifier> ownsCard, Identifier humanTeam) {
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, null, humanTeam);
+    }
+
+    /**
+     * Creates a level with a fixed random seed; see the constructor below for the team.
+     *
+     * <p>Package-private because the seed is a test's business: a run's own randomness comes from
+     * the level, and the only caller that wants to pin it is a test that has to see the same board
+     * twice.
+     */
+    LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
+                long randomSeed, Identifier humanTeam) {
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, Long.valueOf(randomSeed),
+                humanTeam);
     }
 
     private LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
                         List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
                         Long randomSeed) {
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, randomSeed, null);
+    }
+
+    private LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                        List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
+                        Long randomSeed, Identifier requestedTeam) {
         if (randomSeed != null) random.setSeed(randomSeed);
         this.def = def;
         this.ownsCard = ownsCard == null ? card -> true : ownsCard;
@@ -574,7 +629,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // level before I, Zombie says the plant team, and a level that lists the zombie team
         // instead is played from the other end. Seated here rather than per packet so the seat,
         // the card bar and the win condition are all the same fact.
-        Identifier humanTeam = def.humanTeam();
+        // The player's own answer when there is one, otherwise the level's first playable side.
+        // A team the level does not declare is treated as no answer rather than trusted: it would
+        // otherwise seat the player on a side that has no team object at all.
+        Identifier requested = requestedTeam != null && teams.containsKey(requestedTeam)
+                ? requestedTeam : null;
+        Identifier humanTeam = requested != null ? requested : def.humanTeam();
         this.humanTeamId = teams.containsKey(humanTeam) ? humanTeam : PvzceIds.PLANT_TEAM;
         Team human = teams.get(this.humanTeamId);
         // The level owns the bar; the card source fills it. A self-dealt level (a conveyor
@@ -662,8 +722,26 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
     }
 
+    /**
+     * The bar this run starts with, when the caller did not resolve one.
+     *
+     * <p>Two fallbacks, in order. The level's own {@code slots} is the older one and still the
+     * ordinary case. The newer one is the versus mode: a versus level's {@code slots} is
+     * deliberately empty - its two decks live in the mode's block, because which of them is the
+     * player's depends on the side they chose - and a caller that built the level without going
+     * through {@code SeedSelection.plan} (a test, the editor's preview, a future entry point) would
+     * otherwise hand the player an empty card bar. Reading it here as well as there costs one
+     * lookup and makes the level self-sufficient: a versus level always has a bar.
+     */
     private List<Identifier> selectedSlotsOrDef(List<Identifier> selectedSlots) {
         List<Identifier> cards = selectedSlots == null ? def.slots() : selectedSlots;
+        if (cards == null || cards.isEmpty()) {
+            com.pvzce.api.content.VersusData versus =
+                    com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).orElse(null);
+            if (versus != null) {
+                cards = versus.cardsFor(humanTeamId);
+            }
+        }
         return cards == null ? List.of() : cards;
     }
 
@@ -967,6 +1045,30 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
     }
 
+    /** The versus mode's opponent; built on first use, so ordinary levels never pay for it. */
+    public com.pvzce.server.ai.JevBrain jevBrain() {
+        if (jevBrain == null) {
+            jevBrain = new com.pvzce.server.ai.JevBrain();
+        }
+        return jevBrain;
+    }
+
+    public com.pvzce.common.jev.JevSettings jevSettings() {
+        return jevSettings;
+    }
+
+    /**
+     * Hands this run the credential its opponent should be reached with.
+     *
+     * <p>Called when the level is created and whenever the player edits their settings, so a key
+     * pasted mid-run starts working on the next decision instead of on the next level. An
+     * unconfigured value is a real setting (it is how a player says "use the built-in opponent"),
+     * which is why it is not ignored here - the caller decides where a value came from.
+     */
+    public void setJevSettings(com.pvzce.common.jev.JevSettings settings) {
+        this.jevSettings = settings == null ? com.pvzce.common.jev.JevSettings.NONE : settings;
+    }
+
     public String gameState() {
         return gameState;
     }
@@ -1176,6 +1278,32 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 && LevelMechanics.canPlacePlant(mechanics, this, def, x, y)
                 && (mutations == null || mutations.canPlacePlant(def, x, y))
                 && PlantPlacement.canPlace(def, placementContext, x, y);
+    }
+
+    /**
+     * Whether the zombie side may spend a card on this cell.
+     *
+     * <p>The mirror of {@link #canPlacePlant} and deliberately much shorter: a zombie is not placed
+     * <em>on</em> anything, so there is no terrain or stacking to consult - only the level's own
+     * zombie zone. It is the one gate the player's placement and the opponent's decisions share, so
+     * "zombies only on the right four columns" cannot be a rule one of them follows.
+     */
+    public boolean canPlaceZombie(int x, int y) {
+        return inBounds(x, y) && LevelMechanics.canPlaceZombie(mechanics, this, x, y);
+    }
+
+    /** True when the level's plantable area covers this column at all; asked by the plant AI. */
+    public boolean plantZoneContains(int x) {
+        com.pvzce.api.content.PlacementZone zone = LevelMechanics.zoneOf(mechanics,
+                PvzceIds.MECHANIC_PLACEMENT_ZONE);
+        return x >= zone.minX() && x <= zone.maxX();
+    }
+
+    /** The zombie side's twin of {@link #plantZoneContains}. */
+    public boolean zombieZoneContains(int x) {
+        com.pvzce.api.content.PlacementZone zone = LevelMechanics.zoneOf(mechanics,
+                PvzceIds.MECHANIC_ZOMBIE_ZONE);
+        return x >= zone.minX() && x <= zone.maxX();
     }
 
     /**
@@ -1586,7 +1714,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (target == null) {
             return false;
         }
-        return collectResourceInternal(target, drop.id(), true, true);
+        // The drop's own team collects it: a gold magnet cannot pick up the other side's sun, and a
+        // versus level's AI-driven plant side collects exactly the sun that is its own.
+        return collectResourceFor(target, drop.id(), true, true, drop.team());
     }
 
     /**
@@ -3755,6 +3885,30 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         markEnd(teams.get(PvzceIds.ZOMBIE_TEAM));
     }
 
+    /**
+     * The versus mode's other ending: the plant side has collected the sun it was racing for.
+     *
+     * <p>A public door rather than the mechanic calling into the winner bookkeeping itself, so
+     * "the plant side has won" is stated in the same place as every other way a run ends - and so a
+     * mechanic never has to know what {@code markEnd} does to the game state, the client's outcome
+     * or the wave warning.
+     */
+    public void plantGoalReached() {
+        markEnd(teams.get(PvzceIds.PLANT_TEAM));
+    }
+
+    /**
+     * Reports that a zombie just ate a plant out of existence.
+     *
+     * <p>Called from the bite itself rather than from the removal path, because only the bite knows
+     * <em>who</em> did it: a shovel, an explosion and a plant that a level removed all end the same
+     * way and none of them is eating. The versus mode's refund is the reason this exists; it is a
+     * general hook so a mod's mechanic can key off the same fact without another callback.
+     */
+    public void plantConsumed(Team eater, com.pvzce.server.entity.PlantEntity plant) {
+        LevelMechanics.onPlantConsumed(mechanics, this, eater, plant);
+    }
+
     /** Zombies killed this run, for the end-of-level summary. */
     public int zombieKills() {
         return zombieKills;
@@ -4156,24 +4310,54 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     private boolean collectResourceInternal(ServerBridge bridge, int entityId, boolean silent,
                                             boolean auto) {
-        if (!gameState.equals(GameStateS2C.RUNNING) || !humanTeamId.equals(PvzceIds.PLANT_TEAM) || plantPlayer == null) {
+        // The human's click: whoever the player is. A player on the zombie side has no collection
+        // to do - their income is the versus mode's own - so this is the plant team or nobody.
+        if (!gameState.equals(GameStateS2C.RUNNING) || !humanTeamId.equals(PvzceIds.PLANT_TEAM)
+                || plantPlayer == null) {
             return false;
         }
+        return collectResourceFor(bridge, entityId, silent, auto, plantPlayer.team());
+    }
+
+    /**
+     * Credits one drop to the team that owns it, through every rule a click goes through.
+     *
+     * <p>The team is a parameter because a versus level's plant side may be the <em>opponent</em>:
+     * an AI cannot click, and its whole win condition is collecting sun, so it collects its own
+     * drops through this path rather than through a second, weaker set of rules. The ownership
+     * check is what keeps that honest - a drop belongs to a team, and a team collects only what is
+     * its own.
+     *
+     * <p>The resource-card rule applies to the human and not to an AI: the card bar is how a player
+     * proves they may collect, and an opponent has no bar. Everything else - is the resource
+     * collectible at all, has this level unlocked it, the sparkle, the sound, the bank animation -
+     * is the same for both, which is the point.
+     */
+    private boolean collectResourceFor(ServerBridge bridge, int entityId, boolean silent, boolean auto,
+                                       Team collector) {
+        if (collector == null) {
+            return false;
+        }
+        boolean humanCollector = collector.id().equals(humanTeamId) && plantPlayer != null
+                && plantPlayer.team() == collector;
         for (PvzceEntity entity : entities) {
             if (entity.id() != entityId || !(entity instanceof ResourceDropEntity drop) || drop.isRemoved()) {
                 continue;
+            }
+            if (!collector.equals(drop.team())) {
+                return false;
             }
             if (!drop.def().collectible()) {
                 return false;
             }
             if (!drop.def().collectibleWithoutCard()) {
-                if (!plantPlayer.team().canCollect(drop.defId())) {
-                    if (!auto) {
+                if (!collector.canCollect(drop.defId())) {
+                    if (!auto && humanCollector) {
                         bridge.send(new ServerMessageS2C("该资源在本关未解锁。"));
                     }
                     return false;
                 }
-                if (!plantPlayer.hasResourceCard(drop.defId())) {
+                if (humanCollector && !plantPlayer.hasResourceCard(drop.defId())) {
                     if (!auto) {
                         bridge.send(new ServerMessageS2C("没有对应资源卡，无法收集。"));
                     }
@@ -4181,7 +4365,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 }
             }
             drop.markCollected();
-            plantPlayer.team().addResource(drop.defId(), drop.amount());
+            collector.addResource(drop.defId(), drop.amount());
             // The sparkle belongs to the resource, not to "collecting": a sun is the thing the
             // whole game is played with and gets a flash to match, while a coin is small change
             // and would wash the lawn in light. A resource that names no effect gets none -
@@ -4199,10 +4383,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     drop.cellX(), drop.cellY(), drop.height(),
                     drop.def().icon() == null ? "" : drop.def().icon().toString()));
             bridge.send(new EntityDespawnS2C(drop.id()));
-            bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(), drop.defId().toString(),
-                    plantPlayer.team().resourcesOf(drop.defId())));
+            bridge.send(new ResourceDeltaS2C(collector.id().toString(), drop.defId().toString(),
+                    collector.resourcesOf(drop.defId())));
+            // After the credit and before the receipt: the observers (the versus mode's sun race)
+            // count what actually reached a wallet, not what a player aimed at.
+            LevelMechanics.onResourceCollected(mechanics, this, collector, drop.defId(),
+                    drop.amount());
             String label = drop.defId().path().equals("sun") ? "阳光" : drop.defId().toString();
-            if (!silent) {
+            if (!silent && humanCollector) {
                 bridge.send(new ServerMessageS2C("+" + drop.amount() + " " + label));
             }
             return true;
@@ -4320,6 +4508,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         if (!inBounds(x, y)) {
             bridge.send(new ServerMessageS2C("不能在草坪外放僵尸。"));
+            return false;
+        }
+        // The level's own zombie zone, through the same gate the opponent's decisions go through:
+        // "zombies only on the right four columns" has to be true of the player as well, and a
+        // hand-written packet must not be able to place one in the flowerbeds.
+        //
+        // The refusal is a **language key**, not a sentence: the server has no translations, and a
+        // line of Chinese here would be one more string no resource pack can reach. The client
+        // resolves a message that names a key it knows (see `PvzceClient.onServerMessage`).
+        if (!LevelMechanics.canPlaceZombie(mechanics, this, x, y)) {
+            bridge.send(new ServerMessageS2C("gui.pvzce.versus.zombie_zone"));
             return false;
         }
         if (!slot.ready()) {
@@ -5733,6 +5932,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * survives the restart.
      */
     public void shutdown() {
+        if (jevBrain != null) {
+            // The worker thread and its HTTP client belong to this run's opponent, and a level the
+            // player has left must not keep either alive.
+            jevBrain.close();
+            jevBrain = null;
+        }
         bridge = null;
         gameState = "closed";
         pendingAdd.clear();
@@ -5751,9 +5956,28 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private static final String KEY_ENTITIES = "Entities";
     private static final String KEY_KIND = "Kind";
 
+    /**
+     * Which side a saved run was played from, or the level's own default.
+     *
+     * <p>A static on the level rather than a field on a save DTO: the answer is needed before a
+     * level exists (the side is a constructor input), and it is a fact about the save file, not
+     * about a running level.
+     */
+    public static Identifier humanTeamFromSave(LevelDef def, CompoundTag root) {
+        if (def == null || root == null || !root.contains("HumanTeam")) {
+            return def == null ? PvzceIds.PLANT_TEAM : def.humanTeam();
+        }
+        Identifier saved = Identifier.tryParse(root.getString("HumanTeam"));
+        return saved == null ? def.humanTeam() : saved;
+    }
+
     public CompoundTag save() {
         CompoundTag root = new CompoundTag();
         root.putString("LevelId", def.id().toString());
+        // Which side this run is being played from. It is not a preference the player can change
+        // mid-run, and a save that did not carry it would resume a versus match with the two sides
+        // swapped - the board is the same, but "which cards are mine" and "who wins" are not.
+        root.putString("HumanTeam", humanTeamId.toString());
         root.putString("GameState", gameState);
         if (winner != null) {
             root.putString("Winner", winner.toString());
@@ -5903,6 +6127,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * Restores a running save: tick/time, wave meter, teams, cards, scene and
      * every entity snapshot. Only saves with {@code GameState=running} are
      * restored; finished games restart fresh.
+     */
+    /**
+     * Reads a run back into this level.
+     *
+     * <p>The save's {@code HumanTeam} is deliberately <em>not</em> applied here: the side decides
+     * the seat and the card bar at construction time, so the caller that is resuming a versus run
+     * has to read it first and construct the level with it - see
+     * {@link #humanTeamFromSave(LevelDef, CompoundTag)}. Re-seating a built level would leave it
+     * with the other side's bar.
      */
     public void restore(CompoundTag root) {
         if (!root.contains("GameState") || !GameStateS2C.RUNNING.equals(root.getString("GameState"))) {

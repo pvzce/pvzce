@@ -118,6 +118,35 @@ public class EditBox extends AbstractWidget {
         }
     }
 
+    /**
+     * Appends pasted text, up to the field's limit.
+     *
+     * <p>Control characters are dropped rather than inserted: a paste from a terminal or a web page
+     * regularly carries a trailing newline, and a one-line field that shows nothing for it would
+     * look like the paste had half failed. Everything past {@link #maxLength} is dropped for the
+     * same reason a typed character there is: the field has one length, and it is the one it draws.
+     *
+     * @return true when at least one character was taken
+     */
+    public boolean appendText(String text) {
+        if (text == null || text.isEmpty() || !active || !visible) {
+            return false;
+        }
+        boolean changed = false;
+        for (int i = 0; i < text.length() && value.length() < maxLength; i++) {
+            char ch = text.charAt(i);
+            if (ch < 32 || ch == 127) {
+                continue;
+            }
+            value += ch;
+            changed = true;
+        }
+        if (changed) {
+            notifyValueChanged();
+        }
+        return changed;
+    }
+
     public void setValueChangedListener(Runnable onValueChanged) {
         this.onValueChanged = onValueChanged;
     }

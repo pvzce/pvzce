@@ -140,6 +140,19 @@ public final class PvzceClientConfig {
      */
     private com.pvzce.client.input.KeyBindings keyBindings =
             com.pvzce.client.input.KeyBindings.defaults();
+    /**
+     * Where Jev is, and with which key.
+     *
+     * <p>A client preference like the volume: it is about this player's account, not about a world
+     * or a run, and it travels to the server with the level entry ({@code JevSettingsC2S}) rather
+     * than being written into any save. The URL and the model default to the provider that was
+     * verified while this was built, so a player who has a key only has to paste the key - but both
+     * are editable, because the endpoint is not one service and the players are not all on the same
+     * one.
+     */
+    private String jevUrl = com.pvzce.common.jev.JevSettings.DEFAULT_URL;
+    private String jevModel = com.pvzce.common.jev.JevSettings.DEFAULT_MODEL;
+    private String jevKey = "";
     private Path file;
 
     public static PvzceClientConfig load(Path gameDir) {
@@ -167,6 +180,10 @@ public final class PvzceClientConfig {
                 config.language = getString(toml, "language", DEFAULT_LANGUAGE);
                 config.onboarded = getBoolean(toml, "onboarded", true);
                 config.keyBindings = com.pvzce.client.input.KeyBindings.from(readKeys(toml));
+                config.jevUrl = getString(toml, "jev_url", com.pvzce.common.jev.JevSettings.DEFAULT_URL);
+                config.jevModel = getString(toml, "jev_model",
+                        com.pvzce.common.jev.JevSettings.DEFAULT_MODEL);
+                config.jevKey = getString(toml, "jev_key", "");
             } else {
                 config.save();
             }
@@ -245,6 +262,11 @@ public final class PvzceClientConfig {
                     + "\nlast_world = \"" + lastWorld + "\""
                     + "\nlanguage = \"" + language + "\""
                     + "\nonboarded = " + onboarded + "\n"
+                    // The key is written here because that is where the player put it; the log
+                    // never prints this file's contents, and nothing else copies the key anywhere.
+                    + "\njev_url = \"" + jevUrl + "\""
+                    + "\njev_model = \"" + jevModel + "\""
+                    + "\njev_key = \"" + jevKey + "\"\n"
                     + "\n[keys]\n"
                     + keyBinds();
             Files.writeString(file, content);
@@ -432,5 +454,45 @@ public final class PvzceClientConfig {
 
     public void setLastWorld(String lastWorld) {
         this.lastWorld = WorldPaths.sanitize(lastWorld);
+    }
+
+    /** The Jev endpoint this client points the server at; never blank. */
+    public String jevUrl() {
+        return jevUrl;
+    }
+
+    public void setJevUrl(String url) {
+        this.jevUrl = url == null || url.isBlank()
+                ? com.pvzce.common.jev.JevSettings.DEFAULT_URL : url.trim();
+    }
+
+    /** The provider's model name; never blank. */
+    public String jevModel() {
+        return jevModel;
+    }
+
+    public void setJevModel(String model) {
+        this.jevModel = model == null || model.isBlank()
+                ? com.pvzce.common.jev.JevSettings.DEFAULT_MODEL : model.trim();
+    }
+
+    /** The bearer token, or empty when this player has not set one up. */
+    public String jevKey() {
+        return jevKey;
+    }
+
+    public void setJevKey(String key) {
+        this.jevKey = key == null ? "" : key.trim();
+    }
+
+    /**
+     * The credential as one value, for the packet that hands it over.
+     *
+     * <p>Built here rather than by the caller so "the client's settings" and "what the server is
+     * told" are the same three values in the same order, and so there is one place that knows a
+     * blank key means the built-in opponent.
+     */
+    public com.pvzce.common.jev.JevSettings jevSettings() {
+        return new com.pvzce.common.jev.JevSettings(jevUrl, jevModel, jevKey);
     }
 }

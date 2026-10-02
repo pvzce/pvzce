@@ -613,6 +613,14 @@ public class ZombieEntity extends PvzceEntity {
                     * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
             plant.damageFrom(damage);
         }
+        // A plant that is gone after this bite was eaten, and the level is told so: the versus
+        // mode pays the eater's side for it, and nothing else can answer "who ate it" - a shovel,
+        // an explosion and the level's own removals all end a plant with no mouth involved.
+        // Asked after the bite rather than predicted from its damage, because a plant may answer a
+        // bite without taking damage (`onBittenBy`) and is still consumed by it.
+        if (plant.isRemoved()) {
+            level.plantConsumed(team(), plant);
+        }
         // The bite is the sound and the plant losing health, and nothing else. It used to fire
         // `pvzce:chomp` - the puff-shroom's eight big spore puffs - at the plant, which put a
         // purple cloud on the lawn for every bite any zombie ever took.

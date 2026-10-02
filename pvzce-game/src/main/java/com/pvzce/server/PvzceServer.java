@@ -5,6 +5,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.api.util.LevelGrouping;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.jev.JevSettings;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.Connection;
 import com.pvzce.common.network.PacketListener;
@@ -979,7 +980,12 @@ public final class PvzceServer implements Runnable {
      */
     private void createLevel(String levelId, String worldName, LevelIntent intent,
                              List<Identifier> requestedSeeds) {
-        createLevel(levelId, worldName, intent, requestedSeeds, null);
+        createLevel(levelId, worldName, intent, requestedSeeds, null, null);
+    }
+
+    private void createLevel(String levelId, String worldName, LevelIntent intent,
+                             List<Identifier> requestedSeeds, List<Identifier> requestedBuffs) {
+        createLevel(levelId, worldName, intent, requestedSeeds, requestedBuffs, null);
     }
 
     /**
@@ -987,8 +993,47 @@ public final class PvzceServer implements Runnable {
      *                       every entry point that has no chooser behind it - in which case the
      *                       world's auto list decides (see {@code LevelBuffSelection.plan})
      */
+    /**
+     * Where Jev is for this server, or {@link JevSettings#NONE}.
+     *
+     * <p>Two doors into one field, and the order between them is the whole rule: a launch argument
+     * ({@code -Dpvzce.jev.url} / {@code -Dpvzce.jev.key}) is a statement about <em>this server</em>
+     * and a client's settings are a statement about the player, so the launch argument wins and the
+     * client cannot overwrite it. That is what lets a headless run or a smoke test drive a real
+     * opponent while the client on the same machine has nothing configured.
+     */
+    private JevSettings jevSettings = JevSettings.fromSystemProperties();
+    private final boolean jevFromLaunchArguments = jevSettings.configured();
+
+    /** The client's own Jev settings; ignored when this server was launched with its own. */
+    public void setJevSettings(JevSettings settings) {
+        if (jevFromLaunchArguments) {
+            LOGGER.info("Ignoring the client's Jev settings: this server was launched with {}",
+                    jevSettings.redacted());
+            return;
+        }
+        jevSettings = settings == null ? JevSettings.NONE : settings;
+        LOGGER.info("Jev settings from the client: {}", jevSettings.redacted());
+        if (level != null) {
+            level.setJevSettings(jevSettings);
+        }
+    }
+
+    /** Carries the credential into one run; called wherever a level is created. */
+    private void applyJevSettings(LevelServer target) {
+        if (target != null) {
+            target.setJevSettings(jevSettings);
+        }
+    }
+
+    /**
+     * @param requestedTeam the side the player chose when the level offered more than one, or
+     *                      {@code null} when nobody was asked - which is every level with a single
+     *                      playable side, and every caller that is not a menu
+     */
     private void createLevel(String levelId, String worldName, LevelIntent intent,
-                             List<Identifier> requestedSeeds, List<Identifier> requestedBuffs) {
+                             List<Identifier> requestedSeeds, List<Identifier> requestedBuffs,
+                             Identifier requestedTeam) {
         Identifier id = Identifier.parse(levelId);
         LevelDef def = BuiltInRegistries.LEVELS.get(id);
         if (def == null) {
@@ -1045,12 +1090,32 @@ public final class PvzceServer implements Runnable {
             WorldStore.deleteRunningSave(saveDir);
         }
 
+        // The save is read *before* the level exists, because it answers a constructor input: which
+        // side this run is being played from. A level built for the plant side and then re-seated
+        // would keep the plant side's card bar, and "my cards are the other side's" is not a bug
+        // anyone would diagnose from the symptom. A save that cannot be read is treated exactly as
+        // it was before - as no save at all - and the side then comes from the request.
+        CompoundTag saveTag = null;
+        boolean loadedSave = false;
+        if (loadSave) {
+            try {
+                saveTag = worlds.readLevelSave(saveDir);
+                loadedSave = true;
+            } catch (Throwable t) {
+                LOGGER.warn("Failed to read save; treating the level as not started.", t);
+                WorldStore.deleteRunningSave(saveDir);
+                saveTag = null;
+                loadedSave = false;
+            }
+        }
+        Identifier humanTeam = loadedSave ? LevelServer.humanTeamFromSave(def, saveTag) : requestedTeam;
+
         // A level whose card source deals its own cards - a conveyor belt - never takes a
         // seed selection: the level's own cards would be a second source for the same bar,
         // and its save holds the cards it was carrying, which the source restores itself.
         boolean selfDealt = com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
         List<Identifier> seeds = SeedSelection.plan(def, profile, requestedSeeds, saveDir, loadSave,
-                selfDealt);
+                selfDealt, humanTeam);
         // Resolved here rather than in the level, because "continue a save" and "the player's
         // world-wide auto list" are both things a level instance cannot know. The list is then
         // remembered as the world's new auto list - see below.
@@ -1058,7 +1123,10 @@ public final class PvzceServer implements Runnable {
                 requestedBuffs, profile.autoBuffs(), saveDir, loadSave, profile::ownsBuff);
 
         LevelServer newLevel = new LevelServer(def, seeds,
-                LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard);
+                LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard, humanTeam);
+        // The opponent's credential, for the runs that have one: handed in before the first tick,
+        // so the very first decision of a versus level already knows where Jev is.
+        applyJevSettings(newLevel);
         // "The buffs I last went in with." Written from the resolved list, so a buff the level
         // refused never becomes a preference and a buff the level pinned joins it for the levels
         // that leave the choice open. Skipped while a save is being loaded: that run's buffs were
@@ -1074,20 +1142,10 @@ public final class PvzceServer implements Runnable {
         // Entering/restarting a level always starts at the normal 60tps speed.
         tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE);
 
-        CompoundTag saveTag = null;
-        boolean loadedSave = false;
-        if (loadSave) {
-            try {
-                saveTag = worlds.readLevelSave(saveDir);
-                newLevel.restore(saveTag);
-                loadedSave = true;
-                LOGGER.info("Restored {} plants from {}", saveTag.getInt("PlantCount"), saveDir);
-                connection.send(new ServerMessageS2C("已从存档继续 " + def.displayName()));
-            } catch (Throwable t) {
-                LOGGER.warn("Failed to read save; treating the level as not started.", t);
-                WorldStore.deleteRunningSave(saveDir);
-                saveTag = null;
-            }
+        if (loadedSave) {
+            newLevel.restore(saveTag);
+            LOGGER.info("Restored {} plants from {}", saveTag.getInt("PlantCount"), saveDir);
+            connection.send(new ServerMessageS2C("已从存档继续 " + def.displayName()));
         }
 
         if (this.level != null && this.level != newLevel) {
@@ -1274,9 +1332,9 @@ public final class PvzceServer implements Runnable {
         Identifier id = currentLevelId != null ? currentLevelId : current.def().id();
         Path worldDir = WorldPaths.worldDir(gameDir, currentWorld);
         try {
-            boolean plantWin = RewardSettlement.isPlantWin(current);
-            boolean firstClear = plantWin && !worlds.isCompleted(currentWorld, id);
-            if (plantWin) {
+            boolean playerWin = RewardSettlement.isPlayerWin(current);
+            boolean firstClear = playerWin && !worlds.isCompleted(currentWorld, id);
+            if (playerWin) {
                 worlds.writeCompletion(worldDir, id, current.winner(), current.tickCount(), current.plantCount());
             }
             WorldStore.deleteRunningSave(LevelKey.levelDir(worldDir, id));
@@ -1284,7 +1342,7 @@ public final class PvzceServer implements Runnable {
             // Banks the run and pushes a fresh level list - after the running save is
             // gone, because that file IS the "进行中" label: refreshing first described
             // the level as still resumable, which is the opposite of what just happened.
-            awardProfile(id, current, plantWin, firstClear);
+            awardProfile(id, current, playerWin, firstClear);
         } catch (Throwable t) {
             LOGGER.error("Failed to finish level " + id, t);
         }
@@ -1296,10 +1354,10 @@ public final class PvzceServer implements Runnable {
      * <p>The rules themselves live in {@link RewardSettlement}; this is the wiring around them -
      * which world's profile, saving it once, and the packets that describe the outcome.
      */
-    private void awardProfile(Identifier id, LevelServer current, boolean plantWin, boolean firstClear) {
+    private void awardProfile(Identifier id, LevelServer current, boolean playerWin, boolean firstClear) {
         PlayerProfile profile = worlds.profileFor(currentWorld);
         RewardSettlement.Payout payout =
-                RewardSettlement.settle(current, profile, plantWin, firstClear);
+                RewardSettlement.settle(current, profile, playerWin, firstClear);
         worlds.saveProfile(currentWorld, profile);
         // The award screen is presentation; the wallet is already written above, so
         // a client that never renders the screen still got its coins.
@@ -1326,6 +1384,17 @@ public final class PvzceServer implements Runnable {
         return seeds;
     }
 
+    /**
+     * The side a client says it chose, or {@code null} when it did not say.
+     *
+     * <p>Blank and unparseable are both "no answer" rather than an error: the field is empty on
+     * every ordinary level, and a malformed one has the same correct outcome - the level's own
+     * first playable side - which the level itself then decides.
+     */
+    private static Identifier teamId(String raw) {
+        return raw == null || raw.isBlank() ? null : Identifier.tryParse(raw);
+    }
+
     private final class ServerPacketListener implements PacketListener {
         @Override
         public void handle(PvzcePacket packet) {
@@ -1340,10 +1409,11 @@ public final class PvzceServer implements Runnable {
                     savePromptPending = false;
                     return;
                 }
-                createLevel(request.levelId(), request.worldName(), LevelIntent.CONTINUE, null);
+                createLevel(request.levelId(), request.worldName(), LevelIntent.CONTINUE, null,
+                        null, null);
             } else if (packet instanceof RestartLevelC2S restart) {
                 createLevel(restart.levelId(), restart.worldName(), LevelIntent.RESTART,
-                        seedIds(restart.selectedSeeds()));
+                        seedIds(restart.selectedSeeds()), null, teamId(restart.humanTeam()));
             } else if (packet instanceof PlayLevelC2S play) {
                 // The seed chooser's 开始游戏. From the level list (restart=false) a save on
                 // disk means the player closed the game mid-run: it is loaded and asked about
@@ -1351,7 +1421,7 @@ public final class PvzceServer implements Runnable {
                 // (restart=true) the player has already turned that save down.
                 LevelIntent intent = play.restart() ? LevelIntent.PLAY_OVER_SAVE : LevelIntent.PLAY;
                 createLevel(play.levelId(), play.worldName(), intent, seedIds(play.selectedSeeds()),
-                        seedIds(play.selectedBuffs()));
+                        seedIds(play.selectedBuffs()), teamId(play.humanTeam()));
             } else if (packet instanceof RequestLevelListC2S request) {
                 lastRequestedWorld = request.worldName();
                 sendLevelList(request.worldName());
@@ -1381,6 +1451,8 @@ public final class PvzceServer implements Runnable {
                 connection.send(new GameSpeedS2C(tickRate.tickRate()));
             } else if (packet instanceof com.pvzce.common.network.packet.ChatC2S chat) {
                 say(chat.text());
+            } else if (packet instanceof com.pvzce.common.network.packet.JevSettingsC2S jev) {
+                setJevSettings(new JevSettings(jev.url(), jev.model(), jev.key()));
             } else if (packet instanceof SetDifficultyC2S difficulty) {
                 setDifficulty(difficulty.difficulty());
             } else if (packet instanceof PauseGameC2S pause) {

@@ -345,7 +345,16 @@ public class Dialog extends AbstractWidget {
         return visible && modal;
     }
 
-    @Override
+    /** Offers pasted text to this dialog's own fields; see {@code Screen.pasteText}. */
+    public boolean pasteText(String text) {
+        for (AbstractWidget child : children) {
+            if (child instanceof EditBox box && box.appendText(text)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean charTyped(char codepoint) {
         for (AbstractWidget child : children) {
             if (child.charTyped(codepoint)) {

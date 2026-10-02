@@ -4,6 +4,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.client.animation.AnimationManager;
 import com.pvzce.client.config.PvzceClientConfig;
 import com.pvzce.client.gui.DebugOverlay;
+import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.config.ConfigBuilder;
@@ -594,6 +595,7 @@ public final class PvzceClient {
      * answer to a click was invisible until they entered a level.
      */
     public void onServerMessage(String message) {
+        message = localizeServerMessage(message);
         lastServerMessage = message == null ? "" : message;
         lastServerMessageNanos = System.nanoTime();
         serverMessageCount++;
@@ -601,6 +603,23 @@ public final class PvzceClient {
             packReloadPending = false;
             reloadContent();
         }
+    }
+
+    /**
+     * Translates a server line that is addressed by language key instead of by sentence.
+     *
+     * <p>The server has no translations, so a line the player must be able to read - "that cell is
+     * outside your placement zone" - is sent as the key and resolved here, which is the rule the
+     * code style asks for ("服务端下发的玩家可见文本必须走 key + 参数，不得内联中文"). Anything that is
+     * not a known key is a sentence the server wrote, and passes through untouched, so every
+     * existing message behaves exactly as before.
+     */
+    private static String localizeServerMessage(String message) {
+        if (message == null || message.isEmpty()) {
+            return message;
+        }
+        String translated = GuiLang.lookup(message);
+        return translated == null ? message : translated;
     }
 
     /** The last server line while it is still fresh, otherwise an empty string. */
@@ -708,6 +727,23 @@ public final class PvzceClient {
                 navigateBack();
                 screen = currentScreen();
                 continue;
+            }
+            // Ctrl/Cmd+V pastes into whatever field has the keyboard. Handled here rather than in
+            // the field because the clipboard belongs to the window, and it is checked before the
+            // screen's own key handling so a bound action on V cannot swallow it while typing.
+            // An API key is forty random characters: a settings page that could only be typed into
+            // would be a settings page nobody finishes.
+            if (key == GLFW.GLFW_KEY_V && (window.isKeyDown(GLFW.GLFW_KEY_LEFT_CONTROL)
+                    || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_CONTROL)
+                    || window.isKeyDown(GLFW.GLFW_KEY_LEFT_SUPER)
+                    || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_SUPER))) {
+                String pasted = window.clipboard();
+                boolean taken = overlay != null
+                        ? overlay.pasteText(pasted)
+                        : currentScreen().pasteText(pasted);
+                if (taken) {
+                    continue;
+                }
             }
             // A tool hotkey or a chat line needs the level's own screen, so the in-game screen
             // gets first refusal on every bound action it knows how to answer.
@@ -2175,9 +2211,27 @@ public final class PvzceClient {
      * seed chooser would produce for a level that fixes its whole deck.
      */
     public void requestLevel(String levelId, boolean restart) {
+        syncJevSettings();
         connection.send(restart
-                ? new RestartLevelC2S(levelId, currentWorld, List.of())
+                ? new RestartLevelC2S(levelId, currentWorld, List.of(), pendingHumanTeam)
                 : new ContinueLevelC2S(levelId, currentWorld));
+    }
+
+    /**
+     * Hands the server this player's Jev settings, if they have any.
+     *
+     * <p>Sent before every level entry rather than once at startup: a server that was restarted, or
+     * one that this client connected to after the settings were last edited, has to have the
+     * credential before the run that needs it, and the entry is the last moment that is still true.
+     * Nothing is sent when no key is configured - an empty value would be a statement that could
+     * overwrite a server launched with its own.
+     */
+    public void syncJevSettings() {
+        com.pvzce.common.jev.JevSettings settings = config.jevSettings();
+        if (settings.configured()) {
+            connection.send(new com.pvzce.common.network.packet.JevSettingsC2S(
+                    settings.url(), settings.model(), settings.key()));
+        }
     }
 
     /**
@@ -2188,10 +2242,21 @@ public final class PvzceClient {
      * there is no chooser, the level's opening dialogue has to play in game, and the
      * pending id is what carries that decision across the round trip.
      */
+    /**
+     * The side the player chose for the level they are entering, or blank.
+     *
+     * <p>Carried across the pre-game screens rather than passed down through them: the card screen
+     * makes its own decision about the bar, and a second constructor argument through three screens
+     * would be the same fact written three more times. Cleared by every entrance (the level list, the
+     * setup screen, a restart), so it is never a leftover answer about the previous level.
+     */
+    private String pendingHumanTeam = "";
+
     void requestFreshRunDirectly(String levelId, boolean restart) {
         directDialogueLevelId = levelId;
+        syncJevSettings();
         connection.send(restart
-                ? new RestartLevelC2S(levelId, currentWorld, List.of())
+                ? new RestartLevelC2S(levelId, currentWorld, List.of(), pendingHumanTeam)
                 : new ContinueLevelC2S(levelId, currentWorld));
     }
 
@@ -2297,8 +2362,9 @@ public final class PvzceClient {
      */
     public void startLevelWithSeedsAndBuffs(String levelId, boolean restart,
                                             List<String> selectedSeeds, List<String> selectedBuffs) {
+        syncJevSettings();
         connection.send(new PlayLevelC2S(levelId, currentWorld, restart,
-                List.copyOf(selectedSeeds), List.copyOf(selectedBuffs)));
+                List.copyOf(selectedSeeds), List.copyOf(selectedBuffs), pendingHumanTeam));
     }
 
     /**
@@ -2344,6 +2410,21 @@ public final class PvzceClient {
      * editor's 测试 all arrive here.
      */
     public void enterLevelFromMenu(LevelListS2C.LevelInfo info) {
+        enterLevelFromMenu(info, "");
+    }
+
+    /**
+     * As above, for a player who has just said which side they are playing.
+     *
+     * <p>The answer is remembered until the entry packet is sent rather than threaded through the
+     * screens in between: 关卡准备 forwards back into {@link #enterLevelFromMenu}, and between the
+     * two there may be a card screen that is not about the side at all. Every entrance sets it, so
+     * it cannot be a leftover from the last level.
+     *
+     * @param humanTeam the side's id, or blank for "the level decides"
+     */
+    public void enterLevelFromMenu(LevelListS2C.LevelInfo info, String humanTeam) {
+        pendingHumanTeam = humanTeam == null ? "" : humanTeam;
         if (info.hasRunningSave()) {
             requestLevel(info.id(), false);
         } else if (offersTeamChoice(info)) {
@@ -2807,6 +2888,10 @@ public final class PvzceClient {
      */
     public void restartCurrentLevel() {
         String levelId = level.levelId();
+        // A restart is the same matchup: the side comes from the run being left, not from the
+        // level's default, or restarting a versus match the player is losing as the zombies would
+        // hand them the plants.
+        pendingHumanTeam = level.controlledTeam();
         LevelListS2C.LevelInfo info = findLevelInfo(levelId);
         if (info == null) {
             // No registry snapshot for this level (editor/smoke entry): fall back to a

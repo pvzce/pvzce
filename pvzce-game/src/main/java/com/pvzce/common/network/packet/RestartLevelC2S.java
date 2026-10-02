@@ -19,10 +19,16 @@ import java.util.List;
  * {@link PlayLevelC2S} with {@code restart()} set on that packet instead; this one is for the
  * restart that needs no chooser.
  */
-public record RestartLevelC2S(String levelId, String worldName,
-                              List<String> selectedSeeds) implements PvzcePacket {
+public record RestartLevelC2S(String levelId, String worldName, List<String> selectedSeeds,
+                              String humanTeam) implements PvzcePacket {
     public RestartLevelC2S {
         selectedSeeds = List.copyOf(selectedSeeds);
+        humanTeam = humanTeam == null ? "" : humanTeam;
+    }
+
+    /** A restart from a caller with no side to state: the level's own default side is used. */
+    public RestartLevelC2S(String levelId, String worldName, List<String> selectedSeeds) {
+        this(levelId, worldName, selectedSeeds, "");
     }
 
     @Override
@@ -34,7 +40,8 @@ public record RestartLevelC2S(String levelId, String worldName,
     .field(RestartLevelC2S::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
     .field(RestartLevelC2S::worldName, PacketByteBuf::writeString, PacketByteBuf::readString)
     .stringList(RestartLevelC2S::selectedSeeds)
-            .build(values -> new RestartLevelC2S((String) values.get(0), (String) values.get(1), (List<String>) values.get(2)));
+    .field(RestartLevelC2S::humanTeam, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new RestartLevelC2S((String) values.get(0), (String) values.get(1), (List<String>) values.get(2), (String) values.get(3)));
 
     @Override
     public void encode(PacketByteBuf buf) {

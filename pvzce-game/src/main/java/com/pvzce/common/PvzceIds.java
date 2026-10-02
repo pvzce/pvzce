@@ -551,6 +551,25 @@ public final class PvzceIds {
     /** 节奏草坪: a chart the player plays on the keyboard, and the lanes that answer it. */
     public static final Identifier MECHANIC_RHYTHM = id("rhythm");
     /**
+     * 对战: one human against a Jev-driven opponent, on a lawn split between them.
+     *
+     * <p>The plant side races a sun total while the zombie side tries to break through. Both
+     * sides' decks, the opening sun each side gets and the zombie side's income are declared in
+     * this one block: the mode is one statement about the level rather than five blocks that have
+     * to agree with each other, and it is also the block a level is recognised by (the server
+     * reads it to know which side the opponent plays and where each side may place).
+     */
+    public static final Identifier MECHANIC_VERSUS = id("versus");
+    /**
+     * Where a level lets the zombie side put its zombies down.
+     *
+     * <p>The mirror of {@link #MECHANIC_PLACEMENT_ZONE}: that one is the plantable area, this one
+     * is the area a zombie card may be spent on. A versus level declares both, which is how
+     * "plants on the left five columns, zombies on the right four" is written down once per side
+     * instead of being a rule hidden inside either of them.
+     */
+    public static final Identifier MECHANIC_ZOMBIE_ZONE = id("zombie_zone");
+    /**
      * The mutation system: a level where the rules themselves are rewritten every so often.
      *
      * <p>The id of a mechanic with no block of its own (the same shape as

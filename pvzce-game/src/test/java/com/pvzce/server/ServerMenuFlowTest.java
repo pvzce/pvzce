@@ -91,7 +91,7 @@ class ServerMenuFlowTest {
 
             List<LevelListS2C.LevelInfo> boxes = list.levels().stream()
                     .filter(LevelListS2C.LevelInfo::isCollection).toList();
-            assertEquals(7, boxes.size(), "the seven shipped collections are rows of the list: "
+            assertEquals(8, boxes.size(), "the eight shipped collections are rows of the list: "
                     + boxes.stream().map(LevelListS2C.LevelInfo::id).toList());
             for (LevelListS2C.LevelInfo box : boxes) {
                 assertFalse(box.collection().members().isEmpty(), box.id() + " has members");

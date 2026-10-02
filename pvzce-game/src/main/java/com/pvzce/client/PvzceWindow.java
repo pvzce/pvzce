@@ -425,6 +425,24 @@ public final class PvzceWindow implements AutoCloseable {
         return GLFW.glfwGetKey(handle, key) == GLFW.GLFW_PRESS;
     }
 
+    /**
+     * The system clipboard's text, or an empty string.
+     *
+     * <p>Empty rather than null for the caller's sake: GLFW answers null both when the clipboard is
+     * empty and when there is no clipboard at all (a headless X session), and neither is a case a
+     * paste handler should have to tell apart.
+     */
+    public String clipboard() {
+        try {
+            String text = GLFW.glfwGetClipboardString(handle);
+            return text == null ? "" : text;
+        } catch (RuntimeException e) {
+            // A window that has already been destroyed, or a platform with no clipboard: a paste
+            // that does nothing is the right answer, not an exception in the input loop.
+            return "";
+        }
+    }
+
     public boolean isMouseButtonDown(int button) {
         // A smoke run holding a synthetic button: the frame loop reads the button's state to decide
         // whether a press is a click or a drag, so a synthetic press that only reached the dispatch

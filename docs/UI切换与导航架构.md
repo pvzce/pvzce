@@ -99,14 +99,14 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
        │  LevelSelectScreen     │  │ ModsScreen │  │SettingsScreen│
        │  (关卡列表 + 图鉴按钮)  │  └────────────┘  └───┬──────────┘
        └──┬──────────┬──────────┘                       │ push
-          │ push     │ push                    ┌────────▼─────────┐
-          ▼          ▼                         │ConfigScreen /    │
-   ┌────────────┐  ┌──────────────┐            │VideoSettings     │
-   │LevelSetup  │  │ EditorScreen │            └──────────────────┘
-   │(关卡准备)   │  │ (编辑器)      │            ┌───────────────┐
-   └──┬─────────┘  └──────────────┘            │ ShopScreen /  │
-      │                                         │ PackScreen    │
-      │ 开始游戏 → enterLevelFromMenu            └───────────────┘
+          │ push     │ push            ┌─────────────▼──────────────┐
+          ▼          ▼                 │ConfigScreen / VideoSettings│
+   ┌────────────┐  ┌──────────────┐    │KeybindScreen /             │
+   │LevelSetup  │  │ EditorScreen │    │JevSettingsScreen /         │
+   │(关卡准备)   │  │ (编辑器)      │    │ShopScreen / PackScreen     │
+   └──┬─────────┘  └──────────────┘    └────────────────────────────┘
+      │
+      │ 开始游戏 → enterLevelFromMenu（带上玩家选的阵营）
       ▼
    ┌──────────────────┐
    │ ChooseSeedsScreen│  （有存档：跳过这一屏；卡组没得选时是"仅预览"过场）

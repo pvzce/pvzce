@@ -133,6 +133,15 @@ public abstract class Overlay {
         }
     }
 
+    /** Offers pasted text to whichever field has the keyboard; see {@code Screen.pasteText}. */
+    public boolean pasteText(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        EditBox box = focusManager.focused();
+        return box != null && box.isFocused() && box.appendText(text);
+    }
+
     /** Forwards a click, on logical GUI coordinates. */
     public void mouseClicked(double guiX, double guiY, int button) {
         for (AbstractWidget widget : widgets) {

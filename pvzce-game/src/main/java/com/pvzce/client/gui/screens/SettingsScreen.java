@@ -53,7 +53,10 @@ public final class SettingsScreen extends Screen {
      * bottom of the window.
      */
     private static final String[] LABELS = {
-            "音量设置", "视频设置", "难度", "快捷键",
+            GuiLang.raw("pvzce.settings.volume", "音量设置"),
+            GuiLang.raw("pvzce.settings.video", "视频设置"),
+            "难度", "快捷键",
+            GuiLang.raw("pvzce.settings.jev", "AI 对战（Jev）"),
             GuiLang.raw("pvzce.settings.about", "关于"), "完成"};
 
     /** One row's action, as a function of the screen so the table can be static. */
@@ -66,6 +69,9 @@ public final class SettingsScreen extends Screen {
             screen -> () -> screen.client().openScreen(new VideoSettingsScreen(screen.client())),
             screen -> () -> screen.client().openScreen(new DifficultyScreen(screen.client())),
             screen -> () -> screen.client().openScreen(new KeybindScreen(screen.client())),
+            // The opponent's endpoint and key. Its own page rather than a config row: the ordinary
+            // config entries are numbers and switches, and a credential needs a text field.
+            screen -> () -> screen.client().openScreen(new JevSettingsScreen(screen.client())),
             // 合规项，不是装饰：GPL-3.0 §5(d) 要求图形界面显示版权与无担保声明（见 AboutScreen）。
             screen -> () -> screen.client().openScreen(new AboutScreen(screen.client())),
             screen -> screen::requestClose

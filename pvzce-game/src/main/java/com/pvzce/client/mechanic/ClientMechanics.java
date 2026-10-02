@@ -44,6 +44,7 @@ public final class ClientMechanics {
         register(new SeedRainClientMechanic());
         register(new ResonanceClientMechanic());
         register(new RhythmClientMechanic());
+        register(new VersusClientMechanic());
     }
 
     public static void register(ClientMechanic mechanic) {

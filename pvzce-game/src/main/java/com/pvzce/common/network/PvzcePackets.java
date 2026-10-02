@@ -141,7 +141,9 @@ public final class PvzcePackets {
     // is how the level's song is decoded while it loads rather than nine ticks after it was due.
     // 48: authoritative lily network membership, charge and current haste.
     // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
-    public static final int PROTOCOL_VERSION = 50;
+    // 50: the human's chosen side travels with the level entry (PlayLevelC2S/RestartLevelC2S),
+    //     and the client hands the server its Jev credential (JevSettingsC2S).
+    public static final int PROTOCOL_VERSION = 51;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -177,6 +179,8 @@ public final class PvzcePackets {
     public static final int C2S_PLACE_ZOMBIE = 32;
     /** One rhythm note, pressed and judged by the client. */
     public static final int C2S_RHYTHM_HIT = 33;
+    /** Where Jev is, for a versus level's opponent to be reached: URL, model and key. */
+    public static final int C2S_JEV_SETTINGS = 34;
 
     // ---- server -> client ----
     public static final int S2C_LEVEL_INIT = S2C_BASE + 1;
@@ -284,6 +288,9 @@ public final class PvzcePackets {
             def(C2S_RHYTHM_HIT, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.RhythmHitC2S.class,
                     com.pvzce.common.network.packet.RhythmHitC2S::decode),
+            def(C2S_JEV_SETTINGS, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.JevSettingsC2S.class,
+                    com.pvzce.common.network.packet.JevSettingsC2S::decode),
             def(C2S_RELOAD_PACKS, ConnectionDirection.SERVERBOUND, ReloadPacksC2S.class,
                     ReloadPacksC2S::decode),
             def(C2S_PICK_UP_CARD, ConnectionDirection.SERVERBOUND, PickUpCardC2S.class,

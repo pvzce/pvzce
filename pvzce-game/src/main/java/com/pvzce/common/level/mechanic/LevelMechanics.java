@@ -68,6 +68,10 @@ public final class LevelMechanics {
     public static final ScaryPotterMechanic SCARY_POTTER = new ScaryPotterMechanic();
     public static final WavePacingMechanic WAVE_PACING = new WavePacingMechanic();
     public static final EndlessMechanic ENDLESS = new EndlessMechanic();
+    /** 对战: a human against a Jev-driven opponent, with the mode's economy and decks. */
+    public static final VersusMechanic VERSUS = new VersusMechanic();
+    /** Where the zombie side may put its zombies down; the mirror of {@link #PLACEMENT_ZONE}. */
+    public static final ZombieZoneMechanic ZOMBIE_ZONE = new ZombieZoneMechanic();
     /** The mutation system's marker; the catalogue lives in {@code common.level.mutation}. */
     public static final com.pvzce.common.level.mutation.MutationMechanic MUTATION =
             new com.pvzce.common.level.mutation.MutationMechanic();
@@ -98,6 +102,8 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_PLANT_GARDEN, PLANT_GARDEN);
         register(PvzceIds.MECHANIC_RHYTHM, RHYTHM);
         register(PvzceIds.MECHANIC_MUTATION, MUTATION);
+        register(PvzceIds.MECHANIC_VERSUS, VERSUS);
+        register(PvzceIds.MECHANIC_ZOMBIE_ZONE, ZOMBIE_ZONE);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -498,6 +504,79 @@ public final class LevelMechanics {
         return true;
     }
 
+    /** A veto on spending a zombie card, from every effective mechanic, in declaration order. */
+    public static boolean canPlaceZombie(List<TypedMechanic> mechanics,
+                                         LevelServer level, int x, int y) {
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanic<?> mechanic = get(typed.type());
+            if (mechanic != null && !allowsZombie(mechanic, typed, level, x, y)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Tells every effective mechanic that a plant was eaten. */
+    public static void onPlantConsumed(List<TypedMechanic> mechanics, LevelServer level,
+                                       com.pvzce.server.Team eater,
+                                       com.pvzce.server.entity.PlantEntity plant) {
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanic<?> mechanic = get(typed.type());
+            if (mechanic != null) {
+                consumedOne(mechanic, typed, level, eater, plant);
+            }
+        }
+    }
+
+    /** Tells every effective mechanic that a resource was picked up. */
+    public static void onResourceCollected(List<TypedMechanic> mechanics, LevelServer level,
+                                           com.pvzce.server.Team team, Identifier resource,
+                                           int amount) {
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanic<?> mechanic = get(typed.type());
+            if (mechanic != null) {
+                collectedOne(mechanic, typed, level, team, resource, amount);
+            }
+        }
+    }
+
+    /**
+     * A placement-area block of a running level's own mechanic list, or the whole board.
+     *
+     * <p>Asked by the server for "which columns may this side use", which is a question about a
+     * level that is already running (a mutation may have installed a zone mid-run). Both callers
+     * name the mechanic they mean, so the plantable area and the zombie area cannot be confused for
+     * one another by a helper that guessed.
+     */
+    public static com.pvzce.api.content.PlacementZone zoneOf(List<TypedMechanic> mechanics,
+                                                             Identifier mechanicId) {
+        for (TypedMechanic typed : mechanics) {
+            if (typed.is(mechanicId)
+                    && typed.value() instanceof com.pvzce.api.content.PlacementZone zone) {
+                return zone;
+            }
+        }
+        return com.pvzce.api.content.PlacementZone.FULL;
+    }
+
+    /** The versus block a level declares, or empty for every level that is not a versus level. */
+    public static java.util.Optional<com.pvzce.api.content.VersusData> versusData(
+            LevelDef def) {
+        return dataOf(def, PvzceIds.MECHANIC_VERSUS, com.pvzce.api.content.VersusData.class);
+    }
+
+    /** The versus block of a running level's own mechanic list. */
+    public static java.util.Optional<com.pvzce.api.content.VersusData> versusData(
+            List<TypedMechanic> mechanics) {
+        for (TypedMechanic typed : mechanics) {
+            if (typed.is(PvzceIds.MECHANIC_VERSUS)
+                    && typed.value() instanceof com.pvzce.api.content.VersusData data) {
+                return java.util.Optional.of(data);
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     // ------------------------------------------------------------------
     // Erased-to-typed bridges. One unchecked cast each, in one file.
     // ------------------------------------------------------------------
@@ -562,6 +641,26 @@ public final class LevelMechanics {
                                                            LevelServer level,
                                                            PlantDef plant, int x, int y) {
         return mechanic.canPlacePlant(level, (D) typed.value(), plant, x, y);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <D extends MechanicData> boolean allowsZombie(LevelMechanic<D> mechanic,
+            TypedMechanic typed, LevelServer level, int x, int y) {
+        return mechanic.canPlaceZombie(level, (D) typed.value(), x, y);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <D extends MechanicData> void consumedOne(LevelMechanic<D> mechanic,
+            TypedMechanic typed, LevelServer level, com.pvzce.server.Team eater,
+            com.pvzce.server.entity.PlantEntity plant) {
+        mechanic.onPlantConsumed(level, (D) typed.value(), eater, plant);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <D extends MechanicData> void collectedOne(LevelMechanic<D> mechanic,
+            TypedMechanic typed, LevelServer level, com.pvzce.server.Team team, Identifier resource,
+            int amount) {
+        mechanic.onResourceCollected(level, (D) typed.value(), team, resource, amount);
     }
 
     @SuppressWarnings("unchecked")

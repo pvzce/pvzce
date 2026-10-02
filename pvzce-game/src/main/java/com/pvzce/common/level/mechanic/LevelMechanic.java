@@ -5,6 +5,7 @@ import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.content.mechanic.MechanicData;
+import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.server.entity.ZombieEntity;
@@ -132,6 +133,41 @@ public interface LevelMechanic<D extends MechanicData> {
      */
     default boolean canPlacePlant(LevelServer level, D data, PlantDef def, int x, int y) {
         return true;
+    }
+
+    /**
+     * A veto on spending a zombie card on a cell.
+     *
+     * <p>The zombie side's half of {@link #canPlacePlant}, asked at the same kind of moment:
+     * {@code LevelServer.placeZombie} and the opponent's own placement both consult it, so
+     * "zombies only on the right four columns" is one rule that the player, the AI and a test all
+     * obey. There is no terrain in it - a zombie is not placed <em>on</em> anything - which is why
+     * the answer is about the level's shape rather than about the cell.
+     */
+    default boolean canPlaceZombie(LevelServer level, D data, int x, int y) {
+        return true;
+    }
+
+    /**
+     * A plant was just eaten out of existence.
+     *
+     * <p>Called for the bite that killed it and for a plant a bite consumed without damage (the
+     * hypno-shroom), never for a shovel, an explosion, or a lane that happened to be empty. The
+     * eater is passed in because the interesting question is whose zombie it was.
+     */
+    default void onPlantConsumed(LevelServer level, D data, com.pvzce.server.Team eater,
+                                 com.pvzce.server.entity.PlantEntity plant) {
+    }
+
+    /**
+     * One resource was picked up off the lawn and credited to a team.
+     *
+     * <p>After the fact and after the credit: an observer, not a gate. It runs for the player's
+     * click and for an AI's automatic pickup alike, which is what makes a "collected sun" total
+     * one number both sides of a versus level agree on.
+     */
+    default void onResourceCollected(LevelServer level, D data, com.pvzce.server.Team team,
+                                     Identifier resource, int amount) {
     }
 
     /** Writes this mechanic's run state into the level's save tag. */

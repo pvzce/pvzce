@@ -52,6 +52,27 @@ public final class SeedSelection {
      */
     public static List<Identifier> plan(LevelDef def, PlayerProfile profile, List<Identifier> requested,
                                         Path saveDir, boolean loadSave, boolean selfDealt) {
+        return plan(def, profile, requested, saveDir, loadSave, selfDealt, null);
+    }
+
+    /**
+     * As above, for a level whose player has chosen which side they are on.
+     *
+     * <p>The side is an input because a versus level's deck is the <em>level's</em>: {@code slots}
+     * is empty, both bars are declared in the mode's own block, and which of the two is the
+     * player's depends on an answer that arrives with the entry packet. It is resolved before
+     * anything else and wins over both the request and a save - the deck is not a choice the player
+     * made, so there is nothing to sanitise and nothing to carry over.
+     *
+     * @param humanTeam the side the player chose, or {@code null} for the level's own default
+     */
+    public static List<Identifier> plan(LevelDef def, PlayerProfile profile, List<Identifier> requested,
+                                        Path saveDir, boolean loadSave, boolean selfDealt,
+                                        Identifier humanTeam) {
+        List<Identifier> versusDeck = versusDeck(def, humanTeam);
+        if (versusDeck != null) {
+            return versusDeck;
+        }
         if (selfDealt) {
             return List.of();
         }
@@ -147,6 +168,24 @@ public final class SeedSelection {
      * everything they have unlocked instead of an empty bar. A level whose own cards already fill
      * the bar is unaffected.
      */
+    /**
+     * The bar a versus level gives the side this player is on, or {@code null} for every other
+     * level.
+     *
+     * <p>Null rather than an empty list: "this level does not decide the bar" and "this level's bar
+     * is empty" are different answers, and a level whose mode block is missing (or which is not a
+     * versus level at all) has to fall through to the ordinary rules.
+     */
+    private static List<Identifier> versusDeck(LevelDef def, Identifier humanTeam) {
+        com.pvzce.api.content.VersusData versus =
+                com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).orElse(null);
+        if (versus == null) {
+            return null;
+        }
+        Identifier side = humanTeam != null ? humanTeam : def.humanTeam();
+        return versus.cardsFor(side);
+    }
+
     public static List<Identifier> defaultFor(LevelDef def, PlayerProfile profile) {
         return def.defaultSeedSelection(SeedOptions.cardPool(def, profile == null ? null : profile::ownsCard),
                 effectiveSlots(def, profile));

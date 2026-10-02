@@ -63,14 +63,14 @@ final class RewardSettlement {
      * bonus: a row that still has its mower is a row the zombies never got through, and a defeat
      * has no such rows to speak of.
      */
-    static Payout settle(LevelServer current, PlayerProfile profile, boolean plantWin,
+    static Payout settle(LevelServer current, PlayerProfile profile, boolean playerWin,
                          boolean firstClear) {
         Identifier id = current.def().id();
         int collected = collectedCoins(current);
-        Outcome outcome = plantWin
+        Outcome outcome = playerWin
                 ? applyLevelRewards(id, current.def().rewards(), firstClear, profile)
                 : Outcome.NOTHING;
-        int mowers = plantWin ? current.readyMowerCount() : 0;
+        int mowers = playerWin ? current.readyMowerCount() : 0;
         int mowerCoins = mowers * mowerCoinValue();
         profile.grantCoins(collected + outcome.bonus() + mowerCoins);
         return new Payout(collected, outcome.bonus() + mowerCoins, mowers, mowerCoins,
@@ -248,10 +248,20 @@ final class RewardSettlement {
         return coin == null ? 0 : Math.max(0, coin.defaultValue());
     }
 
-    /** Whether the run ended in a win for the level's own winning team. */
-    public static boolean isPlantWin(LevelServer current) {
-        return GameStateS2C.WON.equals(current.gameState())
-                && current.winner() != null
-                && current.winner().equals(current.def().winTeam());
+    /**
+     * Whether the run ended in a win for the side the player was on.
+     *
+     * <p>"The player won", which is what the end-of-level payout is for - and on every level written
+     * before versus mode it is the same statement as "the level's {@code win_team} won", because
+     * each of those levels has one playable side and declares that side as its winner. They stop
+     * being the same statement on a level that may be played from either end: the player who chose
+     * the zombie side and broke through has won the match, and a payout that asked about
+     * {@code win_team} would hand them the defeat screen's empty reward instead.
+     *
+     * <p>The game state is still the primary answer, because it is what the client was told:
+     * {@code WON} already means "the player's side won" (see {@code LevelServer.markEnd}).
+     */
+    public static boolean isPlayerWin(LevelServer current) {
+        return GameStateS2C.WON.equals(current.gameState()) && current.winner() != null;
     }
 }

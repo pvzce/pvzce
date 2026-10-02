@@ -129,13 +129,20 @@ public final class LevelSetupScreen extends Screen {
     /**
      * Starts the run.
      *
-     * <p>Which panel is highlighted is the player's answer to "who do you want to be", and the
-     * server still plays the side its own rules pick today (only the plant side has a card bar),
-     * so the highlight is presentation for now and a real choice as soon as a second playable
-     * side exists.
+     * <p>Which panel is highlighted is the player's answer to "who do you want to be", and it is
+     * sent with the entry packet ({@code humanTeam}) rather than being a highlight: the level
+     * declares which sides may be played, and a versus level may be played from either end. Only
+     * the fallback below - a level that names a playable team the screen could not match to a
+     * panel - goes in without an answer, and then the level's own default side stands.
      */
     private void startGame() {
         if (plantTeam == null) {
+            return;
+        }
+        // The highlighted panel is the answer, and it now travels: the server seats the player on
+        // the side they picked, which also decides whose cards the bar holds and who wins.
+        if (selectedTeam != null && !selectedTeam.isBlank()) {
+            client.enterLevelFromMenu(levelInfo, selectedTeam);
             return;
         }
         // Same decision as the level list (and the only other place a level can be entered
