@@ -142,8 +142,16 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         if (data.races() && run.collected >= data.sunGoal()) {
             level.plantGoalReached();
         }
-        if (run.collected != run.sentCollected || level.jevBrain().dirty()) {
+        // The opponent's wallet is part of "has anything the HUD draws changed", and it is the one
+        // field that moves on its own clock: it is paid every `zombie_income_ticks` whether or not
+        // it decides to spend, so a payload sent only on a decision would leave the panel showing
+        // one number while the pressure behind it grew. (The build window's countdown was the same
+        // mistake in the version before this one.)
+        int opponentSun = opponentSun(level);
+        if (run.collected != run.sentCollected || opponentSun != run.sentOpponentSun
+                || level.jevBrain().dirty()) {
             run.sentCollected = run.collected;
+            run.sentOpponentSun = opponentSun;
             level.jevBrain().clearDirty();
             sendState(level, data, null);
         }
@@ -225,6 +233,7 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         CompoundTag tag = root.getCompound(KEY_RUN);
         run.collected = Math.max(0, tag.getInt("Collected"));
         run.sentCollected = run.collected;
+        run.sentOpponentSun = Integer.MIN_VALUE;
         if (tag.contains("Income")) {
             run.incomeCountdown = Math.max(0, tag.getInt("Income"));
         }
@@ -326,6 +335,8 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         public int collected;
         /** The last value sent to the client, so an unchanged total is not re-sent every tick. */
         public int sentCollected = -1;
+        /** The opponent's wallet as the client last heard it; it moves on its own clock. */
+        public int sentOpponentSun = Integer.MIN_VALUE;
         /** Ticks until the zombie side's next payment. */
         public int incomeCountdown;
     }

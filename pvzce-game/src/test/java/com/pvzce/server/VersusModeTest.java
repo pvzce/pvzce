@@ -14,6 +14,7 @@ import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.level.mechanic.VersusMechanic;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.tag.TestContent;
@@ -673,6 +674,41 @@ class VersusModeTest {
         assertEquals(Identifier.parse(ZOMBIE), resumed.humanTeamId(),
                 "and the player is still on the side they were playing");
         assertEquals("running", resumed.gameState());
+    }
+
+    /**
+     * The opponent's wallet reaches the client even when the opponent does nothing.
+     *
+     * <p>The panel that shows it is the one field that moves on its own clock, and the version
+     * before this sent state only when a decision had happened: an opponent that was saving up
+     * without spending left the number frozen while the pressure behind it grew. This level pays
+     * 25 sun every ten seconds against cards that cost 50, so nothing is ever affordable and the
+     * brain never plays - the wallet is the only thing that changes.
+     */
+    @Test
+    void theOpponentWalletIsSyncedEvenWhenItNeverPlays() {
+        LevelDef def = level(new Mode(0, 0, 0, 25, 600, 0, 60));
+        LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def), null,
+                null, Identifier.parse(PLANT));
+        CapturingBridge bridge = new CapturingBridge();
+        List<Integer> seen = new ArrayList<>();
+        for (int i = 0; i < 900; i++) {
+            level.tick(bridge);
+            for (PvzcePacket packet : bridge.packets) {
+                if (packet instanceof MechanicSyncS2C sync
+                        && PvzceIds.MECHANIC_VERSUS.equals(sync.mechanic())) {
+                    VersusMechanic.State state = VersusMechanic.State.CODEC.decode(sync.payloadBuffer());
+                    if (seen.isEmpty() || seen.get(seen.size() - 1) != state.opponentSun()) {
+                        seen.add(state.opponentSun());
+                    }
+                }
+            }
+            bridge.packets.clear();
+        }
+        assertEquals(0, level.entities().stream().filter(ZombieEntity.class::isInstance).count(),
+                "this level's zombie side never affords a card");
+        assertTrue(seen.size() >= 2 && seen.get(0) < seen.get(seen.size() - 1),
+                "the wallet grew on screen while the opponent stayed idle: " + seen);
     }
 
     private static ResourceDropEntity firstDrop(LevelServer level) {
