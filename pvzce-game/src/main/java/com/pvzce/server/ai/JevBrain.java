@@ -480,27 +480,38 @@ public final class JevBrain {
         text.append(String.join("，", cards)).append("。\n");
         text.append("列表之外的任何卡都不可用，不要提到它们。\n");
         text.append("草坪（行=车道，第 1 行在最上面；列=x 坐标，越小越靠近房子，越大越靠近僵尸入场口）：\n");
+        String danger = dangerSummary(level, plantSide);
+        if (!danger.isEmpty()) {
+            text.append("危险：").append(describeDangerInChinese(level)).append("\n");
+        }
         for (int row = 0; row < level.height(); row++) {
-            text.append("第 ").append(row + 1).append(" 行：");
             List<String> ours = new ArrayList<>();
             List<String> theirs = new ArrayList<>();
             for (PvzceEntity entity : level.entities()) {
                 if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridY() == row) {
-                    ours.add(shortCardName(plant.defId()) + "@" + String.format(
-                            java.util.Locale.ROOT, "%.0f", plant.cellX() + 0.5F));
+                    ours.add(shortCardName(plant.defId()) + "@x" + plant.gridX());
                 }
                 if (entity instanceof ZombieEntity zombie && zombie.isAlive()
                         && zombie.gridY() == row) {
-                    theirs.add(shortCardName(zombie.defId()) + "@" + String.format(
-                            java.util.Locale.ROOT, "%.1f", zombie.cellX()) + " hp"
-                            + Math.round(zombie.health()));
+                    theirs.add(shortCardName(zombie.defId()) + "@x" + String.format(
+                            java.util.Locale.ROOT, "%.1f", zombie.cellX()) + " "
+                            + Math.round(zombie.health()) + "hp"
+                            + (isAtTheDoor(zombie) ? "【危险】" : ""));
                 }
             }
-            text.append(plantSide
-                    ? (ours.isEmpty() ? "我方没有植物" : "我方 " + String.join("、", ours))
-                    : (ours.isEmpty() ? "对方没有植物" : "对方 " + String.join("、", ours)));
+            if (ours.isEmpty() && theirs.isEmpty()) {
+                // Nothing in this lane and nothing walking into it: four characters instead of a
+                // sentence, because empty board is not what a plan is made of.
+                text.append("第 ").append(row + 1).append(" 行：空。\n");
+                continue;
+            }
+            text.append("第 ").append(row + 1).append(" 行：");
+            if (!ours.isEmpty()) {
+                text.append(plantSide ? "我方植物 " : "对方植物 ").append(String.join("、", ours));
+            }
             if (!theirs.isEmpty()) {
-                text.append("；对方僵尸 ").append(String.join("、", theirs));
+                text.append(ours.isEmpty() ? "" : "；");
+                text.append(plantSide ? "对方僵尸 " : "我方僵尸 ").append(String.join("、", theirs));
             }
             text.append("。\n");
         }
@@ -529,6 +540,20 @@ public final class JevBrain {
         }
         return String.format(java.util.Locale.ROOT, "每 %.1f 秒 %d",
                 data.zombieIncomeTicks() / 60.0, data.zombieIncomeSun());
+    }
+
+    /** The dangerous zombies in the briefing's own words, or empty when none is close. */
+    private static String describeDangerInChinese(LevelServer level) {
+        List<String> danger = new ArrayList<>();
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && isAtTheDoor(zombie)) {
+                danger.add("第 " + (zombie.gridY() + 1) + " 行有一只 "
+                        + shortCardName(zombie.defId()) + " 已到 x"
+                        + String.format(java.util.Locale.ROOT, "%.1f", zombie.cellX())
+                        + "（离房子三格以内）");
+            }
+        }
+        return String.join("；", danger);
     }
 
     /** A content id without its namespace, for a briefing rather than a wire dump. */
@@ -1448,7 +1473,8 @@ public final class JevBrain {
                 describeRows(level, plantSide),
                 columnOptions,
                 directive,
-                commanderCard);
+                commanderCard,
+                dangerSummary(level, plantSide));
     }
 
     /**
@@ -1503,23 +1529,44 @@ public final class JevBrain {
         List<JevPrompt.RowOption> rows = new ArrayList<>();
         for (int y = 0; y < level.height(); y++) {
             StringBuilder text = new StringBuilder("row_" + y + ": ");
-            List<String> parts = new ArrayList<>();
+            // Kept as "what is it" rather than "whose is it": the first version of this named the two
+            // lists after the plant side's point of view and then printed them for whichever side was
+            // asking, so the zombie opponent was told that its own zombies were "their plants".
+            List<String> plants = new ArrayList<>();
+            List<String> zombies = new ArrayList<>();
             for (PvzceEntity entity : level.entities()) {
                 if (entity instanceof PlantEntity plant && plant.gridY() == y && !plant.isRemoved()) {
-                    parts.add("plant " + plant.defId().path() + " at x" + plant.gridX()
-                            + " (" + plant.health() + " hp)");
+                    plants.add(plant.defId().path() + "@x" + plant.gridX()
+                            + "(" + plant.health() + "hp)");
                 } else if (entity instanceof ZombieEntity zombie && zombie.isAlive()
                         && zombie.gridY() == y) {
-                    parts.add("zombie " + zombie.defId().path() + " at x"
+                    // The danger marker the user asked for, on the zombie itself: inside three cells of
+                    // the house is the state the whole plan has to be about, and a bare coordinate in a
+                    // list of coordinates is exactly what a model skims past.
+                    zombies.add(zombie.defId().path() + "@x"
                             + String.format(java.util.Locale.ROOT, "%.1f", zombie.cellX())
-                            + " (" + zombie.health() + " hp)");
+                            + "(" + zombie.health() + "hp)"
+                            + (isAtTheDoor(zombie) ? " " + DANGER_MARK : ""));
                 }
             }
-            // The house is at x=0 and the zombies walk towards it: saying which end is which in
-            // every line is what keeps the model from having to be told the board's orientation
-            // separately, and it is one clause.
-            text.append(parts.isEmpty() ? "empty (no plants, no zombies)" : String.join("; ", parts));
-            text.append(" — x0 is the house end, x").append(level.width() - 1).append(" the far end");
+            if (plants.isEmpty() && zombies.isEmpty()) {
+                // Nothing here and nothing walking into it. Said in four words rather than a sentence
+                // about free columns and which end of the board is which - both of which are in
+                // `board_axes` once, instead of on every empty lane of every request.
+                rows.add(new JevPrompt.RowOption(y, text.append("empty").toString()));
+                continue;
+            }
+            if (!plants.isEmpty()) {
+                text.append(plantSide == null ? "plants: "
+                        : (plantSide ? "your plants: " : "their plants: "))
+                        .append(String.join(", ", plants));
+            }
+            if (!zombies.isEmpty()) {
+                text.append(plants.isEmpty() ? "" : "; ")
+                        .append(plantSide == null ? "zombies: "
+                                : (plantSide ? "their zombies: " : "your zombies: "))
+                        .append(String.join(", ", zombies));
+            }
             if (plantSide != null) {
                 // Which cells this side may still put something in. A row and a column are two
                 // questions, so without this the model chooses a lane and a column without ever being
@@ -1536,6 +1583,46 @@ public final class JevBrain {
             rows.add(new JevPrompt.RowOption(y, text.toString()));
         }
         return List.copyOf(rows);
+    }
+
+    /** The marker that says "this one is three cells from the house". */
+    static final String DANGER_MARK = "[DANGER]";
+
+    /**
+     * True for a zombie inside {@link #DOORSTEP_CELLS} of the house.
+     *
+     * <p>One rule for both uses of the distance: the plan's pacing (see {@link #pressure}) and the
+     * danger markers in the two prompts. A zombie that makes the commander think faster is exactly the
+     * zombie the plan is about.
+     */
+    static boolean isAtTheDoor(ZombieEntity zombie) {
+        return zombie.isAlive() && zombie.cellX() <= DOORSTEP_CELLS;
+    }
+
+    /**
+     * The dangerous zombies, named, or empty when none is close.
+     *
+     * <p>The user's second ask in one line: "tell the AI what the danger is, and name which zombies are
+     * dangerous". The row lines carry the marker; this carries the sentence, because a plan is written
+     * from the summary and the summary is where "one is at the door in lane 2" has to be impossible to
+     * miss.
+     */
+    static String dangerSummary(LevelServer level, boolean plantSide) {
+        List<String> danger = new ArrayList<>();
+        for (PvzceEntity entity : level.entities()) {
+            if (!(entity instanceof ZombieEntity zombie) || !isAtTheDoor(zombie)) {
+                continue;
+            }
+            danger.add(zombie.defId().path() + " in row_" + zombie.gridY() + " at x"
+                    + String.format(java.util.Locale.ROOT, "%.1f", zombie.cellX()));
+        }
+        if (danger.isEmpty()) {
+            return "";
+        }
+        return (plantSide
+                ? "DANGER: a zombie has reached the house door - "
+                : "DANGER for the plant side, and an opportunity for you - ") + String.join("; ", danger)
+                + ". This is what the plan has to be about.";
     }
 
     /** True when nothing is standing on that cell, as far as the placement rules are concerned. */
@@ -1560,16 +1647,26 @@ public final class JevBrain {
         // from" - which is how the original game works and how the model answered, putting every
         // zombie as far from the plants as the zone allows so the plants could shoot it the whole way
         // in. What the model needs is the cost of each choice, in the same words for every column.
-        int entrance = level.width() - 1;
-        int walk = entrance - column;
-        String where = column == 5
+        // The walking distance is measured *from the plants*, and the direction of travel is why: a
+        // zombie is placed in its entry column and walks left, so the leftmost legal column is the one
+        // with nothing to walk and the rightmost is the one that spends the most time under fire. (The
+        // first version of this measured from the right edge and got it exactly backwards, which is a
+        // prompt that told the model to arrive as far from the plants as it could.)
+        int entry = Integer.MAX_VALUE;
+        for (int x = 0; x < level.width(); x++) {
+            if (level.zombieZoneContains(x)) {
+                entry = Math.min(entry, x);
+            }
+        }
+        int walk = entry == Integer.MAX_VALUE ? 0 : column - entry;
+        String where = column == entry
                 ? "the zombies' entry column, right beside the plants"
-                : (column == entrance ? "the far right, one step in from the edge" : "an open column");
+                : (walk >= 3 ? "the far right, one step in from the edge" : "an open column");
         return "col_" + column + ": " + where + (walk == 0
                 ? " - a zombie placed here starts next to the plants and walks no open lawn at all, "
                         + "which is the least time the plants have to shoot it"
                 : " - a zombie placed here walks " + walk + " cell" + (walk == 1 ? "" : "s")
-                        + " of open lawn under fire before it reaches anything");
+                        + " of open lawn under fire before it reaches the plants");
     }
 
 }

@@ -640,6 +640,105 @@ class VersusModeTest {
         }
     }
 
+    /**
+     * A zombie at the door is named, marked, and on a lane that says what is in it.
+     *
+     * <p>The user's report ("they do not seem to know where the zombies really are") is about the two
+     * prompts, so this reads them: a zombie three cells from the house must appear with a danger mark,
+     * a lane with something in it must say which side each thing belongs to, and a lane with nothing
+     * in it must cost four words rather than a sentence about free columns.
+     */
+    @Test
+    void aZombieAtTheDoorIsMarkedInBothPrompts() throws IOException {
+        List<String> jevBodies = new ArrayList<>();
+        List<String> commanderBodies = new ArrayList<>();
+        startStubThatEchoesTheFirstOption(jevBodies::add);
+        HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        commander.createContext("/chat/completions", exchange -> {
+            commanderBodies.add(readBody(exchange));
+            JsonObject message = new JsonObject();
+            message.addProperty("role", "assistant");
+            message.addProperty("content", "conehead_zombie\n先守住门口那一路。");
+            JsonObject answer = new JsonObject();
+            answer.add("message", message);
+            JsonArray choices = new JsonArray();
+            choices.add(answer);
+            JsonObject response = new JsonObject();
+            response.add("choices", choices);
+            respond(exchange, response.toString());
+        });
+        commander.start();
+        try {
+            LevelDef def = level(new Mode(1_000_000, 1_000, 1_000, 35, 300, 0, 60),
+                    "[\"pvzce:sun\", \"pvzce:sunflower\"]",
+                    "[\"pvzce:basic_zombie\"]", "[]", 5);
+            // The human is the plant side, so the AI is the zombie side: the prompts describe *its*
+            // board, which is where "where are the zombies" has a right answer.
+            LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def),
+                    null, null, Identifier.parse(PLANT));
+            level.setAiSettings(new AiSettings(
+                    "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
+                    "stub", "test-key"));
+            level.setCommanderSettings(new AiSettings(
+                    "http://127.0.0.1:" + commander.getAddress().getPort() + "/chat/completions",
+                    "stub", "test-key"));
+            CapturingBridge bridge = new CapturingBridge();
+            // A zombie inside three cells of the house (x <= 2 is the mode's own doorstep rule), and a
+            // plant mid-lawn for company.
+            level.tick(bridge);
+            assertNotNull(level.spawnPlant(
+                    com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id("wall_nut")),
+                    level.team(Identifier.parse(PLANT)), 1, 1),
+                    "a wall for the zombie to stop and eat, so the match lasts more than a cycle");
+            assertNotNull(level.spawnZombie(id("basic_zombie"), level.team(Identifier.parse(ZOMBIE)),
+                    2.0F, 1), "the dangerous zombie is on the lawn, inside the doorstep");
+            assertNotNull(level.spawnPlant(
+                    com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id("sunflower")),
+                    level.team(Identifier.parse(PLANT)), 3, 1), "and a plant in the same lane");
+
+            // Waited for, not sampled: the first requests go out before the zombie exists, and a test
+            // that reads whichever body happens to be last measures the prompt the level started with.
+            long deadline = System.nanoTime() + 20_000_000_000L;
+            while (System.nanoTime() < deadline
+                    && (jevBodies.stream().noneMatch(body -> body.contains("\"danger\":"))
+                            || commanderBodies.stream().noneMatch(body -> body.contains("【危险】")))) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertTrue(jevBodies.stream().anyMatch(body -> body.contains("\"danger\":")),
+                    "Jev was told about the danger");
+            assertTrue(commanderBodies.stream().anyMatch(body -> body.contains("【危险】")),
+                    "the commander was told about the danger");
+
+            String jev = jevBodies.stream().filter(body -> body.contains("\"danger\":")).findFirst()
+                    .orElseThrow();
+            assertTrue(jev.contains("DANGER"), "the tactical prompt states the danger");
+            assertTrue(jev.contains("[DANGER]"), "and marks the zombie itself");
+            assertTrue(jev.contains("row_1"), "naming the lane it is in");
+            assertTrue(jev.contains("free columns"), "while lanes with something in them say what fits");
+            assertFalse(jev.contains("x0 is the house end"),
+                    "the orientation is stated once in board_axes, not on every lane");
+            assertTrue(jev.contains("your zombies:"),
+                    "the zombie opponent's own zombies are its own: " + jev);
+            assertTrue(jev.contains("their plants:"), "and the plants are the other side's");
+            // The empty-lane form is read off the *first* request: the opponent is playing by the second
+            // one, so a lane that is empty in the opening is the only one guaranteed to still be empty
+            // later on. This is the four-word form the user asked for instead of a sentence per lane.
+            String opening = jevBodies.get(0);
+            assertTrue(opening.contains("row_0: empty"),
+                    "empty lanes cost four words: " + opening);
+
+            String brief = commanderBodies.stream().filter(body -> body.contains("【危险】"))
+                    .findFirst().orElseThrow();
+            assertTrue(brief.contains("危险"), "the briefing states the danger: " + brief);
+            assertTrue(brief.contains("【危险】"), "and marks the zombie itself");
+            assertTrue(brief.contains("第 2 行"), "naming the lane it is in");
+            assertTrue(brief.contains("行：空"), "and says empty lanes in four characters");
+        } finally {
+            stopStub();
+        }
+    }
+
     @Test
     void theModeReportsItsOwnMistakes() {
         LevelDef wrongDeck = level(defaultMode(),
@@ -1337,7 +1436,11 @@ class VersusModeTest {
         JsonObject criteria = question.getAsJsonObject("criteria");
         for (String key : criteria.keySet()) {
             String text = criteria.get(key).getAsString();
-            if (text.contains("free columns:") && !text.contains("free columns: none")) {
+            // An empty lane is spelled "row_N: empty" and nothing else: the free-cell list is only
+            // printed for lanes that have something in them, because empty board is not what a plan is
+            // made of. A model reads that as room; a text matcher has to be told.
+            if (text.endsWith(": empty") || text.contains("empty;")
+                    || (text.contains("free columns:") && !text.contains("free columns: none"))) {
                 return key;
             }
         }

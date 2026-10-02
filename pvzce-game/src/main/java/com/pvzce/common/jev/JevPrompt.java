@@ -49,7 +49,8 @@ public record JevPrompt(
         List<RowOption> rows,
         List<ColumnOption> columns,
         String directive,
-        String commanderCard) {
+        String commanderCard,
+        String danger) {
 
     /** {@link #directive} for a match without a commander: no plan, not an empty one. */
     public static final String NO_DIRECTIVE = "";
@@ -57,12 +58,15 @@ public record JevPrompt(
     /** {@link #commanderCard} for a plan that says "wait", or for no plan at all. */
     public static final String NO_CARD = "";
 
+    /** {@link #danger} for a board with nothing at the door. */
+    public static final String NO_DANGER = "";
+
     /** The same prompt for a match with no commander: no plan rather than an empty one. */
     public JevPrompt(Side side, String objective, int sun, int goalTarget, int goalCollected,
                      int elapsedSeconds, List<CardOption> cards, List<RowOption> rows,
                      List<ColumnOption> columns) {
         this(side, objective, sun, goalTarget, goalCollected, elapsedSeconds, cards, rows, columns,
-                NO_DIRECTIVE, NO_CARD);
+                NO_DIRECTIVE, NO_CARD, NO_DANGER);
     }
 
     /** A prompt whose strategist asked for one particular card. */
@@ -70,7 +74,7 @@ public record JevPrompt(
                      int elapsedSeconds, List<CardOption> cards, List<RowOption> rows,
                      List<ColumnOption> columns, String directive) {
         this(side, objective, sun, goalTarget, goalCollected, elapsedSeconds, cards, rows, columns,
-                directive, NO_CARD);
+                directive, NO_CARD, NO_DANGER);
     }
 
     /** {@link #goalTarget} for a side whose win condition is not a sun total. */
@@ -149,6 +153,7 @@ public record JevPrompt(
         objective = objective == null ? "" : objective;
         directive = directive == null ? NO_DIRECTIVE : directive.trim();
         commanderCard = commanderCard == null ? NO_CARD : commanderCard.trim();
+        danger = danger == null ? NO_DANGER : danger.trim();
     }
 
     /** The criteria keys the {@code action} question offers, {@code hold} included. */
@@ -183,6 +188,11 @@ public record JevPrompt(
         state.addProperty("objective", objective);
         state.addProperty("sun_available", sun);
         state.addProperty("seconds_elapsed", elapsedSeconds);
+        if (!danger.isEmpty()) {
+            // First among the board's fields on purpose: it is the one line the answer is judged by,
+            // and a model that reads the board top-down should meet the emergency before the detail.
+            state.addProperty("danger", danger);
+        }
         if (!directive.isEmpty()) {
             // The strategist's standing order, as its own state field rather than folded into the
             // objective: an order and a win condition are different things, and a model that can tell
