@@ -94,6 +94,14 @@ public final class JevBrain {
     private CommanderClient commander;
     /** The standing plan the strategist last wrote, or empty; it rides in every Jev prompt. */
     private String directive = "";
+    /**
+     * The card the plan's first line named, as the hand spells it, or empty for "wait".
+     *
+     * <p>Separate from the prose because it is the one part of an answer that can be checked, and
+     * because the tactical model should be able to see "the strategist's first choice is this card"
+     * as a fact rather than as a word inside a sentence.
+     */
+    private String commanderCard = "";
     /** Ticks until the strategist is asked again; see {@link #COMMANDER_INTERVAL_TICKS}. */
     private int commanderCountdown;
     /** True while a strategy request is out, for the debug overlay and for the snapshot's wording. */
@@ -152,6 +160,11 @@ public final class JevBrain {
      */
     public String commanderPlan() {
         return directive;
+    }
+
+    /** The card the accepted plan asked for, or empty for "wait" (and when there is no plan). */
+    public String commanderCard() {
+        return commanderCard;
     }
 
     /** True while the strategist is thinking; part of the F3 line. */
@@ -221,8 +234,7 @@ public final class JevBrain {
         commanderBusy = commander.busy();
         Optional<String> answer = commander.poll();
         while (answer.isPresent()) {
-            directive = answer.get();
-            LOGGER.info("commander's plan: {}", directive);
+            acceptPlan(level, data, opponent, plantSide, answer.get());
             answer = commander.poll();
         }
         // The plan is not part of "has anything the HUD draws changed": it is debug-only, so it
@@ -239,6 +251,92 @@ public final class JevBrain {
         } else {
             commanderCountdown = COMMANDER_INTERVAL_TICKS / 4;
         }
+    }
+
+    /**
+     * Takes the strategist's answer, or refuses it.
+     *
+     * <p>The answer's first line is meant to be one card id from the briefing (or {@code hold}), and
+     * that is checked here rather than trusted, because a language model asked for "a specific card"
+     * will happily name the one it knows from the game. The first live run did exactly that: a
+     * commander told the zombie side to play a buckethead on a level whose deck holds only basic and
+     * conehead zombies.
+     *
+     * <p>An order this side cannot execute is refused whole, not trimmed: the reasoning that came
+     * with it was reasoned about a card that does not exist, so passing the reasoning on would hand
+     * the tactical model a plan built on a fiction. Refused plans are logged with their text - the F3
+     * panel only ever shows a plan that Jev was actually given.
+     */
+    private void acceptPlan(LevelServer level, VersusData data, Team opponent, boolean plantSide,
+                            String answer) {
+        List<CardChoice> hand = hand(level, data, opponent, plantSide);
+        String firstLine = firstLine(answer);
+        String wanted = cardIdIn(firstLine, hand);
+        if (wanted == null && !isHold(firstLine)) {
+            LOGGER.warn("commander named '{}', which this side cannot play; plan refused ({} cards "
+                    + "in hand: {})", firstLine, hand.size(), handIds(hand));
+            return;
+        }
+        directive = answer.trim();
+        commanderCard = wanted == null ? "" : wanted;
+        LOGGER.info("commander's plan: {} (first card: {})", directive,
+                commanderCard.isEmpty() ? "hold" : commanderCard);
+    }
+
+    /** The first non-blank line of an answer, without markdown furniture. */
+    private static String firstLine(String answer) {
+        for (String line : answer.split("\n")) {
+            String text = line.strip().replace("`", "").replace("*", "").strip();
+            if (!text.isEmpty()) {
+                return text;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * The card id the first line names, as the hand spells it, or {@code null}.
+     *
+     * <p>Namespace-optional and separator-tolerant: a model writes {@code conehead_zombie: ...},
+     * {@code pvzce:conehead_zombie}, or wraps the id in backticks, and all three mean the same card.
+     */
+    private static String cardIdIn(String line, List<CardChoice> hand) {
+        String head = line;
+        for (String separator : new String[]{"：", ":", "，", ",", "。", ".", " ", "\t", "-", "—"}) {
+            int at = head.indexOf(separator);
+            if (at >= 0) {
+                head = head.substring(0, at);
+            }
+        }
+        head = head.strip();
+        if (head.isEmpty()) {
+            return null;
+        }
+        for (CardChoice card : hand) {
+            String id = card.card().slotId().toString();
+            String path = card.card().slotId().path();
+            if (id.equalsIgnoreCase(head) || path.equalsIgnoreCase(head)
+                    || ("pvzce:" + head).equalsIgnoreCase(id)) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+    /** True when the first line says "wait", in the two languages the prompt is written in. */
+    private static boolean isHold(String line) {
+        String head = line.strip().toLowerCase(java.util.Locale.ROOT);
+        return head.startsWith("hold") || head.startsWith("wait") || head.contains("等待")
+                || head.contains("按兵不动") || head.contains("攒");
+    }
+
+    /** The hand's ids, for the refusal log. */
+    private static String handIds(List<CardChoice> hand) {
+        List<String> ids = new ArrayList<>();
+        for (CardChoice card : hand) {
+            ids.add(card.card().slotId().path());
+        }
+        return String.join(",", ids);
     }
 
     /**
@@ -263,10 +361,10 @@ public final class JevBrain {
             text.append("胜利条件：在植物方收集到足够阳光之前攻破草坪。\n");
         }
         text.append("当前阳光：").append(opponent.resourcesOf(PvzceIds.SUN)).append("。\n");
+        text.append("阳光收入：").append(incomeText(level, data, plantSide)).append("。\n");
         if (!directive.isEmpty()) {
             text.append("你上次给的计划：").append(directive).append("\n");
         }
-        text.append("手里的卡（括号里是价格，负号表示现在买不起）：");
         List<CardChoice> hand = hand(level, data, opponent, plantSide);
         int sun = opponent.resourcesOf(PvzceIds.SUN);
         List<String> cards = new ArrayList<>();
@@ -274,7 +372,14 @@ public final class JevBrain {
             cards.add(shortCardName(card.card().slotId()) + "("
                     + (card.cost() <= sun ? "" : "-") + card.cost() + ")");
         }
+        // A closed list, said out loud. The first live run had the commander order a buckethead on a
+        // level whose zombie deck holds only basic and conehead zombies: the list was right there,
+        // but nothing said it was *complete*, and a language model asked for "a card" reaches for the
+        // one it knows from the game. The word 只有 and the sentence after the list are the fix.
+        text.append(plantSide ? "你能用的植物只有这些（完整列表，括号里是价格，负号表示现在买不起）："
+                : "你能用的僵尸只有这些（完整列表，括号里是价格，负号表示现在买不起）：");
         text.append(String.join("，", cards)).append("。\n");
+        text.append("列表之外的任何卡都不可用，不要提到它们。\n");
         text.append("草坪（第 1 行在最上面，x 越小越靠近房子/左侧）：\n");
         for (int row = 0; row < level.height(); row++) {
             text.append("第 ").append(row + 1).append(" 行：");
@@ -300,8 +405,31 @@ public final class JevBrain {
             }
             text.append("。\n");
         }
-        text.append("请给出接下来一分钟的总体方向（最多两句话）。");
+        text.append("请按这个格式回答：第一行只写上面列表里的一个卡 id（或者 hold），"
+                + "第二行起写不超过两句话的理由。");
         return text.toString();
+    }
+
+    /**
+     * How the side's sun arrives, in one phrase.
+     *
+     * <p>The wallet alone cannot be reasoned about: "50 now" and "50 now, thirty-five every five
+     * seconds" lead to different plans, and a strategist that does not know the rate cannot say
+     * "hold one payment and buy the good one" - which is the whole point of asking it.
+     */
+    private static String incomeText(LevelServer level, VersusData data, boolean plantSide) {
+        if (plantSide) {
+            // The sky is a level rule rather than a versus field, so it is read from the level.
+            int min = level.rules().getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN);
+            int max = level.rules().getInt(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX);
+            if (max <= 0) {
+                return "没有天降阳光，靠植物自产";
+            }
+            return String.format(java.util.Locale.ROOT,
+                    "天降阳光每 %.1f~%.1f 秒一朵，另有植物自产", min / 60.0, max / 60.0);
+        }
+        return String.format(java.util.Locale.ROOT, "每 %.1f 秒 %d",
+                data.zombieIncomeTicks() / 60.0, data.zombieIncomeSun());
     }
 
     /** A content id without its namespace, for a briefing rather than a wire dump. */
@@ -327,7 +455,7 @@ public final class JevBrain {
             playFallback(level, data, opponent, plantSide, hand);
             return;
         }
-        JevPrompt prompt = prompt(level, data, opponent, plantSide, hand, directive);
+        JevPrompt prompt = prompt(level, data, opponent, plantSide, hand, directive, commanderCard);
         long ticket = nextTicket++;
         if (client.request(settings, prompt, ticket)) {
             pendingTicket = ticket;
@@ -977,8 +1105,8 @@ public final class JevBrain {
     }
 
     private static JevPrompt prompt(LevelServer level, VersusData data, Team opponent,
-                                    boolean plantSide, List<CardChoice> hand,
-                                    String directive) {
+                                    boolean plantSide, List<CardChoice> hand, String directive,
+                                    String commanderCard) {
         int sun = opponent.resourcesOf(PvzceIds.SUN);
         List<JevPrompt.CardOption> cards = new ArrayList<>();
         for (CardChoice choice : hand) {
@@ -1000,7 +1128,8 @@ public final class JevBrain {
                 cards,
                 describeRows(level),
                 columnOptions,
-                directive);
+                directive,
+                commanderCard);
     }
 
     /**

@@ -328,7 +328,7 @@ class VersusModeTest {
     void theCommanderPlanReachesTheTacticalPrompt() throws IOException {
         List<String> jevRequests = new ArrayList<>();
         startStubThatEchoesTheFirstOption(jevRequests::add);
-        String plan = "先把第 3 行补上坚果，其余阳光继续铺向日葵。";
+        String plan = "conehead_zombie\n先把第 3 行补上坚果，其余阳光继续铺向日葵。";
         HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         commander.createContext("/chat/completions", exchange -> {
             JsonObject message = new JsonObject();
@@ -364,16 +364,25 @@ class VersusModeTest {
             }
             assertEquals(plan, level.jevBrain().commanderPlan(),
                     "the commander's answer is kept as the standing plan");
-            // The next tactical question is asked after the plan arrived, and it must carry it.
+            // The next tactical question is asked after the plan arrived, and it must carry it. The
+            // marker starts after the plan's first line: a newline inside a JSON string is written
+            // as \n, so searching the raw body for the whole plan would search for a literal newline
+            // that is not there.
+            String marker = "先把第 3 行补上坚果";
             deadline = System.nanoTime() + 15_000_000_000L;
             while (System.nanoTime() < deadline
-                    && jevRequests.stream().noneMatch(body -> body.contains(plan))) {
+                    && jevRequests.stream().noneMatch(body -> body.contains(marker))) {
                 level.tick(bridge);
                 sleepABit();
             }
-            assertTrue(jevRequests.stream().anyMatch(body -> body.contains(plan)),
+            assertTrue(jevRequests.stream().anyMatch(body -> body.contains(marker)),
                     "a Jev request carried the commander's plan: " + jevRequests.size()
                             + " requests seen");
+            // And the card the plan named is its own field in that request, so the tactical model
+            // does not have to parse a sentence to find it.
+            assertTrue(jevRequests.stream().anyMatch(
+                            body -> body.contains("commander_card") && body.contains("conehead")),
+                    "the plan's card reached Jev as commander_card");
         } finally {
             commander.stop(0);
         }
@@ -405,6 +414,148 @@ class VersusModeTest {
                 "the mode collected the player's own drop");
         assertEquals(value, VersusMechanic.run(level).collected,
                 "and picking it up is what the race counts");
+    }
+
+    /**
+     * Exactly what the commander is told, for the shipped level and the side the AI plays.
+     *
+     * <p>Written because the first live run had the commander order a buckethead on a level whose
+     * zombie deck has no buckethead in it. The whitelist it needs is in the briefing, and this prints
+     * the briefing so the claim "it was in there" can be checked rather than asserted - and then
+     * asserts the two halves of the fix: every card of the deck is named, and no other card is.
+     */
+    @Test
+    void theCommanderBriefingNamesTheDeckAndNothingElse() throws IOException {
+        List<String> briefings = new ArrayList<>();
+        HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        commander.createContext("/chat/completions", exchange -> {
+            briefings.add(readBody(exchange));
+            JsonObject message = new JsonObject();
+            message.addProperty("role", "assistant");
+            message.addProperty("content", "basic_zombie\n先攒钱再出兵。");
+            JsonObject answer = new JsonObject();
+            answer.add("message", message);
+            JsonArray choices = new JsonArray();
+            choices.add(answer);
+            JsonObject response = new JsonObject();
+            response.add("choices", choices);
+            respond(exchange, response.toString());
+        });
+        commander.start();
+        try {
+            LevelDef def = BuiltInRegistries.LEVELS.get(
+                    Identifier.withDefaultNamespace("yard/versus/duel_1"));
+            assertNotNull(def, "the shipped versus level is registered");
+            LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def),
+                    null, null, Identifier.parse(PLANT));
+            level.setCommanderSettings(new AiSettings(
+                    "http://127.0.0.1:" + commander.getAddress().getPort() + "/chat/completions",
+                    "stub", "test-key"));
+            level.setAiSettings(AiSettings.NONE);
+            CapturingBridge bridge = new CapturingBridge();
+            long deadline = System.nanoTime() + 15_000_000_000L;
+            while (System.nanoTime() < deadline && briefings.isEmpty()) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertFalse(briefings.isEmpty(), "the commander was asked for a plan");
+            String body = briefings.get(0);
+            System.out.println("COMMANDER-BRIEFING >>>" + body + "<<<");
+
+            // The deck, card by card: what the briefing has to offer as playable.
+            com.pvzce.api.content.VersusData data = level.versusData();
+            assertNotNull(data, "the versus block is readable from the running level");
+            for (Identifier card : data.zombieCards()) {
+                assertTrue(body.contains(card.path()),
+                        "the briefing names " + card + ", because the side may play it");
+            }
+            // And nothing else: no zombie the deck does not hold, checked against the whole registry
+            // rather than against a hand-written list - the next content pack is covered for free.
+            // `buckethead_zombie` is the one the first live run was told to play here.
+            for (Identifier zombie : BuiltInRegistries.ZOMBIES.keySet()) {
+                if (!data.zombieCards().contains(zombie)) {
+                    assertFalse(body.contains(zombie.path() + "("),
+                            "the briefing must not offer " + zombie + ", which this deck has no card "
+                                    + "for");
+                }
+            }
+            assertTrue(body.contains("完整列表"), "the list is named as the complete one: " + body);
+            assertTrue(body.contains("不要提到它们"), "and the model is told not to go outside it");
+            assertTrue(body.contains("当前阳光"), "the briefing includes the wallet: " + body);
+            assertTrue(body.contains("收入"), "and how fast it refills: " + body);
+        } finally {
+            commander.stop(0);
+        }
+    }
+
+    /**
+     * An order the side cannot execute is refused, and only a legal one becomes the standing plan.
+     *
+     * <p>This is the bug the user hit, in a test: the commander was told a deck and answered with a
+     * card from the game rather than from the deck ("铁桶" on a level with no buckethead). The
+     * tactical model cannot execute it either - the protocol's criteria do not list it and the
+     * placement path re-checks - so the failure mode is a wasted decision plus a plan that reads as
+     * nonsense in F3. Refusing it at the door is cheaper and honest, and it is checkable: the first
+     * line of the answer is one card id.
+     */
+    @Test
+    void theCommanderCannotOrderACardThisSideDoesNotHave() throws IOException {
+        String[] answers = {"buckethead_zombie\n先攒钱，再出铁桶僵尸压过去。",
+                "conehead_zombie\n出锥头僵尸，走最上面那行。"};
+        int[] served = {0};
+        HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        commander.createContext("/chat/completions", exchange -> {
+            readBody(exchange);
+            JsonObject message = new JsonObject();
+            message.addProperty("role", "assistant");
+            message.addProperty("content", answers[Math.min(served[0], answers.length - 1)]);
+            served[0]++;
+            JsonObject answer = new JsonObject();
+            answer.add("message", message);
+            JsonArray choices = new JsonArray();
+            choices.add(answer);
+            JsonObject response = new JsonObject();
+            response.add("choices", choices);
+            respond(exchange, response.toString());
+        });
+        commander.start();
+        try {
+            LevelDef def = BuiltInRegistries.LEVELS.get(
+                    Identifier.withDefaultNamespace("yard/versus/duel_1"));
+            LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def),
+                    null, null, Identifier.parse(PLANT));
+            level.setCommanderSettings(new AiSettings(
+                    "http://127.0.0.1:" + commander.getAddress().getPort() + "/chat/completions",
+                    "stub", "test-key"));
+            level.setAiSettings(AiSettings.NONE);
+            CapturingBridge bridge = new CapturingBridge();
+            long deadline = System.nanoTime() + 15_000_000_000L;
+            while (System.nanoTime() < deadline && served[0] < 1) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertEquals(1, served[0], "the commander was asked for a plan");
+            // Give the answer time to arrive and be judged. The refusal leaves *no* plan: the panel
+            // and the tactical prompt never see an order this side could not carry out.
+            tick(level, bridge, 60);
+            assertTrue(level.jevBrain().commanderPlan().isEmpty(),
+                    "a plan naming a card the deck does not hold is refused whole, not trimmed: "
+                            + level.jevBrain().commanderPlan());
+            assertTrue(level.jevBrain().commanderCard().isEmpty(),
+                    "and no card order was taken from it");
+
+            // The next answer, from the same stub, is legal and is accepted with its card.
+            deadline = System.nanoTime() + 30_000_000_000L;
+            while (System.nanoTime() < deadline
+                    && !answers[1].equals(level.jevBrain().commanderPlan())) {
+                level.tick(bridge);
+                sleepABit();
+            }
+            assertEquals("pvzce:conehead_zombie", level.jevBrain().commanderCard(),
+                    "a legal first line becomes the card the plan asks for");
+        } finally {
+            commander.stop(0);
+        }
     }
 
     @Test

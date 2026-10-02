@@ -48,17 +48,29 @@ public record JevPrompt(
         List<CardOption> cards,
         List<RowOption> rows,
         List<ColumnOption> columns,
-        String directive) {
+        String directive,
+        String commanderCard) {
 
     /** {@link #directive} for a match without a commander: no plan, not an empty one. */
     public static final String NO_DIRECTIVE = "";
+
+    /** {@link #commanderCard} for a plan that says "wait", or for no plan at all. */
+    public static final String NO_CARD = "";
 
     /** The same prompt for a match with no commander: no plan rather than an empty one. */
     public JevPrompt(Side side, String objective, int sun, int goalTarget, int goalCollected,
                      int elapsedSeconds, List<CardOption> cards, List<RowOption> rows,
                      List<ColumnOption> columns) {
         this(side, objective, sun, goalTarget, goalCollected, elapsedSeconds, cards, rows, columns,
-                NO_DIRECTIVE);
+                NO_DIRECTIVE, NO_CARD);
+    }
+
+    /** A prompt whose strategist asked for one particular card. */
+    public JevPrompt(Side side, String objective, int sun, int goalTarget, int goalCollected,
+                     int elapsedSeconds, List<CardOption> cards, List<RowOption> rows,
+                     List<ColumnOption> columns, String directive) {
+        this(side, objective, sun, goalTarget, goalCollected, elapsedSeconds, cards, rows, columns,
+                directive, NO_CARD);
     }
 
     /** {@link #goalTarget} for a side whose win condition is not a sun total. */
@@ -127,6 +139,7 @@ public record JevPrompt(
         columns = List.copyOf(columns);
         objective = objective == null ? "" : objective;
         directive = directive == null ? NO_DIRECTIVE : directive.trim();
+        commanderCard = commanderCard == null ? NO_CARD : commanderCard.trim();
     }
 
     /** The criteria keys the {@code action} question offers, {@code hold} included. */
@@ -166,6 +179,11 @@ public record JevPrompt(
             // objective: an order and a win condition are different things, and a model that can tell
             // them apart can follow one while still reporting the other.
             state.addProperty("commander_plan", directive);
+            if (!commanderCard.isEmpty()) {
+                // Its own field so the tactical model can weigh "the strategist wants this card"
+                // without parsing Chinese prose for a card id.
+                state.addProperty("commander_card", commanderCard);
+            }
         }
         if (goalTarget > 0) {
             JsonObject goal = new JsonObject();
@@ -210,7 +228,8 @@ public record JevPrompt(
             // older board, so the tactical model is told to follow it *unless* the board in front of it
             // says otherwise. Obeying a stale order into a lost lane is worse than ignoring it.
             criteria.addProperty(KEY_ACTION + "_plan_note",
-                    "你的指挥官给出的方向是：" + directive
+                    (commanderCard.isEmpty() ? "" : "你的指挥官点名要 " + commanderCard + "；")
+                            + "你的指挥官给出的方向是：" + directive
                             + " —— 优先按它执行；如果眼前的局面与它明显冲突（那一条车道即将失守、"
                             + "手里的阳光买不起它说的卡），按局面办，不要为了服从它而放弃一条车道。");
         }

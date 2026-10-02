@@ -52,10 +52,16 @@ public final class CommanderClient implements AutoCloseable {
     /** What the model is asked to do, once, as a system message. */
     private static final String SYSTEM_PROMPT =
             "You are the strategist for one side of a Plants vs. Zombies match. You will be given a "
-                    + "snapshot of the board and you answer with a short plan for the next minute - "
-                    + "at most two sentences, no lists, no preamble. Say what to prioritise "
-                    + "(economy, a specific lane, a specific card, saving sun) and why, in the "
-                    + "language the snapshot is written in. Do not repeat the numbers back.";
+                    + "snapshot of the board and you answer with a short plan for the next minute.\n"
+                    + "Answer in exactly two parts and nothing else:\n"
+                    + "1. The first line is one card id, copied exactly from the snapshot's list of "
+                    + "cards, or the single word hold. Never name a card that is not in that list - "
+                    + "the side cannot play it, and an order it cannot execute is worse than no "
+                    + "order.\n"
+                    + "2. Then at most two sentences of reasoning: what to prioritise (economy, a "
+                    + "specific lane, saving sun) and why.\n"
+                    + "Write the reasoning in the language the snapshot is written in, and do not "
+                    + "repeat the numbers back.";
 
     /**
      * Two sentences is the whole answer; a bound this low is what keeps a minute-by-minute

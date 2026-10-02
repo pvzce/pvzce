@@ -69,9 +69,15 @@ class JevLiveTest {
         // milliseconds and conclude, wrongly, that nothing ever answered.
         int ticks = 0;
         long deadline = System.nanoTime() + 120_000_000_000L;
+        // Two conditions, not one: with a commander configured the run is not finished when Jev has
+        // answered, because the two tiers are a chain and the interesting claim is about the far end.
+        // The first version stopped at Jev's answer and reported "no plan yet" - which was true and
+        // told us nothing, because the strategist's round trip is an order of magnitude slower.
+        boolean bothAnswered = !commander.configured();
         while (ticks < MAX_TICKS && System.nanoTime() < deadline
-                && level.jevBrain().status() != JevBrain.Status.JEV
+                && (level.jevBrain().status() != JevBrain.Status.JEV || !bothAnswered)
                 && "running".equals(level.gameState())) {
+            bothAnswered = bothAnswered || !level.jevBrain().commanderPlan().isEmpty();
             for (int i = 0; i < 30; i++) {
                 level.tick(bridge);
                 ticks++;
