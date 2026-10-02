@@ -254,9 +254,25 @@ public class ProjectileEntity extends PvzceEntity {
         if (removed) {
             return;
         }
+        float beforeX = cellX();
+        int beforeRow = gridY();
         for (Instance instance : capabilities) {
             if (instance.capability.move(this, level)) {
                 break;
+            }
+        }
+        if (capability(com.pvzce.common.capability.projectile.LinearMotionCapability.class) != null
+                && Math.abs(vectorY()) < 0.0001F) {
+            com.pvzce.common.level.mechanic.PortalMechanic.Exit exit =
+                    com.pvzce.common.level.mechanic.PortalMechanic.cross(
+                            level, id(), beforeX, cellX(), beforeRow);
+            if (exit != null) {
+                float dx = exit.x() - cellX();
+                float dy = exit.row() + 0.5F - cellY();
+                setCellX(exit.x());
+                setCellY(cellY() + dy);
+                originX += dx;
+                originY += dy;
             }
         }
         if (cellX() > level.width() + 1F || cellX() < -1F
@@ -338,6 +354,10 @@ public class ProjectileEntity extends PvzceEntity {
             }
             PlantEntity plant = level.plantAt(column, gridY());
             if (plant != null && !plant.isRemoved()) {
+                if (com.pvzce.common.core.PlantPlacement.is(plant.def(),
+                        com.pvzce.common.tag.PvzceTags.ZOMBIE_PEA_PASSES_OVER)) {
+                    continue;
+                }
                 // Left to right, so the last one found is the nearest to a shot flying left.
                 found = plant;
             }

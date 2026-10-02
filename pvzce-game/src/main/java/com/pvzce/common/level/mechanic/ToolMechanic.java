@@ -134,6 +134,14 @@ public final class ToolMechanic implements LevelMechanic<ToolData> {
         return tool == null ? 0 : Math.max(0, tool.cooldownTicks());
     }
 
+    /** A level may make its mallet stronger without changing the ordinary tool card. */
+    public static int damage(ToolData data) {
+        if (data == null) return 0;
+        if (data.damage() >= 0) return data.damage();
+        ToolDef tool = defOf(data);
+        return tool == null ? 0 : tool.damage();
+    }
+
     /** What one use of a level-declared tool costs in sun; 0 when it is free. */
     public static int sunCost(ToolData data) {
         if (data == null) {

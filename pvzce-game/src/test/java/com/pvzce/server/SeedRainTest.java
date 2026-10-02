@@ -193,7 +193,7 @@ class SeedRainTest {
         level.flushPending(bridge);
         assertEquals(packet.card(), level.heldCard(), "and the card is in the player's hand");
 
-        int cell = firstFreeCell(level);
+        int cell = firstFreeCell(level, packet.card());
         assertTrue(level.plantHeldCard(bridge, cell / 100, cell % 100),
                 "the held card is planted at " + (cell / 100) + "," + (cell % 100));
         level.flushPending(bridge);
@@ -204,10 +204,10 @@ class SeedRainTest {
     }
 
     /** The first cell with nothing in it, packed as x * 100 + y so the test reads as one value. */
-    private static int firstFreeCell(LevelServer level) {
+    private static int firstFreeCell(LevelServer level, Identifier card) {
         for (int y = 0; y < level.height(); y++) {
             for (int x = 0; x < level.width(); x++) {
-                if (level.plantAt(x, y) == null) {
+                if (level.canPlacePlant(BuiltInRegistries.PLANTS.get(card), x, y)) {
                     return x * 100 + y;
                 }
             }
@@ -241,10 +241,10 @@ class SeedRainTest {
         LevelServer level = shipped();
         CapturingBridge bridge = new CapturingBridge();
 
-        tick(level, bridge, 600);
+        tick(level, bridge, 660);
 
         List<CardDropEntity> found = drops(level);
-        assertTrue(found.size() >= 2, "two packets in ten seconds: " + found.size());
+        assertTrue(found.size() >= 2, "two packets within eleven seconds, including the opening delay: " + found.size());
         for (CardDropEntity packet : found) {
             assertTrue(com.pvzce.common.core.SlotResolver.resolve(packet.card()).isPresent(),
                     "every packet holds a card the game can plant: " + packet.card());

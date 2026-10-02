@@ -116,7 +116,7 @@ final class MowerClientMechanic implements ClientMechanic {
     private static final float MOWER_CLICK_RADIUS = 0.45F;
 
     /** One row's mower as this client last heard about it. */
-    private record Placement(int state, float x) {
+    private record Placement(int state, float x, int lane) {
     }
 
     /**
@@ -184,7 +184,7 @@ final class MowerClientMechanic implements ClientMechanic {
         private MowerOverlay(MowerData data, int height) {
             List<Integer> mowerRows = data == null ? List.of() : data.rowsFor(height);
             for (int row : mowerRows) {
-                rows.put(row, new Placement(MowerMechanic.STATE_READY, MowerMechanic.IDLE_X));
+                rows.put(row, new Placement(MowerMechanic.STATE_READY, MowerMechanic.IDLE_X, row));
                 rowAnimations.put(row, animationFor(data == null ? null : data.kindFor(row)));
             }
         }
@@ -192,7 +192,7 @@ final class MowerClientMechanic implements ClientMechanic {
         private void apply(MowerMechanic.State state) {
             for (MowerMechanic.Row row : state.rows()) {
                 if (rows.containsKey(row.row())) {
-                    rows.put(row.row(), new Placement(row.state(), row.x()));
+                    rows.put(row.row(), new Placement(row.state(), row.x(), row.lane()));
                 }
             }
         }
@@ -262,7 +262,7 @@ final class MowerClientMechanic implements ClientMechanic {
                 // One size factor on both axes: the mower is not a drop, so the width also
                 // wears the board's aspect correction and the height does not.
                 playback.render(client, placement.x(),
-                        row + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
+                        placement.lane() + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
                         EntityVisuals.baseZ(EntityKind.PLANT),
                         client.spriteXScale() * MOWER_RENDER_SCALE, MOWER_RENDER_SCALE);
             }

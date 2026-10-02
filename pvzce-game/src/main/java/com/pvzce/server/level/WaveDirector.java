@@ -153,6 +153,10 @@ public final class WaveDirector {
             return true;
         }
 
+        default boolean holdsNextWave() {
+            return false;
+        }
+
         /** How many zombies of this one {@code healthScale} times its own health; 1 for ordinary. */
         ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale);
 
@@ -429,7 +433,7 @@ public final class WaveDirector {
             spawnPendingWaveZombies();
             return;
         }
-        if (waveIndex < roundWaves) {
+        if (waveIndex < roundWaves && !host.holdsNextWave()) {
             // A wave's delay counts from the tick the previous wave *triggered*, and the
             // counter is only frozen while that wave is still putting its zombies out. Both
             // halves are load-bearing:
@@ -710,6 +714,10 @@ public final class WaveDirector {
             }
         }
         return false;
+    }
+
+    public boolean currentWaveFullyReleased() {
+        return waveIndex > 0 && !currentWaveStillReleasing();
     }
 
     /** How many of the wave at this position are still standing. */

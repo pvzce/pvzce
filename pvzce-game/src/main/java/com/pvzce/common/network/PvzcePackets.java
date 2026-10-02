@@ -141,7 +141,7 @@ public final class PvzcePackets {
     // is how the level's song is decoded while it loads rather than nine ticks after it was due.
     // 48: authoritative lily network membership, charge and current haste.
     // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
-    public static final int PROTOCOL_VERSION = 49;
+    public static final int PROTOCOL_VERSION = 50;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

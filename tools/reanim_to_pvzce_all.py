@@ -2119,6 +2119,16 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         },
     ),
     EntityConfig(
+        output="portal_square",
+        group="mechanic",
+        reanim="Portal_Square.reanim",
+        target_box=(1.35, 1.75),
+        animations={
+            "idle": {"mask": "anim_pulse", "loop": True, "transition": 0.0},
+            "pulse_reverse": {"mask": "anim_pulse_reverse", "loop": True, "transition": 0.0},
+        },
+    ),
+    EntityConfig(
         output="imp",
         group="zombie/giant",
         reanim="Zombie_imp.reanim",

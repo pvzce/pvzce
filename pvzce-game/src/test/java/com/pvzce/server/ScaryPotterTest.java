@@ -494,13 +494,13 @@ class ScaryPotterTest {
         assertEquals(lifetime, packet.ticksLeft(), "a fresh packet has its whole life ahead of it");
         for (int tick = 0; tick < lifetime - com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS;
                 tick++) {
-            packet.tick(level);
+            level.tick(bridge);
         }
         assertFalse(packet.isRemoved(), "it is still there at 15 seconds");
         assertTrue(packet.ticksLeft() <= com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS,
                 ".. and it is inside the flash window, so the client can show it is going");
         for (int tick = 0; tick < com.pvzce.common.PvzceConstants.CARD_DROP_FLASH_TICKS; tick++) {
-            packet.tick(level);
+            level.tick(bridge);
         }
         assertTrue(packet.isRemoved(), "and at twenty seconds it is gone");
     }

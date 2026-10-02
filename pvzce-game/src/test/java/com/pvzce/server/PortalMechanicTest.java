@@ -137,8 +137,8 @@ class PortalMechanicTest {
                 new com.pvzce.common.level.mechanic.PortalMechanic();
         LevelDef def = level(new PortalData(List.of())).def();
         List<String> errors = mechanic.validate(def,
-                new PortalData(List.of(new PortalData.Pair(9, 0, 2, 3))));
-        assertTrue(errors.stream().anyMatch(message -> message.contains("off a")),
+                new PortalData(List.of(new PortalData.Pair(10, 0, 2, 3))));
+        assertTrue(errors.stream().anyMatch(message -> message.contains("off-board")),
                 "a portal outside the board is reported: " + errors);
     }
 
@@ -176,19 +176,17 @@ class PortalMechanicTest {
     }
 
     @Test
-    void theShippedLevelsFirstDoorSendsRowZeroIntoRowThree() {
-        ZombieEntity walker = walkThroughTheShippedDoor(0, 8.0F);
-
-        assertEquals(3, rowOf(walker), "a zombie in row 0 leaves through row 3");
-        assertTrue(walker.cellX() < 2.5F, "past the exit ring's centre: " + walker.cellX());
+    void theShippedLevelsSquareDoorSendsRowThreeIntoRowFour() {
+        ZombieEntity walker = walkThroughTheShippedDoor(3, 10.0F);
+        assertEquals(4, rowOf(walker), "the upper right square door leads to the upper left door");
+        assertTrue(walker.cellX() < 2.5F);
     }
 
     @Test
-    void theShippedLevelsSecondDoorSendsRowOneIntoRowFour() {
-        ZombieEntity walker = walkThroughTheShippedDoor(1, 8.5F);
-
-        assertEquals(4, rowOf(walker), "a zombie in row 1 leaves through row 4");
-        assertTrue(walker.cellX() < 3.5F, "past the exit ring's centre: " + walker.cellX());
+    void theShippedLevelsCircleDoorSendsRowOneIntoRowZero() {
+        ZombieEntity walker = walkThroughTheShippedDoor(1, 10.0F);
+        assertEquals(0, rowOf(walker), "the lower right circle door leads to the lower left door");
+        assertTrue(walker.cellX() < 2.5F);
     }
 
     /** Row 2 is the lane the level leaves alone, which is what makes the doors a choice. */

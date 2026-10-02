@@ -11,7 +11,7 @@
       "pieces": [
         {
           "id": "pvzce:wallnut_head",
-          "durability": 2000,
+          "durability": 1100,
           "position": "top",
           "sprite": "pvzce:textures/entities/zombie/zombotany/zombotany_wallnut_zombie/body"
         }

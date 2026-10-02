@@ -7,6 +7,7 @@ import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.nbt.CompoundTag;
@@ -98,6 +99,10 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
     @Override
     public void tick(LevelServer level, GraveSpawnerData data) {
         Rig rig = rig(level, data);
+        if (data.phased()) {
+            tickPhased(level, data, rig);
+            return;
+        }
         // Once the level has announced its last wave the lawn stops gaining tombstones.
         //
         // That wave is the graves' farewell: every stone standing at that moment gives up one
@@ -144,6 +149,67 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         level.raiseZombieFromGrave(zombie, chosen.x(), chosen.y());
     }
 
+    /** The minigame's progression: ordinary first, cones later, buckets and bursts last. */
+    private static void tickPhased(LevelServer level, GraveSpawnerData data, Rig rig) {
+        int wave = level.currentWave();
+        if (level.wavesReleased()) {
+            finalBurst(level, data);
+            return;
+        }
+        if (wave != rig.lastWave) {
+            rig.lastWave = wave;
+            rig.graveTarget = Math.max(data.minGraves(), level.graveCells().size() + (wave > 0 ? 1 : 0));
+        }
+        keepGravesUp(level, data, rig, Math.max(rig.graveTarget,
+                rig.raised < data.initialFor() ? data.initialFor() : 0));
+        if (wave == 0 || --rig.ticksUntilRise > 0) return;
+        int phase = Math.min(5, Math.max(0, (wave - 1) * 6 / level.def().waves().size()));
+        int countRoll = level.random().nextInt(100);
+        int count = countRoll < PvzceConstants.WHACK_TRIPLE_CHANCE.get(phase) ? 3
+                : countRoll < PvzceConstants.WHACK_TRIPLE_CHANCE.get(phase) + PvzceConstants.WHACK_DOUBLE_CHANCE.get(phase) ? 2 : 1;
+        int typeRoll = level.random().nextInt(100);
+        Identifier id = PvzceIds.id(typeRoll < PvzceConstants.WHACK_BUCKET_CHANCE.get(phase) && count < 3 ? "buckethead_zombie"
+                : typeRoll < PvzceConstants.WHACK_BUCKET_CHANCE.get(phase) + PvzceConstants.WHACK_CONE_CHANCE.get(phase) ? "conehead_zombie" : "basic_zombie");
+        var graves = availableGraves(level);
+        java.util.Collections.shuffle(graves, level.random());
+        for (int i = 0; i < Math.min(count, graves.size()); i++) {
+            var grave = graves.get(i);
+            raisePhased(level, id, grave.x(), grave.y(), false);
+        }
+        float progress = (wave - 1F) / Math.max(1, level.def().waves().size() - 1);
+        int minimum = Math.round(PvzceConstants.WHACK_INITIAL_INTERVAL
+                + (PvzceConstants.WHACK_FINAL_INTERVAL - PvzceConstants.WHACK_INITIAL_INTERVAL) * progress);
+        rig.ticksUntilRise = minimum + level.random().nextInt(minimum + 1);
+    }
+
+    public static void finalBurst(LevelServer level, GraveSpawnerData data) {
+        Rig rig = rig(level, data);
+        if (rig.finalBurst) return;
+        rig.finalBurst = true;
+        for (var grave : availableGraves(level)) {
+            raisePhased(level, PvzceIds.id(level.random().nextBoolean()
+                    ? "conehead_zombie" : "buckethead_zombie"), grave.x(), grave.y(), true);
+        }
+    }
+
+    private static List<SceneGrid.Cell<SceneElementDef>> availableGraves(LevelServer level) {
+        List<SceneGrid.Cell<SceneElementDef>> result = new ArrayList<>();
+        for (var grave : level.graveCells()) {
+            var plant = level.plantAt(grave.x(), grave.y());
+            if (plant == null || !plant.defId().equals(PvzceIds.id("grave_buster"))) result.add(grave);
+        }
+        return result;
+    }
+
+    private static void raisePhased(LevelServer level, Identifier id, int x, int y, boolean finalBurst) {
+        var zombie = level.raiseZombieFromGrave(id, x, y);
+        if (zombie == null) return;
+        float progress = Math.max(0, level.currentWave() - 1F)
+                / Math.max(1, level.def().waves().size() - 1);
+        float maximum = finalBurst ? 2F : 1F + 2F * progress * progress;
+        zombie.setMovementMultiplier(2F * (0.5F + level.random().nextFloat() * (maximum - 0.5F)));
+    }
+
     @Override
     public void collectSave(LevelServer level, GraveSpawnerData data, CompoundTag root) {
         Rig rig = rig(level, data);
@@ -151,6 +217,9 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         tag.putInt("TicksUntilRise", rig.ticksUntilRise);
         tag.putInt("Raised", rig.raised);
         tag.putInt("NextDesign", rig.nextDesign);
+        tag.putInt("LastWave", rig.lastWave);
+        tag.putInt("GraveTarget", rig.graveTarget);
+        tag.putByte("FinalBurst", (byte) (rig.finalBurst ? 1 : 0));
         root.put(KEY_GRAVE_SPAWNER, tag);
     }
 
@@ -166,6 +235,9 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         rig.ticksUntilRise = Math.max(1, tag.getInt("TicksUntilRise"));
         rig.raised = Math.max(0, tag.getInt("Raised"));
         rig.nextDesign = Math.max(0, tag.getInt("NextDesign"));
+        rig.lastWave = tag.getInt("LastWave");
+        rig.graveTarget = tag.getInt("GraveTarget");
+        rig.finalBurst = tag.getInt("FinalBurst") != 0;
     }
 
     // ------------------------------------------------------------------
@@ -221,6 +293,9 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         private int ticksUntilRise;
         private int raised;
         private int nextDesign;
+        private int lastWave;
+        private int graveTarget;
+        private boolean finalBurst;
 
         private Rig(GraveSpawnerData data) {
             this.ticksUntilRise = data.interval();

@@ -405,6 +405,9 @@ final public class SmokeDriver {
      */
     private final String smokeCommands = System.getProperty("pvzce.smokeCommands", "");
     private boolean smokeCommandsSent;
+    /** Frame:command entries separated by |, for reviewing multiple boards in one launch. */
+    private final String smokeCommandFrames = System.getProperty("pvzce.smokeCommandFrames", "");
+    private final java.util.Set<String> smokeCommandFramesDone = new java.util.HashSet<>();
     /**
      * Commands to run <em>before</em> the automatic level request, on whatever screen is up.
      *
@@ -706,6 +709,18 @@ final public class SmokeDriver {
             pendingCollection = smokeCollection;
         }
         long clientTick = client.clientTick();
+        for (String item : smokeCommandFrames.split("\\|")) {
+            String[] parts = item.trim().split(":", 2);
+            if (parts.length != 2) continue;
+            try {
+                if (clientTick >= Long.parseLong(parts[0]) && smokeCommandFramesDone.add(item)) {
+                    sendCommands(parts[1]);
+                    System.out.println("[SMOKE] command frame " + clientTick + " -> " + parts[1]);
+                }
+            } catch (NumberFormatException e) {
+                System.err.println("[SMOKE] invalid command frame: " + item);
+            }
+        }
         applySmokeHold(clientTick);
         applySmokeCoins(clientTick);
         applySmokeCollection(clientTick);

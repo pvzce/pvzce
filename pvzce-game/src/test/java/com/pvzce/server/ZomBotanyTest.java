@@ -206,6 +206,21 @@ class ZomBotanyTest {
                 "the plant has to have been shot: " + target.health() + " of " + full);
     }
 
+    @Test
+    void zombiePeasPassOverLowPlantsAndHitThePlantBehindThem() {
+        LevelServer level = lawn();
+        PlantEntity low = place(level, "puff_shroom", 4, 2);
+        PlantEntity tall = place(level, "wall_nut", 2, 2);
+        spawn(level, "zombotany_pea_zombie", 7F, 2);
+        int lowHealth = low.health();
+        int tallHealth = tall.health();
+
+        tick(level, 400);
+
+        assertEquals(lowHealth, low.health(), "the pea travels above the sleeping puff-shroom");
+        assertTrue(tall.health() < tallHealth, "the same pea still damages the wall-nut behind it");
+    }
+
     /** The wall-nut head has to be chewed through before the body is touched. */
     @Test
     void theWallNutHeadIsArmourAndNotHealth() {

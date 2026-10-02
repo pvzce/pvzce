@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/wallnut_bowling_2",
   "name": "坚果保龄球2",
-  "description": "原版的坚果保龄球2：传送带只送两种坚果 —— 巨大坚果一路碾过去，红色爆炸坚果撞到第一只僵尸就炸开一片。",
+  "description": "坚果保龄球二代：传送带送来普通坚果、爆炸坚果和巨大坚果。普通坚果撞击换行，爆炸坚果清掉一片，巨大坚果直线碾压；三面旗帜，没有小推车。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -74,7 +74,8 @@
     "pvzce:night_length": -1,
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
-    "pvzce:zombie_speed_multiplier": 1.5
+    "pvzce:zombie_sun_drop_chance": 0.0,
+    "pvzce:graves_spawn_night": false
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
@@ -83,24 +84,27 @@
   "mechanics": [
     {
       "type": "pvzce:conveyor",
-      "interval_ticks": 140,
-      "capacity": 6,
-      "initial_cards": 3,
+      "interval_ticks": 150,
+      "capacity": 10,
+      "initial_cards": 2,
       "cards": [
         {
-          "id": "pvzce:giant_nut",
-          "weight": 1
+          "id": "pvzce:bowling_nut",
+          "weight": 85
         },
         {
           "id": "pvzce:explosive_nut",
-          "weight": 1
+          "weight": 15
+        },
+        {
+          "id": "pvzce:giant_nut",
+          "weight": 15
         }
       ]
     },
     {
       "type": "pvzce:placement_zone",
-      "min_x": 0,
-      "max_x": 3
+      "max_x": 2
     },
     {
       "type": "pvzce:mower",
@@ -111,67 +115,496 @@
     {
       "type": "small",
       "delay": 600,
+      "spawn_interval": 15,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 3,
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
           "rows": [
-            0,
-            1
+            0
           ]
         }
-      ],
-      "spawn_interval": 15
+      ]
     },
     {
       "type": "small",
-      "delay": 3034,
+      "delay": 2853,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
-          "count": 3,
+          "count": 2,
           "rows": [
-            0,
-            1
+            1,
+            2
           ]
         }
-      ],
-      "spawn_interval": 15
+      ]
     },
     {
       "type": "small",
-      "delay": 2730,
+      "delay": 2675,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2858,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            3,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
           "count": 3,
           "rows": [
+            4,
             0,
             1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2775,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2844,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2605,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 3053,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            4
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
           "count": 2,
           "rows": [
-            2
+            0,
+            1
           ]
         }
-      ],
-      "spawn_interval": 15
+      ]
     },
     {
       "type": "small",
-      "delay": 2625,
+      "delay": 3010,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2851,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
           "count": 7,
           "rows": [
+            4,
             0,
             1,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "warning_ticks": 750
+    },
+    {
+      "type": "small",
+      "delay": 4500,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            1,
+            2,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
+            3,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2903,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2695,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3,
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            4,
+            2,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2999,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
             3,
             4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            3,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2932,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            3,
+            4,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            1,
+            2,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2878,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            1,
+            4,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            3
           ]
         },
         {
@@ -182,18 +615,356 @@
             2
           ]
         }
-      ],
-      "spawn_interval": 15
+      ]
     },
     {
       "type": "small",
-      "delay": 3073,
+      "delay": 2699,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2932,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            4,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            3,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2706,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            3,
+            1,
+            2,
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2733,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 11,
+          "rows": [
+            4,
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            0,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            4
+          ]
+        }
+      ],
+      "warning_ticks": 750
+    },
+    {
+      "type": "small",
+      "delay": 4500,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2828,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
           "count": 3,
           "rows": [
+            1,
+            2,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 3,
+          "rows": [
+            3,
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2588,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            2,
             0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
             4
           ]
         },
@@ -202,97 +973,450 @@
           "count": 5,
           "rows": [
             1,
+            4,
+            0,
             2,
             3
           ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2623,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 7,
-          "rows": [
-            0,
-            2,
-            3,
-            4
-          ]
         },
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 3,
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
           "rows": [
-            0,
-            1
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 3019,
-      "entries": [
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 7,
-          "rows": [
-            0,
-            2,
-            3,
-            4
+            2
           ]
         },
         {
           "id": "pvzce:basic_zombie",
-          "count": 7,
+          "count": 2,
           "rows": [
-            0,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2682,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            3,
+            4,
             1,
             2
           ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
         }
-      ],
-      "spawn_interval": 15
+      ]
     },
     {
-      "type": "final",
-      "delay": 2558,
+      "type": "small",
+      "delay": 2582,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 4,
+          "rows": [
+            1,
+            4,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            1,
+            4,
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2627,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 11,
+          "rows": [
+            1,
+            3,
+            4,
+            0,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            2,
+            3,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2780,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3,
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            3,
+            4,
+            1,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2596,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 12,
+          "count": 6,
+          "rows": [
+            2,
+            4,
+            1,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            3,
+            4,
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3,
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            3,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2807,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            3,
+            4,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 6,
           "rows": [
             0,
             1,
             2,
+            3,
             4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "final",
+      "delay": 2929,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 13,
+          "rows": [
+            4,
+            0,
+            1,
+            2,
+            3
           ]
         },
         {
           "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:door_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            2,
+            3,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:newspaper_zombie",
           "count": 2,
           "rows": [
-            3
+            1,
+            2
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
-          "count": 7,
+          "count": 5,
           "rows": [
-            1,
-            2,
             3,
+            1,
+            4,
+            0
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
             4
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 2,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:pole_vaulter_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            3,
+            4,
+            1
           ]
         }
       ],
-      "spawn_interval": 15,
       "warning_ticks": 750
     }
   ],
@@ -305,87 +1429,6 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
-      }
-    ]
-  },
-  "dialogue": {
-    "lines": [
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "哇！你好厉害喵！",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "已经战胜了这么多僵尸了呢",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "blush",
-        "text": "看得咱都有点...",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "panic",
-        "text": "诶诶诶！才不是你想的那样！",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "嗯哼，回到正题",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "你要不要试试打保龄球喵？",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "就是...用坚果，然后，通通通！",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "smile",
-        "text": "就这样，僵尸们就被解决啦！",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "confused",
-        "text": "诶不过，为什么要用坚果呢？",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "confused",
-        "text": "我也不知道嘿嘿，你去问戴夫喵",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:pea_chan",
-        "portrait": "zako",
-        "text": "去战斗吧，杂鱼~",
-        "voice": "",
-        "side": "left"
       }
     ]
   },
@@ -405,12 +1448,12 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "坚果放在左边的放置区里才会滚出去",
+      "text": "只在左边三列投球；普通坚果会撞击换行，巨大坚果沿直线碾过去。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "传送带发牌是免费的，不用管阳光",
+      "text": "爆炸坚果撞到僵尸就爆炸，留给密集的尸群。",
       "duration_ticks": 600
     },
     {
@@ -434,5 +1477,7 @@
       }
     ],
     "coin_drop": "pvzce:coin_gold"
-  }
+  },
+  "seed_screen": false,
+  "unlock_resources": {}
 }

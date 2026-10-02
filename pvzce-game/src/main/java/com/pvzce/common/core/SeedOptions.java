@@ -113,6 +113,14 @@ public final class SeedOptions {
                 ids.add(slot);
             }
         }
+        com.pvzce.api.content.PreparationData preparation =
+                com.pvzce.common.level.mechanic.LevelMechanics.dataOf(def,
+                        PvzceIds.MECHANIC_PREPARATION, com.pvzce.api.content.PreparationData.class).orElse(null);
+        if (preparation != null) {
+            ids.removeIf(id -> preparation.excludedCards().contains(id)
+                    || SlotResolver.resolve(id).map(card -> preparation.excludedCards()
+                            .contains(card.content())).orElse(false));
+        }
         return List.copyOf(ids);
     }
 

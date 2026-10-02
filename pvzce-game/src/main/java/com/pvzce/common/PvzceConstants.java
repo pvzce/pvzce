@@ -8,6 +8,17 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    /** Seed packets descend across the lawn at this many cells per second. */
+    public static final float SEED_RAIN_FALL_SPEED = 0.8F;
+    public static final int PORTAL_WARNING_TICKS = 300;
+    public static final float PORTAL_EXIT_OFFSET = 0.51F;
+    public static final int PORTAL_IMMUNITY_TICKS = 30;
+    public static final java.util.List<Integer> WHACK_DOUBLE_CHANCE = java.util.List.of(0, 30, 10, 10, 15, 18);
+    public static final java.util.List<Integer> WHACK_TRIPLE_CHANCE = java.util.List.of(0, 0, 0, 0, 10, 13);
+    public static final java.util.List<Integer> WHACK_BUCKET_CHANCE = java.util.List.of(0, 0, 0, 10, 15, 15);
+    public static final java.util.List<Integer> WHACK_CONE_CHANCE = java.util.List.of(0, 0, 30, 30, 30, 30);
+    public static final int WHACK_INITIAL_INTERVAL = 100;
+    public static final int WHACK_FINAL_INTERVAL = 30;
     public static final int TICKS_PER_SECOND = 60;
     public static final int CACTUS_DAMAGE = 20;
     public static final int CACTUS_SHOT_INTERVAL_TICKS = 90;

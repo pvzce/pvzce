@@ -85,6 +85,8 @@ RULES: list[tuple[str, str, str]] = [
      "`tools/make_bungee_rig.py`：从拆包直接拷贝，未作改动"),
     (r"^textures/particles/.+/reanim/", PvZ,
      "原版 reanim 粒子贴图"),
+    (r"^textures/particles/water/rain\.png$", PvZ,
+     "`tools/gen_rain_texture.py` 从 `refer/im7/particles/Rain.png` 转为 RGBA；只留 local-assets"),
     (r"^textures/entities/status/", PvZ,
      "原版状态图标（冰冻尖刺）"),
     (r"^sounds/music/", PvZ,

@@ -90,7 +90,7 @@
   "unlock_resources": {
     "pvzce:sun": true
   },
-  "initial_sun": 150,
+  "initial_sun": 500,
   "waves": [
     {
       "type": "small",
@@ -293,5 +293,21 @@
   },
   "buffs": [
     "pvzce:mushroom_range"
+  ],
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
+  "seed_screen": false,
+  "background": "pvzce:textures/gui/screen/level/background1",
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "白天的蘑菇需要咖啡豆叫醒；先用阳光建立收入，再逐行唤醒小喷菇。",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
   ]
 }

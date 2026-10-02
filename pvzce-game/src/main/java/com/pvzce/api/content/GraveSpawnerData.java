@@ -49,8 +49,12 @@ import java.util.List;
  *                      only wants the graves to come back needs
  */
 public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int initialGraves,
-                               int interval, int minX, int maxX, int gravesPerWave)
+                               int interval, int minX, int maxX, int gravesPerWave, boolean phased)
         implements MechanicData {
+    public GraveSpawnerData(List<Identifier> zombies, int minGraves, int initialGraves,
+                            int interval, int minX, int maxX, int gravesPerWave) {
+        this(zombies, minGraves, initialGraves, interval, minX, maxX, gravesPerWave, false);
+    }
     /** {@code initial_graves} unwritten: raise as many as {@code min_graves}. */
     public static final int INITIAL_AS_MINIMUM = -1;
     /** {@code max_x} unwritten: the level's own last column. */
@@ -66,7 +70,8 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
             Codec.INT.optionalFieldOf("interval", DEFAULT_INTERVAL).forGetter(GraveSpawnerData::interval),
             Codec.INT.optionalFieldOf("min_x", 0).forGetter(GraveSpawnerData::minX),
             Codec.INT.optionalFieldOf("max_x", MAX_X_UNSET).forGetter(GraveSpawnerData::maxX),
-            Codec.INT.optionalFieldOf("graves_per_wave", 0).forGetter(GraveSpawnerData::gravesPerWave)
+            Codec.INT.optionalFieldOf("graves_per_wave", 0).forGetter(GraveSpawnerData::gravesPerWave),
+            Codec.BOOL.optionalFieldOf("phased", false).forGetter(GraveSpawnerData::phased)
     ).apply(i, GraveSpawnerData::new));
 
     public static final Codec<GraveSpawnerData> CODEC = MAP_CODEC.codec();

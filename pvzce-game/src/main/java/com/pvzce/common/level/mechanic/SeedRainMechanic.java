@@ -7,6 +7,8 @@ import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.ListTag;
+import com.pvzce.common.nbt.Tag;
 import com.pvzce.server.entity.PvzceEntity;
 import com.pvzce.server.level.LevelServer;
 
@@ -26,11 +28,8 @@ import java.util.Random;
  * that puts them there; everything about what a packet <em>is</em> was settled by the vase work
  * and is deliberately not re-decided here.
  *
- * <p><b>The clock is saved.</b> A run resumed after the rain had already been falling for a minute
- * must not start counting from zero: the player's lawn is the state the packets produced, and the
- * timer is part of the same fact. What is <em>not</em> saved is which cards have already fallen -
- * a resumed run may see one more cherry bomb than a run that was never quit, and paying for that
- * with a counter per card would be a second, weaker copy of the same truth.
+ * <p>The countdown and each card's delivered count are saved together. Reloading must not
+ * replenish a limited pool.
  */
 public final class SeedRainMechanic implements LevelMechanic<SeedRainData> {
     /**
@@ -76,7 +75,8 @@ public final class SeedRainMechanic implements LevelMechanic<SeedRainData> {
         if (clock.ticks > 0) {
             return;
         }
-        clock.ticks = data.intervalTicks();
+        clock.ticks = data.intervalTicks()
+                + level.random().nextInt(data.maxIntervalTicks() - data.intervalTicks() + 1);
         drop(level, data);
     }
 
@@ -84,6 +84,18 @@ public final class SeedRainMechanic implements LevelMechanic<SeedRainData> {
     private void drop(LevelServer level, SeedRainData data) {
         Clock clock = clock(level);
         Identifier card = data.pick(level.random(), id -> clock.dropped.getOrDefault(id, 0));
+        if (data.lilyPadBias()) {
+            Identifier pad = PvzceIds.id("lily_pad");
+            long pads = level.entities().stream().filter(entity -> !entity.isRemoved()
+                    && entity instanceof com.pvzce.server.entity.PlantEntity
+                    && entity.defId().equals(pad)).count();
+            SeedRainData.Card padCard = data.cards().stream().filter(entry -> entry.card().equals(pad))
+                    .findFirst().orElse(null);
+            if (padCard != null && padCard.canDropMore(clock.dropped.getOrDefault(pad, 0))
+                    && level.random().nextInt(100) < Math.max(1, 30 - pads * 29 / 18)) {
+                card = pad;
+            }
+        }
         if (card == null) {
             // Every card in the pool is at its max_count, so this level's rain is over. Not an
             // error: an author who caps every card said so on purpose.
@@ -97,7 +109,11 @@ public final class SeedRainMechanic implements LevelMechanic<SeedRainData> {
             return;
         }
         int[] cell = free.get(random.nextInt(free.size()));
-        level.spawnCardDrop(card, cell[0], cell[1]);
+        if (data.falling()) {
+            level.spawnFallingCardDrop(card, cell[0], cell[1]);
+        } else {
+            level.spawnCardDrop(card, cell[0], cell[1]);
+        }
         clock.dropped.merge(card, 1, Integer::sum);
     }
 
@@ -112,7 +128,7 @@ public final class SeedRainMechanic implements LevelMechanic<SeedRainData> {
         Map<Long, Boolean> taken = new HashMap<>();
         for (PvzceEntity entity : level.entities()) {
             if (entity instanceof com.pvzce.server.entity.CardDropEntity drop && !drop.isRemoved()) {
-                taken.put(key(drop.gridX(), drop.gridY()), Boolean.TRUE);
+                taken.put(key(drop.gridX(), drop.landingRow()), Boolean.TRUE);
             }
         }
         List<int[]> cells = new ArrayList<>();
@@ -162,12 +178,29 @@ public final class SeedRainMechanic implements LevelMechanic<SeedRainData> {
     @Override
     public void collectSave(LevelServer level, SeedRainData data, CompoundTag root) {
         root.putInt("SeedRain", clock(level).ticks);
+        ListTag counts = new ListTag();
+        clock(level).dropped.forEach((id, count) -> {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("Card", id.toString());
+            entry.putInt("Count", count);
+            counts.add(entry);
+        });
+        root.put("SeedRainCounts", counts);
     }
 
     @Override
     public void applySave(LevelServer level, SeedRainData data, CompoundTag root) {
         if (root.contains("SeedRain")) {
             clock(level).ticks = Math.max(0, root.getInt("SeedRain"));
+        }
+        clock(level).dropped.clear();
+        for (Tag tag : root.getList("SeedRainCounts").values()) {
+            if (tag instanceof CompoundTag entry) {
+                Identifier id = Identifier.tryParse(entry.getString("Card"));
+                if (id != null) {
+                    clock(level).dropped.put(id, Math.max(0, entry.getInt("Count")));
+                }
+            }
         }
     }
 }

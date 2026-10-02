@@ -456,6 +456,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         this(def, def.slots());
     }
 
+    /** Seeds before initialization, including the conveyor's opening cards and grave placement. */
+    public LevelServer(LevelDef def, long randomSeed) {
+        this(def, def.slots(), randomSeed);
+    }
+
+    public LevelServer(LevelDef def, List<Identifier> selectedSlots, long randomSeed) {
+        this(def, selectedSlots, SeedContext.all(def), null, null, randomSeed);
+    }
+
     /** Creates a level whose plant player starts with the supplied seed selection, in order. */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots) {
         this(def, selectedSlots, SeedContext.all(def));
@@ -501,6 +510,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
                        List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard) {
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, null);
+    }
+
+    private LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                        List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
+                        Long randomSeed) {
+        if (randomSeed != null) random.setSeed(randomSeed);
         this.def = def;
         this.ownsCard = ownsCard == null ? card -> true : ownsCard;
         this.seedContext = seedContext == null ? SeedContext.all(def) : seedContext;
@@ -2464,6 +2480,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             tickEntities(ZombieEntity.class, bridge);
             tickEntities(ProjectileEntity.class, bridge);
             tickEntities(ResourceDropEntity.class, bridge);
+            tickEntities(com.pvzce.server.entity.CardDropEntity.class, bridge);
             tickAutoCollect();
 
             for (PvzceEntity entity : new ArrayList<>(entities)) {
@@ -2509,7 +2526,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (entity.isRemoved() && !(entity instanceof PlantEntity plant && plant.vanishing())) {
                 continue;
             }
+            float beforeX = entity.cellX();
+            int beforeRow = entity.gridY();
             type.cast(entity).tick(this);
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                com.pvzce.common.level.mechanic.PortalMechanic.Exit exit =
+                        com.pvzce.common.level.mechanic.PortalMechanic.cross(
+                                this, zombie.id(), beforeX, zombie.cellX(), beforeRow);
+                if (exit != null) {
+                    zombie.setCellX(exit.x());
+                    zombie.setCellY(exit.row() + 0.5F);
+                }
+            }
         }
         flushPending(bridge);
     }
@@ -3134,6 +3162,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return waves.waveInRound();
     }
 
+    @Override
+    public boolean holdsNextWave() {
+        return com.pvzce.common.level.mechanic.PreparationMechanic.holdsNextWave(this);
+    }
+
+    public boolean currentWaveFullyReleased() {
+        return waves.currentWaveFullyReleased();
+    }
+
     public int totalWaves() {
         // Zero on a level that does not count its waves: the meter is drawn from this, and a song
         // has no denominator. See `showsWaveCount`.
@@ -3321,6 +3358,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public void riseGraveZombies(WaveDef wave) {
+        var graves = com.pvzce.common.level.mechanic.LevelMechanics.dataOf(def,
+                PvzceIds.MECHANIC_GRAVE_SPAWNER, com.pvzce.api.content.GraveSpawnerData.class).orElse(null);
+        if (graves != null && graves.phased()) {
+            com.pvzce.common.level.mechanic.GraveSpawnerMechanic.finalBurst(this, graves);
+            return;
+        }
         if (!clock.isNight(rules) || !rules.getBoolean(PvzceIds.RULE_GRAVES_SPAWN_NIGHT)) {
             return;
         }
@@ -4395,7 +4438,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("阳光不足！"));
             return false;
         }
-        if (!applyToolEffect(tool, x, y)) {
+        if (!applyToolEffect(tool, x, y, ToolMechanic.damage(granted), granted.singleTarget())) {
             return false;
         }
         if (cost > 0) {
@@ -4540,6 +4583,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     private boolean applyToolEffect(ToolDef tool, int x, int y) {
+        return applyToolEffect(tool, x, y, tool.damage(), false);
+    }
+
+    private void strikeWithHammer(ZombieEntity zombie, ToolDef tool, int damage) {
+        zombie.damage(damage, toolTypeFor(tool), this);
+        emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
+    }
+
+    private boolean applyToolEffect(ToolDef tool, int x, int y, int damage, boolean singleTarget) {
         return switch (tool.effect()) {
             // PVZ original: one shovel click removes exactly one plant, always the
             // topmost layer of the target cell.
@@ -4570,14 +4622,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // (It used to `yield` here, so a zombie one cell away from a pot took nothing
                 // from a swing aimed at the pot it was standing next to.)
                 boolean smashed = ScaryPotterMechanic.isPot(this, x, y) && smashPot(x, y);
-                // What one swing is worth, and whether armour absorbs it, are the tool's own
-                // numbers (see ToolDef.damage / damage_type) - not this method's. They used to
-                // live here as a 100000-point `pvzce:mower` blow, which made the mallet a lawn
-                // mower: everything on the lawn died in one hit, and a Buckethead was worth no
-                // more than a bare zombie. The default is one normal zombie's health, and the
-                // shipped hammer declares `pvzce:impact` so a cone or a bucket still costs a
-                // swing of its own - which is what the original's two- and three-hit mallet
-                // means in a build where one blow lands on one layer.
+                // The ordinary card uses ToolDef.damage; a level can override it through
+                // ToolData. Whack-a-Zombie declares a 900-point, single-target impact: armour
+                // absorbs the entire blow, so a cone takes two swings and a bucket takes three.
                 //
                 // `false` when nothing was under it, so a swing at empty grass follows the same
                 // rule every other refused click does: no sun, no cooldown, no bang.
@@ -4589,6 +4636,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 float hitY = y + 0.5F;
                 float reach = tool.range();
                 boolean hitSomething = false;
+                ZombieEntity closest = null;
+                float closestDistance = Float.MAX_VALUE;
                 for (PvzceEntity entity : new ArrayList<>(entities)) {
                     if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                         continue;
@@ -4603,7 +4652,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     if (Math.abs(dy) > reach || Math.abs(dx) > reach * ZOMBIE_HALF_WIDTH_FACTOR) {
                         continue;
                     }
-                    zombie.damage(tool.damage(), toolTypeFor(tool), this);
+                    if (singleTarget) {
+                        float distance = dx * dx + dy * dy;
+                        if (distance < closestDistance) {
+                            closest = zombie;
+                            closestDistance = distance;
+                        }
+                        continue;
+                    }
                     // The blow's sound only. It used to throw the hit spark as well, and the
                     // spark is a 25-star burst drawn where the cursor is standing - at which
                     // point the player reads it as a halo around the mallet rather than as a
@@ -4611,7 +4667,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     // on the click (see InGameScreen#swingDefaultToolCursor); what the server
                     // still owes the player is the confirmation that it landed, and that is the
                     // bonk.
-                    emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
+                    strikeWithHammer(zombie, tool, damage);
+                    hitSomething = true;
+                }
+                if (closest != null) {
+                    strikeWithHammer(closest, tool, damage);
                     hitSomething = true;
                 }
                 yield hitSomething || smashed;
@@ -5058,6 +5118,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return;
         }
         addEntity(new com.pvzce.server.entity.CardDropEntity(card, teams.get(PvzceIds.PLANT_TEAM), x, y));
+    }
+
+    public void spawnFallingCardDrop(Identifier card, int x, int y) {
+        if (com.pvzce.common.core.SlotResolver.resolve(card).isEmpty()) {
+            return;
+        }
+        com.pvzce.server.entity.CardDropEntity drop = new com.pvzce.server.entity.CardDropEntity(
+                card, teams.get(PvzceIds.PLANT_TEAM), x, y);
+        drop.fallFromSky(height());
+        addEntity(drop);
     }
 
     /** The card the player is carrying, or {@code null} when their hand is empty. */

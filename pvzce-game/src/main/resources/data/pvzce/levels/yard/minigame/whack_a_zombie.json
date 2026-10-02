@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/whack_a_zombie",
-  "name": "打地鼠（加强版）",
-  "description": "加强版的打地鼠：墓碑更多、钻出来的更快，铁桶和橄榄球也会从土里爬出来。卡槽里除了土豆雷、墓碑吞噬者和樱桃炸弹，还多给了一颗火爆辣椒。",
+  "name": "打地鼠",
+  "description": "夜晚的打地鼠：空手点击锤击僵尸，土豆雷、墓碑吞噬者和樱桃炸弹辅助防守。前段只有普通僵尸，随后出现路障和铁桶，末波墓碑一起冒怪；没有小推车。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -82,10 +82,9 @@
     "pvzce:night_length": 360000,
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
-    "pvzce:graves_spawn_night": true,
-    "pvzce:zombie_speed_multiplier": 2.6,
-    "pvzce:zombie_sun_drop_chance": 0.05,
-    "pvzce:zombie_rise_ticks": 40
+    "pvzce:zombie_sun_drop_chance": 0.1,
+    "pvzce:graves_spawn_night": false,
+    "pvzce:zombie_rise_ticks": 50
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
@@ -93,9 +92,7 @@
     "pvzce:sun",
     "pvzce:potato_mine",
     "pvzce:grave_buster",
-    "pvzce:cherry_bomb",
-    "pvzce:jalapeno",
-    "pvzce:shovel"
+    "pvzce:cherry_bomb"
   ],
   "initial_sun": 0,
   "mechanics": [
@@ -105,18 +102,16 @@
     },
     {
       "type": "pvzce:grave_spawner",
+      "phased": true,
       "zombies": [
         "pvzce:basic_zombie",
         "pvzce:conehead_zombie",
-        "pvzce:buckethead_zombie",
-        "pvzce:pole_vaulter_zombie",
-        "pvzce:football_zombie"
+        "pvzce:buckethead_zombie"
       ],
-      "min_graves": 12,
-      "initial_graves": 12,
-      "graves_per_wave": 1,
-      "interval": 55,
-      "min_x": 4,
+      "min_graves": 5,
+      "initial_graves": 9,
+      "interval": 100,
+      "min_x": 3,
       "max_x": 8
     },
     {
@@ -126,62 +121,92 @@
       "cooldown": 0,
       "cost": {
         "resources": {}
-      }
+      },
+      "damage": 900,
+      "single_target": true
     },
     {
       "type": "pvzce:mower",
       "rows": []
+    },
+    {
+      "type": "pvzce:wave_pacing",
+      "health_drain": false,
+      "clear_reward_factor": 1
     }
   ],
   "waves": [
     {
       "type": "small",
       "delay": 1800,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "small",
       "delay": 2000,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "small",
       "delay": 2000,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "small",
       "delay": 2000,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "small",
       "delay": 2000,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "small",
       "delay": 2000,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "small",
       "delay": 2000,
-      "entries": [],
-      "spawn_interval": 15
+      "spawn_interval": 15,
+      "entries": []
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "spawn_interval": 15,
+      "entries": []
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "spawn_interval": 15,
+      "entries": []
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "spawn_interval": 15,
+      "entries": []
+    },
+    {
+      "type": "small",
+      "delay": 2000,
+      "spawn_interval": 15,
+      "entries": []
     },
     {
       "type": "final",
       "delay": 2000,
-      "entries": [],
       "spawn_interval": 15,
-      "warning_ticks": 750
+      "entries": []
     }
   ],
   "music": {
@@ -193,59 +218,6 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
-      }
-    ]
-  },
-  "dialogue": {
-    "lines": [
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "wink",
-        "text": "喵喵喵~",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "smile",
-        "text": "有个很好玩的游戏叫做打地鼠",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "smile",
-        "text": "就是不知道你玩没玩过啦",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "playful",
-        "text": "就是用小锤锤砸大鼠鼠",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "playful",
-        "text": "这样这样",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "confused",
-        "text": "墓碑里面好像经常钻出来僵尸呢？",
-        "voice": "",
-        "side": "left"
-      },
-      {
-        "character": "pvzce:purwhite",
-        "portrait": "evil_smile",
-        "text": "要不...",
-        "voice": "",
-        "side": "left"
       }
     ]
   },
@@ -265,12 +237,12 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "僵尸从墓碑里冒出来，先锤再种",
+      "text": "空手点僵尸即可锤击；路障要两锤，铁桶要三锤。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "墓碑吞噬者清掉一块地，土豆雷守着它",
+      "text": "墓碑吞噬者吞噬期间，这座墓碑不会冒出僵尸。",
       "duration_ticks": 600
     },
     {
@@ -296,5 +268,8 @@
       }
     ],
     "coin_drop": "pvzce:coin_gold"
+  },
+  "unlock_resources": {
+    "pvzce:sun": true
   }
 }

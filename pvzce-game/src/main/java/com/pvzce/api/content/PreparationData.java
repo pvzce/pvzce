@@ -31,17 +31,29 @@ import com.pvzce.api.content.mechanic.MechanicData;
  *               them no time to think about. After the phase the ordinary rule applies (the sun
  *               shovel's fraction, or nothing)
  */
-public record PreparationData(boolean manual, int ticks, boolean refund) implements MechanicData {
+public record PreparationData(boolean manual, int ticks, boolean refund, int wavesPerStage,
+                              int stageSun, java.util.List<com.pvzce.api.util.Identifier> excludedCards)
+        implements MechanicData {
+    public PreparationData(boolean manual, int ticks, boolean refund) {
+        this(manual, ticks, refund, 0, 0, java.util.List.of());
+    }
     /** The original's shape: a button, and no clock. */
     public static final PreparationData MANUAL = new PreparationData(true, 0, true);
 
     public static final MapCodec<PreparationData> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.BOOL.optionalFieldOf("manual", true).forGetter(PreparationData::manual),
             Codec.INT.optionalFieldOf("ticks", 0).forGetter(PreparationData::ticks),
-            Codec.BOOL.optionalFieldOf("refund", true).forGetter(PreparationData::refund)
+            Codec.BOOL.optionalFieldOf("refund", true).forGetter(PreparationData::refund),
+            Codec.INT.optionalFieldOf("waves_per_stage", 0).forGetter(PreparationData::wavesPerStage),
+            Codec.INT.optionalFieldOf("stage_sun", 0).forGetter(PreparationData::stageSun),
+            com.pvzce.api.util.Identifier.CODEC.listOf().optionalFieldOf("excluded_cards", java.util.List.of())
+                    .forGetter(PreparationData::excludedCards)
     ).apply(i, PreparationData::new));
 
     public PreparationData {
         ticks = Math.max(0, ticks);
+        wavesPerStage = Math.max(0, wavesPerStage);
+        stageSun = Math.max(0, stageSun);
+        excludedCards = java.util.List.copyOf(excludedCards);
     }
 }

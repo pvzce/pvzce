@@ -18,16 +18,9 @@ import java.util.List;
 /**
  * The portals of Portal Combat, on the client: a ring at each end of each pair.
  *
- * <p>Purely decorative, and that is the whole of what the client is told. The server owns the
- * pairs and the travelling; this half draws them where the level said they are, which is the one
- * thing the player cannot work out for themselves - with two pairs on the lawn, a defence that
- * only watches the left of the board needs to know <em>which</em> ring leads where.
- *
- * <p><b>Both ends of a pair are the same three sprites.</b> That is a fact about the original art
- * and not a shortcut: {@code Portal_Circle.reanim} animates one ring forwards and one backwards
- * over the same centre/glow/outer pieces, and those two phases are the only thing in it that
- * distinguishes the two ends. So the {@code a} end of every pair plays {@code idle} and the
- * {@code b} end plays {@code pulse_reverse}, and a pair reads as one thing seen from two sides.
+ * <p>The server streams the current pairs, including relocations. The first pair uses the
+ * original square portal art, the remaining pairs use circles; each pair loops its forward
+ * and reverse pulse so the two connected ends remain recognizable.
  *
  * <p>Drawn under the plants and zombies rather than over them: a portal is a hole in the lawn,
  * and a zombie standing in one has to be visible doing it. The overlay hook runs after the
@@ -42,6 +35,7 @@ public final class PortalClientMechanic implements ClientMechanic {
      * resolve. The lawn mower is the same case and names its file the same way.
      */
     private static final Identifier PORTAL_ANIMATION = PvzceIds.id("mechanic/portal");
+    private static final Identifier SQUARE_ANIMATION = PvzceIds.id("mechanic/portal_square");
 
     /** The phase the {@code a} end of a pair loops; the source art's forward pulse. */
     static final String CLIP_FORWARD = "idle";
@@ -63,6 +57,12 @@ public final class PortalClientMechanic implements ClientMechanic {
     }
 
     @Override
+    public void applySync(ClientLevel level, com.pvzce.common.network.PacketByteBuf payload) {
+        level.setMechanicState(PvzceIds.MECHANIC_PORTAL,
+                com.pvzce.common.level.mechanic.PortalMechanic.State.CODEC.decode(payload));
+    }
+
+    @Override
     public WorldOverlay createWorldOverlay(ClientLevel level) {
         PortalData data = level.mechanicData(PvzceIds.MECHANIC_PORTAL, PortalData.class);
         if (data == null || data.pairs().isEmpty()) {
@@ -71,7 +71,7 @@ public final class PortalClientMechanic implements ClientMechanic {
             // an empty overlay to iterate every frame.
             return null;
         }
-        return new PortalOverlay(data.pairs());
+        return new PortalOverlay(data.pairs(), level);
     }
 
     /** Every end of every pair, and one animation playback per end. */
@@ -82,8 +82,17 @@ public final class PortalClientMechanic implements ClientMechanic {
 
         private final List<End> ends = new ArrayList<>();
         private final List<ArtTarget> targets = new ArrayList<>();
+        private final ClientLevel level;
+        private List<PortalData.Pair> pairs;
 
-        private PortalOverlay(List<PortalData.Pair> pairs) {
+        private PortalOverlay(List<PortalData.Pair> pairs, ClientLevel level) {
+            this.level = level;
+            update(pairs);
+        }
+
+        private void update(List<PortalData.Pair> pairs) {
+            this.pairs = List.copyOf(pairs);
+            ends.clear();
             for (PortalData.Pair pair : pairs) {
                 ends.add(new End(pair.ax(), pair.ay(), CLIP_FORWARD));
                 ends.add(new End(pair.bx(), pair.by(), CLIP_REVERSE));
@@ -92,6 +101,11 @@ public final class PortalClientMechanic implements ClientMechanic {
 
         @Override
         public void render(PvzceClient client, PvzceCamera camera) {
+            var state = level.mechanicStateOrNull(PvzceIds.MECHANIC_PORTAL,
+                    com.pvzce.common.level.mechanic.PortalMechanic.State.class);
+            if (state != null && !state.pairs().equals(pairs)) {
+                update(state.pairs());
+            }
             AnimationManager animations = client.animations();
             if (animations == null) {
                 return;
@@ -100,7 +114,7 @@ public final class PortalClientMechanic implements ClientMechanic {
             // client, and an overlay is created from a level (see ClientMechanic) before there is
             // a client to ask. The same shape MowerClientMechanic's overlay uses.
             while (targets.size() < ends.size()) {
-                ArtTarget created = new ArtTarget(PORTAL_ANIMATION);
+                ArtTarget created = new ArtTarget(targets.size() < 2 ? SQUARE_ANIMATION : PORTAL_ANIMATION);
                 created.attach(animations);
                 targets.add(created);
             }

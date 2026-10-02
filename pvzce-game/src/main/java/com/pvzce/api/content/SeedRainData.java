@@ -31,8 +31,12 @@ import java.util.Random;
  * so is {@code max_count}: a pool that hands out a cherry bomb every time would make the level a
  * different one, and an author who wants exactly one writes it down.
  */
-public record SeedRainData(int intervalTicks, int initialDelayTicks, List<Card> cards)
+public record SeedRainData(int intervalTicks, int initialDelayTicks, List<Card> cards,
+                           int maxIntervalTicks, boolean lilyPadBias, boolean falling)
         implements MechanicData {
+    public SeedRainData(int intervalTicks, int initialDelayTicks, List<Card> cards) {
+        this(intervalTicks, initialDelayTicks, cards, intervalTicks, false, false);
+    }
     /** How often a packet falls, in ticks. Four seconds at the reference rate. */
     public static final int DEFAULT_INTERVAL_TICKS = 240;
     /** How long the lawn is left alone at the start, so the player can look at it first. */
@@ -67,7 +71,10 @@ public record SeedRainData(int intervalTicks, int initialDelayTicks, List<Card> 
                     .forGetter(SeedRainData::intervalTicks),
             Codec.INT.optionalFieldOf("initial_delay_ticks", DEFAULT_INITIAL_DELAY_TICKS)
                     .forGetter(SeedRainData::initialDelayTicks),
-            Card.CODEC.listOf().optionalFieldOf("cards", List.of()).forGetter(SeedRainData::cards)
+            Card.CODEC.listOf().optionalFieldOf("cards", List.of()).forGetter(SeedRainData::cards),
+            Codec.INT.optionalFieldOf("max_interval_ticks", 0).forGetter(SeedRainData::maxIntervalTicks),
+            Codec.BOOL.optionalFieldOf("lily_pad_bias", false).forGetter(SeedRainData::lilyPadBias),
+            Codec.BOOL.optionalFieldOf("falling", false).forGetter(SeedRainData::falling)
     ).apply(i, SeedRainData::new));
 
     /** The block as a standalone object; used where rain is not inside a mechanics list. */
@@ -77,6 +84,7 @@ public record SeedRainData(int intervalTicks, int initialDelayTicks, List<Card> 
         // Clamped rather than rejected, the same way the belt clamps: a level with a silly
         // interval should still be playable, and the validator says so separately.
         intervalTicks = Math.max(MIN_INTERVAL_TICKS, intervalTicks);
+        maxIntervalTicks = Math.max(intervalTicks, maxIntervalTicks);
         initialDelayTicks = Math.max(0, initialDelayTicks);
         cards = List.copyOf(cards);
     }

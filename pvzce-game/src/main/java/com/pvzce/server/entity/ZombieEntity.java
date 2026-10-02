@@ -82,6 +82,7 @@ public class ZombieEntity extends PvzceEntity {
     private int biteCooldown;
     private int leftCountdown;
     private int speedBoostTicks;
+    private float movementMultiplier = 1F;
     /**
      * Ticks left of this zombie's climb out of a grave, or zero for one that is on its feet.
      *
@@ -187,6 +188,11 @@ public class ZombieEntity extends PvzceEntity {
 
     public void setGrounded(boolean grounded) {
         this.grounded = grounded;
+    }
+
+    /** A spawn-time movement variation, saved with this zombie rather than recalculated by wave. */
+    public void setMovementMultiplier(float factor) {
+        movementMultiplier = Math.max(0F, factor);
     }
 
     public void setSpeedBoost(int ticks) {
@@ -666,7 +672,7 @@ public class ZombieEntity extends PvzceEntity {
                 speed *= status.magnitude;
             }
         }
-        return speed * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER)
+        return speed * movementMultiplier * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_SPEED_MULTIPLIER)
                 * level.zombieSpeedMultiplier(this);
     }
 
@@ -1091,6 +1097,7 @@ public class ZombieEntity extends PvzceEntity {
         tag.putInt("riseTicks", riseTicks);
         tag.putInt("leftCountdown", leftCountdown);
         tag.putInt("speedBoostTicks", speedBoostTicks);
+        tag.putFloat("MovementMultiplier", movementMultiplier);
         tag.putInt("grounded", grounded ? 1 : 0);
         // A body saved mid-animation comes back as a body, not as a living zombie.
         tag.putInt("corpseTicks", corpseTicks);
@@ -1128,6 +1135,7 @@ public class ZombieEntity extends PvzceEntity {
         riseTicks = Math.max(0, tag.getInt("riseTicks"));
         leftCountdown = tag.getInt("leftCountdown");
         speedBoostTicks = tag.getInt("speedBoostTicks");
+        movementMultiplier = tag.contains("MovementMultiplier") ? Math.max(0F, tag.getFloat("MovementMultiplier")) : 1F;
         grounded = !tag.contains("grounded") || tag.getInt("grounded") != 0;
         corpseTicks = Math.max(0, Math.min(CORPSE_TICKS, tag.getInt("corpseTicks")));
 

@@ -32,6 +32,18 @@ public final class CardDropEntity extends PvzceEntity {
      * from under the hand that is holding it.
      */
     private boolean held;
+    private float landingY;
+    private boolean falling;
+
+    public void fallFromSky(int rows) {
+        landingY = cellY();
+        setCellY(rows + 0.5F);
+        falling = true;
+    }
+
+    public int landingRow() {
+        return falling ? (int) Math.floor(landingY) : gridY();
+    }
 
     public CardDropEntity(Identifier card, Team team, int gridX, int gridY) {
         super(card, team, gridX + 0.5F, gridY + 0.5F, PvzceConstants.CARD_DROP_LIFETIME_TICKS);
@@ -80,6 +92,12 @@ public final class CardDropEntity extends PvzceEntity {
             // the time the player has to notice it where it fell, not a deadline on using it.
             return;
         }
+        if (falling) {
+            setCellY(Math.max(landingY, cellY() - PvzceConstants.SEED_RAIN_FALL_SPEED
+                    / PvzceConstants.TICKS_PER_SECOND));
+            falling = cellY() > landingY;
+            return;
+        }
         setHealth(health() - 1);
         if (health() <= 0) {
             remove();
@@ -90,6 +108,8 @@ public final class CardDropEntity extends PvzceEntity {
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
         tag.putString("card", card.toString());
+        tag.putByte("Falling", (byte) (falling ? 1 : 0));
+        tag.putFloat("LandingY", landingY);
         return tag;
     }
 
@@ -104,5 +124,7 @@ public final class CardDropEntity extends PvzceEntity {
         // not part of the level's state - it is the player's, and a resumed run starts with an
         // empty one (the packet itself is kept, so nothing the player earned is lost).
         held = false;
+        falling = tag.getInt("Falling") != 0;
+        landingY = tag.getFloat("LandingY");
     }
 }

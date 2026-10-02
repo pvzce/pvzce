@@ -125,6 +125,7 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
             tag.putInt("Row", entry.getKey());
             tag.putInt("State", entry.getValue().state);
             tag.putFloat("X", entry.getValue().x);
+            tag.putInt("Lane", entry.getValue().lane);
             rows.add(tag);
         }
         root.put(KEY_MOWERS, rows);
@@ -145,6 +146,7 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
             }
             mower.state = Math.max(STATE_READY, Math.min(STATE_USED, tag.getInt("State")));
             mower.x = tag.getFloat("X");
+            mower.lane = tag.contains("Lane") ? tag.getInt("Lane") : tag.getInt("Row");
         }
         // The client is looking at a freshly created board; it has to hear about a mower
         // this save already spent.
@@ -170,6 +172,7 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
 
         /** One mower: where it is and what it is doing. */
         private static final class Mower {
+            private int lane;
             private int state = STATE_READY;
             private float x;
             /** Ticks until the next dust puff, so the trail is even. */
@@ -230,6 +233,7 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
          */
         private void start(LevelServer level, int row, Mower mower) {
             mower.state = STATE_ROLLING;
+            mower.lane = row;
             mower.x = IDLE_X;
             mower.cloudTimer = 0;
             mower.launchSoundPending = true;
@@ -250,12 +254,20 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
         }
 
         private void roll(LevelServer level, int row, Mower mower) {
+            float from = mower.x;
             mower.x += SPEED / PvzceConstants.TICKS_PER_SECOND;
+            PortalMechanic.Exit exit = PortalMechanic.cross(level, -row - 1, from, mower.x, mower.lane);
+            if (exit != null) {
+                mower.x = exit.x();
+                mower.lane = exit.row();
+                dirty = true;
+            }
+            row = mower.lane;
 
             // Everything the mower has caught up with dies, whatever it is wearing: the mower
             // is not a projectile, so armour does not stop it (armour stops *shots*).
             for (ZombieEntity zombie : groundZombiesInRow(level, row)) {
-                if (zombie.cellX() <= mower.x + HIT_RANGE) {
+                if (Math.abs(zombie.cellX() - mower.x) <= HIT_RANGE) {
                     mow(level, zombie);
                 }
             }
@@ -382,20 +394,26 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
         public State state() {
             List<Row> rows = new ArrayList<>(mowers.size());
             for (Map.Entry<Integer, Mower> entry : mowers.entrySet()) {
-                rows.add(new Row(entry.getKey(), entry.getValue().state, entry.getValue().x));
+                Mower mower = entry.getValue();
+                rows.add(new Row(entry.getKey(), mower.state, mower.x,
+                        mower.state == STATE_ROLLING ? mower.lane : entry.getKey()));
             }
             return new State(rows);
         }
     }
 
     /** One row's mower as the client sees it. */
-    public record Row(int row, int state, float x) {
+    public record Row(int row, int state, float x, int lane) {
+        public Row(int row, int state, float x) {
+            this(row, state, x, row);
+        }
         public static final PacketStruct.Codec<Row> CODEC = PacketStruct.<Row>builder()
                 .field(Row::row, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                 .field(Row::state, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                 .field(Row::x, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+                .field(Row::lane, PacketByteBuf::writeInt, PacketByteBuf::readInt)
                 .build(values -> new Row((Integer) values.get(0), (Integer) values.get(1),
-                        (Float) values.get(2)));
+                        (Float) values.get(2), (Integer) values.get(3)));
 
         public void encode(PacketByteBuf buf) {
             CODEC.encode(this, buf);

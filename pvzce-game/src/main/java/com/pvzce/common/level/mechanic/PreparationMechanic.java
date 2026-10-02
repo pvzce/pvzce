@@ -45,9 +45,9 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
     private static final class Phase {
         boolean preparing = true;
         boolean synced;
-        boolean manual = true;
-        int ticks;
         boolean refund = true;
+        int nextStageWave;
+        int startTick;
     }
 
     private static Phase phase(LevelServer level) {
@@ -64,9 +64,8 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
         Phase phase = phase(level);
         // A resumed run keeps whatever the save said; `applySave` runs after this and overwrites it.
         phase.preparing = true;
-        phase.manual = data.manual();
-        phase.ticks = data.ticks();
         phase.refund = data.refund();
+        phase.nextStageWave = data.wavesPerStage();
         begin(level);
     }
 
@@ -74,11 +73,23 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
     public void tick(LevelServer level, PreparationData data) {
         Phase phase = phase(level);
         if (!phase.preparing) {
+            if (holdsNextWave(level) && level.currentWaveFullyReleased()
+                    && level.aliveZombieCount() == 0) {
+                phase.nextStageWave += data.wavesPerStage();
+                if (data.stageSun() > 0) {
+                    level.team(com.pvzce.common.PvzceIds.PLANT_TEAM)
+                            .addResource(com.pvzce.common.PvzceIds.SUN, data.stageSun());
+                }
+                begin(level);
+                level.send(new com.pvzce.common.network.packet.ServerMessageS2C(
+                        "已守住 " + level.currentWave() / data.wavesPerStage()
+                                + " 面旗帜，补给 " + data.stageSun() + " 阳光。修整后按开始继续。"));
+            }
             // Nothing left to do but keep the client's copy honest after a resume.
             sync(level, phase);
             return;
         }
-        if (!data.manual() && level.tickCount() >= data.ticks()) {
+        if (!data.manual() && level.tickCount() - phase.startTick >= data.ticks()) {
             level.beginWaves();
         }
         sync(level, phase);
@@ -94,10 +105,17 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
                 State.CODEC, new State(phase.preparing)));
     }
 
+    @Override
+    public void sendState(LevelServer level, PreparationData data, LevelServer.ServerBridge bridge) {
+        bridge.send(MechanicSyncS2C.of(com.pvzce.common.PvzceIds.MECHANIC_PREPARATION,
+                State.CODEC, new State(phase(level).preparing)));
+    }
+
     /** Starts (or restarts) the phase. The client hears about it on the next tick. */
     public static void begin(LevelServer level) {
         Phase phase = phase(level);
         phase.preparing = true;
+        phase.startTick = level.tickCount();
         phase.synced = false;
     }
 
@@ -113,6 +131,20 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
         Phase phase = level.mechanicStateOrNull(com.pvzce.common.PvzceIds.MECHANIC_PREPARATION,
                 Phase.class);
         return phase != null && phase.preparing;
+    }
+
+    /** Hold only the next arrival; the flag wave must finish releasing and be killed first. */
+    public static boolean holdsNextWave(LevelServer level) {
+        Phase phase = level.mechanicStateOrNull(com.pvzce.common.PvzceIds.MECHANIC_PREPARATION, Phase.class);
+        return phase != null && phase.nextStageWave > 0
+                && level.currentWave() >= phase.nextStageWave
+                && level.currentWave() < level.def().waves().size();
+    }
+
+    @Override
+    public boolean canPlacePlant(LevelServer level, PreparationData data,
+                                 com.pvzce.api.content.PlantDef plant, int x, int y) {
+        return !data.excludedCards().contains(plant.id());
     }
 
     /** True when digging a plant up in this phase refunds its whole price. */
@@ -136,6 +168,10 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
             errors.add("This level's preparation phase has no clock and no start button, so it"
                     + " would never end");
         }
+        errors.addAll(LevelMechanics.unknownCards(data.excludedCards(), "preparation excluded card"));
+        if (data.wavesPerStage() > 0 && def.waves().size() % data.wavesPerStage() != 0) {
+            errors.add("preparation waves_per_stage must divide the level's wave count");
+        }
         return errors;
     }
 
@@ -151,6 +187,8 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
         // One byte: NBT's own boolean is a byte, and the tag class here has no boolean writer
         // (nor a byte reader), so this is the shape both sides of it can hold.
         root.putByte("Preparing", (byte) (phase(level).preparing ? 1 : 0));
+        root.putInt("NextPreparationWave", phase(level).nextStageWave);
+        root.putInt("PreparationTicksLeft", Math.max(0, data.ticks() - level.tickCount() + phase(level).startTick));
     }
 
     @Override
@@ -159,6 +197,13 @@ public final class PreparationMechanic implements LevelMechanic<PreparationData>
         // A missing key is the safe reading for a save written before the level had a preparation
         // phase at all: those runs had their waves running.
         phase.preparing = root.contains("Preparing") && root.getInt("Preparing") != 0;
+        if (root.contains("NextPreparationWave")) {
+            phase.nextStageWave = root.getInt("NextPreparationWave");
+        } else if (data.wavesPerStage() > 0) {
+            phase.nextStageWave = (level.currentWave() / data.wavesPerStage() + 1) * data.wavesPerStage();
+        }
+        phase.startTick = root.contains("PreparationTicksLeft")
+                ? level.tickCount() - data.ticks() + root.getInt("PreparationTicksLeft") : 0;
         phase.synced = false;
     }
 }

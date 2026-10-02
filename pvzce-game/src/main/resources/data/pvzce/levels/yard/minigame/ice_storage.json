@@ -71,7 +71,7 @@
   ],
   "rules": {
     "pvzce:day_length": 0,
-    "pvzce:night_length": -1,
+    "pvzce:night_length": 360000,
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
     "pvzce:zombie_speed_multiplier": 0.9
@@ -421,5 +421,10 @@
     "coin_drop": "pvzce:coin_gold",
     "coin_drop_chance": 0.25,
     "coin_drop_amount": 1
-  }
+  },
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
+  "seed_screen": false
 }

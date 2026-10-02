@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/zombotany",
   "name": "植物僵尸",
-  "description": "迷你游戏：来的僵尸头上都顶着一株植物——豌豆头和机枪头会隔着草坪朝你的植物开火，坚果头得打很久才倒，辣椒头死的时候还会烧掉身边一圈。它们走得都不快，可要是不还手，防线会被它们从远处一点点啃掉。",
+  "description": "植物僵尸一代：白天草坪上只出现豌豆头和坚果头。豌豆头会朝植物开火，坚果头需要持续攻击；选择植物建立阳光经济，守住两面旗帜。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -74,138 +74,391 @@
     "pvzce:night_length": -1,
     "pvzce:sun_spawn_interval_min": 480,
     "pvzce:sun_spawn_interval_max": 720,
+    "pvzce:zombie_sun_drop_chance": 0.0,
+    "pvzce:graves_spawn_night": false,
     "pvzce:sun_spawn_initial_ticks": 300
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
     "pvzce:sun",
-    "pvzce:pea_shooter",
-    "pvzce:sunflower",
-    "pvzce:wall_nut",
-    "pvzce:cherry_bomb",
-    "pvzce:potato_mine",
-    "pvzce:snow_pea",
     "pvzce:shovel"
   ],
-  "max_seed_slots": 8,
+  "max_seed_slots": 10,
   "unlock_resources": {
     "pvzce:sun": true
   },
-  "initial_sun": 150,
+  "initial_sun": 50,
   "waves": [
     {
       "type": "small",
-      "delay": 1500,
-      "spawn_interval": 400,
+      "delay": 1800,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:zombotany_pea_zombie",
-          "count": 2,
-          "rows": [0, 1, 2, 3, 4]
+          "count": 1,
+          "rows": [
+            0
+          ]
         }
       ]
     },
     {
       "type": "small",
-      "delay": 1500,
-      "spawn_interval": 360,
+      "delay": 2722,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:zombotany_pea_zombie",
-          "count": 2,
-          "rows": [0, 1, 2, 3, 4]
-        },
-        {
-          "id": "pvzce:zombotany_wallnut_zombie",
           "count": 1,
-          "rows": [0, 1, 2, 3, 4]
+          "rows": [
+            1
+          ]
         }
       ]
     },
     {
       "type": "small",
-      "delay": 1400,
-      "spawn_interval": 320,
+      "delay": 2781,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:zombotany_pea_zombie",
           "count": 1,
-          "rows": [0, 1, 2, 3, 4]
-        },
-        {
-          "id": "pvzce:zombotany_wallnut_zombie",
-          "count": 1,
-          "rows": [0, 1, 2, 3, 4]
-        },
-        {
-          "id": "pvzce:zombotany_gatling_zombie",
-          "count": 1,
-          "rows": [0, 1, 2, 3, 4]
+          "rows": [
+            2
+          ]
         }
       ]
     },
     {
       "type": "small",
-      "delay": 1350,
-      "spawn_interval": 260,
+      "delay": 2929,
+      "spawn_interval": 15,
       "entries": [
         {
           "id": "pvzce:zombotany_pea_zombie",
           "count": 2,
-          "rows": [0, 1, 2, 3, 4]
+          "rows": [
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 3064,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2584,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2562,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 3,
+          "rows": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2934,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2572,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 3,
+          "rows": [
+            3,
+            4,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2551,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_wallnut_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "warning_ticks": 750
+    },
+    {
+      "type": "small",
+      "delay": 4500,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 3011,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_wallnut_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2552,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 5,
+          "rows": [
+            2,
+            3,
+            4,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 3015,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
         },
         {
           "id": "pvzce:zombotany_wallnut_zombie",
           "count": 1,
-          "rows": [0, 1, 2, 3, 4]
+          "rows": [
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2526,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
-          "id": "pvzce:zombotany_gatling_zombie",
+          "id": "pvzce:zombotany_wallnut_zombie",
           "count": 1,
-          "rows": [0, 1, 2, 3, 4]
+          "rows": [
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2504,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:zombotany_wallnut_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2772,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            2
+          ]
+        },
+        {
+          "id": "pvzce:zombotany_wallnut_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2750,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3,
+            4,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2634,
+      "spawn_interval": 15,
+      "entries": [
+        {
+          "id": "pvzce:zombotany_wallnut_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:zombotany_pea_zombie",
+          "count": 3,
+          "rows": [
+            4,
+            0,
+            1
+          ]
         }
       ]
     },
     {
       "type": "final",
-      "delay": 1600,
-      "warning_ticks": 180,
-      "spawn_interval": 220,
+      "delay": 2846,
+      "spawn_interval": 15,
       "entries": [
         {
-          "id": "pvzce:flag_zombie",
-          "count": 1,
-          "rows": [0, 1, 2, 3, 4]
-        },
-        {
           "id": "pvzce:zombotany_pea_zombie",
-          "count": 2,
-          "rows": [0, 1, 2, 3, 4]
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:zombotany_wallnut_zombie",
-          "count": 1,
-          "rows": [0, 1, 2, 3, 4]
-        },
-        {
-          "id": "pvzce:zombotany_gatling_zombie",
-          "count": 1,
-          "rows": [0, 1, 2, 3, 4]
-        },
-        {
-          "id": "pvzce:zombotany_jalapeno_zombie",
-          "count": 1,
-          "rows": [0, 1, 2, 3, 4]
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3
+          ]
         }
-      ]
+      ],
+      "warning_ticks": 750
     }
   ],
   "hints": [
     {
       "trigger": "on_start",
-      "text": "僵尸头上的植物会朝你的植物开火——坚果墙顶在前面，替后排的射手挡下豌豆",
+      "text": "豌豆头会向左射击；坚果挡子弹，小喷菇和地刺也能避开豌豆的高度。",
       "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
     }
   ],
   "rewards": {
@@ -230,7 +483,7 @@
       {
         "at_tick": 0,
         "track": "background",
-        "event": "pvzce:music/grasswalk",
+        "event": "pvzce:music/loon_boon",
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
@@ -245,5 +498,12 @@
       }
     ]
   },
-  "background": "pvzce:textures/gui/screen/level/background1"
+  "background": "pvzce:textures/gui/screen/level/background1",
+  "hidden_scene_elements": [
+    "pvzce:grass"
+  ],
+  "disable_shaders": true,
+  "mechanics": [],
+  "buffs": [],
+  "seed_screen": true
 }

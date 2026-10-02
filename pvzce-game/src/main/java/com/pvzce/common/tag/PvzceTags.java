@@ -139,6 +139,8 @@ public final class PvzceTags {
      */
     public static final TagKey<PlantDef> WALK_OVER =
             plant("walk_over");
+    /** Plants low enough that a plant-headed zombie's pea passes overhead. */
+    public static final TagKey<PlantDef> ZOMBIE_PEA_PASSES_OVER = plant("zombie_pea_passes_over");
     /**
      * Plants a pole vaulter cannot clear (the tall-nut).
      *

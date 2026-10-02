@@ -16,9 +16,13 @@ import java.util.List;
  *
  * @param pairs the portal pairs, each an "in" cell and an "out" cell
  */
-public record PortalData(List<Pair> pairs) implements MechanicData {
+public record PortalData(List<Pair> pairs, int relocateIntervalTicks, int initialRelocateTicks)
+        implements MechanicData {
+    public PortalData(List<Pair> pairs) {
+        this(pairs, 0, 0);
+    }
     /**
-     * One pair. Both ends are ordinary board cells and either may be used in either direction:
+     * One pair. Ends may occupy a lawn cell or the road column just beyond the right edge:
      * which way a zombie travels through is decided by which end it walks into, not by the order
      * the author wrote them in.
      */
@@ -32,12 +36,16 @@ public record PortalData(List<Pair> pairs) implements MechanicData {
     }
 
     public static final MapCodec<PortalData> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
-            Pair.CODEC.listOf().fieldOf("pairs").forGetter(PortalData::pairs)
+            Pair.CODEC.listOf().fieldOf("pairs").forGetter(PortalData::pairs),
+            Codec.INT.optionalFieldOf("relocate_interval_ticks", 0).forGetter(PortalData::relocateIntervalTicks),
+            Codec.INT.optionalFieldOf("initial_relocate_ticks", 0).forGetter(PortalData::initialRelocateTicks)
     ).apply(i, PortalData::new));
 
     public static final Codec<PortalData> CODEC = MAP_CODEC.codec();
 
     public PortalData {
         pairs = pairs == null ? List.of() : List.copyOf(pairs);
+        relocateIntervalTicks = Math.max(0, relocateIntervalTicks);
+        initialRelocateTicks = initialRelocateTicks <= 0 ? relocateIntervalTicks : initialRelocateTicks;
     }
 }

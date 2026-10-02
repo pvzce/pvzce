@@ -3,151 +3,181 @@ package com.pvzce.common.level.mechanic;
 import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PortalData;
-import com.pvzce.api.entity.EntityLayers;
-import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
-import com.pvzce.server.entity.ZombieEntity;
+import com.pvzce.common.PvzceConstants;
+import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.ListTag;
+import com.pvzce.common.nbt.Tag;
+import com.pvzce.common.network.PacketStruct;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.server.level.LevelServer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * 斗转星移: two cells that are the same cell as far as a zombie is concerned.
- *
- * <p>A ground zombie that walks into one end of a pair comes out of the other, in the lane and at
- * the x that end names, and keeps walking. What makes it a mini-game rather than a shortcut is
- * where the other end is: the original pairs a lane the player has fortified with one they have
- * not, so a defence that only watches the left of the board loses to a portal it ignored.
- *
- * <p><b>The trigger is a crossing, not a cell.</b> The original's zombies always walk towards the
- * house, so "entered the portal's cell" is the same as "crossed its centre from the right" - but a
- * level may place portals anywhere, and a zombie that was *teleported onto* a portal's centre must
- * not immediately fall through it again. So the check is "was on the right of the centre last tick
- * and is on the left of it now", and the zombie that comes out of the far end is marked for a few
- * ticks: without that mark, a pair whose exit sits just right of the other end's trigger would
- * bounce the same zombie back and forth forever.
- *
- * <p>Only ground zombies travel. A balloon zombie flies over the lawn and a digger is underground;
- * both pass a portal the same way they pass a mower (see {@code MowerMechanic}), and the predicate
- * for that is the zombie's own layer rather than a list of ids kept here.
- */
+/** Bidirectional portals for zombies (including balloons), straight shots and running mowers. */
 public final class PortalMechanic implements LevelMechanic<PortalData> {
-    /**
-     * How far past the exit a teleported zombie is placed, in cells.
-     *
-     * <p>Just enough that it is clearly on the far side of the exit's centre - the crossing test
-     * reads positions, so landing exactly on the centre would be "not yet through" for one tick and
-     * then a crossing backwards.
-     */
-    public static final float EXIT_OFFSET = 0.51F;
 
-    /**
-     * How many ticks a zombie may not use a portal after coming out of one.
-     *
-     * <p>Half a second: long enough that the exit's own trigger cannot catch it (the offset above
-     * already puts it past the centre) and short enough that a portal the player *wants* to send it
-     * through still works.
-     */
-    public static final int IMMUNITY_TICKS = 30;
+    public record State(List<PortalData.Pair> pairs) {
+        public static final PacketStruct.Codec<State> CODEC = PacketStruct.<State>builder()
+                .list(State::pairs, (p, buf) -> {
+                    buf.writeInt(p.ax()); buf.writeInt(p.ay());
+                    buf.writeInt(p.bx()); buf.writeInt(p.by());
+                }, buf -> new PortalData.Pair(buf.readInt(), buf.readInt(), buf.readInt(), buf.readInt()))
+                .build(values -> new State(castPairs(values.get(0))));
 
-    /** Per-zombie bookkeeping: the ticks of immunity left, and the x it was at last tick. */
-    private static final class State {
-        final Map<Integer, Integer> immunity = new HashMap<>();
-        final Map<Integer, Float> lastX = new HashMap<>();
+        public State { pairs = List.copyOf(pairs); }
+        @SuppressWarnings("unchecked")
+        private static List<PortalData.Pair> castPairs(Object value) {
+            return (List<PortalData.Pair>) value;
+        }
     }
 
-    private static State state(LevelServer level) {
-        return level.mechanicState(PvzceIds.MECHANIC_PORTAL, State::new);
+    private static final class Rig {
+        final List<PortalData.Pair> pairs;
+        final Map<Integer, Integer> immunityUntil = new HashMap<>();
+        int ticks;
+        boolean dirty = true;
+        Rig(PortalData data) {
+            pairs = new ArrayList<>(data.pairs());
+            ticks = data.initialRelocateTicks();
+        }
     }
 
-    @Override
-    public MapCodec<PortalData> codec() {
-        return PortalData.MAP_CODEC;
+    private static Rig rig(LevelServer level, PortalData data) {
+        return level.mechanicState(PvzceIds.MECHANIC_PORTAL, () -> new Rig(data));
     }
+
+    @Override public MapCodec<PortalData> codec() { return PortalData.MAP_CODEC; }
+
+    @Override public void onLevelCreated(LevelServer level, PortalData data) { rig(level, data); }
 
     @Override
     public void tick(LevelServer level, PortalData data) {
-        State state = state(level);
-        // Immunities first, and for every zombie that has one: a zombie that left the board while
-        // immune must not keep its entry for the rest of the run.
-        state.immunity.replaceAll((id, ticks) -> ticks - 1);
-        state.immunity.values().removeIf(ticks -> ticks <= 0);
+        Rig rig = rig(level, data);
+        rig.immunityUntil.values().removeIf(until -> until <= level.tickCount());
+        if (data.relocateIntervalTicks() > 0) {
+            if (--rig.ticks == PvzceConstants.PORTAL_WARNING_TICKS) {
+                level.send(new com.pvzce.common.network.packet.ServerMessageS2C("传送门即将换位！"));
+            }
+            if (rig.ticks <= 0) {
+                relocate(level, rig);
+                rig.ticks = data.relocateIntervalTicks();
+            }
+        }
+        if (rig.dirty) {
+            rig.dirty = false;
+            level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_PORTAL, State.CODEC, new State(rig.pairs)));
+        }
+    }
 
-        // One position is read per zombie per tick, and then every pair is asked about it.
-        //
-        // The loop order is the whole of this method. Asking *inside* a per-pair loop means each
-        // pair overwrites the remembered x before the next one reads it, so the second pair and
-        // every pair after it compare the zombie's position against itself and can never see a
-        // crossing - a level with two doors silently plays with one. The pairs are the inner loop
-        // for that reason, and a zombie that came out of a door stops being asked (see below).
-        for (ZombieEntity zombie : zombies(level)) {
-            if (zombie.isRemoved() || !zombie.isAlive() || zombie.layer() != EntityLayers.GROUND) {
-                continue;
-            }
-            float x = zombie.cellX();
-            Float previous = state.lastX.put(zombie.id(), x);
-            if (previous == null || state.immunity.containsKey(zombie.id())) {
-                continue;
-            }
-            for (PortalData.Pair pair : data.pairs()) {
-                if (crossedLeft(previous, x, pair.ax()) && zombie.gridY() == pair.ay()) {
-                    teleport(level, state, zombie, pair.bx(), pair.by());
-                    // One door per tick: the zombie is somewhere else now, and the position this
-                    // tick's test was made against no longer describes it.
-                    break;
-                } else if (crossedLeft(previous, x, pair.bx()) && zombie.gridY() == pair.by()) {
-                    teleport(level, state, zombie, pair.ax(), pair.ay());
-                    break;
+    public record Exit(float x, int row) {}
+
+    /** Crossing after movement, before collision; a fast shot cannot skip a portal. */
+    public static Exit cross(LevelServer level, int id, float fromX, float toX, int row) {
+        Rig rig = level.mechanicStateOrNull(PvzceIds.MECHANIC_PORTAL, Rig.class);
+        if (rig == null || rig.immunityUntil.getOrDefault(id, 0) > level.tickCount() || fromX == toX) {
+            return null;
+        }
+        boolean right = toX > fromX;
+        PortalData.Pair nearest = null;
+        boolean aEnd = false;
+        float distance = Float.MAX_VALUE;
+        for (PortalData.Pair p : rig.pairs) {
+            for (int end = 0; end < 2; end++) {
+                int x = end == 0 ? p.ax() : p.bx();
+                int y = end == 0 ? p.ay() : p.by();
+                float centre = x + 0.5F;
+                boolean crossed = right ? fromX < centre && toX >= centre
+                        : fromX > centre && toX <= centre;
+                if (y == row && crossed && Math.abs(centre - fromX) < distance) {
+                    nearest = p; aEnd = end == 0; distance = Math.abs(centre - fromX);
                 }
             }
         }
+        if (nearest == null) return null;
+        int x = aEnd ? nearest.bx() : nearest.ax();
+        int y = aEnd ? nearest.by() : nearest.ay();
+        rig.immunityUntil.put(id, level.tickCount() + PvzceConstants.PORTAL_IMMUNITY_TICKS);
+        return new Exit(x + (right ? PvzceConstants.PORTAL_EXIT_OFFSET : 1F - PvzceConstants.PORTAL_EXIT_OFFSET), y);
     }
 
-    /** Every zombie on the board, as its own list so the loop below cannot see a half-updated one. */
-    private static List<ZombieEntity> zombies(LevelServer level) {
-        List<ZombieEntity> found = new ArrayList<>();
-        for (com.pvzce.server.entity.PvzceEntity entity : level.entities()) {
-            if (entity instanceof ZombieEntity zombie) {
-                found.add(zombie);
+    private static void relocate(LevelServer level, Rig rig) {
+        if (rig.pairs.isEmpty()) return;
+        int index = level.random().nextInt(rig.pairs.size());
+        boolean a = level.random().nextBoolean();
+        PortalData.Pair old = rig.pairs.get(index);
+        int otherX = a ? old.bx() : old.ax();
+        int otherY = a ? old.by() : old.ay();
+        Set<String> occupied = new HashSet<>();
+        for (PortalData.Pair pair : rig.pairs) {
+            occupied.add(pair.ax() + "," + pair.ay());
+            occupied.add(pair.bx() + "," + pair.by());
+        }
+        List<int[]> available = new ArrayList<>();
+        for (int y = 0; y < level.height(); y++) {
+            for (int x = 0; x <= level.width(); x++) {
+                if (x != otherX && y != otherY && !occupied.contains(x + "," + y)) {
+                    available.add(new int[]{x, y});
+                }
             }
         }
-        return found;
+        if (available.isEmpty()) return;
+        int[] cell = available.get(level.random().nextInt(available.size()));
+        rig.pairs.set(index, a ? new PortalData.Pair(cell[0], cell[1], otherX, otherY)
+                : new PortalData.Pair(otherX, otherY, cell[0], cell[1]));
+        rig.dirty = true;
     }
 
-    /** True when the zombie's centre passed {@code portalX} from the right on this tick. */
-    private static boolean crossedLeft(float previousX, float x, int portalX) {
-        float centre = portalX + 0.5F;
-        return previousX > centre && x <= centre;
+    @Override public void sendState(LevelServer level, PortalData data, LevelServer.ServerBridge bridge) {
+        bridge.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_PORTAL, State.CODEC,
+                new State(rig(level, data).pairs)));
     }
 
-    /** Puts the zombie at the other end and gives it a moment before it may use one again. */
-    private static void teleport(LevelServer level, State state, ZombieEntity zombie, int x, int y) {
-        zombie.setCellX(x + EXIT_OFFSET);
-        zombie.setCellY(y + 0.5F);
-        state.immunity.put(zombie.id(), IMMUNITY_TICKS);
-        // Where it is now is where the crossing test starts from next tick, or the teleport itself
-        // would read as a crossing (the zombie jumped from one end's centre to the other's).
-        state.lastX.put(zombie.id(), zombie.cellX());
+    @Override public void collectSave(LevelServer level, PortalData data, CompoundTag root) {
+        Rig rig = rig(level, data);
+        CompoundTag saved = new CompoundTag();
+        saved.putInt("Ticks", rig.ticks);
+        ListTag pairs = new ListTag();
+        for (PortalData.Pair p : rig.pairs) {
+            CompoundTag entry = new CompoundTag();
+            entry.putInt("AX", p.ax()); entry.putInt("AY", p.ay());
+            entry.putInt("BX", p.bx()); entry.putInt("BY", p.by());
+            pairs.add(entry);
+        }
+        saved.put("Pairs", pairs);
+        root.put("Portals", saved);
     }
 
-    @Override
-    public List<String> validate(LevelDef def, PortalData data) {
+    @Override public void applySave(LevelServer level, PortalData data, CompoundTag root) {
+        CompoundTag saved = root.getCompound("Portals");
+        if (saved == null) return;
+        Rig rig = rig(level, data);
+        List<PortalData.Pair> pairs = new ArrayList<>();
+        for (Tag tag : saved.getList("Pairs").values()) {
+            if (tag instanceof CompoundTag p) {
+                pairs.add(new PortalData.Pair(p.getInt("AX"), p.getInt("AY"), p.getInt("BX"), p.getInt("BY")));
+            }
+        }
+        if (!pairs.isEmpty()) { rig.pairs.clear(); rig.pairs.addAll(pairs); }
+        rig.ticks = Math.max(1, saved.getInt("Ticks"));
+        rig.dirty = true;
+    }
+
+    @Override public List<String> validate(LevelDef def, PortalData data) {
         List<String> errors = new ArrayList<>();
-        if (data.pairs().isEmpty()) {
-            errors.add("This level declares a portal mechanic with no pairs");
-        }
+        Set<String> occupied = new HashSet<>();
+        if (data.pairs().isEmpty()) errors.add("This level declares a portal mechanic with no pairs");
         for (PortalData.Pair pair : data.pairs()) {
-            for (int[] cell : new int[][] {{pair.ax(), pair.ay()}, {pair.bx(), pair.by()}}) {
-                if (cell[0] < 0 || cell[0] >= def.width() || cell[1] < 0 || cell[1] >= def.height()) {
-                    errors.add("A portal pair names the cell " + cell[0] + "," + cell[1]
-                            + ", which is off a " + def.width() + "x" + def.height() + " board");
+            for (int[] cell : new int[][]{{pair.ax(), pair.ay()}, {pair.bx(), pair.by()}}) {
+                if (cell[0] < 0 || cell[0] > def.width() || cell[1] < 0 || cell[1] >= def.height()) {
+                    errors.add("A portal pair names an off-board cell " + cell[0] + "," + cell[1]);
                 }
-            }
-            if (pair.ax() == pair.bx() && pair.ay() == pair.by()) {
-                errors.add("A portal pair's two ends are the same cell, which is a portal to nowhere");
+                if (!occupied.add(cell[0] + "," + cell[1])) errors.add("Two portals share a cell");
             }
         }
         return errors;

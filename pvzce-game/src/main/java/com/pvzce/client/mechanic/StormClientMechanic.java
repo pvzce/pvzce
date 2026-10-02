@@ -185,7 +185,9 @@ public final class StormClientMechanic implements ClientMechanic {
      */
     public static void startWeather(PvzceClient client) {
         StormData data = dataOf(client.level());
-        if (data != null && data.maxAlpha() > 0F) {
+        com.pvzce.api.content.SeedRainData rain = client.level().mechanicData(
+                PvzceIds.MECHANIC_SEED_RAIN, com.pvzce.api.content.SeedRainData.class);
+        if ((data != null && data.maxAlpha() > 0F) || (rain != null && rain.falling())) {
             client.sound().playAmbient(PvzceSounds.AMBIENT_RAIN.toString(), RAIN_VOLUME);
         }
     }

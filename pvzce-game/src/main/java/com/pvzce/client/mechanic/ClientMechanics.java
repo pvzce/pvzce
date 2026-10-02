@@ -41,6 +41,7 @@ public final class ClientMechanics {
         register(new RakeClientMechanic());
         register(new PreparationClientMechanic());
         register(new PortalClientMechanic());
+        register(new SeedRainClientMechanic());
         register(new ResonanceClientMechanic());
         register(new RhythmClientMechanic());
     }

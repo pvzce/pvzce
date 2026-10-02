@@ -38,9 +38,14 @@ import java.util.Optional;
  *                      unwritten value) keeps the tool's own
  * @param cost          the resource price of one use, overriding the tool's own; empty keeps
  *                      the tool's own, and a present-but-empty block means free
+ * @param damage        per-use damage override; -1 keeps the tool's own damage
+ * @param singleTarget  true = a hammer swing hits only the closest zombie under the cursor
  */
 public record ToolData(Identifier tool, boolean isDefault, int cooldownTicks,
-                       Optional<ResourceCost> cost) implements MechanicData {
+                       Optional<ResourceCost> cost, int damage, boolean singleTarget) implements MechanicData {
+    public ToolData(Identifier tool, boolean isDefault, int cooldownTicks, Optional<ResourceCost> cost) {
+        this(tool, isDefault, cooldownTicks, cost, -1, false);
+    }
     /**
      * {@code cooldown} unwritten: use the tool's own number.
      *
@@ -55,7 +60,9 @@ public record ToolData(Identifier tool, boolean isDefault, int cooldownTicks,
             Identifier.CODEC.fieldOf("tool").forGetter(ToolData::tool),
             Codec.BOOL.optionalFieldOf("default", false).forGetter(ToolData::isDefault),
             Codec.INT.optionalFieldOf("cooldown", KEEP_TOOL_COOLDOWN).forGetter(ToolData::cooldownTicks),
-            ResourceCost.CODEC.optionalFieldOf("cost").forGetter(ToolData::cost)
+            ResourceCost.CODEC.optionalFieldOf("cost").forGetter(ToolData::cost),
+            Codec.INT.optionalFieldOf("damage", -1).forGetter(ToolData::damage),
+            Codec.BOOL.optionalFieldOf("single_target", false).forGetter(ToolData::singleTarget)
     ).apply(i, ToolData::new));
 
     public static final Codec<ToolData> CODEC = MAP_CODEC.codec();
@@ -63,6 +70,7 @@ public record ToolData(Identifier tool, boolean isDefault, int cooldownTicks,
     public ToolData {
         cooldownTicks = Math.max(KEEP_TOOL_COOLDOWN, cooldownTicks);
         cost = cost == null ? Optional.empty() : cost;
+        damage = Math.max(-1, damage);
     }
 
     /** True when this block overrides the tool's own recharge. */
