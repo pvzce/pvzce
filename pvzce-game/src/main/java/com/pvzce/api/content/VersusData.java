@@ -18,6 +18,11 @@ import java.util.List;
  * level rather than by the player. Each of those is a field here, and the mechanic reads them all
  * from one declaration - a level author writes the matchup once.
  *
+ * <p><b>Both sides start at the same moment.</b> There is no opening freeze and no first-move
+ * delay: the plant side's head start is its opening sun and the sky, and the zombie side's is its
+ * own purse. An earlier version held the zombie side back for twenty seconds and the user rejected
+ * it - "不要让对面有等待时间，同时开始游戏" - which is also the honest reading of a versus match.
+ *
  * <p><b>The race.</b> The plant side wins by collecting {@link #sunGoal} sun; the zombie side wins
  * by breaking through (the ordinary {@code zombieReachedLeft}). Collection means <em>picked up</em>:
  * sun that arrives on the lawn and is clicked or auto-collected counts, the opening grant does not.
@@ -47,7 +52,6 @@ import java.util.List;
  * @param zombieIncomeTicks how often that payment lands
  * @param eatRefundPercent  percent of a eaten plant's sun cost paid to the side that ate it
  * @param decisionTicks     how often the opponent is asked what to do next
- * @param zombieStartTicks  how long the zombie side may not act at all while the plant side builds
  * @param plantCards        the plant side's bar, in card order
  * @param zombieCards       the zombie side's bar, in card order
  */
@@ -59,7 +63,6 @@ public record VersusData(
         int zombieIncomeTicks,
         int eatRefundPercent,
         int decisionTicks,
-        int zombieStartTicks,
         List<Identifier> plantCards,
         List<Identifier> zombieCards) implements MechanicData {
 
@@ -74,17 +77,6 @@ public record VersusData(
     public static final int DEFAULT_EAT_REFUND_PERCENT = 50;
     public static final int DEFAULT_PLANT_INITIAL_SUN = 50;
     public static final int DEFAULT_ZOMBIE_INITIAL_SUN = 150;
-    /**
-     * The build window: twenty seconds of quiet before the zombie side may act.
-     *
-     * <p>The original never opens a level with a zombie already on the lawn, and a mode where the
-     * other side may place from the first tick has no such moment - which the first balance run
-     * showed plainly: matches ended inside two minutes with the plant side unable to afford
-     * anything. The window is the plant side's whole opening: sun, sunflowers, one defender. The
-     * zombie side's income clock starts when it ends, so the pressure ramps from there rather than
-     * arriving all at once.
-     */
-    public static final int DEFAULT_ZOMBIE_START_TICKS = 20 * 60;
 
     public static final MapCodec<VersusData> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.INT.optionalFieldOf("sun_goal", NO_GOAL).forGetter(VersusData::sunGoal),
@@ -100,8 +92,6 @@ public record VersusData(
                     .forGetter(VersusData::eatRefundPercent),
             Codec.INT.optionalFieldOf("decision_ticks", DEFAULT_DECISION_TICKS)
                     .forGetter(VersusData::decisionTicks),
-            Codec.INT.optionalFieldOf("zombie_start_ticks", DEFAULT_ZOMBIE_START_TICKS)
-                    .forGetter(VersusData::zombieStartTicks),
             Identifier.CODEC.listOf().optionalFieldOf("plant_cards", List.of())
                     .forGetter(VersusData::plantCards),
             Identifier.CODEC.listOf().optionalFieldOf("zombie_cards", List.of())
@@ -146,9 +136,7 @@ public record VersusData(
                 FieldSpec.integer("eat_refund_percent", "pvzce.mechanic.versus.field.eat_refund_percent",
                         0, 100),
                 FieldSpec.integer("decision_ticks", "pvzce.mechanic.versus.field.decision_ticks",
-                        20, 36_000),
-                FieldSpec.integer("zombie_start_ticks", "pvzce.mechanic.versus.field.zombie_start_ticks",
-                        0, 36_000));
+                        20, 36_000));
     }
 
     /**
@@ -176,9 +164,6 @@ public record VersusData(
         }
         if (eatRefundPercent < 0 || eatRefundPercent > 100) {
             errors.add("versus has an eat_refund_percent outside 0..100 (" + eatRefundPercent + ")");
-        }
-        if (zombieStartTicks < 0) {
-            errors.add("versus has a negative zombie_start_ticks (" + zombieStartTicks + ")");
         }
         if (decisionTicks < 20) {
             errors.add("versus asks for a decision every " + decisionTicks

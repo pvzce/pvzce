@@ -73,8 +73,8 @@
   "rules": {
     "pvzce:day_length": 0,
     "pvzce:night_length": -1,
-    "pvzce:sun_spawn_interval_min": 420,
-    "pvzce:sun_spawn_interval_max": 600,
+    "pvzce:sun_spawn_interval_min": 360,
+    "pvzce:sun_spawn_interval_max": 540,
     "pvzce:sun_spawn_initial_ticks": 300,
     "pvzce:zombie_sun_drop_chance": 0.0
   },
@@ -89,10 +89,10 @@
     {
       "type": "pvzce:versus",
       "sun_goal": 5000,
-      "plant_initial_sun": 400,
+      "plant_initial_sun": 800,
       "zombie_initial_sun": 50,
-      "zombie_income_sun": 25,
-      "zombie_income_ticks": 600,
+      "zombie_income_sun": 50,
+      "zombie_income_ticks": 300,
       "eat_refund_percent": 50,
       "decision_ticks": 180,
       "plant_cards": [
@@ -106,8 +106,7 @@
       "zombie_cards": [
         "pvzce:basic_zombie",
         "pvzce:conehead_zombie"
-      ],
-      "zombie_start_ticks": 1800
+      ]
     },
     {
       "type": "pvzce:placement_zone",

@@ -6,7 +6,6 @@ import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.VersusData;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
@@ -132,33 +131,19 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         }
         Run run = run(level);
         run.incomeCountdown = Math.max(1, data.zombieIncomeTicks());
-        run.zombieStartCountdown = Math.max(0, data.zombieStartTicks());
         run.collected = 0;
     }
 
     @Override
     public void tick(LevelServer level, VersusData data) {
         Run run = run(level);
-        // The build window first: while it is open the zombie side is paid nothing and asked
-        // nothing, so the plant side's opening is the amount the level gave it plus the sky.
-        if (run.zombieStartCountdown > 0) {
-            run.zombieStartCountdown--;
-        } else {
-            payTheZombieSide(level, data, run);
-        }
+        payTheZombieSide(level, data, run);
         level.jevBrain().tick(level, data);
         if (data.races() && run.collected >= data.sunGoal()) {
             level.plantGoalReached();
         }
-        // The countdown is part of "has anything the HUD draws changed": it ticks every second of a
-        // window in which nothing else happens at all, so a payload sent only on a collection left
-        // the client showing the window's opening number for its whole length. The screenshot of
-        // the first smoke run is what showed it - thirty seconds on the clock, twenty seconds in.
-        int secondsLeft = countdownSeconds(run);
-        if (run.collected != run.sentCollected || secondsLeft != run.sentCountdownSeconds
-                || level.jevBrain().dirty()) {
+        if (run.collected != run.sentCollected || level.jevBrain().dirty()) {
             run.sentCollected = run.collected;
-            run.sentCountdownSeconds = secondsLeft;
             level.jevBrain().clearDirty();
             sendState(level, data, null);
         }
@@ -228,7 +213,6 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Collected", run.collected);
         tag.putInt("Income", run.incomeCountdown);
-        tag.putInt("ZombieStart", run.zombieStartCountdown);
         root.put(KEY_RUN, tag);
     }
 
@@ -241,12 +225,8 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         CompoundTag tag = root.getCompound(KEY_RUN);
         run.collected = Math.max(0, tag.getInt("Collected"));
         run.sentCollected = run.collected;
-        run.sentCountdownSeconds = -1;
         if (tag.contains("Income")) {
             run.incomeCountdown = Math.max(0, tag.getInt("Income"));
-        }
-        if (tag.contains("ZombieStart")) {
-            run.zombieStartCountdown = Math.max(0, tag.getInt("ZombieStart"));
         }
     }
 
@@ -257,31 +237,12 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_VERSUS, State.CODEC,
                 new State(data.sunGoal(), run.collected, opponentSide(level), brain.status().ordinal(),
                         brain.lastCardId(), brain.lastRow(), brain.lastColumn(),
-                        run.zombieStartCountdown)));
-    }
-
-    /**
-     * True while the zombie side is still held back by the build window.
-     *
-     * <p>Asked by the opponent before it acts, and by nothing else: the window is one fact about
-     * the run, so the mechanic that counts it down is the only thing that answers it.
-     */
-    public static boolean zombieSideIsWaiting(LevelServer level) {
-        return run(level).zombieStartCountdown > 0;
+                        opponentSun(level), opponentHand(level))));
     }
 
     /** The side the opponent plays: the one the human is not on. */
     public static String opponentSide(LevelServer level) {
         return PvzceIds.ZOMBIE_TEAM.equals(level.humanTeamId()) ? "plant" : "zombie";
-    }
-
-    /** Seconds the build window has left, rounded up, or {@code -1} when it is over. */
-    private static int countdownSeconds(Run run) {
-        if (run.zombieStartCountdown <= 0) {
-            return -1;
-        }
-        return (run.zombieStartCountdown + PvzceConstants.TICKS_PER_SECOND - 1)
-                / PvzceConstants.TICKS_PER_SECOND;
     }
 
     /** This mode's run state, created on first use and kept per level. */
@@ -297,7 +258,12 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
      * for the same reason - it is a decision the client renders, not a message it forwards.
      */
     public record State(int sunGoal, int sunCollected, String opponentSide, int opponentStatus,
-                        String lastCardId, int lastRow, int lastColumn, int zombieStartCountdown) {
+                        String lastCardId, int lastRow, int lastColumn, int opponentSun,
+                        List<String> opponentHand) {
+        public State {
+            opponentHand = List.copyOf(opponentHand);
+        }
+
         public static final com.pvzce.common.network.PacketStruct.Codec<State> CODEC =
                 com.pvzce.common.network.PacketStruct.<State>builder()
                         .field(State::sunGoal, com.pvzce.common.network.PacketByteBuf::writeInt,
@@ -314,12 +280,38 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
                                 com.pvzce.common.network.PacketByteBuf::readInt)
                         .field(State::lastColumn, com.pvzce.common.network.PacketByteBuf::writeInt,
                                 com.pvzce.common.network.PacketByteBuf::readInt)
-                        .field(State::zombieStartCountdown,
-                                com.pvzce.common.network.PacketByteBuf::writeInt,
+                        .field(State::opponentSun, com.pvzce.common.network.PacketByteBuf::writeInt,
                                 com.pvzce.common.network.PacketByteBuf::readInt)
+                        .stringList(State::opponentHand)
                         .build(values -> new State((Integer) values.get(0), (Integer) values.get(1),
                                 (String) values.get(2), (Integer) values.get(3), (String) values.get(4),
-                                (Integer) values.get(5), (Integer) values.get(6), (Integer) values.get(7)));
+                                (Integer) values.get(5), (Integer) values.get(6), (Integer) values.get(7),
+                                castStrings(values.get(8))));
+    }
+
+    /** The opponent's sun, so the other player can watch the pressure build. */
+    private static int opponentSun(LevelServer level) {
+        Team opponent = com.pvzce.server.ai.JevBrain.opponentTeam(level);
+        return opponent == null ? 0 : opponent.resourcesOf(PvzceIds.SUN);
+    }
+
+    /** The cards the opponent may play, in the level's own order. */
+    private static List<String> opponentHand(LevelServer level) {
+        com.pvzce.api.content.VersusData data = level.versusData();
+        Team opponent = com.pvzce.server.ai.JevBrain.opponentTeam(level);
+        if (data == null || opponent == null) {
+            return List.of();
+        }
+        List<String> hand = new ArrayList<>();
+        for (Identifier card : data.cardsFor(opponent.id())) {
+            hand.add(card.toString());
+        }
+        return List.copyOf(hand);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> castStrings(Object value) {
+        return (List<String>) value;
     }
 
     /**
@@ -336,9 +328,5 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         public int sentCollected = -1;
         /** Ticks until the zombie side's next payment. */
         public int incomeCountdown;
-        /** Ticks left of the build window; the zombie side is idle while this is positive. */
-        public int zombieStartCountdown;
-        /** The countdown in seconds as the client last heard it, so a changing clock is sent. */
-        public int sentCountdownSeconds = -1;
     }
 }

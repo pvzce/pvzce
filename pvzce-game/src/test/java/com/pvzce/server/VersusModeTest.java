@@ -85,13 +85,26 @@ class VersusModeTest {
     }
 
     private static LevelDef level(Mode mode, String plantCards, String zombieCards, String waves) {
+        return level(mode, plantCards, zombieCards, waves, 2);
+    }
+
+    /**
+     * A test level with a given number of lanes.
+     *
+     * <p>The lane count is a parameter because it decides how the zombie side spreads its
+     * pressure, which is what a balance measurement is about: a two-lane board turned out to
+     * lose every match that the real five-lane levels win comfortably, so a probe built on
+     * one says nothing about the other.
+     */
+    private static LevelDef level(Mode mode, String plantCards, String zombieCards,
+                                  String waves, int height) {
         String json = """
                 {
                   "id": "pvzce:test/versus",
                   "name": "test",
                   "description": "",
                   "width": 9,
-                  "height": 2,
+                  "height": %d,
                   "teams": [
                     {"id": "pvzce:plant_team", "name": "植物方", "win_condition": "collect_sun"},
                     {"id": "pvzce:zombie_team", "name": "僵尸方", "win_condition": "plant_side_lost"}
@@ -119,21 +132,20 @@ class VersusModeTest {
                      "zombie_income_ticks": %d,
                      "eat_refund_percent": %d,
                      "decision_ticks": %d,
-                     "zombie_start_ticks": %d,
                      "plant_cards": %s,
                      "zombie_cards": %s},
                     {"type": "pvzce:placement_zone", "min_x": 0, "max_x": 4},
                     {"type": "pvzce:zombie_zone", "min_x": 5, "max_x": 8}
                   ]
                 }
-                """.formatted(waves, mode.sunGoal(), mode.plantSun(), mode.zombieSun(),
+                """.formatted(height, waves, mode.sunGoal(), mode.plantSun(), mode.zombieSun(),
                 mode.incomeSun(), mode.incomeTicks(), mode.refundPercent(), mode.decisionTicks(),
-                0, plantCards, zombieCards);
+                plantCards, zombieCards);
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
         // The lawn is eighteen grass cells; writing them out in the template would bury the fields
         // the tests are actually about.
         JsonArray grass = new JsonArray();
-        for (int y = 0; y < 2; y++) {
+        for (int y = 0; y < height; y++) {
             for (int x = 0; x < 9; x++) {
                 grass.add(x + "," + y);
             }
@@ -350,11 +362,36 @@ class VersusModeTest {
             CapturingBridge bridge = new CapturingBridge();
             int limit = 60 * 60 * 40;
             int ticks = 0;
+            int peakZombies = 0;
+            int spawns = 0;
+            int lastSpawnTick = 0;
+            long totalGap = 0;
             while (ticks < limit && "running".equals(level.gameState())) {
                 level.tick(bridge);
                 ticks++;
                 if (ticks % 60 == 0) {
                     playThePlantSide(level);
+                }
+                // Spawns are counted from the spawn packets, so the rate is the level's own and not
+                // an inference: how often a new zombie walks in is what "it waits for the last one
+                // to die" is about.
+                for (PvzcePacket packet : bridge.packets) {
+                    if (packet instanceof EntitySpawnS2C spawn
+                            && "zombie".equals(spawn.entityKind())) {
+                        spawns++;
+                        totalGap += ticks - lastSpawnTick;
+                        lastSpawnTick = ticks;
+                    }
+                }
+                bridge.packets.clear();
+                if (ticks % 30 == 0) {
+                    int alive = 0;
+                    for (PvzceEntity entity : level.entities()) {
+                        if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                            alive++;
+                        }
+                    }
+                    peakZombies = Math.max(peakZombies, alive);
                 }
             }
             VersusMechanic.Run run = VersusMechanic.run(level);
@@ -363,6 +400,11 @@ class VersusModeTest {
                     + " minutes=" + (ticks / 60 / 60) + ":" + String.format("%02d", (ticks / 60) % 60)
                     + " state=" + level.gameState() + " winner=" + level.winner()
                     + " collected=" + run.collected + "/" + goal
+                    + " peakZombies=" + peakZombies
+                    + " spawns=" + spawns
+                    + " avgGapSeconds=" + (spawns <= 1 ? "-"
+                            : String.format(java.util.Locale.ROOT, "%.1f",
+                                    totalGap / (double) (spawns - 1) / 60.0))
                     + " fizzled=" + level.jevBrain().status());
             assertFalse("running".equals(level.gameState()),
                     id + " never ended within " + (limit / 60) + " seconds of simulated play");
@@ -391,13 +433,13 @@ class VersusModeTest {
             if (entity instanceof ZombieEntity zombie && zombie.isAlive() && zombie.cellX() < 7.5F) {
                 int lane = zombie.gridY();
                 if (shooters(level, lane) == 0) {
-                    if (plantInLane(level, team, "pea_shooter", lane, 2)) {
+                    if (plantInLane(level, team, defender(level), lane, 2)) {
                         return;
                     }
                 }
                 // A wall at the front of the lane a zombie has almost reached: the zombie stops to
                 // eat it, which is the time the shooter behind it needs.
-                if (zombie.cellX() < 6.5F && plantInLane(level, team, "wall_nut", lane, 4)) {
+                if (zombie.cellX() < 6.5F && plantInLane(level, team, wall(level), lane, 4)) {
                     return;
                 }
             }
@@ -405,12 +447,12 @@ class VersusModeTest {
         int sunflowers = 0;
         for (PvzceEntity entity : level.entities()) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()
-                    && "sunflower".equals(plant.defId().path())) {
+                    && economy(level).equals(plant.defId().path())) {
                 sunflowers++;
             }
         }
         if (sunflowers < 6) {
-            plant(level, team, "sunflower", 1);
+            plant(level, team, economy(level), 1);
             return;
         }
         // Then defend: a wall at the front of the lane whose frontmost zombie is closest, and a
@@ -440,19 +482,73 @@ class VersusModeTest {
                 target = y;
             }
         }
-        if (target >= 0 && plantInLane(level, team, "pea_shooter", target, 2)) {
+        if (target >= 0 && plantInLane(level, team, defender(level), target, 2)) {
             return;
         }
         if (target >= 0) {
-            plantInLane(level, team, "wall_nut", target, 4);
+            plantInLane(level, team, wall(level), target, 4);
         }
+    }
+
+    /**
+     * The level's own best shooter, wall and producer.
+     *
+     * <p>The proxy has to play the deck the level gave it: a script that only ever planted
+     * pea_shooter measured duel_2 and duel_3 as unwinnable because their repeaters and tall-nuts
+     * were never bought, and that is a fact about the script, not about the levels.
+     */
+    private static String defender(LevelServer level) {
+        return hasCard(level, "repeater") ? "repeater" : "pea_shooter";
+    }
+
+    /**
+     * The cheaper of the level's two walls.
+     *
+     * <p>Cost-aware on purpose. The first version always took the taller one, which made duel_3
+     * (the only level that offers both) look unwinnable: the proxy was buying 125-sun walls where
+     * 50-sun ones held the same lane, and the measurement was of that preference rather than of
+     * the level. A player buys the cheaper wall until a lane needs the taller one.
+     */
+    private static String wall(LevelServer level) {
+        if (!hasCard(level, "tall_nut")) {
+            return "wall_nut";
+        }
+        if (!hasCard(level, "wall_nut")) {
+            return "tall_nut";
+        }
+        return cost(level, "wall_nut") <= cost(level, "tall_nut") ? "wall_nut" : "tall_nut";
+    }
+
+    /** What one card costs in the level's own deck, or a large number when it is not there. */
+    private static int cost(LevelServer level, String path) {
+        var def = BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace(path));
+        return def == null ? Integer.MAX_VALUE : def.cost().amountOf(PvzceIds.SUN);
+    }
+
+    private static String economy(LevelServer level) {
+        return hasCard(level, "twin_sunflower") && !hasCard(level, "sunflower")
+                ? "twin_sunflower" : "sunflower";
+    }
+
+    /** True when the level's plant deck holds that card. */
+    private static boolean hasCard(LevelServer level, String path) {
+        com.pvzce.api.content.VersusData data = level.versusData();
+        if (data == null) {
+            return false;
+        }
+        for (Identifier card : data.plantCards()) {
+            if (path.equals(card.path())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int shooters(LevelServer level, int lane) {
         int found = 0;
         for (PvzceEntity entity : level.entities()) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridY() == lane
-                    && !"sunflower".equals(plant.defId().path())) {
+                    && !economy(level).equals(plant.defId().path())) {
                 found++;
             }
         }

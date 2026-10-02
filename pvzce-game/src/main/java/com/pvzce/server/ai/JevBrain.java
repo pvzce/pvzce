@@ -12,7 +12,6 @@ import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.jev.JevDecision;
 import com.pvzce.common.jev.JevPrompt;
 import com.pvzce.common.jev.JevSettings;
-import com.pvzce.common.level.mechanic.VersusMechanic;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.server.Team;
 import com.pvzce.server.entity.PlantEntity;
@@ -137,12 +136,6 @@ public final class JevBrain {
         boolean plantSide = PvzceIds.PLANT_TEAM.equals(opponent.id());
         if (plantSide) {
             collectOwnDrops(level, opponent);
-        }
-        if (!plantSide && VersusMechanic.zombieSideIsWaiting(level)) {
-            // The build window: a zombie side that acted during it would be playing a different
-            // level from the one the plant side is building for. Its own clock starts when the
-            // window closes, so nothing is banked but the tick.
-            return;
         }
         drainAnswers(level, data, opponent, plantSide);
         if (decisionCountdown > 0) {
@@ -582,11 +575,24 @@ public final class JevBrain {
                 objective(level, data, plantSide),
                 sun,
                 plantSide && data.races() ? data.sunGoal() : JevPrompt.NO_GOAL,
-                plantSide && data.races() ? VersusMechanic.run(level).collected : 0,
+                plantSide && data.races() ? collected(level) : 0,
                 level.tickCount() / PvzceConstants.TICKS_PER_SECOND,
                 cards,
                 describeRows(level),
                 columnOptions);
+    }
+
+    /**
+     * How much sun the plant side has picked up, or zero on a level that is not racing one.
+     *
+     * <p>Read from the mode's own run state, which is the same number the HUD shows: the opponent
+     * having to count pickups for itself would be a second answer to "how far along is the race".
+     */
+    private static int collected(LevelServer level) {
+        Object run = level.mechanicStateOrNull(PvzceIds.MECHANIC_VERSUS,
+                com.pvzce.common.level.mechanic.VersusMechanic.Run.class);
+        return run instanceof com.pvzce.common.level.mechanic.VersusMechanic.Run state
+                ? state.collected : 0;
     }
 
     private static String objective(LevelServer level, VersusData data, boolean plantSide) {

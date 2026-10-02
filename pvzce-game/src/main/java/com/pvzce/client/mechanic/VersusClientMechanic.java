@@ -5,13 +5,14 @@ import com.pvzce.client.ClientLevel;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.HoverTip;
-import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.mechanic.VersusMechanic;
 import com.pvzce.common.network.PacketByteBuf;
 
+import java.util.List;
+
 /**
- * 对战 on the client: the race's progress and what the opponent just did.
+ * 对战 on the client: the race's progress, the opponent's side of the board, and its last move.
  *
  * <p>Its server half is {@code VersusMechanic}. This side decides nothing - the counter, the
  * opponent's side and its latest move all arrive as {@link VersusMechanic.State} - so what is left
@@ -28,6 +29,8 @@ final class VersusClientMechanic implements ClientMechanic {
     private static final float TEXT_SCALE = 0.8F;
     private static final float LINE_HEIGHT = 12F;
     private static final float BAR_HEIGHT = 3F;
+    /** How far the card lines are inset from the panel's heading. */
+    private static final float CARD_INDENT = 4F;
 
     @Override
     public Identifier id() {
@@ -46,16 +49,9 @@ final class VersusClientMechanic implements ClientMechanic {
         if (state == null) {
             return;
         }
+        renderOpponent(client, state);
         String progress = progressLine(state);
         String opponent = opponentLine(state);
-        if (state.zombieStartCountdown() > 0) {
-            // The build window, in seconds: the one moment of the match with nothing to react to
-            // and everything to build, so the HUD says how long it lasts.
-            opponent = String.format(GuiLang.raw("gui.pvzce.versus.build_window",
-                            "对手还有 %d 秒出发"),
-                    (state.zombieStartCountdown() + PvzceConstants.TICKS_PER_SECOND - 1)
-                            / PvzceConstants.TICKS_PER_SECOND);
-        }
         float width = Math.max(client.fonts().body().width(progress, TEXT_SCALE),
                 client.fonts().body().width(opponent, TEXT_SCALE)) + PADDING * 2F;
         float height = LINE_HEIGHT * 2F + PADDING * 2F;
@@ -77,6 +73,53 @@ final class VersusClientMechanic implements ClientMechanic {
             client.drawSolid(x, y + height, width * fraction, BAR_HEIGHT, 8.1F,
                     0.35F, 0.95F, 0.55F, 1F);
         }
+    }
+
+    /**
+     * The opponent's own side of the match: its sun, and the cards it is holding.
+     *
+     * <p>On the right edge, which nothing else in a versus level uses. It answers the question a
+     * player asks while they watch: "what is coming, and can it afford it". The card the opponent
+     * played last stays highlighted until it plays again, so a glance connects the panel to the
+     * zombie that just walked in.
+     *
+     * <p>It is <b>the opponent's</b> information, not the level's: the sun number is that team's
+     * wallet on the server, and the hand is the list the level gave that side. Nothing is derived
+     * on the client, so a card the opponent cannot actually play cannot appear here.
+     */
+    private static void renderOpponent(PvzceClient client, VersusMechanic.State state) {
+        List<String> hand = state.opponentHand();
+        if (hand.isEmpty()) {
+            return;
+        }
+        String title = String.format(GuiLang.raw("gui.pvzce.versus.opponent_sun",
+                "对手阳光 %d"), state.opponentSun());
+        float width = client.fonts().body().width(title, TEXT_SCALE) + PADDING * 2F;
+        for (String card : hand) {
+            width = Math.max(width, client.fonts().body().width(cardName(card), TEXT_SCALE)
+                    + PADDING * 2F + CARD_INDENT);
+        }
+        float height = LINE_HEIGHT * (hand.size() + 1) + PADDING * 2F;
+        float x = client.guiWidth() - width - 16F;
+        // Above the race panel, which is anchored at the bottom of the same edge.
+        float y = 14F + (LINE_HEIGHT * 2F + PADDING * 2F) + 8F;
+        client.drawSolid(x, y, width, height, 8F, 0.16F, 0.06F, 0.06F, 0.85F);
+        client.fonts().body().draw(title, x + PADDING, y + height - PADDING - LINE_HEIGHT * 0.9F,
+                TEXT_SCALE, 1F, 0.85F, 0.55F, 1F);
+        for (int i = 0; i < hand.size(); i++) {
+            String card = hand.get(i);
+            boolean last = card.equals(state.lastCardId());
+            float lineY = y + height - PADDING - LINE_HEIGHT * (i + 1.9F);
+            // The last one played is the bright line, the rest of the hand is dim: the panel has to
+            // be readable at a glance during a wave, and a list of equal weights is not.
+            client.fonts().body().draw(cardName(card), x + PADDING + CARD_INDENT, lineY, TEXT_SCALE,
+                    last ? 1F : 0.62F, last ? 1F : 0.62F, last ? 0.7F : 0.62F, 1F);
+        }
+    }
+
+    /** A card's display name, through the one lookup the card bar and the almanac also use. */
+    private static String cardName(String cardId) {
+        return HoverTip.cardName(cardId);
     }
 
     /**

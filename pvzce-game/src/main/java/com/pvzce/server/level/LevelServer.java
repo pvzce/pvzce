@@ -1045,6 +1045,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
     }
 
+    /**
+     * The versus block this running level declared, or {@code null} for every other level.
+     *
+     * <p>Read from the level's own mechanic list rather than from its definition, so a mutation that
+     * installed or replaced the block is what the running level reports.
+     */
+    public com.pvzce.api.content.VersusData versusData() {
+        return LevelMechanics.versusData(mechanics).orElse(null);
+    }
+
     /** The versus mode's opponent; built on first use, so ordinary levels never pay for it. */
     public com.pvzce.server.ai.JevBrain jevBrain() {
         if (jevBrain == null) {
