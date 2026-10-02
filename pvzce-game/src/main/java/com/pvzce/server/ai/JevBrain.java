@@ -254,7 +254,7 @@ public final class JevBrain {
      * How close the zombies have got. The mode's pacing reacts to it, on both tiers.
      *
      * <p>The user's rule: a zombie inside the plant zone means the commander every fifteen seconds, and
-     * one within three cells of the house door means ten - with the tactical model speeding up to
+     * one inside the four columns nearest the house means ten - with the tactical model speeding up to
      * match. It is the same idea as the two sides' different rates, one level down: a plan about an
      * untouched lawn keeps for half a minute, and a plan about a lane three cells from the door keeps
      * for ten seconds at most.
@@ -268,8 +268,15 @@ public final class JevBrain {
         AT_THE_DOOR
     }
 
-    /** How many cells from the house count as "at the door"; the user's number. */
-    private static final float DOORSTEP_CELLS = 2F;
+    /**
+     * How many cells from the house count as "at the door": the user's number, widened from the first
+     * three columns to the first four ("把危险区从前三列扩展到前四列"), so x <= 3.
+     *
+     * <p>Covers both uses of "near the house": the plan's pacing ({@link #pressure}) and the danger
+     * markers in the two prompts. A versus level's plant zone is five columns wide, so this is the
+     * inner four of the five a zombie has to cross.
+     */
+    private static final float DOORSTEP_CELLS = 3F;
     private static final int COMMANDER_PRESSED_TICKS = 15 * 60;
     private static final int COMMANDER_DOORSTEP_TICKS = 10 * 60;
     /** Two thirds of the calm interval once a zombie is in the plant zone. */
@@ -550,7 +557,7 @@ public final class JevBrain {
                 danger.add("第 " + (zombie.gridY() + 1) + " 行有一只 "
                         + shortCardName(zombie.defId()) + " 已到 x"
                         + String.format(java.util.Locale.ROOT, "%.1f", zombie.cellX())
-                        + "（离房子三格以内）");
+                        + "（已进入最靠近房子的四列）");
             }
         }
         return String.join("；", danger);
@@ -997,13 +1004,17 @@ public final class JevBrain {
             }
         }
 
-        // 3. The economy, up to a point. Two caps rather than one, because the opening purse is
-        //    small (a versus level gives 400) and five sunflowers spend most of it: the lawn builds a
-        //    skeleton of shooters first - one per lane - and only then grows the economy to five.
-        //    Measured, this is the difference between a plant opponent that holds a rush for minutes
-        //    and one that is walked through in under one.
+        // 3. The economy, up to a point, and *only while the lawn is quiet*. Two caps rather than one,
+        //    because the opening purse is small (a versus level gives 400) and five sunflowers spend
+        //    most of it: the lawn builds a skeleton of shooters first - one per lane - and only then
+        //    grows the economy to five.
+        //
+        //    The quiet check is the user's report ("the plant AI keeps going for sun even when it is
+        //    about to lose"): this rule sat *above* "widen the defense", so a lawn with one shooter in
+        //    every lane preferred a third sunflower to a second shooter in the lane being eaten. A
+        //    sunflower bought while a zombie is inside the plantable columns is a lane lost on purpose.
         int producerCap = shootersEverywhere(level) ? PRODUCER_TARGET : OPENING_PRODUCER_TARGET;
-        if (!producers.isEmpty() && producers(level) < producerCap) {
+        if (!producers.isEmpty() && producers(level) < producerCap && nothingInsideThePlantZone(level)) {
             CardChoice cheapest = producers.get(0);
             int back = backColumn(level, true);
             for (int lane : lanesEmptiestFirst(level)) {
@@ -1059,6 +1070,22 @@ public final class JevBrain {
         }
         lanes.sort(java.util.Comparator.comparingInt(lane -> plantsInLane(level, lane)));
         return lanes;
+    }
+
+    /**
+     * True when every zombie is still outside the columns this side may plant in.
+     *
+     * <p>The line between "build for later" and "build for now": once something is standing where the
+     * plants grow, spending sun on the economy is spending a lane.
+     */
+    private static boolean nothingInsideThePlantZone(LevelServer level) {
+        float front = frontmostZombieX(level);
+        for (int x = level.width() - 1; x >= 0; x--) {
+            if (level.plantZoneContains(x)) {
+                return front > x;
+            }
+        }
+        return true;
     }
 
     /** True when no lane is left without something to shoot back with. */
@@ -1588,6 +1615,9 @@ public final class JevBrain {
     /** The marker that says "this one is three cells from the house". */
     static final String DANGER_MARK = "[DANGER]";
 
+    /** How the danger zone is described to a model, in one phrase; the same words in both prompts. */
+    static final String DANGER_ZONE_TEXT = "the four columns nearest the house (x 0-3)";
+
     /**
      * True for a zombie inside {@link #DOORSTEP_CELLS} of the house.
      *
@@ -1620,8 +1650,9 @@ public final class JevBrain {
             return "";
         }
         return (plantSide
-                ? "DANGER: a zombie has reached the house door - "
-                : "DANGER for the plant side, and an opportunity for you - ") + String.join("; ", danger)
+                ? "DANGER: a zombie has reached " + DANGER_ZONE_TEXT + " - "
+                : "DANGER for the plant side, and an opportunity for you: a zombie has reached "
+                        + DANGER_ZONE_TEXT + " - ") + String.join("; ", danger)
                 + ". This is what the plan has to be about.";
     }
 

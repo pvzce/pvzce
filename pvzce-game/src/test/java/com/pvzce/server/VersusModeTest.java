@@ -683,15 +683,15 @@ class VersusModeTest {
                     "http://127.0.0.1:" + commander.getAddress().getPort() + "/chat/completions",
                     "stub", "test-key"));
             CapturingBridge bridge = new CapturingBridge();
-            // A zombie inside three cells of the house (x <= 2 is the mode's own doorstep rule), and a
-            // plant mid-lawn for company.
+            // A zombie inside the four columns nearest the house (x <= 3 is the mode's own danger-zone
+            // rule), and a plant mid-lawn for company.
             level.tick(bridge);
             assertNotNull(level.spawnPlant(
                     com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id("wall_nut")),
                     level.team(Identifier.parse(PLANT)), 1, 1),
                     "a wall for the zombie to stop and eat, so the match lasts more than a cycle");
             assertNotNull(level.spawnZombie(id("basic_zombie"), level.team(Identifier.parse(ZOMBIE)),
-                    2.0F, 1), "the dangerous zombie is on the lawn, inside the doorstep");
+                    3.0F, 1), "the dangerous zombie is on the lawn, inside the danger zone");
             assertNotNull(level.spawnPlant(
                     com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id("sunflower")),
                     level.team(Identifier.parse(PLANT)), 3, 1), "and a plant in the same lane");
@@ -770,6 +770,41 @@ class VersusModeTest {
             assertEquals(java.util.Optional.of(List.<Integer>of()), rake.rows(),
                     name + " has no rake, whatever the player's profile owns");
         }
+    }
+
+    /**
+     * The plant opponent stops building its economy the moment something is inside its columns.
+     *
+     * <p>The user's report: "the plant AI keeps going for sun even when it is about to lose". The rule
+     * that did it was the economy one sitting above "widen the defense" - a lawn with one shooter in
+     * every lane preferred a third sunflower to a second shooter in the lane being eaten. This puts a
+     * zombie in the plantable columns with sun to spare and asks what it buys: nothing but defense.
+     */
+    @Test
+    void thePlantOpponentStopsBuyingSunWhileItIsBeingWalkedInto() {
+        // The human is the zombie side, so the AI plays plants, and it is rich enough to buy either.
+        LevelDef def = level(new Mode(1_000_000, 10_000, 1_000_000, 0, 240, 0, 30),
+                "[\"pvzce:sun\", \"pvzce:sunflower\", \"pvzce:pea_shooter\"]",
+                "[\"pvzce:basic_zombie\"]", "[]", 5);
+        LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def), null,
+                null, Identifier.parse(ZOMBIE));
+        CapturingBridge bridge = new CapturingBridge();
+        level.tick(bridge);
+        // A zombie standing in the middle of the plantable columns, and a shooter already in that lane
+        // so rule 1 (a lane with nothing to shoot back with) has nothing to do.
+        assertNotNull(level.spawnPlant(
+                com.pvzce.common.core.BuiltInRegistries.PLANTS.get(id("pea_shooter")),
+                level.team(Identifier.parse(PLANT)), 2, 1), "a shooter in lane 1");
+        assertNotNull(level.spawnZombie(id("basic_zombie"), level.team(Identifier.parse(ZOMBIE)),
+                3.5F, 1), "a zombie inside the plant columns");
+
+        tick(level, bridge, 60 * 12);
+        assertEquals(0, countPlants(level, "sunflower"),
+                "no sun is bought while a lane is being walked into: "
+                        + level.entities().stream().filter(PlantEntity.class::isInstance).count()
+                        + " plants on the lawn");
+        assertTrue(countPlants(level, "pea_shooter") >= 2,
+                "and the sun it had went into the defense instead");
     }
 
     @Test
