@@ -218,7 +218,7 @@ public final class JevBrain {
         // comparisons, and at three seconds it was three times slower to react than a player - which
         // is how the plant opponent lost a match in 78 seconds to a rush a person would have held.
         decisionCountdown = level.jevSettings().configured()
-                ? Math.max(BUSY_RETRY_TICKS, data.decisionTicks())
+                ? decisionInterval(data.decisionTicks(), pressure(level))
                 : FALLBACK_INTERVAL_TICKS;
         ask(level, data, opponent, plantSide);
     }
@@ -250,6 +250,76 @@ public final class JevBrain {
     private static final int COMMANDER_INTERVAL_TICKS = 30 * 60;
     private static final int COMMANDER_PLANT_INTERVAL_TICKS = 20 * 60;
 
+    /**
+     * How close the zombies have got. The mode's pacing reacts to it, on both tiers.
+     *
+     * <p>The user's rule: a zombie inside the plant zone means the commander every fifteen seconds, and
+     * one within three cells of the house door means ten - with the tactical model speeding up to
+     * match. It is the same idea as the two sides' different rates, one level down: a plan about an
+     * untouched lawn keeps for half a minute, and a plan about a lane three cells from the door keeps
+     * for ten seconds at most.
+     */
+    enum Pressure {
+        /** Every zombie is still out in its own half. */
+        CALM,
+        /** At least one has walked into the plantable columns. */
+        IN_PLANT_ZONE,
+        /** One is inside three cells of the house door. */
+        AT_THE_DOOR
+    }
+
+    /** How many cells from the house count as "at the door"; the user's number. */
+    private static final float DOORSTEP_CELLS = 2F;
+    private static final int COMMANDER_PRESSED_TICKS = 15 * 60;
+    private static final int COMMANDER_DOORSTEP_TICKS = 10 * 60;
+    /** Two thirds of the calm interval once a zombie is in the plant zone. */
+    private static final int PRESSED_NUMERATOR = 2;
+    private static final int PRESSED_DENOMINATOR = 3;
+    /** Half of it at the door. */
+    private static final int DOORSTEP_DENOMINATOR = 2;
+
+    /** Which of the three states the board is in, from the frontmost zombie's position. */
+    static Pressure pressure(LevelServer level) {
+        float front = frontmostZombieX(level);
+        if (front == Float.MAX_VALUE) {
+            return Pressure.CALM;
+        }
+        if (front <= DOORSTEP_CELLS) {
+            return Pressure.AT_THE_DOOR;
+        }
+        for (int x = level.width() - 1; x >= 0; x--) {
+            if (level.plantZoneContains(x)) {
+                return front <= x ? Pressure.IN_PLANT_ZONE : Pressure.CALM;
+            }
+        }
+        return Pressure.CALM;
+    }
+
+    /** How long the commander's plan is allowed to stand, at this board's pressure. */
+    static int commanderInterval(boolean plantSide, Pressure pressure) {
+        return switch (pressure) {
+            case IN_PLANT_ZONE -> COMMANDER_PRESSED_TICKS;
+            case AT_THE_DOOR -> COMMANDER_DOORSTEP_TICKS;
+            case CALM -> plantSide ? COMMANDER_PLANT_INTERVAL_TICKS : COMMANDER_INTERVAL_TICKS;
+        };
+    }
+
+    /**
+     * How often the tactical model is asked, at this board's pressure.
+     *
+     * <p>Two thirds of the level's own interval once a zombie is in the plantable columns, and half of
+     * it at the door - the commander's own 20/15/10 scaled by the same idea, kept as fractions of
+     * {@code decision_ticks} so a level that asks for a slower or faster opponent keeps its say.
+     */
+    static int decisionInterval(int configured, Pressure pressure) {
+        return switch (pressure) {
+            case IN_PLANT_ZONE -> Math.max(BUSY_RETRY_TICKS,
+                    configured * PRESSED_NUMERATOR / PRESSED_DENOMINATOR);
+            case AT_THE_DOOR -> Math.max(BUSY_RETRY_TICKS, configured / DOORSTEP_DENOMINATOR);
+            case CALM -> Math.max(BUSY_RETRY_TICKS, configured);
+        };
+    }
+
     private void tickCommander(LevelServer level, VersusData data, Team opponent, boolean plantSide) {
         AiSettings settings = level.commanderSettings();
         if (!settings.configured()) {
@@ -273,7 +343,7 @@ public final class JevBrain {
         }
         // Asked even while a previous answer is in flight? No: one strategy line about one board is
         // worth one request, and a slow model must not build a queue of stale plans.
-        int interval = plantSide ? COMMANDER_PLANT_INTERVAL_TICKS : COMMANDER_INTERVAL_TICKS;
+        int interval = commanderInterval(plantSide, pressure(level));
         if (commander.request(settings, commanderSnapshot(level, data, opponent, plantSide))) {
             commanderCountdown = interval;
         } else {
