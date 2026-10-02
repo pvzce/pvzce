@@ -82,14 +82,14 @@
   "wave_interval_end_multiplier": 1.0,
   "waves": [],
   "slots": [],
-  "max_seed_slots": 10,
+  "max_seed_slots": 9,
   "seed_screen": false,
   "initial_sun": 0,
   "mechanics": [
     {
       "type": "pvzce:versus",
       "sun_goal": 7000,
-      "plant_initial_sun": 800,
+      "plant_initial_sun": 400,
       "zombie_initial_sun": 50,
       "zombie_income_sun": 35,
       "zombie_income_ticks": 300,
@@ -100,10 +100,9 @@
         "pvzce:sunflower",
         "pvzce:twin_sunflower",
         "pvzce:repeater",
+        "pvzce:wall_nut",
         "pvzce:tall_nut",
         "pvzce:potato_mine",
-        "pvzce:cherry_bomb",
-        "pvzce:squash",
         "pvzce:shovel"
       ],
       "zombie_cards": [
@@ -112,6 +111,10 @@
         "pvzce:buckethead_zombie",
         "pvzce:pole_vaulter_zombie"
       ]
+    },
+    {
+      "type": "pvzce:mower",
+      "rows": []
     },
     {
       "type": "pvzce:placement_zone",

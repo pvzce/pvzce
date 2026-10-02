@@ -381,7 +381,7 @@ public final class JevBrain {
                 : "你能用的僵尸只有这些（完整列表，括号里是价格，负号表示现在买不起）：");
         text.append(String.join("，", cards)).append("。\n");
         text.append("列表之外的任何卡都不可用，不要提到它们。\n");
-        text.append("草坪（第 1 行在最上面，x 越小越靠近房子/左侧）：\n");
+        text.append("草坪（行=车道，第 1 行在最上面；列=x 坐标，越小越靠近房子，越大越靠近僵尸入场口）：\n");
         for (int row = 0; row < level.height(); row++) {
             text.append("第 ").append(row + 1).append(" 行：");
             List<String> ours = new ArrayList<>();
@@ -807,9 +807,13 @@ public final class JevBrain {
             }
         }
 
-        // 3. The economy, up to a point: past five producers another sunflower is a lane the lawn
-        //    cannot defend.
-        if (!producers.isEmpty() && producers(level) < PRODUCER_TARGET) {
+        // 3. The economy, up to a point. Two caps rather than one, because the opening purse is
+        //    small (a versus level gives 400) and five sunflowers spend most of it: the lawn builds a
+        //    skeleton of shooters first - one per lane - and only then grows the economy to five.
+        //    Measured, this is the difference between a plant opponent that holds a rush for minutes
+        //    and one that is walked through in under one.
+        int producerCap = shootersEverywhere(level) ? PRODUCER_TARGET : OPENING_PRODUCER_TARGET;
+        if (!producers.isEmpty() && producers(level) < producerCap) {
             CardChoice cheapest = producers.get(0);
             int back = backColumn(level, true);
             for (int lane : lanesEmptiestFirst(level)) {
@@ -865,6 +869,16 @@ public final class JevBrain {
         }
         lanes.sort(java.util.Comparator.comparingInt(lane -> plantsInLane(level, lane)));
         return lanes;
+    }
+
+    /** True when no lane is left without something to shoot back with. */
+    private static boolean shootersEverywhere(LevelServer level) {
+        for (int row = 0; row < level.height(); row++) {
+            if (shooters(level, row) == 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Every lane, the one with the fewest shooters first. */
@@ -928,6 +942,14 @@ public final class JevBrain {
 
     /** How many sun producers a level's plant deck is worth building before defense takes over. */
     private static final int PRODUCER_TARGET = 5;
+    /**
+     * How many producers the lawn builds before every lane has a shooter.
+     *
+     * <p>Two sunflowers and a shooter in each lane is a lawn that survives its opening; five
+     * sunflowers and one shooter is a lawn that does not. The verses levels' purses are small enough
+     * that the order matters more than the total.
+     */
+    private static final int OPENING_PRODUCER_TARGET = 2;
 
     /** What a card is for, read from its own capabilities rather than guessed from its id. */
     private enum Role {
@@ -1271,9 +1293,20 @@ public final class JevBrain {
                     + "sunflowers make, and do not let a zombie reach the left edge. You lose the "
                     + "moment one does.";
         }
+        // The plant side's sun is not this side's business: its *progress* was never in here, and the
+        // user asked for the goal number to go too. What is left is the condition, which both players
+        // already know from the level's own rules.
+        // "Further right is free walking time under fire" is a tactical fact, not a hidden rule, and
+        // the model still answered col_8 with it: the columns are described, but nothing said which
+        // one to *pick*. Live runs after the descriptions were added kept arriving at the far right -
+        // which is where the original game's zombies come from, and the worst column here.
         return "You are the zombie side, playing against a human on the plant side. Break through: "
-                + "get one zombie past the left edge before the plant side collects " + data.sunGoal()
-                + " sun. Plants shoot, so a zombie that walks into one alone is spent.";
+                + "get one zombie past the left edge before the plant side finishes banking its sun. "
+                + "Plants shoot, so a zombie that walks into one alone is spent. Zombies arrive from "
+                + "the right and walk left, and this mode lets you choose the column they arrive in: "
+                + "always arrive in the leftmost legal column (col_5, right beside the plants). Every "
+                + "column further right is open lawn the zombie walks under fire for nothing, so "
+                + "arriving further right is never the better move.";
     }
 
     /** One line per lane: what is in it, and how far up it is. */
@@ -1310,11 +1343,20 @@ public final class JevBrain {
                     : "col_" + column + ": " + (column == 4 ? "the front line, closest to where the "
                             + "zombies arrive" : "a middle column, safer than the front");
         }
-        return column == 5
-                ? "col_5: the column closest to the plants, the most aggressive place to arrive"
-                : "col_" + column + ": " + (column == level.width() - 1
-                        ? "the far right, where a zombie has the most lawn left to walk"
-                        : "a column behind the front line");
+        // A gradient, not a label. "The far right" reads as "the normal place for a zombie to come
+        // from" - which is how the original game works and how the model answered, putting every
+        // zombie as far from the plants as the zone allows so the plants could shoot it the whole way
+        // in. What the model needs is the cost of each choice, in the same words for every column.
+        int entrance = level.width() - 1;
+        int walk = entrance - column;
+        String where = column == 5
+                ? "the zombies' entry column, right beside the plants"
+                : (column == entrance ? "the far right, one step in from the edge" : "an open column");
+        return "col_" + column + ": " + where + (walk == 0
+                ? " - a zombie placed here starts next to the plants and walks no open lawn at all, "
+                        + "which is the least time the plants have to shoot it"
+                : " - a zombie placed here walks " + walk + " cell" + (walk == 1 ? "" : "s")
+                        + " of open lawn under fire before it reaches anything");
     }
 
 }

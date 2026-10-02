@@ -219,6 +219,12 @@ public record JevPrompt(
             board.add(row.description());
         }
         state.add("board_rows", board);
+        // The two axes in one sentence each, because "row" and "column" are exactly the pair a model
+        // mixes up, and every other line of this state assumes the reader has them: a row is a lane
+        // (row_0 is the top one), a column is an x position (col_0 is the house end, larger columns
+        // toward the entrance the zombies walk in from).
+        state.addProperty("board_axes", "row_N is a lane, row_0 at the top; col_N is an x position, "
+                + "col_0 against the house, larger columns toward the zombies' entrance");
         JsonArray legalColumns = new JsonArray();
         for (ColumnOption column : columns) {
             legalColumns.add(column.index());
@@ -265,7 +271,9 @@ public record JevPrompt(
             columnCriteria.addProperty(column.key(), column.description());
         }
         questions.add(KEY_COLUMN, question("choice",
-                "Which column should the card go in? Only these are legal for "
+                "Which column should the card go in? A column is an x position, so a zombie placed in "
+                        + "a larger column has more open lawn to walk under fire before it reaches "
+                        + "anything - the criteria say how much for each. Only these are legal for "
                         + side.wireName() + ".", columnCriteria));
         return questions;
     }

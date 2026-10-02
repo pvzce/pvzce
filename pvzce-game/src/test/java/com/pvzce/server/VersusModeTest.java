@@ -37,6 +37,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -520,8 +521,13 @@ class VersusModeTest {
         });
         commander.start();
         try {
-            LevelDef def = BuiltInRegistries.LEVELS.get(
-                    Identifier.withDefaultNamespace("yard/versus/duel_1"));
+            // A level that cannot end while the two answers are judged: the zombie side is paid
+            // nothing, so nothing walks in and no cycle is cut short. (The shipped level used to be
+            // used here, and with its mowers gone the first zombie ends it inside one commander
+            // cycle - the second answer never got a chance to be refused or accepted.)
+            LevelDef def = level(new Mode(1_000_000, 100_000, 1_000_000, 0, 240, 0, 20),
+                    "[\"pvzce:sun\", \"pvzce:pea_shooter\"]",
+                    "[\"pvzce:basic_zombie\", \"pvzce:conehead_zombie\"]", "[]", 5);
             LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def),
                     null, null, Identifier.parse(PLANT));
             level.setCommanderSettings(new AiSettings(
@@ -1057,7 +1063,10 @@ class VersusModeTest {
         assertTrue(plantMix.size() >= 3,
                 "the plant opponent builds an economy, a defense and a wall rather than one card: "
                         + plantMix);
-        assertTrue(plantMix.getOrDefault("sunflower", 0) >= 3, plantMix.toString());
+        // One producer is enough to prove the point: how many the lawn builds before it is walked
+        // through is a balance question, and pinning a count here made this test fail the moment the
+        // opponent started buying defense earlier (which is the behaviour it wants).
+        assertTrue(plantMix.getOrDefault("sunflower", 0) >= 1, plantMix.toString());
         // "A defender" rather than "three pea shooters": which shooter it buys (pea, snow pea,
         // repeater) depends on what it can afford at the moment, and an assertion about the mix was
         // an assertion about the dice. The regression this guards is the version that bought nothing
@@ -1167,6 +1176,111 @@ class VersusModeTest {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * The answer's row and column are the cell it lands in - both sides, both axes.
+     *
+     * <p>Written because "the AI seems to mix up rows and columns" is a claim only a placement can
+     * settle: the request carries a row and a column, the reply names one of each, and either the
+     * board ends up with a plant at that cell or it does not. The stub answers a <em>named</em> row and
+     * column rather than the first option of each (which is what the other stub does), so a swap
+     * between the two axes cannot pass: the level is asymmetric, the two chosen numbers differ, and
+     * the assertions name both.
+     */
+    @Test
+    void aNamedRowAndColumnAreTheCellThePieceLandsIn() throws IOException {
+        startStubAnswering(Map.of("row", "row_2", "column", "col_3"), Map.of("row", "row_1",
+                "column", "col_6"), "pvzce:pea_shooter", "pvzce:basic_zombie");
+        try {
+            // (a) the plant side, in the shipped level's own coordinates: col_3, row_2.
+            // Five lanes, the shipped levels' own shape: row_2 has to exist for the answer to be one
+            // this level could ever carry out.
+            LevelDef plantLevel = level(new Mode(1_000_000, 10_000, 1_000_000, 0, 240, 0, 20),
+                    "[\"pvzce:sun\", \"pvzce:pea_shooter\"]", "[\"pvzce:basic_zombie\"]", "[]",
+                    5);
+            LevelServer asPlant = new LevelServer(plantLevel, plantLevel.slots(),
+                    LevelServer.SeedContext.all(plantLevel), null, null, Identifier.parse(ZOMBIE));
+            asPlant.setAiSettings(new AiSettings(
+                    "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
+                    "stub", "test-key"));
+            waitForOnePlant(asPlant, plantLevel);
+            PlantEntity plant = asPlant.entities().stream().filter(PlantEntity.class::isInstance)
+                    .map(PlantEntity.class::cast).findFirst().orElseThrow();
+            assertEquals(3, plant.gridX(), "col_3 is x=3");
+            assertEquals(2, plant.gridY(), "row_2 is the third lane down");
+
+            // (b) the zombie side, whose legal columns start at 5 rather than 0.
+            LevelDef zombieLevel = level(new Mode(1_000_000, 1_000_000, 10_000, 0, 240, 0, 20),
+                    "[\"pvzce:sun\", \"pvzce:pea_shooter\"]", "[\"pvzce:basic_zombie\"]", "[]",
+                    5);
+            // The human is the plant side here, so the AI is the one placing zombies.
+            LevelServer asZombie = new LevelServer(zombieLevel, zombieLevel.slots(),
+                    LevelServer.SeedContext.all(zombieLevel), null, null, Identifier.parse(PLANT));
+            asZombie.setAiSettings(new AiSettings(
+                    "http://127.0.0.1:" + stub.getAddress().getPort() + "/v1/systemone",
+                    "stub", "test-key"));
+            waitForOneZombie(asZombie);
+            ZombieEntity zombie = asZombie.entities().stream().filter(ZombieEntity.class::isInstance)
+                    .map(ZombieEntity.class::cast).findFirst().orElseThrow();
+            assertEquals(6, zombie.gridX(), "col_6 is x=6, not a lane");
+            assertEquals(1, zombie.gridY(), "row_1 is the second lane down");
+        } finally {
+            stopStub();
+        }
+    }
+
+    private void waitForOnePlant(LevelServer level, LevelDef def) {
+        CapturingBridge bridge = new CapturingBridge();
+        long deadline = System.nanoTime() + 15_000_000_000L;
+        while (System.nanoTime() < deadline && level.entities().stream()
+                .noneMatch(PlantEntity.class::isInstance)) {
+            level.tick(bridge);
+            sleepABit();
+        }
+    }
+
+    private void waitForOneZombie(LevelServer level) {
+        CapturingBridge bridge = new CapturingBridge();
+        long deadline = System.nanoTime() + 15_000_000_000L;
+        while (System.nanoTime() < deadline && level.entities().stream()
+                .noneMatch(ZombieEntity.class::isInstance)) {
+            level.tick(bridge);
+            sleepABit();
+        }
+    }
+
+    /** A stub that answers the same named row and column to every question, and one card. */
+    private void startStubAnswering(Map<String, String> plantAnswer, Map<String, String> zombieAnswer,
+                                    String plantCard, String zombieCard) throws IOException {
+        stub = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        stub.createContext("/v1/systemone", exchange -> {
+            JsonObject request = JsonParser.parseString(readBody(exchange)).getAsJsonObject();
+            JsonObject questions = request.getAsJsonObject("questions");
+            boolean zombieSide = questions.getAsJsonObject("column").getAsJsonObject("criteria")
+                    .keySet().stream().anyMatch(key -> key.equals("col_5") || key.equals("col_6")
+                            || key.equals("col_7") || key.equals("col_8"));
+            Map<String, String> chosen = zombieSide ? zombieAnswer : plantAnswer;
+            JsonObject answers = new JsonObject();
+            // The action is whichever card the level is meant to afford, so the test does not depend
+            // on the order a deck happens to list them in.
+            String action = null;
+            for (String key : questions.getAsJsonObject("action").getAsJsonObject("criteria")
+                    .keySet()) {
+                if (key.equals(zombieSide ? zombieCard : plantCard)) {
+                    action = key;
+                }
+            }
+            answers.add("action", choice(action == null ? com.pvzce.common.jev.JevPrompt.KEY_HOLD
+                    : action));
+            answers.add("row", choice(chosen.get("row")));
+            answers.add("column", choice(chosen.get("column")));
+            JsonObject response = new JsonObject();
+            response.addProperty("model", "stub");
+            response.add("answers", answers);
+            respond(exchange, response.toString());
+        });
+        stub.start();
     }
 
     private static String firstKey(JsonObject question) {
