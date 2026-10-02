@@ -2217,10 +2217,41 @@ public final class PvzceClient {
      * seed chooser would produce for a level that fixes its whole deck.
      */
     public void requestLevel(String levelId, boolean restart) {
+        requestLevel(levelId, restart, "");
+    }
+
+    /** The same, for a caller that also names the side to play; see {@link #requestFreshRunDirectly}. */
+    public void requestLevel(String levelId, boolean restart, String teamKeyword) {
+        resolveRequestedTeam(levelId, teamKeyword);
         syncAiSettings();
         connection.send(restart
                 ? new RestartLevelC2S(levelId, currentWorld, List.of(), pendingHumanTeam)
                 : new ContinueLevelC2S(levelId, currentWorld));
+    }
+
+    /**
+     * Sets {@link #pendingHumanTeam} from a keyword matched against the sides the level offers.
+     *
+     * <p>One method for both entry points because it is the same question: which of the teams this
+     * level's own panels would have offered does the caller mean. A keyword that matches nothing, or a
+     * caller with no keyword, leaves the side to the level's default - which is what entering from the
+     * menu without touching a panel does.
+     */
+    private void resolveRequestedTeam(String levelId, String teamKeyword) {
+        String team = teamKeyword == null ? "" : teamKeyword.trim();
+        if (team.isEmpty()) {
+            return;
+        }
+        LevelListS2C.LevelInfo info = findLevelInfo(levelId);
+        if (info == null) {
+            return;
+        }
+        for (var candidate : info.teams()) {
+            if (candidate.playable() && candidate.id().toLowerCase(java.util.Locale.ROOT)
+                    .contains(team.toLowerCase(java.util.Locale.ROOT))) {
+                pendingHumanTeam = candidate.id();
+            }
+        }
     }
 
     /**
@@ -2261,7 +2292,19 @@ public final class PvzceClient {
     private String pendingHumanTeam = "";
 
     void requestFreshRunDirectly(String levelId, boolean restart) {
+        requestFreshRunDirectly(levelId, restart, "");
+    }
+
+    /**
+     * The same, for a caller that names the side to play.
+     *
+     * @param teamKeyword a keyword matched against the level's team ids, or blank for "the level's
+     *                    own default"; the smoke hook uses it, and a keyword that matches nothing
+     *                    falls back to the default rather than refusing to start
+     */
+    void requestFreshRunDirectly(String levelId, boolean restart, String teamKeyword) {
         directDialogueLevelId = levelId;
+        resolveRequestedTeam(levelId, teamKeyword);
         syncAiSettings();
         connection.send(restart
                 ? new RestartLevelC2S(levelId, currentWorld, List.of(), pendingHumanTeam)
@@ -2742,6 +2785,26 @@ public final class PvzceClient {
                 info.payload().buffPool(), info.payload().maxBuffSlots(),
                 lockedBuffsFor(info.id()), autoBuffSelectionFor(info.id(), initialBuffs),
                 nextRound, nextRoundNumber);
+    }
+
+    /**
+     * True when the level list has this level, so a caller can wait for the sides it offers.
+     *
+     * <p>The smoke hook's need: "play the zombie side" can only be resolved from the level list, and
+     * the list arrives a few ticks after the client starts.
+     */
+    /**
+     * Asks the server for the level list, for a hook that needs the sides a level offers.
+     *
+     * <p>In play the list arrives because the player opened the level list; a smoke run that names a
+     * side has to ask for it itself, or it waits for a packet nothing ever sends.
+     */
+    void requestLevelListForHooks() {
+        connection.send(new com.pvzce.common.network.packet.RequestLevelListC2S(currentWorld));
+    }
+
+    boolean knowsLevel(String levelId) {
+        return findLevelInfo(levelId) != null;
     }
 
     private LevelListS2C.LevelInfo findLevelInfo(String levelId) {

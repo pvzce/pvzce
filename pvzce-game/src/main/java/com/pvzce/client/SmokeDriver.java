@@ -52,6 +52,17 @@ final public class SmokeDriver {
     private final String smokeLevel = System.getProperty("pvzce.smokeLevel", "");
     private final boolean smokeLevelRestart = Boolean.parseBoolean(
             System.getProperty("pvzce.smokeLevelRestart", "true"));
+
+    /**
+     * {@code pvzce.smokeTeam=zombie}: which side the smoke run plays.
+     *
+     * <p>Matched as a keyword against the level's own team ids, and only used by the level hook: the
+     * click-driven menu flow picks its side by clicking a panel, which is the thing being tested
+     * there. Needed because a versus level's two sides are genuinely different screens - the zombie
+     * side has no lawn to plant on and no sun of its own to see - and a screenshot of one says
+     * nothing about the other.
+     */
+    private final String smokeTeam = System.getProperty("pvzce.smokeTeam", "");
     private final String smokeSeedLevel = System.getProperty("pvzce.smokeSeedLevel", "");
     /** Opens the editor for an existing level; UI smoke tests and screenshots. */
     private final String smokeEditorLevel = System.getProperty("pvzce.smokeEditor", "");
@@ -241,6 +252,15 @@ final public class SmokeDriver {
     /** Places presets on the editor board: {@code kind=id@x,y;kind=id@x,y}. */
     private final String smokePlace = System.getProperty("pvzce.smokePlace", "");
     private boolean smokeLevelRequested;
+    /** When the level list was asked for on the named side's behalf, or -1 before that. */
+    private long smokeTeamAskedAtTick = -1L;
+    /**
+     * How long a named side waits for the level list before going in on the level's default.
+     *
+     * <p>Bounded because a hook that waits forever turns a missing packet into a run that hangs
+     * instead of a run that plays the wrong side loudly.
+     */
+    private static final int SMOKE_TEAM_WAIT_TICKS = 240;
     /**
      * Development smoke hook: open a confirmation dialog once a level is running.
      *
@@ -778,12 +798,24 @@ final public class SmokeDriver {
         }
         // Development smoke hook: request a level automatically so CI can
         // render gameplay without driving the title/level screens.
-        if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2) {
+        // A named side can only be resolved from the level list, which arrives a few ticks in: waiting
+        // for it is the difference between "the smoke run played the zombie side" and "it played the
+        // default side and said nothing". The list is asked for here because a run that only names a
+        // level never opens the level list screen, and waiting for a packet nothing sends is a hang.
+        boolean sideKnown = smokeTeam.isBlank() || client.knowsLevel(smokeLevel);
+        if (!sideKnown && smokeTeamAskedAtTick < 0) {
+            smokeTeamAskedAtTick = clientTick;
+            client.requestLevelListForHooks();
+        }
+        boolean sideWaitedLongEnough = smokeTeam.isBlank()
+                || smokeTeamAskedAtTick >= 0 && clientTick - smokeTeamAskedAtTick > SMOKE_TEAM_WAIT_TICKS;
+        boolean sideReady = sideKnown || sideWaitedLongEnough;
+        if (!smokeLevel.isBlank() && !smokeLevelRequested && clientTick > 2 && sideReady) {
             smokeLevelRequested = true;
             if (smokeDialogue) {
-                client.requestFreshRunDirectly(smokeLevel, smokeLevelRestart);
+                client.requestFreshRunDirectly(smokeLevel, smokeLevelRestart, smokeTeam);
             } else {
-                client.requestLevel(smokeLevel, smokeLevelRestart);
+                client.requestLevel(smokeLevel, smokeLevelRestart, smokeTeam);
             }
         }
         if (!smokeConfirm.isBlank() && !smokeConfirmFired && clientTick > 120

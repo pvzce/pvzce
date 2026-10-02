@@ -370,7 +370,8 @@ public final class JevBrain {
         List<String> cards = new ArrayList<>();
         for (CardChoice card : hand) {
             cards.add(shortCardName(card.card().slotId()) + "("
-                    + (card.cost() <= sun ? "" : "-") + card.cost() + ")");
+                    + (card.cost() <= sun ? "" : "-") + card.cost()
+                    + (card.ready() ? "" : "，冷却中 " + card.cooldownSeconds() + " 秒") + ")");
         }
         // A closed list, said out loud. The first live run had the commander order a buckethead on a
         // level whose zombie deck holds only basic and conehead zombies: the list was right there,
@@ -553,17 +554,32 @@ public final class JevBrain {
         if (def == null || !level.inBounds(x, y) || !level.canPlacePlant(def, x, y)) {
             return false;
         }
-        int cost = card.costSun();
-        if (cost > 0 && !team.consume(PvzceIds.SUN, cost)) {
+        // Through the opponent's own bar, which is the same bar a player's clicks go through: a card
+        // that is still recharging cannot be played, and playing one starts its recharge. The AI used
+        // to bypass all of it and buy the same card as fast as its sun allowed.
+        Slot slot = level.opponentSlot(card.slotId());
+        String refusal = level.chargeCard(team, slot);
+        if (refusal != null) {
             return false;
         }
+        int cost = slot.costSun();
         if (level.spawnPlant(def, team, x, y) == null) {
-            if (cost > 0) {
-                team.addResource(PvzceIds.SUN, cost);
-            }
+            // Nothing was placed, so nothing was spent: the sun comes back and the card is ready
+            // again. A refused cell must not cost a cooldown, or a lane that is briefly occupied
+            // would lock a card out of the bar for the rest of its recharge.
+            refundCard(level, team, slot, cost);
             return false;
         }
         return true;
+    }
+
+    /** Undoes {@link LevelServer#chargeCard} after a placement the board refused. */
+    private static void refundCard(LevelServer level, Team team, Slot slot, int cost) {
+        if (cost > 0) {
+            team.addResource(PvzceIds.SUN, cost);
+        }
+        // The level owns the rule, and both callers use it: the AI's refused cell and the player's.
+        level.restoreCard(slot);
     }
 
     /** The zombie side's half: paid for, placed, and refunded if the board refuses it. */
@@ -575,15 +591,15 @@ public final class JevBrain {
         if (!level.inBounds(x, y) || !level.canPlaceZombie(x, y)) {
             return false;
         }
-        int cost = card.costSun();
-        if (cost > 0 && !team.consume(PvzceIds.SUN, cost)) {
+        Slot slot = level.opponentSlot(card.slotId());
+        String refusal = level.chargeCard(team, slot);
+        if (refusal != null) {
             return false;
         }
+        int cost = slot.costSun();
         ZombieEntity spawned = level.spawnZombie(card.content(), team, x + 0.5F, y);
         if (spawned == null) {
-            if (cost > 0) {
-                team.addResource(PvzceIds.SUN, cost);
-            }
+            refundCard(level, team, slot, cost);
             return false;
         }
         return true;
@@ -752,32 +768,43 @@ public final class JevBrain {
         // Roles, not prices. The version before this bought "the cheapest card it had" whenever the
         // lawn was quiet, which on every deck a level has written is the sun producer - so the plant
         // opponent spent whole matches planting sunflowers and never bought a repeater or a wall.
-        // Three questions, in this order, and each of them picks the best card *for that job*:
+        //
+        // Every rule tries its candidates in order rather than making one attempt: the first version
+        // of this method picked the one best lane and gave up when that cell was occupied, which the
+        // cooldown test caught as "the opponent planted one shooter and then stood still". A lane
+        // being full is the normal case on a lawn that is working, not a reason to stop playing.
         List<CardChoice> producers = withRole(affordable, Role.PRODUCER);
         List<CardChoice> defenders = withRole(affordable, Role.SHOOTER);
         List<CardChoice> walls = withRole(affordable, Role.WALL);
-
         // 1. A lane that is about to be walked into and has nothing to shoot back with.
-        int openLane = laneWithZombieAndNoShooter(level);
-        if (openLane >= 0 && !defenders.isEmpty()) {
-            CardChoice strongest = defenders.get(defenders.size() - 1);
-            int behind = shooterColumn(level);
-            if (tryPlant(level, opponent, strongest.card(), behind, openLane)) {
-                record(strongest, behind, openLane);
-                return;
+        if (!defenders.isEmpty()) {
+            int column = shooterColumn(level);
+            for (int lane : lanesWithZombieAndNoShooter(level)) {
+                for (int i = defenders.size() - 1; i >= 0; i--) {
+                    CardChoice card = defenders.get(i);
+                    if (tryPlant(level, opponent, card.card(), column, lane)) {
+                        record(card, column, lane);
+                        return;
+                    }
+                }
             }
         }
 
         // 2. A wall in front of the lane a zombie has nearly reached: the zombie stops to eat it,
         //    which is the time the shooter behind it needs. Before the economy, because a lane that
         //    is being walked into does not need another sunflower.
-        int pressed = mostThreatenedRow(level);
-        if (pressed >= 0 && !walls.isEmpty() && frontmostZombieX(level) < WALL_DISTANCE
-                && shooters(level, pressed) > 0
-                && tryPlant(level, opponent, walls.get(walls.size() - 1).card(),
-                        frontColumn(level, true), pressed)) {
-            record(walls.get(walls.size() - 1), frontColumn(level, true), pressed);
-            return;
+        if (!walls.isEmpty() && frontmostZombieX(level) < WALL_DISTANCE) {
+            int column = frontColumn(level, true);
+            for (int lane : lanesByThreat(level)) {
+                if (shooters(level, lane) == 0) {
+                    continue;
+                }
+                CardChoice wall = walls.get(walls.size() - 1);
+                if (tryPlant(level, opponent, wall.card(), column, lane)) {
+                    record(wall, column, lane);
+                    return;
+                }
+            }
         }
 
         // 3. The economy, up to a point: past five producers another sunflower is a lane the lawn
@@ -785,23 +812,92 @@ public final class JevBrain {
         if (!producers.isEmpty() && producers(level) < PRODUCER_TARGET) {
             CardChoice cheapest = producers.get(0);
             int back = backColumn(level, true);
-            int lane = anyLaneWithoutPlants(level);
-            if (tryPlant(level, opponent, cheapest.card(), back, lane)) {
-                record(cheapest, back, lane);
-                return;
+            for (int lane : lanesEmptiestFirst(level)) {
+                if (tryPlant(level, opponent, cheapest.card(), back, lane)) {
+                    record(cheapest, back, lane);
+                    return;
+                }
             }
         }
 
-        // 4. Otherwise widen the defense: the lane with the fewest shooters gets the best shooter
-        //    the side can afford.
+        // 4. Otherwise widen the defense: the lane with the fewest shooters gets the best shooter the
+        //    side can afford.
         if (!defenders.isEmpty()) {
-            CardChoice strongest = defenders.get(defenders.size() - 1);
-            int lane = laneWithFewestShooters(level);
             int column = shooterColumn(level);
-            if (tryPlant(level, opponent, strongest.card(), column, lane)) {
-                record(strongest, column, lane);
+            for (int lane : lanesByFewestShooters(level)) {
+                for (int i = defenders.size() - 1; i >= 0; i--) {
+                    CardChoice card = defenders.get(i);
+                    if (tryPlant(level, opponent, card.card(), column, lane)) {
+                        record(card, column, lane);
+                        return;
+                    }
+                }
             }
         }
+    }
+
+    /** Lanes with a zombie in them and no shooter of ours, most threatened first. */
+    private static List<Integer> lanesWithZombieAndNoShooter(LevelServer level) {
+        List<Integer> lanes = new ArrayList<>();
+        for (int lane : lanesByThreat(level)) {
+            if (shooters(level, lane) == 0) {
+                lanes.add(lane);
+            }
+        }
+        return lanes;
+    }
+
+    /** Every lane, the one whose frontmost zombie is closest to the house first. */
+    private static List<Integer> lanesByThreat(LevelServer level) {
+        List<Integer> lanes = new ArrayList<>();
+        for (int row = 0; row < level.height(); row++) {
+            lanes.add(row);
+        }
+        lanes.sort(java.util.Comparator.comparingDouble(lane -> frontmostZombieX(level, lane)));
+        return lanes;
+    }
+
+    /** Every lane, the one with the fewest plants in it first. */
+    private static List<Integer> lanesEmptiestFirst(LevelServer level) {
+        List<Integer> lanes = new ArrayList<>();
+        for (int row = 0; row < level.height(); row++) {
+            lanes.add(row);
+        }
+        lanes.sort(java.util.Comparator.comparingInt(lane -> plantsInLane(level, lane)));
+        return lanes;
+    }
+
+    /** Every lane, the one with the fewest shooters first. */
+    private static List<Integer> lanesByFewestShooters(LevelServer level) {
+        List<Integer> lanes = new ArrayList<>();
+        for (int row = 0; row < level.height(); row++) {
+            lanes.add(row);
+        }
+        lanes.sort(java.util.Comparator.comparingInt(lane -> shooters(level, lane)));
+        return lanes;
+    }
+
+    /** How many plants of ours, of any kind, stand in one lane. */
+    private static int plantsInLane(LevelServer level, int lane) {
+        int found = 0;
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridY() == lane) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    /** The x of the frontmost zombie in one lane, or {@link Float#MAX_VALUE} when it has none. */
+    private static float frontmostZombieX(LevelServer level, int lane) {
+        float closest = Float.MAX_VALUE;
+        for (PvzceEntity entity : level.entities()) {
+            if (entity instanceof ZombieEntity zombie && zombie.isAlive() && zombie.gridY() == lane
+                    && zombie.cellX() < closest) {
+                closest = zombie.cellX();
+            }
+        }
+        return closest;
     }
 
     /**
@@ -1057,16 +1153,24 @@ public final class JevBrain {
             if (card == null || !kindMatches(card.kind(), plantSide)) {
                 continue;
             }
-            hand.add(new CardChoice(card, describe(card, plantSide)));
+            Slot slot = level.opponentSlot(card.slotId());
+            hand.add(new CardChoice(card, describe(card, plantSide, slot),
+                    slot == null || slot.ready(), slot == null ? 0 : slot.cooldownLeft()));
         }
         return List.copyOf(hand);
     }
 
     /** One card, as the prompt describes it: what it is, what it costs, what it can take. */
-    private static String describe(SlotResolver.ResolvedCard card, boolean plantSide) {
+    private static String describe(SlotResolver.ResolvedCard card, boolean plantSide, Slot slot) {
         StringBuilder text = new StringBuilder(card.slotId().toString());
         text.append(" — ").append(plantSide ? "plant" : "zombie");
         text.append(", costs ").append(card.costSun()).append(" sun");
+        if (slot != null && !slot.ready()) {
+            text.append(", recharging for another ")
+                    .append((slot.cooldownLeft() + PvzceConstants.TICKS_PER_SECOND - 1)
+                            / PvzceConstants.TICKS_PER_SECOND)
+                    .append(" seconds");
+        }
         if (plantSide) {
             PlantDef plant = BuiltInRegistries.PLANTS.get(card.content());
             if (plant != null) {
@@ -1097,10 +1201,24 @@ public final class JevBrain {
         return List.copyOf(columns);
     }
 
-    /** One card the opponent may play, with the sentence the prompt shows for it. */
-    record CardChoice(SlotResolver.ResolvedCard card, String description) {
+    /**
+     * One card the opponent may play, with the sentence the prompt shows for it.
+     *
+     * <p>{@code ready} and {@code cooldownLeft} come from the opponent's own bar, which is what makes
+     * "this card is recharging for another eight seconds" something the models can be told instead of
+     * something they discover by having a move refused.
+     */
+    record CardChoice(SlotResolver.ResolvedCard card, String description, boolean ready,
+                      int cooldownLeft) {
         int cost() {
             return card.costSun();
+        }
+
+        /** Whole seconds of recharge left, rounded up; zero when the card is ready. */
+        int cooldownSeconds() {
+            return cooldownLeft <= 0 ? 0
+                    : (cooldownLeft + PvzceConstants.TICKS_PER_SECOND - 1)
+                            / PvzceConstants.TICKS_PER_SECOND;
         }
     }
 
@@ -1111,7 +1229,8 @@ public final class JevBrain {
         List<JevPrompt.CardOption> cards = new ArrayList<>();
         for (CardChoice choice : hand) {
             cards.add(new JevPrompt.CardOption(choice.card().slotId().toString(), choice.cost(),
-                    choice.cost() <= sun, choice.description()));
+                    choice.cost() <= sun, choice.description(), choice.ready(),
+                    choice.cooldownSeconds()));
         }
         List<Integer> columns = legalColumns(level, plantSide);
         List<JevPrompt.ColumnOption> columnOptions = new ArrayList<>();

@@ -558,6 +558,47 @@ class VersusModeTest {
         }
     }
 
+    /**
+     * The opponent obeys card cooldowns, exactly as the player's bar does.
+     *
+     * <p>The bug this pins: the AI spent sunshine with no recharge at all, so a plant opponent with a
+     * full purse could put five shooters down in five seconds - twice as fast as a person clicking the
+     * same bar, and the reason to give it a bar of its own rather than a price list. The human is the
+     * zombie side here so the AI plays plants, and the purse is deliberately absurd: the only thing
+     * left that can pace it is the card's own recharge.
+     */
+    @Test
+    void theOpponentCannotPlayTheSameCardTwiceInsideItsCooldown() {
+        int cooldown = SlotResolver.resolve(id("pea_shooter")).orElseThrow().cooldownTicks();
+        assertTrue(cooldown > 0, "the card this test uses has a cooldown to obey");
+
+        // A goal it cannot reach, so the match is still running while the cooldown is measured: a
+        // goal of zero ends the level on the first tick and the opponent then has nothing to decide.
+        // A rich zombie side as well, so the mode's "this side can never afford anything" judgement
+        // does not end the match on us: it is the human side here and it plays no cards by itself.
+        LevelDef def = level(new Mode(1_000_000, 100_000, 1_000_000, 0, 240, 0, 30),
+                "[\"pvzce:sun\", \"pvzce:pea_shooter\"]", "[\"pvzce:basic_zombie\"]", "[]");
+        LevelServer level = new LevelServer(def, def.slots(), LevelServer.SeedContext.all(def), null,
+                null, Identifier.parse(ZOMBIE));
+        CapturingBridge bridge = new CapturingBridge();
+        tick(level, bridge, 120);
+        assertEquals("running", level.gameState(), "the match is still on while this is measured");
+        assertEquals(1, countPlants(level, "pea_shooter"),
+                "one card, one recharge, however rich the side is");
+        tick(level, bridge, cooldown + 60);
+        assertEquals(2, countPlants(level, "pea_shooter"),
+                "and the second once the first has recharged");
+    }
+
+    /** How many of this plant are standing. */
+    private static long countPlants(LevelServer level, String path) {
+        return level.entities().stream()
+                .filter(PlantEntity.class::isInstance)
+                .map(PlantEntity.class::cast)
+                .filter(plant -> !plant.isRemoved() && id(path).equals(plant.defId()))
+                .count();
+    }
+
     @Test
     void theModeReportsItsOwnMistakes() {
         LevelDef wrongDeck = level(defaultMode(),

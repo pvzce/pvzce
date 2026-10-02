@@ -101,7 +101,16 @@ public record JevPrompt(
      * the card would leave it choosing between what it can buy without knowing what it is
      * saving for.
      */
-    public record CardOption(String id, int cost, boolean affordable, String description) {
+    public record CardOption(String id, int cost, boolean affordable, String description,
+                             boolean ready, int cooldownSeconds) {
+        /**
+         * A card with nothing to say about recharge: ready, which is what a prompt built outside a
+         * running level (the protocol tests) means by a card.
+         */
+        public CardOption(String id, int cost, boolean affordable, String description) {
+            this(id, cost, affordable, description, true, 0);
+        }
+
     }
 
     /**
@@ -198,6 +207,10 @@ public record JevPrompt(
             option.addProperty("card", card.id());
             option.addProperty("cost", card.cost());
             option.addProperty("affordable_now", card.affordable());
+            // Said out loud, because a card that is recharging is not a card this turn: without it the
+            // model keeps asking for the one it just played and has the move refused.
+            option.addProperty("ready", card.ready());
+            option.addProperty("cooldown_seconds", card.cooldownSeconds());
             hand.add(option);
         }
         state.add("your_cards", hand);

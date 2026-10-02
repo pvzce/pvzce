@@ -184,6 +184,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         random.setSeed(seed);
     }
     private final PvzcePlayer plantPlayer;
+    /**
+     * The opponent's card bar, or {@code null} on every level whose second side has no deck.
+     *
+     * <p>Server-only: the client is told what the opponent *did* (the versus state's last card), not
+     * what it holds in what state. The bar exists so that "a card costs sun and then recharges" is one
+     * rule with one implementation, rather than a rule the human's clicks obey and the AI's decisions
+     * do not.
+     */
+    private final PvzcePlayer opponentPlayer;
     private final GameRules rules;
     /**
      * How hard this world plays.
@@ -654,6 +663,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 ? LevelMechanics.createCardSource(def, new com.pvzce.server.level.cardsource.CardSource.Context(
                         this.plantPlayer, def, this.selectedCards, random))
                 : null;
+        // The opponent's own bar, if this level has one: the versus mode hands the AI a deck, and a
+        // deck without a bar is a deck without cooldowns - which is exactly how the opponent came to
+        // ignore them. Built here beside the human's so both bars are made the same way, and ticked
+        // beside it so both recharge at the same rate.
+        this.opponentPlayer = buildOpponentBar(def);
         this.mutations = LevelMechanics.has(def, PvzceIds.MECHANIC_MUTATION) && plantTeam != null
                 ? new com.pvzce.common.level.mutation.MutationManager(this)
                 : null;
@@ -1033,6 +1047,108 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     public PvzcePlayer plantPlayer() {
         return plantPlayer;
+    }
+
+    /** The opponent's card bar, or {@code null} when this level has no second deck. */
+    public PvzcePlayer opponentPlayer() {
+        return opponentPlayer;
+    }
+
+    /**
+     * Builds the bar the AI plays from, from the versus block's own card list for its side.
+     *
+     * <p>Nothing else in the level creates one: a level without a versus block has no opponent with a
+     * deck (the original's levels spawn zombies from a wave table), and a versus level whose second
+     * side is the human needs none either.
+     */
+    private PvzcePlayer buildOpponentBar(LevelDef def) {
+        if (humanTeamId == null || teams.get(PvzceIds.PLANT_TEAM) == null
+                || teams.get(PvzceIds.ZOMBIE_TEAM) == null) {
+            return null;
+        }
+        Identifier opponentTeam = PvzceIds.PLANT_TEAM.equals(humanTeamId)
+                ? PvzceIds.ZOMBIE_TEAM : PvzceIds.PLANT_TEAM;
+        java.util.Optional<com.pvzce.api.content.VersusData> versus =
+                LevelMechanics.versusData(def);
+        if (versus.isEmpty()) {
+            return null;
+        }
+        List<Identifier> deck = versus.get().cardsFor(opponentTeam);
+        if (deck.isEmpty()) {
+            return null;
+        }
+        Team owner = teams.get(opponentTeam);
+        if (owner == null) {
+            return null;
+        }
+        PvzcePlayer player = new PvzcePlayer(owner);
+        player.replaceSlots(PvzcePlayer.deckSlots(deck));
+        return player;
+    }
+
+    /**
+     * Charges a card: its cooldown, its price and one of its uses. Answers {@code null} when it went
+     * through, or the message to show the player when it did not.
+     *
+     * <p>One method because it is one rule. The human's zombie placements and the opponent's decisions
+     * both come through here, so "a card recharges after it is played" cannot be true of one of them
+     * and false of the other - which is what the AI ignoring cooldowns was.
+     */
+    public String chargeCard(Team owner, Slot slot) {
+        if (slot == null) {
+            return "无效的卡槽。";
+        }
+        if (!slot.ready()) {
+            return "卡片冷却中。";
+        }
+        int cost = slot.costSun();
+        if (cost > 0 && !owner.consume(PvzceIds.SUN, cost)) {
+            return "阳光不足！";
+        }
+        if (slot.usesLeft() != Slot.UNLIMITED_USES) {
+            slot.consumeUse();
+        }
+        slot.startCooldown(effectiveCooldownTicks(slot));
+        return null;
+    }
+
+    /**
+     * Gives back what {@link #chargeCard} took: one use and the recharge.
+     *
+     * <p>For a placement the board refused after the charge. The cooldown is cleared rather than left
+     * running because the card was ready when it was spent - the charge is what made it busy.
+     */
+    public void restoreCard(Slot slot) {
+        if (slot == null) {
+            return;
+        }
+        if (slot.usesLeft() != Slot.UNLIMITED_USES) {
+            slot.restoreUses(slot.usesLeft() + 1);
+        }
+        slot.clearCooldown();
+    }
+
+    /**
+     * The opponent's slot for a card id, or {@code null}.
+     *
+     * <p>Matched on the slot's own id first and then on its content, because a deck names cards and a
+     * bar holds slots: one zombie may have more than one slot in a level that sells two versions of it.
+     */
+    public Slot opponentSlot(Identifier card) {
+        if (opponentPlayer == null || card == null) {
+            return null;
+        }
+        for (Slot slot : opponentPlayer.slots()) {
+            if (slot.defId().equals(card)) {
+                return slot;
+            }
+        }
+        for (Slot slot : opponentPlayer.slots()) {
+            if (slot.defId().path().equals(card.path())) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     public Team team(Identifier id) {
@@ -2695,11 +2811,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         flushPending(bridge);
     }
 
+    /** Recharges the opponent's cards. Silent: no client is watching the AI's bar. */
+    private void tickOpponentBar() {
+        if (opponentPlayer == null) {
+            return;
+        }
+        for (Slot slot : opponentPlayer.slots()) {
+            slot.tick();
+        }
+    }
+
     private void syncSlots(ServerBridge bridge) {
         if (plantPlayer == null || cardSource == null) {
             return;
         }
         cardSource.tick(this, bridge, tickCount);
+        tickOpponentBar();
         // The third-tick cadence is a bandwidth budget, not a promise that a state change may
         // wait: an animation set and cleared inside one tick was published only when the clock
         // happened to be on a multiple of three. A shot is exactly that - see
@@ -4589,26 +4716,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("gui.pvzce.versus.zombie_zone"));
             return false;
         }
-        if (!slot.ready()) {
-            bridge.send(new ServerMessageS2C("卡片冷却中。"));
+        // The same charge the opponent's decisions pay, so "a card recharges after it is played" is
+        // one rule rather than one rule per caller.
+        String refusal = chargeCard(plantPlayer.team(), slot);
+        if (refusal != null) {
+            bridge.send(new ServerMessageS2C(refusal));
             return false;
         }
         int cost = slot.costSun();
-        if (cost > 0 && !plantPlayer.team().consume(PvzceIds.SUN, cost)) {
-            bridge.send(new ServerMessageS2C("阳光不足！"));
-            return false;
-        }
-        if (slot.usesLeft() != Slot.UNLIMITED_USES) {
-            slot.consumeUse();
-        }
-        slot.startCooldown(effectiveCooldownTicks(slot));
         ZombieEntity spawned = spawnZombie(slot.defId(), plantPlayer.team(), x + 0.5F, y);
         if (spawned == null) {
-            // Give the sun back: the cell was refused somewhere the player cannot see, and a card
-            // that costs sun and produces nothing is a bug report.
+            // Give the sun *and the card* back: the cell was refused somewhere the player cannot see,
+            // and a card that costs sun, a cooldown and produces nothing is a bug report.
             if (cost > 0) {
                 plantPlayer.team().addResource(PvzceIds.SUN, cost);
             }
+            restoreCard(slot);
             bridge.send(new ServerMessageS2C("这个僵尸放不下。"));
             return false;
         }

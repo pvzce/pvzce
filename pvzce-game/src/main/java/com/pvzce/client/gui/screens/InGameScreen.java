@@ -1937,6 +1937,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // whole behaviour, and a half-visible zombie is one the player will argue about.
                 continue;
             }
+            if (isSomebodyElsesPickup(entity)) {
+                // A resource drop the player cannot pick up. On a versus level the plant side's sun
+                // lands on the lawn whether or not the player is the plant side, and a zombie player
+                // has no way to collect it: drawn, it is a lie about what can be clicked. The team
+                // check is the collection rule itself (a drop belongs to its own team), so a level
+                // where the player is the plant side hides nothing.
+                continue;
+            }
             if (com.pvzce.client.mechanic.StormClientMechanic.hides(client.level())) {
                 // The storm's half of the same rule, and the whole of the original's storm
                 // level: between strikes the lawn is black and nothing standing on it is drawn.
@@ -1954,6 +1962,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // player asked for was entirely hidden behind the hit it made.
         com.pvzce.client.renderer.MagnetItems.renderWorld(client);
         renderMalletSwings();
+    }
+
+    /**
+     * True for a resource drop that belongs to a team other than the local player's.
+     *
+     * <p>"Cannot pick it up" is spelled as "its team is not mine", which is the rule the server's
+     * collection path enforces. A level with no local team (the editor, a spectator) hides nothing,
+     * because there is no player to compare against.
+     */
+    private boolean isSomebodyElsesPickup(ClientEntity entity) {
+        com.pvzce.api.util.Identifier mine = client.level().controlledTeamId();
+        return !com.pvzce.client.renderer.PickupVisibility.isVisible(
+                mine == null ? null : mine.toString(), entity.kind(), entity.teamId());
     }
 
     /**
