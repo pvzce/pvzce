@@ -153,7 +153,7 @@ public final class ShatterCapability implements ProjectileCapability {
             target.addBuildup(buildupKey(), -landed);
             if (freezeTicks > 0) {
                 target.applyStatus(ZombieStatus.IMMOBILIZED,
-                        StatusDurations.scale(level, freezeTicks), 1F);
+                        StatusDurations.cold(level, freezeTicks), 1F);
             }
             // A local puff, not `ICE_SPARKLE`: that one is the ice-shroom's *whole-lawn*
             // white-out (one 1600x white pixel at half opacity), and freezing a single zombie
@@ -164,7 +164,7 @@ public final class ShatterCapability implements ProjectileCapability {
             return;
         }
         if (chill != null && chill.ticks() > 0) {
-            target.applyStatus(chill.status(), StatusDurations.scale(level, chill.ticks()),
+            target.applyStatus(chill.status(), StatusDurations.cold(level, chill.ticks()),
                     chill.magnitude());
         }
     }

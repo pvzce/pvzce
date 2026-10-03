@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -327,7 +328,7 @@ class VersusModeTest {
      */
     @Test
     void theCommanderPlanReachesTheTacticalPrompt() throws IOException {
-        List<String> jevRequests = new ArrayList<>();
+        List<String> jevRequests = new CopyOnWriteArrayList<>();
         startStubThatEchoesTheFirstOption(jevRequests::add);
         String plan = "conehead_zombie\n先把第 3 行补上坚果，其余阳光继续铺向日葵。";
         HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -430,7 +431,7 @@ class VersusModeTest {
      */
     @Test
     void theCommanderBriefingNamesTheDeckAndNothingElse() throws IOException {
-        List<String> briefings = new ArrayList<>();
+        List<String> briefings = new CopyOnWriteArrayList<>();
         HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         commander.createContext("/chat/completions", exchange -> {
             briefings.add(readBody(exchange));
@@ -650,8 +651,8 @@ class VersusModeTest {
      */
     @Test
     void aZombieAtTheDoorIsMarkedInBothPrompts() throws IOException {
-        List<String> jevBodies = new ArrayList<>();
-        List<String> commanderBodies = new ArrayList<>();
+        List<String> jevBodies = new CopyOnWriteArrayList<>();
+        List<String> commanderBodies = new CopyOnWriteArrayList<>();
         startStubThatEchoesTheFirstOption(jevBodies::add);
         HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         commander.createContext("/chat/completions", exchange -> {
@@ -816,8 +817,8 @@ class VersusModeTest {
      */
     @Test
     void theCommanderPlaysTheMoveItselfWhenAZombieIsAtTheDoor() throws IOException {
-        List<String> jevBodies = new ArrayList<>();
-        List<String> orderBodies = new ArrayList<>();
+        List<String> jevBodies = new CopyOnWriteArrayList<>();
+        List<String> orderBodies = new CopyOnWriteArrayList<>();
         startStubThatEchoesTheFirstOption(jevBodies::add);
         HttpServer commander = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         commander.createContext("/chat/completions", exchange -> {

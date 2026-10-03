@@ -195,11 +195,12 @@ public final class FreezeAllCapability implements PlantCapability {
                     zombie.damage(damage, type, level);
                 }
                 if (!zombie.isRemoved() && !frozenImmune(zombie)) {
-                    zombie.applyStatus(ZombieStatus.IMMOBILIZED, freezeTicks, 1F);
+                    zombie.applyStatus(ZombieStatus.IMMOBILIZED,
+                            com.pvzce.common.level.StatusDurations.coldFreeze(level, freezeTicks), 1F);
                 }
                 if (!zombie.isRemoved() && chill != null && chill.ticks() > 0) {
                     zombie.applyStatus(chill.status(),
-                            com.pvzce.common.level.StatusDurations.scale(level, chill.ticks()),
+                            com.pvzce.common.level.StatusDurations.cold(level, chill.ticks()),
                             chill.magnitude());
                 }
                 // The flash is drawn on the zombies, not on the mushroom: they are what the

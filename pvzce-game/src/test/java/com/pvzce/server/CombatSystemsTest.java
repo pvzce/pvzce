@@ -299,6 +299,71 @@ class CombatSystemsTest {
         assertFalse(zombie.chilled(), "and the flag goes away with the status");
     }
 
+    /** Ice-melon splash used to damage the neighbours but leave them at full speed. */
+    @Test
+    void winterMelonChillsEveryEnemyItsSplashDamages() {
+        for (var weather : com.pvzce.api.content.WeatherData.Kind.values()) {
+            var forecast = new com.pvzce.api.content.WeatherData(List.of(
+                    new com.pvzce.api.content.WeatherData.Phase(1, weather)));
+            LevelServer level = new LevelServer(com.pvzce.testutil.TestLevels.copy(demo)
+                    .waves(List.of(com.pvzce.api.content.WaveDef.declaringSpawnInterval(
+                            com.pvzce.api.content.WaveDef.WaveType.SMALL, 999999, 0, List.of(), 15)))
+                    .mechanics(List.of(new com.pvzce.api.content.mechanic.TypedMechanic(
+                            com.pvzce.common.PvzceIds.MECHANIC_WEATHER, forecast))).build());
+            CapturingBridge bridge = bridge();
+            var plantTeam = level.team(Identifier.withDefaultNamespace("plant_team"));
+            PlantEntity melon = level.spawnPlant(BuiltInRegistries.PLANTS.get(
+                    Identifier.withDefaultNamespace("winter_melon")), plantTeam, 1, 2);
+            Identifier giant = Identifier.withDefaultNamespace("gargantuar");
+            ZombieEntity hit = spawnExact(level, bridge, giant, 6.5F, 2);
+            ZombieEntity neighbour = spawnExact(level, bridge, giant, 6.7F, 1);
+            ZombieEntity rainEdge = spawnExact(level, bridge, giant, 8.2F, 2);
+            ZombieEntity outside = spawnExact(level, bridge, giant, 8.5F, 2);
+            ZombieEntity friendly = level.spawnZombie(giant, plantTeam, 6.6F, 3);
+            for (var zombie : List.of(hit, neighbour, rainEdge, outside, friendly)) {
+                zombie.applyStatus(com.pvzce.api.content.ZombieStatus.IMMOBILIZED, 2000, 1F);
+            }
+            float normalSpeed = hit.moveSpeed(level);
+            for (int t = 0; t < 500 && !hit.chilled(); t++) tick(level, bridge, 1);
+            assertTrue(hit.chilled(), "the real lobbed projectile must arrive");
+            assertTrue(neighbour.chilled(), "adjacent-row splash must also slow");
+            assertEquals(2420, hit.health(), "direct damage stays 80");
+            assertEquals(2420, neighbour.health(), "splash damage stays 80");
+            boolean rain = weather == com.pvzce.api.content.WeatherData.Kind.RAIN;
+            assertEquals(rain, rainEdge.chilled(), "only rain extends the footprint");
+            assertEquals(rain ? 2420 : 2500, rainEdge.health());
+            assertFalse(outside.chilled());
+            assertEquals(2500, outside.health());
+            assertFalse(friendly.chilled(), "splash excludes friendly zombies");
+            assertEquals(2500, friendly.health());
+            assertEquals(normalSpeed * 0.5F, hit.moveSpeed(level), 0.0001F);
+            melon.remove();
+            liveProjectiles(level).forEach(ProjectileEntity::remove);
+            int duration = rain ? 360 : 240;
+            tick(level, bridge, duration - 2);
+            assertTrue(neighbour.chilled(), "rain extends duration without increasing slow strength");
+            tick(level, bridge, 3);
+            assertFalse(neighbour.chilled());
+        }
+    }
+
+    @Test
+    void winterMelonLandingWithoutItsTargetStillChillsSplashNeighbours() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        ZombieEntity neighbour = spawnExact(level, bridge,
+                Identifier.withDefaultNamespace("gargantuar"), 6.7F, 1);
+        var def = BuiltInRegistries.PROJECTILES.get(Identifier.withDefaultNamespace("winter_melon"));
+        var projectile = new ProjectileEntity(def, new com.pvzce.api.content.ProjectileRef(def.id(), 80, 1),
+                level.team(Identifier.withDefaultNamespace("plant_team")), 6.5F, 2.5F, 0F);
+        def.capability(com.pvzce.common.capability.projectile.SplashImpactCapability.class)
+                .orElseThrow().onHit(projectile, null, level);
+        def.capability(com.pvzce.common.capability.projectile.StatusOnHitCapability.class)
+                .orElseThrow().onHit(projectile, null, level);
+        assertEquals(2420, neighbour.health());
+        assertTrue(neighbour.chilled(), "a dead arc target must not discard the landing's cold splash");
+    }
+
     @Test
     void chomperSwallowsSmallZombie() {
         LevelServer level = newLevel();

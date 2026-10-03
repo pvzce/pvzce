@@ -12,6 +12,7 @@ import com.pvzce.server.entity.ProjectileEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -95,6 +96,18 @@ public final class SplashImpactCapability implements ProjectileCapability {
         return particle;
     }
 
+    /** Runtime footprint; a cold status and splash capability together identify an icy splash. */
+    public float effectiveRadius(ProjectileEntity projectile, LevelAccess level) {
+        boolean cold = projectile.def().capability(StatusOnHitCapability.class)
+                .map(StatusOnHitCapability::isCold).orElse(false);
+        return radius * (cold ? level.weatherIcySplashMultiplier() : 1F);
+    }
+
+    public List<ZombieEntity> targets(ProjectileEntity projectile, ZombieEntity hit, LevelAccess level) {
+        return level.enemiesInArea(projectile.team(), hit == null ? projectile.cellX() : hit.cellX(),
+                hit == null ? projectile.cellY() : hit.cellY(), effectiveRadius(projectile, level), square);
+    }
+
     @Override
     public ProjectileCapability instantiate() {
         return this;
@@ -109,7 +122,7 @@ public final class SplashImpactCapability implements ProjectileCapability {
     public void onHit(ProjectileEntity projectile, ZombieEntity zombie, LevelAccess level) {
         float x = zombie != null ? zombie.cellX() : projectile.cellX();
         float y = zombie != null ? zombie.cellY() : projectile.cellY();
-        level.damageArea(ZombieEntity.damageType(damageType), x, y, radius, projectile.damage(),
+        level.damageArea(ZombieEntity.damageType(damageType), x, y, effectiveRadius(projectile, level), projectile.damage(),
                 projectile.team(), square);
         level.emitEffect(particle.toString(), x, y,
                 sound.orElseGet(() -> projectile.def().sounds().impact().orElse(PvzceSounds.PROJECTILE_HIT)));

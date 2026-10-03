@@ -46,6 +46,14 @@ public record WeatherState(WeatherData.Kind weather, long tick) {
         };
     }
 
+    public float coldDurationMultiplier() {
+        return weather == WeatherData.Kind.RAIN ? com.pvzce.common.PvzceConstants.WEATHER_RAIN_COLD_DURATION : 1F;
+    }
+
+    public float icySplashMultiplier() {
+        return weather == WeatherData.Kind.RAIN ? com.pvzce.common.PvzceConstants.WEATHER_RAIN_ICY_SPLASH_RANGE : 1F;
+    }
+
     public static final PacketStruct.Codec<WeatherState> CODEC = PacketStruct.<WeatherState>builder()
             .field(state -> state.weather().key(), PacketByteBuf::writeString, PacketByteBuf::readString)
             .field(WeatherState::tick, PacketByteBuf::writeLong, PacketByteBuf::readLong)

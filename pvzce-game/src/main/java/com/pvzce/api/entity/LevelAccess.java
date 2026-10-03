@@ -69,6 +69,13 @@ public interface LevelAccess {
      */
     List<ZombieEntity> enemiesOf(Team team);
 
+    /** The same blast footprint for damage and statuses, including friendly-fire filtering. */
+    default List<ZombieEntity> enemiesInArea(Team sourceTeam, float x, float y, float radius, boolean square) {
+        float limit = square ? radius + 0.5F : radius;
+        return enemiesOf(sourceTeam).stream().filter(ZombieEntity::isAlive)
+                .filter(z -> Math.abs(z.cellX() - x) <= limit && Math.abs(z.cellY() - y) <= limit).toList();
+    }
+
     List<PlantEntity> plantsAt(int column, int row);
 
     /**
@@ -110,6 +117,12 @@ public interface LevelAccess {
 
     /** Scales plant-side ash damage without changing the armour-bypass damage type. */
     default float weatherAshMultiplier() { return 1F; }
+
+    /** Cold slow/freeze duration only; butter and other immobilisation keep their own duration. */
+    default float weatherColdDurationMultiplier() { return 1F; }
+
+    /** The footprint of a splash projectile that also carries cold. */
+    default float weatherIcySplashMultiplier() { return 1F; }
 
     /** The live kernel-pult butter chance; the default preserves unbuffed shots. */
     default float butterChance(PlantEntity plant, float base) {

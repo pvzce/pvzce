@@ -1003,6 +1003,69 @@ def build_night_roof_6_1(carried: Optional[dict] = None) -> dict:
     return level
 
 
+
+def build_night_roof_6_2(carried: Optional[dict] = None) -> dict:
+    """A clustered siege that makes the preceding winter-melon reward useful."""
+    level = build_night_roof_6_1()
+    level.update({
+        "id": "pvzce:yard/adventure/6_2", "name": "6-2·雨夜冰阵",
+        "description": "阴天开局，第一面旗帜后转为雨夜。雨水延长寒冰减速与冻结，扩大冰瓜溅射范围。"
+                       "先用阳光菇攒出冰瓜，再控制成群的路障、铁桶和橄榄球僵尸。"
+                       "末波有梯子僵尸和两只巨人压阵。获胜解锁双子向日葵。",
+        "unlock": {"requires": [{"type": "level", "id": "pvzce:yard/adventure/6_1"}]},
+        "hints": [
+            {"trigger": "on_start", "text": "阳光菇开局，西瓜投手升级冰瓜；第11波转雨，减速和溅射增强。",
+             "duration_ticks": 1200},
+            {"trigger": "on_card_refused", "duration_ticks": 180}],
+        "rewards": {"first_clear": [{"type": "unlock", "id": "pvzce:twin_sunflower"}],
+                    "repeat": [{"type": "coins", "amount": 400}],
+                    "coin_drop": "pvzce:coin_silver", "coin_drop_chance": 0.25, "coin_drop_amount": 1},
+    })
+    kinds = ["basic_zombie", "conehead_zombie", "buckethead_zombie", "newspaper_zombie",
+             "football_zombie", "ladder", "gargantuar"]
+    waves = []
+    for wave in range(1, 31):
+        if wave == 30:
+            counts = [60, 30, 20, 0, 6, 6, 2]
+        elif wave == 20:
+            counts = [14, 12, 8, 0, 4, 2, 0]
+        elif wave == 10:
+            counts = [8, 5, 3, 2, 0, 0, 0]
+        elif wave < 10:
+            counts = [2 if wave <= 3 else 3 if wave <= 5 else 4,
+                      0 if wave <= 2 else 1 if wave <= 5 else 2,
+                      int(wave >= 8), int(wave >= 6), 0, 0, 0]
+        elif wave < 20:
+            counts = [8, 6, 4, 1, 1 + int(wave % 3 == 0), 0, 0]
+        else:
+            counts = [10, 8, 6, 0, 2, 1 + int(wave % 3 == 0), 0]
+        # Rotate the dense lanes. Sparse flanks remain occupied, so slowing the
+        # main column is useful without letting the other rows be ignored.
+        main = [(wave + offset) % 5 for offset in (0, 1, 2)]
+        flank = [row for row in range(5) if row not in main]
+        entries = []
+        for kind, count in zip(kinds, counts):
+            rows = [0] * 5
+            if wave < 10:
+                for n in range(count):
+                    rows[(wave + n) % 5] += 1
+            elif kind == "gargantuar" and count:
+                rows[1], rows[3] = 1, 1
+            else:
+                for n in range(count):
+                    row = flank[n // 8 % 2] if kind == "basic_zombie" and n % 8 == 7 else main[n % 3]
+                    rows[row] += 1
+            entries.extend({"id": "pvzce:" + kind, "count": n, "rows": [row]}
+                           for row, n in enumerate(rows) if n)
+        waves.append({"type": "final" if wave == 30 else "huge" if wave % 10 == 0 else "small",
+                      "delay": 1800 if wave == 1 else 2100 if wave <= 10 else 1800,
+                      "spawn_interval": 150 if wave <= 3 else 90 if wave < 10 else 15,
+                      "warning_ticks": 300 if wave % 10 == 0 else 0, "entries": entries})
+    level["waves"] = waves
+    if carried:
+        level.update(carried)
+    return level
+
 def generated_levels(wanted):
     for facts in original.LEVELS:
         if wanted is not None and facts.name not in wanted:
@@ -1011,11 +1074,13 @@ def generated_levels(wanted):
         existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         carried = {block: existing[block] for block in CARRIED_BLOCKS if block in existing}
         yield path, build(facts, carried)
-    if wanted is None or "6-1" in wanted:
-        path = LEVELS_DIR / "6_1.json"
+    for name, builder in (("6-1", build_night_roof_6_1), ("6-2", build_night_roof_6_2)):
+        if wanted is not None and name not in wanted:
+            continue
+        path = LEVELS_DIR / (name.replace("-", "_") + ".json")
         existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         carried = {block: existing[block] for block in CARRIED_BLOCKS if block in existing}
-        yield path, build_night_roof_6_1(carried)
+        yield path, builder(carried)
 
 
 def main() -> int:

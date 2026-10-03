@@ -25,11 +25,24 @@ public final class StatusDurations {
 
     /** The ticks this status lasts on this level, or the written number when there is no level. */
     public static int scale(LevelAccess level, int ticks) {
-        if (level == null || level.rules() == null || ticks <= 0) {
-            return Math.max(0, ticks);
-        }
-        float factor = level.rules().getFloat(PvzceIds.RULE_SLOW_DURATION_MULTIPLIER);
+        return scale(level, ticks, 1F);
+    }
+
+    /** Cold composes with the existing status-duration rule at the moment of application. */
+    public static int cold(LevelAccess level, int ticks) {
+        return scale(level, ticks, level == null ? 1F : level.weatherColdDurationMultiplier());
+    }
+
+    /** Ice-shroom freeze historically uses its own duration, independent of the slow-duration rule. */
+    public static int coldFreeze(LevelAccess level, int ticks) {
+        return ticks <= 0 ? 0 : Math.max(1, Math.round(ticks * (level == null ? 1F : level.weatherColdDurationMultiplier())));
+    }
+
+    private static int scale(LevelAccess level, int ticks, float extra) {
+        if (ticks <= 0) return 0;
+        float factor = level == null || level.rules() == null ? 1F
+                : level.rules().getFloat(PvzceIds.RULE_SLOW_DURATION_MULTIPLIER);
         factor = Math.max(MIN_FACTOR, Math.min(MAX_FACTOR, factor));
-        return Math.max(1, Math.round(ticks * factor));
+        return Math.max(1, Math.round(ticks * factor * extra));
     }
 }

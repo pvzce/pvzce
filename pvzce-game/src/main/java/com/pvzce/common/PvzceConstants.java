@@ -18,6 +18,8 @@ public final class PvzceConstants {
     public static final float WEATHER_RAIN_ASH_DAMAGE = 0.5F;
     public static final float WEATHER_CLOUDY_ASH_COOLDOWN = 1.25F;
     public static final float WEATHER_RAIN_ASH_COOLDOWN = 2F;
+    public static final float WEATHER_RAIN_COLD_DURATION = 1.5F;
+    public static final float WEATHER_RAIN_ICY_SPLASH_RANGE = 1.25F;
     /** Fertilizer speeds one plant up for twenty seconds; the tool recharges in forty-five. */
     public static final float FERTILIZER_ACTION_SPEED = 1.5F;
     public static final int FERTILIZER_DURATION_TICKS = 1200;

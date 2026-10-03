@@ -1,4 +1,7 @@
 {
   "replace": false,
-  "values": ["pvzce:yard/adventure/6_1"]
+  "values": [
+    "pvzce:yard/adventure/6_1",
+    "pvzce:yard/adventure/6_2"
+  ]
 }

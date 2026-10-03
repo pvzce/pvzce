@@ -2148,18 +2148,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     && Math.abs(plant.cellX() - centerX) <= limit && Math.abs(plant.cellY() - centerY) <= limit) {
                 plant.setLaddered(false);
             }
-            if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
-                continue;
-            }
-            // The source's enemies only. A blast is not a friendly-fire event: a charmed zombie
-            // standing next to the cherry bomb that went off under it is on the plants' side,
-            // and a melon landing on its own lane must not kill it.
-            if (!isEnemyOf(zombie.team(), sourceTeam)) {
-                continue;
-            }
-            if (Math.abs(zombie.cellX() - centerX) <= limit && Math.abs(zombie.cellY() - centerY) <= limit) {
-                zombie.damage(damage, type, this);
-            }
+        }
+        for (ZombieEntity zombie : enemiesInArea(sourceTeam, centerX, centerY, radius, square)) {
+            zombie.damage(damage, type, this);
         }
     }
 
@@ -6119,6 +6110,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override public float weatherAshMultiplier() {
         var state = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
         return state == null ? 1F : state.ashMultiplier();
+    }
+
+    @Override public float weatherColdDurationMultiplier() {
+        var state = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
+        return state == null ? 1F : state.coldDurationMultiplier();
+    }
+
+    @Override public float weatherIcySplashMultiplier() {
+        var state = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
+        return state == null ? 1F : state.icySplashMultiplier();
     }
 
     private int weatherDamage(com.pvzce.api.content.DamageTypeDef type, int damage, Team sourceTeam) {
