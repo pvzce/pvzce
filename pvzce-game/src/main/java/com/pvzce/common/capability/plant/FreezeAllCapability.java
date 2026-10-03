@@ -209,7 +209,7 @@ public final class FreezeAllCapability implements PlantCapability {
                 String effect = particle.map(Identifier::toString).orElse("");
                 // The sound rides along with the first effect so a lawn of twenty zombies
                 // does not play twenty freezes on the same tick.
-                level.emitEffect(effect, zombie.cellX(), zombie.cellY(), first ? held : null);
+                level.emitEffect(effect, zombie.cellX(), zombie.cellY() + zombie.height(), first ? held : null);
                 first = false;
             }
         }

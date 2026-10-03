@@ -11,7 +11,7 @@
       "type": "pvzce:status",
       "effects": [
         {
-          "status": "immobilized",
+          "status": "buttered",
           "ticks": 240
         }
       ]

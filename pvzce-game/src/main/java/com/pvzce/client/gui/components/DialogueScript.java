@@ -100,6 +100,7 @@ final class DialogueScript {
     private final String playerName;
     private final Set<Integer> revealed = new HashSet<>();
     private final Map<Identifier, StagePortrait> stage = new LinkedHashMap<>();
+    private final Map<Identifier, Float> reservedScales = new LinkedHashMap<>();
     private final Map<Identifier, Slide> slides = new LinkedHashMap<>();
     /** Per line: the name over the bubble, already substituted. */
     private final List<String> speakerNames = new ArrayList<>();
@@ -436,6 +437,14 @@ final class DialogueScript {
         for (Map.Entry<Identifier, DialogueSlot> entry : wanted.entrySet()) {
             Identifier id = entry.getKey();
             StagePortrait current = stage.get(id);
+            // A slot reserves a position. It does not introduce a silent character with
+            // a default portrait. Speaking or an explicit slide-in introduces them.
+            DialogueAnimation motion = line.animation();
+            boolean entering = motion != null && DialogueAnimation.TYPE_SLIDE_IN.equals(motion.type())
+                    && (motion.targetsEveryone() || id.equals(targetOf(motion)));
+            if (current == null && !id.equals(line.character()) && !entering) {
+                continue;
+            }
             if (current != null) {
                 // Already there: the line may still change their look or move them, and whatever
                 // brought them here is over - a slide left running would push a settled character
@@ -449,7 +458,9 @@ final class DialogueScript {
             if (character == null) {
                 continue;
             }
-            stage.put(id, new StagePortrait(character, entry.getValue(), portraitFor(line, id)));
+            float scale = reservedScales.getOrDefault(id, character.scale());
+            reservedScales.remove(id);
+            stage.put(id, new StagePortrait(character, entry.getValue(), portraitFor(line, id), scale));
             slides.put(id, new Slide(true, nowNanos));
         }
         for (Identifier id : new ArrayList<>(stage.keySet())) {
@@ -463,9 +474,8 @@ final class DialogueScript {
      * Makes the line's own size change, if it wrote one: a {@code scale} animation about somebody
      * on stage becomes the size they stand at from here on.
      *
-     * <p>Somebody the line does not stage - an author's typo, a character who is not in the scene
-     * yet - is left alone, with a line on the log rather than a portrait that changes size for a
-     * beat and then changes back.
+     * <p>A reserved character can receive their entrance size while still off stage. This stores
+     * the size without introducing a default portrait; an unknown target is still reported.
      */
     private void applySize(DialogueLine line) {
         DialogueAnimation animation = line.animation();
@@ -481,6 +491,10 @@ final class DialogueScript {
         Identifier target = animation.hasTarget() ? targetOf(animation) : line.character();
         StagePortrait staged = target == null ? null : stage.get(target);
         if (staged == null) {
+            if (target != null && line.slots().stream().anyMatch(slot -> target.equals(slot.character()))) {
+                reservedScales.put(target, animation.scale());
+                return;
+            }
             if (target != null) {
                 LOGGER.warn("Dialogue line {} asks to resize '{}', who is not on stage: nothing happens",
                         index, target);
@@ -567,11 +581,9 @@ final class DialogueScript {
         for (Map.Entry<Identifier, StagePortrait> entry : stage.entrySet()) {
             wanted.put(entry.getKey(), entry.getValue().slot);
         }
-        if (wanted.isEmpty() && line.character() != null) {
-            // Nothing on stage yet and somebody is speaking: the first line of a conversation stands
-            // the speaker in their own half, which is what every conversation written before slots
-            // existed relies on. A player's line ({@code character == null}) stages nobody, so it
-            // leaves the stage empty rather than putting the player in it.
+        if (line.character() != null && !wanted.containsKey(line.character())) {
+            // Speaking introduces a character even in a legacy line without slots. An existing
+            // speaker keeps the position assigned by the stage rather than being moved by side.
             wanted.put(line.character(), line.side().isRight() ? DialogueSlot.RIGHT : DialogueSlot.LEFT);
         }
         return wanted;

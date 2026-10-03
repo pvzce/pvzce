@@ -47,6 +47,81 @@ class RoofMechanicsTest {
             assertTrue(target.health() < target.maxHealth(), id + " must solve an arc onto the raised flat roof");
         }
     }
+
+    @Test void butterAndIcePublishDifferentEffectsWhileBothStopMovement() {
+        var level = roof();
+        var butter = zombie(level, "basic_zombie", 7.5F, 1);
+        var ice = zombie(level, "basic_zombie", 7.5F, 3);
+        butter.applyStatus(ZombieStatus.BUTTERED, 180, 1F);
+        ice.applyStatus(ZombieStatus.IMMOBILIZED, 180, 1F);
+        tick(level, 1, new ArrayList<>());
+        assertTrue(butter.isImmobilized()); assertTrue(ice.isImmobilized());
+        assertTrue(butter.updatePacket().buttered()); assertFalse(butter.updatePacket().frozen());
+        assertFalse(ice.updatePacket().buttered()); assertTrue(ice.updatePacket().frozen());
+        assertEquals(7.5F, butter.cellX()); assertEquals(7.5F, ice.cellX());
+    }
+
+    @Test void anAwakeGloomPublishesAnAttackAndRadialSporesAtItsRoofHeight() {
+        var level = roof(); var gloom = plant(level, "gloom_shroom", 4, 2); gloom.wake();
+        var target = zombie(level, "buckethead_zombie", 5.5F, 2);
+        target.applyStatus(ZombieStatus.IMMOBILIZED, 300, 1F);
+        var sent = new ArrayList<PvzcePacket>(); tick(level, 112, sent);
+        assertTrue(gloom.animationSequence() > 0);
+        var effects = sent.stream().filter(p -> p instanceof com.pvzce.common.network.packet.EffectEventS2C e
+                && e.particle().equals("pvzce:gloom_cloud")).toList();
+        assertFalse(effects.isEmpty());
+        assertEquals(gloom.cellY() + gloom.height(),
+                ((com.pvzce.common.network.packet.EffectEventS2C) effects.get(0)).y());
+    }
+
+    @Test void melonSplashHitsArmourOnBothTheTargetAndItsNeighboursAndEmitsOneLanding() {
+        for (String id : List.of("melon", "winter_melon")) {
+            var level = roof(); var launcher = plant(level, "melon_pult", 0, 2);
+            var target = zombie(level, "buckethead_zombie", 7.5F, 2);
+            var neighbour = zombie(level, "buckethead_zombie", 7.5F, 3);
+            var sent = new ArrayList<PvzcePacket>(); tick(level, 1, sent);
+            int armour = target.armorHealth(); int health = target.health();
+            var def = BuiltInRegistries.PROJECTILES.get(PvzceIds.id(id));
+            var shot = new com.pvzce.server.entity.ProjectileEntity(def,
+                    new com.pvzce.api.content.ProjectileRef(def.id(), 80, 1), launcher.team(),
+                    target.cellX(), target.cellY(), target.height());
+            sent.clear();
+            launcher.remove();
+            level.addEntity(shot);
+            tick(level, 2, sent);
+            assertEquals(health, target.health()); assertEquals(health, neighbour.health());
+            assertEquals(armour - 80, target.armorHealth());
+            assertEquals(armour - 80, neighbour.armorHealth());
+            var effects = sent.stream().filter(p -> p instanceof com.pvzce.common.network.packet.EffectEventS2C e
+                    && e.particle().equals("pvzce:" + id + "_splat")).toList();
+            assertEquals(1, effects.size());
+            assertEquals(target.cellY() + target.height(),
+                    ((com.pvzce.common.network.packet.EffectEventS2C) effects.get(0)).y());
+        }
+    }
+
+    @Test void aLobWaitsForTheGestureThenStaysWithinTheRoofView() {
+        var level = roof(); var launcher = plant(level, "melon_pult", 0, 2);
+        var target = zombie(level, "buckethead_zombie", 7.5F, 2);
+        int armourBefore = target.armorHealth();
+        target.applyStatus(ZombieStatus.IMMOBILIZED, 300, 1F);
+        var sent = new ArrayList<PvzcePacket>(); tick(level, 2, sent);
+        assertTrue(launcher.animationSequence() > 0);
+        assertFalse(level.entities().stream().anyMatch(com.pvzce.server.entity.ProjectileEntity.class::isInstance));
+        tick(level, com.pvzce.common.PvzceConstants.LOB_RELEASE_TICKS, sent);
+        var projectile = level.entities().stream().filter(com.pvzce.server.entity.ProjectileEntity.class::isInstance)
+                .map(com.pvzce.server.entity.ProjectileEntity.class::cast).findFirst().orElseThrow();
+        assertEquals(launcher.height() + com.pvzce.common.capability.plant.PlantShots.LOB_MUZZLE_HEIGHT,
+                sent.stream().filter(p -> p instanceof EntitySpawnS2C e && e.entityKind().equals("projectile"))
+                        .map(p -> ((EntitySpawnS2C) p).height()).findFirst().orElseThrow(), .01F);
+        float peak = projectile.height();
+        for (int i = 0; i < 90 && !projectile.isRemoved(); i++) {
+            tick(level, 1, sent); peak = Math.max(peak, projectile.height());
+        }
+        assertTrue(projectile.isRemoved(), "the flight must land in a little over a second");
+        assertTrue(peak < 3F, "the lob should remain visible above the roof: " + peak);
+        assertTrue(target.armorHealth() < armourBefore, "the visible arc must actually hit its target");
+    }
     @Test void fertilizerIsFreeAndExpiresBeforeItsCooldown() {
         var level = roof(); var flower = plant(level, "sunflower", 0, 2);
         var sent = new ArrayList<PvzcePacket>();
@@ -54,15 +129,15 @@ class RoofMechanicsTest {
         assertEquals(0, level.plantPlayer().slot(0).cooldownLeft());
         assertTrue(level.useTool(sent::add, 0, 0, 2));
         assertEquals(2700, level.plantPlayer().slot(0).cooldownLeft());
-        assertEquals(1.5F, flower.actionRate());
+        assertEquals(2F, flower.actionRate());
         assertFalse(level.useTool(sent::add, 0, 0, 2));
-        tick(level, 1200, sent);
+        tick(level, 1800, sent);
         assertEquals(0, flower.fertilizedTicks());
         assertEquals(1F, flower.actionRate());
-        assertEquals(1500, level.plantPlayer().slot(0).cooldownLeft());
+        assertEquals(900, level.plantPlayer().slot(0).cooldownLeft());
         var restored = new PlantEntity(flower.def(), flower.team(), 0, 2);
         flower.fertilize(); restored.restoreState(flower.saveState());
-        assertEquals(1200, restored.fertilizedTicks());
+        assertEquals(1800, restored.fertilizedTicks());
     }
     private record Output(long shots, long sun) {}
     private static Output measure(boolean fertilizer) {
@@ -71,15 +146,15 @@ class RoofMechanicsTest {
         level.setRule(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, 0);
         var flower = plant(level, "sunflower", 0, 1);
         var target = zombie(level, "basic_zombie", 7.5F, 2);
-        var state = target.saveState(); state.putInt("health", 100000); target.restoreState(state); target.applyStatus(ZombieStatus.IMMOBILIZED, 1500, 1F);
+        var state = target.saveState(); state.putInt("health", 100000); target.restoreState(state); target.applyStatus(ZombieStatus.IMMOBILIZED, 2100, 1F);
         if (fertilizer) { kernel.fertilize(); flower.fertilize(); }
-        var sent = new ArrayList<PvzcePacket>(); tick(level, 1200, sent);
+        var sent = new ArrayList<PvzcePacket>(); tick(level, 1800, sent);
         return new Output(sent.stream().filter(p -> p instanceof EntitySpawnS2C e && (e.defId().equals("pvzce:kernel") || e.defId().equals("pvzce:butter"))).count(),
                 sent.stream().filter(p -> p instanceof EntitySpawnS2C e && e.entityKind().equals("resource") && e.defId().equals("pvzce:sun")).count());
     }
-    @Test void twentySecondsOfFertilizerReallyProducesMore() {
+    @Test void thirtySecondsOfFertilizerDoublesBothWorkClocks() {
         var normal = measure(false); var boosted = measure(true);
-        System.out.printf("[roof-care] normal20s=%s fertilized20s=%s; duration=20s recharge=45s single-target duty=44.4%% average-rate=1.222x%n", normal, boosted);
+        System.out.printf("[roof-care] normal30s=%s fertilized30s=%s; duration=30s recharge=45s single-target duty=66.7%% average-rate=1.667x%n", normal, boosted);
         assertTrue(boosted.shots > normal.shots);
         assertTrue(boosted.sun > normal.sun);
     }
@@ -133,6 +208,10 @@ class RoofMechanicsTest {
                 plant(level, "kernel_pult", 0, row);
                 plant(level, "umbrella_leaf", 1, row);
                 for (int x = 2; x <= 4; x++) plant(level, "melon_pult", x, row);
+                // After armour routing was corrected, add the late-game slowing upgrade
+                // and a front defence; a formation cannot depend on melons bypassing hats.
+                plant(level, "winter_melon", 2, row);
+                plant(level, "pumpkin", 4, row);
             }
             long peak = 0;
             for (int t = 0; t < 90000 && "running".equals(level.gameState()); t++) {
@@ -165,6 +244,10 @@ class RoofMechanicsTest {
         var sent = new ArrayList<PvzcePacket>();
         for (int i = 0; i < 1000; i++) {
             kernel.capability(com.pvzce.common.capability.plant.ThrowerCapability.class).strike(kernel, level);
+            level.flushPending(sent::add);
+        }
+        for (int t = 0; t < com.pvzce.common.PvzceConstants.LOB_RELEASE_TICKS; t++) {
+            kernel.capability(com.pvzce.common.capability.plant.ThrowerCapability.class).tickPending(kernel, level);
             level.flushPending(sent::add);
         }
         return sent.stream().filter(p -> p instanceof EntitySpawnS2C e && "pvzce:butter".equals(e.defId())).count();

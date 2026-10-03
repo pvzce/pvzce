@@ -99,6 +99,12 @@ public interface ZombieCapability {
         return false;
     }
 
+    /** Area projectiles can own one landing effect while retaining each target's damage routing. */
+    default boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage,
+                                    LevelAccess level, boolean emitImpact) {
+        return onProjectileHit(zombie, projectile, damage, level);
+    }
+
     /**
      * Intercepts a non-projectile impact (a rolling bowling nut, a giant's fist).
      *

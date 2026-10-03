@@ -228,15 +228,9 @@ public final class AnimationManager {
     /**
      * True when the request is already satisfied.
      *
-     * <p>Deduplicating on {@code requestedState} alone made a one-shot clip
-     * un-retriggerable: when the clip ends it switches itself to {@code idle} while
-     * keeping {@code requestedState == "shoot"}, so the next {@code play("shoot")}
-     * found a matching requested state and returned the stale idle playback. The
-     * server publishes {@code "shoot"} and then {@code "idle"} for a single tick
-     * each, so whether the animation ever replayed depended on a client frame
-     * landing inside that one 16.7ms tick. Comparing against the active clip lets a
-     * finished one-shot restart, while a looping clip that is already running is
-     * still left alone.
+     * <p>Mirrored entities replay actions only when their server sequence changes. A shoot clip
+     * that has returned to idle still belongs to the last action, so an unchanged shoot state
+     * cannot start it again. Standalone art targets retain explicit replay semantics.
      *
      * <p>{@code activeName} is the <em>resolved</em> clip rather than the state: a death
      * request resolves to one member of its family, and comparing the state against that
@@ -254,6 +248,11 @@ public final class AnimationManager {
             return false;
         }
         if (current.isChained()) {
+            return true;
+        }
+        // A mirrored server state is a level, not a repeated command. Once a one-shot
+        // returned to idle, drawing that unchanged state cannot start another attack.
+        if (current.target instanceof ClientEntity) {
             return true;
         }
         if (!activeName.equals(current.activeName())) {
@@ -344,6 +343,11 @@ public final class AnimationManager {
 
     /** Returns true when this entity was drawn by an animation resource. */
     public boolean render(ClientEntity entity) {
+        return render(entity, 0);
+    }
+
+    /** -1 draws the shell's rear, +1 its front; both sample the same playback. */
+    public boolean render(ClientEntity entity, int shellPass) {
         AnimationPlayback playback = playbacks.get(entity);
         if (playback == null || playback.isStopped()) {
             return false;
@@ -358,7 +362,7 @@ public final class AnimationManager {
         playback.setFlipX(EntityKind.ZOMBIE.equals(entity.kind()) && (entity.charmed() || entity.animation().endsWith("_right")));
         // Dying is not walking: a frozen zombie that is killed plays its death, or the corpse
         // would stand there until the freeze ran out.
-        playback.setPaused(EntityKind.ZOMBIE.equals(entity.kind()) && entity.frozen()
+        playback.setPaused(EntityKind.ZOMBIE.equals(entity.kind()) && (entity.frozen() || entity.buttered())
                 && entity.health() > 0);
         float[] anchor = anchor(entity);
         float[] scales = scalesFor(entity);
@@ -375,6 +379,20 @@ public final class AnimationManager {
         activeBoneArt = playback.file() instanceof ControllerFile controller
                 ? boneArtFor(entity, controller.model())
                 : null;
+        if (shellPass != 0 && playback.file() instanceof ControllerFile) {
+            BoneArt damageArt = activeBoneArt;
+            activeBoneArt = (model, poses) -> {
+                java.util.Set<String> visible = damageArt == null ? new java.util.HashSet<>()
+                        : new java.util.HashSet<>(damageArt.visibleBones(model, poses));
+                if (damageArt == null) {
+                    for (var bone : model.bones().values()) {
+                        if (poses.getOrDefault(bone.name(), bone.restPose()).visible()) visible.add(bone.name());
+                    }
+                }
+                visible.removeIf(name -> (shellPass < 0) != name.startsWith("back"));
+                return visible;
+            };
+        }
         try {
             playback.render(client, anchor[0], anchor[1], baseZ(entity), scales[0], scales[1]);
         } finally {

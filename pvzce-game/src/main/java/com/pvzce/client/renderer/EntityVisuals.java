@@ -236,6 +236,11 @@ public final class EntityVisuals {
      * their own: a buried zombie is drawn under the lawn, and the lawn is in every row.
      */
     public static long renderOrder(String kind, int layer, int row, int id) {
+        return renderOrder(kind, layer, row, id, 0);
+    }
+
+    /** Placement layers precede spawn order, even when a shell was planted first. */
+    public static long renderOrder(String kind, int layer, int row, int id, int placementLayer) {
         // Back rows first, then kind, then spawn order - which is what this used to be, and it
         // was wrong for the one kind of entity that is not *on* the lawn. A row is depth on this
         // board, so leading with it means a sun falling in row 4 is painted after a peashooter
@@ -250,7 +255,8 @@ public final class EntityVisuals {
         //
         // Bit budget: 1 band + 10 row + 10 bucket (it spans -100..30 today) + 32 id.
         int band = isAboveTheLawn(kind) ? 1 : 0;
-        long bucket = sortBucket(kind, layer);
+        long bucket = sortBucket(kind, layer)
+                + (EntityKind.PLANT.equals(kind) ? Math.max(0, placementLayer) : 0);
         return ((long) band << 58)
                 | ((long) (row & 0x3FF) << 48)
                 | ((bucket + 512L & 0x3FF) << 38)

@@ -21,13 +21,8 @@ import java.util.Optional;
  */
 public final class SplashImpactCapability implements ProjectileCapability {
     public static final float DEFAULT_RADIUS = 1.5F;
-    /**
-     * What a thrown plant's blast is when the content does not say.
-     *
-     * <p>{@code pvzce:splash} ignores armour: the melon's area damage is a blast in the
-     * original too, so a cone does not turn 80 points of splash into 80 points of cone.
-     */
-    public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_SPLASH;
+    /** Ordinary area projectiles retain their air-layer armour routing. */
+    public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_PROJECTILE;
     /** The melon's splash: what a thrown plant's blast has looked like since it was written. */
     public static final Identifier DEFAULT_PARTICLE = PvzceParticles.POOL_SPLASH;
 
@@ -122,9 +117,11 @@ public final class SplashImpactCapability implements ProjectileCapability {
     public void onHit(ProjectileEntity projectile, ZombieEntity zombie, LevelAccess level) {
         float x = zombie != null ? zombie.cellX() : projectile.cellX();
         float y = zombie != null ? zombie.cellY() : projectile.cellY();
-        level.damageArea(ZombieEntity.damageType(damageType), x, y, effectiveRadius(projectile, level), projectile.damage(),
-                projectile.team(), square);
-        level.emitEffect(particle.toString(), x, y,
+        for (ZombieEntity target : targets(projectile, zombie, level)) {
+            target.damage(projectile.def(), projectile.damage(), level, damageType, false);
+        }
+        String impact = projectile.def().impactParticle().map(Identifier::toString).orElse(particle.toString());
+        level.emitEffect(impact, x, y + (zombie == null ? projectile.height() : zombie.height()),
                 sound.orElseGet(() -> projectile.def().sounds().impact().orElse(PvzceSounds.PROJECTILE_HIT)));
     }
 }

@@ -113,7 +113,7 @@ public final class DialogueEditorModel {
         }
 
         /**
-         * Cycles 无 → 抖动 → 缩放, the order the page's button reads in.
+         * Cycles 无 → 抖动 → 缩放 → 入场, the order the page's button reads in.
          *
          * <p>A kind the page does not know cycles into the three it does, and the raw block it came
          * with is dropped at that point: the author has just chosen what this line does.
@@ -121,7 +121,8 @@ public final class DialogueEditorModel {
         public void cycleAnimation() {
             animation = switch (animation == null ? "none" : animation.toLowerCase(java.util.Locale.ROOT)) {
                 case "shake" -> "scale";
-                case "scale" -> "none";
+                case "scale" -> "slide_in";
+                case "slide_in" -> "none";
                 default -> "shake";
             };
             rawAnimation = null;
@@ -131,6 +132,7 @@ public final class DialogueEditorModel {
             return switch (animation == null ? "none" : animation.toLowerCase(java.util.Locale.ROOT)) {
                 case "shake" -> "抖动";
                 case "scale" -> "缩放";
+                case "slide_in" -> "入场";
                 default -> "无";
             };
         }
@@ -292,7 +294,8 @@ public final class DialogueEditorModel {
             }
             JsonObject animation = new JsonObject();
             animation.addProperty("type", kind);
-            boolean known = "shake".equalsIgnoreCase(kind) || "scale".equalsIgnoreCase(kind);
+            boolean known = "shake".equalsIgnoreCase(kind) || "scale".equalsIgnoreCase(kind)
+                    || "slide_in".equalsIgnoreCase(kind);
             if (!known) {
                 // Verbatim: the page draws none of it, so it may not rewrite any of it.
                 return line.rawAnimation == null ? animation : line.rawAnimation.deepCopy();
@@ -302,6 +305,9 @@ public final class DialogueEditorModel {
             }
             if (line.animationDuration != null) {
                 animation.addProperty("duration", line.animationDuration);
+            }
+            if ("slide_in".equalsIgnoreCase(kind)) {
+                return animation;
             }
             if ("scale".equalsIgnoreCase(kind)) {
                 animation.addProperty("scale", line.animationScale == null

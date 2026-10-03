@@ -262,7 +262,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
                 {"status": "slow", "ticks": 240, "magnitude": 0.5}]},
         ],
         "sounds": {"impact": f"{NS}:sfx/plant/melonimpact2"},
-        "texture": f"{NS}:textures/entities/projectile/melon",
+        "texture": f"{NS}:textures/entities/projectile/winter_melon",
     },
 }
 

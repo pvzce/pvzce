@@ -16,9 +16,8 @@ import com.pvzce.common.network.PacketByteBuf;
 /**
  * The rake, on the client: one sprite lying in a lane until something walks into it.
  *
- * <p>The simplest board fixture there is - no states, no movement, no clocks. It is drawn from the
- * moment the level starts (or from the first sync, whichever is later) and stops being drawn the
- * tick the server says it has sprung, which is the same tick the zombie it killed starts dying.
+ * <p>It holds its resting pose until the server publishes a spent transition, plays its spring
+ * once, then disappears. Joining a level where it is already spent cannot replay the spring.
  *
  * <p>Drawn through the plant path rather than the mower's: the rake is a thing lying <em>on the
  * lawn</em> at a cell's ground line, exactly like a plant, so it wants the same anchor lift and the
@@ -61,24 +60,36 @@ final class RakeClientMechanic implements ClientMechanic {
         return level.mechanicState(PvzceIds.MECHANIC_RAKE, RakeOverlay::new);
     }
 
+    private static float terrainHeight(ClientLevel level, float x, int row) {
+        var def = com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(
+                Identifier.tryParse(level.sceneAt((int) x, row)));
+        return def == null ? 0F : def.heightAt(x, level.width());
+    }
+
     /** The rake itself; one per level instance, shared by the sync handler and the renderer. */
     private static final class RakeOverlay implements WorldOverlay {
         private int row = -1;
         private float x;
         private boolean spent;
         private ArtTarget target;
+        private boolean springPending;
+        private double springAt = -1;
 
         void apply(RakeMechanic.State state) {
             this.row = state.row();
             this.x = state.x();
+            springPending |= row >= 0 && !this.spent && state.spent() && target != null;
             this.spent = state.spent();
         }
 
         @Override
         public void render(PvzceClient client, PvzceCamera camera) {
-            if (row < 0 || spent) {
-                // Not this level, or already sprung. The second case is the whole life cycle: the
-                // rake is drawn until the tick it kills something, and then never again.
+            if (springPending) {
+                springPending = false;
+                springAt = client.level().gameSeconds();
+                target.play("attack");
+            }
+            if (row < 0 || (spent && springAt < 0)) {
                 return;
             }
             AnimationManager animations = client.animations();
@@ -89,13 +100,14 @@ final class RakeClientMechanic implements ClientMechanic {
                 target = new ArtTarget(RAKE_ANIMATION);
                 target.attach(animations);
             }
-            target.play(IDLE_CLIP);
+            if (!spent) target.play(IDLE_CLIP);
             AnimationPlayback playback = animations.playback(target);
-            if (playback == null) {
+            if (playback == null || (spent && playback.isFinished())) {
                 return;
             }
             playback.render(client, x,
-                    row + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
+                    row + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT)
+                            + terrainHeight(client.level(), x, row),
                     EntityVisuals.baseZ(EntityKind.PLANT),
                     client.spriteXScale() * RENDER_SCALE, RENDER_SCALE);
         }

@@ -10,8 +10,8 @@ import java.util.Locale;
  * What a single line does to the portrait while it is spoken.
  *
  * <p>Absent means {@link #TYPE_NONE}: a conversation is read, not performed, and an author
- * adds a beat to the one line that needs it. Three kinds, all of them one-shot at the start
- * of the line - a shake for a shout, a size for a close-up:
+ * adds a beat to the one line that needs it. Kinds are one-shot at the start
+ * of the line - a shake for a shout, a size for a close-up, or slide_in for a reserved listener:
  *
  * <pre>{@code
  * { "character": "pvzce:pea_chan", "text": "诶诶诶！", "animation": { "type": "shake" } }
@@ -36,7 +36,7 @@ import java.util.Locale;
  * {@code DialogueScript}). {@code shake} is the opposite - a beat that is over when it is over.
  * That is why a scene can say "紫夜白 is 0.33 from here on" once, on the line where she shrinks.
  *
- * @param type   {@code none} / {@code shake} / {@code scale}, as written
+ * @param type   {@code none} / {@code shake} / {@code scale} / {@code slide_in}, as written
  * @param amount how hard {@code shake} shakes, as a multiple of the built-in amplitude
  * @param scale  how large {@code scale} draws the portrait, as a multiple of its layout size
  * @param target who it happens to: blank for the speaker, {@link #TARGET_ALL}, or a character id
@@ -46,6 +46,7 @@ public record DialogueAnimation(String type, float amount, float scale, String t
     public static final String TYPE_NONE = "none";
     public static final String TYPE_SHAKE = "shake";
     public static final String TYPE_SCALE = "scale";
+    public static final String TYPE_SLIDE_IN = "slide_in";
 
     /** The target that names everyone standing there rather than one character. */
     public static final String TARGET_ALL = "all";
@@ -152,7 +153,7 @@ public record DialogueAnimation(String type, float amount, float scale, String t
 
     /** True for the three kinds this version knows how to draw. */
     public boolean isKnown() {
-        return isNone() || isShake() || isScale();
+        return isNone() || isShake() || isScale() || TYPE_SLIDE_IN.equalsIgnoreCase(type);
     }
 
     public boolean isNone() {
@@ -177,6 +178,7 @@ public record DialogueAnimation(String type, float amount, float scale, String t
         return switch (type.toLowerCase(Locale.ROOT)) {
             case TYPE_SHAKE -> "抖动";
             case TYPE_SCALE -> "缩放";
+            case TYPE_SLIDE_IN -> "入场";
             default -> "无";
         };
     }

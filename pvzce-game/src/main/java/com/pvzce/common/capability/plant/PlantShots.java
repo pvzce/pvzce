@@ -8,6 +8,8 @@ import com.pvzce.server.entity.PlantEntity;
 public final class PlantShots {
     /** Projectiles leave slightly ahead of the plant centre so they clear the sprite. */
     public static final float MUZZLE_OFFSET_X = 0.3F;
+    public static final float LOB_MUZZLE_HEIGHT = 0.55F;
+    public static final float LOB_MUZZLE_OFFSET_X = -0.2F;
     /**
      * Generic muzzle puff used by every shooting capability.
      *

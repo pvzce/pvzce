@@ -237,19 +237,10 @@
         "text": "好多花瓶...",
         "voice": "",
         "side": "left",
-        "animation": {
-          "type": "scale",
-          "scale": 0.33,
-          "target": "pvzce:purwhite"
-        },
         "slots": [
           {
             "slot": "left",
             "character": "pvzce:lantina"
-          },
-          {
-            "slot": "right",
-            "character": "pvzce:purwhite"
           }
         ]
       },
@@ -263,10 +254,6 @@
           {
             "slot": "left",
             "character": "pvzce:lantina"
-          },
-          {
-            "slot": "right",
-            "character": "pvzce:purwhite"
           }
         ]
       },
@@ -283,10 +270,6 @@
           {
             "slot": "left",
             "character": "pvzce:lantina"
-          },
-          {
-            "slot": "right",
-            "character": "pvzce:purwhite"
           }
         ]
       },
@@ -300,10 +283,6 @@
           {
             "slot": "left",
             "character": "pvzce:lantina"
-          },
-          {
-            "slot": "right",
-            "character": "pvzce:purwhite"
           }
         ]
       },
@@ -317,10 +296,6 @@
           {
             "slot": "left",
             "character": "pvzce:lantina"
-          },
-          {
-            "slot": "right",
-            "character": "pvzce:purwhite"
           }
         ]
       }

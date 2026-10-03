@@ -2534,6 +2534,10 @@ def reference_range(config: EntityConfig, tracks: Sequence[core.Track]) -> Tuple
         candidates.append((end - start + 1, state, start, end))
     for count, state, start, end in candidates:
         if state == "idle" and count >= 2:
+            # Composite idle masks jointly define the full standing model.
+            for mask in config.animations["idle"].get("bone_masks", {}).values():
+                a, b = mask_range(tracks, mask)
+                start, end = min(start, a), max(end, b)
             return start, end
     return max(candidates)[2:]
 
@@ -3383,14 +3387,29 @@ def configure_fog_actors() -> None:
             })
         elif config.output == "split_pea":
             rear = r"SplitPea_.*|idle_SplitPea_.*"
-            front = r"idle_mouth|idle_shoot_blink"
-            config.animations["shoot"]["rate"] = 35.0 / 12.0
-            config.animations["shoot"]["bone_masks"] = {rear: "anim_splitpea_idle"}
-            config.animations["idle"]["bone_masks"] = {rear: "anim_splitpea_idle"}
-            config.animations["shoot_back"] = dict(config.animations["shoot"],
-                mask="anim_splitpea_shooting", bone_masks={front: "anim_head_idle"})
-            config.animations["shoot_both"] = dict(config.animations["shoot"],
-                bone_masks={rear: "anim_splitpea_shooting"})
+            front = r"anim_face|idle_mouth|idle_shoot_blink"
+            body = r"backleaf.*|stalk.*|frontleaf.*"
+            base = {"mask": "anim_idle", "loop": True, "transition": 0.1,
+                    "bone_masks": {front: "anim_head_idle", rear: "anim_splitpea_idle"}}
+            config.animations.clear()
+            config.animations["idle"] = base
+            for state, face_mask, back_mask in [
+                ("shoot", "anim_shooting", "anim_splitpea_idle"),
+                ("shoot_back", "anim_head_idle", "anim_splitpea_shooting"),
+                ("shoot_both", "anim_shooting", "anim_splitpea_shooting")]:
+                config.animations[state] = {"mask": "anim_shooting", "loop": False,
+                    "rate": SHOOT_ANIMATION_RATE, "on_end": "idle", "transition": 0.05,
+                    "bone_masks": {body: "anim_idle", front: face_mask, rear: back_mask}}
+        elif config.output == "kernel_pult":
+            config.animations["idle"]["force_hidden"] = r"butter"
+            config.animations["shoot"]["force_hidden"] = r"butter"
+            config.animations["shoot"]["force_visible_hidden"] = False
+            config.animations["shoot_butter"] = dict(config.animations["shoot"],
+                    force_hidden=r"kernal")
+        elif config.output == "rake":
+            config.animations["idle"] = {"range": [0, 0], "loop": True, "transition": 0.0}
+            config.animations["attack"] = {"range": "all", "loop": False, "on_end": "hold",
+                    "transition": 0.0}
         elif config.output == "miner_zombie":
             config.animations.update({
                 "dig_rise": {"mask": "anim_drill", "loop": True},

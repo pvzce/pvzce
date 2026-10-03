@@ -299,7 +299,7 @@ public final class ShooterCapability implements PlantCapability {
         }
         level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),
                 sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
-        plant.setState(independentShots && back
+        plant.beginAction(independentShots && back
                 ? (front ? "shoot_both" : "shoot_back") : shootState);
         cooldown = intervalTicks;
     }

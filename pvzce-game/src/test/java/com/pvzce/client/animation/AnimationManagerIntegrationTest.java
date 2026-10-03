@@ -145,8 +145,12 @@ class AnimationManagerIntegrationTest {
         assertEquals("idle", advanceUntilClip(manager, level, shroom, "idle"),
                 "a shoot clip hands over to idle when it is done");
         manager.play(shroom, com.pvzce.api.entity.EntityAnimations.SHOOT);
+        assertEquals("idle", manager.playback(shroom).activeName(),
+                "drawing an unchanged shoot state cannot invent another shot");
+        shroom.apply(new com.pvzce.common.network.packet.EntityUpdateS2C(shroom.id(), 1.5F, 2.5F,
+                300, "shoot", 0F, -1, false, false, false, false, 1, ""));
         assertEquals("shoot", manager.playback(shroom).activeName(),
-                "a finished shoot has to start again on the next request");
+                "a new authoritative action sequence replays the same named gesture");
         resources.close();
     }
 

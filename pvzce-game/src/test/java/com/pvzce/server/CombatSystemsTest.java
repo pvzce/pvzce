@@ -668,7 +668,8 @@ class CombatSystemsTest {
         assertTrue(level.placePlant(bridge, 0, 1, 0));   // pea on flower pot
         PlantEntity peaOnPot = level.plantAt(1, 0);
         assertNotNull(peaOnPot);
-        assertEquals(flowerPot.height() + 0.38F, peaOnPot.height(), 0.001F);
+        assertEquals(flowerPot.height() + com.pvzce.common.core.PlantPlacement.FLOWER_POT_TOP,
+                peaOnPot.height(), 0.001F);
         assertEquals(flowerPot.cellX() + 0.06F, peaOnPot.cellX(), 0.001F);
     }
 

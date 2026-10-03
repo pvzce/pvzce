@@ -101,7 +101,7 @@ public abstract class PvzceEntity extends Entity {
 
     public EntityUpdateS2C updatePacket() {
         return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(),
-                armor(), chilled(), charmed(), frozen(), teamIdForUpdate());
+                armor(), chilled(), charmed(), frozen(), buttered(), animationSequence(), teamIdForUpdate());
     }
 
     /**
@@ -146,6 +146,10 @@ public abstract class PvzceEntity extends Entity {
      * the zombie overrides it.
      */
     public boolean frozen() {
+        return false;
+    }
+
+    public boolean buttered() {
         return false;
     }
 

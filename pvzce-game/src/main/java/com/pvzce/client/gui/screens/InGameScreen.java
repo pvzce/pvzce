@@ -1934,9 +1934,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // layer and the server places a plant above whatever it rests on
         // (PlacementDef.layer + the #c:carrier tags), so the later-planted plant appears on
         // top of its carrier without this loop needing to know what a carrier is.
-        List<ClientEntity> renderEntities = new ArrayList<>(client.level().entities().values());
-        renderEntities.sort(Comparator.comparingLong(InGameScreen::renderOrder));
-        for (ClientEntity entity : renderEntities) {
+        record DrawEntry(ClientEntity entity, boolean shellBack) {}
+        List<DrawEntry> renderEntities = new ArrayList<>();
+        for (ClientEntity entity : client.level().entities().values()) {
+            if (isShell(entity)) renderEntities.add(new DrawEntry(entity, true));
+            renderEntities.add(new DrawEntry(entity, false));
+        }
+        renderEntities.sort(Comparator.comparingLong(entry -> renderOrder(entry.entity(), entry.shellBack())));
+        for (DrawEntry entry : renderEntities) {
+            ClientEntity entity = entry.entity();
             // Risers were already drawn, before the lawn. Drawing them again here would put
             // the buried half back on top of it.
             if (isRising(entity)) {
@@ -1956,7 +1962,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // No position is consulted - a storm has no edge.
                 continue;
             }
-            renderEntity(entity);
+            if (entry.shellBack()) {
+                entity.playAnimation(entity.animation());
+                drawShadow(client, entity, entityTexture(entity));
+                if (client.animations() != null) client.animations().render(entity, -1);
+            } else {
+                renderEntity(entity);
+            }
         }
         // The fog, over everything the board is standing: what the cloud covers is what the player
         // cannot see, and the player's own hand (the ghost below, the carried plant, the mallet
@@ -2263,9 +2275,18 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * Draw order: back rows first, then kind, then spawn id. See
      * {@link com.pvzce.client.renderer.EntityVisuals#renderOrder} for why the row leads.
      */
-    private static long renderOrder(ClientEntity entity) {
-        return com.pvzce.client.renderer.EntityVisuals.renderOrder(
-                entity.kind(), entity.layer(), entity.gridY(), entity.id());
+    private static boolean isShell(ClientEntity entity) {
+        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId());
+        return "plant".equals(entity.kind()) && def != null
+                && def.capability(com.pvzce.common.capability.plant.ShellCapability.class).isPresent();
+    }
+
+    private static long renderOrder(ClientEntity entity, boolean shellBack) {
+        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId());
+        int pass = "plant".equals(entity.kind()) && def != null
+                ? 2 * com.pvzce.common.core.PlantPlacement.layerIndex(def) : 0;
+        return EntityVisuals.renderOrder(entity.kind(), entity.layer(), entity.gridY(), entity.id(),
+                shellBack ? 1 : pass);
     }
 
     /** Namespace-preserving sprite id; shared with the seed chooser and editor. */
@@ -2438,8 +2459,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // The bungee zombie's rope and target go under its shadow and art: they are objects
         // around it rather than parts of it (see BungeeRig).
         com.pvzce.client.renderer.BungeeRig.render(client, entity);
-        if (entity.layer() != com.pvzce.api.entity.EntityLayers.UNDERGROUND) {
+        if (entity.layer() != com.pvzce.api.entity.EntityLayers.UNDERGROUND && !isShell(entity)) {
             drawShadow(client, entity, entityTexture(entity));
+        }
+        var plantDef = "plant".equals(entity.kind())
+                ? com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId()) : null;
+        if (plantDef != null && plantDef.capability(com.pvzce.common.capability.plant.RevealCapability.class).isPresent()) {
+            com.pvzce.client.renderer.PlanternHalo.render(client, entity);
         }
         // The ice goes under the art: it is around the zombie's feet, so the legs have to come
         // down into it. Drawn every frame while the freeze lasts rather than spawned as a
@@ -2448,9 +2474,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             drawFrozenSpikes(entity);
         }
         drawEntityArt(entity);
+        if (entity.buttered() && entity.health() > 0) {
+            float top = entity.visualCellY() + entity.visualHeight() + 0.55F;
+            client.drawTexture(Identifier.withDefaultNamespace("textures/entities/status/butter"),
+                    entity.visualCellX() - 0.2F, top, 0.4F, 0.24F, 0.5F, 1F, 1F, 1F, 1F);
+        }
         if (entity.fertilized()) {
-            client.drawSolid(entity.visualCellX() - 0.22F, entity.visualCellY() + entity.visualHeight() + 0.3F,
-                    0.44F, 0.045F, 0.55F, 0.35F, 0.9F, 0.2F, 0.9F);
+            client.drawTexture(Identifier.withDefaultNamespace("textures/particles/misc/glow_particle2"),
+                    entity.visualCellX() - 0.45F, entity.visualCellY() + entity.visualHeight() - 0.35F,
+                    0.9F, 0.9F, 0.55F, 0.35F, 1F, 0.2F, 0.35F);
+            client.drawSolid(entity.visualCellX() - 0.28F, entity.visualCellY() + entity.visualHeight() + 0.4F,
+                    0.56F, 0.07F, 0.55F, 0.35F, 1F, 0.2F, 1F);
         }
         if (entity.laddered()) {
             client.drawTexture(com.pvzce.api.util.Identifier.withDefaultNamespace("textures/entities/plant/environment/roof_ladder"),
@@ -2503,7 +2537,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float width = com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_WIDTH;
         float height = com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_HEIGHT;
         float drawX = entity.visualCellX();
-        float drawY = entity.visualCellY() - contact + liquidDrop(entity);
+        float drawY = entity.visualCellY() + entity.visualHeight() - contact + liquidDrop(entity);
         client.drawTexture(com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_TEXTURE,
                 drawX - width * 0.5F, drawY - height * 0.5F, width, height,
                 com.pvzce.client.renderer.EntityVisuals.FROZEN_SPIKES_Z, 1F, 1F, 1F, 0.95F);
@@ -2684,7 +2718,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         Identifier texture = entityTexture(entity);
-        if (client.animations() != null && client.animations().render(entity)) {
+        if (client.animations() != null && client.animations().render(entity, isShell(entity) ? 1 : 0)) {
             return;
         }
 
@@ -2707,7 +2741,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float drawX = entity.visualCellX();
         float drawY = entity.visualCellY();
         float drawHeight = entity.visualHeight();
-        drawY += terrainHeight(drawX, entity.gridY());
+        // height already includes terrain: never add the roof twice.
         if (entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND) {
             // Burrowing zombies are shown as a mound instead of a sprite.
             client.drawSolid(drawX - 0.3F, drawY - 0.2F, 0.6F, 0.4F, 0.05F,
@@ -2766,7 +2800,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (entity.kind().equals("plant")) {
             float width = (visual == null ? 0.68F : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.76F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY - contact + liquidDrop(entity),
+            client.drawEntityShadow(texture, drawX, drawY + terrainHeight(drawX, entity.gridY()) - contact + liquidDrop(entity),
                     width * renderScale, height * renderScale, 0.4F);
         } else if (entity.kind().equals("zombie") && entity.layer() != -1) {
             float lift = Math.max(0F, drawHeight - terrainHeight(drawX, entity.gridY()));
@@ -2775,7 +2809,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     ? Math.max(0.46F, 0.62F - lift * 0.06F)
                     : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.95F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY - contact,
+            client.drawEntityShadow(texture, drawX, drawY + terrainHeight(drawX, entity.gridY()) - contact,
                     width * renderScale, height * renderScale, alpha);
         }
     }

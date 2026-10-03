@@ -983,7 +983,7 @@
   "plant.pvzce.umbrella_leaf.desc": "Protects the surrounding nine cells from basketballs and bungees.",
   "zombie.pvzce.ladder.desc": "Places a ladder on nuts and pumpkins for walkers to cross.",
   "zombie.pvzce.catapult.desc": "Lobs basketballs at the back row, then drives forward when empty.",
-  "tool.pvzce.fertilizer.desc": "One plant attacks and produces sun 50% faster for 20 seconds. Free; 45-second recharge. No healing; does not multiply watering haste.",
+  "tool.pvzce.fertilizer.desc": "One plant attacks and produces sun at 2x speed for 30 seconds. Free; 45-second recharge. No healing; does not multiply watering haste.",
   "plant.pvzce.garlic.flavor": "Garlic calls it a visit. His visitors call it a detour.",
   "plant.pvzce.umbrella_leaf.flavor": "She never trusts a forecast that says no basketballs.",
   "zombie.pvzce.ladder.flavor": "His ladder blocks peas, then builds a bridge for friends.",
@@ -1007,5 +1007,6 @@
   "gui.pvzce.weather.clear_fire": "Torch / ash normal",
   "gui.pvzce.weather.cloudy_fire": "Torch / ash weakened",
   "gui.pvzce.weather.rain_fire": "Torch out · ash cooldown doubled",
-  "gui.pvzce.weather.cold": "Cold duration %d%% · icy splash %d%%"
+  "gui.pvzce.weather.cold": "Cold duration %d%% · icy splash %d%%",
+  "level_collection.pvzce.day_roof": "Day Roof"
 }

@@ -285,8 +285,8 @@ public final class DialoguePage implements EditorPage {
         dialogueVoiceBox.setActive(has);
         dialogueSideButton.setActive(has);
         dialogueAnimationButton.setActive(has);
-        dialogueAnimationValueBox.setActive(has && !"none".equalsIgnoreCase(
-                currentDialogueLine() == null ? "none" : currentDialogueLine().animation));
+        dialogueAnimationValueBox.setActive(has && ("shake".equalsIgnoreCase(line.animation)
+                || "scale".equalsIgnoreCase(line.animation)));
         dialogueStageButton.setActive(has);
         if (!has) {
             dialogueTextBox.setValue("", false);
@@ -359,7 +359,8 @@ public final class DialoguePage implements EditorPage {
         }
         line.text = dialogueTextBox.value();
         line.voice = dialogueVoiceBox.value().trim();
-        if (dialogueAnimationValueBox != null) {
+        if (dialogueAnimationValueBox != null && ("scale".equalsIgnoreCase(line.animation)
+                || "shake".equalsIgnoreCase(line.animation))) {
             // Parsed with the content's own limits, so a typo lands on the clamp the overlay
             // would apply anyway instead of on a value only this page believes in.
             boolean scale = "scale".equalsIgnoreCase(line.animation);
@@ -389,7 +390,7 @@ public final class DialoguePage implements EditorPage {
         refreshDialogueLineList();
     }
 
-    /** Cycles 无 → 抖动 → 缩放 and rebuilds the row, since the value box changes meaning. */
+    /** Cycles 无 → 抖动 → 缩放 → 入场 and rebuilds the row. */
     private void cycleDialogueAnimation(EditorContext context) {
         DialogueEditorModel.LineModel line = currentDialogueLine();
         if (line == null) {

@@ -12,7 +12,8 @@ import com.mojang.serialization.DataResult;
  */
 public enum ZombieStatus {
     SLOW,
-    IMMOBILIZED;
+    IMMOBILIZED,
+    BUTTERED;
 
     public static final Codec<ZombieStatus> CODEC = Codec.STRING.flatXmap(
             name -> {

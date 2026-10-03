@@ -36,7 +36,7 @@ public final class StatusOnHitCapability implements ProjectileCapability {
         return this;
     }
 
-    /** SLOW is the shared cold status; butter's IMMOBILIZED is deliberately not cold. */
+    /** SLOW is the shared cold status; butter's BUTTERED is deliberately not cold. */
     public boolean isCold() {
         return effects.stream().anyMatch(effect -> effect.status() == ZombieStatus.SLOW);
     }

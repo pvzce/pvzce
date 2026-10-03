@@ -91,7 +91,7 @@ class ServerMenuFlowTest {
 
             List<LevelListS2C.LevelInfo> boxes = list.levels().stream()
                     .filter(LevelListS2C.LevelInfo::isCollection).toList();
-            assertEquals(9, boxes.size(), "the nine shipped collections are rows of the list: "
+            assertEquals(10, boxes.size(), "the shipped collections are rows of the list: "
                     + boxes.stream().map(LevelListS2C.LevelInfo::id).toList());
             for (LevelListS2C.LevelInfo box : boxes) {
                 assertFalse(box.collection().members().isEmpty(), box.id() + " has members");
@@ -119,7 +119,7 @@ class ServerMenuFlowTest {
                     .map(LevelListS2C.LevelInfo::id).toList();
             assertEquals(List.of("pvzce:collections/day_lawn", "pvzce:collections/night_lawn",
                     "pvzce:collections/day_pool", "pvzce:collections/night_pool",
-                    "pvzce:collections/night_roof"), adventureOrder);
+                    "pvzce:collections/day_roof", "pvzce:collections/night_roof"), adventureOrder);
 
             // The 节奏草坪 page holds one box per song, and the song the mode shipped with comes
             // first: a collection sorts where its first level does, and `rhythm_easy` sorts before

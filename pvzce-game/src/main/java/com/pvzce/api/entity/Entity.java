@@ -31,6 +31,16 @@ public abstract class Entity {
      * entity sync.
      */
     protected boolean animationDirty;
+    private int animationSequence;
+
+    public int animationSequence() { return animationSequence; }
+
+    /** An action can repeat without changing its state name. */
+    public void restartAnimation(String state) {
+        setAnimation(state);
+        animationSequence++;
+        animationDirty = true;
+    }
 
     /**
      * Cell bounds used by {@link #gridX()}/{@link #gridY()}. Defaults to the

@@ -135,14 +135,13 @@ public final class ThrowerCapability implements PlantCapability {
 
     /** One volley of arc shots at a target; shared by the clock and by {@link #strike}. */
     private void lob(PlantEntity plant, LevelAccess level, ZombieEntity target) {
-        plant.setState(EntityAnimations.SHOOT);
         // How many times this volley is repeated: the rhythm levels' energy bar, the same number
         // the straight shooters read (see `LevelAccess#projectileCountMultiplier`). A lob has no
         // burst delay of its own to space the extra shots with, so it borrows the shooters': three
         // cabbages born on the same tick at the same point are one cabbage on the screen and three
         // hits on the zombie, which is a buff the player cannot see.
         int repeats = Math.max(1, level.projectileCountMultiplier(plant));
-        float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X;
+        float muzzleX = plant.cellX() + PlantShots.LOB_MUZZLE_OFFSET_X;
         for (ProjectileRef shot : shots) {
             float chance = level.butterChance(plant, butterChance);
             boolean butter = chance > 0F && level.random().nextFloat() < chance;
@@ -152,14 +151,15 @@ public final class ThrowerCapability implements PlantCapability {
             // A lob is one projectile whatever its `count` says - the arc is aimed at a cell, and
             // this capability has never read the field (see `ProjectileRef#count`). The level's
             // multiplier is the only thing that makes it more than one.
-            level.spawnArcProjectile(ref, muzzleX, plant.cellY(), plant, target);
+            plant.beginAction(butter ? "shoot_butter" : EntityAnimations.SHOOT);
+            pendingLobs.add(new PendingLob(ref, muzzleX, plant.cellY(), target,
+                    com.pvzce.common.PvzceConstants.LOB_RELEASE_TICKS));
             for (int i = 1; i < repeats; i++) {
                 pendingLobs.add(new PendingLob(ref, muzzleX, plant.cellY(), target,
-                        i * ShooterCapability.MULTIPLIED_BURST_DELAY));
+                        com.pvzce.common.PvzceConstants.LOB_RELEASE_TICKS
+                                + i * ShooterCapability.MULTIPLIED_BURST_DELAY));
             }
         }
-        level.emitEffect(PlantShots.MUZZLE_PARTICLE, plant.cellX() + 0.5F, plant.cellY(),
-                sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_THROW)));
         cooldown = intervalTicks;
     }
 
@@ -171,10 +171,8 @@ public final class ThrowerCapability implements PlantCapability {
     /**
      * Lobbed shots that are still on their way out, with the ticks left before each.
      *
-     * <p>Only a multiplied volley has any: a kernel-pult at 1x leaves on the firing tick and never
-     * reads this list. Not part of {@link #save}, on the same reasoning the shooter's queue uses -
-     * the whole burst is a fifth of a second, and a save taken inside that window loses at most the
-     * tail of one volley.
+     * <p>Every lob waits for the release point in the shooting gesture; multiplied volleys add
+     * staggered releases. Like the shooter's burst queue, this transient work is not saved.
      */
     private final List<PendingLob> pendingLobs = new java.util.ArrayList<>();
 
@@ -214,6 +212,9 @@ public final class ThrowerCapability implements PlantCapability {
                 continue;
             }
             level.spawnArcProjectile(pending.ref(), pending.x(), pending.y(), plant, pending.target());
+            level.emitEffect(PlantShots.MUZZLE_PARTICLE, pending.x(),
+                    pending.y() + plant.height() + PlantShots.LOB_MUZZLE_HEIGHT,
+                    sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_THROW)));
         }
     }
 

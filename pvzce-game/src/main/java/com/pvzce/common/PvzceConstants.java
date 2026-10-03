@@ -22,9 +22,14 @@ public final class PvzceConstants {
     public static final float WEATHER_RAIN_ASH_COOLDOWN = 2F;
     public static final float WEATHER_RAIN_COLD_DURATION = 1.5F;
     public static final float WEATHER_RAIN_ICY_SPLASH_RANGE = 1.25F;
-    /** Fertilizer speeds one plant up for twenty seconds; the tool recharges in forty-five. */
-    public static final float FERTILIZER_ACTION_SPEED = 1.5F;
-    public static final int FERTILIZER_DURATION_TICKS = 1200;
+    /** Fertilizer doubles one plant's work clocks for thirty seconds; recharge is forty-five. */
+    public static final float FERTILIZER_ACTION_SPEED = 2F;
+    public static final int FERTILIZER_DURATION_TICKS = 1800;
+    /** Lob flight bounds, independent of lane length; keep the apex inside the viewport. */
+    public static final int LOB_MIN_FLIGHT_TICKS = 45;
+    public static final int LOB_MAX_FLIGHT_TICKS = 72;
+    public static final int LOB_RELEASE_TICKS = 24;
+    public static final int PLANT_ATTACK_POSE_TICKS = 120;
     public static final float BUTTER_BUFF_CHANCE = 0.40F;
     /** Original roof: five sloped columns, rising 20 pixels per column in an 85-pixel row. */
     public static final float ROOF_SLOPE_COLUMNS = 5F;

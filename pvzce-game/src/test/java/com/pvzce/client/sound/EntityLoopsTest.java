@@ -104,5 +104,20 @@ class EntityLoopsTest {
         assertNull(EntityLoops.walkSoundFor(level,
                         entity("pvzce:not_a_zombie", 7.5F, EntityAnimations.WALK)),
                 "an id nothing defines wants nothing");
+        ClientEntity dead = entity("pvzce:jack_in_the_box_zombie", 7.5F, EntityAnimations.WALK);
+        dead.update(7.5F, 2F, 0, EntityAnimations.WALK, 0F);
+        assertNull(EntityLoops.walkSoundFor(level, dead), "death stops the loop before a new pose arrives");
+    }
+
+    @Test
+    void loopReleaseUsesTheOpenAlSourceIdAndStopsItOnce() {
+        var owned = new java.util.HashMap<Integer, String>();
+        owned.put(73, "music_box");
+        owned.put(91, "another_loop");
+        var stopped = new java.util.ArrayList<Integer>();
+        org.junit.jupiter.api.Assertions.assertTrue(SoundEngine.releaseLoop(owned, 73, stopped::add));
+        org.junit.jupiter.api.Assertions.assertFalse(SoundEngine.releaseLoop(owned, 73, stopped::add));
+        assertEquals(List.of(73), stopped, "a source id need not fit inside the source pool's array");
+        assertEquals(java.util.Map.of(91, "another_loop"), owned);
     }
 }

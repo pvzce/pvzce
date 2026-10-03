@@ -1808,9 +1808,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (projectileDef == null) {
             return;
         }
-        SceneElementDef base = sceneAt(target.gridX(), target.gridY());
-        target.setHeight(base == null ? 0F : base.heightAt(target.cellX(), width()));
-        addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height(), target));
+        // The launcher reads the target, never rewrites the zombie's authoritative position.
+        addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y,
+                source.height() + com.pvzce.common.capability.plant.PlantShots.LOB_MUZZLE_HEIGHT, target));
         if (mutations != null) {
             mutations.onProjectileFired(shot.projectile());
         }

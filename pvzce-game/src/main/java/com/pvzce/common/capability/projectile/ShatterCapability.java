@@ -160,7 +160,7 @@ public final class ShatterCapability implements ProjectileCapability {
             // with it flashed the entire board - the user's "很晃眼". The plant's own colours
             // are what should say "that one is ice".
             level.emitEffect(PvzceParticles.SNOW_PEA_SPLAT.toString(),
-                    target.cellX(), target.cellY(), null);
+                    target.cellX(), target.cellY() + target.height(), null);
             return;
         }
         if (chill != null && chill.ticks() > 0) {
@@ -192,6 +192,6 @@ public final class ShatterCapability implements ProjectileCapability {
             target.damage(amount, type, level);
         }
         level.emitEffect(PvzceParticles.ICEBOOM_SHATTER.toString(),
-                target.cellX(), target.cellY(), null);
+                target.cellX(), target.cellY() + target.height(), null);
     }
 }

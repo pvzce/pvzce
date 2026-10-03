@@ -63,8 +63,8 @@ public final class PlantPlacement {
     /** Horizontal offset applied to a plant placed on a carrier, in world cells. */
     public static final float CARRIER_X_OFFSET = 0.06F;
 
-    /** Visual top of a flower pot, in world cells. */
-    public static final float FLOWER_POT_TOP = 0.38F;
+    /** Soil contact in the converted pot at its shipped render scale, in world cells. */
+    public static final float FLOWER_POT_TOP = 0.24F;
     /**
      * Visual top of a lily pad: how far above the cell's floor a plant standing on one is drawn.
      *
@@ -76,8 +76,8 @@ public final class PlantPlacement {
      *
      * <p>The original has no offset here at all, because it paints the pad 25px low and lets the
      * grid do the rest ({@code PlantDrawHeightOffset}: pot 26px, lily pad 25px - the container's own
-     * art, not the plant's). This build's pad art is not painted low, so the number lives here, and
-     * it is the pot's 0.38 minus the original's own 5px gap between a pad's surface and a pot's rim.
+     * art, not the plant's). This build's pad art is not painted low, so the number lives here;
+     * each carrier's contact is measured from its own converted art at its shipped render scale.
      *
      * <p>Not a render-only number: the height is also the muzzle a shot leaves from and the arc a
      * lobbed one is aimed on, which is why it is one value for both rather than a draw offset.

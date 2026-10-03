@@ -118,6 +118,12 @@ public final class ArmorCapability implements ZombieCapability {
      */
     @Override
     public boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage, LevelAccess level) {
+        return onProjectileHit(zombie, projectile, damage, level, true);
+    }
+
+    @Override
+    public boolean onProjectileHit(ZombieEntity zombie, ProjectileDef projectile, int damage,
+                                   LevelAccess level, boolean emitImpact) {
         boolean lobbed = "air".equals(projectile.layer());
         // A spray goes through what is held in front and is still stopped by what is worn on the
         // head: the fume-shroom's gas passes a screen door (that is the whole reason it is the
@@ -135,10 +141,10 @@ public final class ArmorCapability implements ZombieCapability {
         Identifier armorSound = zombie.def().sounds().armorHit()
                 .orElse(projectile.sounds().impact().orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
         String splash = projectile.impactParticle().map(Identifier::toString).orElse("");
-        if (absorb(zombie, wanted, damage, level, armorSound, splash)) {
+        if (absorb(zombie, wanted, damage, level, armorSound, splash, emitImpact)) {
             return true;
         }
-        return !lobbed && absorb(zombie, ArmorDef.TOP, damage, level, armorSound, splash);
+        return !lobbed && absorb(zombie, ArmorDef.TOP, damage, level, armorSound, splash, emitImpact);
     }
 
     /**
@@ -206,6 +212,11 @@ public final class ArmorCapability implements ZombieCapability {
      */
     private boolean absorb(ZombieEntity zombie, String wanted, int damage, LevelAccess level,
                            Identifier sound, String splash) {
+        return absorb(zombie, wanted, damage, level, sound, splash, true);
+    }
+
+    private boolean absorb(ZombieEntity zombie, String wanted, int damage, LevelAccess level,
+                           Identifier sound, String splash, boolean emitImpact) {
         Piece piece = pieces.stream()
                 .filter(p -> p.hp > 0 && wanted.equals(p.def.position()))
                 .findFirst()
@@ -247,9 +258,11 @@ public final class ArmorCapability implements ZombieCapability {
         }
         // From the head, where the piece was: a cone that pops out of the zombie's boots
         // reads as a particle that happened to fire, not as a hat coming off.
-        level.emitEffect(particle, zombie.cellX(), zombie.cellY() + DROP_HEIGHT, sound);
+        if (emitImpact || broke) {
+            level.emitEffect(particle, zombie.cellX(), zombie.cellY() + zombie.height() + DROP_HEIGHT, sound);
+        }
         if (broke && zombie.def().sounds().special().isPresent()) {
-            level.emitEffect("", zombie.cellX(), zombie.cellY(), zombie.def().sounds().special().get());
+            level.emitEffect("", zombie.cellX(), zombie.cellY() + zombie.height(), zombie.def().sounds().special().get());
         }
         return true;
     }

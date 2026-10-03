@@ -66,6 +66,7 @@ public class PlantEntity extends PvzceEntity {
      */
     private int wateredTicks;
     private int fertilizedTicks;
+    private int actionPoseTicks;
     private boolean laddered;
     private boolean waterFilled;
 
@@ -409,6 +410,9 @@ public class PlantEntity extends PvzceEntity {
         weatherActionMultiplier = level.weatherActionMultiplier(this);
         echoRate = capability(EchoRelayCapability.class) != null ? 1F : EchoNetwork.status(this, level).rate();
         age++;
+        if (actionPoseTicks > 0 && --actionPoseTicks == 0) {
+            setState(com.pvzce.api.entity.EntityAnimations.IDLE);
+        }
         if (waterFilled) setState(com.pvzce.api.entity.EntityAnimations.IDLE_WATER);
         // Spend the final accelerated tick before expiring, just like a timed capability.
         if (wateredTicks > 0) {
@@ -595,6 +599,12 @@ public class PlantEntity extends PvzceEntity {
      * is one answer derived from the capabilities that decide it - not a field that the
      * growing capability and every publisher would have to keep in step.
      */
+    /** A visible action survives the 20 Hz mirror, then releases the pose. */
+    public void beginAction(String state) {
+        actionPoseTicks = com.pvzce.common.PvzceConstants.PLANT_ATTACK_POSE_TICKS;
+        restartAnimation(state + variantSuffix());
+    }
+
     public void setState(String state) {
         setAnimation(state + variantSuffix());
     }

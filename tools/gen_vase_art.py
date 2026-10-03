@@ -40,7 +40,7 @@ from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SHEET = REPO_ROOT / "refer" / "im7" / "images" / "Scary_Pot.png"
-ASSETS = REPO_ROOT / "pvzce-game" / "src" / "main" / "resources" / "assets" / "pvzce"
+ASSETS = REPO_ROOT / "local-assets" / "assets" / "pvzce"
 
 #: The sheet's grid: three cels across, two down. Cell (column, row).
 COLUMNS, ROWS = 3, 2

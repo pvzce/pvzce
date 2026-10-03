@@ -64,7 +64,7 @@ public final class SoundEngine implements AutoCloseable {
     /** Which event each one-shot player is currently playing; the duplicate guard. */
     private final Map<Integer, String> playingPaths = new HashMap<>();
     /**
-     * The one-shot players currently held by a {@link #startLoop}, by ring index.
+     * The one-shot players currently held by a {@link #startLoop}, by OpenAL source id.
      *
      * <p>A loop that lived in the ring like any other sound would be killed by whatever plays
      * next ({@link #play} stops and rebinds the player it picks), so the ring has to know which
@@ -264,7 +264,7 @@ public final class SoundEngine implements AutoCloseable {
      * fired at the wrong end of a twenty-second walk is what this build used to do - and the
      * ambient player is no better (one board has one weather, and it is not per entity).
      *
-     * <p>The handle is the ring index, which is what {@link #stopLoop} needs; {@code -1} means
+     * <p>The handle is the OpenAL source id, which is what {@link #stopLoop} needs; {@code -1} means
      * nothing was started (the engine is off, the event is unknown, or every player is busy).
      * Deliberately no rate limit and no duplicate guard: this is asked for once per entity by a
      * caller that already knows whether it is playing.
@@ -299,15 +299,18 @@ public final class SoundEngine implements AutoCloseable {
 
     /** Stops a loop started by {@link #startLoop}; a no-op for a handle that is not looping. */
     public void stopLoop(int handle) {
-        if (handle < 0 || handle >= MAX_SFX_SOURCES || loopingPaths.remove(handle) == null) {
-            return;
-        }
-        int source = sfxSources[handle];
-        playingPaths.remove(handle);
-        // The loop flag belongs to the source rather than to the buffer, so it has to be cleared
-        // here: a source left looping plays whatever is bound to it next, for ever.
-        AL10.alSourceStop(source);
-        AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_FALSE);
+        releaseLoop(loopingPaths, handle, source -> {
+            playingPaths.remove(source);
+            AL10.alSourceStop(source);
+            AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_FALSE);
+        });
+    }
+
+    /** Audio handles are source ids, which are unrelated to a pool's array indices. */
+    static boolean releaseLoop(Map<Integer, String> owned, int source, java.util.function.IntConsumer stop) {
+        if (source <= 0 || owned.remove(source) == null) return false;
+        stop.accept(source);
+        return true;
     }
 
     /**
@@ -337,7 +340,7 @@ public final class SoundEngine implements AutoCloseable {
         for (int i = 0; i < MAX_SFX_SOURCES; i++) {
             int candidate = (first + i) % MAX_SFX_SOURCES;
             int source = sfxSources[candidate];
-            if (loopingPaths.containsKey(candidate)) {
+            if (loopingPaths.containsKey(source)) {
                 continue;
             }
             if (AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
@@ -352,8 +355,15 @@ public final class SoundEngine implements AutoCloseable {
             return -1;
         }
         // Every player is busy: take the ring's next slot, as before.
-        cursor = first + 1;
-        return sfxSources[first];
+        // A busy loop remains owned by its entity even when every other source is busy.
+        for (int i = 0; i < MAX_SFX_SOURCES; i++) {
+            int slot = (first + i) % MAX_SFX_SOURCES;
+            if (!loopingPaths.containsKey(sfxSources[slot])) {
+                cursor = slot + 1;
+                return sfxSources[slot];
+            }
+        }
+        return -1;
     }
 
     /**

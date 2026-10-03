@@ -21,7 +21,8 @@
       "damage_type": "pvzce:spray",
       "range": 1.4,
       "sound": "pvzce:sfx/plant/fume",
-      "rows": 1
+      "rows": 1,
+      "particle": "pvzce:gloom_cloud"
     }
   ],
   "sounds": {

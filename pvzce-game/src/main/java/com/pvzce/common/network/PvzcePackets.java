@@ -144,7 +144,8 @@ public final class PvzcePackets {
     // 50: the human's chosen side travels with the level entry (PlayLevelC2S/RestartLevelC2S),
     //     and the client hands the server its Jev credential (AiSettingsC2S).
     // 54: fertilizer and attached ladders travel as PlantCareS2C.
-    public static final int PROTOCOL_VERSION = 54;
+    // 55: separate butter/freeze art and action sequence for exactly one gesture per volley.
+    public static final int PROTOCOL_VERSION = 55;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

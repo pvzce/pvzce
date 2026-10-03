@@ -33,6 +33,7 @@ public final class ArcMotionCapability implements ProjectileCapability {
      * made both of those shots pop straight up and come down on the plant that fired them.
      */
     private float direction = 1F;
+    private float horizontalStep;
 
     public ArcMotionCapability(float speedCellsPerSecond, float gravityCellsPerSecondSquared) {
         this.speedCellsPerSecond = speedCellsPerSecond;
@@ -78,8 +79,12 @@ public final class ArcMotionCapability implements ProjectileCapability {
         // The absolute distance: a shot aimed behind the plant is the same flight, mirrored, and
         // a signed one would give it a negative time of flight (and so a downward launch).
         float distance = Math.max(0.5F, Math.abs(delta));
-        float time = distance / Math.max(0.0001F, speedPerTick());
-        this.vy = (targetHeight - startHeight) / time + 0.5F * gravityPerTick() * time;
+        float time = Math.max(PvzceConstants.LOB_MIN_FLIGHT_TICKS,
+                Math.min(PvzceConstants.LOB_MAX_FLIGHT_TICKS,
+                        distance / Math.max(0.0001F, speedPerTick())));
+        horizontalStep = Math.abs(delta) / time;
+        // Semi-implicit integration subtracts gravity before moving: include that first step.
+        this.vy = (targetHeight - startHeight) / time + 0.5F * gravityPerTick() * (time + 1F);
         this.launched = true;
     }
 
@@ -94,7 +99,7 @@ public final class ArcMotionCapability implements ProjectileCapability {
 
     @Override
     public boolean move(ProjectileEntity projectile, LevelAccess level) {
-        projectile.setCellX(projectile.cellX() + direction * speedPerTick());
+        projectile.setCellX(projectile.cellX() + direction * (launched ? horizontalStep : speedPerTick()));
         vy -= gravityPerTick();
         projectile.setHeight(Math.max(0F, projectile.height() + vy));
         return true;
@@ -105,6 +110,7 @@ public final class ArcMotionCapability implements ProjectileCapability {
         tag.putFloat("vy", vy);
         tag.putInt("launched", launched ? 1 : 0);
         tag.putFloat("direction", direction);
+        tag.putFloat("horizontalStep", horizontalStep);
     }
 
     @Override
@@ -115,5 +121,6 @@ public final class ArcMotionCapability implements ProjectileCapability {
         // right, so +1 is not a guess about the old value - it *is* the old value.
         float saved = tag.getFloat("direction");
         direction = saved < 0F ? -1F : 1F;
+        horizontalStep = tag.contains("horizontalStep") ? tag.getFloat("horizontalStep") : speedPerTick();
     }
 }

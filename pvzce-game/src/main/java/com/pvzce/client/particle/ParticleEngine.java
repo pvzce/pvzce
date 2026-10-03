@@ -340,13 +340,13 @@ public final class ParticleEngine {
         return progress >= ramp ? 1F : progress / ramp;
     }
 
-    private Identifier frameTexture(ParticleDef.ParticleLook look, int frozen, float progress) {
+    static Identifier frameTexture(ParticleDef.ParticleLook look, int frozen, float progress) {
         List<Identifier> frames = look.allFrames();
-        if (!look.animated()) {
-            return look.texture();
-        }
         if (frozen >= 0 && frozen < frames.size()) {
             return frames.get(frozen);
+        }
+        if (!look.animated()) {
+            return look.texture();
         }
         int index = (int) (progress * look.lifetime() * look.framesPerSecond());
         if (look.loop()) {

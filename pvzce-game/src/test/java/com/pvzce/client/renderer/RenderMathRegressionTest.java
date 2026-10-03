@@ -220,4 +220,14 @@ class RenderMathRegressionTest {
         assertTrue(sunBack > peaBack, "and the drop table's order is kept between them");
     }
 
+    @Test
+    void carrierShellBackPlantAndShellFrontDrawInThatOrderRegardlessOfSpawnId() {
+        long pot = EntityVisuals.renderOrder("plant", EntityLayers.PLANT, 2, 99, 0);
+        long shellBack = EntityVisuals.renderOrder("plant", EntityLayers.PLANT, 2, 1, 1);
+        long plant = EntityVisuals.renderOrder("plant", EntityLayers.PLANT, 2, 77, 2);
+        long shellFront = EntityVisuals.renderOrder("plant", EntityLayers.PLANT, 2, 1, 4);
+        assertTrue(pot < shellBack && shellBack < plant && plant < shellFront);
+        assertTrue(shellFront < EntityVisuals.renderOrder("zombie", EntityLayers.GROUND, 2, 1));
+    }
+
 }

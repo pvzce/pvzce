@@ -747,6 +747,12 @@ public class ZombieEntity extends PvzceEntity {
      */
     public void damage(ProjectileDef projectile, int amount, LevelAccess level,
                        com.pvzce.api.util.Identifier typeOverride) {
+        damage(projectile, amount, level, typeOverride, true);
+    }
+
+    /** Area shots share projectile armour routing but emit their landing effect only once. */
+    public void damage(ProjectileDef projectile, int amount, LevelAccess level,
+                       com.pvzce.api.util.Identifier typeOverride, boolean emitImpact) {
         if (!isAlive()) {
             return;
         }
@@ -759,14 +765,14 @@ public class ZombieEntity extends PvzceEntity {
             // (a shield first, a hat instead of no shield at all) is a property of the
             // shot, not of the damage type.
             for (Instance instance : capabilities) {
-                if (instance.capability.onProjectileHit(this, projectile, dmg, level)) {
+                if (instance.capability.onProjectileHit(this, projectile, dmg, level, emitImpact)) {
                     return;
                 }
             }
         }
         ground(level);
         damageBody(dmg, level, burns(type));
-        if (!removed) {
+        if (!removed && emitImpact) {
             Identifier hitSound = projectile.sounds().impact()
                     .orElse(def.sounds().hit().orElse(PvzceSounds.PROJECTILE_HIT));
             // The shot's own splash, not a generic spark. This used to fire `pvzce:starburst`
@@ -775,7 +781,7 @@ public class ZombieEntity extends PvzceEntity {
             // What the player reads at the point of impact is the thing they fired breaking,
             // and a projectile that has not drawn a splat plays only its sound.
             level.emitEffect(projectile.impactParticle().map(Identifier::toString).orElse(""),
-                    cellX(), cellY(), hitSound);
+                    cellX(), cellY() + height(), hitSound);
         }
     }
 
@@ -990,7 +996,7 @@ public class ZombieEntity extends PvzceEntity {
             if (entry.armorDriven() && (armor == null || !armor.wearing(entry.piece().get()))) {
                 continue;
             }
-            level.emitEffect(entry.dropParticle().get().toString(), cellX(), cellY(), null);
+            level.emitEffect(entry.dropParticle().get().toString(), cellX(), cellY() + height(), null);
         }
     }
 
@@ -1098,11 +1104,16 @@ public class ZombieEntity extends PvzceEntity {
      */
     @Override
     public boolean frozen() {
-        return isImmobilized();
+        return hasStatus(ZombieStatus.IMMOBILIZED);
+    }
+
+    @Override
+    public boolean buttered() {
+        return hasStatus(ZombieStatus.BUTTERED);
     }
 
     public boolean isImmobilized() {
-        return statuses.stream().anyMatch(status -> status.status == ZombieStatus.IMMOBILIZED);
+        return frozen() || buttered();
     }
 
     @Override

@@ -172,7 +172,7 @@ public class ProjectileEntity extends PvzceEntity {
         if (target != null || aimedAtPoint) {
             ArcMotionCapability arc = capability(ArcMotionCapability.class);
             if (arc != null) {
-                arc.launch(cellX, startHeight, targetX, targetHeight);
+                arc.launch(cellX, height(), targetX, targetHeight);
             }
         }
     }

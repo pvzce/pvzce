@@ -76,6 +76,15 @@ class DialogueStageTest {
         return DialogueScript.of(new LevelDialogue(List.of(lines)), PLAYER);
     }
 
+    private static DialogueScript withListener(Identifier listener, DialogueLine... lines) {
+        List<DialogueLine> introduced = new ArrayList<>();
+        introduced.add(line(listener, "", "先入场", DialogueSlot.LEFT, List.of(), List.of()));
+        introduced.addAll(List.of(lines));
+        DialogueScript script = scriptOf(introduced.toArray(DialogueLine[]::new));
+        script.advance();
+        return script;
+    }
+
     /** A one-character conversation is staged exactly as it always was: the speaker, their half. */
     @Test
     void aSingleSpeakerStandsInTheirOwnHalf() {
@@ -87,6 +96,31 @@ class DialogueStageTest {
         assertEquals(ENTANG, staged.character.id());
         assertEquals(DialogueSlot.LEFT, staged.slot);
         assertEquals("缠", script.speakerName(), "the name over the bubble is the character's");
+    }
+
+    @Test
+    void reservedCharactersStayHiddenUntilSpeakingAndKeepTheirEntranceSize() {
+        var slots = List.of(at(DialogueSlot.LEFT, PURWHITE), at(DialogueSlot.RIGHT, LANTINA));
+        DialogueScript script = scriptOf(
+                line(LANTINA, "", "她还没到", DialogueSlot.RIGHT, slots, List.of(),
+                        new DialogueAnimation("scale", 1F, .33F, PURWHITE.toString())),
+                line(LANTINA, "", "等一下", DialogueSlot.RIGHT, slots, List.of()),
+                line(PURWHITE, "", "来了", DialogueSlot.LEFT, slots, List.of()));
+        assertNull(script.portraitIn(DialogueSlot.LEFT));
+        script.advance();
+        assertNull(script.portraitIn(DialogueSlot.LEFT), "a reserved slot cannot draw the default portrait");
+        script.advance();
+        assertEquals(PURWHITE, script.portraitIn(DialogueSlot.LEFT).character.id());
+        assertEquals(.33F, script.portraitIn(DialogueSlot.LEFT).baseScale);
+    }
+
+    @Test
+    void explicitEntranceCanIntroduceAListenerBeforeTheirFirstLine() {
+        var script = scriptOf(line(LANTINA, "", "欢迎", DialogueSlot.RIGHT,
+                List.of(at(DialogueSlot.LEFT, PURWHITE), at(DialogueSlot.RIGHT, LANTINA)), List.of(),
+                new DialogueAnimation("slide_in", 1F, 1F, PURWHITE.toString())));
+        assertEquals(PURWHITE, script.portraitIn(DialogueSlot.LEFT).character.id());
+        assertTrue(script.slideOf(PURWHITE).entering);
     }
 
     /**
@@ -147,7 +181,7 @@ class DialogueStageTest {
     /** A character the next line leaves out walks off, and is gone once their slide has played. */
     @Test
     void aCharacterTheNextLineLeavesOutWalksOff() {
-        DialogueScript script = scriptOf(
+        DialogueScript script = withListener(ENTANG,
                 line(PEA, "fierce", "杂鱼你怎么跑这里来了！", DialogueSlot.RIGHT,
                         List.of(at(DialogueSlot.LEFT, ENTANG), at(DialogueSlot.RIGHT, PEA)), List.of()),
                 line(PEA, "embrassed", "", DialogueSlot.RIGHT,
@@ -178,7 +212,7 @@ class DialogueStageTest {
         DialogueLine.DialogueSlotEntry right = at(DialogueSlot.RIGHT, LANTINA);
         DialogueAnimation shrink = new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 0.33F,
                 PURWHITE.toString());
-        DialogueScript script = scriptOf(
+        DialogueScript script = withListener(PURWHITE,
                 line(LANTINA, "confused", "诶？这个，好小一只", DialogueSlot.RIGHT,
                         List.of(left, right), List.of(), shrink),
                 line(PURWHITE, "fierce", "不要说咱小啦", DialogueSlot.LEFT,
@@ -207,7 +241,7 @@ class DialogueStageTest {
         DialogueLine.DialogueSlotEntry left = at(DialogueSlot.LEFT, PURWHITE);
         DialogueLine.DialogueSlotEntry right = at(DialogueSlot.RIGHT, LANTINA);
         DialogueAnimation shake = new DialogueAnimation(DialogueAnimation.TYPE_SHAKE, 1F, 1F);
-        DialogueScript script = scriptOf(
+        DialogueScript script = withListener(PURWHITE,
                 line(LANTINA, "panic", "唔唔！好大的雾！", DialogueSlot.RIGHT,
                         List.of(left, right), List.of(), shake));
 
@@ -223,7 +257,7 @@ class DialogueStageTest {
         DialogueLine.DialogueSlotEntry right = at(DialogueSlot.RIGHT, LANTINA);
         DialogueAnimation everybody = new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 1.1F,
                 DialogueAnimation.TARGET_ALL);
-        DialogueScript script = scriptOf(
+        DialogueScript script = withListener(PURWHITE,
                 line(LANTINA, "glowing", "我可以，发！光！", DialogueSlot.RIGHT,
                         List.of(left, right), List.of(), everybody));
 

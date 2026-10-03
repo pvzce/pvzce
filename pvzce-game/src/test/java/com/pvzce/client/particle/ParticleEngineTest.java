@@ -17,6 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 class ParticleEngineTest {
     @Test
+    void staticFragmentVariantsKeepTheirChosenTextureThroughoutTheirLife() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        var def = com.pvzce.common.core.BuiltInRegistries.PARTICLES.get(
+                com.pvzce.api.util.Identifier.parse("pvzce:melon_splat"));
+        org.junit.jupiter.api.Assertions.assertFalse(def.look().animated());
+        org.junit.jupiter.api.Assertions.assertTrue(def.look().scale() < .25F);
+        for (int frame = 0; frame < def.look().frames().size(); frame++) {
+            assertEquals(def.look().frames().get(frame), ParticleEngine.frameTexture(def.look(), frame, .1F));
+            assertEquals(def.look().frames().get(frame), ParticleEngine.frameTexture(def.look(), frame, .9F));
+        }
+    }
+    @Test
     void aDefinitionWithoutAnOffsetIsBornWhereItWasEmitted() throws Exception {
         TestContent.loadBuiltInContentAndTags();
         ParticleEngine engine = new ParticleEngine();

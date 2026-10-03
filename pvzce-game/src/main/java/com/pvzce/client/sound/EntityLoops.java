@@ -52,7 +52,7 @@ public final class EntityLoops {
      */
     public static Identifier walkSoundFor(ClientLevel level, ClientEntity entity) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(entity.defId());
-        if (def == null || !EntityAnimations.WALK.equals(entity.animation())
+        if (def == null || entity.health() <= 0 || !EntityAnimations.WALK.equals(entity.animation())
                 || entity.cellX() >= level.width()) {
             return null;
         }

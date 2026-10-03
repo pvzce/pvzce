@@ -25,6 +25,6 @@
   "sounds": {
     "impact": "pvzce:sfx/plant/melonimpact2"
   },
-  "texture": "pvzce:textures/entities/projectile/melon",
+  "texture": "pvzce:textures/entities/projectile/winter_melon",
   "impact_particle": "pvzce:winter_melon_splat"
 }

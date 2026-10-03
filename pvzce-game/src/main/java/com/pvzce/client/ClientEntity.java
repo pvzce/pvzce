@@ -81,6 +81,10 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
      * Always false for anything that is not a zombie.
      */
     private boolean frozen;
+    private boolean buttered;
+    private int lastAnimationSequence;
+
+    public boolean buttered() { return buttered; }
     /**
      * Draw-size multiplier on top of the definition's own {@code render_scale}.
      *
@@ -314,6 +318,11 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
 
     public void update(float cellX, float cellY, int health, String animation, float height, int armor,
                        boolean chilled, boolean charmed, boolean frozen, String teamId) {
+        update(cellX, cellY, health, animation, height, armor, chilled, charmed, frozen, false, teamId);
+    }
+
+    public void update(float cellX, float cellY, int health, String animation, float height, int armor,
+                       boolean chilled, boolean charmed, boolean frozen, boolean buttered, String teamId) {
         // Interpolation starts from where this entity is being *drawn*, not from where the
         // last packet put it: a packet delayed past one sync period would otherwise make the
         // entity jump backwards to the previous sample before sliding forward again.
@@ -331,17 +340,24 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
         this.chilled = chilled;
         this.charmed = charmed;
         this.frozen = frozen;
+        this.buttered = buttered;
         // An empty id means "unchanged", so a level that has never charmed anything keeps
         // sending the same string it did from the spawn packet without anything resetting it.
         if (teamId != null && !teamId.isEmpty()) {
             this.teamId = teamId;
         }
+        // Consume streamed state changes even between render frames.
+        playAnimation(animation);
     }
 
     /** Applies {@link EntityUpdateS2C} directly so the packet shape lives in one place. */
     public void apply(EntityUpdateS2C update) {
+        if (lastAnimationSequence != update.animationSequence()) {
+            stopAnimation();
+            lastAnimationSequence = update.animationSequence();
+        }
         update(update.cellX(), update.cellY(), update.health(), update.animation(), update.height(),
-                update.armor(), update.chilled(), update.charmed(), update.frozen(),
+                update.armor(), update.chilled(), update.charmed(), update.frozen(), update.buttered(),
                 update.teamId());
     }
 

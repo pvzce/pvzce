@@ -66,6 +66,7 @@ public final class SpikeCapability implements PlantCapability {
      */
     private final int rows;
     private final Optional<Identifier> sound;
+    private Optional<Identifier> particle = Optional.empty();
 
     /** Ticks until the next stab; counts down from {@link #intervalTicks}. */
     private int cooldown;
@@ -82,6 +83,12 @@ public final class SpikeCapability implements PlantCapability {
         this.sound = sound;
     }
 
+    public SpikeCapability(int intervalTicks, int damage, Identifier damageType, float range,
+                           int rows, Optional<Identifier> sound, Optional<Identifier> particle) {
+        this(intervalTicks, damage, damageType, range, rows, sound);
+        this.particle = particle;
+    }
+
     public static final MapCodec<SpikeCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.INT.optionalFieldOf("interval", DEFAULT_INTERVAL_TICKS)
                     .forGetter(SpikeCapability::intervalTicks),
@@ -90,7 +97,8 @@ public final class SpikeCapability implements PlantCapability {
                     .forGetter(SpikeCapability::damageType),
             Codec.FLOAT.optionalFieldOf("range", 0.6F).forGetter(SpikeCapability::range),
             Codec.INT.optionalFieldOf("rows", 0).forGetter(SpikeCapability::rows),
-            Identifier.CODEC.optionalFieldOf("sound").forGetter(SpikeCapability::sound)
+            Identifier.CODEC.optionalFieldOf("sound").forGetter(SpikeCapability::sound),
+            Identifier.CODEC.optionalFieldOf("particle").forGetter(c -> c.particle)
     ).apply(i, SpikeCapability::new));
 
     public int intervalTicks() {
@@ -119,7 +127,7 @@ public final class SpikeCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new SpikeCapability(intervalTicks, damage, damageType, range, rows, sound);
+        return new SpikeCapability(intervalTicks, damage, damageType, range, rows, sound, particle);
     }
 
     @Override
@@ -127,7 +135,6 @@ public final class SpikeCapability implements PlantCapability {
         stabbing = false;
         cooldown -= clock.step(plant.actionRate());
         if (cooldown > 0) {
-            plant.setState(EntityAnimations.IDLE);
             return;
         }
         if (stab(plant, level)) {
@@ -135,9 +142,10 @@ public final class SpikeCapability implements PlantCapability {
             // The plant's own rate: watered counts faster, and a mutation that rewrites how fast
             // plants work at all reaches this clock for free.
             cooldown = intervalTicks;
-            plant.setState(EntityAnimations.ATTACK);
-            if (sound.isPresent()) {
-                level.emitEffect("", plant.cellX(), plant.cellY(), sound.get());
+            plant.beginAction(EntityAnimations.ATTACK);
+            if (sound.isPresent() || particle.isPresent()) {
+                level.emitEffect(particle.map(Identifier::toString).orElse(""),
+                        plant.cellX(), plant.cellY() + plant.height(), sound.orElse(null));
             }
         } else {
             // Nothing to stab: the clock still ran out, so it is reset rather than left at zero.
@@ -168,9 +176,10 @@ public final class SpikeCapability implements PlantCapability {
         boolean hit = stab(plant, level);
         if (hit) {
             stabbing = true;
-            plant.setState(EntityAnimations.ATTACK);
-            if (sound.isPresent()) {
-                level.emitEffect("", plant.cellX(), plant.cellY(), sound.get());
+            plant.beginAction(EntityAnimations.ATTACK);
+            if (sound.isPresent() || particle.isPresent()) {
+                level.emitEffect(particle.map(Identifier::toString).orElse(""),
+                        plant.cellX(), plant.cellY() + plant.height(), sound.orElse(null));
             }
         }
         return hit;
