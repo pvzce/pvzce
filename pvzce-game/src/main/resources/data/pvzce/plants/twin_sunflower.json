@@ -15,6 +15,7 @@
       "type": "pvzce:producer",
       "resource": "pvzce:sun",
       "amount": 50,
+      "drop_count": 2,
       "every": 1080
     }
   ],

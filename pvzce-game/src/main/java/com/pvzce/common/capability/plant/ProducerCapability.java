@@ -8,14 +8,18 @@ import com.pvzce.api.entity.EntityAnimations;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.ListTag;
+import com.pvzce.common.PvzceConstants;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceParticles;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * Periodically spawns a resource drop (sunflower sun, marigold coins).
+ * Periodically spawns resource drops (sunflower sun, marigold coins).
  *
  * <p>Fixes a long-standing data bug: {@code PlantSounds.produce} was parsed from
  * JSON but never emitted, so a sunflower's {@code sfx/ui/points} override was
@@ -37,7 +41,10 @@ public final class ProducerCapability implements PlantCapability {
     public static final int DEFAULT_FIRST_DELAY = 300;
 
     private final Identifier resource;
+    /** Total output per production cycle, shared by all drops of the batch. */
     private final int amount;
+    private final int dropCount;
+    private final List<PendingDrop> pendingDrops = new ArrayList<>();
     private final int everyTicks;
     private final int firstDelayTicks;
     private final Optional<Identifier> sound;
@@ -98,8 +105,14 @@ public final class ProducerCapability implements PlantCapability {
 
     public ProducerCapability(Identifier resource, int amount, int everyTicks, int firstDelayTicks,
                               Optional<Identifier> sound, float dropScale, Optional<Growth> growth) {
+        this(resource, amount, everyTicks, firstDelayTicks, sound, dropScale, growth, 1);
+    }
+
+    public ProducerCapability(Identifier resource, int amount, int everyTicks, int firstDelayTicks,
+                              Optional<Identifier> sound, float dropScale, Optional<Growth> growth, int dropCount) {
         this.resource = resource;
         this.amount = Math.max(1, amount);
+        this.dropCount = Math.max(1, dropCount);
         this.everyTicks = Math.max(1, everyTicks);
         this.firstDelayTicks = firstDelayTicks < 0
                 ? Math.min(this.everyTicks, DEFAULT_FIRST_DELAY)
@@ -122,7 +135,8 @@ public final class ProducerCapability implements PlantCapability {
             Codec.FLOAT.optionalFieldOf("drop_scale",
                     com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE)
                     .forGetter(ProducerCapability::dropScale),
-            Growth.CODEC.codec().optionalFieldOf("grow").forGetter(ProducerCapability::growth)
+            Growth.CODEC.codec().optionalFieldOf("grow").forGetter(ProducerCapability::growth),
+            Codec.INT.optionalFieldOf("drop_count", 1).forGetter(ProducerCapability::dropCount)
     ).apply(i, ProducerCapability::new));
 
     public Identifier resource() {
@@ -131,6 +145,10 @@ public final class ProducerCapability implements PlantCapability {
 
     public int amount() {
         return amount;
+    }
+
+    public int dropCount() {
+        return dropCount;
     }
 
     public int everyTicks() {
@@ -155,7 +173,7 @@ public final class ProducerCapability implements PlantCapability {
         return isGrown() ? growth.dropScale() : dropScale;
     }
 
-    /** What this producer's drop is worth right now. */
+    /** Total output per production cycle right now, including growth. */
     public int currentAmount() {
         return isGrown() ? growth.amount() : amount;
     }
@@ -174,11 +192,21 @@ public final class ProducerCapability implements PlantCapability {
     @Override
     public PlantCapability instantiate() {
         return new ProducerCapability(resource, amount, everyTicks, firstDelayTicks, sound,
-                dropScale, growth());
+                dropScale, growth(), dropCount);
     }
 
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
+        // Promised drops keep their own short visual delay while the production
+        // clock advances, so batches cannot overwrite one another at high rates.
+        for (var iterator = pendingDrops.iterator(); iterator.hasNext();) {
+            PendingDrop drop = iterator.next();
+            if (--drop.ticks <= 0) {
+                level.spawnProducedResource(resource, drop.amount, plant.cellX(), plant.cellY(),
+                        plant.team(), drop.scale, drop.driftX);
+                iterator.remove();
+            }
+        }
         if (growingTicks > 0) {
             // The growth performance owns the plant for its second or so: it is the one
             // moment the art is neither form, and producing through it would drop a sun out
@@ -212,8 +240,23 @@ public final class ProducerCapability implements PlantCapability {
         }
         cooldown = everyTicks;
         plant.setState(EntityAnimations.PRODUCE);
-        level.spawnProducedResource(resource, currentAmount(), plant.cellX(), plant.cellY(),
-                plant.team(), dropScale());
+        int total = currentAmount();
+        int count = Math.min(dropCount, total);
+        if (count == 1) {
+            level.spawnProducedResource(resource, total, plant.cellX(), plant.cellY(), plant.team(), dropScale());
+        } else {
+            for (int index = 0; index < count; index++) {
+                int value = total / count + (index < total % count ? 1 : 0);
+                float drift = (index - (count - 1) / 2F) * PvzceConstants.PRODUCER_DROP_SPACING_CELLS;
+                if (index == 0) {
+                    level.spawnProducedResource(resource, value, plant.cellX(), plant.cellY(),
+                            plant.team(), dropScale(), drift);
+                } else {
+                    pendingDrops.add(new PendingDrop(index * PvzceConstants.PRODUCER_DROP_GAP_TICKS,
+                            value, dropScale(), drift));
+                }
+            }
+        }
         // No fallback sound: "the definition did not name one" means the plant makes no
         // noise, and the chime that used to stand in for it belongs to the pickup. An
         // empty id is what LevelServer already reads as "play nothing".
@@ -244,12 +287,29 @@ public final class ProducerCapability implements PlantCapability {
         clock.save(tag);
         tag.putInt("growTicks", growTicks);
         tag.putInt("growingTicks", growingTicks);
+        ListTag drops = new ListTag();
+        for (PendingDrop drop : pendingDrops) {
+            CompoundTag saved = new CompoundTag();
+            saved.putInt("ticks", drop.ticks);
+            saved.putInt("amount", drop.amount);
+            saved.putFloat("scale", drop.scale);
+            saved.putFloat("driftX", drop.driftX);
+            drops.add(saved);
+        }
+        tag.put("pendingDrops", drops);
     }
 
     @Override
     public void load(CompoundTag tag) {
         cooldown = tag.getInt("cooldown");
         clock.load(tag);
+        pendingDrops.clear();
+        for (var element : tag.getList("pendingDrops").values()) {
+            if (element instanceof CompoundTag saved && saved.getInt("amount") > 0) {
+                pendingDrops.add(new PendingDrop(Math.max(1, saved.getInt("ticks")),
+                        saved.getInt("amount"), saved.getFloat("scale"), saved.getFloat("driftX")));
+            }
+        }
         // A plant saved mid-growth finishes growing where it left off; one saved by a build
         // without growth, or by a definition that has none, keeps the timer it was built
         // with (see the constructor), so the block below only applies to a real growth.
@@ -258,4 +318,19 @@ public final class ProducerCapability implements PlantCapability {
             growingTicks = Math.max(0, tag.getInt("growingTicks"));
         }
     }
+
+    private static final class PendingDrop {
+        int ticks;
+        final int amount;
+        final float scale;
+        final float driftX;
+
+        PendingDrop(int ticks, int amount, float scale, float driftX) {
+            this.ticks = ticks;
+            this.amount = amount;
+            this.scale = scale;
+            this.driftX = driftX;
+        }
+    }
+
 }

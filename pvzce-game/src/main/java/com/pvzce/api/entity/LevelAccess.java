@@ -192,6 +192,12 @@ public interface LevelAccess {
      */
     void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team, float scale);
 
+    /** A batch drop's explicit sideways motion, keeping each independently collectible. */
+    default void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                       float scale, float driftX) {
+        spawnProducedResource(resourceId, amount, x, y, team, scale);
+    }
+
     /**
      * Puts a zombie on the field at {@code x} in {@code row}.
      *

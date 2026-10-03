@@ -1980,6 +1980,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE, scale);
     }
 
+    @Override
+    public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                      float scale, float driftX) {
+        spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE, scale, driftX);
+    }
+
     private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
                                ResourceDef.DropMotion motion) {
         spawnResource(resourceId, amount, x, y, team, motion,
@@ -1988,6 +1994,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
                                ResourceDef.DropMotion motion, float scale) {
+        spawnResource(resourceId, amount, x, y, team, motion, scale, null);
+    }
+
+    private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
+                               ResourceDef.DropMotion motion, float scale, Float forcedDrift) {
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(resourceId);
         if (resource == null) {
             return;
@@ -1996,7 +2007,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // entities do not own dice (see LevelAccess#random), and a drop that drew its own
         // would ignore the level's seed and re-roll itself on every restore.
         float scatter = Math.max(0F, resource.riseScatter());
-        float driftX = scatter <= 0F ? 0F : (random.nextFloat() * 2F - 1F) * scatter;
+        float driftX = forcedDrift != null ? forcedDrift
+                : scatter <= 0F ? 0F : (random.nextFloat() * 2F - 1F) * scatter;
         addEntity(new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y),
                 amount, motion, driftX, scale));
     }
