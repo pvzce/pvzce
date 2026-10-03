@@ -72,7 +72,8 @@ public final class PlantPlacement {
     }
 
     /** One plant already in the cell, with the entity id that breaks ties. */
-    public record PlantLayer(PlantDef def, int entityId) {
+    public record PlantLayer(PlantDef def, int entityId, boolean waterFilled) {
+        public PlantLayer(PlantDef def, int entityId) { this(def, entityId, false); }
     }
 
     /** The terrain under a cell; {@code def == null} means "no level data". */
@@ -107,10 +108,11 @@ public final class PlantPlacement {
         }
     }
 
-    private record PlantSupport(PlantDef def) implements Support {
+    private record PlantSupport(PlantDef def, boolean waterFilled) implements Support {
         @Override
         public boolean has(TagKey<?> tag) {
-            return def.id() != null && PvzceTags.PLANTS.contains(tag.id(), def.id());
+            return !(waterFilled && tag.equals(PvzceTags.PLANTABLE))
+                    && def.id() != null && PvzceTags.PLANTS.contains(tag.id(), def.id());
         }
     }
 
@@ -193,7 +195,8 @@ public final class PlantPlacement {
             return false;
         }
         if (is(def, PvzceTags.WATER_PLANT)) {
-            return terrainTagged(terrain, PvzceTags.SCENE_WATER);
+            return terrainTagged(terrain, PvzceTags.SCENE_WATER)
+                    || plants.stream().anyMatch(PlantLayer::waterFilled);
         }
         if (is(def, PvzceTags.GRAVE_ONLY)) {
             // Grave buster: the gravestone itself, and nowhere else. Checked before
@@ -202,6 +205,9 @@ public final class PlantPlacement {
             return terrainTagged(terrain, PvzceTags.SCENE_GRAVE);
         }
         if (is(def, PvzceTags.REQUIRES_GROUND)) {
+            if (plants.stream().anyMatch(PlantLayer::waterFilled) && !isCarrier(def)) {
+                return has(below, PvzceTags.PLANTABLE);
+            }
             if (terrain.def() != null && terrain.def().surfaceClass().startsWith("ROOF") && !isCarrier(def)) {
                 return has(below, PvzceTags.PLANTABLE);
             }
@@ -305,12 +311,13 @@ public final class PlantPlacement {
      */
     public static List<Support> supportsOf(Terrain terrain, List<PlantLayer> plants, int layer) {
         List<Support> supports = new ArrayList<>(plants.size() + 1);
-        if (terrain != null && terrain.def() != null) {
+        if (terrain != null && terrain.def() != null
+                && plants.stream().noneMatch(PlantLayer::waterFilled)) {
             supports.add(new TerrainSupport(terrain.def()));
         }
         for (PlantLayer other : plants) {
             if (other.def() != null && layerIndex(other.def()) < layer) {
-                supports.add(new PlantSupport(other.def()));
+                supports.add(new PlantSupport(other.def(), other.waterFilled()));
             }
         }
         return supports;
@@ -324,6 +331,10 @@ public final class PlantPlacement {
         }
         for (PlantLayer layer : plants) {
             if (group.equals(layer.def().placement().group())) {
+                // A lily pad fits inside one empty filled pot. Other carriers and
+                // occupied pots retain the normal mutual exclusion.
+                if (isCarrier(def) && is(def, PvzceTags.WATER_PLANT)
+                        && layer.waterFilled() && plants.size() == 1) continue;
                 return false;
             }
         }

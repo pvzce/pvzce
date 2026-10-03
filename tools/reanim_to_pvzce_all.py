@@ -918,7 +918,8 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="plant/environment",
         reanim="Pot.reanim",
         target_box=PLANT_BOX,
-        animations={"idle": {"mask": "anim_idle", "loop": True}},
+        animations={"idle": {"mask": "anim_idle", "loop": True},
+                    "idle_water": {"mask": "anim_waterplants", "loop": True}},
     ),
     EntityConfig(
         output="coffee_bean",

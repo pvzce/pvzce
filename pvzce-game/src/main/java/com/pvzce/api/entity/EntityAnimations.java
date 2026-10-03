@@ -7,6 +7,8 @@ package com.pvzce.api.entity;
  */
 public final class EntityAnimations {
     public static final String IDLE = "idle";
+    /** A permanently filled carrier, also published in the normal entity snapshot. */
+    public static final String IDLE_WATER = "idle_water";
     public static final String WALK = "walk";
     public static final String EAT = "eat";
     public static final String SHOOT = "shoot";

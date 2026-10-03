@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:water_bucket",
+  "kind": "tool",
+  "content": "pvzce:water_bucket",
+  "cost": {
+    "resources": {},
+    "cooldown": 600
+  },
+  "icon": "pvzce:textures/gui/cards/water_bucket"
+}

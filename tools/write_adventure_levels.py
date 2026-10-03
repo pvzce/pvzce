@@ -1135,6 +1135,73 @@ def build_night_roof_6_3(carried: Optional[dict] = None) -> dict:
         level.update(carried)
     return level
 
+def build_night_roof_6_4(carried: Optional[dict] = None) -> dict:
+    """Separated armoured arrivals reward sustained single-target fire on the flat roof."""
+    level = build_night_roof_6_3()
+    level.update({
+        "id": "pvzce:yard/adventure/6_4", "name": "6-4·屋顶交叉火力",
+        "description": "晴夜和阴天交替，只有两波短雨。先建设双子葵经济，"
+                       "在第六列以后的平顶放置花盆、双发射手，再升级机枪。"
+                       "分路出现的铁桶、橄榄球和巨人需要持续单体火力；火炬与冰瓜可以辅助。"
+                       "首通获得水桶：给空花盆注水，就能种水生植物。",
+        "unlock": {"requires": [{"type": "level", "id": "pvzce:yard/adventure/6_3"}]},
+        "hints": [
+            {"trigger": "on_start", "text": "直射豌豆会被斜坡挡住。第六列平顶架机枪，前方配火炬；先建立向日葵经济。",
+             "duration_ticks": 1200},
+            {"trigger": "on_card_refused", "duration_ticks": 180}],
+        "rewards": {"first_clear": [{"type": "unlock", "id": "pvzce:water_bucket"}],
+                    "repeat": [{"type": "coins", "amount": 400}],
+                    "coin_drop": "pvzce:coin_silver", "coin_drop_chance": 0.25, "coin_drop_amount": 1},
+    })
+    for mechanic in level["mechanics"]:
+        if mechanic["type"] == "pvzce:weather":
+            mechanic["phases"] = [{"from_wave": 1, "weather": "clear"},
+                                   {"from_wave": 9, "weather": "cloudy"},
+                                   {"from_wave": 17, "weather": "rain"},
+                                   {"from_wave": 19, "weather": "clear"},
+                                   {"from_wave": 25, "weather": "cloudy"}]
+    kinds = ["basic_zombie", "conehead_zombie", "buckethead_zombie", "football_zombie", "ladder", "gargantuar"]
+    waves = []
+    for wave in range(1, 31):
+        if wave == 30:
+            counts = [4, 2, 8, 4, 2, 4]
+        elif wave == 20:
+            counts = [5, 3, 10, 4, 2, 1]
+        elif wave == 10:
+            counts = [5, 3, 6, 2, 0, 0]
+        elif wave <= 3:
+            counts = [wave, 0, 0, 0, 0, 0]
+        elif wave <= 5:
+            counts = [3, 1, 0, 0, 0, 0]
+        elif wave <= 8:
+            counts = [3, 2, 1 + (wave == 8), 0, 0, 0]
+        elif wave <= 16:
+            counts = [3, 2, 5, 1 + (wave >= 13), 0, 0]
+        elif wave <= 18:
+            counts = [3, 2, 4, 1, 0, 0]
+        elif wave <= 24:
+            counts = [4, 2, 8, 3, 1, int(wave == 24)]
+        else:
+            counts = [4, 2, 10, 4, 2, int(wave == 27)]
+        entries = []
+        for index, (kind, count) in enumerate(zip(kinds, counts)):
+            rows = [0] * 5
+            for n in range(count):
+                row = (wave + index + n) % 5
+                if kind == "gargantuar" and wave == 30:
+                    row = [0, 1, 3, 4][n]
+                rows[row] += 1
+            entries.extend({"id": "pvzce:" + kind, "count": n, "rows": [row]}
+                           for row, n in enumerate(rows) if n)
+        waves.append({"type": "final" if wave == 30 else "huge" if wave % 10 == 0 else "small",
+                      "delay": 4500 if wave == 1 else 2100 if wave <= 8 else 1500,
+                      "spawn_interval": 150 if wave <= 3 else 90,
+                      "warning_ticks": 300 if wave % 10 == 0 else 0, "entries": entries})
+    level["waves"] = waves
+    if carried:
+        level.update(carried)
+    return level
+
 def generated_levels(wanted):
     for facts in original.LEVELS:
         if wanted is not None and facts.name not in wanted:
@@ -1144,7 +1211,7 @@ def generated_levels(wanted):
         carried = {block: existing[block] for block in CARRIED_BLOCKS if block in existing}
         yield path, build(facts, carried)
     for name, builder in (("6-1", build_night_roof_6_1), ("6-2", build_night_roof_6_2),
-                          ("6-3", build_night_roof_6_3)):
+                          ("6-3", build_night_roof_6_3), ("6-4", build_night_roof_6_4)):
         if wanted is not None and name not in wanted:
             continue
         path = LEVELS_DIR / (name.replace("-", "_") + ".json")

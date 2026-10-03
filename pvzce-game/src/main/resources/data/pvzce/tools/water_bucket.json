@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:water_bucket",
+  "use_cost": {
+    "resources": {},
+    "cooldown": 0
+  },
+  "cooldown": 600,
+  "targets": [
+    "plant"
+  ],
+  "effect": "pvzce:fill_pot",
+  "uses": -1,
+  "texture": "pvzce:textures/gui/cards/water_bucket",
+  "animation_dir": "tool"
+}

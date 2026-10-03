@@ -1344,7 +1344,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         public List<PlantPlacement.PlantLayer> plants(int x, int y) {
             List<PlantLayer> layers = new ArrayList<>();
             for (PlantEntity plant : plantsAt(x, y)) {
-                layers.add(new PlantLayer(plant.def(), plant.id()));
+                layers.add(new PlantLayer(plant.def(), plant.id(), plant.waterFilled()));
             }
             // Bottom-to-top, the order PlantPlacement documents: a caller that zips
             // this list with plantsAt() must get the same order.
@@ -5130,6 +5130,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 yield hitSomething || smashed;
             }
             case "pvzce:water" -> waterPlant(x, y);
+            case "pvzce:fill_pot" -> fillFlowerPot(x, y);
             case "pvzce:fertilize" -> fertilizePlant(x, y);
             // The vase: place it, fill it, or smash it. Which of the three depends on the cell and
             // on what the player is holding, and the rule is the user's own wording ("选一张植物卡
@@ -5787,6 +5788,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     private static long cellKey(int x, int y) {
         return ((long) x << 32) | (y & 0xFFFFFFFFL);
+    }
+
+    private boolean fillFlowerPot(int x, int y) {
+        List<PlantEntity> plants = plantsAt(x, y);
+        if (plants.size() != 1 || !PvzceIds.FLOWER_POT.equals(plants.get(0).defId())
+                || plants.get(0).waterFilled()) {
+            bridge.send(new ServerMessageS2C("水桶只能给空花盆注水，已装满或种有植物的花盆不能注水。"));
+            return false;
+        }
+        PlantEntity pot = plants.get(0);
+        pot.fillWater();
+        emitEffect(PvzceParticles.POOL_SPLASH.toString(), pot.cellX(), pot.cellY(),
+                PvzceSounds.EFFECT_WATERING);
+        return true;
     }
 
     /**

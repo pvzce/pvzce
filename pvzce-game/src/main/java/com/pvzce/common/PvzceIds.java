@@ -71,6 +71,8 @@ public final class PvzceIds {
 
     public static final Identifier GRASS = id("grass");
     public static final Identifier GROUND = id("ground");
+    public static final Identifier FLOWER_POT = id("flower_pot");
+    public static final Identifier WATER_BUCKET = id("water_bucket");
     /**
      * The roof's two terrains, the bare surfaces of world 5.
      *

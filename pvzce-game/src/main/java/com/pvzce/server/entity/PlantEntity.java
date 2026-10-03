@@ -67,6 +67,15 @@ public class PlantEntity extends PvzceEntity {
     private int wateredTicks;
     private int fertilizedTicks;
     private boolean laddered;
+    private boolean waterFilled;
+
+    public boolean waterFilled() { return waterFilled; }
+
+    /** The bucket fills a carrier permanently; it never grants the watering buff. */
+    public void fillWater() {
+        waterFilled = true;
+        setState(com.pvzce.api.entity.EntityAnimations.IDLE_WATER);
+    }
     private com.pvzce.common.network.packet.PlantCareS2C lastCare;
 
     public boolean laddered() { return laddered; }
@@ -400,6 +409,7 @@ public class PlantEntity extends PvzceEntity {
         weatherActionMultiplier = level.weatherActionMultiplier(this);
         echoRate = capability(EchoRelayCapability.class) != null ? 1F : EchoNetwork.status(this, level).rate();
         age++;
+        if (waterFilled) setState(com.pvzce.api.entity.EntityAnimations.IDLE_WATER);
         // Spend the final accelerated tick before expiring, just like a timed capability.
         if (wateredTicks > 0) {
             wateredTicks--;
@@ -701,6 +711,7 @@ public class PlantEntity extends PvzceEntity {
         CompoundTag tag = saveBaseState();
         tag.putInt("age", age);
         tag.putInt("watered", wateredTicks);
+        tag.putByte("waterFilled", (byte) (waterFilled ? 1 : 0));
         tag.putInt("fertilized", fertilizedTicks);
         tag.putByte("laddered", (byte) (laddered ? 1 : 0));
         sharedClock.save(tag);
@@ -730,6 +741,8 @@ public class PlantEntity extends PvzceEntity {
         wateredTicks = Math.max(0, tag.getInt("watered"));
         fertilizedTicks = Math.max(0, tag.getInt("fertilized"));
         laddered = tag.getInt("laddered") != 0;
+        waterFilled = tag.getInt("waterFilled") != 0;
+        if (waterFilled) setState(com.pvzce.api.entity.EntityAnimations.IDLE_WATER);
         sharedClock.load(tag);
         restoreCapabilities(tag);
     }
@@ -749,6 +762,8 @@ public class PlantEntity extends PvzceEntity {
         wateredTicks = Math.max(0, tag.getInt("watered"));
         fertilizedTicks = Math.max(0, tag.getInt("fertilized"));
         laddered = tag.getInt("laddered") != 0;
+        waterFilled = tag.getInt("waterFilled") != 0;
+        if (waterFilled) setState(com.pvzce.api.entity.EntityAnimations.IDLE_WATER);
         sharedClock.load(tag);
         restoreCapabilities(tag);
     }

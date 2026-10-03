@@ -28,18 +28,11 @@ import java.util.Optional;
  *       a substitute for a whole lane's defence.</li>
  *   <li><b>Armour is irrelevant.</b> A buckethead is dragged under by its feet, exactly like a
  *       bare zombie: the hit lands as {@code pvzce:drag_under}, whose whole meaning is that
- *       armour does not absorb it. Only a body too heavy to pull down is immune, which is what
- *       {@link #ignoreAboveHealth} states - the original's gargantuar walks over the kelp.</li>
+ *       armour does not absorb it. Heavy hammer bodies are immune: a filled flower pot must not let kelp drown a giant.</li>
  *   <li><b>What it cannot reach is not triggered.</b> A balloon is in the air and a miner is
  *       under the lawn, so neither sets it off: the predicate is the same
  *       {@code canBeHitByGround} / ground-layer pair the mower uses.</li>
  * </ul>
- *
- * <p>The original also refuses the bodies it cannot pull down - a gargantuar walks over a tangle
- * kelp - and that rule has no home here yet, because it cannot be reached: a kelp may only be
- * planted in water, only a swimmer can stand in water, and every swimmer the game has is an
- * ordinary-sized body. When a heavy swimmer exists, "too heavy to drag" belongs here, next to
- * the Ground-layer test.
  *
  * <p>The victim dies <em>when it is grabbed</em> rather than at the end of the animation, and the
  * plant then stays on the field for {@code drag_ticks} with the {@code grab} clip playing - the
@@ -119,7 +112,8 @@ public final class DragUnderCapability implements PlantCapability {
         ZombieEntity best = null;
         float bestDistance = range;
         for (ZombieEntity zombie : level.zombiesInRow(plant.gridY())) {
-            if (zombie.isRemoved() || !zombie.canBeHitByGround()) {
+            if (zombie.isRemoved() || !zombie.canBeHitByGround()
+                    || zombie.capability(com.pvzce.common.capability.zombie.HammerCapability.class) != null) {
                 continue;
             }
             // The layer, not a tag: a digger is below the lawn and a flier above it, and neither

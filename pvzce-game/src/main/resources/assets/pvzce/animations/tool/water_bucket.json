@@ -1,0 +1,187 @@
+{
+  "type": "controller",
+  "model": {
+    "size": [
+      0.8,
+      0.8
+    ],
+    "bones": [
+      {
+        "name": "root",
+        "parent": null,
+        "pivot": [
+          0,
+          0
+        ]
+      },
+      {
+        "name": "bucket",
+        "parent": "root",
+        "pivot": [
+          0,
+          0
+        ],
+        "parts": [
+          {
+            "texture": "pvzce:textures/entities/tool/water_bucket",
+            "uv": [
+              0,
+              0,
+              128,
+              128
+            ],
+            "size": [
+              0.8,
+              0.8
+            ],
+            "offset": [
+              0,
+              0
+            ],
+            "z": 0
+          }
+        ]
+      }
+    ]
+  },
+  "animations": {
+    "idle": {
+      "animation_length": 1,
+      "loop": true,
+      "transition": 0.1,
+      "bones": {
+        "root": {
+          "translation": {
+            "0.0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0.0": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0.0": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0.0": true
+          }
+        },
+        "bucket": {
+          "translation": {
+            "0.0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0.0": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0.0": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0.0": true
+          }
+        }
+      }
+    },
+    "attack": {
+      "animation_length": 0.65,
+      "loop": false,
+      "on_end": "idle",
+      "transition": 0.05,
+      "bones": {
+        "root": {
+          "translation": {
+            "0.0": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0.0": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0.0": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0.0": true
+          }
+        },
+        "bucket": {
+          "translation": {
+            "0.0": [
+              0,
+              0
+            ],
+            "0.18": [
+              0.05,
+              0.04
+            ],
+            "0.45": [
+              0.05,
+              0.04
+            ],
+            "0.65": [
+              0,
+              0
+            ]
+          },
+          "rotation": {
+            "0.0": [
+              0,
+              0,
+              0
+            ],
+            "0.18": [
+              0,
+              0,
+              -35
+            ],
+            "0.45": [
+              0,
+              0,
+              -35
+            ],
+            "0.65": [
+              0,
+              0,
+              0
+            ]
+          },
+          "scale": {
+            "0.0": [
+              1,
+              1
+            ]
+          },
+          "visible": {
+            "0.0": true
+          }
+        }
+      }
+    }
+  }
+}
