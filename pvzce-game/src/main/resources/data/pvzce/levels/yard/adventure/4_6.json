@@ -142,7 +142,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            1
           ]
         }
       ],
@@ -156,7 +156,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         }
       ],
@@ -170,7 +170,7 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
@@ -213,7 +213,7 @@
           "id": "pvzce:miner_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
@@ -224,17 +224,17 @@
       "delay": 2716,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            2
           ]
         },
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            1
+            3
           ]
         }
       ],
@@ -248,14 +248,14 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         }
       ],

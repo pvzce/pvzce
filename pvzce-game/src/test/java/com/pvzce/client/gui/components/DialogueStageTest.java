@@ -38,6 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DialogueStageTest {
     private static final Identifier ENTANG = Identifier.withDefaultNamespace("entang");
     private static final Identifier PEA = Identifier.withDefaultNamespace("pea_chan");
+    /** The two who share the screen in the fog: the shrunken one and the one who lights it up. */
+    private static final Identifier PURWHITE = Identifier.withDefaultNamespace("purwhite");
+    private static final Identifier LANTINA = Identifier.withDefaultNamespace("lantina");
     /** The player, as the title screen would have named them. */
     private static final String PLAYER = "莉安";
 
@@ -48,8 +51,14 @@ class DialogueStageTest {
 
     private static DialogueLine line(Identifier character, String portrait, String text, DialogueSlot side,
                                      List<DialogueLine.DialogueSlotEntry> slots, List<DialogueChoice> choices) {
+        return line(character, portrait, text, side, slots, choices, DialogueAnimation.NONE);
+    }
+
+    private static DialogueLine line(Identifier character, String portrait, String text, DialogueSlot side,
+                                     List<DialogueLine.DialogueSlotEntry> slots, List<DialogueChoice> choices,
+                                     DialogueAnimation animation) {
         return new DialogueLine(character, portrait, text, "", side == DialogueSlot.RIGHT
-                ? DialogueLine.Side.RIGHT : DialogueLine.Side.LEFT, DialogueAnimation.NONE, slots, choices, "");
+                ? DialogueLine.Side.RIGHT : DialogueLine.Side.LEFT, animation, slots, choices, "");
     }
 
     /** The player's own line: no character, no portrait, and the name they gave at the title screen. */
@@ -155,9 +164,78 @@ class DialogueStageTest {
         assertEquals(PEA, script.portraits().get(0).character.id());
     }
 
+    /**
+     * A {@code scale} line changes who it names, and keeps them that size afterwards.
+     *
+     * <p>The whole point of writing the size on a line is 4-2: 兰提娜 walks in, says something, and
+     * 紫夜白 is small from that beat on. So the animation moves the listener rather than the speaker,
+     * and what it leaves behind is a <em>standing</em> size - every line after it, including the ones
+     * that say nothing about size at all, draws her the same way.
+     */
+    @Test
+    void aScaleAnimationResizesTheCharacterItNames() {
+        DialogueLine.DialogueSlotEntry left = at(DialogueSlot.LEFT, PURWHITE);
+        DialogueLine.DialogueSlotEntry right = at(DialogueSlot.RIGHT, LANTINA);
+        DialogueAnimation shrink = new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 0.33F,
+                PURWHITE.toString());
+        DialogueScript script = scriptOf(
+                line(LANTINA, "confused", "诶？这个，好小一只", DialogueSlot.RIGHT,
+                        List.of(left, right), List.of(), shrink),
+                line(PURWHITE, "fierce", "不要说咱小啦", DialogueSlot.LEFT,
+                        List.of(left, right), List.of(), DialogueAnimation.NONE),
+                line(LANTINA, "smile", "知道啦知道啦", DialogueSlot.RIGHT,
+                        List.of(left, right), List.of(), DialogueAnimation.NONE));
+
+        assertEquals(0.33F, script.portraitIn(DialogueSlot.LEFT).baseScale, 0.0001F,
+                "the character the animation names is the one who shrinks");
+        assertEquals(1F, script.portraitIn(DialogueSlot.RIGHT).baseScale, 0.0001F,
+                "and the one who spoke is left alone");
+
+        assertTrue(script.advance());
+        assertEquals(0.33F, script.portraitIn(DialogueSlot.LEFT).baseScale, 0.0001F,
+                "the size is hers from here on, not a beat on one line");
+        assertTrue(script.advance());
+        assertEquals(0.33F, script.portraitIn(DialogueSlot.LEFT).baseScale, 0.0001F,
+                "including on a line with no animation at all");
+        assertFalse(script.effectTargets().contains(PURWHITE),
+                "and the one-shot half of the animation is over with its line");
+    }
+
+    /** An animation that names nobody is the speaker's, exactly as every one written before this was. */
+    @Test
+    void anAnimationWithNoTargetIsTheSpeakers() {
+        DialogueLine.DialogueSlotEntry left = at(DialogueSlot.LEFT, PURWHITE);
+        DialogueLine.DialogueSlotEntry right = at(DialogueSlot.RIGHT, LANTINA);
+        DialogueAnimation shake = new DialogueAnimation(DialogueAnimation.TYPE_SHAKE, 1F, 1F);
+        DialogueScript script = scriptOf(
+                line(LANTINA, "panic", "唔唔！好大的雾！", DialogueSlot.RIGHT,
+                        List.of(left, right), List.of(), shake));
+
+        assertEquals(List.of(LANTINA), script.effectTargets(), "the speaker shakes");
+        assertEquals(1F, script.portraitIn(DialogueSlot.LEFT).baseScale, 0.0001F,
+                "and the listener keeps their size: a shake is not a resize");
+    }
+
+    /** {@code "all"} is the whole picture, which is what a scene-wide beat needs. */
+    @Test
+    void anAnimationCanBeAboutEveryoneOnStage() {
+        DialogueLine.DialogueSlotEntry left = at(DialogueSlot.LEFT, PURWHITE);
+        DialogueLine.DialogueSlotEntry right = at(DialogueSlot.RIGHT, LANTINA);
+        DialogueAnimation everybody = new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 1.1F,
+                DialogueAnimation.TARGET_ALL);
+        DialogueScript script = scriptOf(
+                line(LANTINA, "glowing", "我可以，发！光！", DialogueSlot.RIGHT,
+                        List.of(left, right), List.of(), everybody));
+
+        assertEquals(1.1F, script.portraitIn(DialogueSlot.LEFT).baseScale, 0.0001F);
+        assertEquals(1.1F, script.portraitIn(DialogueSlot.RIGHT).baseScale, 0.0001F);
+        assertEquals(2, script.effectTargets().size(), "both of them are on stage");
+    }
+
     /** A question is not answered by a click: the conversation waits, and only a button moves it. */
     @Test
     void aQuestionWaitsForAnAnswer() {
+
         DialogueScript script = scriptOf(
                 line(ENTANG, "confused", "嗯，你谁？", DialogueSlot.LEFT, List.of(),
                         List.of(new DialogueChoice("莉安"), new DialogueChoice("路过的人"))),

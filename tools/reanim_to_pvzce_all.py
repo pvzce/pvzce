@@ -1327,6 +1327,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             # Cactus.reanim carries a separate raised-arms pair (anim_idlehigh /
             # anim_shootinghigh) for shooting at airborne zombies.
+            #
+            # `body_overlay` and `body_overlay_2` are two images of ONE source track
+            # (IMAGE_REANIM_CACTUS_BODY_OVERLAY and ..._OVERLAY2), so a mask that draws one of
+            # them leaves the other permanently hidden - and `force_visible_hidden` then rescues
+            # it, at the same transform, on top of its sibling. Two 48x13 images that agree on 536
+            # of their 538 pixels, drawn twice: the player's report was "the cactus's attack
+            # animation overlaps". Naming the sibling in the exclude list is what that list is
+            # for; `idle` and `idle_high` each show exactly one of the two, and each attack clip
+            # follows the idle it returns to.
             "shoot": {
                 "rate": SHOOT_ANIMATION_RATE,
                 "mask": "anim_shooting",
@@ -1334,7 +1343,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "on_end": "idle",
                 "transition": 0.1,
                 "force_visible_hidden": True,
-                "force_visible_exclude_prefixes": ["blink"],
+                "force_visible_exclude_prefixes": ["blink", "body_overlay_2"],
             },
             "shoot_high": {
                 "rate": SHOOT_ANIMATION_RATE,
@@ -1343,7 +1352,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
                 "on_end": "idle",
                 "transition": 0.1,
                 "force_visible_hidden": True,
-                "force_visible_exclude_prefixes": ["blink"],
+                "force_visible_exclude_prefixes": ["blink", "body_overlay"],
             },
         },
     ),

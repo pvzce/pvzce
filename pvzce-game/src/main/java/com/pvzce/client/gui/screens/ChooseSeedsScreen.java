@@ -118,6 +118,8 @@ public final class ChooseSeedsScreen extends Screen {
     private final List<SeedOption> options;
     private final int maxSeedSlots;
     private final List<String> previewZombies;
+    /** The level's own fog block, or {@code null}; drawn over the previewed lawn. */
+    private final com.pvzce.api.content.FogData fog;
     private final int levelWidth;
     private final int levelHeight;
     private final String[][] scene;
@@ -335,7 +337,7 @@ public final class ChooseSeedsScreen extends Screen {
         this(client, levelId, levelName, options, maxSeedSlots, previewZombies, levelWidth,
                 levelHeight, sceneCells, initialSelection, restart, onBack, lockedSlots,
                 background, hiddenSceneElements, dealsItsOwnCards, buffOptions, maxBuffSlots,
-                lockedBuffs, initialBuffs, false, 0);
+                lockedBuffs, initialBuffs, false, 0, null);
     }
 
     /**
@@ -345,6 +347,10 @@ public final class ChooseSeedsScreen extends Screen {
      *                        sends the choice to the running level instead of starting one, and
      *                        there is nothing to back out to - the run is waiting on the answer
      * @param nextRoundNumber the round the choice is for, one-based, for the title
+     * @param fog             the level's own {@code pvzce:fog} block, or {@code null} for a level
+     *                        that has no fog. This screen is the first sight of the board and the
+     *                        fog is part of that board: world 4 used to open on a clear lawn with
+     *                        the fog arriving only when the level did.
      */
     public ChooseSeedsScreen(PvzceClient client, String levelId, String levelName,
                              List<SeedOption> options, int maxSeedSlots,
@@ -354,8 +360,10 @@ public final class ChooseSeedsScreen extends Screen {
                              Identifier background, List<String> hiddenSceneElements,
                              boolean dealsItsOwnCards, List<SeedOption> buffOptions,
                              int maxBuffSlots, List<String> lockedBuffs, List<String> initialBuffs,
-                             boolean nextRound, int nextRoundNumber) {
+                             boolean nextRound, int nextRoundNumber,
+                             com.pvzce.api.content.FogData fog) {
         super(client);
+        this.fog = fog;
         this.levelId = levelId;
         this.nextRound = nextRound;
         this.nextRoundNumber = Math.max(0, nextRoundNumber);
@@ -1453,7 +1461,20 @@ public final class ChooseSeedsScreen extends Screen {
         } finally {
             client.clipping().pop();
         }
+        // The fog, over the lawn and outside the clip: the cloud spills past the board's right
+        // edge onto the road exactly as it does in play, and the road is where this screen's
+        // zombie preview stands - that preview is drawn after this and is a list rather than a
+        // piece of the board, so it must not end up behind the weather.
+        //
+        // Drawn from the level's declared block rather than from a running level: there is none
+        // yet, which is the whole reason this screen used to show world 4 as a clear lawn.
+        com.pvzce.client.renderer.FogCloud.render(client, boardX, board.y(),
+                board.cellWidth(), board.cellHeight(), levelWidth, levelHeight, fog, List.of(),
+                client.renderTimeSeconds(), 0F, FOG_Z);
     }
+
+    /** Above the lawn (z=0) and below everything this screen draws over it. */
+    private static final float FOG_Z = 0.3F;
 
     private String sceneAt(int x, int y) {
         if (x < 0 || x >= levelWidth || y < 0 || y >= levelHeight) {
@@ -1527,6 +1548,17 @@ public final class ChooseSeedsScreen extends Screen {
         previewAnimationsReady = false;
     }
 
+    /**
+     * How many zombie types the preview will draw.
+     *
+     * <p>It used to be ten, which silently dropped the eleventh: 4-10 sends eleven kinds and the
+     * one that never appeared was the ducky-tube buckethead - the level's own new body, and the
+     * one the preview exists to warn about. High enough for every shipped level (and for a
+     * level-list preview of an endless level's opening bar) with a cap left in place because the
+     * sprites are laid out down the road, so an unbounded list would shrink to nothing.
+     */
+    private static final int PREVIEW_ZOMBIE_LIMIT = 16;
+
     private void ensurePreviewAnimations() {
         if (previewAnimationsReady) {
             return;
@@ -1535,7 +1567,7 @@ public final class ChooseSeedsScreen extends Screen {
         if (client.animations() == null || previewZombies.isEmpty()) {
             return;
         }
-        int count = Math.min(previewZombies.size(), 10);
+        int count = Math.min(previewZombies.size(), PREVIEW_ZOMBIE_LIMIT);
         for (int i = 0; i < count; i++) {
             ClientEntity entity = new ClientEntity(900_000 + i, "zombie", previewZombies.get(i),
                     0F, 0F, 100, com.pvzce.api.entity.EntityLayers.GROUND,

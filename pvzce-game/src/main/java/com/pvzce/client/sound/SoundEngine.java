@@ -63,6 +63,15 @@ public final class SoundEngine implements AutoCloseable {
     private final Map<String, Long> lastSfxPlay = new HashMap<>();
     /** Which event each one-shot player is currently playing; the duplicate guard. */
     private final Map<Integer, String> playingPaths = new HashMap<>();
+    /**
+     * The one-shot players currently held by a {@link #startLoop}, by ring index.
+     *
+     * <p>A loop that lived in the ring like any other sound would be killed by whatever plays
+     * next ({@link #play} stops and rebinds the player it picks), so the ring has to know which
+     * of its players are not free: {@link #nextSource} skips these, and only a full ring can
+     * take one.
+     */
+    private final Map<Integer, String> loopingPaths = new HashMap<>();
     private final Map<String, Integer> repeats = new HashMap<>();
     private long traceWindowStart = System.nanoTime();
     private final int[] sfxSources = new int[MAX_SFX_SOURCES];
@@ -247,6 +256,61 @@ public final class SoundEngine implements AutoCloseable {
     }
 
     /**
+     * Starts a sound that repeats until {@link #stopLoop} is called, and returns its handle.
+     *
+     * <p>For a sound that belongs to a <em>thing</em> rather than to a moment: the
+     * jack-in-the-box's music box, which plays under the whole of its walk and has to stop the
+     * instant the box opens or the body dies. A one-shot cannot do that - six seconds of music
+     * fired at the wrong end of a twenty-second walk is what this build used to do - and the
+     * ambient player is no better (one board has one weather, and it is not per entity).
+     *
+     * <p>The handle is the ring index, which is what {@link #stopLoop} needs; {@code -1} means
+     * nothing was started (the engine is off, the event is unknown, or every player is busy).
+     * Deliberately no rate limit and no duplicate guard: this is asked for once per entity by a
+     * caller that already knows whether it is playing.
+     */
+    public int startLoop(String soundId, float volume, float pitch) {
+        if (!enabled || soundId == null || soundId.isEmpty()) {
+            return -1;
+        }
+        String path = eventPath(soundId);
+        SoundVariant variant = pickVariant(definition(path));
+        if (variant == null) {
+            return -1;
+        }
+        int buffer = bufferForFile(variant.file());
+        if (buffer == 0) {
+            return -1;
+        }
+        int source = nextSource(path, true);
+        if (source < 0) {
+            return -1;
+        }
+        AL10.alSourceStop(source);
+        AL10.alSourcei(source, AL10.AL_BUFFER, buffer);
+        AL10.alSourcef(source, AL10.AL_GAIN, masterVolume * sfxVolume * volume * variant.volume());
+        AL10.alSourcef(source, AL10.AL_PITCH, clampPitch(pitch * variant.pitch()));
+        AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_TRUE);
+        AL10.alSourcePlay(source);
+        playingPaths.put(source, path);
+        loopingPaths.put(source, path);
+        return source;
+    }
+
+    /** Stops a loop started by {@link #startLoop}; a no-op for a handle that is not looping. */
+    public void stopLoop(int handle) {
+        if (handle < 0 || handle >= MAX_SFX_SOURCES || loopingPaths.remove(handle) == null) {
+            return;
+        }
+        int source = sfxSources[handle];
+        playingPaths.remove(handle);
+        // The loop flag belongs to the source rather than to the buffer, so it has to be cleared
+        // here: a source left looping plays whatever is bound to it next, for ever.
+        AL10.alSourceStop(source);
+        AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_FALSE);
+    }
+
+    /**
      * A free source for {@code path}, or {@code -1} when this event is already audible.
      *
      * <p>Without the second half, a sound asked to start again while it is still playing
@@ -259,12 +323,23 @@ public final class SoundEngine implements AutoCloseable {
      * <p>Deliberately not a rotation: the event is refused until its own player has
      * finished, so a legitimate repeat is never cut short - the rate limit in {@link #play}
      * already handles volleys.
+     *
+     * <p>A player held by {@link #startLoop} is skipped - walking past it would take a sound that
+     * belongs to an entity away from it - so a ring with nothing else free answers {@code -1} to a
+     * one-shot rather than cutting a loop short.
      */
     private int nextSource(String path) {
+        return nextSource(path, false);
+    }
+
+    private int nextSource(String path, boolean forLoop) {
         int first = cursor % MAX_SFX_SOURCES;
         for (int i = 0; i < MAX_SFX_SOURCES; i++) {
             int candidate = (first + i) % MAX_SFX_SOURCES;
             int source = sfxSources[candidate];
+            if (loopingPaths.containsKey(candidate)) {
+                continue;
+            }
             if (AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
                 cursor = candidate + 1;
                 return source;
@@ -272,6 +347,9 @@ public final class SoundEngine implements AutoCloseable {
             if (path.equals(playingPaths.get(source))) {
                 return -1;
             }
+        }
+        if (forLoop) {
+            return -1;
         }
         // Every player is busy: take the ring's next slot, as before.
         cursor = first + 1;

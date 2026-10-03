@@ -10,7 +10,7 @@
   "capabilities": [
     {
       "type": "pvzce:reveal",
-      "radius": 2.5,
+      "radius": 3.0,
       "strength": 1.0
     }
   ],

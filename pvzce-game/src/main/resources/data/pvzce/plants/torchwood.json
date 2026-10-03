@@ -11,6 +11,11 @@
     {
       "type": "pvzce:torchwood",
       "multiplier": 2
+    },
+    {
+      "type": "pvzce:reveal",
+      "radius": 1.4,
+      "strength": 0.8
     }
   ],
   "animation_dir": "plant/special",

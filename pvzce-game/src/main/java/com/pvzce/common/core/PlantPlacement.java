@@ -65,8 +65,24 @@ public final class PlantPlacement {
 
     /** Visual top of a flower pot, in world cells. */
     public static final float FLOWER_POT_TOP = 0.38F;
-    /** Visual top of a lily pad, in world cells. */
-    public static final float LILY_PAD_TOP = 0.10F;
+    /**
+     * Visual top of a lily pad: how far above the cell's floor a plant standing on one is drawn.
+     *
+     * <p>Measured off the pad's own art rather than guessed: {@code lily_pad.json} puts its body at
+     * world y 0.38 with a 0.8 bone scale and the disc's alpha band covers world y -0.26 .. +0.19, so
+     * a plant has to stand at about 0.30 to have its feet on the pad rather than through it. It used
+     * to be 0.10, which is the pad's own bottom rim - the player's report was "a plant planted on a
+     * lily pad is out of place, it should be a little higher".
+     *
+     * <p>The original has no offset here at all, because it paints the pad 25px low and lets the
+     * grid do the rest ({@code PlantDrawHeightOffset}: pot 26px, lily pad 25px - the container's own
+     * art, not the plant's). This build's pad art is not painted low, so the number lives here, and
+     * it is the pot's 0.38 minus the original's own 5px gap between a pad's surface and a pot's rim.
+     *
+     * <p>Not a render-only number: the height is also the muzzle a shot leaves from and the arc a
+     * lobbed one is aimed on, which is why it is one value for both rather than a draw offset.
+     */
+    public static final float LILY_PAD_TOP = 0.30F;
 
     private PlantPlacement() {
     }

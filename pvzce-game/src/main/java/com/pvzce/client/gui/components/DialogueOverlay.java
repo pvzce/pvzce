@@ -17,7 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A level's opening conversation: the characters on stage, a speech bubble beside whoever is
@@ -198,9 +200,15 @@ public final class DialogueOverlay extends Dialog {
     private boolean lineComplete;
     /** When the current line appeared; its answers ignore the mouse for a moment after. */
     private long lineShownNanos;
-    /** The portrait size the current line animates from and to. */
-    private float scaleFrom = 1F;
-    private float scaleTo = 1F;
+    /**
+     * The size change the current line is drawing, per character.
+     *
+     * <p>A line's animation is about one character (or about everyone), and a size change is
+     * interpolated rather than cut, so each portrait has to know where its own growth started. An
+     * entry is dropped as soon as the animation is over: from then on the script's standing size is
+     * the whole truth, and a stale "from" could be read again by a later line.
+     */
+    private final Map<Identifier, SizeChange> sizeChanges = new LinkedHashMap<>();
     /** The answers as the last drawn frame laid them out, so a click hits what the player sees. */
     private List<ChoiceButton> laidOutChoices = List.of();
     /** The answer button the pointer is pressing, or -1: a button fires on release. */
@@ -209,6 +217,10 @@ public final class DialogueOverlay extends Dialog {
     private double hoverX = -1D;
     private double hoverY = -1D;
     private boolean finished;
+
+    /** One portrait growing or shrinking while a line is spoken. */
+    private record SizeChange(float from, float to, long startNanos, long durationMillis) {
+    }
 
     /** One answer button as it was laid out this frame: where it is, and what it says. */
     private record ChoiceButton(float x, float y, float width, float height, String label) {
@@ -224,8 +236,12 @@ public final class DialogueOverlay extends Dialog {
         closeOnEscape(false);
         lineStartNanos = script.startNanos();
         lineShownNanos = lineStartNanos;
-        scaleTo = script.line().animation().targetScale();
-        scaleFrom = 1F;
+        // The first line is already staged by the script, so "what size is it coming from" has one
+        // answer everywhere: the size the character stands at until an animation says otherwise.
+        for (DialogueScript.StagePortrait staged : script.portraits()) {
+            sizeChanges.put(staged.character.id(), new SizeChange(staged.baseScale, staged.baseScale,
+                    lineStartNanos, 0L));
+        }
         playVoice(script.voice());
     }
 
@@ -327,30 +343,38 @@ public final class DialogueOverlay extends Dialog {
      * Arms everything the current line owns: its typing clock, its animation, its voice.
      *
      * <p>The size is interpolated from whatever the previous line left behind, so two lines that ask
-     * for different sizes grow and shrink instead of snapping; a line with no animation returns the
-     * portrait to its layout size the same way.
+     * for different sizes grow and shrink instead of snapping. Only the characters this line's own
+     * animation touches get a growth: everybody else is simply drawn at the size the script says they
+     * stand at, which is what makes a size set twenty lines ago still the size they are.
      */
     private void armCurrentLine() {
         long now = System.nanoTime();
         lineComplete = false;
+        DialogueAnimation animation = script.line().animation();
+        // Read every growth before the clock moves: the size a portrait is coming from is the size it
+        // was drawn at on the last frame of the line before this one.
+        Map<Identifier, Float> from = new LinkedHashMap<>();
+        for (DialogueScript.StagePortrait staged : script.portraits()) {
+            from.put(staged.character.id(), characterScale(staged, now));
+        }
+        sizeChanges.clear();
         lineStartNanos = now;
         lineShownNanos = now;
-        scaleFrom = currentScale(now);
-        scaleTo = script.line().animation().targetScale();
+        if (animation != null && animation.isScale()) {
+            for (DialogueScript.StagePortrait staged : script.portraits()) {
+                Identifier id = staged.character.id();
+                if (!animation.hits(id, script.line().character())) {
+                    continue;
+                }
+                sizeChanges.put(id, new SizeChange(from.getOrDefault(id, staged.baseScale),
+                        staged.baseScale, now, animation.durationMillis()));
+            }
+        }
         // The answers are re-laid-out by the next frame; until then the old frame's buttons must
         // not be clickable, or a click could land on an answer that is no longer on screen.
         laidOutChoices = List.of();
         pressedChoice = -1;
         playVoice(script.voice());
-    }
-
-    /** The speaker's portrait size right now, mid-interpolation. */
-    private float currentScale(long nowNanos) {
-        if (script.isEmpty()) {
-            return 1F;
-        }
-        DialogueAnimation animation = script.line().animation();
-        return DialogueMotion.scaleAt(scaleFrom, scaleTo, nowNanos, lineStartNanos, animation.isScale());
     }
 
     /**
@@ -588,12 +612,15 @@ public final class DialogueOverlay extends Dialog {
         float lineHeight = client.fonts().button().lineHeight(textScale);
 
         DialogueLine line = script.line();
-        float scale = currentScale(now);
+        // How much room there is for the portraits is the stage's business, not one character's:
+        // the tallest one on it keeps their height and anybody smaller stands beside them, so the
+        // factor is worked out for the group and each portrait applies its own size on top of it.
+        float layoutScale = laidOutScale(client, guiW, guiH);
         Portrait speaker = null;
         // The listener first, so the speaker is the one on top: they are the one being read.
         List<Portrait> others = new ArrayList<>();
         for (DialogueScript.StagePortrait staged : script.portraits()) {
-            Portrait placed = placedPortrait(client, staged, now, guiW, guiH, scale);
+            Portrait placed = placedPortrait(client, staged, now, guiW, guiH, layoutScale);
             if (placed == null) {
                 continue;
             }
@@ -612,10 +639,25 @@ public final class DialogueOverlay extends Dialog {
 
         String text = substituteUserName(client, line.text());
         if (TRACE) {
+            // The rectangles are in the line because "the portrait is missing" and "the portrait is
+            // off the window" look identical in a screenshot: 4-3's shrunken 紫夜白 measured
+            // x = guiWidth - 2 while being 71 wide, and only the numbers said so.
+            StringBuilder placed = new StringBuilder();
+            for (Portrait portrait : others) {
+                placed.append(' ').append(shortId(portrait.character())).append('=')
+                        .append(rect(portrait));
+            }
+            if (speaker != null) {
+                placed.append(' ').append(shortId(speaker.character())).append('=')
+                        .append(rect(speaker)).append('*');
+            }
             System.out.println("[DLG] line=" + script.index() + "/" + script.size()
                     + " char=" + line.character() + " text=" + text
                     + " revealed=" + revealedCharacters(now) + "/" + visibleLength(text)
                     + " portraits=" + script.portraits().size()
+                    + " layout=" + String.format(java.util.Locale.ROOT, "%.3f", layoutScale)
+                    + " gui=" + Math.round(guiW) + "x" + Math.round(guiH)
+                    + " at" + placed
                     + " choices=" + script.choices().size()
                     + " awaiting=" + script.awaitingChoice());
         }
@@ -731,12 +773,11 @@ public final class DialogueOverlay extends Dialog {
      * bubble still carries the line, and {@code LevelValidator} is what says the art is missing.
      */
     private Portrait placedPortrait(PvzceClient client, DialogueScript.StagePortrait staged,
-                                    long nowNanos, float guiW, float guiH, float scale) {
+                                    long nowNanos, float guiW, float guiH, float layoutScale) {
         DialogueCharacterDef character = staged.character;
         if (character == null) {
             return null;
         }
-        float y = 0F;
         Identifier texture = textureOf(client, staged);
         if (texture == null) {
             return null;
@@ -748,8 +789,16 @@ public final class DialogueOverlay extends Dialog {
             client.warnMissingTexture(texture);
             return null;
         }
-        float height = portraitHeight(client, character, guiW, guiH);
+        float height = portraitHeight(staged.character, guiH, layoutScale);
         float width = height * loaded.width() / (float) Math.max(1, loaded.height());
+        // What this one is actually drawn at, which is the layout height times their own size.
+        float drawnHeight = height * characterScale(staged, nowNanos);
+        // **The floor is the bottom of the window**, for everybody: a portrait is drawn from the
+        // bottom up, so a shrunken character whose feet stayed on the tall one's floor line (the top
+        // 90% of the window that the layout height marks) would hang in the air over the lawn. 4-2
+        // shipped that way for one round and the small 紫夜白 stood at the *top* of the screen.
+        float y = 0F;
+        float scale = height <= 0F ? 1F : drawnHeight / height;
         DialogueCharacterDef.PortraitInsets insets = character.insets(staged.portrait);
         // How wide the art is inside its frame: what the layout places is the figure, not the
         // texture, because the two are not the same picture (see the insets above).
@@ -760,7 +809,7 @@ public final class DialogueOverlay extends Dialog {
         if (staged.slot.isCenter()) {
             // The middle of the window: nothing to anchor to an edge, so the art is centred and the
             // frame hung off it.
-            x = (guiW - artWidth) / 2F - width * insets.left();
+            x = (guiW - artWidth * scale) / 2F - width * scale * insets.left();
         } else {
             // Where the art's own edge is put: the window margin, on the character's side.
             float edge = right ? guiW * (1F - PORTRAIT_MARGIN_RATIO) : guiW * PORTRAIT_MARGIN_RATIO;
@@ -781,10 +830,12 @@ public final class DialogueOverlay extends Dialog {
         boolean speaker = character.id().equals(script.line().character());
         float scaledWidth = width * scale;
         float scaledHeight = height * scale;
-        // The size grows about the portrait's own centre line, so the figure stays where the layout
-        // put it instead of drifting towards one edge.
-        x += (width - scaledWidth) / 2F;
-        if (speaker && slide == null && script.line().animation().isShake()) {
+        // No "grow about the centre line" shift: the edge above is worked out at the size the portrait
+        // is drawn at, so a shrunken character is already hanging off their own side of the window.
+        // The shift was for the old layout, where the box was placed full size and only the drawing was
+        // scaled - it now pushes a right-hand character clean off the screen (4-3's 紫夜白 measured at
+        // x = guiWidth - 2 while being 71 wide).
+        if (slide == null && shakes(character.id())) {
             x += DialogueMotion.shakeOffset(nowNanos, lineStartNanos, guiW,
                     script.line().animation().amount());
         }
@@ -814,29 +865,119 @@ public final class DialogueOverlay extends Dialog {
         return null;
     }
 
-    /** The height every portrait is laid out at, so two of them fit side by side. */
-    private float portraitHeight(PvzceClient client, DialogueCharacterDef character, float guiW, float guiH) {
-        List<Float> ratios = new ArrayList<>();
-        for (DialogueScript.StagePortrait staged : script.portraits()) {
-            ratios.add(aspectOf(client, staged, character));
-        }
-        float tallest = guiH * PORTRAIT_HEIGHT_RATIO * character.scale();
-        return DialogueMotion.portraitHeight(tallest, guiW * (1F - PORTRAIT_MARGIN_RATIO * 2F), ratios);
+    /**
+     * The height one portrait is laid out at, so two of them fit side by side.
+     *
+     * <p>What {@link DialogueMotion#portraitHeight} worked out is a factor for the whole stage, so
+     * this is "their own drawn height" times it - the tallest character on stage is the one the
+     * factor was measured from and comes out exactly at their own height.
+     */
+    private float portraitHeight(DialogueCharacterDef character, float guiH, float layoutScale) {
+        float own = guiH * PORTRAIT_HEIGHT_RATIO * Math.max(character.scale(), stagedScale(character));
+        return own * layoutScale;
     }
 
-    /** A portrait's width over its height, from the loaded texture; 2/3 when it is not drawable. */
-    private float aspectOf(PvzceClient client, DialogueScript.StagePortrait staged,
-                           DialogueCharacterDef measuring) {
+    /** The size a character stands at, as the stage has it; their own when they are not on it. */
+    private float stagedScale(DialogueCharacterDef character) {
+        for (DialogueScript.StagePortrait portrait : script.portraits()) {
+            if (portrait.character == character) {
+                return portrait.baseScale;
+            }
+        }
+        return character.scale();
+    }
+
+    /**
+     * The factor every portrait on stage is shrunk by so that the pair fits side by side.
+     *
+     * <p>Worked out for the stage rather than for one character: the tallest one standing there keeps
+     * their height and the others are drawn smaller beside them (see {@link #portraitHeight}), and the
+     * fitting is about the group. One character asks for no room at all.
+     *
+     * <p>The room each of them takes is measured at the size they are <em>drawn</em> at, not at the
+     * layout height: a character at 0.33 is a third as wide, and counting them as full size made the
+     * pair fit itself for room nobody was standing in - 4-2's two characters both came out at 0.62
+     * and the small one floated a third of a window above the floor (the floor is the layout height,
+     * see {@link #placedPortrait}).
+     */
+    private float laidOutScale(PvzceClient client, float guiW, float guiH) {
+        List<DialogueScript.StagePortrait> staged = script.portraits();
+        List<Float> ratios = new ArrayList<>();
+        float tallest = 0F;
+        for (DialogueScript.StagePortrait portrait : staged) {
+            float scale = Math.max(portrait.character.scale(), portrait.baseScale);
+            ratios.add(aspectOf(client, portrait) * scale);
+            tallest = Math.max(tallest, guiH * PORTRAIT_HEIGHT_RATIO * scale);
+        }
+        float fitted = DialogueMotion.portraitHeight(tallest,
+                guiW * (1F - PORTRAIT_MARGIN_RATIO * 2F), ratios);
+        return fitted / Math.max(1F, tallest);
+    }
+
+    /**
+     * How large one character is drawn right now, as a multiple of the layout height.
+     *
+     * <p>Their standing size - which the conversation may have changed on an earlier line - and, on
+     * a line that asks for one, the growth that is still on its way to it. The growth ends exactly at
+     * the size the script already wrote down, so the two never disagree about where it settles.
+     */
+    private float characterScale(DialogueScript.StagePortrait staged, long nowNanos) {
+        SizeChange change = sizeChanges.get(staged.character.id());
+        if (change == null) {
+            return staged.baseScale;
+        }
+        return DialogueMotion.scaleAt(change.from(), change.to(), nowNanos, change.startNanos(), true,
+                change.durationMillis());
+    }
+
+    /**
+     * The factor every portrait on stage is shrunk by so that the pair fits side by side.
+     *
+     * <p>Worked out for the stage rather than for one character: the tallest one standing there keeps
+     * their height and the others are drawn smaller beside them (see {@link #portraitHeight}), and the
+     * fitting is about the group. One character asks for no room at all.
+     *
+     * <p>The room each of them takes is measured at the size they are <em>drawn</em> at, not at the
+     * layout height: a character at 0.33 is a third as wide, and counting them as full size made the
+     * pair fit itself for room nobody was standing in - 4-2's two characters both came out at 0.62
+     * and the small one floated a third of a window above the floor (the floor is the layout height,
+     * see {@link #placedPortrait}).
+     */
+    /** One portrait as four rounded numbers, for the development trace above. */
+    private static String rect(Portrait portrait) {
+        return Math.round(portrait.x()) + "," + Math.round(portrait.y()) + " "
+                + Math.round(portrait.width()) + "x" + Math.round(portrait.height());
+    }
+
+    /** A character id as the trace spells it: the namespace only when it is not this project's. */
+    private static String shortId(Identifier id) {
+        return id == null ? "-" : id.path();
+    }
+
+    /** True when this line asks {@code character} to shake, whoever is speaking. */
+    private boolean shakes(Identifier character) {
+        DialogueAnimation animation = script.line().animation();
+        if (animation == null || !animation.isShake()) {
+            return false;
+        }
+        return script.effectTargets().contains(character);
+    }
+
+    /**
+     * A portrait's width over its height, from the loaded texture; 2/3 when it is not drawable.
+     *
+     * <p>The art's own proportions and nothing else: the layout measures the room a character takes
+     * by multiplying this by their standing size, the same way their drawn height does (see
+     * {@link #laidOutScale}).
+     */
+    private float aspectOf(PvzceClient client, DialogueScript.StagePortrait staged) {
         Identifier texture = textureOf(client, staged);
         if (texture == null) {
             return 2F / 3F;
         }
         try {
             Texture loaded = client.textures().getOrLoad(texture);
-            // The layout height carries this character's own scale, so the width has to as well:
-            // a character drawn 1.2x takes 1.2x the room, and the pair has to be shrunk for it.
-            float scale = measuring == null ? 1F : measuring.scale();
-            return loaded.width() * scale / (float) Math.max(1, loaded.height());
+            return loaded.width() / (float) Math.max(1, loaded.height());
         } catch (RuntimeException e) {
             return 2F / 3F;
         }

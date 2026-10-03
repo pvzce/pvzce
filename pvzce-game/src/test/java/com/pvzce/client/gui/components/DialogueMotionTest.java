@@ -117,6 +117,36 @@ class DialogueMotionTest {
                 "a line that does not animate its size is simply drawn at its own");
     }
 
+    /**
+     * A line may stretch its own animation, and the frame loop is what stretches with it.
+     *
+     * <p>4-2 is the case: 兰提娜 walks in over 0.35s while 紫夜白 shrinks beside her. At the built-in
+     * quarter of a second the shrink would be over before the walk is - a cut rather than a height
+     * difference - so the line says {@code "duration": 0.7}. A line that says nothing keeps the
+     * built-in length, which is every animation written before this field existed.
+     */
+    @Test
+    void anAnimationCanTakeAsLongAsTheLineSays() {
+        long stretched = new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 0.33F,
+                "pvzce:purwhite", 0.7F).durationMillis();
+        assertEquals(700L, stretched);
+        assertEquals(0L, new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 0.33F).durationMillis(),
+                "an unwritten duration is the kind's own length, not instant");
+        assertEquals(DialogueAnimation.MAX_DURATION,
+                new DialogueAnimation(DialogueAnimation.TYPE_SCALE, 1F, 0.33F, "", 99F).duration(), 0.0001F);
+
+        long stretchedNanos = stretched * 1_000_000L;
+        long halfway = START + stretchedNanos / 2;
+        assertEquals(0.33F, DialogueMotion.scaleAt(1F, 0.33F, halfway, START, true), 0.0001F,
+                "the built-in length is long over halfway through 0.7s");
+        float soFar = DialogueMotion.scaleAt(1F, 0.33F, halfway, START, true, stretched);
+        assertTrue(soFar > 0.33F && soFar < 1F,
+                "the stretched one is still on its way at that moment, and was " + soFar);
+        assertEquals(0.33F,
+                DialogueMotion.scaleAt(1F, 0.33F, START + stretchedNanos, START, true, stretched),
+                0.0001F, "and it does arrive");
+    }
+
     /** The content rules the overlay reads: what a line without an animation means. */
     @Test
     void theAnimationDefaultsAreTheQuietOnes() {

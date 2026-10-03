@@ -3326,15 +3326,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /**
      * The zombies a level list entry shows, for a level that has no wave table to read them off.
      *
-     * <p>{@code LevelDef.previewZombieIds} walks the level's own waves, which is the right answer
-     * for a level that wrote them and no answer at all for one whose waves are generated: the
-     * endless levels and the rhythm ones both ship with an empty table, so both showed nothing on
-     * the one screen that exists to say what a level sends at you. What replaces it is the opening
-     * bar - the first round of the schedule, or the first bar of the song - which is the honest
-     * preview of a run whose later waves do not exist until it is played.
+     * <p>{@code LevelMechanics.previewZombieIds} walks the level's waves and then asks its
+     * mechanics what they bring on their own, which is the right answer for a level that wrote its
+     * waves and no answer at all for one whose waves are generated: the endless levels and the
+     * rhythm ones both ship with an empty table, so both showed nothing on the one screen that
+     * exists to say what a level sends at you. What replaces it is the opening bar - the first
+     * round of the schedule, or the first bar of the song - which is the honest preview of a run
+     * whose later waves do not exist until it is played.
      */
     private static List<String> previewZombies(LevelDef def) {
-        List<String> written = def.previewZombieIds();
+        List<String> written = com.pvzce.common.level.mechanic.LevelMechanics.previewZombieIds(def);
         if (!written.isEmpty()) {
             return written;
         }

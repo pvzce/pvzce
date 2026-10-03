@@ -271,7 +271,8 @@ class LevelFileWriterTest {
                       { "character": "pvzce:pea_chan", "text": "诶！",
                         "animation": { "type": "shake", "amount": 2 } },
                       { "character": "pvzce:pea_chan", "text": "看招！",
-                        "animation": { "type": "scale", "scale": 1.3 } },
+                        "animation": { "type": "scale", "scale": 1.3, "target": "pvzce:purwhite",
+                                       "duration": 0.7 } },
                       { "character": "pvzce:pea_chan", "text": "以后再说",
                         "animation": { "type": "sparkle", "sparkle": 3 } }
                     ]
@@ -296,6 +297,14 @@ class LevelFileWriterTest {
                 .get("amount").getAsFloat(), 0.0001F);
         assertEquals(1.3F, lines.get(2).getAsJsonObject().getAsJsonObject("animation")
                 .get("scale").getAsFloat(), 0.0001F);
+        // Who the beat happens to is written back too: the page has no row for it, and a save that
+        // dropped it would turn "she shrinks while the other one talks" into "the speaker shrinks".
+        assertEquals("pvzce:purwhite", lines.get(2).getAsJsonObject().getAsJsonObject("animation")
+                .get("target").getAsString());
+        // And how long it takes, for the same reason: 4-2's shrink is written 0.7 so that it is still
+        // happening while the other character walks in, and the page has no row for that either.
+        assertEquals(0.7F, lines.get(2).getAsJsonObject().getAsJsonObject("animation")
+                .get("duration").getAsFloat(), 0.0001F);
         // A kind the page cannot draw is kept verbatim, numbers and all - the same rule the
         // unlock page follows for condition types it has no UI for.
         JsonObject unknown = lines.get(3).getAsJsonObject().getAsJsonObject("animation");

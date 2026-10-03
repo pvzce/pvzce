@@ -307,7 +307,7 @@ public final class DialoguePage implements EditorPage {
             dialogueVoiceBox.setValue(line.voice, false);
         }
         dialogueSideButton.setLabel("位置：" + line.sideLabel());
-        dialogueAnimationButton.setLabel("动画：" + line.animationLabel());
+        dialogueAnimationButton.setLabel("动画：" + animationLabel(line));
         dialogueStageButton.setLabel(stageLabel(line));
         if (!dialogueAnimationValueBox.isFocused()) {
             dialogueAnimationValueBox.setValue(line.animationValueText(), false);
@@ -481,6 +481,28 @@ public final class DialoguePage implements EditorPage {
         refreshDialogueDetail(context);
     }
 
+
+    /**
+     * What the 动画 button says: the kind, and the two fields the page has no widget for.
+     *
+     * <p>{@code target} and {@code duration} are preserved on save but cannot be edited here, so the
+     * button says them out loud when a line has them. An author reading 4-2's entrance line would
+     * otherwise see "缩放" and 0.33 in the number box and conclude the shrink is happening to
+     * 兰提娜 herself, which is the one thing it is not.
+     */
+    private static String animationLabel(DialogueEditorModel.LineModel line) {
+        StringBuilder label = new StringBuilder(line.animationLabel());
+        if (line.animationTarget != null && !line.animationTarget.isBlank()) {
+            String who = "all".equalsIgnoreCase(line.animationTarget)
+                    ? "台上所有人" : shortCharacter(Identifier.tryParse(line.animationTarget));
+            label.append("→").append(who.isBlank() ? line.animationTarget : who);
+        }
+        if (line.animationDuration != null) {
+            label.append(' ').append(com.pvzce.client.gui.GuiText.formatFloat(line.animationDuration))
+                    .append('s');
+        }
+        return label.toString();
+    }
 
     /**
      * What the 同台 button says: who else is standing there, and whether the line asks a question.

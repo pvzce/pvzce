@@ -89,6 +89,17 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
                         0, 81));
     }
 
+    /**
+     * The zombies a grave can give up.
+     *
+     * <p>A level whose zombies all climb out of the ground writes its waves with empty entries, so
+     * the wave table it previews from names nobody. This is the list it is actually sending.
+     */
+    @Override
+    public List<Identifier> previewZombieIds(LevelDef def, GraveSpawnerData data) {
+        return List.copyOf(data.zombies());
+    }
+
     @Override
     public void onLevelCreated(LevelServer level, GraveSpawnerData data) {
         // Built eagerly so the save's countdown has somewhere to land and the opening board's

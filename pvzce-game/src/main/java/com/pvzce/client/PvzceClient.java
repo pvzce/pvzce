@@ -2785,7 +2785,10 @@ public final class PvzceClient {
                 dealsItsOwnCards(info.id()),
                 info.payload().buffPool(), info.payload().maxBuffSlots(),
                 lockedBuffsFor(info.id()), autoBuffSelectionFor(info.id(), initialBuffs),
-                nextRound, nextRoundNumber);
+                nextRound, nextRoundNumber,
+                // The fog world's first sight of the board is this screen, so the fog is part of
+                // it: read off the block the server sent with the rest of the preview.
+                com.pvzce.client.mechanic.FogClientMechanic.declaredIn(info.payload().mechanics()));
     }
 
     /**

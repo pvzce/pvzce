@@ -88,14 +88,16 @@ public record FogData(float startColumn, float endColumn, float maxAlpha) implem
     /**
      * How opaque the fog is at a column, 0 where it is clear and {@link #maxAlpha} at the far end.
      *
-     * <p>The one definition of "how dark is it here", and the answer the hiding test reads: an
-     * entity past {@link #hidingColumn()} is not drawn at all.
+     * <p>The one definition of "how dark is it here", folded with the lamps by
+     * {@code FogMechanic.alphaAt}. It decides where the cloud band begins - a cell whose middle
+     * this answers 0 for draws nothing - and how dark the level's own declaration says the fog is,
+     * which is what a level author tunes.
      *
      * <p>Linear in the span and raised to a power of its own: a straight alpha ramp reads as a hard
      * edge where it tops out, because the eye is far more sensitive near full black than near
-     * nothing. Note what this is <em>not</em>: the shape the fog is drawn with. The cloud is a grid
-     * of sprites whose own alpha is the picture ({@code FogClientMechanic}), and this curve is what
-     * decides which cells are fogged and where something stops being drawn.
+     * nothing. Note what this is <em>not</em>: the density the cloud is drawn at. The picture is a
+     * grid of sprites, one per cell, each of them at {@link #maxAlpha} - the original's own flat
+     * {@code mGridCelFog} - with the lamps taking theirs away ({@code FogCloud}).
      */
     public float alphaAt(float column) {
         if (column <= startColumn) {
@@ -116,34 +118,6 @@ public record FogData(float startColumn, float endColumn, float maxAlpha) implem
      * now, so this curve has one home and one reader - {@link #alphaAt}.
      */
     public static final float FALLOFF = 1.6F;
-
-    /**
-     * The column past which the player can no longer tell what is standing there.
-     *
-     * <p>What "a zombie is only drawn once it walks into view" means in practice: an entity whose
-     * column is beyond this is not drawn at all. A separate number from {@link #endColumn} because
-     * the two answer different questions - "how dark is it" against "can this be made out" - and
-     * tying them together would mean a level that lightened its fog also silently changed what
-     * could be seen through it.
-     *
-     * <p>Derived rather than declared: the point where the ramp is three quarters of the way to
-     * full. A level that wants a different boundary moves {@code startColumn}.
-     */
-    public float hidingColumn() {
-        float full = maxAlpha;
-        if (full <= 0.0001F) {
-            return Float.MAX_VALUE;
-        }
-        float target = full * HIDE_FRACTION;
-        if (target >= full) {
-            return endColumn;
-        }
-        float t = (float) Math.pow(target / full, 1F / FALLOFF);
-        return startColumn + t * (endColumn - startColumn);
-    }
-
-    /** How far into the ramp counts as "cannot be made out"; see {@link #hidingColumn()}. */
-    public static final float HIDE_FRACTION = 0.75F;
 
     /** One message per problem, for {@code LevelValidator}. */
     public List<String> validate(int width) {

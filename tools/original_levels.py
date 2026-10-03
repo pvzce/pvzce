@@ -567,6 +567,8 @@ def waves_for(level: int) -> List[Wave]:
     pool = pool_for(level)
     waves: List[Wave] = []
     previous_was_flag = False
+    # How many zombies have been dealt a lane so far this level; see the lane deal below.
+    cursor = 0
 
     for index in range(count):
         number = index + 1
@@ -634,8 +636,16 @@ def waves_for(level: int) -> List[Wave]:
         # Deal lanes: round-robin over each zombie's eligible lanes, so a wave spreads out the
         # way the original's row picker does (which weights lanes that have not been mowed
         # lately, and is otherwise uniform).
+        #
+        # The cursor is the *level's*, not the wave's. It used to restart at zero for every wave,
+        # which is a bias rather than a spread: the first zombie of every wave was dealt lane 0,
+        # and since most of these tables are one- and two-zombie waves, entry after entry was
+        # narrowed to `rows: [0]` (or `[0, 1]`) and the director - which can only deal the lanes an
+        # entry names - put nearly the whole level in the bottom two rows. The pool's water rows
+        # and the two rows above them were left with the handful of zombies a five-zombie wave
+        # happened to deal there. Measured on 4_1 before this: rows 0/1 took 19 of 21 zombies,
+        # the water took 2, and rows 4/5 took none at all.
         lanes: Dict[str, List[int]] = {}
-        cursor = 0
         for name in rolled:
             zombie = BY_NAME[name]
             eligible = _rows_for(zombie, facts, index)

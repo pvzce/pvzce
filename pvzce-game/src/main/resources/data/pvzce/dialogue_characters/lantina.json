@@ -1,0 +1,82 @@
+{
+  "id": "pvzce:lantina",
+  "name": "兰提娜",
+  "portrait_dir": "pvzce:textures/gui/dialogue/lantina",
+  "scale": 1.0,
+  "box_left": "pvzce:textures/gui/dialogue/box_left",
+  "box_right": "pvzce:textures/gui/dialogue/box_right",
+  "portrait_insets": [
+    {
+      "portrait": "blank",
+      "insets": {
+        "left": 0.031,
+        "top": 0.0,
+        "right": 0.009,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "confused",
+      "insets": {
+        "left": 0.038,
+        "top": 0.0,
+        "right": 0.016,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "embarrassed",
+      "insets": {
+        "left": 0.026,
+        "top": 0.0,
+        "right": 0.0,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "hallowen_confused",
+      "insets": {
+        "left": 0.027,
+        "top": 0.0,
+        "right": 0.014,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "sleepy",
+      "insets": {
+        "left": 0.034,
+        "top": 0.001,
+        "right": 0.016,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "smile",
+      "insets": {
+        "left": 0.017,
+        "top": 0.0,
+        "right": 0.031,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "smirk",
+      "insets": {
+        "left": 0.015,
+        "top": 0.0,
+        "right": 0.0,
+        "bottom": 0.0
+      }
+    },
+    {
+      "portrait": "star",
+      "insets": {
+        "left": 0.021,
+        "top": 0.0,
+        "right": 0.0,
+        "bottom": 0.0
+      }
+    }
+  ]
+}

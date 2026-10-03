@@ -57,6 +57,28 @@ public interface ClientMechanic {
 
     /** A world-space overlay hook. */
     interface WorldOverlay {
+        /**
+         * Drawn over the lawn and under everything standing on it.
+         *
+         * <p>The layer for what belongs to the ground - the plantable area's line, the mowers, a
+         * portal's glow - so that a plant or a zombie stands on it rather than under it.
+         */
         void render(com.pvzce.client.PvzceClient client, com.pvzce.client.renderer.PvzceCamera camera);
+
+        /**
+         * Drawn over the board's entities, and under the player's own hand.
+         *
+         * <p>The fog is the one overlay that needs it, and it needs it to be honest: its whole
+         * behaviour is "you cannot see what is inside it", which is a claim about the picture over
+         * what is standing there - not a rule that deletes an entity at a line. A zombie deep in
+         * the cloud is then a silhouette the cloud hides, exactly as in the original, where the fog
+         * is drawn after the zombies.
+         *
+         * <p>The placement ghost, the carried plant, the particles and the HUD are drawn after
+         * this, so nothing the player is holding ends up behind the weather.
+         */
+        default void renderOver(com.pvzce.client.PvzceClient client,
+                                com.pvzce.client.renderer.PvzceCamera camera) {
+        }
     }
 }

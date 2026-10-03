@@ -63,13 +63,20 @@ public final class PvzceSounds {
     /** The pogo stick: the boing of a bounce, and the bonk of one that meets a tall-nut. */
     public static final Identifier ZOMBIE_POGO = id("sfx/zombie/pogo_zombie");
     /**
-     * The jack-in-the-box's crank and its lid coming up.
+     * The jack-in-the-box's three noises.
      *
-     * <p>Two events because the zombie makes two noises and they mean different things: the
-     * crank is the 110 ticks the player has to answer it in, and the surprise is the blast.
+     * <p>They belong to three different moments, which is why there are three of them:
+     * {@link #ZOMBIE_JACK_IN_THE_BOX} is the music box that loops for the whole walk (the zombie
+     * definition carries it as {@code sounds.walk} - the original's {@code FOLEY_JACKINTHEBOX},
+     * started when the zombie reaches the board and stopped when the box opens),
+     * {@link #ZOMBIE_JACK_SURPRISE2} is the spring and the lid coming up
+     * ({@code SOUND_BOING}), and {@link #ZOMBIE_JACK_SURPRISE} is the blast
+     * ({@code FOLEY_EXPLOSION} carries the other half of that one).
      */
     public static final Identifier ZOMBIE_JACK_IN_THE_BOX = id("sfx/zombie/jackinthebox");
     public static final Identifier ZOMBIE_JACK_SURPRISE = id("sfx/zombie/jack_surprise");
+    /** The box's lid coming up; see {@link #ZOMBIE_JACK_IN_THE_BOX}. */
+    public static final Identifier ZOMBIE_JACK_SURPRISE2 = id("sfx/zombie/jack_surprise2");
 
     public static final Identifier EFFECT_EXPLOSION = id("sfx/effect/explosion");
     /**

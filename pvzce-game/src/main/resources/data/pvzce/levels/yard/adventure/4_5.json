@@ -229,6 +229,103 @@
       }
     ]
   },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confused",
+        "text": "好多花瓶...",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "scale",
+          "scale": 0.33,
+          "target": "pvzce:purwhite"
+        },
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confused",
+        "text": "里面有什么呢？",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "panic",
+        "text": "不...不会有僵尸吧",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        },
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "panic",
+        "text": "那...那样会很可怕的！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "curious",
+        "text": "但还是好奇啦，去试试嘛",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      }
+    ]
+  },
   "unlock": {
     "requires": [
       {

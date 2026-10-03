@@ -166,6 +166,39 @@ public final class LevelMechanics {
         return mechanic != null && mechanic.cardSource();
     }
 
+    /**
+     * Every zombie this level can send, in first-appearance order, for its preview.
+     *
+     * <p>The wave table first - that is what a level "sends at you" in the ordinary case - and then
+     * whatever its mechanics bring on their own: 4-5's vases and the night levels' graves put
+     * zombies on the lawn without a wave naming them, and a preview built from the wave table alone
+     * showed an empty list for exactly those levels. De-duplicated, because a zombie the waves send
+     * <em>and</em> a pot holds is one line on the screen.
+     *
+     * <p>Empty for a level whose zombies are generated at run time (the endless rounds, a rhythm
+     * chart): the caller falls back to the opening bar of the schedule, which is the honest preview
+     * of a run whose later waves do not exist yet.
+     */
+    public static List<String> previewZombieIds(LevelDef def) {
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>(def.previewZombieIds());
+        for (TypedMechanic typed : effective(def)) {
+            LevelMechanic<?> mechanic = get(typed.type());
+            if (mechanic == null) {
+                continue;
+            }
+            for (Identifier zombie : previewZombieIdsOf(mechanic, def, typed)) {
+                ids.add(zombie.toString());
+            }
+        }
+        return List.copyOf(ids);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <D extends MechanicData> List<Identifier> previewZombieIdsOf(
+            LevelMechanic<D> mechanic, LevelDef def, TypedMechanic typed) {
+        return mechanic.previewZombieIds(def, (D) typed.value());
+    }
+
     /** True when the level declares that mechanic. The read API for a level's mechanics. */
     public static boolean has(LevelDef def, Identifier mechanicId) {
         for (TypedMechanic typed : def.mechanics()) {

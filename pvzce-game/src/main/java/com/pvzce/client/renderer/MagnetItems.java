@@ -19,7 +19,9 @@ public final class MagnetItems {
             t = 1F - (1F - t) * (1F - t);
             float x = item.x() + (plant.cellX() + 0.15F - item.x()) * t;
             float y = item.y() + (plant.cellY() + 0.4F - item.y()) * t;
-            if (com.pvzce.client.mechanic.FogClientMechanic.hides(client.level(), x, y)) continue;
+            // No fog test: the item is drawn on the board and the fog's own cloud is drawn over
+            // it (see `ClientMechanic.WorldOverlay.renderOver`), so a bucket flying into a
+            // fogged cell is hidden by the picture rather than deleted from it.
             client.drawTexture(texture, x - 0.22F, y - 0.22F, 0.44F, 0.44F, 0.55F, 1F, 1F, 1F, 1F);
         }
     }

@@ -86,6 +86,26 @@ public final class ScaryPotterMechanic implements LevelMechanic<ScaryPotterData>
         return List.of();
     }
 
+    /**
+     * The zombies the pots hold: this level's whole line-up.
+     *
+     * <p>4-5 has no waves at all, so the preview built from the wave table was empty - the one
+     * screen that exists to say what a level sends at the player showed them a lawn and nothing
+     * else, while every zombie in the level was waiting in a vase.
+     */
+    @Override
+    public List<Identifier> previewZombieIds(LevelDef def, ScaryPotterData data) {
+        List<Identifier> ids = new ArrayList<>();
+        for (ScaryPotterData.Round round : data.rounds()) {
+            for (ScaryPotterData.Pot pot : round.pots()) {
+                if (!pot.isPlant() && !pot.isResource() && !ids.contains(pot.id())) {
+                    ids.add(pot.id());
+                }
+            }
+        }
+        return List.copyOf(ids);
+    }
+
     @Override
     public void onLevelCreated(LevelServer level, ScaryPotterData data) {
         State state = new State();

@@ -57,7 +57,16 @@ public final class PvzceConstants {
     public static final int BLOVER_LINGER_TICKS = 30;
     public static final int DIGGER_AXE_PAUSE_TICKS = 90;
     public static final int BLOVER_FOG_CLEAR_TICKS = 2400;
-    public static final int BLOVER_FOG_RETURN_TICKS = 180;
+    /**
+     * How long the fog takes to come back once the blover's clear period runs out.
+     *
+     * <p>Not the original's own number: it slides its fog home over 2000 of its own updates, which
+     * is twenty seconds of a band that never quite leaves. This build keeps the board clear for the
+     * whole clear period and then brings the fog back inside the last eight seconds of it - and the
+     * client draws that whole return as one slow movement (see
+     * {@code FogClientMechanic.RETURN_SECONDS}, which is this number).
+     */
+    public static final int BLOVER_FOG_RETURN_TICKS = 480;
     public static final int DIGGER_RISE_TICKS = 78;
     public static final int DIGGER_LAND_TICKS = 18;
     public static final int DIGGER_DIZZY_TICKS = 210;

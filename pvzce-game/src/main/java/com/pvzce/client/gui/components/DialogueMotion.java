@@ -60,6 +60,22 @@ final class DialogueMotion {
         return ease(progress(nowNanos, startNanos, SCALE_NANOS));
     }
 
+    /**
+     * The same ease over a length the line chose, for a size change that has to share the screen
+     * with something else.
+     *
+     * <p>A line can say how long its animation takes ({@code duration}, in seconds), and 0 - which
+     * is every line written before the field existed - means {@link #SCALE_NANOS}. 4-2 is why this
+     * exists: 兰提娜 walks in (0.35s) while 紫夜白 shrinks beside her, and a shrink that is over
+     * before the walk is reads as a cut rather than as a height difference.
+     *
+     * @param durationMillis the line's own length, in milliseconds; 0 for the built-in one
+     */
+    static float scaleProgress(long nowNanos, long startNanos, long durationMillis) {
+        return ease(progress(nowNanos, startNanos,
+                durationMillis <= 0L ? SCALE_NANOS : durationMillis * 1_000_000L));
+    }
+
     /** Smoothstep; the project's one ease, shared with {@code DayNightCycle}. */
     static float ease(float t) {
         return com.pvzce.common.level.DayNightCycle.smoothstep(0F, 1F, t);
@@ -119,9 +135,17 @@ final class DialogueMotion {
     /**
      * A line's portrait size: interpolated from the size the previous line left behind, or
      * the target at once when the line is not animating its size.
+     *
+     * @param durationMillis how long the line asked it to take; 0 for {@link #SCALE_NANOS}
      */
+    static float scaleAt(float from, float to, long nowNanos, long startNanos, boolean animate,
+                         long durationMillis) {
+        return animate ? from + (to - from) * scaleProgress(nowNanos, startNanos, durationMillis) : to;
+    }
+
+    /** The same with the built-in length: what a line with no {@code duration} gets. */
     static float scaleAt(float from, float to, long nowNanos, long startNanos, boolean animate) {
-        return animate ? from + (to - from) * scaleProgress(nowNanos, startNanos) : to;
+        return scaleAt(from, to, nowNanos, startNanos, animate, 0L);
     }
 
     /**

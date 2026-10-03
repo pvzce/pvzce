@@ -584,6 +584,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      */
     private final com.pvzce.client.gui.hud.MutationHud mutationHud =
             new com.pvzce.client.gui.hud.MutationHud();
+    /**
+     * The sounds that belong to a walking entity: the jack-in-the-box's music box.
+     *
+     * <p>Owned by the screen rather than by the level mirror because it is player-side state - one
+     * loop per entity, held as an audio handle - and the mirror is replaced wholesale whenever the
+     * client enters a level.
+     */
+    private final com.pvzce.client.sound.EntityLoops entityLoops =
+            new com.pvzce.client.sound.EntityLoops();
     /** The mutation packet this screen already reacted to; identity stands in for a revision. */
     private com.pvzce.common.network.packet.MutationStateS2C mutationRevision;
     /** Which kind of card bar is currently built, so a mutation's takeover can be noticed. */
@@ -1473,6 +1482,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         tickReward();
         tickDefeat();
         tickSleepZzz();
+        // The sounds that belong to a walking entity rather than to a moment: the jack-in-the-box's
+        // music box, which has to stop the moment its box opens; see `EntityLoops`.
+        entityLoops.tick(client);
         tickTimedDialogue();
         // The bar ticks here rather than in render(): the click that picks a card is
         // dispatched before this frame's render, and a belt card has to be hit where the
@@ -1930,13 +1942,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             if (isRising(entity)) {
                 continue;
             }
-            if (com.pvzce.client.mechanic.FogClientMechanic.hides(
-                    client.level(), entity.cellX(), entity.cellY())) {
-                // Inside the part of the fog that hides what is in it. Not drawn at all rather
-                // than drawn dimmed: "a zombie is only drawn once it walks into view" is the
-                // whole behaviour, and a half-visible zombie is one the player will argue about.
-                continue;
-            }
             if (isSomebodyElsesPickup(entity)) {
                 // A resource drop the player cannot pick up. On a versus level the plant side's sun
                 // lands on the lawn whether or not the player is the plant side, and a zombie player
@@ -1952,6 +1957,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 continue;
             }
             renderEntity(entity);
+        }
+        // The fog, over everything the board is standing: what the cloud covers is what the player
+        // cannot see, and the player's own hand (the ghost below, the carried plant, the mallet
+        // swings) is drawn after it so nothing they are holding ends up behind the weather.
+        for (com.pvzce.client.mechanic.ClientMechanic.WorldOverlay overlay : worldOverlays()) {
+            overlay.renderOver(client, camera);
         }
         renderPlacementPreview();
         renderCarriedPlant();
@@ -2172,13 +2183,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         // The cursor maps to a cell index, but an entity's position is the CENTRE of its
-        // cell: the server spawns a plant at (gridX + 0.5, gridY + 0.5). Writing the index
-        // straight in drew the ghost half a cell down and to the left of the cell it was
-        // hovering - the preview and the plant it promised were never in the same place.
-        //
-        preview.setCellX(cellX + 0.5F);
-        preview.setCellY(cellY + 0.5F);
-        preview.setHeight(terrainHeight(cellX, cellY));
+        // cell: the server spawns a plant at (gridX + 0.5, gridY + 0.5), plus whatever the cell's
+        // carrier adds. Writing the index straight in drew the ghost half a cell down and to the
+        // left of the cell it was hovering - the preview and the plant it promised were never in
+        // the same place - and asking the terrain for the height alone left it out of place over a
+        // lily pad (0.30 of a cell low) and over a pot (0.10).
+        float[] anchor = com.pvzce.client.renderer.ClientPlacement
+                .anchoredAt(client.level(), cellX, cellY);
+        preview.setCellX(anchor[0]);
+        preview.setCellY(anchor[1]);
+        preview.setHeight(anchor[2]);
         preview.playAnimation(com.pvzce.api.entity.EntityAnimations.IDLE);
         client.pushEntityAlpha(PLACEMENT_PREVIEW_ALPHA);
         try {
@@ -2239,6 +2253,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // animation manager belongs to the level, not to the HUD.
         releasePlacementPreview();
         releaseToolCursor();
+        // And so would a looping sound: it is held as an audio handle, so leaving the level with
+        // one running is a tune that plays over the menu (and, since the handle is what stops it,
+        // one nothing can stop).
+        entityLoops.stopAll(client);
     }
 
     /**

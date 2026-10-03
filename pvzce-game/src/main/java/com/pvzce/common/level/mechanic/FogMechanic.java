@@ -39,8 +39,9 @@ import java.util.List;
  *   <li>the <b>fog retreat</b> buff pushes it right (see {@code LevelServer.fogData});</li>
  *   <li>a mutation that rolls the fog in installs the mechanic on a level that never declared it,
  *       through {@code LevelServer.setFogOverride};</li>
- *   <li>a lamp that lights a circle of it is the plantern's own capability, which asks this
- *       mechanic to publish a smaller span for as long as it stands.</li>
+ *   <li>a lamp that lights a circle of it is a plant's own capability - the plantern's, and the
+ *       weaker one a torchwood carries - which asks this mechanic to publish those lamps along
+ *       with the span.</li>
  * </ul>
  *
  * <p>All three end up in one place - {@code LevelServer.fogData()} - so the client draws one
@@ -137,11 +138,44 @@ public final class FogMechanic implements LevelMechanic<FogData> {
         return reveals;
     }
 
+    /**
+     * How much of a lamp's reach is cleared outright, as a fraction of its radius.
+     *
+     * <p>The original's own shape: {@code Board::ClearFogAroundPlant} drains <em>every</em> cell
+     * inside the lamp's reach to zero ({@code aFogFadeOutSpeed} a tick until the cell holds no
+     * fog) and leaves the softening to the cloud sprites, which overlap by more than half. Its
+     * plantern reaches four cells in the original's own grid and its torchwood one, so a lamp is
+     * a <em>hole</em> with a rim, not a gentle dimming from its centre outwards.
+     *
+     * <p>It used to be {@code 1 - t²} from the centre, which is the one shape that cannot be
+     * seen: the fog is drawn as cloud tiles that overlap about three deep, so a cell dimmed to
+     * 70% of an already near-opaque band composites to the same picture as an undimmed one. The
+     * player's report was exactly that - "the plantern's light circle is missing".
+     */
+    public static final float LAMP_CORE = 0.72F;
+
     public static float alphaAt(FogData fog, List<Reveal> reveals, float x, float y) {
         float alpha = fog.alphaAt(x);
-        if (alpha <= 0F || reveals == null || reveals.isEmpty()) {
+        if (alpha <= 0F) {
             return alpha;
         }
+        return Math.max(0F, Math.min(1F, alpha * revealCoverage(reveals, x, y)));
+    }
+
+    /**
+     * How much of the fog the lamps leave standing at a point, 0 (lit) to 1 (untouched).
+     *
+     * <p>The lamps' own half of {@link #alphaAt}, split out because the picture needs it without
+     * the span's ramp: the cloud is drawn one density per cell - the level's {@code max_alpha},
+     * which is the original's flat {@code mGridCelFog} of 200/255 - and what a lamp takes away
+     * from that is this factor. Folding the ramp in as well would draw a three-column gradient
+     * where the original has a wall.
+     */
+    public static float revealCoverage(List<Reveal> reveals, float x, float y) {
+        if (reveals == null || reveals.isEmpty()) {
+            return 1F;
+        }
+        float coverage = 1F;
         for (Reveal reveal : reveals) {
             if (reveal.radius() <= 0F) {
                 continue;
@@ -152,12 +186,14 @@ public final class FogMechanic implements LevelMechanic<FogData> {
             if (distance >= reveal.radius()) {
                 continue;
             }
-            // Falls off to nothing at the rim, so a lamp has an edge rather than a disc: a hard
-            // cut would read as a hole in the fog rather than as light in it.
+            // Clear to nothing through the core, then a rim out to the radius. The rim is what
+            // keeps the hole from reading as a cut-out; see LAMP_CORE for why the core is most
+            // of the radius rather than a point at its centre.
             float t = 1F - distance / reveal.radius();
-            alpha *= 1F - reveal.strength() * t * t;
+            float clear = Math.min(1F, t / LAMP_CORE);
+            coverage *= 1F - reveal.strength() * clear;
         }
-        return Math.max(0F, Math.min(1F, alpha));
+        return Math.max(0F, Math.min(1F, coverage));
     }
 
     /**

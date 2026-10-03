@@ -138,21 +138,29 @@ class FogMechanicTest {
     }
 
     /**
-     * What is hidden is behind what is dark, and the two are different questions.
+     * A lamp takes the fog away where it stands, and nothing beyond its own reach.
      *
-     * <p>{@code hidingColumn} is the point where the player can no longer make something out; it
-     * has to sit strictly between the two ends of the span, or a level would either show a zombie
-     * standing in pitch black or hide one standing in clear air.
+     * <p>{@code LAMP_CORE} is the whole of the difference between a lamp the player can see and one
+     * they cannot: the fold used to be a quadratic falloff from the lamp's centre, which on a band
+     * drawn as overlapping cloud tiles composites to the same picture as no lamp at all. What the
+     * test pins is the shape - the lamp's own cell cleared outright, the rim only partly, and the
+     * span's own darkness beyond the radius.
      */
     @Test
-    void theHidingColumnSitsInsideTheSpan() {
+    void aLampClearsItsCoreAndLeavesARim() {
         FogData fog = new FogData(4F, 8F, 0.9F);
-        assertTrue(fog.hidingColumn() > fog.startColumn(),
-                "something has to be visible right at the boundary");
-        assertTrue(fog.hidingColumn() < fog.endColumn(),
-                "and something has to be hidden before the fog tops out");
-        assertEquals(Float.MAX_VALUE, new FogData(0F, 0F, 0F).hidingColumn(),
-                "a fog that draws nothing hides nothing, wherever it is asked about");
+        List<FogMechanic.Reveal> lamps = List.of(new FogMechanic.Reveal(1, 5.5F, 2.5F, 2F, 1F));
+
+        assertEquals(0F, FogMechanic.alphaAt(fog, lamps, 5.5F, 2.5F), 0.0001F,
+                "the lamp's own cell holds no fog");
+        float rim = FogMechanic.alphaAt(fog, lamps, 7.0F, 2.5F);
+        assertTrue(rim > 0F && rim < fog.alphaAt(7.0F),
+                "the rim is dimmed but not cleared: " + rim);
+        assertEquals(fog.alphaAt(8F), FogMechanic.alphaAt(fog, lamps, 8F, 2.5F), 0.0001F,
+                "and past the radius the span is untouched");
+        assertEquals(0.5F, FogMechanic.revealCoverage(
+                List.of(new FogMechanic.Reveal(1, 5.5F, 2.5F, 2F, 0.5F)), 5.5F, 2.5F), 0.0001F,
+                "a lamp of half strength leaves half the fog in its core");
     }
 
     /** An empty span draws nothing, and a negative alpha cannot be written. */

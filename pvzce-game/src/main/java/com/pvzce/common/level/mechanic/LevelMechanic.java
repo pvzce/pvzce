@@ -69,6 +69,23 @@ public interface LevelMechanic<D extends MechanicData> {
     }
 
     /**
+     * Zombie ids this mechanic can put on the lawn by itself, for the level's zombie preview.
+     *
+     * <p>The question the seed chooser asks - "what is this level going to send at me" - is
+     * normally answered from the level's wave table, and a level that spawns from something else
+     * has no table to answer it with: 4-5's vases put zombies on the lawn while its {@code waves}
+     * block is empty, so the one screen that exists to say what a level sends showed nothing at
+     * all. Asked of the mechanic rather than read out of its block by a caller, because the shape
+     * of the block is the mechanic's own business.
+     *
+     * <p>Answered without a level instance, like {@link #dealsItsOwnCards()}: the level list builds
+     * a preview for a level that does not exist yet.
+     */
+    default List<Identifier> previewZombieIds(LevelDef def, D data) {
+        return List.of();
+    }
+
+    /**
      * Builds the card bar this mechanic drives, or {@code null} when it is not a card
      * source.
      *

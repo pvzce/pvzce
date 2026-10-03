@@ -184,7 +184,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            1
           ]
         }
       ],
@@ -198,7 +198,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         }
       ],
@@ -212,7 +212,7 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
@@ -253,17 +253,17 @@
       "delay": 2558,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            0
+            2
           ]
         },
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            3
           ]
         }
       ],
@@ -277,14 +277,14 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         }
       ],
@@ -316,33 +316,33 @@
       "delay": 2687,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 3,
-          "rows": [
-            0,
-            1
-          ]
-        },
-        {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
+          "count": 3,
           "rows": [
             2,
             3
           ]
         },
         {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            5
+          ]
+        },
+        {
           "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
           "id": "pvzce:miner_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         }
       ],
@@ -354,24 +354,24 @@
       "delay": 4500,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            0
+            3
           ]
         },
         {
           "id": "pvzce:balloon_zombie",
           "count": 1,
           "rows": [
-            1
+            4
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
+          "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            2
+            5
           ]
         }
       ],
@@ -400,14 +400,14 @@
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            3
           ]
         }
       ],
@@ -428,7 +428,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         }
       ],
@@ -442,7 +442,7 @@
           "id": "pvzce:miner_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
@@ -467,10 +467,10 @@
           ]
         },
         {
-          "id": "pvzce:buckethead_zombie",
+          "id": "pvzce:ducky_tube_buckethead_zombie",
           "count": 1,
           "rows": [
-            1
+            3
           ]
         }
       ],
@@ -484,14 +484,14 @@
           "id": "pvzce:buckethead_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
           "id": "pvzce:balloon_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         }
       ],
@@ -533,24 +533,24 @@
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 1,
+          "count": 2,
           "rows": [
-            0
+            1,
+            5
           ]
         },
         {
           "id": "pvzce:pogo_zombie",
           "count": 1,
           "rows": [
-            1
+            4
           ]
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
+          "count": 1,
           "rows": [
-            2,
-            3
+            2
           ]
         }
       ],
@@ -561,8 +561,16 @@
       "delay": 2746,
       "entries": [
         {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
           "id": "pvzce:basic_zombie",
-          "count": 5,
+          "count": 4,
           "rows": [
             0,
             1,
@@ -571,60 +579,52 @@
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
           "id": "pvzce:flag_zombie",
-          "count": 1,
-          "rows": [
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_conehead_zombie",
-          "count": 1,
-          "rows": [
-            2
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_buckethead_zombie",
-          "count": 1,
-          "rows": [
-            3
-          ]
-        },
-        {
-          "id": "pvzce:jack_in_the_box_zombie",
-          "count": 1,
-          "rows": [
-            4
-          ]
-        },
-        {
-          "id": "pvzce:balloon_zombie",
-          "count": 1,
-          "rows": [
-            5
-          ]
-        },
-        {
-          "id": "pvzce:miner_zombie",
           "count": 1,
           "rows": [
             0
           ]
         },
         {
-          "id": "pvzce:pogo_zombie",
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            5
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:jack_in_the_box_zombie",
+          "count": 1,
+          "rows": [
+            5
+          ]
+        },
+        {
+          "id": "pvzce:balloon_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "id": "pvzce:miner_zombie",
           "count": 1,
           "rows": [
             1
+          ]
+        },
+        {
+          "id": "pvzce:pogo_zombie",
+          "count": 1,
+          "rows": [
+            4
           ]
         }
       ],
@@ -634,6 +634,137 @@
   ],
   "music": {
     "cues": []
+  },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "scared",
+        "text": "哇哇呜，打...打雷了...",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "scared",
+        "text": "好...好害怕...",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ],
+        "animation": {
+          "type": "scale",
+          "scale": 0.33,
+          "target": "pvzce:purwhite"
+        }
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "panic",
+        "text": "诶唔！确实好吓人的说",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        },
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confident",
+        "text": "不...不过别怕，有我们大家在",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confident",
+        "text": "相信大家，可以一起度过的！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "confused",
+        "text": "真的可以吗...?",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "wink",
+        "text": "那，加油哦！",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:lantina"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:purwhite"
+          }
+        ]
+      }
+    ]
   },
   "unlock": {
     "requires": [

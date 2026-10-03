@@ -253,6 +253,89 @@ class FogWorldLevelsTest {
         }
     }
 
+    /**
+     * The vase level's preview names what its pots are hiding.
+     *
+     * <p>4-5's wave table is empty by design - every zombie in the level comes out of a vase - so a
+     * preview built from the waves alone showed a lawn and no zombie at all on the one screen that
+     * exists to say what a level sends at the player. The list is asked of the mechanic now, which
+     * is the layer that knows what a pot holds.
+     */
+    @Test
+    void theVaseLevelPreviewsWhatItsPotsHold() {
+        LevelDef def = level("4_5");
+        assertTrue(def.previewZombieIds().isEmpty(), "4-5's waves name nobody");
+
+        List<String> preview = LevelMechanics.previewZombieIds(def);
+        assertFalse(preview.isEmpty(), "so the preview has to come from the pots");
+        assertTrue(preview.contains("pvzce:basic_zombie"), "the vases are full of them: " + preview);
+        assertTrue(preview.contains("pvzce:football_zombie"), "and of worse: " + preview);
+        assertFalse(preview.contains("pvzce:pea_shooter"),
+                "while the plants inside the other pots are not zombies: " + preview);
+    }
+
+    /** The world's other levels still preview their waves, now with their mechanics appended. */
+    @Test
+    void theWaveLevelsPreviewTheirWaves() {
+        for (String path : LEVELS) {
+            LevelDef def = level(path);
+            List<String> waves = def.previewZombieIds();
+            List<String> preview = LevelMechanics.previewZombieIds(def);
+            assertTrue(preview.size() >= waves.size(), path + " previews at least its waves");
+            assertEquals(waves, preview.subList(0, waves.size()),
+                    path + " keeps its wave table's order at the front of the preview");
+        }
+        assertTrue(LevelMechanics.previewZombieIds(level("4_1"))
+                        .contains("pvzce:jack_in_the_box_zombie"),
+                "and 4-1 still leads with the zombies its waves send");
+    }
+
+    /**
+     * Every lane of the pool gets its share of the world.
+     *
+     * <p>The bug this pins was a bias in the lane deal, not in the director: the generator restarted
+     * its lane cursor at zero for every wave, so the first zombie of each wave was dealt row 0 and -
+     * because most of these tables are one- and two-zombie waves - entry after entry was narrowed to
+     * `rows: [0]`. The director deals the lanes an entry names and nothing else, so the level put
+     * nearly everything in the bottom two rows. Measured on 4-1 before the fix: rows 0/1 took 19 of
+     * 21 zombies, the water took 2, and rows 4/5 took none at all - two lanes a player never saw a
+     * zombie in.
+     *
+     * <p>Asserted as a spread rather than as counts: the water rows can only take swimmers (a walker
+     * dealt into the pool would drown, which is why `usableLanes` refuses it), so the four land rows
+     * are what has to come out even.
+     */
+    @Test
+    void everyLaneGetsItsShare() {
+        for (String path : LEVELS) {
+            LevelDef def = level(path);
+            if (def.waves().isEmpty()) {
+                continue; // the vase level: its zombies come out of the pots
+            }
+            int[] perRow = new int[def.height()];
+            int total = 0;
+            for (var wave : def.waves()) {
+                for (var entry : wave.entries()) {
+                    List<Integer> rows = entry.restrictedToRows()
+                            ? entry.rows() : List.of(0);
+                    for (int i = 0; i < entry.count(); i++) {
+                        // The director's own rotation: `rowFor` walks the entry's lanes in order.
+                        perRow[rows.get(i % rows.size())]++;
+                        total++;
+                    }
+                }
+            }
+            for (int row = 0; row < perRow.length; row++) {
+                assertTrue(perRow[row] > 0,
+                        path + " sends nothing down row " + row + ": " + java.util.Arrays.toString(perRow));
+            }
+            int bottom = perRow[0] + perRow[1];
+            assertTrue(bottom * 10 < total * 6,
+                    path + " puts " + bottom + " of " + total + " zombies in the bottom two rows: "
+                            + java.util.Arrays.toString(perRow));
+        }
+    }
+
     /** The world's new bodies turn up: the balloon is what the fog is hiding. */
     @Test
     void theNewZombiesAppear() {

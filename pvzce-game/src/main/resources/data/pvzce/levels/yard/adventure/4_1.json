@@ -142,7 +142,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            1
           ]
         }
       ],
@@ -156,7 +156,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         }
       ],
@@ -171,7 +171,7 @@
           "count": 2,
           "rows": [
             0,
-            1
+            5
           ]
         }
       ],
@@ -185,8 +185,8 @@
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            0,
-            1
+            1,
+            4
           ]
         }
       ],
@@ -200,7 +200,7 @@
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
@@ -211,17 +211,17 @@
       "delay": 2746,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            0
+            2
           ]
         },
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            3
           ]
         }
       ],
@@ -235,14 +235,14 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         }
       ],
@@ -274,14 +274,6 @@
       "delay": 2610,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1
-          ]
-        },
-        {
           "id": "pvzce:ducky_tube_zombie",
           "count": 2,
           "rows": [
@@ -290,24 +282,32 @@
           ]
         },
         {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            4,
+            5
+          ]
+        },
+        {
           "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         },
         {
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         },
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            2
           ]
         }
       ],
@@ -324,6 +324,62 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
+      }
+    ]
+  },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "sleepy",
+        "text": "晚...晚上好，又见面了呢",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "wink",
+        "text": "你怎么来泳池了呀？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "playful",
+        "text": "是来玩水嘛",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "startled",
+        "text": "唔唔！好大的雾！",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "panic",
+        "text": "前面什么也看不清！！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "care",
+        "text": "你不怕这点雾的，对不对？",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "confident",
+        "text": "咱相信你！",
+        "voice": "",
+        "side": "left"
       }
     ]
   },

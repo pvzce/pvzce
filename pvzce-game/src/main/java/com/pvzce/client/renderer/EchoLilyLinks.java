@@ -29,8 +29,7 @@ public final class EchoLilyLinks {
         return client.level().entities().values().stream()
                 .filter(e -> (PvzceIds.ECHO_LILY.equals(e.defId())
                         || PvzceIds.RESONANCE_MOSS.equals(e.defId())) && e.health() > 0
-                        && !"sleep".equals(e.animation())
-                        && !FogClientMechanic.hides(client.level(), e.cellX(), e.cellY())).toList();
+                        && !"sleep".equals(e.animation())).toList();
     }
 
     private static boolean adjacent(ClientEntity a, ClientEntity b) {
@@ -59,8 +58,7 @@ public final class EchoLilyLinks {
         if (ring != null) {
             for (ClientEntity host : client.level().entities().values()) {
                 if (!lilies.contains(host) && host.echoNetwork().rate() > 1F && host.health() > 0
-                        && !StormClientMechanic.hides(client.level())
-                        && !FogClientMechanic.hides(client.level(), host.cellX(), host.cellY())) {
+                        && !StormClientMechanic.hides(client.level())) {
                     client.drawTexture(ring.look().texture(), host.cellX() - 0.54F,
                             host.cellY() - 0.54F, 1.08F, 1.08F, 0.07F, 1F, 0.95F, 0.55F, 0.8F);
                 }
@@ -183,7 +181,7 @@ public final class EchoLilyLinks {
         if (!StormClientMechanic.hides(client.level())) {
             for (ClientEntity host : client.level().entities().values()) {
                 if (host.echoNetwork().lilies() == 0 || lilies.contains(host) || host.health() <= 0
-                        || FogClientMechanic.hides(client.level(), host.cellX(), host.cellY())) {
+                        || FogClientMechanic.covers(client.level(), host.cellX(), host.cellY())) {
                     continue;
                 }
                 String text = host.echoNetwork().rate() > 1F

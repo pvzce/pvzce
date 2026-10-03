@@ -1,5 +1,6 @@
 package com.pvzce.client.gui.components;
 
+import com.pvzce.api.content.DialogueAnimation;
 import com.pvzce.api.content.DialogueCharacterDef;
 import com.pvzce.api.content.DialogueChoice;
 import com.pvzce.api.content.DialogueLine;
@@ -69,14 +70,29 @@ final class DialogueScript {
     /** A character standing in one half of the window. */
     static final class StagePortrait {
         final DialogueCharacterDef character;
-        final DialogueSlot slot;
+        DialogueSlot slot;
         /** The portrait file name they are drawn with; the speaker's comes from their own line. */
-        final String portrait;
+        String portrait;
+        /**
+         * The size they stand at, on this line and the next ones.
+         *
+         * <p>Not simply {@link DialogueCharacterDef#scale()}, and not final: a {@code scale}
+         * animation <em>is</em> a change of size, and one written about somebody standing there
+         * changes it for good - which is how a scene says "她变小了" once and then talks to the
+         * small one for the next twenty lines. A character the stage has just put up stands at
+         * their own size, so somebody who leaves and comes back is themselves again.
+         */
+        float baseScale;
 
         StagePortrait(DialogueCharacterDef character, DialogueSlot slot, String portrait) {
+            this(character, slot, portrait, character.scale());
+        }
+
+        StagePortrait(DialogueCharacterDef character, DialogueSlot slot, String portrait, float baseScale) {
             this.character = character;
             this.slot = slot;
             this.portrait = portrait;
+            this.baseScale = baseScale;
         }
     }
 
@@ -118,6 +134,7 @@ final class DialogueScript {
         }
         if (!lines.isEmpty()) {
             enter(lines.get(0), startNanos);
+            applySize(lines.get(0));
         }
     }
 
@@ -333,6 +350,7 @@ final class DialogueScript {
         }
         index = next;
         enter(line(), System.nanoTime());
+        applySize(line());
         return true;
     }
 
@@ -408,37 +426,104 @@ final class DialogueScript {
      * who is already where the new line wants them, gets no slide at all - and that is also why
      * nothing happens while the speaker changes: a line with no {@code slots} stages exactly the
      * stage it already had, so the same portraits are simply still there.
+     *
+     * <p>Somebody already on stage is <em>updated</em> rather than replaced: their size is what the
+     * conversation has made of them so far, and a new object would quietly put them back to their
+     * own size (see {@link StagePortrait#baseScale}).
      */
     private void enter(DialogueLine line, long nowNanos) {
         Map<Identifier, DialogueSlot> wanted = stageOf(line);
         for (Map.Entry<Identifier, DialogueSlot> entry : wanted.entrySet()) {
             Identifier id = entry.getKey();
             StagePortrait current = stage.get(id);
-            if (current != null && current.slot == entry.getValue()) {
-                // Already there, in the same half: the line may still change their look, and
-                // whatever brought them here is over - a slide left running would push a settled
-                // character back off the screen for as long as it lasted.
-                stage.put(id, new StagePortrait(current.character, current.slot, portraitFor(line, id)));
+            if (current != null) {
+                // Already there: the line may still change their look or move them, and whatever
+                // brought them here is over - a slide left running would push a settled character
+                // back off the screen for as long as it lasted.
+                current.slot = entry.getValue();
+                current.portrait = portraitFor(line, id);
                 slides.remove(id);
                 continue;
             }
-            DialogueCharacterDef character = current == null ? characterOf(id) : current.character;
+            DialogueCharacterDef character = characterOf(id);
             if (character == null) {
                 continue;
             }
             stage.put(id, new StagePortrait(character, entry.getValue(), portraitFor(line, id)));
-            if (current == null) {
-                slides.put(id, new Slide(true, nowNanos));
-            } else {
-                // They changed halves: no walk across the yard, they are simply standing there now.
-                slides.remove(id);
-            }
+            slides.put(id, new Slide(true, nowNanos));
         }
         for (Identifier id : new ArrayList<>(stage.keySet())) {
             if (!wanted.containsKey(id)) {
                 slides.put(id, new Slide(false, nowNanos));
             }
         }
+    }
+
+    /**
+     * Makes the line's own size change, if it wrote one: a {@code scale} animation about somebody
+     * on stage becomes the size they stand at from here on.
+     *
+     * <p>Somebody the line does not stage - an author's typo, a character who is not in the scene
+     * yet - is left alone, with a line on the log rather than a portrait that changes size for a
+     * beat and then changes back.
+     */
+    private void applySize(DialogueLine line) {
+        DialogueAnimation animation = line.animation();
+        if (animation == null || !animation.isScale() || animation.isNone()) {
+            return;
+        }
+        if (animation.targetsEveryone()) {
+            for (StagePortrait portrait : stage.values()) {
+                portrait.baseScale = animation.scale();
+            }
+            return;
+        }
+        Identifier target = animation.hasTarget() ? targetOf(animation) : line.character();
+        StagePortrait staged = target == null ? null : stage.get(target);
+        if (staged == null) {
+            if (target != null) {
+                LOGGER.warn("Dialogue line {} asks to resize '{}', who is not on stage: nothing happens",
+                        index, target);
+            }
+            return;
+        }
+        staged.baseScale = animation.scale();
+    }
+
+    /**
+     * The characters this line's animation happens to, as they stand right now.
+     *
+     * <p>Who the one-shot half of an animation is drawn on - a shake is applied by the overlay while
+     * it draws, and it needs the same answer {@link #applySize} used: the speaker when the line named
+     * nobody, one character, or everybody. Empty for a line with no animation, and for a target no
+     * one on stage answers to.
+     */
+    List<Identifier> effectTargets() {
+        if (!isActive()) {
+            return List.of();
+        }
+        DialogueLine line = line();
+        DialogueAnimation animation = line.animation();
+        if (animation == null || animation.isNone()) {
+            return List.of();
+        }
+        List<Identifier> ids = new ArrayList<>();
+        if (animation.targetsEveryone()) {
+            for (StagePortrait portrait : stage.values()) {
+                ids.add(portrait.character.id());
+            }
+            return ids;
+        }
+        Identifier target = animation.hasTarget() ? targetOf(animation) : line.character();
+        if (target != null && stage.containsKey(target)) {
+            ids.add(target);
+        }
+        return ids;
+    }
+
+    /** The character an animation's written target names, or null when it names nobody readable. */
+    private static Identifier targetOf(DialogueAnimation animation) {
+        return Identifier.tryParse(animation.targetName());
     }
 
     /** The look a character is drawn with on this line: the speaker's portrait, others keep theirs. */

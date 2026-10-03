@@ -231,9 +231,12 @@ public final class JackInTheBoxCapability implements ZombieCapability {
     private void openTheBox(ZombieEntity zombie, LevelAccess level) {
         popTicksLeft = popTicks;
         zombie.setAnimation(EntityAnimations.POP);
+        // The lid coming up. The music box that has been playing for the whole walk is not this
+        // sound: the client stops it as the walk state ends (`EntityLoops`), which is the
+        // original's own split between `StopZombieSound` and `SOUND_BOING` here.
         level.emitEffect("", zombie.cellX(), zombie.cellY(),
                 sound.orElseGet(() -> zombie.def().sounds().special()
-                        .orElse(PvzceSounds.ZOMBIE_JACK_IN_THE_BOX)));
+                        .orElse(PvzceSounds.ZOMBIE_JACK_SURPRISE2)));
     }
 
     /**

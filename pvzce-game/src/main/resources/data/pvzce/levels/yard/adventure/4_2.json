@@ -142,7 +142,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            1
           ]
         }
       ],
@@ -156,7 +156,7 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         }
       ],
@@ -170,7 +170,7 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
@@ -198,7 +198,7 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
@@ -230,17 +230,17 @@
       "delay": 3072,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            0
+            2
           ]
         },
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            3
           ]
         }
       ],
@@ -252,17 +252,11 @@
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 2,
+          "count": 3,
           "rows": [
             0,
-            1
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 1,
-          "rows": [
-            2
+            4,
+            5
           ]
         }
       ],
@@ -274,15 +268,15 @@
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 4,
+          "count": 3,
           "rows": [
-            0,
-            1
+            1,
+            4
           ]
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
+          "count": 3,
           "rows": [
             2,
             3
@@ -292,14 +286,14 @@
           "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            0
+            1
           ]
         },
         {
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            1
+            4
           ]
         }
       ],
@@ -311,19 +305,19 @@
       "delay": 4500,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 1,
           "rows": [
-            0,
-            1
+            3
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 2,
+          "id": "pvzce:basic_zombie",
+          "count": 3,
           "rows": [
-            2,
-            3
+            0,
+            4,
+            5
           ]
         }
       ],
@@ -337,14 +331,14 @@
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            0
+            1
           ]
         },
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            1
+            2
           ]
         }
       ],
@@ -355,18 +349,24 @@
       "delay": 2589,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 1,
           "rows": [
-            0,
-            1
+            3
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
+          "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            2
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            5
           ]
         }
       ],
@@ -407,23 +407,17 @@
       "entries": [
         {
           "id": "pvzce:basic_zombie",
-          "count": 1,
+          "count": 2,
           "rows": [
-            0
+            0,
+            4
           ]
         },
         {
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            1
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 1,
-          "rows": [
-            2
+            5
           ]
         }
       ],
@@ -437,8 +431,8 @@
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            0,
-            1
+            1,
+            4
           ]
         },
         {
@@ -453,7 +447,7 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            4
+            5
           ]
         }
       ],
@@ -486,19 +480,25 @@
       "delay": 2534,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 1,
           "rows": [
-            0,
-            1
+            3
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            2,
-            3
+            0,
+            5
           ]
         }
       ],
@@ -510,13 +510,6 @@
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            0
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
             1,
@@ -525,16 +518,17 @@
         },
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 1,
+          "count": 2,
           "rows": [
-            2
+            2,
+            3
           ]
         },
         {
-          "id": "pvzce:ducky_tube_conehead_zombie",
+          "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            3
+            5
           ]
         }
       ],
@@ -566,7 +560,7 @@
           "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            5
+            1
           ]
         },
         {
@@ -580,14 +574,14 @@
           "id": "pvzce:football_zombie",
           "count": 1,
           "rows": [
-            1
+            5
           ]
         },
         {
           "id": "pvzce:jack_in_the_box_zombie",
           "count": 1,
           "rows": [
-            4
+            0
           ]
         }
       ],
@@ -604,6 +598,334 @@
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
+      }
+    ]
+  },
+  "dialogue": {
+    "lines": [
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "startled",
+        "text": "雾，雾是不是越来越大了！",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "panic",
+        "text": "它...它会不会蔓延门口",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "panic",
+        "text": "然后...然后我们就什么也看不清了！",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "panic",
+        "text": "万一...万一，里面有什么奇怪的东西",
+        "voice": "",
+        "side": "left"
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "scared",
+        "text": "啊哇，咱...咱会被吓死的...",
+        "voice": "",
+        "side": "left",
+        "animation": {
+          "type": "shake"
+        }
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confused",
+        "text": "嗯...?你们...在做什么？",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ],
+        "animation": {
+          "type": "scale",
+          "scale": 0.33,
+          "target": "pvzce:purwhite",
+          "duration": 0.7
+        }
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "curious",
+        "text": "诶？这个，好...好小一只",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "fierce",
+        "text": "不...不要说咱小啦，咱还是很厉害的说！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "smile",
+        "text": "嗯嗯，知道啦知道啦，你很厉害",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "smirk",
+        "text": "还是感觉好可爱",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "playful",
+        "text": "可爱就可爱吧~嘿嘿",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "smile",
+        "text": "对啦，我叫兰提娜",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "smile",
+        "text": "兰缇娜的兰，兰提娜的提",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "playful",
+        "text": "兰提娜的娜！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "embarrassed",
+        "text": "诶嘿...",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "confused",
+        "text": "我叫紫夜白，还有，话说姐姐为什也在这里呀",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confident",
+        "text": "啊哈！我可以驱散迷雾哦",
+        "voice": "",
+        "side": "right",
+        "animation": {
+          "type": "scale",
+          "scale": 1.12,
+          "target": "all"
+        },
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "confused",
+        "text": "诶？驱散迷雾？",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "glowing",
+        "text": "我可以，发！光！",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:purwhite",
+        "portrait": "star",
+        "text": "哇！好厉害！",
+        "voice": "",
+        "side": "left",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
+      },
+      {
+        "character": "pvzce:lantina",
+        "portrait": "confident",
+        "text": "那就让我来为大家送去光明吧！",
+        "voice": "",
+        "side": "right",
+        "slots": [
+          {
+            "slot": "left",
+            "character": "pvzce:purwhite"
+          },
+          {
+            "slot": "right",
+            "character": "pvzce:lantina"
+          }
+        ]
       }
     ]
   },

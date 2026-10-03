@@ -66,6 +66,23 @@ public final class DialogueEditorModel {
          */
         public JsonObject rawAnimation;
         /**
+         * Who the animation happens to: blank for the speaker, {@code all}, or a character id.
+         *
+         * <p>Kept as written and written straight back, like {@link #side} and {@link #animation}: the
+         * page has no row for it yet, and an animation the author pointed at somebody else is still
+         * their animation. Losing it on a save would turn "she shrinks while the other one talks" into
+         * "the speaker shrinks", which is a different scene.
+         */
+        public String animationTarget = "";
+        /**
+         * How long the animation takes, in seconds, as written; null when the file said nothing.
+         *
+         * <p>Preserved for the same reason {@link #animationTarget} is, and one step further: 4-2's
+         * shrink is written {@code 0.7} so that it is still happening while 兰提娜 walks in, and a
+         * save that put it back to the kind's default would make that beat a cut again.
+         */
+        public Float animationDuration;
+        /**
          * The line's {@code slots} and {@code choices}, as the file wrote them.
          *
          * <p>Held as JSON rather than as content objects because the 同台与选项 dialog is the only
@@ -248,6 +265,8 @@ public final class DialogueEditorModel {
                     }
                     model.animationAmount = number(animation, "amount");
                     model.animationScale = number(animation, "scale");
+                    model.animationTarget = string(animation, "target");
+                    model.animationDuration = number(animation, "duration");
                     model.rawAnimation = animation.deepCopy();
                 }
                 model.rawSlots = array(line, "slots");
@@ -263,7 +282,8 @@ public final class DialogueEditorModel {
          * <p>Only the number the kind uses is written: a shake has an amplitude and no multiplier,
          * and writing both invites a reader to wonder which one {@code scale} means. A kind the page
          * does not know keeps every number it came with, because the page is not entitled to throw
-         * away a field it cannot draw.
+         * away a field it cannot draw. {@code target} is written back for the same reason - the page
+         * has no row for who the beat happens to, but the scene does.
          */
         private static JsonObject animationJson(LineModel line) {
             String kind = line.animation == null ? "none" : line.animation;
@@ -276,6 +296,12 @@ public final class DialogueEditorModel {
             if (!known) {
                 // Verbatim: the page draws none of it, so it may not rewrite any of it.
                 return line.rawAnimation == null ? animation : line.rawAnimation.deepCopy();
+            }
+            if (line.animationTarget != null && !line.animationTarget.isBlank()) {
+                animation.addProperty("target", line.animationTarget);
+            }
+            if (line.animationDuration != null) {
+                animation.addProperty("duration", line.animationDuration);
             }
             if ("scale".equalsIgnoreCase(kind)) {
                 animation.addProperty("scale", line.animationScale == null

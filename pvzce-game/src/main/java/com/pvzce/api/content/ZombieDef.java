@@ -272,11 +272,12 @@ public record ZombieDef(
             Optional<Identifier> armorHit,
             Optional<Identifier> bite,
             Optional<Identifier> death,
-            Optional<Identifier> special
+            Optional<Identifier> special,
+            Optional<Identifier> walk
     ) {
         public static final ZombieSounds EMPTY = new ZombieSounds(
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty());
 
         public static final MapCodec<ZombieSounds> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
                 Identifier.CODEC.optionalFieldOf("spawn").forGetter(ZombieSounds::spawn),
@@ -284,9 +285,34 @@ public record ZombieDef(
                 Identifier.CODEC.optionalFieldOf("armor_hit").forGetter(ZombieSounds::armorHit),
                 Identifier.CODEC.optionalFieldOf("bite").forGetter(ZombieSounds::bite),
                 Identifier.CODEC.optionalFieldOf("death").forGetter(ZombieSounds::death),
-                Identifier.CODEC.optionalFieldOf("special").forGetter(ZombieSounds::special)
+                Identifier.CODEC.optionalFieldOf("special").forGetter(ZombieSounds::special),
+                Identifier.CODEC.optionalFieldOf("walk").forGetter(ZombieSounds::walk)
         ).apply(i, ZombieSounds::new));
 
         public static final Codec<ZombieSounds> CODEC = MAP_CODEC.codec();
+
+        /**
+         * A sound that plays <em>while</em> the zombie walks, on a loop, rather than once.
+         *
+         * <p>The jack-in-the-box's music box, and the original's mechanism for it: its
+         * {@code StartZombieSound} starts {@code FOLEY_JACKINTHEBOX} when the zombie reaches the
+         * board and {@code StopZombieSound} takes it away when the box opens or the body dies, so
+         * the tune runs under the whole walk - twenty-odd seconds of it - and stops with the thing
+         * making it. A one-shot fired at the wrong end of that walk is what this build had: the
+         * music box only started as the box opened, 110 ticks before the blast, so the player heard
+         * a second and a half of a six-second tune and nothing at all while the clown approached.
+         *
+         * <p>Client-side: the sound belongs to an entity the client is already drawing, and only the
+         * client can stop it the moment that entity stops walking. See {@code EntityLoops}.
+         */
+        public Optional<Identifier> walkSound() {
+            return walk;
+        }
+
+        /** The same block with a walking sound, for tests and for content built in code. */
+        public ZombieSounds withWalkSound(Identifier sound) {
+            return new ZombieSounds(spawn, hit, armorHit, bite, death, special,
+                    Optional.ofNullable(sound));
+        }
     }
 }
