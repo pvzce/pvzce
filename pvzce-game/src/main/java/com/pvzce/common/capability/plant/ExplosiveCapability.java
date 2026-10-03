@@ -139,6 +139,7 @@ public final class ExplosiveCapability implements PlantCapability {
     private final int lingerTicks;
 
     private int fuse;
+    private final com.pvzce.common.level.RateClock weatherClock = new com.pvzce.common.level.RateClock();
     /** Ticks left of the explosion drawing; {@link #LINGER_NONE} before the blast. */
     private int linger = LINGER_NONE;
 
@@ -362,7 +363,7 @@ public final class ExplosiveCapability implements PlantCapability {
             return;
         }
         if (fuse > 0) {
-            fuse--;
+            fuse = Math.max(0, fuse - weatherClock.step(level.weatherActionMultiplier(plant)));
             plant.setState(trigger == Trigger.PROXIMITY
                     ? (fuse == 0 ? EntityAnimations.ARMED : EntityAnimations.GROW)
                     // A timed explosive has nothing to grow into. The ash line's own art
@@ -407,7 +408,7 @@ public final class ExplosiveCapability implements PlantCapability {
         // the trigger zone left it at ~0.599, just past the 0.55 blast.
         // The two values are still authored separately (a mine may want a wider blast), but
         // the blast can never be narrower than the zone that armed it.
-        float blastRadius = Math.max(MIN_RADIUS, radius);
+        float blastRadius = Math.max(MIN_RADIUS, radius * level.weatherRangeMultiplier(plant));
         if (trigger == Trigger.PROXIMITY) {
             // How far from the centre the blast actually reaches: a radial blast reaches
             // `radius`, a square one reaches the far edge of the cell `radius` cells away
@@ -518,12 +519,14 @@ public final class ExplosiveCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        weatherClock.save(tag);
         tag.putInt("fuse", fuse);
         tag.putInt("linger", linger);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        weatherClock.load(tag);
         fuse = tag.getInt("fuse");
         linger = tag.getInt("linger");
     }

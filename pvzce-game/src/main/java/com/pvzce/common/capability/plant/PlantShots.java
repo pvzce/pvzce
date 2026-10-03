@@ -34,7 +34,7 @@ public final class PlantShots {
         if (ref == null || plant == null || level == null) {
             return ref;
         }
-        float multiplier = level.sporeRangeMultiplier(plant);
+        float multiplier = level.sporeRangeMultiplier(plant) * level.weatherRangeMultiplier(plant);
         return multiplier == 1F ? ref : ref.scaledRange(multiplier);
     }
 

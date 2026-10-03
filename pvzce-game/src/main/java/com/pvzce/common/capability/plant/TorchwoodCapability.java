@@ -82,6 +82,11 @@ public final class TorchwoodCapability implements PlantCapability {
     @Override
     public void tick(PlantEntity plant, LevelAccess level) {
         boolean lit = false;
+        float weather = level.weatherTorchMultiplier();
+        if (weather <= 0F) {
+            litThisTick = false;
+            return;
+        }
         for (ProjectileEntity shot : level.projectilesInCell(plant.gridX(), plant.gridY())) {
             // Only its own side's shots. A torchwood that burned the zombies' own peas would be a
             // defensive plant as well as an offensive one, which is not what it is.
@@ -89,7 +94,7 @@ public final class TorchwoodCapability implements PlantCapability {
                     && !shot.team().equals(plant.team())) {
                 continue;
             }
-            if (shot.torch(multiplier, burningType)) {
+            if (shot.torch(multiplier * weather, burningType)) {
                 lit = true;
             }
         }

@@ -61,6 +61,7 @@ public final class LevelMechanics {
     public static final ToolMechanic TOOL = new ToolMechanic();
     public static final FogMechanic FOG = new FogMechanic();
     public static final StormMechanic STORM = new StormMechanic();
+    public static final WeatherMechanic WEATHER = new WeatherMechanic();
     public static final RakeMechanic RAKE = new RakeMechanic();
     public static final VaseFieldMechanic VASE_FIELD = new VaseFieldMechanic();
     public static final GraveSpawnerMechanic GRAVE_SPAWNER = new GraveSpawnerMechanic();
@@ -88,6 +89,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_TOOL, TOOL);
         register(PvzceIds.MECHANIC_FOG, FOG);
         register(PvzceIds.MECHANIC_STORM, STORM);
+        register(PvzceIds.MECHANIC_WEATHER, WEATHER);
         register(PvzceIds.MECHANIC_RAKE, RAKE);
         register(PvzceIds.MECHANIC_VASE_FIELD, VASE_FIELD);
         register(PvzceIds.MECHANIC_GRAVE_SPAWNER, GRAVE_SPAWNER);
@@ -595,6 +597,12 @@ public final class LevelMechanics {
         if (mechanic != null) {
             mechanic.sendState(level, (D) typed.value(), bridge);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <D extends MechanicData> void onWaveChanged(TypedMechanic typed, LevelServer level) {
+        LevelMechanic<D> mechanic = (LevelMechanic<D>) get(typed.type());
+        if (mechanic != null) mechanic.onWaveChanged(level, (D) typed.value());
     }
 
     @SuppressWarnings("unchecked")

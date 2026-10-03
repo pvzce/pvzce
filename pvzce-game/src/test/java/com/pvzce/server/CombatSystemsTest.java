@@ -716,6 +716,49 @@ class CombatSystemsTest {
     }
 
     /**
+     * A shooter on a platform still hits what walks past it.
+     *
+     * <p>A shot leaves its owner at the height the owner stands at, so a plant on a flower pot or a
+     * lily pad fires from a platform above the lane's floor while the zombie in that lane is at
+     * ground level. The hit test's height tolerance was 0.2 - less than the flower pot - so a
+     * potted peashooter fired over the head of every zombie it was aimed at: ten seconds of fire,
+     * no damage at all. The same bug reached the pool's water lanes when the lily pad's plants were
+     * moved up onto the pad's own surface, which is where it was noticed: the plants had been out
+     * of place, and putting them right took two shipped levels with them.
+     *
+     * <p>Pinned as damage rather than as a constant: what matters is whether the zombie is hit, and
+     * the tolerance is only one of the ways to get there.
+     */
+    @Test
+    void aShooterOnACarrierStillHitsTheLane() {
+        for (String carrier : List.of("flower_pot", "lily_pad")) {
+            LevelServer level = newLevel();
+            CapturingBridge bridge = bridge();
+            var plantTeam = level.team(Identifier.withDefaultNamespace("plant_team"));
+            var carrierDef = BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace(carrier));
+            var shooter = BuiltInRegistries.PLANTS.get(Identifier.withDefaultNamespace("pea_shooter"));
+            assertNotNull(carrierDef, carrier + " has to be registered");
+            assertNotNull(shooter);
+            // Row 2 of the demo board is grass, so both carriers are plantable there: the pool's
+            // own terrain is not what this test is about.
+            level.spawnPlant(carrierDef, plantTeam, 1, 2);
+            PlantEntity pea = level.spawnPlant(shooter, plantTeam, 1, 2);
+            level.flushPending(bridge);
+            assertNotNull(pea, "the shooter has to land on the " + carrier);
+            assertTrue(pea.height() > 0F,
+                    "and stand on top of it, which is what makes the shot come from a platform: "
+                            + pea.height());
+
+            ZombieEntity walker = spawn(level, bridge, "basic_zombie", 5F, 2);
+            int before = walker.health();
+            tick(level, bridge, 600);
+            assertTrue(before - walker.health() > 0,
+                    "the " + carrier + "'s shooter has to hit the zombie in its own lane, dealt "
+                            + (before - walker.health()) + " damage");
+        }
+    }
+
+    /**
      * A knocked-off cone flies from the zombie's head, and it is the cone that flies.
      *
      * <p>Two things were wrong here: the debris was spawned at the zombie's feet, so a hat

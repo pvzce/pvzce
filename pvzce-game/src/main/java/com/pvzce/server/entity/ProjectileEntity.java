@@ -9,6 +9,7 @@ import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.entity.EntityLayers;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.projectile.ArcMotionCapability;
+import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
@@ -27,8 +28,24 @@ import java.util.List;
 public class ProjectileEntity extends PvzceEntity {
     /** Horizontal hit window against a zombie, in cells. */
     private static final float HIT_RADIUS_X = 0.4F;
-    /** Air shots must also match height within this tolerance. */
-    private static final float HIT_TOLERANCE_Y = 0.2F;
+    /**
+     * How far above or below its own height a shot may be and still touch a zombie.
+     *
+     * <p>A shot leaves its owner at the height the owner <em>stands</em> at, which is the ground
+     * plus whatever platform it is on - a flower pot raises a plant by
+     * {@link PlantPlacement#FLOWER_POT_TOP}, a lily pad by {@link PlantPlacement#LILY_PAD_TOP} -
+     * while the zombie walking into that lane is at ground level. So the tolerance has to cover the
+     * tallest platform, and it used to be 0.2: less than the flower pot. A peashooter in a flower
+     * pot fired over the head of every zombie it was aimed at (measured: ten seconds of fire, no
+     * damage at all), and putting the lily pad's plants up on the pad's own surface turned the same
+     * bug loose on every pool level's water lanes.
+     *
+     * <p>What separates the layers is the capability flags ({@code canBeHitByGround},
+     * {@code canBeHitByArc}), not this: a balloon zombie is not hit by a ground shot whatever
+     * height it is at, and the row test above already keeps a shot inside its own lane.
+     */
+    private static final float HIT_TOLERANCE_Y =
+            Math.max(PlantPlacement.FLOWER_POT_TOP, PlantPlacement.LILY_PAD_TOP) + 0.12F;
     /** A homing shot counts as landed at or below this height. */
     private static final float LANDED_HEIGHT = 0.15F;
 
@@ -192,11 +209,15 @@ public class ProjectileEntity extends PvzceEntity {
      * @return true when this call is what lit it, false when it was already burning
      */
     public boolean torch(int multiplier, com.pvzce.api.util.Identifier burningType) {
+        return torch((float) multiplier, burningType);
+    }
+
+    public boolean torch(float multiplier, com.pvzce.api.util.Identifier burningType) {
         if (torched) {
             return false;
         }
         torched = true;
-        this.damage = Math.max(1, damage * Math.max(1, multiplier));
+        this.damage = Math.max(1, Math.round(damage * Math.max(1F, multiplier)));
         if (burningType != null) {
             this.torchDamageType = burningType;
         }

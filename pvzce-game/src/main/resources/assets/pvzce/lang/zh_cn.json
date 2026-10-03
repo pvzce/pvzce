@@ -990,5 +990,18 @@
   "capability.pvzce.umbrella": "空中拦截",
   "capability.pvzce.ladder": "架梯",
   "capability.pvzce.catapult": "投篮",
-  "pvzce.key.tool_fertilizer": "工具：肥料"
+  "pvzce.key.tool_fertilizer": "工具：肥料",
+  "level_collection.pvzce.night_roof": "黑夜屋顶",
+  "pvzce.mechanic.weather": "天气",
+  "pvzce.mechanic.weather.field.phases": "天气变化",
+  "pvzce.mechanic.weather.field.from_wave": "起始波次",
+  "pvzce.mechanic.weather.field.weather": "天气",
+  "gui.pvzce.weather.clear": "晴夜",
+  "gui.pvzce.weather.cloudy": "阴天",
+  "gui.pvzce.weather.rain": "雨天",
+  "gui.pvzce.weather.forecast": "%s · 第%d波转%s",
+  "gui.pvzce.weather.rates": "蘑菇速度/范围%d%% · 葵花产速%d%%",
+  "gui.pvzce.weather.clear_fire": "火炬、灰烬恢复正常",
+  "gui.pvzce.weather.cloudy_fire": "火炬、灰烬小幅削弱",
+  "gui.pvzce.weather.rain_fire": "火炬熄火 · 灰烬卡片冷却翻倍"
 }

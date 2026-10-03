@@ -45,6 +45,7 @@ public final class MagnetCapability implements PlantCapability {
     private final Optional<Identifier> sound;
 
     private int cooldown;
+    private final com.pvzce.common.level.RateClock weatherClock = new com.pvzce.common.level.RateClock();
     private boolean pulling;
     private String heldItem = "";
     private float itemX, itemY;
@@ -84,7 +85,7 @@ public final class MagnetCapability implements PlantCapability {
     public void tick(PlantEntity plant, LevelAccess level) {
         pulling = false;
         if (cooldown > 0) {
-            cooldown -= 1;
+            cooldown = Math.max(0, cooldown - weatherClock.step(level.weatherActionMultiplier(plant)));
             int elapsed = intervalTicks - cooldown;
             plant.setState(elapsed < com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS
                     ? EntityAnimations.SHOOT : "magnet_hold");
@@ -142,11 +143,11 @@ public final class MagnetCapability implements PlantCapability {
             if (zombie.isRemoved() || zombie.magneticItem() == null) {
                 continue;
             }
-            if (Math.abs(zombie.gridY() - plant.gridY()) > 2) continue;
+            if (Math.abs(zombie.gridY() - plant.gridY()) > Math.floor(2.5F * level.weatherRangeMultiplier(plant))) continue;
             float dx = zombie.cellX() - plant.cellX();
             float dy = zombie.cellY() - plant.cellY();
             float distance = (float) Math.sqrt(dx * dx + dy * dy);
-            if (distance <= range && distance < bestDistance) {
+            if (distance <= range * level.weatherRangeMultiplier(plant) && distance < bestDistance) {
                 best = zombie;
                 bestDistance = distance;
             }
@@ -156,8 +157,9 @@ public final class MagnetCapability implements PlantCapability {
 
     private PlantEntity nearestLadder(PlantEntity plant, LevelAccess level) {
         PlantEntity best = null;
-        double distance = range;
-        for (int row = Math.max(0, plant.gridY() - 2); row <= Math.min(level.height() - 1, plant.gridY() + 2); row++) {
+        double distance = range * level.weatherRangeMultiplier(plant);
+        int rows = (int) Math.floor(2.5F * level.weatherRangeMultiplier(plant));
+        for (int row = Math.max(0, plant.gridY() - rows); row <= Math.min(level.height() - 1, plant.gridY() + rows); row++) {
             for (int col = 0; col < level.width(); col++) {
                 for (PlantEntity candidate : level.plantsAt(col, row)) {
                     double d = Math.hypot(candidate.cellX() - plant.cellX(), candidate.cellY() - plant.cellY());
@@ -185,6 +187,7 @@ public final class MagnetCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        weatherClock.save(tag);
         tag.putInt("cooldown", cooldown);
         tag.putString("heldItem", heldItem);
         tag.putFloat("itemX", itemX); tag.putFloat("itemY", itemY);
@@ -192,6 +195,7 @@ public final class MagnetCapability implements PlantCapability {
 
     @Override
     public void load(CompoundTag tag) {
+        weatherClock.load(tag);
         cooldown = Math.max(0, tag.getInt("cooldown"));
         heldItem = tag.getString("heldItem");
         itemX = tag.getFloat("itemX"); itemY = tag.getFloat("itemY");

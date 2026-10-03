@@ -2131,6 +2131,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius, int damage,
                            Team sourceTeam, boolean square) {
+        damage = weatherDamage(type, damage, sourceTeam);
         // No multiplier here: ZombieEntity.damage applies it once, at the one entry
         // point every hit goes through. A second copy made a rule that already means
         // "how hard plants hit" depend on which damage path happened to run.
@@ -2164,6 +2165,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam) {
+        damage = weatherDamage(type, damage, sourceTeam);
         for (PvzceEntity entity : new ArrayList<>(entities)) {
             if (type != null && type.burns() && entity instanceof PlantEntity plant && plant.gridY() == row) {
                 plant.setLaddered(false);
@@ -2183,6 +2185,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public void damageColumn(com.pvzce.api.content.DamageTypeDef type, int column, int damage,
                              Team sourceTeam) {
+        damage = weatherDamage(type, damage, sourceTeam);
         for (PvzceEntity entity : new ArrayList<>(entities)) {
             if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                 continue;
@@ -2769,7 +2772,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // the first drop after the phase is a full interval away rather than immediate.
                 syncWaveAndTime(bridge);
             } else {
+                int previousWave = currentWave();
                 waves.tick();
+                if (previousWave != currentWave()) {
+                    for (TypedMechanic typed : mechanics) LevelMechanics.onWaveChanged(typed, this);
+                }
                 syncWaveAndTime(bridge);
                 maybeSpawnSun();
             }
@@ -6086,7 +6093,38 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // undoing a mutation only has to divide out its own half (see the rule's own doc).
         float factor = rules.getFloat(PvzceIds.RULE_SEED_COOLDOWN_MULTIPLIER)
                 * rules.getFloat(PvzceIds.RULE_MUTATION_SEED_COOLDOWN_FACTOR);
+        var weather = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
+        if (weather != null && slot.kind() == Slot.Kind.PLANT
+                && com.pvzce.common.level.mechanic.WeatherMechanic.ashPlant(BuiltInRegistries.PLANTS.get(slot.defId()))) {
+            factor *= weather.ashCooldownMultiplier();
+        }
         return CardCooldown.effective(slot.cooldownTicks(), factor);
+    }
+
+    @Override public float weatherActionMultiplier(PlantEntity plant) {
+        return com.pvzce.common.level.mechanic.WeatherMechanic.actionRate(this, plant.def());
+    }
+
+    @Override public float weatherRangeMultiplier(PlantEntity plant) {
+        var state = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
+        return state != null && com.pvzce.common.level.mechanic.WeatherMechanic.mushroom(plant.def())
+                ? state.mushroomMultiplier() : 1F;
+    }
+
+    @Override public float weatherTorchMultiplier() {
+        var state = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
+        return state == null ? 1F : state.torchMultiplier();
+    }
+
+    @Override public float weatherAshMultiplier() {
+        var state = com.pvzce.common.level.mechanic.WeatherMechanic.stateOf(this);
+        return state == null ? 1F : state.ashMultiplier();
+    }
+
+    private int weatherDamage(com.pvzce.api.content.DamageTypeDef type, int damage, Team sourceTeam) {
+        return type != null && PvzceIds.DAMAGE_ASH.equals(type.id()) && sourceTeam != null
+                && PvzceIds.PLANT_TEAM.equals(sourceTeam.id())
+                ? Math.round(damage * weatherAshMultiplier()) : damage;
     }
 
     public List<SlotInfo> slotInfos() {

@@ -179,11 +179,15 @@ public final class SpikeCapability implements PlantCapability {
     /** One stab across every row this patch reaches; answers whether it hit anything. */
     private boolean stab(PlantEntity plant, LevelAccess level) {
         boolean hit = false;
+        // Rows describe cells, whose outside edge is another half cell from the centre.
+        // A three-row patch widened by 50% reaches five row centres; non-mushrooms stay exact.
+        float scale = level.weatherRangeMultiplier(plant);
+        int effectiveRows = scale == 1F ? rows : Math.max(0, (int) Math.floor((rows + 0.5F) * scale));
         // Its own row, plus `rows` either side: the spikeweed's one row and the gloom-shroom's
         // "every adjacent space" are this same loop with a different number.
-        for (int row = plant.gridY() - rows; row <= plant.gridY() + rows; row++) {
+        for (int row = plant.gridY() - effectiveRows; row <= plant.gridY() + effectiveRows; row++) {
             if (row >= 0 && row < level.height()) {
-                hit |= stabRow(plant, level, row);
+                hit |= stabRow(plant, level, row, range * scale);
             }
         }
         return hit;
@@ -195,7 +199,7 @@ public final class SpikeCapability implements PlantCapability {
     }
 
     /** Damages everything this patch reaches in one row; answers whether it hit anything. */
-    private boolean stabRow(PlantEntity plant, LevelAccess level, int row) {
+    private boolean stabRow(PlantEntity plant, LevelAccess level, int row, float reach) {
         boolean hit = false;
         for (ZombieEntity zombie : level.enemiesInRow(row, plant.team())) {
             if (zombie.isRemoved() || zombie.layer() != EntityLayers.GROUND) {
@@ -204,7 +208,7 @@ public final class SpikeCapability implements PlantCapability {
                 // definition in this engine rather than one per fixture.
                 continue;
             }
-            if (Math.abs(zombie.cellX() - plant.cellX()) > range) {
+            if (Math.abs(zombie.cellX() - plant.cellX()) > reach) {
                 continue;
             }
             zombie.damage(damage, ZombieEntity.damageType(damageType), level);

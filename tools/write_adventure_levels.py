@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the shipped adventure levels, 1-1 to 5-10.
+"""Write adventure levels 1-1 to 5-10 and the custom night-roof chapter.
 
 This is the only producer of the shipped adventure level files. It replaces the four per-world
 scripts that used to sit beside it (`write_night_levels.py`, `write_pool_levels.py`,
@@ -937,20 +937,101 @@ def build(facts: original.LevelFacts, carried: Optional[dict] = None) -> dict:
     return level
 
 
+def build_night_roof_6_1(carried: Optional[dict] = None) -> dict:
+    """Custom chapter six, outside the original's fifty-level wave table."""
+    level = build(original.LEVELS[40])
+    level.update({
+        "id": "pvzce:yard/adventure/6_1", "name": "6-1·阴雨屋顶",
+        "description": "夜晚屋顶没有自然阳光。第一面旗帜后由阴转雨，蘑菇提速、范围扩大，"
+                       "火炬熄火、向日葵减产，灰烬植物也受雨水影响。让南瓜头保护忧郁菇，"
+                       "迎击越来越密集的普通与路障僵尸。获胜解锁冰西瓜。",
+        "rules": {"pvzce:day_length": 0, "pvzce:night_length": 360000,
+                  "pvzce:sun_spawn_interval_min": 0, "pvzce:sun_spawn_interval_max": 0,
+                  "pvzce:graves_spawn_night": False},
+        "initial_sun": 50, "background": "pvzce:textures/gui/screen/level/background6boss",
+        "unlock": {"requires": [{"type": "level", "id": "pvzce:yard/adventure/5_10"}]},
+        "music": {"cues": [{"trigger": "on_start", "track": "pvzce:music/moongrains", "loop": True}]},
+        "hints": [
+            {"trigger": "on_start", "text": "黑夜屋顶没有自然阳光，蘑菇不会睡觉。先种阳光菇，"
+                                              "再用大喷菇升级忧郁菇，并用南瓜头保护它。", "duration_ticks": 900},
+            {"trigger": "on_card_refused", "duration_ticks": 180}],
+        "rewards": {"first_clear": [{"type": "unlock", "id": "pvzce:winter_melon"}],
+                    "repeat": [{"type": "coins", "amount": 400}],
+                    "coin_drop": "pvzce:coin_silver", "coin_drop_chance": 0.25, "coin_drop_amount": 1},
+    })
+    level["mechanics"] = list(level["mechanics"]) + [{
+        "type": "pvzce:weather", "phases": [
+            {"from_wave": 1, "weather": "cloudy"}, {"from_wave": 11, "weather": "rain"}]},
+        # The opening is also an economy phase. Clearing two early zombies must not
+        # cut the next construction interval down to the engine's health-drain gap.
+        {"type": "pvzce:wave_pacing", "clear_reward_factor": 1.0, "health_drain": False}]
+    kinds = ["basic_zombie", "conehead_zombie", "buckethead_zombie", "pole_vaulter_zombie", "newspaper_zombie"]
+    waves, cursor = [], 0
+    for wave in range(1, 31):
+        if wave == 30:
+            counts = [60, 40, 4, 4, 4]
+        elif wave == 20:
+            counts = [24, 5, 3, 3, 3]
+        elif wave == 10:
+            counts = [8, 4, 2, 2, 2]
+        elif wave < 10:
+            counts = [2 if wave <= 3 else 3 if wave <= 5 else 4,
+                      0 if wave <= 2 else 1 if wave <= 5 else 2,
+                      int(wave >= 8), int(wave >= 6), int(wave >= 5)]
+        else:
+            # Integer counts distribute +25% across four waves; rounding each baseline
+            # zombie up to two would silently turn +25% into +100%.
+            cycle = (wave - 11) % 4
+            others = [1 + int(cycle == index) for index in range(3)]
+            counts = [12 if wave < 21 else 16,
+                      2 + int(cycle % 2 == 1) if wave < 21 else 6, *others]
+        entries = []
+        for kind, count in zip(kinds, counts):
+            rows = [0] * 5
+            for _ in range(count):
+                rows[cursor % 5] += 1
+                cursor += 1
+            entries.extend({"id": "pvzce:" + kind, "count": n, "rows": [row]}
+                           for row, n in enumerate(rows) if n)
+        waves.append({"type": "final" if wave == 30 else "huge" if wave % 10 == 0 else "small",
+                      "delay": 1800 if wave == 1 else 2100 if wave <= 10 else 1800,
+                      "spawn_interval": 150 if wave <= 3 else 90 if wave < 10 else 15,
+                      "warning_ticks": 300 if wave % 10 == 0 else 0, "entries": entries})
+    level["waves"] = waves
+    if carried:
+        level.update(carried)
+    return level
+
+
+def generated_levels(wanted):
+    for facts in original.LEVELS:
+        if wanted is not None and facts.name not in wanted:
+            continue
+        path = LEVELS_DIR / (facts.name.replace("-", "_") + ".json")
+        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        carried = {block: existing[block] for block in CARRIED_BLOCKS if block in existing}
+        yield path, build(facts, carried)
+    if wanted is None or "6-1" in wanted:
+        path = LEVELS_DIR / "6_1.json"
+        existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        carried = {block: existing[block] for block in CARRIED_BLOCKS if block in existing}
+        yield path, build_night_roof_6_1(carried)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",
                         help="write nothing; fail if a file differs")
+    parser.add_argument("--levels", default=None,
+                        help="comma-separated level names to write (4-1,4-2); the rest are left "
+                             "as they are. For a change to the wave generator that is meant to "
+                             "land in one world: the others keep the tables they were shipped "
+                             "with until someone regenerates them on purpose.")
     args = parser.parse_args()
+    wanted = set(args.levels.split(",")) if args.levels else None
 
     failed = False
-    for facts in original.LEVELS:
-        path = LEVELS_DIR / (facts.name.replace("-", "_") + ".json")
-        carried: Dict[str, object] = {}
-        if path.exists():
-            existing = json.loads(path.read_text(encoding="utf-8"))
-            carried = {block: existing[block] for block in CARRIED_BLOCKS if block in existing}
-        body = build(facts, carried)
+    for path, body in generated_levels(wanted):
         text = json.dumps(body, ensure_ascii=False, indent=2) + "\n"
         if args.check:
             current = path.read_text(encoding="utf-8") if path.exists() else ""

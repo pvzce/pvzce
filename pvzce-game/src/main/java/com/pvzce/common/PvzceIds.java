@@ -489,6 +489,8 @@ public final class PvzceIds {
      * what stands where they are dark, through the same render-layer test.
      */
     public static final Identifier MECHANIC_STORM = id("storm");
+    /** Wave-indexed plant weather, independent of the day/night clock and the 4-10 blackout. */
+    public static final Identifier MECHANIC_WEATHER = id("weather");
 
     /** The plantern's capability id; named here because the level's fog bookkeeping looks it up. */
     public static final Identifier PLANT_CAPABILITY_REVEAL = id("reveal");

@@ -38,6 +38,7 @@ public final class ClientMechanics {
         register(new ToolClientMechanic());
         register(new FogClientMechanic());
         register(new StormClientMechanic());
+        register(new WeatherClientMechanic());
         register(new RakeClientMechanic());
         register(new PreparationClientMechanic());
         register(new PortalClientMechanic());

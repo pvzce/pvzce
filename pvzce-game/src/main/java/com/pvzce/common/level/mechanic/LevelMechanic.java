@@ -114,6 +114,10 @@ public interface LevelMechanic<D extends MechanicData> {
     default void tick(LevelServer level, D data) {
     }
 
+    /** After a wave is triggered, before plants act on that same simulation tick. */
+    default void onWaveChanged(LevelServer level, D data) {
+    }
+
     /** A live movement factor, composed with statuses and difficulty rather than stored on an entity. */
     default float zombieSpeedMultiplier(LevelServer level, D data, ZombieEntity zombie) {
         return 1F;

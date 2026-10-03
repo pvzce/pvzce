@@ -89,6 +89,7 @@ public class PlantEntity extends PvzceEntity {
      * handle - the shooter and the producer spend it, and neither was written to ask.
      */
     private float actionSpeedMultiplier = 1F;
+    private float weatherActionMultiplier = 1F;
     private float echoRate = 1F;
     private EchoNetworkS2C lastEchoStatus;
 
@@ -239,7 +240,7 @@ public class PlantEntity extends PvzceEntity {
      *                  producer's drop arrives at
      */
     public float actionRate(float extraRate) {
-        return actionSpeedMultiplier * Math.max(0.1F, extraRate)
+        return actionSpeedMultiplier * weatherActionMultiplier * Math.max(0.1F, extraRate)
                 * Math.max(wateredTicks > 0 ? WATERED_ACTION_SPEED : 1F,
                         fertilizedTicks > 0 ? com.pvzce.common.PvzceConstants.FERTILIZER_ACTION_SPEED : 1F)
                 * echoRate;
@@ -396,6 +397,7 @@ public class PlantEntity extends PvzceEntity {
             return;
         }
         // Lilies own their finite relay clock; hosted plants use the shared action rate.
+        weatherActionMultiplier = level.weatherActionMultiplier(this);
         echoRate = capability(EchoRelayCapability.class) != null ? 1F : EchoNetwork.status(this, level).rate();
         age++;
         // Spend the final accelerated tick before expiring, just like a timed capability.

@@ -79,6 +79,7 @@ public final class FreezeAllCapability implements PlantCapability {
 
     /** Ticks left before the freeze; 0 once it has happened. */
     private int fuse;
+    private final com.pvzce.common.level.RateClock weatherClock = new com.pvzce.common.level.RateClock();
 
     public FreezeAllCapability(int fuseTicks, int damage, int freezeTicks, StatusEffectDef chill,
                                Identifier damageType, Optional<Identifier> sound,
@@ -156,7 +157,7 @@ public final class FreezeAllCapability implements PlantCapability {
             // Nothing to wait for any more; the removal below is the plant's last act.
             return;
         }
-        fuse--;
+        fuse = Math.max(0, fuse - weatherClock.step(level.weatherActionMultiplier(plant)));
         if (fuse > 0) {
             // The art has no charging pose, and the shiver it does have is its idle: asking
             // for a clip the file does not define is what makes the animation manager log a
@@ -225,11 +226,13 @@ public final class FreezeAllCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        weatherClock.save(tag);
         tag.putInt("fuse", fuse);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        weatherClock.load(tag);
         // A save taken mid-fuse resumes it. A save with no block (one written before this
         // capability existed) keeps the value it was built with, which is a full fuse - the
         // plant has been waiting for at most a second, so nothing is lost by it waiting one

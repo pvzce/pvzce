@@ -46,6 +46,7 @@ public final class GoldMagnetCapability implements PlantCapability {
     private final Optional<Identifier> sound;
 
     private int cooldown;
+    private final com.pvzce.common.level.RateClock weatherClock = new com.pvzce.common.level.RateClock();
     private boolean pulling;
 
     public GoldMagnetCapability(float range, int intervalTicks, Optional<Identifier> sound) {
@@ -83,7 +84,7 @@ public final class GoldMagnetCapability implements PlantCapability {
     public void tick(PlantEntity plant, LevelAccess level) {
         pulling = false;
         if (cooldown > 0) {
-            cooldown -= 1;
+            cooldown = Math.max(0, cooldown - weatherClock.step(level.weatherActionMultiplier(plant)));
             plant.setState(EntityAnimations.IDLE);
             return;
         }
@@ -94,7 +95,7 @@ public final class GoldMagnetCapability implements PlantCapability {
             return;
         }
         List<com.pvzce.server.entity.ResourceDropEntity> inReach = server.resourceDropsInReach(
-                plant.cellX(), plant.cellY(), range);
+                plant.cellX(), plant.cellY(), range * level.weatherRangeMultiplier(plant));
         if (inReach.isEmpty()) {
             // Nothing to pick up. The clock is *not* reset: a coin that lands the moment after a
             // sweep is collected on the next tick rather than a half second later.
@@ -131,11 +132,13 @@ public final class GoldMagnetCapability implements PlantCapability {
 
     @Override
     public void save(CompoundTag tag) {
+        weatherClock.save(tag);
         tag.putInt("cooldown", cooldown);
     }
 
     @Override
     public void load(CompoundTag tag) {
+        weatherClock.load(tag);
         cooldown = Math.max(0, tag.getInt("cooldown"));
     }
 }

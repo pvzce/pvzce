@@ -8,6 +8,16 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final float WEATHER_CLEAR_SUNFLOWER_RATE = 1.25F;
+    public static final float WEATHER_CLOUDY_SUNFLOWER_RATE = 0.8F;
+    public static final float WEATHER_RAIN_SUNFLOWER_RATE = 0.25F;
+    public static final float WEATHER_CLEAR_MUSHROOM_RATE = 0.8F;
+    public static final float WEATHER_RAIN_MUSHROOM_RATE = 1.5F;
+    public static final float WEATHER_CLOUDY_TORCH_DAMAGE = 0.9F;
+    public static final float WEATHER_CLOUDY_ASH_DAMAGE = 0.9F;
+    public static final float WEATHER_RAIN_ASH_DAMAGE = 0.5F;
+    public static final float WEATHER_CLOUDY_ASH_COOLDOWN = 1.25F;
+    public static final float WEATHER_RAIN_ASH_COOLDOWN = 2F;
     /** Fertilizer speeds one plant up for twenty seconds; the tool recharges in forty-five. */
     public static final float FERTILIZER_ACTION_SPEED = 1.5F;
     public static final int FERTILIZER_DURATION_TICKS = 1200;

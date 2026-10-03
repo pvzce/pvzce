@@ -245,7 +245,7 @@ public final class ConeAttackCapability implements PlantCapability {
             if (zombie.gridX() <= plant.gridX()) {
                 continue;
             }
-            if (zombie.cellX() - muzzleX > range) {
+            if (zombie.cellX() - muzzleX > range * level.weatherRangeMultiplier(plant)) {
                 continue;
             }
             zombie.damage(damage, type, level);
@@ -278,7 +278,7 @@ public final class ConeAttackCapability implements PlantCapability {
         }
         String particle = cloudParticle.get().toString();
         Identifier held = sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA));
-        float gap = range / cloudCount;
+        float gap = range * level.weatherRangeMultiplier(plant) / cloudCount;
         for (int i = 0; i < cloudCount; i++) {
             level.emitEffect(particle, plant.cellX() + gap * (i + 0.5F), plant.cellY(), i == 0 ? held : null);
         }

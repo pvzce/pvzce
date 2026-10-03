@@ -99,6 +99,18 @@ public interface LevelAccess {
         return 1F;
     }
 
+    /** Live weather only; action rates compose it with care and the level's normal rules. */
+    default float weatherActionMultiplier(PlantEntity plant) { return 1F; }
+
+    /** A mushroom's reach, shared by targeting and actual damage/projectile geometry. */
+    default float weatherRangeMultiplier(PlantEntity plant) { return 1F; }
+
+    /** Zero disables ignition; otherwise scales the resulting burning projectile's damage. */
+    default float weatherTorchMultiplier() { return 1F; }
+
+    /** Scales plant-side ash damage without changing the armour-bypass damage type. */
+    default float weatherAshMultiplier() { return 1F; }
+
     /** The live kernel-pult butter chance; the default preserves unbuffed shots. */
     default float butterChance(PlantEntity plant, float base) {
         return base;

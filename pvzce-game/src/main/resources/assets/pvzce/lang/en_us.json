@@ -990,5 +990,18 @@
   "capability.pvzce.umbrella": "Air protection",
   "capability.pvzce.ladder": "Ladder placement",
   "capability.pvzce.catapult": "Basketball launcher",
-  "pvzce.key.tool_fertilizer": "Tool: Fertilizer"
+  "pvzce.key.tool_fertilizer": "Tool: Fertilizer",
+  "level_collection.pvzce.night_roof": "Night Roof",
+  "pvzce.mechanic.weather": "Weather",
+  "pvzce.mechanic.weather.field.phases": "Forecast",
+  "pvzce.mechanic.weather.field.from_wave": "Starting wave",
+  "pvzce.mechanic.weather.field.weather": "Weather",
+  "gui.pvzce.weather.clear": "Clear night",
+  "gui.pvzce.weather.cloudy": "Cloudy",
+  "gui.pvzce.weather.rain": "Rain",
+  "gui.pvzce.weather.forecast": "%s · wave %d: %s",
+  "gui.pvzce.weather.rates": "Mushrooms %d%% · sunflowers %d%%",
+  "gui.pvzce.weather.clear_fire": "Torch / ash normal",
+  "gui.pvzce.weather.cloudy_fire": "Torch / ash weakened",
+  "gui.pvzce.weather.rain_fire": "Torch out · ash cooldown doubled"
 }
