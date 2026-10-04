@@ -32,16 +32,28 @@ public final class WeatherMechanic implements LevelMechanic<WeatherData> {
     }
 
     @Override public void onLevelCreated(LevelServer level, WeatherData data) {
-        level.setMechanicState(PvzceIds.MECHANIC_WEATHER, new WeatherState(data.atWave(1), 0));
+        level.setMechanicState(PvzceIds.MECHANIC_WEATHER, WeatherState.of(data.atWave(1), 0));
     }
 
     @Override public void tick(LevelServer level, WeatherData data) {
         WeatherState previous = stateOf(level);
         WeatherData.Kind weather = data.atWave(level.currentWave());
-        if (previous != null && previous.weather() == weather) return;
-        WeatherState next = new WeatherState(weather, level.tickCount());
+        // The countdown to the change is computed every tick, not only on the tick the phase
+        // changes: the forecast is due ten seconds *before* the wave that brings it, and nothing
+        // happens on that tick except this clock reaching the threshold.
+        WeatherState.Warning pending = pendingWarning(level, data, weather, previous);
+        int sequence = previous == null ? 0 : previous.sequence();
+        if (pending != null && (previous == null || previous.warning() != pending)) {
+            sequence++;
+        }
+        WeatherState next = new WeatherState(weather, level.tickCount(), pending, sequence);
+        boolean changed = previous == null || previous.weather() != weather
+                || previous.warning() != pending || previous.sequence() != sequence;
+        if (!changed) {
+            return;
+        }
         level.setMechanicState(PvzceIds.MECHANIC_WEATHER, next);
-        if (previous != null && previous.weather() != next.weather() && level.plantPlayer() != null) {
+        if (previous != null && previous.weather() != weather && level.plantPlayer() != null) {
             float ratio = next.ashCooldownMultiplier() / previous.ashCooldownMultiplier();
             for (var slot : level.plantPlayer().slots()) {
                 if (slot.kind() == com.pvzce.common.core.Slot.Kind.PLANT && slot.cooldownLeft() > 0
@@ -55,6 +67,38 @@ public final class WeatherMechanic implements LevelMechanic<WeatherData> {
         level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_WEATHER, WeatherState.CODEC, next));
     }
 
+    /**
+     * The forecast that should be on screen now, or {@code null}.
+     *
+     * <p>Due {@link com.pvzce.common.PvzceConstants#WEATHER_WARNING_TICKS} before the wave that
+     * changes the sky, and taken down the moment the change happens - the wave boundary is the
+     * thing being announced, so "the clouds are coming" and "the clouds are here" cannot both be
+     * on screen.
+     *
+     * <p>Measured from the next phase rather than from a timer of its own, so the warning cannot
+     * drift away from the thing it is warning about: a clear bonus that shortens the wait shortens
+     * the warning with it, and a countdown frozen by a preparation stage freezes this too.
+     */
+    private static WeatherState.Warning pendingWarning(LevelServer level, WeatherData data,
+                                                       WeatherData.Kind current, WeatherState previous) {
+        WeatherData.Phase next = data.nextAtWave(level.currentWave());
+        if (next == null) {
+            return null;
+        }
+        WeatherState.Warning warning = WeatherState.warningFor(current, next.weather());
+        if (warning == null) {
+            return null;
+        }
+        // The index and the wave number are the same thing here: the sky changes on the tick the
+        // wave written as `from_wave` *arrives*, and the director's index is how many have. Asking
+        // for `fromWave - 1` would be asking about the wave before the one that changes it.
+        int remaining = level.countdownToWave(next.fromWave());
+        // A countdown that has not started yet answers with the whole gap, which is longer than the
+        // lead: the forecast waits for the clock it is counting down.
+        return remaining >= 0 && remaining <= com.pvzce.common.PvzceConstants.WEATHER_WARNING_TICKS
+                ? warning : null;
+    }
+
     public static WeatherState stateOf(LevelServer level) {
         return level.mechanicStateOrNull(PvzceIds.MECHANIC_WEATHER, WeatherState.class);
     }
@@ -66,7 +110,7 @@ public final class WeatherMechanic implements LevelMechanic<WeatherData> {
     @Override public void sendState(LevelServer level, WeatherData data, LevelServer.ServerBridge bridge) {
         WeatherState state = stateOf(level);
         bridge.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_WEATHER, WeatherState.CODEC,
-                state == null ? new WeatherState(data.atWave(level.currentWave()), level.tickCount()) : state));
+                state == null ? WeatherState.of(data.atWave(level.currentWave()), level.tickCount()) : state));
     }
 
     @Override public void collectSave(LevelServer level, WeatherData data, CompoundTag root) {
@@ -75,9 +119,12 @@ public final class WeatherMechanic implements LevelMechanic<WeatherData> {
     }
 
     @Override public void applySave(LevelServer level, WeatherData data, CompoundTag root) {
-        // The restored wave is the source of the weather, not a stale enum in a save file.
+        // The restored wave is the source of the weather, not a stale enum in a save file. The
+        // forecast is not saved either: a resumed run re-earns it from the countdown it is in, and
+        // a banner restored mid-sentence would be a warning about a wave the player already met.
         level.setMechanicState(PvzceIds.MECHANIC_WEATHER,
-                new WeatherState(data.atWave(level.currentWave()), Math.max(0L, root.getLong("WeatherTick"))));
+                WeatherState.of(data.atWave(level.currentWave()),
+                        Math.max(0L, root.getLong("WeatherTick"))));
     }
 
     public static boolean mushroom(PlantDef plant) {

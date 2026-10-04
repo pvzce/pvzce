@@ -387,6 +387,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     private LevelDef.MusicCue currentMusicCue;
     /**
+     * The level's songs, as the cues that started them: the theme plus any layer riding with it.
+     *
+     * <p>A list rather than one cue because a song may be more than one file - the night roof's
+     * theme and its drum layer are the same performance in two tracks, and both have to be
+     * restarted together for a client that arrives late, or the incoming player hears the drums
+     * half a bar behind the music.
+     */
+    private final List<LevelDef.MusicCue> playingMusicCues = new ArrayList<>();
+    /**
      * Whether a due wave is being held back for an opening wave's field to clear, and for how
      * much longer. See {@link #openingWaveStillOnTheField()}.
      */
@@ -3449,11 +3458,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // measured on 4-10, the game's one silent level, whose whole point is that the rain is
             // the soundtrack. One explicit stop at tick zero is what the empty block means.
             for (String track : LEVEL_TRACKS) {
-                bridge.send(new MusicEventS2C(track, "", false, true, 1F, 0.5F, false));
+                bridge.send(new MusicEventS2C(track, "", false, true, 1F, 0.5F, false, false));
             }
             return;
         }
         levelTracksSettled = true;
+        // One pass to work out what is due, one to play it: the cues of a batch belong together -
+        // a song and its drum layer are two files of the same length that have to start on the
+        // same tick - so a cue that arrives with company must not be played before its company
+        // has been found. The night roof is where this matters.
+        List<LevelDef.MusicCue> due = new ArrayList<>();
         for (int i = 0; i < cues.size(); i++) {
             if ((musicCuesFired & (1L << i)) != 0) {
                 continue;
@@ -3467,15 +3481,37 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 continue;
             }
             musicCuesFired |= 1L << i;
-            // A cue with no event, or one that stops the track, leaves nothing playing.
-            currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
+            due.add(cue);
+        }
+        if (due.isEmpty()) {
+            return;
+        }
+        // A cue with no event, or one that stops the track, leaves nothing playing; a layer rides
+        // with the song it was written beside and never decides the run's music on its own.
+        for (LevelDef.MusicCue cue : due) {
+            if (cue.manyZombiesLayer()) {
+                continue;
+            }
+            playingMusicCues.clear();
+            if (!cue.stop() && !cue.event().isEmpty()) {
+                playingMusicCues.add(cue);
+            }
+        }
+        for (LevelDef.MusicCue cue : due) {
+            if (cue.manyZombiesLayer() && !cue.stop() && !cue.event().isEmpty()) {
+                playingMusicCues.add(cue);
+            }
+        }
+        for (LevelDef.MusicCue cue : due) {
+            currentMusicCue = cue.manyZombiesLayer() ? currentMusicCue : cue;
             bridge.send(new MusicEventS2C(
                     cue.track(),
                     cue.event().map(Identifier::toString).orElse(""),
                     cue.loop(),
                     cue.stop() || cue.event().isEmpty(),
                     Math.max(0F, Math.min(1F, cue.volume())),
-                    Math.max(0F, cue.fadeSeconds()), false));
+                    Math.max(0F, cue.fadeSeconds()), false,
+                    cue.manyZombiesLayer()));
         }
     }
 
@@ -3523,12 +3559,23 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             musicCuesFired = legacy >= Long.SIZE ? -1L : (1L << legacy) - 1L;
         }
         currentMusicCue = null;
+        playingMusicCues.clear();
         for (int i = 0; i < cues.size() && i < Long.SIZE; i++) {
             if ((musicCuesFired & (1L << i)) == 0) {
                 continue;
             }
             LevelDef.MusicCue cue = cues.get(i);
-            currentMusicCue = cue.stop() || cue.event().isEmpty() ? null : cue;
+            if (cue.stop() || cue.event().isEmpty()) {
+                currentMusicCue = null;
+                playingMusicCues.clear();
+                continue;
+            }
+            if (cue.manyZombiesLayer()) {
+                playingMusicCues.add(cue);
+                continue;
+            }
+            currentMusicCue = cue;
+            playingMusicCues.add(cue);
         }
     }
 
@@ -3658,6 +3705,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public boolean callNextWave() {
         return waves.callNextWave();
+    }
+
+    /**
+     * How many ticks until the wave at this index of the round arrives, or {@code -1} past its end.
+     *
+     * <p>The weather mechanic's clock: a forecast has to be given a fixed time before the wave
+     * that changes the sky, and this is the only place that knows how long that is. See
+     * {@code WaveDirector.countdownToWave}.
+     */
+    public int countdownToWave(int index) {
+        return waves.countdownToWave(index);
     }
 
     public int totalWaves() {
@@ -6316,13 +6374,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // What is playing, for a client that arrived after the cue did: a resumed run, or a
         // second player joining. Sent after the init packet so the client has a level to attach
         // the track to, and harmless when the track is the one it already started - the music
-        // controller ignores a start of the track that is already playing.
-        if (currentMusicCue != null) {
-            bridge.send(new MusicEventS2C(currentMusicCue.track(),
-                    currentMusicCue.event().map(Identifier::toString).orElse(""),
-                    currentMusicCue.loop(), false,
-                    Math.max(0F, Math.min(1F, currentMusicCue.volume())),
-                    Math.max(0F, currentMusicCue.fadeSeconds()), false));
+        // controller ignores a start of the track that is already playing. Every cue of the
+        // batch, so a song and its drum layer restart together and stay in time.
+        for (LevelDef.MusicCue cue : playingMusicCues) {
+            bridge.send(new MusicEventS2C(cue.track(),
+                    cue.event().map(Identifier::toString).orElse(""),
+                    cue.loop(), false,
+                    Math.max(0F, Math.min(1F, cue.volume())),
+                    Math.max(0F, cue.fadeSeconds()), false,
+                    cue.manyZombiesLayer()));
         }
         bridge.send(waveProgressPacket());
         bridge.send(roundSyncPacket());

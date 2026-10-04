@@ -25,10 +25,29 @@ public final class SplashImpactCapability implements ProjectileCapability {
     public static final Identifier DEFAULT_DAMAGE_TYPE = PvzceIds.DAMAGE_PROJECTILE;
     /** The melon's splash: what a thrown plant's blast has looked like since it was written. */
     public static final Identifier DEFAULT_PARTICLE = PvzceParticles.POOL_SPLASH;
+    /**
+     * What a blast that does not name {@code splash_damage} deals to everything but its target.
+     *
+     * <p>Half, which is the original's melon (80 direct, 40 splash). A number rather than a
+     * formula because the two are not related by anything but the original's tuning: a level is
+     * free to write a {@code splash_damage} that is larger than the shot.
+     */
+    public static final float DEFAULT_SPLASH_SHARE = 0.5F;
 
     private final float radius;
     private final Optional<Identifier> sound;
     private final Identifier damageType;
+    /**
+     * What the blast deals to everything except the zombie it hit; {@code 0} means "half the
+     * projectile's damage", which is {@link #DEFAULT_SPLASH_SHARE}.
+     *
+     * <p>A field rather than a constant because the two numbers are a balance decision per
+     * projectile: the winter melon is the same 80/40 as the melon, and a future one is not
+     * obliged to be. Zero is the "use the default" sentinel rather than "no damage", so a level
+     * cannot accidentally write a blast that does nothing to its own neighbours - one that
+     * wants that writes a radius of zero.
+     */
+    private final int splashDamage;
     /**
      * Whether the blast is a block of cells rather than a distance.
      *
@@ -51,11 +70,17 @@ public final class SplashImpactCapability implements ProjectileCapability {
 
     public SplashImpactCapability(float radius, Optional<Identifier> sound, Identifier damageType,
                                   boolean square, Identifier particle) {
+        this(radius, sound, damageType, square, particle, 0);
+    }
+
+    public SplashImpactCapability(float radius, Optional<Identifier> sound, Identifier damageType,
+                                  boolean square, Identifier particle, int splashDamage) {
         this.radius = Math.max(0F, radius);
         this.sound = sound;
         this.damageType = damageType == null ? DEFAULT_DAMAGE_TYPE : damageType;
         this.square = square;
         this.particle = particle == null ? DEFAULT_PARTICLE : particle;
+        this.splashDamage = Math.max(0, splashDamage);
     }
 
     public static final MapCodec<SplashImpactCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
@@ -65,8 +90,15 @@ public final class SplashImpactCapability implements ProjectileCapability {
                     .forGetter(SplashImpactCapability::damageType),
             Codec.BOOL.optionalFieldOf("square", false).forGetter(SplashImpactCapability::square),
             Identifier.CODEC.optionalFieldOf("particle", DEFAULT_PARTICLE)
-                    .forGetter(SplashImpactCapability::particle)
+                    .forGetter(SplashImpactCapability::particle),
+            Codec.INT.optionalFieldOf("splash_damage", 0)
+                    .forGetter(SplashImpactCapability::authoredSplashDamage)
     ).apply(i, SplashImpactCapability::new));
+
+    /** The written {@code splash_damage}, or zero for "half the projectile's damage". */
+    public int authoredSplashDamage() {
+        return splashDamage;
+    }
 
     public float radius() {
         return radius;
@@ -103,6 +135,24 @@ public final class SplashImpactCapability implements ProjectileCapability {
                 effectiveRadius(projectile, level), square);
     }
 
+    /**
+     * What this blast deals to everything except the zombie it hit: half the shot, or the
+     * authored {@code splash_damage}.
+     *
+     * <p>Half, because that is the original's own melon: 80 on the target it lands on and 40 on
+     * the neighbours the splash reaches. Paying every target the full projectile damage - which is
+     * what this did - made one melon as good as a lane-wide bomb, and it is why the melon measured
+     * as the strongest card in the game (see {@code docs/03-第三阶段-精修完善.md}: "疑似过强 →
+     * 校准溅射半径/伤害").
+     *
+     * <p>A level that wants its own numbers writes them: {@code "splash_damage": 30} is a blast
+     * that is weaker than the shot, and {@code 0} is one that only hits what it lands on.
+     */
+    public int splashDamage(ProjectileEntity projectile) {
+        return splashDamage > 0 ? splashDamage
+                : Math.max(1, Math.round(projectile.damage() * DEFAULT_SPLASH_SHARE));
+    }
+
     @Override
     public ProjectileCapability instantiate() {
         return this;
@@ -117,8 +167,13 @@ public final class SplashImpactCapability implements ProjectileCapability {
     public void onHit(ProjectileEntity projectile, ZombieEntity zombie, LevelAccess level) {
         float x = zombie != null ? zombie.cellX() : projectile.cellX();
         float y = zombie != null ? zombie.cellY() : projectile.cellY();
+        int splash = splashDamage(projectile);
         for (ZombieEntity target : targets(projectile, zombie, level)) {
-            target.damage(projectile.def(), projectile.damage(), level, damageType, false);
+            // The zombie the melon actually hit takes the full shot; everything the blast merely
+            // reaches takes the splash. Paying full damage to all of them is what made the melon
+            // delete a whole lane's worth of a wave with one throw - see `splashDamage`.
+            boolean direct = target == zombie && target.isAlive();
+            target.damage(projectile.def(), direct ? projectile.damage() : splash, level, damageType, false);
         }
         String impact = projectile.def().impactParticle().map(Identifier::toString).orElse(particle.toString());
         level.emitEffect(impact, new WorldPosition(x, y,

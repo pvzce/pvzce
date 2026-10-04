@@ -52,6 +52,9 @@ LABEL = {
 #: 分类规则，**顺序敏感**——第一条命中的生效，所以特例要写在通例前面。
 #: 每条 = (正则, 分类, 依据)。正则匹配的是相对 `assets/pvzce/` 的路径。
 RULES: list[tuple[str, str, str]] = [
+    (r"^sounds/original/roof_after_dark(_drums)?\.ogg$", ORIGINAL,
+     "黑夜屋顶 6-1~6-4 的主题曲与鼓点层，由项目所有者提供为原创曲目（源 refer/ms2/，"
+     "tools/build_roof_after_dark.sh 原样复制）；鼓点是同一演奏的另一条分轨，与主曲等长"),
     (r"^sounds/custom/graze_the_dongnanshan\.ogg$", CUSTOM,
      "用户指定的非官方音乐，源自 refer/ms1/graze_the_dongnanshan.ogg；作者与许可尚未注明，不归为原版原声或第三方开源"),
     (r"^(textures/gui/cards/water_bucket\.png$|textures/entities/tool/water_bucket\.png$|animations/tool/water_bucket\.json$)", OWN,

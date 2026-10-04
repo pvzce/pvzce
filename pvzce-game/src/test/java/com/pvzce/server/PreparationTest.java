@@ -242,10 +242,10 @@ class PreparationTest {
                 .waves(List.of())
                 .music(new LevelDef.LevelMusicDef(List.of(
                         new LevelDef.MusicCue(LevelDef.MusicCue.Trigger.LEVEL_START, 0, "background",
-                                java.util.Optional.empty(), false, true, 1F, 0F),
+                                java.util.Optional.empty(), false, true, 1F, 0F, false),
                         new LevelDef.MusicCue(LevelDef.MusicCue.Trigger.WAVES_START, 0, "background",
                                 java.util.Optional.of(PvzceIds.id("music/ancient_egypt_ultimate_battle")),
-                                false, false, 0.85F, 0F))))
+                                false, false, 0.85F, 0F, false))))
                 .mechanics(List.of(new TypedMechanic(PvzceIds.MECHANIC_PREPARATION,
                         PreparationData.MANUAL)))
                 .build();

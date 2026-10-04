@@ -435,6 +435,29 @@ public final class ClientLevel {
         return entities;
     }
 
+    /**
+     * Living zombies on the lawn, which is what the drum layer and the crowd checks count.
+     *
+     * <p>Counted here rather than streamed: the client is told about every entity anyway, so
+     * "how busy is the lawn" is a fact it already has - and it is the only side that can answer it
+     * every frame, including while the server is paused. Health rather than the animation state:
+     * a body playing out its death animation is on the lawn and no longer a zombie for this.
+     */
+    public int aliveZombieCount() {
+        int count = 0;
+        for (ClientEntity entity : entities.values()) {
+            if ("zombie".equals(entity.kind()) && entity.health() > 0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** True above {@link com.pvzce.common.PvzceConstants#MANY_ZOMBIES}: the lawn is a crowd. */
+    public boolean manyZombies() {
+        return aliveZombieCount() > com.pvzce.common.PvzceConstants.MANY_ZOMBIES;
+    }
+
     public List<SeedOption> seedPool() {
         return seedPool;
     }

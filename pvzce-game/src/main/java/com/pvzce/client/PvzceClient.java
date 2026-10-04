@@ -3083,17 +3083,18 @@ public final class PvzceClient {
     }
 
     public void onMusicEvent(String track, String event, boolean loop, boolean stop, float volume,
-                             float fadeSeconds, boolean preload) {
+                             float fadeSeconds, boolean preload, boolean manyZombiesLayer) {
         if (music == null) {
             return;
         }
         if (preload) {
             // Decode now, play nothing: the cue that plays it comes later, and it has a clock to
-            // keep (see PvzceMusicController.preload).
+            // keep (see PvzceMusicController.preload). A layered cue is decoded too - it is a
+            // second performance of the same song, and it has exactly the same clock to keep.
             music.preload(event);
             return;
         }
-        music.playCue(track, event, loop, stop, volume, fadeSeconds);
+        music.playCue(track, event, loop, stop, volume, fadeSeconds, manyZombiesLayer);
     }
 
     public void onGameState(String state, String winTeamId) {

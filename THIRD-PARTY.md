@@ -147,7 +147,16 @@ warning."*），且该团队改名并改为自绘素材后仍被拒绝。完整�
 
 ---
 
-### 4.6 用户指定的非官方音乐
+### 4.6 项目原创音乐
+
+`assets/pvzce/sounds/original/roof_after_dark.ogg` 与 `roof_after_dark_drums.ogg` 是黑夜屋顶
+6-1~6-4 的主题曲与它的鼓点分轨，由项目所有者提供并声明为**本项目原创曲目**，因此随仓库分发
+（GPL-3.0，与项目其余部分一致）。源文件在 `refer/ms2/`，`tools/build_roof_after_dark.sh`
+原样复制而不重新编码：两个文件是同一场演奏的两条分轨（同为 44.1 kHz 立体声、同为
+6 350 651 采样 = 144.006 秒），客户端把它们当一首曲子的两层播放，所以任何一次转码都会让
+鼓点与主曲错开。分类依据见 `tools/classify_assets.py`（`ORIGINAL`）。
+
+### 4.7 用户指定的非官方音乐
 
 `assets/pvzce/sounds/custom/graze_the_dongnanshan.ogg` 来自用户指定的 `refer/ms1/graze_the_dongnanshan.ogg`，
 原样复制用于海岛奇兵背景音乐。用户明确该曲不属于官方音乐；作者和许可未提供，当前不归入 PvZ 官方素材、

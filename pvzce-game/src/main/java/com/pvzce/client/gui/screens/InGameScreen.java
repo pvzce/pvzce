@@ -1532,6 +1532,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             speedButton.setLabel(speedLabel());
         }
         updateWaveProgress();
+        // The night roof's drum layer follows the lawn, not the wave: it comes in when the lawn
+        // is a crowd and goes out when it is not, so a level with one huge wave gets the same
+        // treatment as one with ten small ones.
+        if (client.music() != null) {
+            client.music().setManyZombiesLayer(client.level().manyZombies());
+        }
         EffectEventS2C effect;
         while ((effect = client.level().effects().poll()) != null) {
             if (Boolean.getBoolean("pvzce.traceEffects")) {

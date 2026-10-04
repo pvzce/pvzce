@@ -147,7 +147,9 @@ public final class PvzcePackets {
     // 56: authoritative surface profiles, entity/effect elevations and selected operation surfaces.
     // 57: the HUD's next-wave button - the request (NextWaveC2S) and the server's answer to "may
     //     the wave be called" (WaveProgressS2C.nextWaveAvailable).
-    public static final int PROTOCOL_VERSION = 57;
+    // 58: a music cue can be a layer of a song rather than a song (MusicEventS2C.manyZombiesLayer):
+    //     the night roof's drum track rides with its theme and is faded in when the lawn fills up.
+    public static final int PROTOCOL_VERSION = 58;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

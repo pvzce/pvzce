@@ -328,10 +328,13 @@ class CombatSystemsTest {
             assertTrue(hit.chilled(), "the real lobbed projectile must arrive");
             assertTrue(neighbour.chilled(), "adjacent-row splash must also slow");
             assertEquals(2420, hit.health(), "direct damage stays 80");
-            assertEquals(2420, neighbour.health(), "splash damage stays 80");
+            assertEquals(2460, neighbour.health(),
+                    "the neighbours take the splash, which is half the shot");
             boolean rain = weather == com.pvzce.api.content.WeatherData.Kind.RAIN;
             assertEquals(rain, rainEdge.chilled(), "only rain extends the footprint");
-            assertEquals(rain ? 2420 : 2500, rainEdge.health());
+            // Caught by the splash and not hit: half the shot, and only inside a rain-widened
+            // footprint at all.
+            assertEquals(rain ? 2460 : 2500, rainEdge.health());
             assertFalse(outside.chilled());
             assertEquals(2500, outside.health());
             assertFalse(friendly.chilled(), "splash excludes friendly zombies");
@@ -360,7 +363,7 @@ class CombatSystemsTest {
                 .orElseThrow().onHit(projectile, null, level);
         def.capability(com.pvzce.common.capability.projectile.StatusOnHitCapability.class)
                 .orElseThrow().onHit(projectile, null, level);
-        assertEquals(2420, neighbour.health());
+        assertEquals(2460, neighbour.health(), "splash damage, not the shot's own");
         assertTrue(neighbour.chilled(), "a dead arc target must not discard the landing's cold splash");
     }
 

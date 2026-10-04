@@ -133,7 +133,8 @@ public final class PvzceClientPacketListener implements PacketListener {
             client.onGameState(state.state(), state.winTeamId());
         } else if (packet instanceof MusicEventS2C music) {
             client.onMusicEvent(music.track(), music.event(), music.loop(), music.stop(),
-                    music.volume(), music.fadeSeconds(), music.preload());
+                    music.volume(), music.fadeSeconds(), music.preload(),
+                    music.manyZombiesLayer());
         } else if (packet instanceof TeamSyncS2C team) {
             level.setControlledTeam(team.teamId(), team.teamName());
         } else if (packet instanceof SuggestionsS2C suggestions) {

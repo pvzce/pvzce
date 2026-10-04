@@ -32,6 +32,17 @@ public final class PvzceMusicController {
 
     private final SoundEngine sound;
     private final TrackState[] tracks = new TrackState[TRACK_COUNT];
+    /**
+     * Which track the level's layered music is on, or {@code -1} for "this level has no layer".
+     *
+     * <p>One layer per level is the whole need: the night roof's drums are a second performance of
+     * the same song, and a level with two layers would be a level whose music is a mixing desk.
+     */
+    private int layerTrack = -1;
+    /** The layer's own written volume, which it is faded up to when the lawn is crowded. */
+    private float layerVolume = 1F;
+    /** Whether the lawn is crowded enough for the layer to be heard. */
+    private boolean manyZombies;
 
     public PvzceMusicController(SoundEngine sound) {
         this.sound = sound;
@@ -60,7 +71,7 @@ public final class PvzceMusicController {
     }
 
     public void playMenu(String event) {
-        playCue(TRACK_MENU, event, true, false, 1F, 0.6F);
+        playCue(TRACK_MENU, event, true, false, 1F, 0.6F, false);
     }
 
     /** Starts a menu track only when the menu track is currently silent. */
@@ -105,10 +116,13 @@ public final class PvzceMusicController {
     public void startLevel(String defaultMusic) {
         stopCue(TRACK_MENU, 0.3F);
         stopCue(TRACK_STINGER, 0.2F);
-        playCue(TRACK_BACKGROUND, defaultMusic, true, false, 0.85F, 1F);
+        playCue(TRACK_BACKGROUND, defaultMusic, true, false, 0.85F, 1F, false);
     }
 
     public void leaveLevel() {
+        layerTrack = -1;
+        layerVolume = 1F;
+        manyZombies = false;
         silenceForTheRoad(TRACK_BACKGROUND, 0.5F);
         silenceForTheRoad(TRACK_BATTLE, 0.5F);
         silenceForTheRoad(TRACK_STINGER, 0.5F);
@@ -151,11 +165,21 @@ public final class PvzceMusicController {
         return state.currentSource >= 0 ? state.currentEvent : null;
     }
 
-    /** Applies a server-sent music cue ({@code /level} music timeline). */
-    public void playCue(String trackName, String event, boolean loop, boolean stop, float volume, float fadeSeconds) {
+    /**
+     * Applies a server-sent music cue ({@code /level} music timeline).
+     *
+     * @param manyZombiesLayer this cue is a layer of a song rather than a song: it plays on its
+     *                         own track, in step with the cue it was sent beside, and is heard
+     *                         only while the lawn is crowded (see {@link #setManyZombiesLayer})
+     */
+    public void playCue(String trackName, String event, boolean loop, boolean stop, float volume,
+                        float fadeSeconds, boolean manyZombiesLayer) {
         int track = trackIndex(trackName);
         if (stop || event == null || event.isEmpty()) {
             stopCue(trackName, Math.max(0F, fadeSeconds));
+            if (manyZombiesLayer) {
+                layerTrack = -1;
+            }
             trace(trackName, "(stop)");
             return;
         }
@@ -177,9 +201,48 @@ public final class PvzceMusicController {
             state.currentSource = -1;
             state.currentEvent = null;
         }
+        if (manyZombiesLayer) {
+            // Remembered before it starts: the crowd may already be there by the time the layer
+            // arrives - a client joining a run in progress - and the theme's own cue, which comes
+            // first in the batch, has to have something to start it silent with either way.
+            layerTrack = track;
+            layerVolume = safeVolume;
+            safeVolume = manyZombies ? safeVolume : 0F;
+        }
         sound.playOnMusicSource(incomingSource, event, safeFade > 0F && state.currentSource >= 0 ? 0F : safeVolume, loop);
         state.beginFade(incomingSource, event, loop, safeVolume, safeFade, now());
+        state.targetVolume = safeVolume;
+        state.lastVolumeStepNanos = now();
         trace(trackName, event);
+    }
+
+    /**
+     * Tells the layered track whether the lawn is crowded, and fades it in or out accordingly.
+     *
+     * <p>Called every frame from the level screen rather than driven by a packet per zombie: the
+     * count changes on almost every tick of a busy wave, and what the mix needs is only the two
+     * transitions. The layer is <em>not</em> stopped when the crowd thins - it keeps playing at
+     * zero gain, which is what keeps it in step with the song; starting it again when the lawn
+     * fills up would put the drums back on bar one while the music was somewhere else.
+     */
+    public void setManyZombiesLayer(boolean crowded) {
+        if (crowded == manyZombies) {
+            return;
+        }
+        manyZombies = crowded;
+        if (layerTrack >= 0) {
+            tracks[layerTrack].targetVolume = crowded ? layerVolume : 0F;
+            tracks[layerTrack].lastVolumeStepNanos = now();
+        }
+        if (Boolean.getBoolean("pvzce.traceMusic")) {
+            LOGGER.info("music trace: layered track {} {}", layerTrack, crowded ? "in (crowded)" : "out");
+        }
+    }
+
+    /** True while the layered track is being heard; diagnostics and tests. */
+    public boolean manyZombiesLayerAudible() {
+        return manyZombies && layerTrack >= 0
+                && tracks[layerTrack].currentSource >= 0 && tracks[layerTrack].currentVolume > 0F;
     }
 
     /**
@@ -234,10 +297,12 @@ public final class PvzceMusicController {
         stopCue(TRACK_BATTLE, 0.8F);
         stopCue(TRACK_STINGER, 0.2F);
         Identifier stinger = win ? PvzceSounds.MUSIC_WIN : PvzceSounds.MUSIC_LOSE;
-        playCue(TRACK_STINGER, stinger.toString(), false, false, 1F, 0.8F);
+        playCue(TRACK_STINGER, stinger.toString(), false, false, 1F, 0.8F, false);
     }
 
     public void stopAll() {
+        layerTrack = -1;
+        manyZombies = false;
         for (int i = 0; i < TRACK_COUNT; i++) {
             TrackState state = tracks[i];
             sound.stopMusicSource(i * SOURCES_PER_TRACK);
@@ -280,10 +345,24 @@ public final class PvzceMusicController {
     }
 
     private static final class TrackState {
+        /**
+         * How long the layered track takes to come in or go out.
+         *
+         * <p>Two and a half seconds: long enough that the drums arrive as a swell rather than as a
+         * switch, short enough that "the lawn just filled up" is heard as the reason. A hard cut
+         * would be a click in the middle of a bar.
+         */
+        private static final float LAYER_FADE_SECONDS = 2.5F;
+
         int currentSource = -1;
         String currentEvent;
         boolean currentLoop;
         float currentVolume = 1F;
+        /**
+         * Where {@link #currentVolume} is heading while the track is not crossfading, for the
+         * layered track's fade in and out. Equal to {@code currentVolume} when nothing is moving.
+         */
+        float targetVolume = 1F;
         int incomingSource = -1;
         String incomingEvent;
         boolean incomingLoop;
@@ -291,6 +370,8 @@ public final class PvzceMusicController {
         long fadeStartNanos;
         float fadeSeconds;
         boolean fading;
+        /** When {@link #easeTargetVolume} last moved the volume; the fade's own clock. */
+        long lastVolumeStepNanos;
 
         void beginFade(int incoming, String event, boolean loop, float incomingVol, float fadeSeconds, long nowNanos) {
             if (incoming >= 0 && incoming == currentSource) {
@@ -333,6 +414,25 @@ public final class PvzceMusicController {
             }
         }
 
+        /**
+         * Moves the playing source towards {@link #targetVolume} at the layer fade's own rate.
+         *
+         * <p>Rate-limited rather than eased with a start time, because the target may be moved
+         * again before the last move finished - a wave that fills the lawn, thins and fills again
+         * must not restart the fade from the beginning each time. Doing nothing while the two
+         * agree keeps an ordinary track off the mixer entirely.
+         */
+        private void easeTargetVolume(SoundEngine sound) {
+            if (currentSource < 0 || currentVolume == targetVolume) {
+                return;
+            }
+            float step = (now() - lastVolumeStepNanos) / 1_000_000_000F / LAYER_FADE_SECONDS;
+            float difference = targetVolume - currentVolume;
+            currentVolume = Math.abs(difference) <= step ? targetVolume
+                    : currentVolume + Math.signum(difference) * step;
+            sound.setMusicSourceVolume(currentSource, currentVolume);
+        }
+
         void reset() {
             currentSource = -1;
             currentEvent = null;
@@ -340,12 +440,14 @@ public final class PvzceMusicController {
             incomingEvent = null;
             incomingVolume = 0F;
             currentVolume = 1F;
+            targetVolume = 1F;
             fading = false;
             fadeSeconds = 0F;
         }
 
         void tick(SoundEngine sound, long nowNanos) {
             if (!fading) {
+                easeTargetVolume(sound);
                 finishOneShotIfDone(sound);
                 return;
             }
@@ -371,6 +473,7 @@ public final class PvzceMusicController {
                     currentEvent = incomingEvent;
                     currentLoop = incomingLoop;
                     currentVolume = incomingVolume;
+                    lastVolumeStepNanos = nowNanos;
                 } else {
                     currentSource = -1;
                     currentEvent = null;

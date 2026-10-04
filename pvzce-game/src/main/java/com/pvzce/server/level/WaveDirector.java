@@ -446,6 +446,38 @@ public final class WaveDirector {
         return Math.max(15, Math.round(wave.spawnInterval() / spawnSpeed()));
     }
 
+    /**
+     * How many ticks until the wave at {@code index} of this round arrives, counted from now.
+     *
+     * <p>For a warning that has to be shouted a fixed time <em>before</em> something that happens
+     * on a wave boundary - the weather forecast is the one caller. It measures the same clock the
+     * waves themselves run on: what is left of the countdown that is already running, plus every
+     * written delay between here and there. A countdown frozen because the wave before it is still
+     * coming out therefore answers with the full remaining gap rather than with a number that is
+     * ticking down, which is the honest answer - the clock has not started.
+     *
+     * @return the ticks, or {@code -1} when that wave is not in this round or is already out
+     */
+    public int countdownToWave(int index) {
+        if (index <= waveIndex || index > roundWaves) {
+            return -1;
+        }
+        int remaining = index == waveIndex + 1
+                ? Math.max(0, nextWaveTargetTicks - waveIntervalTicks)
+                : nextWaveDelayTicks(index - 1);
+        if (remaining < 0) {
+            return -1;
+        }
+        for (int i = waveIndex + 1; i < index; i++) {
+            int delay = nextWaveDelayTicks(i);
+            if (delay < 0) {
+                return -1;
+            }
+            remaining += delay;
+        }
+        return remaining;
+    }
+
     /** One tick of the wave clock. Call it once per level tick, before the entities move. */
     public void tick() {
         if (roundClearPending) {

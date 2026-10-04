@@ -8,9 +8,17 @@ import com.pvzce.common.network.PvzcePacket;
 /**
  * Server-triggered background-music cue. A non-empty event plays on the named
  * track; {@code stop} (or an empty event) stops that track.
+ *
+ * @param manyZombiesLayer this cue is a <em>layer</em> of the level's song rather than the song
+ *                         itself: it plays in sync with the other cues of the same batch, and the
+ *                         client keeps it silent until the lawn is crowded (more than
+ *                         {@code PvzceConstants.MANY_ZOMBIES_LAYER_COUNT} zombies) and fades it in
+ *                         when it is. The night roof's drums are the one user of this - two files
+ *                         of the same length, started on the same tick, are one performance
  */
 public record MusicEventS2C(String track, String event, boolean loop, boolean stop, float volume,
-                            float fadeSeconds, boolean preload) implements PvzcePacket {
+                            float fadeSeconds, boolean preload, boolean manyZombiesLayer)
+        implements PvzcePacket {
     /**
      * The tracks a level's music can play on, spelled exactly as level data and the client's
      * {@code PvzceMusicController} spell them.
@@ -29,7 +37,7 @@ public record MusicEventS2C(String track, String event, boolean loop, boolean st
 
     /** A cue that stops {@code track}, fading it out over {@link #RESET_FADE_SECONDS}. */
     public static MusicEventS2C reset(String track) {
-        return new MusicEventS2C(track, "", false, true, 0F, RESET_FADE_SECONDS, false);
+        return new MusicEventS2C(track, "", false, true, 0F, RESET_FADE_SECONDS, false, false);
     }
 
     /**
@@ -46,7 +54,7 @@ public record MusicEventS2C(String track, String event, boolean loop, boolean st
      * happens while the client is still loading - which is also the moment nothing is judged.
      */
     public static MusicEventS2C preload(String track, String event) {
-        return new MusicEventS2C(track, event, false, false, 0F, 0F, true);
+        return new MusicEventS2C(track, event, false, false, 0F, 0F, true, false);
     }
 
     @Override
@@ -62,7 +70,8 @@ public record MusicEventS2C(String track, String event, boolean loop, boolean st
     .field(MusicEventS2C::volume, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
     .field(MusicEventS2C::fadeSeconds, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
     .field(MusicEventS2C::preload, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
-            .build(values -> new MusicEventS2C((String) values.get(0), (String) values.get(1), (Boolean) values.get(2), (Boolean) values.get(3), (Float) values.get(4), (Float) values.get(5), (Boolean) values.get(6)));
+    .field(MusicEventS2C::manyZombiesLayer, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+            .build(values -> new MusicEventS2C((String) values.get(0), (String) values.get(1), (Boolean) values.get(2), (Boolean) values.get(3), (Float) values.get(4), (Float) values.get(5), (Boolean) values.get(6), (Boolean) values.get(7)));
 
     @Override
     public void encode(PacketByteBuf buf) {

@@ -2610,8 +2610,20 @@
     "cues": [
       {
         "trigger": "on_start",
-        "track": "pvzce:music/moongrains",
-        "loop": true
+        "track": "background",
+        "event": "pvzce:original/roof_after_dark",
+        "loop": true,
+        "volume": 0.85,
+        "fade_seconds": 1.0
+      },
+      {
+        "trigger": "on_start",
+        "track": "battle",
+        "event": "pvzce:original/roof_after_dark_drums",
+        "loop": true,
+        "volume": 0.8,
+        "fade_seconds": 1.0,
+        "many_zombies_layer": true
       }
     ]
   },

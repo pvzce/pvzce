@@ -39,6 +39,15 @@ public final class PvzceConstants {
     public static final float POOL_SURFACE_CELL_HEIGHT = 0.8117647F;
     public static final int UMBRELLA_BLOCK_TICKS = 45;
     public static final int LADDER_PLACE_TICKS = 100;
+    /**
+     * How many living zombies on the lawn count as "a lot".
+     *
+     * <p>One number, two readers, both about the same moment - the lawn stops being a fight and
+     * starts being a crowd: the night roof's drum layer fades in above it
+     * ({@code PvzceMusicController.setManyZombiesLayer}), and the weather forecast stops being
+     * shouted over it. Ten rather than eleven because the ask was "more than ten zombies".
+     */
+    public static final int MANY_ZOMBIES = 10;
     public static final int CATAPULT_AMMO = 20;
     public static final int CATAPULT_INTERVAL_TICKS = 300;
     public static final int CATAPULT_SHOOT_TICKS = 60;
@@ -56,6 +65,14 @@ public final class PvzceConstants {
     public static final int WHACK_INITIAL_INTERVAL = 100;
     public static final int WHACK_FINAL_INTERVAL = 30;
     public static final int TICKS_PER_SECOND = 60;
+    /**
+     * How long before a weather change the roof shouts about it.
+     *
+     * <p>Ten seconds: the same lead the original gives its own "a huge wave is coming", and about
+     * as far ahead as a player can be told something and still act on it - long enough to finish
+     * the plant they are placing and bring the mushrooms in before the rain does.
+     */
+    public static final int WEATHER_WARNING_TICKS = 10 * TICKS_PER_SECOND;
     public static final int CACTUS_DAMAGE = 20;
     public static final int CACTUS_SHOT_INTERVAL_TICKS = 90;
     public static final int CACTUS_RISE_TICKS = 75;

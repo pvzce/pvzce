@@ -544,7 +544,7 @@ public record LevelDef(
         public static final LevelMusicDef DEFAULT = new LevelMusicDef(List.of(
                 new MusicCue(MusicCue.Trigger.LEVEL_START, 0, "background",
                         Optional.of(Identifier.withDefaultNamespace("music/grasswalk")),
-                        true, false, 0.85F, 1F)));
+                        true, false, 0.85F, 1F, false)));
 
         public static final Codec<LevelMusicDef> CODEC = RecordCodecBuilder.create(i -> i.group(
                 MusicCue.CODEC.listOf().optionalFieldOf("cues", List.of()).forGetter(LevelMusicDef::cues)
@@ -554,6 +554,11 @@ public record LevelDef(
     /**
      * One timeline entry. {@code event} + {@code loop=false} is a one-shot;
      * {@code stop=true} (or a missing event) stops the track.
+     *
+     * @param manyZombiesLayer this cue is a layer of the same song rather than a cue of its own:
+     *                         it starts with the batch it is written beside (so two files of the
+     *                         same length stay in time) and is heard only while the lawn is
+     *                         crowded. See {@code MusicEventS2C.manyZombiesLayer}
      */
     public record MusicCue(
             Trigger trigger,
@@ -563,7 +568,8 @@ public record LevelDef(
             boolean loop,
             boolean stop,
             float volume,
-            float fadeSeconds
+            float fadeSeconds,
+            boolean manyZombiesLayer
     ) {
         /**
          * What the cue's {@code at_tick} counts from.
@@ -618,7 +624,9 @@ public record LevelDef(
                 Codec.BOOL.optionalFieldOf("loop", true).forGetter(MusicCue::loop),
                 Codec.BOOL.optionalFieldOf("stop", false).forGetter(MusicCue::stop),
                 Codec.FLOAT.optionalFieldOf("volume", 1F).forGetter(MusicCue::volume),
-                Codec.FLOAT.optionalFieldOf("fade_seconds", 1F).forGetter(MusicCue::fadeSeconds)
+                Codec.FLOAT.optionalFieldOf("fade_seconds", 1F).forGetter(MusicCue::fadeSeconds),
+                Codec.BOOL.optionalFieldOf("many_zombies_layer", false)
+                        .forGetter(MusicCue::manyZombiesLayer)
         ).apply(i, MusicCue::new));
     }
 

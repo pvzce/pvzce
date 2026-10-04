@@ -79,8 +79,12 @@ class RoofMechanicsTest {
             var level = roof(); var launcher = plant(level, "melon_pult", 0, 2);
             var target = zombie(level, "buckethead_zombie", 7.5F, 2);
             var neighbour = zombie(level, "buckethead_zombie", 7.5F, 3);
+            // A plain zombie one row the other way, which is what tells the two halves of a blast
+            // apart: with a bucket on, 40 and 80 both disappear into it.
+            var bare = zombie(level, "basic_zombie", 7.5F, 1);
             var sent = new ArrayList<PvzcePacket>(); tick(level, 1, sent);
             int armour = target.armorHealth(); int health = target.health();
+            int bareHealth = bare.health();
             var def = BuiltInRegistries.PROJECTILES.get(PvzceIds.id(id));
             var shot = new com.pvzce.server.entity.ProjectileEntity(def,
                     new com.pvzce.api.content.ProjectileRef(def.id(), 80, 1), launcher.team(),
@@ -90,8 +94,13 @@ class RoofMechanicsTest {
             level.addEntity(shot);
             tick(level, 2, sent);
             assertEquals(health, target.health()); assertEquals(health, neighbour.health());
-            assertEquals(armour - 80, target.armorHealth());
-            assertEquals(armour - 80, neighbour.armorHealth());
+            assertEquals(armour - 80, target.armorHealth(), "the zombie it hit wears the whole shot");
+            // A bucket beside the landing absorbs the splash before its body does...
+            assertEquals(armour - 40, neighbour.armorHealth(), "the splash goes into the bucket too");
+            assertEquals(health, neighbour.health(), "..which is why its body is untouched");
+            // ..and this is the number the fix is about: a neighbour with nothing to absorb with
+            // takes the splash, not the shot. It used to take the full 80.
+            assertEquals(bareHealth - 40, bare.health(), "the blast deals half the shot, not all of it");
             var effects = sent.stream().filter(p -> p instanceof com.pvzce.common.network.packet.EffectEventS2C e
                     && e.particle().equals("pvzce:" + id + "_splat")).toList();
             assertEquals(1, effects.size());

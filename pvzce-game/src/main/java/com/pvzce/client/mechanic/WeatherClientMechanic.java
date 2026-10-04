@@ -13,6 +13,12 @@ import com.pvzce.common.network.PacketByteBuf;
 /** A readable forecast and ordinary rain; weather never hides entities or introduces lightning. */
 public final class WeatherClientMechanic implements ClientMechanic {
     private static final Identifier CLOUD = PvzceIds.id("textures/gui/screen/fog_cloud");
+    /** How long the forecast takes to reach full brightness, in seconds of level time. */
+    private static final float WARNING_FADE_SECONDS = 0.4F;
+
+    /** The forecast this client has already reacted to, and when it appeared. */
+    private int warningSequence;
+    private long warningStartTicks;
 
     @Override public Identifier id() { return PvzceIds.MECHANIC_WEATHER; }
 
@@ -59,6 +65,46 @@ public final class WeatherClientMechanic implements ClientMechanic {
         client.fonts().body().draw(rule, x + 8F, y + 32F, scale, 1F, 1F, 1F, 1F);
         client.fonts().body().draw(cold, x + 8F, y + 19F, scale, 0.65F, 0.85F, 1F, 1F);
         client.fonts().body().draw(ash, x + 8F, y + 6F, scale, 1F, 0.84F, 0.55F, 1F);
+        renderWarning(client, client.level(), state);
+    }
+
+    /**
+     * The forecast, in the same red the huge-wave call uses.
+     *
+     * <p>Ten seconds before the sky changes, and once: the message is a moment rather than a
+     * state, so this watches the state's own sequence counter for "a new one" - two identical
+     * forecasts in a row (cloudy to rainy and back, on a level that has both) would otherwise read
+     * as one banner that never went away. It runs on the level's own clock rather than a wall
+     * clock, so a paused game holds the banner where it is.
+     */
+    private void renderWarning(PvzceClient client, ClientLevel level, WeatherState state) {
+        if (level.aliveZombieCount() > com.pvzce.common.PvzceConstants.MANY_ZOMBIES) {
+            // A lawn full of zombies is its own warning; a line of red text over it is noise, and
+            // the player has something more urgent to look at.
+            return;
+        }
+        if (state.sequence() != warningSequence) {
+            warningSequence = state.sequence();
+            warningStartTicks = (long) level.smoothLevelTicks();
+        }
+        String warning = state.warning() == null
+                ? "" : GuiLang.raw("gui.pvzce.weather.warn." + state.warning().key(), "");
+        if (warning.isEmpty()) {
+            return;
+        }
+        long shownFor = (long) level.smoothLevelTicks() - warningStartTicks;
+        float alpha = Math.min(1F, shownFor / (WARNING_FADE_SECONDS * com.pvzce.common.PvzceConstants.TICKS_PER_SECOND));
+        if (alpha <= 0F) {
+            return;
+        }
+        float unit = Math.max(1F, client.fonts().body().width(warning, 1F));
+        float textScale = Math.max(1.2F, Math.min(3F, client.guiWidth() * 0.7F / unit));
+        float x = (client.guiWidth() - client.fonts().body().width(warning, textScale)) / 2F;
+        float y = client.guiHeight() * 0.58F;
+        float shadow = Math.max(1.5F, textScale * 1.6F);
+        client.fonts().body().draw(warning, x + shadow, y + shadow, textScale,
+                0.05F, 0.02F, 0.02F, 0.75F * alpha);
+        client.fonts().body().draw(warning, x, y, textScale, 1F, 0.25F, 0.2F, alpha);
     }
 
     @Override public WorldOverlay createWorldOverlay(ClientLevel level) {
