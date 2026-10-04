@@ -292,6 +292,21 @@ public final class AnimationManager {
         }
     }
 
+    /** Head attachments follow the rendered pose, scale and mirror, including a paused zombie. */
+    public float[] headTop(ClientEntity entity) {
+        float[] anchor = anchor(entity);
+        AnimationPlayback playback = playbacks.get(entity);
+        if (playback instanceof ControllerPlayback controller) {
+            float[] local = controller.boneTop("head", now());
+            if (local != null) {
+                float[] scale = scalesFor(entity);
+                return new float[]{anchor[0] + local[0] * scale[0] * (playback.flipX() ? -1F : 1F),
+                        anchor[1] + local[1] * scale[1]};
+            }
+        }
+        return new float[]{entity.visualCellX(), entity.visualCellY() + entity.visualHeight() + 0.55F};
+    }
+
     /** Returns true when this entity was drawn by an animation resource. */
     public boolean render(ClientEntity entity) {
         return render(entity, 0);

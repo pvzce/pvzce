@@ -323,21 +323,10 @@ public final class SquashCapability implements PlantCapability {
         lingerLeft = LINGER_TICKS;
     }
 
-    /**
-     * Invulnerable from the moment it notices something, not from the moment it lands.
-     *
-     * <p>Reported as "倭瓜不应该被啃掉……可啃，但是激活时无敌": once a squash has committed it is in the
-     * air, and a zombie must not be able to cancel the leap by chewing on the square it left. The
-     * fuse is a second and a quarter, and a zombie standing on it bites it down in about a second -
-     * so before this the plant was regularly eaten mid-jump and spent its card on nothing.
-     *
-     * <p>Before it notices anything it is an ordinary plant and is eaten like one: {@code idle} is
-     * the state whose art is a squash sitting on the lawn, and that is the squash a zombie is
-     * allowed to take away.
-     */
+    /** A squash cannot be eaten, including while it waits for a target. */
     @Override
     public boolean invulnerable(PlantEntity plant) {
-        return lookLeft > 0 || fuseLeft > 0 || lingerLeft > 0;
+        return true;
     }
 
     /**

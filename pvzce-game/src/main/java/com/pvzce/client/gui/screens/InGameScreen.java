@@ -1974,8 +1974,19 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                                 rowAllowed ? 0.2F : 1F, rowAllowed ? 1F : 0.2F, 0.2F, 0.18F);
                     }
                 }
-                client.drawSolid(hoverX, hoverY + terrainHeight(hoverX, hoverY), 1F, 1F, 0.2F,
-                        allowed ? 0.2F : 1F, allowed ? 1F : 0.2F, 0.2F, 0.25F);
+                var plantingDef = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(
+                        Identifier.tryParse(selectedCardId()));
+                int left = com.pvzce.client.renderer.ClientPlacement.footprintLeft(
+                        client.level(), plantingDef, hoverX, hoverY);
+                int width = plantingDef == null ? 1 : plantingDef.placement().width();
+                for (int column = left; column < left + width; column++) {
+                    allowed &= column >= 0 && column < client.level().width()
+                            && client.level().inPlacementZone(column, hoverY);
+                }
+                for (int column = left; column < left + width; column++) {
+                    client.drawSolid(column, hoverY + terrainHeight(column, hoverY), 1F, 1F, 0.2F,
+                            allowed ? 0.2F : 1F, allowed ? 1F : 0.2F, 0.2F, 0.25F);
+                }
             }
         }
 
@@ -2262,7 +2273,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // the same place - and asking the terrain for the height alone left it out of place over a
         // lily pad (0.30 of a cell low) and over a pot (0.10).
         float[] anchor = com.pvzce.client.renderer.ClientPlacement
-                .anchoredAt(client.level(), cellX, cellY);
+                .anchoredAt(client.level(), com.pvzce.common.core.BuiltInRegistries.PLANTS.get(preview.defId()), cellX, cellY);
         preview.setCellX(anchor[0]);
         preview.setCellY(anchor[1]);
         preview.setHeight(anchor[2]);
@@ -2527,7 +2538,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         var plantDef = "plant".equals(entity.kind())
                 ? com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId()) : null;
-        if (plantDef != null && plantDef.capability(com.pvzce.common.capability.plant.RevealCapability.class).isPresent()) {
+        if (plantDef != null && plantDef.capability(com.pvzce.common.capability.plant.RevealCapability.class)
+                .map(com.pvzce.common.capability.plant.RevealCapability::halo).orElse(false)) {
             com.pvzce.client.renderer.PlanternHalo.render(client, entity);
         }
         // The ice goes under the art: it is around the zombie's feet, so the legs have to come
@@ -2538,9 +2550,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         drawEntityArt(entity);
         if (entity.buttered() && entity.health() > 0) {
-            float top = entity.visualCellY() + entity.visualHeight() + 0.55F;
+            float[] head = client.animations().headTop(entity);
+            float top = head[1] - 0.06F;
             client.drawTexture(Identifier.withDefaultNamespace("textures/entities/status/butter"),
-                    entity.visualCellX() - 0.2F, top, 0.4F, 0.24F, 0.5F, 1F, 1F, 1F, 1F);
+                    head[0] - 0.2F * client.spriteXScale(), top, 0.4F * client.spriteXScale(), 0.24F, 0.5F, 1F, 1F, 1F, 1F);
         }
         if (entity.fertilized()) {
             client.drawTexture(Identifier.withDefaultNamespace("textures/particles/misc/glow_particle2"),
@@ -2768,6 +2781,24 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 .orElse(card);
     }
 
+    /** Rotates a tracking spike along the server-synchronized trajectory. */
+    private void drawHomingSpike(ClientEntity entity, Identifier texture) {
+        var image = client.textures().getOrLoad(texture);
+        float angle = entity.flightAngle() - (float) Math.PI / 3F;
+        float size = 0.14F * com.pvzce.common.core.EntityArt.renderScale(entity.defId());
+        float cos = (float) Math.cos(angle) * size;
+        float sin = (float) Math.sin(angle) * size;
+        float x = entity.visualCellX(), y = entity.visualCellY() + entity.visualHeight();
+        float scale = client.spriteXScale();
+        client.drawTextureQuad(texture,
+                x + (-cos + sin) * scale, y - sin - cos,
+                x + (cos + sin) * scale, y + sin - cos,
+                x + (cos - sin) * scale, y + sin + cos,
+                x + (-cos - sin) * scale, y - sin + cos,
+                0, image.height(), image.width(), image.height(), image.width(), 0, 0, 0,
+                0.3F, 1F, 1F, 1F, 1F);
+    }
+
     /**
      * The entity's own art: its animation when it has one, otherwise its sprite.
      *
@@ -2781,6 +2812,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         Identifier texture = entityTexture(entity);
+        if (com.pvzce.api.entity.EntityKind.PROJECTILE.equals(entity.kind())) {
+            var projectile = com.pvzce.common.core.BuiltInRegistries.PROJECTILES.get(entity.defId());
+            if (projectile != null && projectile.capability(
+                    com.pvzce.common.capability.projectile.HomingMotionCapability.class).isPresent()) {
+                drawHomingSpike(entity, texture);
+                return;
+            }
+        }
         if (client.animations() != null && client.animations().render(entity, isShell(entity) ? 1 : 0)) {
             return;
         }
@@ -4024,14 +4063,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private ClientEntity targetablePlantAt(int cellX, int cellY) {
         for (ClientEntity entity : client.level().entities().values()) {
             if (!com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())
-                    || entity.gridX() != cellX || entity.gridY() != cellY
                     || !entity.surfaceId().equals(client.level().activeSurface())) {
                 continue;
             }
             Identifier defId = Identifier.tryParse(entity.defIdString());
             com.pvzce.api.content.PlantDef def =
                     defId == null ? null : com.pvzce.common.core.BuiltInRegistries.PLANTS.get(defId);
-            if (def == null) {
+            if (def == null || !com.pvzce.common.core.PlantPlacement.coversCell(
+                    def, entity.gridX(), entity.gridY(), cellX, cellY)) {
                 continue;
             }
             for (var capability : def.capabilities()) {
@@ -4073,13 +4112,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         aimingPlantId = -1;
     }
 
-    /**
-     * Draws the reticle over the cell a shot would land in, plus the cell itself.
-     *
-     * <p>A crosshair rather than the green placement square: the two mean different things (this
-     * one is "a blast lands here", not "a plant may go here"), and the blast covers nine cells -
-     * so the arms are drawn one cell beyond the target, which is the area the cob actually covers.
-     */
+    /** Draws the original target and its shadow at the selected surface height. */
     private void renderAimReticle() {
         if (aimingPlantId < 0) {
             return;
@@ -4090,12 +4123,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 || hoverX >= client.level().width() || hoverY >= client.level().height()) {
             return;
         }
-        client.drawSolid(hoverX, hoverY, 1F, 1F, 0.22F, 1F, 0.55F, 0.1F, 0.3F);
-        float z = 0.23F;
-        float thickness = 0.08F;
-        // The cross's arms: the whole 3x3 the cob covers, not just the cell under the pointer.
-        client.drawSolid(hoverX - 1F, hoverY + 0.5F - thickness / 2F, 3F, thickness, z, 1F, 0.6F, 0.15F, 0.85F);
-        client.drawSolid(hoverX + 0.5F - thickness / 2F, hoverY - 1F, thickness, 3F, z, 1F, 0.6F, 0.15F, 0.85F);
+        float centerX = hoverX + 0.5F;
+        float centerY = hoverY + 0.5F + client.level().sceneBoard().elevationAt(
+                client.level().activeSurface(), centerX, hoverY + 0.5F);
+        float width = 1.1F * client.spriteXScale();
+        client.drawTexture(Identifier.withDefaultNamespace("textures/entities/status/cob_target_shadow"),
+                centerX - width / 2F, centerY - 0.45F, width, 0.9F, 0.22F, 1F, 1F, 1F, 1F);
+        client.drawTexture(Identifier.withDefaultNamespace("textures/entities/status/cob_target"),
+                centerX - width / 2F, centerY - 0.55F, width, 1.1F, 0.23F, 1F, 1F, 1F, 1F);
     }
 
     /**

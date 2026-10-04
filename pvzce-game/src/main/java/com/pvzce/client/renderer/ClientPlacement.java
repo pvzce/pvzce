@@ -51,17 +51,28 @@ public final class ClientPlacement {
     private static List<Stacked> plantsAt(ClientLevel level, int x, int y) {
         List<Stacked> plants = new ArrayList<>();
         for (ClientEntity entity : level.entities().values()) {
-            if (!EntityKind.PLANT.equals(entity.kind()) || entity.gridX() != x
-                    || entity.gridY() != y || !entity.surfaceId().equals(level.activeSurface())) {
+            if (!EntityKind.PLANT.equals(entity.kind()) || !entity.surfaceId().equals(level.activeSurface())) {
                 continue;
             }
             PlantDef def = BuiltInRegistries.PLANTS.get(entity.defId());
-            if (def != null) {
+            if (def != null && PlantPlacement.coversCell(def, entity.gridX(), entity.gridY(), x, y)) {
                 plants.add(new Stacked(def, entity.id()));
             }
         }
         plants.sort(Comparator.comparingInt(plant -> PlantPlacement.layerIndex(plant.def())));
         return plants;
+    }
+
+    public static int footprintLeft(ClientLevel level, PlantDef def, int x, int y) {
+        return def == null ? x : PlantPlacement.upgradeAnchorX(def, context(level), x, y);
+    }
+
+    public static float[] anchoredAt(ClientLevel level, PlantDef def, int x, int y) {
+        if (def == null) return anchoredAt(level, x, y);
+        int left = footprintLeft(level, def, x, y);
+        float[] anchor = anchoredAt(level, left, y);
+        anchor[0] += (def.placement().width() - 1) * 0.5F;
+        return anchor;
     }
 
     /** The client's own view of a cell's terrain and stack; the server passes its own. */

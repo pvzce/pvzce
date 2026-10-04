@@ -23,6 +23,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -112,6 +113,18 @@ class UpgradeMechanicsTest {
         assertEquals(0, countPlants(level, "pvzce:kernel_pult"),
                 "and both of them are consumed: the cannon is what stands there now");
         assertEquals(1, countPlants(level, "pvzce:cob_cannon"), "and it is there");
+    }
+
+    @Test void clickingTheRightBaseStillCreatesOneCannonAcrossBothCells() {
+        LevelServer level = lawn();
+        CapturingBridge bridge = new CapturingBridge();
+        spawn(level, bridge, "kernel_pult", 3, 2);
+        spawn(level, bridge, "kernel_pult", 4, 2);
+        assertTrue(level.placePlant(bridge, cannonSlot(level), 4, 2));
+        level.flushPending(bridge);
+        assertEquals("pvzce:cob_cannon", level.plantAt(3, 2).defId().toString());
+        assertSame(level.plantAt(3, 2), level.plantAt(4, 2));
+        assertEquals(3, level.plantAt(4, 2).gridX());
     }
 
     /**

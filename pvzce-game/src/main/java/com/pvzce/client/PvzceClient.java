@@ -1337,21 +1337,21 @@ public final class PvzceClient {
         RenderSystem.setOverlayShader();
     }
 
-    /** Sun drops act as warm point lights for the board around them. */
+    /** Sun drops and reveal plants light the board with their configured radii. */
     private void applyEntityLights() {
         RenderSystem.clearPointLights();
         float centerX = level.width() / 2F;
         float centerY = level.height() / 2F;
-        List<ClientEntity> suns = level.entities().values().stream()
+        List<ClientEntity> sources = level.entities().values().stream()
                 .filter(PvzceClient::lightsTheBoard)
                 .sorted((a, b) -> Float.compare(
                         distanceSq(a.cellX(), a.cellY() + a.height(), centerX, centerY),
                         distanceSq(b.cellX(), b.cellY() + b.height(), centerX, centerY)))
                 .toList();
         float nightBlend = level.nightBlendAt(level.smoothDayTicks());
-        int lightCount = Math.min(ShaderProgram.MAX_POINT_LIGHTS, suns.size());
+        int lightCount = Math.min(ShaderProgram.MAX_POINT_LIGHTS, sources.size());
         for (int i = 0; i < lightCount; i++) {
-            ClientEntity sun = suns.get(i);
+            ClientEntity sun = sources.get(i);
             // Sun drops stay warm by day and crossfade to pale moonlit glows at night.
             float r = MathUtil.lerp(1F, 0.72F, nightBlend);
             float g = MathUtil.lerp(0.85F, 0.82F, nightBlend);
@@ -1362,8 +1362,9 @@ public final class PvzceClient {
             // as "the sun is too bright" - while at night the same glow is the one warm
             // thing on the board. Presentation only; nothing about collection changes.
             float strength = MathUtil.lerp(SUN_LIGHT_DAY, SUN_LIGHT_NIGHT, nightBlend);
+            var lamp = revealLight(sun);
             RenderSystem.setPointLight(i, sun.cellX(), sun.cellY() + sun.height(),
-                    SUN_LIGHT_RADIUS, r, g, b, strength);
+                    lightRadius(sun), r, g, b, lamp == null ? strength : strength * lamp.strength());
         }
     }
 
@@ -1388,7 +1389,7 @@ public final class PvzceClient {
     }
 
     /**
-     * True when this drop is the sun and therefore lights the board.
+     * True for sun drops and living plants with a reveal capability.
      *
      * <p>Asked by <em>content id</em>, not by entity kind. A kind is a category - every drop
      * shares one - so the previous {@code kind().equals("sun")} test matched every coin and
@@ -1396,7 +1397,19 @@ public final class PvzceClient {
      * hold that distinction down without a GL context.
      */
     static boolean lightsTheBoard(ClientEntity entity) {
-        return entity != null && PvzceIds.SUN.toString().equals(entity.defIdString());
+        return entity != null && entity.health() > 0
+                && (PvzceIds.SUN.toString().equals(entity.defIdString()) || revealLight(entity) != null);
+    }
+
+    static com.pvzce.common.capability.plant.RevealCapability revealLight(ClientEntity entity) {
+        if (entity == null || !com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())) return null;
+        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId());
+        return def == null ? null : def.capability(com.pvzce.common.capability.plant.RevealCapability.class).orElse(null);
+    }
+
+    static float lightRadius(ClientEntity entity) {
+        var lamp = revealLight(entity);
+        return lamp == null ? SUN_LIGHT_RADIUS : lamp.radius();
     }
 
     /**

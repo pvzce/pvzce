@@ -21,6 +21,8 @@ import java.util.List;
 public final class ProjectileCapabilities {
     public static final CapabilityType<LinearMotionCapability> LINEAR =
             type("linear", LinearMotionCapability.CODEC);
+    public static final CapabilityType<com.pvzce.common.capability.projectile.HomingMotionCapability> HOMING =
+            type("homing", com.pvzce.common.capability.projectile.HomingMotionCapability.CODEC);
     public static final CapabilityType<ArcMotionCapability> ARC = type("arc", ArcMotionCapability.CODEC);
     public static final CapabilityType<SplashImpactCapability> SPLASH =
             type("splash", SplashImpactCapability.CODEC);
@@ -45,6 +47,7 @@ public final class ProjectileCapabilities {
     public static void bootstrap() {
         register(LINEAR, "linear");
         register(ARC, "arc");
+        register(HOMING, "homing");
         register(SPLASH, "splash");
         register(STATUS, "status");
         register(PIERCE, "pierce");

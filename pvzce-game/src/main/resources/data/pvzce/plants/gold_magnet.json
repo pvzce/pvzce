@@ -23,5 +23,5 @@
   "animation_dir": "plant/special",
   "texture": "pvzce:textures/entities/plant/special/gold_magnet",
   "render_scale": 0.85,
-  "order": 61
+  "order": 46
 }

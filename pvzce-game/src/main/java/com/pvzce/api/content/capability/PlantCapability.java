@@ -26,6 +26,10 @@ public interface PlantCapability {
     default void onPlaced(PlantEntity plant, LevelAccess level) {
     }
 
+    /** Rebuilds level registrations after saved state has been restored; does not replay placement. */
+    default void onRestored(PlantEntity plant, LevelAccess level) {
+    }
+
     /** Called once per server tick while the plant is alive. */
     default void tick(PlantEntity plant, LevelAccess level) {
     }

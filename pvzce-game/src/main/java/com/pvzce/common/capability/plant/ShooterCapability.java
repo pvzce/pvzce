@@ -359,34 +359,28 @@ public final class ShooterCapability implements PlantCapability {
     }
 
     /**
-     * The row a shot leaves in.
-     *
-     * <p>The plant's own row, offset by the shot's {@code row_offset} - unless the shot is aimed
-     * ({@link ProjectileRef#targetRow()}), in which case it leaves in the row of the nearest
-     * zombie anywhere on the board. That is the cattail: the original's spike chases its target
-     * across lanes, and a spike that flew down an empty lane because its plant happens to sit in
-     * that row would be a plant that cannot do the one thing it is bought for.
-     *
-     * <p>Falls back to the plant's own row when nothing is found, which is also what makes this
-     * safe to call on the firing tick: a target that died between the decision and the shot leaves
-     * an ordinary straight shot rather than a projectile aimed at nothing.
+     * The row a shot leaves in. Homing shots launch from the plant's own row;
+     * ordinary target-row shots use the nearest reachable target's row.
      */
     private float aimRow(ProjectileRef shot, PlantEntity plant, LevelAccess level) {
-        if (!shot.targetRow()) {
+        if (!shot.targetRow() || homing(shot)) {
             return plant.cellY() + shot.rowOffset();
         }
         ZombieEntity nearest = nearestTarget(shot, plant, level);
         return nearest == null ? plant.cellY() + shot.rowOffset() : nearest.gridY();
     }
 
-    /**
-     * The zombie an aimed shot would fly at: the nearest one that shot can reach, or {@code null}.
-     *
-     * <p>Nearest by distance along x from the muzzle, which is the same "anything worth shooting"
-     * question {@link #hasTarget} asks - asked once, here, so that the decision to fire and the
-     * row the shot leaves in cannot disagree about which zombie they meant.
-     */
+    private static boolean homing(ProjectileRef shot) {
+        var def = com.pvzce.common.core.BuiltInRegistries.PROJECTILES.get(shot.projectile());
+        return def != null && def.resolvedCapabilities().stream().anyMatch(c ->
+                c.value() instanceof com.pvzce.common.capability.projectile.HomingMotionCapability);
+    }
+
     private ZombieEntity nearestTarget(ProjectileRef shot, PlantEntity plant, LevelAccess level) {
+        if (homing(shot)) {
+            return com.pvzce.common.capability.projectile.HomingMotionCapability.target(
+                    level, plant.team(), plant.cellX(), plant.cellY());
+        }
         float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;

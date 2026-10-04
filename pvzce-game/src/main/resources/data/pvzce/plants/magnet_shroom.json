@@ -20,7 +20,7 @@
   "animation_dir": "plant/special",
   "texture": "pvzce:textures/entities/plant/special/magnet_shroom",
   "render_scale": 0.85,
-  "order": 54,
+  "order": 32,
   "sounds": {
     "shoot": "pvzce:sfx/plant/magnetshroom"
   }

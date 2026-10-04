@@ -89,10 +89,10 @@ public final class SeedOptions {
 
     /**
      * The card ids a level's chooser may show this player: every owned card in
-     * registration order, then any card the level pins that the filter did not
+     * almanac order, including any card the level pins that the ownership filter did not
      * already keep.
      *
-     * <p>The tail matters. A level may name a plant id directly instead of its
+     * <p>The level pins matter. A level may name a plant id directly instead of its
      * slot ({@link SlotResolver} resolves both) and that id is not in
      * {@link #allCards()}, so a filter-only pool would drop a card the level
      * itself insists on.
@@ -121,7 +121,9 @@ public final class SeedOptions {
                     || SlotResolver.resolve(id).map(card -> preparation.excludedCards()
                             .contains(card.content())).orElse(false));
         }
-        return List.copyOf(ids);
+        List<Identifier> ordered = new ArrayList<>(ids);
+        ordered.sort(Comparator.comparingInt(SeedOptions::cardRank).thenComparing(Identifier::toString));
+        return List.copyOf(ordered);
     }
 
     /**

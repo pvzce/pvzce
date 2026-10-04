@@ -99,7 +99,9 @@ public final class WakeBelowCapability implements PlantCapability {
         List<PlantEntity> stacked = level.plantsAt(plant.gridX(), plant.gridY(), plant.surfaceId());
         PlantEntity target = null;
         for (int i = stacked.size() - 1; i >= 0; i--) {
-            if (stacked.get(i) != plant) {
+            if (stacked.get(i) != plant
+                    && com.pvzce.common.core.PlantPlacement.layerIndex(stacked.get(i).def())
+                    == com.pvzce.api.content.PlacementDef.LAYER_GROUND) {
                 target = stacked.get(i);
                 break;
             }

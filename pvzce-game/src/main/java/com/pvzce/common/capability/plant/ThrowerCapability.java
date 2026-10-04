@@ -27,6 +27,7 @@ public final class ThrowerCapability implements PlantCapability {
     private final int intervalTicks;
     private final List<ProjectileRef> shots;
     private final float butterChance;
+    private final int butterDamage;
     private final Identifier butterProjectile;
     private final Optional<Identifier> sound;
     private final int firstDelayTicks;
@@ -35,6 +36,14 @@ public final class ThrowerCapability implements PlantCapability {
 
     public ThrowerCapability(int intervalTicks, List<ProjectileRef> shots, float butterChance,
                              Identifier butterProjectile, Optional<Identifier> sound, int firstDelayTicks) {
+        this(intervalTicks, shots, butterChance, butterProjectile, sound, firstDelayTicks,
+                com.pvzce.common.PvzceConstants.BUTTER_DAMAGE);
+    }
+
+    public ThrowerCapability(int intervalTicks, List<ProjectileRef> shots, float butterChance,
+                             Identifier butterProjectile, Optional<Identifier> sound, int firstDelayTicks,
+                             int butterDamage) {
+        this.butterDamage = Math.max(0, butterDamage);
         this.intervalTicks = Math.max(1, intervalTicks);
         this.shots = List.copyOf(shots);
         this.butterChance = Math.max(0F, Math.min(1F, butterChance));
@@ -51,7 +60,9 @@ public final class ThrowerCapability implements PlantCapability {
             Identifier.CODEC.optionalFieldOf("butter_projectile", Identifier.withDefaultNamespace("butter"))
                     .forGetter(ThrowerCapability::butterProjectile),
             Identifier.CODEC.optionalFieldOf("sound").forGetter(ThrowerCapability::sound),
-            Codec.INT.optionalFieldOf("first_delay", 0).forGetter(ThrowerCapability::firstDelayTicks)
+            Codec.INT.optionalFieldOf("first_delay", 0).forGetter(ThrowerCapability::firstDelayTicks),
+            Codec.INT.optionalFieldOf("butter_damage", com.pvzce.common.PvzceConstants.BUTTER_DAMAGE)
+                    .forGetter(c -> c.butterDamage)
     ).apply(i, ThrowerCapability::new));
 
     public int intervalTicks() {
@@ -80,7 +91,7 @@ public final class ThrowerCapability implements PlantCapability {
 
     @Override
     public PlantCapability instantiate() {
-        return new ThrowerCapability(intervalTicks, shots, butterChance, butterProjectile, sound, firstDelayTicks);
+        return new ThrowerCapability(intervalTicks, shots, butterChance, butterProjectile, sound, firstDelayTicks, butterDamage);
     }
 
     @Override
@@ -146,7 +157,7 @@ public final class ThrowerCapability implements PlantCapability {
             float chance = level.butterChance(plant, butterChance);
             boolean butter = chance > 0F && level.random().nextFloat() < chance;
             ProjectileRef ref = butter
-                    ? new ProjectileRef(butterProjectile, shot.damage(), shot.count())
+                    ? new ProjectileRef(butterProjectile, butterDamage, shot.count())
                     : shot;
             // A lob is one projectile whatever its `count` says - the arc is aimed at a cell, and
             // this capability has never read the field (see `ProjectileRef#count`). The level's

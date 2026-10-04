@@ -55,8 +55,14 @@ public final class RevealCapability implements PlantCapability {
 
     private final float radius;
     private final float strength;
+    private final boolean halo;
 
     public RevealCapability(float radius, float strength) {
+        this(radius, strength, true);
+    }
+
+    public RevealCapability(float radius, float strength, boolean halo) {
+        this.halo = halo;
         this.radius = Math.max(0.1F, radius);
         this.strength = Math.max(0F, Math.min(1F, strength));
     }
@@ -64,8 +70,16 @@ public final class RevealCapability implements PlantCapability {
     public static final MapCodec<RevealCapability> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Codec.FLOAT.optionalFieldOf("radius", DEFAULT_RADIUS).forGetter(RevealCapability::radius),
             Codec.FLOAT.optionalFieldOf("strength", DEFAULT_STRENGTH)
-                    .forGetter(RevealCapability::strength)
+                    .forGetter(RevealCapability::strength),
+            Codec.BOOL.optionalFieldOf("halo", true).forGetter(RevealCapability::halo)
     ).apply(i, RevealCapability::new));
+
+    public boolean halo() { return halo; }
+
+    @Override
+    public void onRestored(PlantEntity plant, LevelAccess level) {
+        onPlaced(plant, level);
+    }
 
     public float radius() {
         return radius;

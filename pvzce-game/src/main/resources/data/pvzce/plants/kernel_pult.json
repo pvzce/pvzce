@@ -14,12 +14,13 @@
       "shots": [
         {
           "projectile": "pvzce:kernel",
-          "damage": 80,
+          "damage": 20,
           "count": 1
         }
       ],
       "butter_chance": 0.25,
-      "butter_projectile": "pvzce:butter"
+      "butter_projectile": "pvzce:butter",
+      "butter_damage": 40
     }
   ],
   "sounds": {

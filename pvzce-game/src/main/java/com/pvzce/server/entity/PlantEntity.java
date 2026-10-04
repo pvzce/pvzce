@@ -70,6 +70,15 @@ public class PlantEntity extends PvzceEntity {
     private boolean laddered;
     private boolean waterFilled;
 
+    @Override public int gridX() {
+        return def.placement().width() == 1 ? super.gridX()
+                : com.pvzce.common.core.PlantPlacement.originX(def, cellX());
+    }
+
+    public boolean coversCell(int x, int y) {
+        return com.pvzce.common.core.PlantPlacement.coversCell(def, gridX(), gridY(), x, y);
+    }
+
     public boolean waterFilled() { return waterFilled; }
 
     /** The bucket fills a carrier permanently; it never grants the watering buff. */
@@ -160,7 +169,7 @@ public class PlantEntity extends PvzceEntity {
      * resume is still exactly as fragile as it was planted.
      */
     public PlantEntity(PlantDef def, Team team, int gridX, int gridY, int fullHealth) {
-        super(def.id(), team, gridX + 0.5F, gridY + 0.5F, Math.max(1, fullHealth));
+        super(def.id(), team, gridX + def.placement().width() * 0.5F, gridY + 0.5F, Math.max(1, fullHealth));
         this.def = def;
         for (TypedCapability<PlantCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
@@ -584,6 +593,10 @@ public class PlantEntity extends PvzceEntity {
         }
     }
 
+    public void onRestored(LevelServer level) {
+        for (Instance instance : capabilities) instance.capability.onRestored(this, level);
+    }
+
     /** True when placing this plant consumes it immediately (coffee bean). */
     public boolean consumesOnPlace() {
         return capabilities.stream().anyMatch(instance -> instance.capability.consumesOnPlace());
@@ -719,6 +732,7 @@ public class PlantEntity extends PvzceEntity {
         // is in the save by id, and it arms the plants again when it re-applies on load. Saving them
         // would leave a plant armed by a mutation that has since been evicted.
         CompoundTag tag = saveBaseState();
+        tag.putInt("footprintWidth", def.placement().width());
         tag.putInt("age", age);
         tag.putInt("watered", wateredTicks);
         tag.putByte("waterFilled", (byte) (waterFilled ? 1 : 0));
@@ -768,6 +782,8 @@ public class PlantEntity extends PvzceEntity {
     @Override
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
+        int savedWidth = tag.contains("footprintWidth") ? Math.max(1, tag.getInt("footprintWidth")) : 1;
+        setCellX(cellX() + (def.placement().width() - savedWidth) * 0.5F);
         age = tag.getInt("age");
         wateredTicks = Math.max(0, tag.getInt("watered"));
         fertilizedTicks = Math.max(0, tag.getInt("fertilized"));

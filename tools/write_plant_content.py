@@ -231,7 +231,7 @@ PROJECTILES: Dict[str, Dict[str, object]] = {
         "layer": "ground",
         "capabilities": [{"type": f"{NS}:linear", "speed": 4.8}],
         "sounds": {"impact": f"{NS}:sfx/projectile/hit"},
-        "texture": f"{NS}:textures/entities/projectile/butter",
+        "texture": f"{NS}:textures/entities/projectile/cactus_spike",
     },
     # The spore. Its short reach is not here: it belongs to the shot that fires it
     # (``range`` on the plant's ``shots`` entry), so any plant can fire a bounded puff.

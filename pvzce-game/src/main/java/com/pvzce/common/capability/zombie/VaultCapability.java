@@ -479,7 +479,8 @@ public final class VaultCapability implements ZombieCapability {
      *
      * <p>The pogo's clip is a stick bouncing in place ({@code anim_pogo} is 11 frames with no
      * horizontal travel at all), so there is no curve to read and the eased window is the only
-     * description of the motion there is - and its own bounce already draws the vertical half.
+     * description of horizontal motion. The source only compresses the stick; world height
+     * supplies the hop so the body visibly leaves the ground.
      */
     private void advanceVault(ZombieEntity zombie) {
         vaultTicks--;
@@ -494,6 +495,11 @@ public final class VaultCapability implements ZombieCapability {
             float travel = MathUtil.easeInOut(MathUtil.clamp01(
                     (progress - AIRBORNE_FROM) / (AIRBORNE_TO - AIRBORNE_FROM)));
             zombie.setCellX(vaultStartX - vaultDistance * travel);
+            // The source clip compresses the stick by a few pixels; the actual hop belongs to
+            // world height so shadows, hit tests and the client mirror follow the same bounce.
+            zombie.setHeight(vaultBaseHeight + PvzceConstants.POGO_BOUNCE_HEIGHT
+                    * (float) Math.sin(Math.PI * MathUtil.clamp01(
+                            (progress - AIRBORNE_FROM) / (AIRBORNE_TO - AIRBORNE_FROM))));
         } else {
             zombie.setCellX(vaultStartX - vaultDistance * travelAt(progress));
             // The entity's own field, not a second drawing offset: the client already lifts the

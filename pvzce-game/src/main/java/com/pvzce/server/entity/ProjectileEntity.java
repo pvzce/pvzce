@@ -232,6 +232,13 @@ public class ProjectileEntity extends PvzceEntity {
         return targetId;
     }
 
+    public void retarget(ZombieEntity target) {
+        targetId = target.id();
+        targetX = target.cellX();
+        targetY = target.cellY();
+        targetHeight = target.height();
+    }
+
     public float targetX() {
         return targetX;
     }
@@ -320,7 +327,8 @@ public class ProjectileEntity extends PvzceEntity {
                 remove();
                 return;
             }
-            if ((targetId >= 0 || aimedAtPoint)
+            if (capability(com.pvzce.common.capability.projectile.HomingMotionCapability.class) == null
+                    && (targetId >= 0 || aimedAtPoint)
                     && Math.hypot(cellX() - targetX, cellY() - targetY) < HIT_RADIUS_X && hasLanded()) {
                 applyImpact(null, level);
             }
@@ -401,8 +409,9 @@ public class ProjectileEntity extends PvzceEntity {
     }
 
     private ZombieEntity findTarget(LevelServer level) {
+        boolean homing = capability(com.pvzce.common.capability.projectile.HomingMotionCapability.class) != null;
         boolean groundLayer = !def.isAirLayer();
-        for (ZombieEntity zombie : (vectorY != 0F ? level.enemiesOf(team()) : level.enemiesInRow(gridY(), team()))) {
+        for (ZombieEntity zombie : (homing || vectorY != 0F ? level.enemiesOf(team()) : level.enemiesInRow(gridY(), team()))) {
             if (zombie.isRemoved()) {
                 continue;
             }
@@ -415,7 +424,13 @@ public class ProjectileEntity extends PvzceEntity {
                 if (zombie.id() != targetId) {
                     continue;
                 }
-                // Homing shots compare against the target's top, so a lobbed shot
+                if (homing) {
+                    return Math.hypot(cellX() - zombie.cellX(), cellY() - zombie.cellY()) < HIT_RADIUS_X
+                            && height() >= zombie.height() - LANDED_HEIGHT
+                            && height() <= zombie.height() + com.pvzce.common.PvzceConstants.COMBAT_BODY_HEIGHT
+                            ? zombie : null;
+                }
+                // Lobbed shots compare against the target's top, so a lobbed shot
                 // can still connect while it is descending.
                 return Math.abs(cellX() - zombie.cellX()) < HIT_RADIUS_X
                         && height() >= zombie.height() - LANDED_HEIGHT

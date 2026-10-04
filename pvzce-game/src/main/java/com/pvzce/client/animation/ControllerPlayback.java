@@ -97,6 +97,22 @@ public final class ControllerPlayback extends AnimationPlayback {
         return world;
     }
 
+    /** Top of the actual head quad, through its full parent transform and current transition. */
+    public float[] boneTop(String name, double now) {
+        var bone = model.bone(name);
+        if (bone == null || bone.parts().isEmpty()) return null;
+        var poses = blendedPose(now);
+        if (!poses.getOrDefault(name, bone.restPose()).visible()) return null;
+        var transform = worldTransforms(poses).get(name);
+        float[] top = null;
+        for (var part : bone.parts()) {
+            float x = transform.transformX(part.offsetX(), part.offsetY() + part.sizeY() / 2F);
+            float y = transform.transformY(part.offsetX(), part.offsetY() + part.sizeY() / 2F);
+            if (top == null || y > top[1]) top = new float[]{x, y};
+        }
+        return top;
+    }
+
     @Override
     public void render(PvzceClient client, float anchorX, float anchorY, float baseZ,
                        float xScale, float yScale) {

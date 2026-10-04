@@ -1853,8 +1853,7 @@ public final class JevBrain {
     /** True when nothing is standing on that cell, as far as the placement rules are concerned. */
     private static boolean isFree(LevelServer level, int x, int y) {
         for (PvzceEntity entity : level.entities()) {
-            if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.gridX() == x
-                    && plant.gridY() == y) {
+            if (entity instanceof PlantEntity plant && !plant.isRemoved() && plant.coversCell(x, y)) {
                 return false;
             }
         }

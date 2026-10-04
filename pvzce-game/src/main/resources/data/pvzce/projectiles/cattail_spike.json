@@ -3,7 +3,7 @@
   "layer": "ground",
   "capabilities": [
     {
-      "type": "pvzce:linear",
+      "type": "pvzce:homing",
       "speed": 6.0
     }
   ],

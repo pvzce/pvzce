@@ -13,7 +13,7 @@
       1.0,
       1.0
     ],
-    "texture": "pvzce:textures/entities/projectile/butter"
+    "texture": "pvzce:textures/entities/projectile/cactus_spike"
   },
   "motion": {
     "speed": 0.5,

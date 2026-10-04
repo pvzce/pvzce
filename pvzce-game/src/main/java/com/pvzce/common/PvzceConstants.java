@@ -30,6 +30,12 @@ public final class PvzceConstants {
     public static final int LOB_MAX_FLIGHT_TICKS = 72;
     public static final int LOB_RELEASE_TICKS = 24;
     public static final int PLANT_ATTACK_POSE_TICKS = 120;
+    public static final float CATTAIL_TURN_PER_TICK = 0.18F;
+    public static final float CATTAIL_HIT_HEIGHT = 0.35F;
+    public static final int KERNEL_DAMAGE = 20;
+    public static final int BUTTER_DAMAGE = 40;
+    public static final float POGO_BOUNCE_HEIGHT = 0.55F;
+
     public static final float BUTTER_BUFF_CHANCE = 0.40F;
     /** Original roof: five sloped columns, rising 20 pixels per column in an 85-pixel row. */
     public static final float ROOF_SLOPE_COLUMNS = 5F;

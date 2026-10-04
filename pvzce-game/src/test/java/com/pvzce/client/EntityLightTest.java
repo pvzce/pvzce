@@ -14,13 +14,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Which drops light the board.
  *
  * <p>The sun is a light source - it lands in the middle of the lawn and warms the tiles
- * around it - and nothing else is. That distinction used to be made by <em>entity kind</em>,
+ * around it - other resource drops do not. Reveal plants are checked separately. That distinction used to be made by <em>entity kind</em>,
  * which is the one thing a sun and a coin share: {@code EntityKind.RESOURCE} was the string
  * {@code "sun"}, so the filter matched every drop and each coin the bowling nut paid out lit
  * a pool of yellow light on the lawn. Content ids are the answer to "which resource is
  * this"; kinds never are.
  */
 class EntityLightTest {
+    @org.junit.jupiter.api.BeforeAll static void load() throws Exception {
+        com.pvzce.common.tag.TestContent.loadBuiltInContentAndTags();
+    }
+
+    @Test void torchwoodLightsLessThanPlanternWithoutItsHalo() {
+        var plantern = new ClientEntity(10, EntityKind.PLANT, "pvzce:plantern", 3.5F, 2.5F, 300,
+                EntityLayers.PLANT, EntityAnimations.IDLE, 0F, "");
+        var torchwood = new ClientEntity(11, EntityKind.PLANT, "pvzce:torchwood", 6.5F, 2.5F, 300,
+                EntityLayers.PLANT, EntityAnimations.IDLE, 0F, "");
+        assertTrue(PvzceClient.lightsTheBoard(plantern));
+        assertTrue(PvzceClient.lightsTheBoard(torchwood));
+        assertTrue(PvzceClient.lightRadius(torchwood) < PvzceClient.lightRadius(plantern));
+        assertTrue(PvzceClient.revealLight(plantern).halo());
+        assertFalse(PvzceClient.revealLight(torchwood).halo());
+    }
+
     private static ClientEntity drop(Identifier content, float x, float y) {
         return new ClientEntity(1, EntityKind.RESOURCE, content.toString(), x, y, 1,
                 EntityLayers.AIR, EntityAnimations.IDLE, 0F, "");

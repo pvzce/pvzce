@@ -26,5 +26,8 @@
   "animation_dir": "plant/attacker",
   "texture": "pvzce:textures/entities/plant/attacker/cob_cannon",
   "render_scale": 0.85,
-  "order": 60
+  "order": 48,
+  "placement": {
+    "width": 2
+  }
 }

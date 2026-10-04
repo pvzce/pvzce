@@ -35,12 +35,26 @@ class SeedOptionsOrderTest {
             }
         }
         assertTrue(plants.size() > 10, "the built-in set has a bag's worth of plants");
-        assertEquals(List.of("pea_shooter", "sunflower", "cherry_bomb", "wall_nut", "potato_mine"),
-                plants.subList(0, 5), "the first five are the ones the original hands out first");
+        List<String> original = List.of(
+                "pea_shooter", "sunflower", "cherry_bomb", "wall_nut", "potato_mine", "snow_pea", "chomper", "repeater",
+                "puff_shroom", "sun_shroom", "fume_shroom", "grave_buster", "hypno_shroom", "scaredy_shroom", "ice_shroom", "doom_shroom",
+                "lily_pad", "squash", "threepeater", "tangle_kelp", "jalapeno", "spikeweed", "torchwood", "tall_nut",
+                "sea_shroom", "plantern", "cactus", "blover", "split_pea", "starfruit", "pumpkin", "magnet_shroom",
+                "cabbage_pult", "flower_pot", "kernel_pult", "coffee_bean", "garlic", "umbrella_leaf", "marigold", "melon_pult",
+                "gatling_pea", "twin_sunflower", "gloom_shroom", "cattail", "winter_melon", "gold_magnet", "spikerock", "cob_cannon");
+        assertEquals(original, plants.subList(0, original.size()), "the whole original roster keeps its seed order");
         assertTrue(plants.indexOf("melon_pult") < plants.indexOf("winter_melon"),
                 "and the late ones keep their places too");
         assertTrue(plants.indexOf("sunflower") < plants.indexOf("puff_shroom"),
                 "a plant met in world 1 stays ahead of one met in world 2");
+    }
+
+    @Test void aBorrowedEarlyCardKeepsItsPlaceInTheChooserPool() {
+        var def = com.pvzce.testutil.TestLevels.copy(BuiltInRegistries.LEVELS.get(
+                Identifier.withDefaultNamespace("yard/adventure/demo_level")))
+                .slots(List.of(Identifier.withDefaultNamespace("pea_shooter"))).build();
+        var pool = SeedOptions.cardPool(def, id -> id.equals(Identifier.withDefaultNamespace("cob_cannon")));
+        assertEquals(List.of("pea_shooter", "cob_cannon"), pool.stream().map(Identifier::path).toList());
     }
 
     @Test

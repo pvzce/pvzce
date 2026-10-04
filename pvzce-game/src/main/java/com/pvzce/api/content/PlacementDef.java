@@ -28,6 +28,12 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  * <p>How many layer slots the plant fills. A plant with {@code count = 2} at
  * layer 1 pushes anything planted above it to layer 3 or higher.
  *
+ * <h2>width</h2>
+ *
+ * <p>Horizontal footprint in board cells; defaults to one. The entity is centred on the
+ * footprint and every occupied cell refers to that same plant. This is independent of
+ * {@code count}, which describes vertical stack slots.
+ *
  * <h2>group</h2>
  *
  * <p>Optional mutual-exclusion group. Two plants with the same non-empty group
@@ -45,7 +51,14 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  * plant-on-plant-cover (pumpkin) by tagging it rather than by asking for a
  * server branch.
  */
-public record PlacementDef(int layer, int count, String group) {
+public record PlacementDef(int layer, int count, String group, int width) {
+    public PlacementDef {
+        width = Math.max(1, width);
+    }
+
+    public PlacementDef(int layer, int count, String group) {
+        this(layer, count, group, 1);
+    }
     /** Plants on the ground. */
     public static final int LAYER_CARRIER = 0;
     public static final int LAYER_GROUND = 1;
@@ -70,6 +83,7 @@ public record PlacementDef(int layer, int count, String group) {
     public static final Codec<PlacementDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.INT.optionalFieldOf("layer", LAYER_GROUND).forGetter(PlacementDef::layer),
             Codec.INT.optionalFieldOf("count", 1).forGetter(PlacementDef::count),
-            Codec.STRING.optionalFieldOf("group", GROUP_PLANTABLE).forGetter(PlacementDef::group)
+            Codec.STRING.optionalFieldOf("group", GROUP_PLANTABLE).forGetter(PlacementDef::group),
+            Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("width", 1).forGetter(PlacementDef::width)
     ).apply(i, PlacementDef::new));
 }

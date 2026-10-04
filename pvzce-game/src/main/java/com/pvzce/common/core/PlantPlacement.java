@@ -87,6 +87,24 @@ public final class PlantPlacement {
     private PlantPlacement() {
     }
 
+    /** The entity is centred on its whole footprint; grid queries use the left cell. */
+    public static int originX(PlantDef def, float centerX) {
+        return (int) Math.floor(centerX - (def.placement().width() - 1) * 0.5F);
+    }
+
+    public static boolean coversCell(PlantDef def, int originX, int originY, int x, int y) {
+        return originY == y && x >= originX && (long) x < (long) originX + def.placement().width();
+    }
+
+    /** The same neighbour choice used by preview, validation and upgrade consumption. */
+    public static int upgradeAnchorX(PlantDef def, Ctx ctx, int x, int y) {
+        if (def.placement().width() > 1 && def.upgrade().isPresent()
+                && def.upgrade().get().adjacent() > 0 && countBase(def.upgrade().get(), ctx, x - 1, y) >= def.upgrade().get().adjacent()) {
+            return x - 1;
+        }
+        return x;
+    }
+
     /** One plant already in the cell, with the entity id that breaks ties. */
     public record PlantLayer(PlantDef def, int entityId, boolean waterFilled) {
         public PlantLayer(PlantDef def, int entityId) { this(def, entityId, false); }
@@ -185,13 +203,30 @@ public final class PlantPlacement {
         if (def == null || ctx == null) {
             return false;
         }
+        if (def.upgrade().isPresent()) return canPlaceSingle(def, ctx, x, y);
+        for (int column = x; column < x + def.placement().width(); column++) {
+            if (!canPlaceSingle(def, ctx, column, y)) return false;
+        }
+        return true;
+    }
+
+    private static boolean canPlaceSingle(PlantDef def, Ctx ctx, int x, int y) {
         List<PlantLayer> plants = ctx.plants(x, y);
         // An upgrade is not a seed: the only legal cell is one that already holds the plant it
-        // replaces, and nothing else about the cell is asked. The base passed these rules when it
+        // replaces, and its footprint has no conflicting plants. The base passed support rules when it
         // was planted, and asking them again would refuse the case the rule exists for - a cattail
         // goes on a lily pad, and the lily pad is what makes that water cell plantable.
         if (def.upgrade().isPresent()) {
-            return upgradeBasesInPlace(def.upgrade().get(), ctx, x, y, plants);
+            if (!upgradeBasesInPlace(def.upgrade().get(), ctx, x, y, plants)) return false;
+            int left = upgradeAnchorX(def, ctx, x, y);
+            for (int column = left; column < left + def.placement().width(); column++) {
+                if (ctx.terrain(column, y).def() == null) return false;
+                for (PlantLayer existing : ctx.plants(column, y)) {
+                    if (!existing.def().id().equals(def.upgrade().get().base())
+                            && def.placement().group().equals(existing.def().placement().group())) return false;
+                }
+            }
+            return true;
         }
         if (!distinctGroup(def, plants)) {
             return false;

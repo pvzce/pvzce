@@ -1340,7 +1340,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public List<PlantEntity> plantsAt(int column, int row) {
         return entities.stream()
-                .filter(e -> e instanceof PlantEntity p && !p.isRemoved() && p.gridX() == column && p.gridY() == row)
+                .filter(e -> e instanceof PlantEntity p && !p.isRemoved() && p.coversCell(column, row))
                 .map(e -> (PlantEntity) e)
                 .toList();
     }
@@ -1413,9 +1413,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /**
      * The plant a zombie in this cell would bite, or {@code null} when there is nothing to eat.
      *
-     * <p>{@link #plantAt} plus one rule: a plant tagged {@code #c:walk_over} is not food. The
-     * spikeweed is the only one, and without this a zombie that stepped on it would stop and eat
-     * it - which is the opposite of what a spikeweed is. Tools deliberately keep using
+     * <p>{@link #plantAt} plus one rule: a plant tagged {@code #c:walk_over} is not food. Ground traps and squash use this tag so a zombie walks past rather than stopping to eat them. Tools deliberately keep using
      * {@code plantAt}: a spikeweed is a plant, and the shovel and the watering can must still find
      * it.
      */
@@ -1461,10 +1459,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public boolean canPlacePlant(PlantDef def, int x, int y, String surface) {
-        return scene.exists(surface, x, y)
-                && LevelMechanics.canPlacePlant(mechanics, this, def, x, y)
-                && (mutations == null || mutations.canPlacePlant(def, x, y))
-                && PlantPlacement.canPlace(def, placementContext(surface), x, y);
+        if (!PlantPlacement.canPlace(def, placementContext(surface), x, y)) return false;
+        int left = PlantPlacement.upgradeAnchorX(def, placementContext(surface), x, y);
+        for (int column = left; column < left + def.placement().width(); column++) {
+            if (!scene.exists(surface, column, y)
+                    || !LevelMechanics.canPlacePlant(mechanics, this, def, column, y)
+                    || mutations != null && !mutations.canPlacePlant(def, column, y)) return false;
+        }
+        return true;
     }
 
     /**
@@ -4624,8 +4626,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // The base goes before the upgrade appears, so the cell never holds both: a frame with
             // two plants in one cell is a frame the client would draw as one of them, and the
             // upgrade is what the player paid for.
+            int anchorX = PlantPlacement.upgradeAnchorX(plantDef, placementContext(surface), x, row);
             plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, row, surface));
-            spawnPlant(plantDef, plantPlayer.team(), x, row, surface);
+            spawnPlant(plantDef, plantPlayer.team(), anchorX, row, surface);
             spreadKelpFrom(plantDef, x, row);
             LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, row, plantCount());
         }
@@ -4707,7 +4710,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         PlantEntity found = null;
         for (PvzceEntity entity : entities) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()
-                    && plant.gridX() == x && plant.gridY() == y
+                    && plant.coversCell(x, y)
                     && baseId.equals(plant.def().id()) && plant.surfaceId().equals(surface)) {
                 if (found == null || found.def() == null
                         || PlantPlacement.layerIndex(plant.def())
@@ -6799,6 +6802,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             } else entity.restoreState(entityTag);
             if (entity.health() > 0 && !entity.isRemoved()) {
                 addEntity(entity);
+                if (entity instanceof PlantEntity plant) plant.onRestored(this);
             }
         }
     }
@@ -6846,6 +6850,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     /** Removes the default initial entities before a saved field snapshot is applied. */
     private void clearEntitiesForRestore() {
+        fogReveals.clear();
         entities.clear();
         pendingAdd.clear();
         pendingRemove.clear();

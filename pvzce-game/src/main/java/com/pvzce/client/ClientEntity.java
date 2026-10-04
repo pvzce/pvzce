@@ -85,6 +85,12 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
     private boolean buttered;
     private int lastAnimationSequence;
 
+    @Override public int gridX() {
+        var plant = com.pvzce.api.entity.EntityKind.PLANT.equals(kind())
+                ? com.pvzce.common.core.BuiltInRegistries.PLANTS.get(defId()) : null;
+        return plant == null || plant.placement().width() == 1 ? super.gridX() : com.pvzce.common.core.PlantPlacement.originX(plant, cellX());
+    }
+
     public boolean buttered() { return buttered; }
     /**
      * Draw-size multiplier on top of the definition's own {@code render_scale}.
@@ -245,6 +251,9 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
     private long syncNanos;
     /** False until an update lands, so a fresh spawn is never interpolated from nowhere. */
     private boolean interpolating;
+    private float flightAngle = (float) Math.PI / 3F;
+
+    public float flightAngle() { return flightAngle; }
 
     /**
      * The x to draw this entity at, sliding from the previous sample to the current one.
@@ -328,6 +337,9 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
         // Interpolation starts from where this entity is being *drawn*, not from where the
         // last packet put it: a packet delayed past one sync period would otherwise make the
         // entity jump backwards to the previous sample before sliding forward again.
+        float dx = cellX - cellX();
+        float dy = cellY + height - cellY() - height();
+        if (dx * dx + dy * dy > 0.000001F) flightAngle = (float) Math.atan2(dy, dx);
         this.renderCellX = visualCellX();
         this.renderCellY = visualCellY();
         this.renderHeight = visualHeight();

@@ -15,11 +15,12 @@
     {
       "type": "pvzce:reveal",
       "radius": 1.4,
-      "strength": 0.8
+      "strength": 0.8,
+      "halo": false
     }
   ],
   "animation_dir": "plant/special",
   "texture": "pvzce:textures/entities/plant/special/torchwood",
   "render_scale": 0.85,
-  "order": 47
+  "order": 23
 }

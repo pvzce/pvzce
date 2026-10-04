@@ -17,5 +17,5 @@
   "animation_dir": "plant/special",
   "texture": "pvzce:textures/entities/plant/special/plantern",
   "render_scale": 0.85,
-  "order": 50
+  "order": 26
 }

@@ -1178,22 +1178,14 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="plant/attacker",
         reanim="GatlingPea.reanim",
         target_box=PLANT_BOX,
-        # This reanim splits "body only" (anim_idle, frames 4..28) from "with the
-        # head and barrels" (anim_head_idle, 29..53); the head parts are invisible
-        # during the first, so the plain anim_idle renders a headless plant.
+        # Body and head live on disjoint timelines; both must run together. Forcing head-only
+        # visibility froze the leaves/stalk and also exposed both blink overlays at once.
         animations={
-            "idle": {"mask": "anim_head_idle", "loop": True, "transition": 0.1,
-                     "force_visible": r"(head|mouth|barrel|helmet|blink)"},
-            "shoot": {
-                "rate": SHOOT_ANIMATION_RATE,
-                "mask": "anim_shooting",
-                "loop": False,
-                "on_end": "idle",
-                "transition": 0.1,
-                "force_visible_hidden": True,
-                "force_visible_exclude_prefixes": ["blink"],
-                "force_visible": r"(head|mouth|barrel|helmet|blink)",
-            },
+            "idle": {"mask": "anim_idle", "loop": True, "transition": 0.1,
+                     "bone_masks": {r"(head|mouth.*|barrel.*|helmet|peashooter_eyebrow)": "anim_head_idle"}},
+            "shoot": {"rate": SHOOT_ANIMATION_RATE, "mask": "anim_shooting", "loop": False,
+                      "on_end": "idle", "transition": 0.1,
+                      "bone_masks": {r"peashooter_(backleaf.*|frontleaf.*|stalk.*)": "anim_idle"}},
         },
     ),
     EntityConfig(
@@ -1435,7 +1427,8 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="cob_cannon",
         group="plant/attacker",
         reanim="CobCannon.reanim",
-        target_box=PLANT_BOX,
+        target_box=[1.8, 1.02],
+        fit_height_only=True,
         animations={
             "idle": {"mask": "anim_unarmed_idle", "loop": True},
             "armed": {"mask": "anim_charge", "loop": False, "on_end": "next",
@@ -1792,11 +1785,10 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         reanim="Zombie_balloon.reanim",
         target_box=ZOMBIE_BOX,
         fit_height_only=True,
-        # Both of this zombie's ways of moving are locomotion: it drifts at 0.47 cells/s
-        # with the balloon and at 0.23 on foot, so each clip names the speed it was drawn for.
+        # Flying is the gentle anim_idle loop. anim_swing is a wide swing, not the floating
+        # gait, and has no relationship to horizontal travel speed; only walking is locomotion.
         animations=zombie_animations(walk=False, all_deaths=False) | {
-            "fly": {"mask": "anim_swing", "loop": True, "transition": 0.1,
-                    "reference_speed": 0.47},
+            "fly": {"mask": "anim_idle", "loop": True, "transition": 0.1},
             "walk": {"mask": "anim_walk", "loop": True, "reference_speed": 0.23},
             "fall": {"mask": "anim_pop", "loop": False, "on_end": "walk", "transition": 0.05},
         },
@@ -3444,6 +3436,8 @@ def copy_fog_item_sprites(resources: Path, wanted: Optional[Set[str]]) -> None:
     import shutil
     sprites = {
         "cactus": [("im7/images/ProjectileCactus.png", "projectile/cactus_spike.png")],
+        "cob_cannon": [("im7/images/CobCannon_target.png", "status/cob_target.png"),
+                       ("im7/images/CobCannon_target_shadow.png", "status/cob_target_shadow.png")],
         "starfruit": [("im7/images/Projectile_star.png", "projectile/star.png")],
         "magnet_shroom": [("anim/" + src, "magnet/" + dst + ".png") for src, dst in [
             ("Zombie_bucket1.png", "bucket"), ("Zombie_football_helmet.png", "football_helmet"),
