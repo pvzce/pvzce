@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Water overlays, reserved respawn cells and the finite run's observable pacing. */
+/** Mixed grave surfaces, reserved respawn cells and the finite run's observable pacing. */
 class IslandRaidersTest {
     private static LevelDef definition;
     private static final LevelServer.ServerBridge BRIDGE = packet -> {};
@@ -63,47 +63,61 @@ class IslandRaidersTest {
     }
 
     @Test
-    void waterGravesKeepTheSeaAndRejectLilyPadsWhileAcceptingGraveBusters() {
+    void rightHandIslandAndGravesPreserveTheirSurfacesAndPlacementRules() {
         LevelServer level = new LevelServer(definition, 41L);
         assertEquals(6, level.graveCells().size());
         assertTrue(definition.width() > 9, "six rows need a wider board to cover the lawn");
         for (int y = 0; y < definition.height(); y++) {
             for (int x = 0; x < definition.width(); x++) {
-                assertEquals(id(x < 2 ? "grass" : "water"),
+                boolean island = (x == 7 || x == 8) && (y == 2 || y == 3);
+                assertEquals(id(x < 2 || island ? "grass" : "water"),
                         level.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, x, y).base(),
-                        "the extended columns must be sea in every lane");
+                        "only the left shore and central right-hand island are grass");
             }
         }
         assertTrue(definition.initialEntities().isEmpty(), "players build their own defence");
+        int landGraves = 0;
         for (var grave : level.graveCells()) {
-            assertEquals(id("water"), level.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, grave.x(), grave.y()).base());
+            assertTrue(grave.x() >= 7, "all sources must leave more room to build the defence");
+            boolean land = grave.y() == 2 || grave.y() == 3;
+            if (land) landGraves++;
+            assertEquals(id(land ? "grass" : "water"), level.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, grave.x(), grave.y()).base());
             assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("lily_pad")), grave.x(), grave.y()));
             assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("tangle_kelp")), grave.x(), grave.y()));
             assertTrue(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("grave_buster")), grave.x(), grave.y()));
         }
+        assertEquals(2, landGraves);
+        assertTrue(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("pea_shooter")), 8, 2));
+        assertTrue(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("pea_shooter")), 7, 3));
         assertFalse(level.placeGrave(id("grave"), 3, 0), "ordinary graves must remain land-only");
-        var swimmer = level.raiseZombieFromGrave(id("ducky_tube_zombie"), 5, 0);
-        tick(level, 65);
+        var swimmer = level.raiseZombieFromGrave(id("ducky_tube_zombie"), 7, 2);
+        tick(level, 220);
         assertTrue(swimmer.isAlive());
-        assertTrue(swimmer.cellX() < 5.5F, "a risen swimmer must resume moving across the sea");
+        assertTrue(swimmer.cellX() < 7, "a swimmer raised on the island must walk into the sea alive");
         assertEquals(0, swimmer.riseTicks());
     }
 
     @Test
-    void clearingAndResumingAGraveKeepsItsWaterAndOnlyTheRemainingRespawnDelay() {
+    void clearingAndResumingGravesKeepsTheirLandOrWaterAndRemainingRespawnDelay() {
         LevelServer level = new LevelServer(definition, 41L);
-        assertTrue(level.clearGrave(5, 0));
-        assertEquals(id("water"), level.sceneIdAt(5, 0));
-        assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("lily_pad")), 5, 0), "the source remains reserved");
+        int[] rows = {0, 2};
+        for (int row : rows) {
+            assertTrue(level.clearGrave(7, row));
+            assertEquals(id(row == 0 ? "water" : "grass"), level.sceneIdAt(7, row));
+            assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id(row == 0 ? "lily_pad" : "pea_shooter")), 7, row), "the source remains reserved");
+        }
         tick(level, 240);
         var save = level.save();
         LevelServer resumed = new LevelServer(definition, 41L);
         resumed.restore(save);
         tick(resumed, 359);
-        assertFalse(resumed.isGrave(5, 0));
+        for (int row : rows) assertFalse(resumed.isGrave(7, row));
         tick(resumed, 1);
-        assertTrue(resumed.isGrave(5, 0));
-        assertEquals(id("water"), resumed.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, 5, 0).base());
+        for (int row : rows) {
+            assertTrue(resumed.isGrave(7, row));
+            assertEquals(id(row == 0 ? "water" : "grass"), resumed.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, 7, row).base());
+            assertEquals(id(row == 0 ? "water_grave" : "grave"), resumed.sceneIdAt(7, row));
+        }
     }
 
     @Test
@@ -127,11 +141,13 @@ class IslandRaidersTest {
         double share = graveCount / (double) (graveCount + roadCount);
         System.out.printf("ISLAND supply: first=%.2fs, end=%.2fs, graves=%d, road=%d, graveShare=%.2f%%, lanes=%s%n",
                 first / 60.0, level.tickCount() / 60.0, graveCount, roadCount, share * 100, java.util.Arrays.toString(lanes));
-        assertEquals(1800, first, "players must get the promised 30 seconds to build");
-        assertTrue(share > .75 && share < .85, "the sea's central sources must carry most pressure");
+        assertEquals(2400, first, "players must get the promised 40 seconds to build");
+        assertEquals(25, roadCount, "right-edge arrivals should remain occasional");
+        assertTrue(graveCount < 110, "grave supply must be substantially reduced from the previous 208");
+        assertTrue(share > .70 && share < .85, "the right-hand sources must carry most pressure");
         for (int lane : lanes) assertTrue(lane > 0, "every shore lane must be threatened");
         assertEquals(GameStateS2C.WON, level.gameState());
-        assertTrue(level.tickCount() <= 15000, "an empty final field must finish instead of refilling forever");
+        assertTrue(level.tickCount() <= 16000, "an empty final field must finish instead of refilling forever");
     }
 
 }

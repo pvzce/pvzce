@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/island_raiders",
   "name": "海岛奇兵",
-  "description": "左岸两列草地，海中央六座墓碑持续冒怪，右端也有少量来敌。30秒布阵后，墓碑全场刷怪间隔逐段缩短为1.5秒、1秒、0.75秒。墓碑吞噬者可暂时关闭一个出怪点；清除10秒后原地重生，期间该格不能种植。海面种植需要睡莲，水生植物可直接种在空水面。",
+  "description": "左岸两列草地，右侧六座墓碑持续冒怪，其中两座位于中央草地岛，右端也有少量来敌。40秒布阵后，墓碑全场刷怪间隔逐段缩短为3秒、2.5秒、2秒。草地岛空位可直接种普通植物；海面种植需要睡莲，水生植物可直接种在空水面。墓碑吞噬者可暂时关闭一个出怪点；清除10秒后原地重生，期间该格不能种植。",
   "width": 11,
   "height": 6,
   "scene": {
@@ -17,7 +17,11 @@
       "0,4",
       "1,4",
       "0,5",
-      "1,5"
+      "1,5",
+      "7,2",
+      "8,2",
+      "7,3",
+      "8,3"
     ],
     "pvzce:water": [
       "2,0",
@@ -43,8 +47,6 @@
       "4,2",
       "5,2",
       "6,2",
-      "7,2",
-      "8,2",
       "9,2",
       "10,2",
       "2,3",
@@ -52,8 +54,6 @@
       "4,3",
       "5,3",
       "6,3",
-      "7,3",
-      "8,3",
       "9,3",
       "10,3",
       "2,4",
@@ -76,12 +76,14 @@
       "10,5"
     ],
     "pvzce:water_grave": [
-      "5,0",
-      "6,1",
-      "5,2",
-      "6,3",
-      "5,4",
-      "6,5"
+      "7,0",
+      "8,1",
+      "7,4",
+      "8,5"
+    ],
+    "pvzce:grave": [
+      "7,2",
+      "8,3"
     ]
   },
   "teams": [
@@ -124,15 +126,15 @@
       "respawn_ticks": 600,
       "phases": [
         {
-          "at_tick": 1800,
-          "interval": 90,
+          "at_tick": 2400,
+          "interval": 180,
           "zombies": [
             "pvzce:ducky_tube_zombie"
           ]
         },
         {
-          "at_tick": 6000,
-          "interval": 60,
+          "at_tick": 6600,
+          "interval": 150,
           "zombies": [
             "pvzce:ducky_tube_zombie",
             "pvzce:ducky_tube_zombie",
@@ -142,8 +144,8 @@
           ]
         },
         {
-          "at_tick": 10200,
-          "interval": 45,
+          "at_tick": 10800,
+          "interval": 120,
           "zombies": [
             "pvzce:ducky_tube_zombie",
             "pvzce:ducky_tube_zombie",
@@ -166,14 +168,14 @@
   "waves": [
     {
       "type": "small",
-      "delay": 1800,
+      "delay": 2400,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -189,12 +191,12 @@
       "type": "small",
       "delay": 1100,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 6,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -210,12 +212,12 @@
       "type": "small",
       "delay": 1100,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 5,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -231,12 +233,12 @@
       "type": "huge",
       "delay": 1100,
       "warning_ticks": 180,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 5,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -264,12 +266,12 @@
       "type": "small",
       "delay": 1100,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
+          "count": 1,
           "rows": [
             0,
             1,
@@ -297,12 +299,12 @@
       "type": "small",
       "delay": 1100,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 5,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -330,12 +332,12 @@
       "type": "huge",
       "delay": 1100,
       "warning_ticks": 180,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -363,12 +365,12 @@
       "type": "small",
       "delay": 1100,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 5,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -396,12 +398,12 @@
       "type": "small",
       "delay": 1100,
       "warning_ticks": 0,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
+          "count": 1,
           "rows": [
             0,
             1,
@@ -429,12 +431,12 @@
       "type": "final",
       "delay": 1100,
       "warning_ticks": 180,
-      "spawn_interval": 60,
+      "spawn_interval": 180,
       "hold_until_dead_ticks": 0,
       "entries": [
         {
           "id": "pvzce:ducky_tube_zombie",
-          "count": 4,
+          "count": 2,
           "rows": [
             0,
             1,
@@ -482,7 +484,7 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "先用30秒建立阳光与六路防线。墓碑会在海中央冒怪；空海面种普通植物需要睡莲。",
+      "text": "先用40秒建立阳光与六路防线。墓碑位于右侧，中央草地岛空位可直接种植；空海面种普通植物需要睡莲。",
       "duration_ticks": 600
     },
     {
