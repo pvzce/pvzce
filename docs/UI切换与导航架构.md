@@ -59,7 +59,7 @@ render();                        // currentScreen().render()，然后 overlay.re
 setScreenReplacing(screen)   // replace —— "从现在起是另一段流程"；被丢下的屏收到 onRemoved()
 openScreen(screen)           // push    —— "这一屏盖在上一屏上，返回要回来"
 navigateBack()               // back    —— 离开当前屏，去哪由 Screen.backTarget() 说了算
-closeScreen()                // 无处可弹时不动，留给"客户端自己收回一屏"的场景
+popScreen()                  // 无处可弹时不动，留给"客户端自己收回一屏"的场景
 currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ```
 
@@ -136,12 +136,13 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 
 ```java
 if (info.hasRunningSave())        requestLevel(id, false);        // ① 有存档：直接进，服务端弹框
-else if (offersTeamChoice(info))  openScreen(LevelSetupScreen);   // ② 关卡有两方以上可玩：先问阵营
+else if (asksForTeamChoice(info, pendingHumanTeam))
+                                  openScreen(LevelSetupScreen);   // ② 关卡有两方以上可玩、且还没答过：先问阵营
 else if (skipsSeedScreen(info))   startLevelWithSeedsAndBuffs(…);  // ③ 关卡说它没有选卡这一问：直接开局
 else                              openSeedSelection(info, false); // ④ 其余：选卡页
 ```
 
-**③ 是关卡自己说的话**（`LevelDef.seedScreen`，JSON 里写 `"seed_screen": false`；今天是 4-5 与 2-5），
+**③ 是关卡自己说的话**（`LevelDef.seedScreen`，JSON 里写 `"seed_screen": false`；哪些关卡写了这个键由各自的关卡 JSON 决定 —— 名单不在这里维护），
 判据 `PvzceClient.skipsSeedScreen(info)` = 关卡声明了不弹 **且** 它没有可挑的增益页（有增益页就还得开，
 那一页是真正的问题）。**它不与"固定卡组"划等号**：1-1 也固定卡，但它要那一屏 —— 它要在那里播开场对话。
 反过来说，**固定卡组 + 不播对话的关卡必须自己声明这一句**：4-5 与 2-5 都写过，而 2-5 是在玩家报
@@ -155,7 +156,9 @@ else                              openSeedSelection(info, false); // ④ 其余�
 
 **阵营是关卡声明的**（`LevelDef.playable_teams` → 每条 `TeamInfo.playable`），所以"要不要问"是关卡数据
 的回答而不是客户端的猜测：**只有一方可玩时 ② 整条分支不成立**，内置关卡因此从列表点进去就是选卡页/开局。
-判据 `PvzceClient.offersTeamChoice(info)` 是纯函数，写在这一处。
+判据是 `PvzceClient.asksForTeamChoice(info, pendingHumanTeam)`（纯函数）：`offersTeamChoice(info)` 只回答
+"这关有几方可玩"（恰好一方可玩就不是一个问题），`asksForTeamChoice` 再叠一层"玩家是否已经答过"——
+少了后一半，关卡准备页的「开始游戏」会把自己刚答过的那个问题再问一遍。
 
 | # | 入口 | 位置 | 走的路 |
 |---|---|---|---|
@@ -249,14 +252,14 @@ LevelSelectScreen                PvzceClient                 PvzceServer        
 
 | 出口 | 触发 | 动作 | 落到哪一屏 |
 |---|---|---|---|
-| 暂停「继续游戏」 | `PauseDialog` 第 1 个按钮 | `close()` → `PauseGameC2S(false)` | 留在 `InGameScreen` |
-| 暂停「重新开始」 | `PauseDialog` 第 2 个按钮 | `LeaveLevelC2S` → `clearLevelClientState()` → 选卡页（没得选的关卡是仅预览过场） | `ChooseSeedsScreen`（`onBack = showLevelList`） |
-| 暂停「保存并退出」 | `PauseDialog` 第 3 个按钮 | `close()` → `leaveLevel()` = `LeaveLevelC2S` + 清状态 | `TitleScreen`（玩家列表） |
+| 暂停「继续游戏」 | `PauseDialog` 的「继续游戏」行 | `close()` → `PauseGameC2S(false)` | 留在 `InGameScreen` |
+| 暂停「重新开始」 | `PauseDialog` 的「重新开始」行 | 先弹 `ConfirmDialog`，确认后 `LeaveLevelC2S` → `clearLevelClientState()` → 选卡页（没得选的关卡是仅预览过场） | `ChooseSeedsScreen`（`onBack = showLevelList`） |
+| 暂停「保存并退出」 | `PauseDialog` 的「保存并退出」行 | `close()` → `leaveLevel()` = `LeaveLevelC2S` + 清状态 | `TitleScreen`（玩家列表） |
 | 胜利 + 奖励 | `InGameScreen.showReward` → 点击领取 | 播胜利音乐 → `openAwardScreen()`（push） | `AwardScreen` |
 | 奖励页「继续」 | `AwardScreen` 按钮 / `requestClose()` | `finishLevelAndShowList()` | `LevelSelectScreen` |
 | 失败 | 点击任意处 | `finishLevelAndShowList()` | `LevelSelectScreen` |
 
-**`clearLevelClientState()` 是唯一一份"丢掉本关所有客户端状态"**（`:1550`）：
+**`clearLevelClientState()` 是唯一一份"丢掉本关所有客户端状态"**：
 `savePromptOpen` / `deferredSavePrompt` / `directDialogueLevelId` / 音乐 / 粒子 / 涟漪 / 动画 / `level.reset()`。
 `leaveLevel()`、`restartCurrentLevel()`、`finishLevelAndShowList()` 都调它 —— 不允许各自清一半。
 
