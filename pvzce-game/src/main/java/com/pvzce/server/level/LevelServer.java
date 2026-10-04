@@ -2899,6 +2899,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             this.outbound = bridge;
         }
         if (!gameState.equals(GameStateS2C.RUNNING)) {
+            // A packet or command can end the run between simulation ticks. Publish the
+            // pending outcome before returning; checkEnd sends it only once and never
+            // advances the finished lawn's clock.
+            if (bridge != null) {
+                checkEnd(bridge);
+            }
             return;
         }
         // Between rounds: the last wave of the round is dead, the lawn is clear, and the player

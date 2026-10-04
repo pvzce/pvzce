@@ -1,6 +1,16 @@
 package com.pvzce.server;
 
 import com.mojang.serialization.JsonOps;
+import com.pvzce.api.content.InitialEntityDef;
+import com.pvzce.api.content.LevelUnlock;
+import com.pvzce.common.network.packet.LevelInitS2C;
+import com.pvzce.common.network.packet.LevelRewardS2C;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
+import com.pvzce.common.network.packet.OutpostStrikeC2S;
+import com.pvzce.testutil.ServerHarness;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PreparationData;
 import com.pvzce.api.content.SceneSurfaceDef;
@@ -232,7 +242,54 @@ class IslandMechanicsTest {
         assertEquals(0, OutpostsMechanic.status(level).points().get(1).charges());
         assertTrue(level.fireOutpost(p -> { }, 1, 8, 0, GROUND));
         assertEquals(GameStateS2C.WON, level.gameState());
+        int finishedAt = level.tickCount();
+        List<PvzcePacket> outcome = tick(level, 5);
+        List<GameStateS2C> results = outcome.stream().filter(GameStateS2C.class::isInstance)
+                .map(GameStateS2C.class::cast).toList();
+        assertEquals(1, results.size(), "a command-triggered win must notify the client exactly once");
+        assertEquals(GameStateS2C.WON, results.getFirst().state());
+        assertEquals(PvzceIds.PLANT_TEAM.toString(), results.getFirst().winTeamId());
+        assertEquals(finishedAt, results.getFirst().survivedTicks());
+        assertEquals(finishedAt, level.tickCount(), "publishing the result must not resume simulation");
         assertFalse(level.fireOutpost(p -> { }, 1, 8, 0, GROUND));
+    }
+
+    @Test
+    void terminalStrikePacketPublishesVictoryThenSettlesTheReward(@TempDir Path gameDir)
+            throws Exception {
+        Identifier id = PvzceIds.id("outpost_finish_probe");
+        OutpostPlan plan = new OutpostPlan(List.of(new OutpostPlan.Point("artillery", GROUND,
+                4, 1, 1, 0, 1, 1800, 1.5F, 0, 6)),
+                Optional.of(new OutpostPlan.Goal(GROUND, 8, 0)), 3);
+        LevelDef def = TestLevels.copy(fixture(List.of(new TypedMechanic(PvzceIds.MECHANIC_OUTPOSTS, plan)),
+                List.of(emptyWave()))).id(id).unlock(LevelUnlock.NONE)
+                .initialEntities(List.of(new InitialEntityDef("plant",
+                        PvzceIds.id("wall_nut"), 4, 1))).build();
+        Path pack = gameDir.resolve("datapacks/outpost_finish");
+        Path file = pack.resolve("data/pvzce/levels/outpost_finish_probe.json");
+        Files.createDirectories(file.getParent());
+        Files.writeString(pack.resolve("pack.mcmeta"),
+                "{\"pack\":{\"pack_format\":1,\"description\":\"outpost finish regression\"}}");
+        Files.writeString(file, LevelDef.CODEC.encodeStart(JsonOps.INSTANCE, def).getOrThrow().toString());
+        try (var harness = ServerHarness.createWithWorld(gameDir, "outpost", true)) {
+            harness.requestLevel(id.toString(), "outpost", true);
+            harness.awaitPacket(LevelInitS2C.class, 5000);
+            harness.waitFor(packet -> packet instanceof MechanicSyncS2C sync
+                    && sync.mechanic().equals(PvzceIds.MECHANIC_OUTPOSTS)
+                    && OutpostsMechanic.Status.CODEC.decode(sync.payloadBuffer()).points().getFirst().owned(), 5000);
+            harness.send(new OutpostStrikeC2S(id.toString(), "outpost", 0, 8, 0, GROUND));
+            GameStateS2C result = harness.awaitPacket(GameStateS2C.class, 5000);
+            assertEquals(GameStateS2C.WON, result.state());
+            var reward = harness.awaitPacket(LevelRewardS2C.class, 5000);
+            assertEquals(id.toString(), reward.levelId());
+            assertTrue(harness.packets().indexOf(result) < harness.packets().indexOf(reward),
+                    "the client must see victory before the reward is presented");
+            assertEquals(1, harness.packets().stream().filter(GameStateS2C.class::isInstance).count());
+            System.out.println("Outpost terminal packet: state=" + result.state() + ", reward=" + reward.levelId()
+                    + ", summary ticks=" + result.survivedTicks());
+        } finally {
+            TestContent.loadBuiltInContentAndTags();
+        }
     }
 
     @Test
