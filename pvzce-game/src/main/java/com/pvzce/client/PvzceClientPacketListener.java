@@ -149,7 +149,8 @@ public final class PvzceClientPacketListener implements PacketListener {
             client.onServerMessage(message.message());
         } else if (packet instanceof WaveProgressS2C wave) {
             level.setWaveProgress(wave.currentWave(), wave.totalWaves(), wave.progress(),
-                    wave.warningActive(), wave.finalWarning(), wave.round());
+                    wave.warningActive(), wave.finalWarning(), wave.round(),
+                    wave.nextWaveAvailable());
         } else if (packet instanceof com.pvzce.common.network.packet.RoundSyncS2C round) {
             // Where the run stands and which waves the meter is drawing: the round's own list
             // rides with it, because an endless level regenerates it every round and the level

@@ -246,7 +246,7 @@ class WavePacingMechanicTest {
         // The health drain is off: this test is about the clear bonus's own arithmetic, and both
         // are shortcuts to the same arrival.
         WavePacingData pacing = new WavePacingData(3F, 300, 600, 0.75F, 0.75F, false, false,
-                WavePacingData.WaveMode.FIXED, List.of());
+                WavePacingData.DEFAULT_NEXT_WAVE_BUTTON, WavePacingData.WaveMode.FIXED, List.of());
         LevelServer level = new LevelServer(level(List.of(
                 wave(WaveDef.WaveType.SMALL, 10, 1), wave(WaveDef.WaveType.FINAL, 1800, 1)), pacing));
         Bridge bridge = new Bridge();

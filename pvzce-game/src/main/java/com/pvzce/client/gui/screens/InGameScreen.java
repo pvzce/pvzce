@@ -401,6 +401,26 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private Button pauseButton;
     private Button speedButton;
     /**
+     * The "next wave" button: call the coming wave in instead of waiting out the gap.
+     *
+     * <p>Built with the other HUD buttons rather than lazily, because whether a level may ever
+     * offer it is not streamed state - the rule is the server's (see
+     * {@code LevelServer.waveCanBeCalled}) and it only ever answers "not yet". Its visibility is
+     * therefore refreshed every frame from the level's own copy of that answer, which is the one
+     * piece of the HUD that changes while the player is looking at it.
+     */
+    private Button nextWaveButton;
+    /**
+     * The wave and the offer the player has already accepted, or {@code null}.
+     *
+     * <p>What the button hides behind between the press and the next packet: the request is a
+     * round trip, and a button that stayed up until the answer came back would invite a second
+     * press for a wave that is already on its way. Cleared the moment the server's own answer
+     * moves - see {@link #updateWaveProgress} - so a press the level refuses (it stopped being
+     * callable in the same tick, say) puts the button back rather than swallowing it.
+     */
+    private int[] nextWaveRequestedFor;
+    /**
      * The preparation phase's "开始" button, created lazily.
      *
      * <p>Not in {@link #init()} like the other two: whether a level has a preparation phase arrives
@@ -686,6 +706,17 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             addWidget(speedButton);
         }
         addWidget(pauseButton);
+        // The next-wave button hangs directly under the pause button, in the same column and at
+        // the same width, because the two are the same kind of control: the pause button is what
+        // stops the level and this is what hurries it along. It is hidden until the level says the
+        // wave can be called (see `updateWaveProgress`), and it is registered whether or not it is
+        // drawn - an invisible widget takes no clicks.
+        int nextWaveHeight = Math.max(24, Math.min(40, pauseHeight));
+        int nextWaveY = Math.max(6, pauseButton.y() - nextWaveHeight - 6);
+        nextWaveButton = new Button(pauseX, nextWaveY, pauseWidth, nextWaveHeight,
+                GuiLang.raw("gui.pvzce.wave.next", "下一波"), this::callNextWave);
+        nextWaveButton.setVisible(false);
+        addWidget(nextWaveButton);
         if (client.level().sceneBoard().surfaceIds().size() > 1) {
             addWidget(new Button(Math.max(12, speedX - 124), height - pauseHeight - 12,
                     116, pauseHeight, GuiLang.raw("gui.pvzce.surface.switch", "Switch layer"), () -> { client.level().cycleSurface(); selectedCard = -1; }));
@@ -1500,6 +1531,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (speedButton != null) {
             speedButton.setLabel(speedLabel());
         }
+        updateWaveProgress();
         EffectEventS2C effect;
         while ((effect = client.level().effects().poll()) != null) {
             if (Boolean.getBoolean("pvzce.traceEffects")) {
@@ -3300,6 +3332,45 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         float x = (client.guiWidth() - width) / 2F;
         float y = cardBar().cardHeight() + 46F;
         return new float[] {x, y, width, height};
+    }
+
+    /**
+     * Keeps the "next wave" button in step with the level's own answer.
+     *
+     * <p>Every frame, from the state the server streams, because both halves of the answer change
+     * without a packet of their own: the wave on the lawn stops releasing, its last zombie dies,
+     * and the countdown the player is being asked to skip starts - all of them between one wave
+     * progress packet and the next. Reading the state rather than counting packets also means the
+     * button cannot be left up by a packet lost to a level restart.
+     *
+     * <p>A press the player has already made hides the button until the answer moves: the request
+     * is a round trip, and the wave and offer the press was made against are what
+     * {@link #nextWaveRequestedFor} remembers. A refused press - the level stopped offering it in
+     * the same tick - moves that answer immediately, so the button comes back rather than staying
+     * hidden behind a request nobody took.
+     */
+    private void updateWaveProgress() {
+        if (nextWaveButton == null) {
+            return;
+        }
+        int wave = client.level().currentWave();
+        boolean offered = client.level().nextWaveAvailable();
+        if (nextWaveRequestedFor != null
+                && (nextWaveRequestedFor[0] != wave || nextWaveRequestedFor[1] != (offered ? 1 : 0))) {
+            nextWaveRequestedFor = null;
+        }
+        nextWaveButton.setVisible(offered && nextWaveRequestedFor == null);
+    }
+
+    /** The player pressed "next wave": ask the level for it, and put the button away meanwhile. */
+    private void callNextWave() {
+        if (nextWaveButton == null || nextWaveRequestedFor != null) {
+            return;
+        }
+        nextWaveRequestedFor = new int[] {client.level().currentWave(),
+                client.level().nextWaveAvailable() ? 1 : 0};
+        nextWaveButton.setVisible(false);
+        client.connection().send(new com.pvzce.common.network.packet.NextWaveC2S());
     }
 
     private void renderWaveBar() {

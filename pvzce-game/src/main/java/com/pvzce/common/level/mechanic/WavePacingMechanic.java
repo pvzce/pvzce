@@ -113,6 +113,8 @@ public final class WavePacingMechanic implements LevelMechanic<WavePacingData> {
                         "pvzce.mechanic.wave_pacing.field.early_wave_kill_ratio", 0.05F, 1F),
                 FieldSpec.decimal("early_kill_delay_factor",
                         "pvzce.mechanic.wave_pacing.field.early_kill_delay_factor", 0.25F, 1F),
+                FieldSpec.bool("next_wave_button",
+                        "pvzce.mechanic.wave_pacing.field.next_wave_button"),
                 new FieldSpec.Choice("default_mode", "pvzce.mechanic.wave_pacing.field.default_mode",
                         List.of("fixed", "stockpile", "survival_ratio", "budget")),
                 new FieldSpec.Choice("waves[0].mode", "pvzce.mechanic.wave_pacing.field.mode",

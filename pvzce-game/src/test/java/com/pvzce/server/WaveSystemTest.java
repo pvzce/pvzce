@@ -14,6 +14,7 @@ import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -552,11 +553,130 @@ class WaveSystemTest {
                 "a huge wave's own interval paces it, alive or not");
     }
 
-    /** Takes every zombie off the field, the way a player's lawn does. */
+    /**
+     * The next-wave button: offered only once the wave on the lawn is finished, and only until
+     * the wave after it arrives.
+     *
+     * <p>Every half of the condition is checked here, because each of them is a way for the button
+     * to lie: before the first wave arrives there is nothing to have finished, while a wave is
+     * still coming out the player has not met it yet, and while one of its zombies is still
+     * walking there is a fight left to have.
+     */
+    @Test
+    void theNextWaveCanOnlyBeCalledOnceTheWaveOnTheLawnIsFinished() {
+        LevelServer level = new LevelServer(testLevel(1F, 10, 400, 400));
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertFalse(level.waveCanBeCalled(), "nothing has arrived yet, so nothing can be called");
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        assertFalse(level.waveCanBeCalled(),
+                "wave 1 has a second zombie to release: it has not been met yet");
+
+        assertEquals(311, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2));
+        level.tick(bridge);
+        assertFalse(level.waveCanBeCalled(), "both of wave 1's zombies are still walking");
+
+        killZombiesForReal(level);
+        level.tick(bridge);
+        assertTrue(level.waveCanBeCalled(),
+                "wave 1 is out and dead, and wave 2 is still 400 ticks away");
+
+        assertTrue(level.callNextWave(), "the level takes the request");
+        level.tick(bridge);
+        assertEquals(2, level.currentWave(), "and wave 2 arrives on the next tick, not in 400");
+        level.tick(bridge);
+        assertFalse(level.waveCanBeCalled(),
+                "the wave that was called now has a zombie of its own to be finished with");
+    }
+
+    /**
+     * The call is a request rather than an order: a press the level never offered changes nothing.
+     *
+     * <p>The client only draws the button while the server says the wave is callable, so this is
+     * the stale press - a click that raced the countdown, or one from a player whose level had
+     * already ended. Honouring it would skip the wave on the lawn, which is the one thing the
+     * button in the middle of a fight must not do.
+     */
+    @Test
+    void aCallTheLevelNeverOfferedIsRefused() {
+        LevelServer level = new LevelServer(testLevel(1F, 10, 400, 400));
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertFalse(level.callNextWave(), "nothing to call before the first wave has arrived");
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        assertFalse(level.callNextWave(), "and not while the wave on the lawn is still coming out");
+
+        // The whole cycle, so that "refused" is shown to be about the moment rather than about
+        // the level: the same press is taken once the wave really is finished.
+        assertEquals(311, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 2));
+        killZombiesForReal(level);
+        level.tick(bridge);
+        assertTrue(level.callNextWave(), "the wave is finished, so now the request is taken");
+        level.tick(bridge);
+        assertFalse(level.callNextWave(),
+                "and the wave that request brought in has to be finished before the next one");
+        assertFalse(level.waveCanBeCalled());
+    }
+
+    /** A level that writes {@code next_wave_button: false} never offers the button. */
+    @Test
+    void aLevelMayRefuseTheNextWaveButton() throws Exception {
+        TestContent.loadBuiltInContentAndTags();
+        // 1-1's own body with nothing but the wave table and the pacing block replaced: the level
+        // file's other content (its mowers, its sun) is what every other test in this class runs
+        // against, and reusing it keeps this test about the one field it is about.
+        LevelDef quiet = TestLevels.copy(BuiltInRegistries.LEVELS.get(
+                        Identifier.withDefaultNamespace("yard/adventure/1_1")))
+                .waves(pacedByIntervalOnly(List.of(
+                        new WaveDef(WaveDef.WaveType.SMALL, 10, 5, List.of(
+                                new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))),
+                        new WaveDef(WaveDef.WaveType.FINAL, 400, 5, List.of(
+                                new WaveDef.Entry(Identifier.withDefaultNamespace("basic_zombie"), 1))))))
+                .mechanics(List.of(
+                        com.pvzce.api.content.mechanic.TypedMechanic.of(
+                                com.pvzce.common.PvzceIds.MECHANIC_WAVE_PACING,
+                                com.pvzce.api.content.WavePacingData.DEFAULT.nextWaveButtonOff()),
+                        com.pvzce.api.content.mechanic.TypedMechanic.of(
+                                com.pvzce.common.PvzceIds.MECHANIC_MOWER,
+                                new com.pvzce.api.content.MowerData(Optional.of(List.of())))))
+                .build();
+        LevelServer level = new LevelServer(quiet);
+        CapturingBridge bridge = new CapturingBridge();
+
+        assertEquals(10, tickUntil(level, bridge, () -> bridge.zombieSpawns() >= 1));
+        killZombies(level);
+        level.tick(bridge);
+        assertFalse(level.waveCanBeCalled(), "the level turned the button off");
+        assertFalse(level.callNextWave(), "and the press is refused with it");
+    }
+
+    /**
+     * Takes every zombie off the field, the way a player's lawn does.
+     *
+     * <p>{@code remove()} and not a killing blow: these tests are about pacing, and a removal is
+     * the one thing the wave clock cannot tell apart from a kill - it never hears about it. That
+     * is exactly the distinction {@link #killZombiesForReal} exists for.
+     */
     private static void killZombies(LevelServer level) {
         for (var entity : level.entities()) {
             if (entity instanceof com.pvzce.server.entity.ZombieEntity zombie && !zombie.isRemoved()) {
                 zombie.remove();
+            }
+        }
+    }
+
+    /**
+     * Kills every zombie on the lawn with a blow, so the wave clock hears about it.
+     *
+     * <p>What the next-wave button counts: "everything this wave sent is dead" is the director's
+     * per-wave tally, and that tally is fed by the death hook rather than by what is standing. A
+     * removed zombie is gone from the lawn and still counted, which is why this test cannot use
+     * {@link #killZombies}.
+     */
+    private static void killZombiesForReal(LevelServer level) {
+        for (var entity : level.entities()) {
+            if (entity instanceof com.pvzce.server.entity.ZombieEntity zombie && zombie.isAlive()) {
+                zombie.damageBody(10_000, level);
             }
         }
     }

@@ -3639,6 +3639,27 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return waves.currentWaveFullyReleased();
     }
 
+    /**
+     * True while the player may call the next wave in early, for the HUD's button.
+     *
+     * <p>The director's own answer ({@code WaveDirector.nextWaveAvailable}), which also carries
+     * this level's silence: a song's waves are the weather rather than a list the player works
+     * through, and "call the next one" is not a thing a chart has.
+     */
+    public boolean waveCanBeCalled() {
+        return waves.nextWaveAvailable();
+    }
+
+    /**
+     * The player pressed the next-wave button. True when the level took the request.
+     *
+     * <p>Delegated rather than decided here: the director owns the countdown, so it is the one
+     * that can say whether this wave was callable at all (see {@code WaveDirector.callNextWave}).
+     */
+    public boolean callNextWave() {
+        return waves.callNextWave();
+    }
+
     public int totalWaves() {
         // Zero on a level that does not count its waves: the meter is drawn from this, and a song
         // has no denominator. See `showsWaveCount`.

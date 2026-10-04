@@ -275,6 +275,23 @@ public final class WaveDirector {
     private boolean roundClearPending;
     /** Set when the HUD-visible part of the wave state changed and the client has not heard. */
     private boolean dirty = true;
+    /**
+     * True once the player has called the coming wave in early.
+     *
+     * <p>The completion of a request rather than the request itself: {@link #callNextWave} decides
+     * that the countdown is over and this is what {@code tick} reads to make the arrival happen a
+     * tick later. Cleared on the arrival that answers it (see {@code triggerWave}), and in memory
+     * only - a run resumed before the waved arrived simply offers the button again.
+     */
+    private boolean nextWaveRequested;
+    /**
+     * The last answer {@link #nextWaveAvailable} gave, so the client hears about a change once.
+     *
+     * <p>Kept because the transition is not an event this class is told about: "the wave stopped
+     * releasing" and "its last zombie died" both happen between one tick and the next, and the
+     * packet that carries the answer only goes out when {@link #dirty} says something moved.
+     */
+    private boolean nextWaveCallable;
     private final Set<Integer> announcedWaves = new HashSet<>();
     private final Set<Integer> announcedWarnings = new HashSet<>();
 
@@ -501,7 +518,13 @@ public final class WaveDirector {
             // at zero on the tick a wave triggers - and stays there for as long as that wave is
             // still putting its zombies out - so a "due" test that read that zero as "the wait is
             // over" arrived every following wave on the tick the one before it was triggered.
-            boolean due = waveIntervalTicks > 0 && waveIntervalTicks >= nextWaveTargetTicks;
+            //
+            // The player's own call is the third way a countdown ends, and the only one that does
+            // not move a counter: the button is offered exactly when the wave on the lawn is
+            // finished (`nextWaveAvailable`), so "the player asked for this wave" already implies
+            // the state the other two conditions describe, minus the wait.
+            boolean due = nextWaveRequested
+                    || (waveIntervalTicks > 0 && waveIntervalTicks >= nextWaveTargetTicks);
             waveArrivalHeld = due && openingWaveStillOnTheField();
             if (due && !waveArrivalHeld) {
                 WaveDef wave = waveAt(round, waveIndex);
@@ -526,6 +549,16 @@ public final class WaveDirector {
             if (endless) {
                 finishRound();
             }
+        }
+        // Asked on every tick, including the ones the branch above skipped: the two moments the
+        // answer changes are "the wave on the lawn finished releasing" and "its last zombie died",
+        // and neither is an event this class is told about - both are states the tick walks past.
+        // `updateWaveWarning` cannot carry it for the same reason: a wave that has stopped
+        // releasing has no countdown left to run, so it never reaches that method.
+        boolean callable = nextWaveAvailable();
+        if (callable != nextWaveCallable) {
+            nextWaveCallable = callable;
+            dirty = true;
         }
         spawnPendingWaveZombies();
     }
@@ -725,6 +758,80 @@ public final class WaveDirector {
         return waveIndex > 0 && !currentWaveStillReleasing();
     }
 
+    /**
+     * True while the player may call the next wave in early: the wave on the lawn is finished.
+     *
+     * <p>What the HUD's "next wave" button draws from, and the original's own condition for the
+     * same control: the wave that arrived has put everything out, everything it put out is dead,
+     * and the wave after it is still counting down. A player who is winning should not have to
+     * stand on an empty lawn waiting out a delay written for one who is losing.
+     *
+     * <p>Three things it deliberately is not:
+     *
+     * <ul>
+     *   <li><b>Not "the lawn is empty".</b> Dead is dead wherever it fell, so stragglers from
+     *       earlier waves do not matter - but a wave that started releasing and is not finished
+     *       does not count either, or a player could call the next wave into the middle of the
+     *       arrival they are watching.</li>
+     *   <li><b>Not offered on the first wave's run-up or on the last wave.</b> There has to be a
+     *       wave after this one, and it has to be a wave the player has actually met - calling a
+     *       wave from a standing start would skip the whole of the first one.</li>
+     *   <li><b>Never while something else is holding the clock.</b> A preparation stage freezes
+     *       the wave clock on purpose (see {@code PreparationMechanic.holdsNextWave}), and a
+     *       countdown that is not running cannot be cut short; a level between rounds is waiting
+     *       for the player's cards instead.</li>
+     *   <li><b>Not on a level that does not count its waves.</b> A song's zombies are the weather
+     *       for the length of the track (see {@link Host#showsWaveCount}), and a control that
+     *       skipped a bar of it would be editing the song.</li>
+     * </ul>
+     *
+     * <p>A level that writes {@code "next_wave_button": false} answers false here for its whole
+     * run, which also makes {@link #callNextWave} refuse the press rather than trusting a client
+     * that drew the button anyway.
+     */
+    public boolean nextWaveAvailable() {
+        if (!pacing.nextWaveButton() || !host.showsWaveCount()) {
+            return false;
+        }
+        if (roundClearPending || host.holdsNextWave()) {
+            return false;
+        }
+        if (waveIndex <= 0 || waveIndex >= roundWaves) {
+            return false;
+        }
+        if (!currentWaveFullyReleased() || aliveOfWave(waveKey(round, waveIndex - 1)) > 0) {
+            return false;
+        }
+        // The field, not just the wave: a wave that is due while an opening wave is still walking
+        // is held back on purpose (`openingWaveStillOnTheField`), and a call that only skipped the
+        // countdown would leave the player watching a button that did nothing.
+        return host.aliveZombieCount() == 0;
+    }
+
+    /**
+     * The player asked for the next wave now. Returns whether the request was honoured.
+     *
+     * <p>The request rather than the act: the wave still arrives through {@code tick}'s own
+     * arrival test, one tick later, because that is the one place that knows about the warning
+     * banner, the round's wave source and a generator with nothing left to send. All this does is
+     * decide that the countdown is over.
+     *
+     * <p>Being refused is silent, and that is the honest answer: the client only offers the button
+     * while {@link #nextWaveAvailable} says yes, so a press that arrives any other way - a stale
+     * click, a level that has since ended, a pack that rewrote the level's pacing - is a press
+     * against a control the server never offered.
+     */
+    public boolean callNextWave() {
+        if (!nextWaveAvailable()) {
+            return false;
+        }
+        nextWaveRequested = true;
+        // The button goes away now rather than a round-trip later: the countdown is over, so the
+        // next state the client would hear about is the wave arriving.
+        dirty = true;
+        return true;
+    }
+
     /** How many of the wave at this position are still standing. */
     private int aliveOfWave(int key) {
         return Math.max(0, aliveByWave.getOrDefault(key, 0));
@@ -801,6 +908,9 @@ public final class WaveDirector {
         waveWarningActive = false;
         waveWarningFinal = false;
         waveArrivalHeld = false;
+        // An early call is answered by the arrival it asked for, and by nothing else: the flag is
+        // what made this wave due, and leaving it set would make every wave after it due as well.
+        nextWaveRequested = false;
         dirty = true;
 
         int holdTicks = wave.holdUntilDead(waveIndex);
@@ -1288,6 +1398,10 @@ public final class WaveDirector {
         openingGateTicks = 0;
         openingGateHoldTicks = 0;
         roundClearPending = false;
+        // Both, not just the request: a round begins with its first wave still to arrive, and a
+        // `nextWaveCallable` left true would offer the player a button for a wave nobody has met.
+        nextWaveRequested = false;
+        nextWaveCallable = false;
         releasedWaves.clear();
         aliveByWave.clear();
         killsByWave.clear();
@@ -1357,7 +1471,7 @@ public final class WaveDirector {
         // The total is zero on a level that does not count its waves; the warning flags travel
         // either way, because a huge wave is announced and not counted.
         return new WaveProgressS2C(waveInRound(), host.showsWaveCount() ? Math.max(0, roundWaves) : 0,
-                waveProgress, waveWarningActive, waveWarningFinal, round);
+                waveProgress, waveWarningActive, waveWarningFinal, round, nextWaveCallable);
     }
 
     /**
@@ -1365,12 +1479,16 @@ public final class WaveDirector {
      *
      * <p>Called when the level ends: it stops ticking, and a win that lands <em>during</em> the
      * final warning would otherwise leave the banner lit on the client for good, because the
-     * wave that would have turned it off is the one whose zombies just died.
+     * wave that would have turned it off is the one whose zombies just died. The next-wave button
+     * goes the same way and for the same reason - a level that ended between two waves would
+     * otherwise leave a live control on the defeat screen.
      */
     public void clearOnLevelEnd() {
         waveWarningActive = false;
         waveWarningFinal = false;
         waveProgress = 1F;
+        nextWaveCallable = false;
+        nextWaveRequested = false;
         dirty = true;
     }
 
@@ -1510,6 +1628,11 @@ public final class WaveDirector {
         nextWaveTargetTicks = Math.max(0, root.getInt("NextWaveTargetTicks"));
         restorePendingWaves(root.getList("PendingWaveSpawns"));
         reownRestoredWaves();
+        // The early call is a live gesture rather than a state: a save taken after the player
+        // pressed the button has already served the countdown, so the resumed run offers the
+        // button again and the arrival happens on the first tick if it is still deserved.
+        nextWaveRequested = false;
+        nextWaveCallable = false;
         // The restored state is what the client needs to see, so the next sync must not wait for
         // a tick that would have been dirty anyway.
         dirty = true;

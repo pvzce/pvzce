@@ -145,7 +145,9 @@ public final class PvzcePackets {
     // 54: fertilizer and attached ladders travel as PlantCareS2C.
     // 55: separate butter/freeze art and action sequence for exactly one gesture per volley.
     // 56: authoritative surface profiles, entity/effect elevations and selected operation surfaces.
-    public static final int PROTOCOL_VERSION = 56;
+    // 57: the HUD's next-wave button - the request (NextWaveC2S) and the server's answer to "may
+    //     the wave be called" (WaveProgressS2C.nextWaveAvailable).
+    public static final int PROTOCOL_VERSION = 57;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -241,6 +243,13 @@ public final class PvzcePackets {
     public static final int C2S_PLANT_HELD_CARD = 25;
     /** A right-click while a seed packet is in hand: put it back where it fell. */
     public static final int C2S_RELEASE_HELD_CARD = 26;
+    /**
+     * The HUD's "next wave" button: stop waiting out the gap and send the next wave.
+     *
+     * <p>35 rather than 27-34, which the other packets above already spend; the numbers on this
+     * list are a wire format, so a gap is cheaper than a renumbering.
+     */
+    public static final int C2S_NEXT_WAVE = 35;
 
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
@@ -282,6 +291,9 @@ public final class PvzcePackets {
             def(C2S_START_WAVES, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.StartWavesC2S.class,
                     com.pvzce.common.network.packet.StartWavesC2S::decode),
+            def(C2S_NEXT_WAVE, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.NextWaveC2S.class,
+                    com.pvzce.common.network.packet.NextWaveC2S::decode),
             def(C2S_FIRE_AT, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.FireAtC2S.class,
                     com.pvzce.common.network.packet.FireAtC2S::decode),

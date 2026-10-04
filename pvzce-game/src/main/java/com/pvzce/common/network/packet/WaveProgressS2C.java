@@ -21,6 +21,11 @@ import com.pvzce.common.network.PvzcePacket;
  *                      level, whose waves do not run out)
  * @param round         which round this is, one-based; always 1 on a level that does not
  *                      generate its waves
+ * @param nextWaveAvailable whether the HUD's "next wave" button should be on screen: the wave on
+ *                      the lawn has finished releasing, everything it sent is dead, and the next
+ *                      wave has not arrived yet. Decided by the server, which is the only side
+ *                      that knows both halves of that - the client sees the zombies, not which
+ *                      wave they belong to (see {@code LevelServer.waveCanBeCalled})
  */
 public record WaveProgressS2C(
         int currentWave,
@@ -28,7 +33,8 @@ public record WaveProgressS2C(
         float progress,
         boolean warningActive,
         boolean finalWarning,
-        int round
+        int round,
+        boolean nextWaveAvailable
 ) implements PvzcePacket {
     @Override
     public ConnectionDirection direction() {
@@ -42,7 +48,8 @@ public record WaveProgressS2C(
     .field(WaveProgressS2C::warningActive, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
     .field(WaveProgressS2C::finalWarning, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
     .field(WaveProgressS2C::round, PacketByteBuf::writeInt, PacketByteBuf::readInt)
-            .build(values -> new WaveProgressS2C((Integer) values.get(0), (Integer) values.get(1), (Float) values.get(2), (Boolean) values.get(3), (Boolean) values.get(4), (Integer) values.get(5)));
+    .field(WaveProgressS2C::nextWaveAvailable, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
+            .build(values -> new WaveProgressS2C((Integer) values.get(0), (Integer) values.get(1), (Float) values.get(2), (Boolean) values.get(3), (Boolean) values.get(4), (Integer) values.get(5), (Boolean) values.get(6)));
 
     @Override
     public void encode(PacketByteBuf buf) {

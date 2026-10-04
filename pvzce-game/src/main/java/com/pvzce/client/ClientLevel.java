@@ -124,6 +124,16 @@ public final class ClientLevel {
     private volatile float waveProgress;
     private volatile boolean waveWarningActive;
     private volatile boolean waveWarningFinal;
+    /**
+     * True while the server says the next wave may be called in early.
+     *
+     * <p>The client cannot work this out for itself: "the wave on the lawn has finished releasing
+     * and everything it sent is dead" needs to know which zombies belong to which wave, and the
+     * client is told about entities rather than about waves. So the HUD's next-wave button is
+     * drawn from the server's answer (see {@code LevelServer.waveCanBeCalled}) rather than from a
+     * guess about the field.
+     */
+    private volatile boolean nextWaveAvailable;
     private volatile List<String> waveTypes = List.of();
     private volatile TimeOfDayS2C timeOfDay = new TimeOfDayS2C(0, 0, -1);
     private volatile long timeAnchorNanos;
@@ -330,6 +340,7 @@ public final class ClientLevel {
         endless = false;
         waveWarningActive = false;
         waveWarningFinal = false;
+        nextWaveAvailable = false;
         timeAnchorNanos = System.nanoTime();
         lastSyncedDayTicks = 0;
         lastSyncedNanos = timeAnchorNanos;
@@ -1040,14 +1051,21 @@ public final class ClientLevel {
         return waveTypes;
     }
 
+    /** True while the server offers the early call: the HUD's next-wave button draws from this. */
+    public boolean nextWaveAvailable() {
+        return nextWaveAvailable;
+    }
+
     public void setWaveProgress(int currentWave, int totalWaves, float waveProgress,
-                                boolean warningActive, boolean finalWarning, int round) {
+                                boolean warningActive, boolean finalWarning, int round,
+                                boolean nextWaveAvailable) {
         this.currentWave = currentWave;
         this.totalWaves = totalWaves;
         this.waveProgress = waveProgress;
         this.waveWarningActive = warningActive;
         this.waveWarningFinal = finalWarning;
         this.round = round;
+        this.nextWaveAvailable = nextWaveAvailable;
     }
 
     /**

@@ -1488,6 +1488,14 @@ public final class PvzceServer implements Runnable {
                 if (level != null) {
                     level.beginWaves();
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.NextWaveC2S) {
+                // The HUD's next-wave button. The same rule as the preparation button above and
+                // for the same reason - the level is the one that knows whether this wave was
+                // still callable, so a stale press is dropped instead of skipping a wave the
+                // player never saw.
+                if (level != null) {
+                    level.callNextWave();
+                }
             } else if (packet instanceof com.pvzce.common.network.packet.RhythmHitC2S hit) {
                 // A rhythm note. The client judged it; the level decides whether that judgement
                 // counts (see LevelServer.rhythmHit).

@@ -439,6 +439,7 @@
   "pvzce.mechanic.wave_pacing.field.early_wave_kill_ratio": "提前击杀比",
   "pvzce.mechanic.wave_pacing.field.max_alive": "第1行并存上限",
   "pvzce.mechanic.wave_pacing.field.mode": "第1行模式",
+  "pvzce.mechanic.wave_pacing.field.next_wave_button": "下一波按钮",
   "pvzce.mechanic.wave_pacing.field.pool": "第1行点数池",
   "pvzce.mechanic.wave_pacing.field.waves": "第1行波次",
   "pvzce.mods": "模组列表",

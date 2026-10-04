@@ -62,6 +62,10 @@ import java.util.Set;
  *                    the moment the wave on the lawn is beaten - the original's own pace, and
  *                    {@code false} for a level whose pacing is the point (a lesson, a scripted
  *                    tutorial) rather than a battle
+ * @param nextWaveButton whether the HUD offers the "next wave" button once the wave on the lawn
+ *                    is finished and the next one has not arrived yet; {@code false} for a level
+ *                    whose waves are a script rather than a fight. A level that cannot be called
+ *                    anyway - a song, a preparation stage - never shows it, whatever this says
  * @param defaultMode the mode of a wave that declares none
  * @param waves per-wave overrides, applied in order, later entries winning
  */
@@ -73,6 +77,7 @@ public record WavePacingData(
         float earlyKillDelayFactor,
         boolean earlyAdvance,
         boolean healthDrain,
+        boolean nextWaveButton,
         WaveMode defaultMode,
         List<WavePacing> waves
 ) implements MechanicData {
@@ -117,6 +122,15 @@ public record WavePacingData(
      * minute. Off is for a level whose point is the script rather than the fight.
      */
     public static final boolean DEFAULT_HEALTH_DRAIN = true;
+    /**
+     * The next-wave button is offered unless a level turns it off.
+     *
+     * <p>On, for the same reason the clear bonus is: the shipped tables are the original's
+     * numbers, and the original lets a player who has already finished a wave call the next one
+     * instead of standing on an empty lawn. Off is for a level whose beats are written rather
+     * than fought.
+     */
+    public static final boolean DEFAULT_NEXT_WAVE_BUTTON = true;
     /** A mode's {@code max_alive} when the wave does not say. */
     public static final int DEFAULT_MAX_ALIVE = 8;
     /**
@@ -180,6 +194,8 @@ public record WavePacingData(
             Codec.BOOL.optionalFieldOf("early_advance", true).forGetter(WavePacingData::earlyAdvance),
             Codec.BOOL.optionalFieldOf("health_drain", DEFAULT_HEALTH_DRAIN)
                     .forGetter(WavePacingData::healthDrain),
+            Codec.BOOL.optionalFieldOf("next_wave_button", DEFAULT_NEXT_WAVE_BUTTON)
+                    .forGetter(WavePacingData::nextWaveButton),
             Codec.STRING.optionalFieldOf("default_mode", DEFAULT_MODE.name().toLowerCase(Locale.ROOT))
                     .forGetter(data -> data.defaultMode().name().toLowerCase(Locale.ROOT)),
             WavePacing.CODEC.listOf().optionalFieldOf("waves", List.of())
@@ -196,10 +212,10 @@ public record WavePacingData(
     public static WavePacingData parse(float clearRewardFactor, int clearRewardMinTicks,
                                        int clearRewardGraceTicks, float earlyWaveKillRatio,
                                        float earlyKillDelayFactor, boolean earlyAdvance,
-                                       boolean healthDrain, String defaultMode,
+                                       boolean healthDrain, boolean nextWaveButton, String defaultMode,
                                        List<WavePacing> waves) {
         return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
-                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, healthDrain,
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, healthDrain, nextWaveButton,
                 parseMode(defaultMode), waves);
     }
 
@@ -211,7 +227,8 @@ public record WavePacingData(
     public static final WavePacingData DEFAULT = new WavePacingData(
             DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS,
             DEFAULT_CLEAR_REWARD_GRACE_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
-            DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_HEALTH_DRAIN, DEFAULT_MODE, List.of());
+            DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_HEALTH_DRAIN,
+            DEFAULT_NEXT_WAVE_BUTTON, DEFAULT_MODE, List.of());
 
     /**
      * How long the next wave's countdown may run down to while the clear bonus is active.
@@ -243,7 +260,7 @@ public record WavePacingData(
      */
     public WavePacingData clearRewardOff() {
         return new WavePacingData(1F, 0, 0, earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance,
-                false, defaultMode, waves);
+                false, nextWaveButton, defaultMode, waves);
     }
 
     /**
@@ -256,20 +273,29 @@ public record WavePacingData(
     public static WavePacingData ofModes(WaveMode defaultMode, WavePacing... waves) {
         return new WavePacingData(DEFAULT_CLEAR_REWARD_FACTOR, DEFAULT_CLEAR_REWARD_MIN_TICKS,
                 DEFAULT_CLEAR_REWARD_GRACE_TICKS, DEFAULT_EARLY_WAVE_KILL_RATIO,
-                DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_HEALTH_DRAIN, defaultMode,
-                List.of(waves));
+                DEFAULT_EARLY_KILL_DELAY_FACTOR, true, DEFAULT_HEALTH_DRAIN,
+                DEFAULT_NEXT_WAVE_BUTTON, defaultMode, List.of(waves));
     }
 
     /** The same block with the health drain off: for a level whose script is the point. */
     public WavePacingData healthDrainOff() {
         return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
-                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, false, defaultMode, waves);
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, false, nextWaveButton,
+                defaultMode, waves);
     }
 
     /** The same block with the health drain on and nothing else touched. */
     public WavePacingData drainOn() {
         return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
-                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, true, defaultMode, waves);
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, true, nextWaveButton,
+                defaultMode, waves);
+    }
+
+    /** The same block with the next-wave button refused: for a level whose beats are written. */
+    public WavePacingData nextWaveButtonOff() {
+        return new WavePacingData(clearRewardFactor, clearRewardMinTicks, clearRewardGraceTicks,
+                earlyWaveKillRatio, earlyKillDelayFactor, earlyAdvance, healthDrain, false,
+                defaultMode, waves);
     }
 
     /** One row for one wave, in this mode, with nothing else changed. */

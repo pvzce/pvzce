@@ -439,6 +439,7 @@
   "pvzce.mechanic.wave_pacing.field.early_wave_kill_ratio": "Kill ratio",
   "pvzce.mechanic.wave_pacing.field.max_alive": "Row 1 max alive",
   "pvzce.mechanic.wave_pacing.field.mode": "Row 1 mode",
+  "pvzce.mechanic.wave_pacing.field.next_wave_button": "Next-wave button",
   "pvzce.mechanic.wave_pacing.field.pool": "Row 1 pool",
   "pvzce.mechanic.wave_pacing.field.waves": "Row 1 waves",
   "pvzce.mods": "Mods",
