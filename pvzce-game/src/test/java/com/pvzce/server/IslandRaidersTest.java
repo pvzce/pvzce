@@ -4,6 +4,7 @@ import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.SeedOptions;
 import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.tag.TestContent;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,9 +39,41 @@ class IslandRaidersTest {
     }
 
     @Test
+    void theShippedLevelUsesThePlayersBackpackForItsChooserAndStartingBar() {
+        assertFalse(definition.declaresMaxSeedSlots(), "this minigame must not pin eight slots");
+        for (int backpackSlots : new int[]{6, 10}) {
+            int resolved = definition.effectiveMaxSeedSlots(backpackSlots);
+            assertEquals(backpackSlots, resolved);
+            assertEquals(backpackSlots, definition.seedPlan(SeedOptions.allCards(), resolved).maxSlots());
+            assertEquals(backpackSlots, definition.defaultSeedSelection(SeedOptions.allCards(), resolved).size());
+        }
+    }
+
+    @Test
+    void playersCanChooseOwnedBuffsWithinTheirBackpacksCapacity() {
+        assertTrue(definition.offersBuffChoice());
+        assertFalse(definition.buffPlan().declaresMaxBuffSlots());
+        assertEquals(1, definition.effectiveMaxBuffSlots(1));
+        assertEquals(3, definition.effectiveMaxBuffSlots(3));
+        var choice = id("auto_collect");
+        assertTrue(LevelBuffSelection.chooserPool(definition, choice::equals).stream()
+                .anyMatch(option -> option.slotId().equals(choice.toString()) && option.costSun() != SeedOptions.LOCKED_OPTION));
+        assertEquals(List.of(choice), LevelBuffSelection.sanitize(definition, 1, List.of(choice), choice::equals));
+        assertEquals(List.of(), LevelBuffSelection.sanitize(definition, 1, List.of(choice), buff -> false));
+    }
+
+    @Test
     void waterGravesKeepTheSeaAndRejectLilyPadsWhileAcceptingGraveBusters() {
         LevelServer level = new LevelServer(definition, 41L);
         assertEquals(6, level.graveCells().size());
+        assertTrue(definition.width() > 9, "six rows need a wider board to cover the lawn");
+        for (int y = 0; y < definition.height(); y++) {
+            for (int x = 0; x < definition.width(); x++) {
+                assertEquals(id(x < 2 ? "grass" : "water"),
+                        level.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, x, y).base(),
+                        "the extended columns must be sea in every lane");
+            }
+        }
         assertTrue(definition.initialEntities().isEmpty(), "players build their own defence");
         for (var grave : level.graveCells()) {
             assertEquals(id("water"), level.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, grave.x(), grave.y()).base());
@@ -48,28 +82,28 @@ class IslandRaidersTest {
             assertTrue(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("grave_buster")), grave.x(), grave.y()));
         }
         assertFalse(level.placeGrave(id("grave"), 3, 0), "ordinary graves must remain land-only");
-        var swimmer = level.raiseZombieFromGrave(id("ducky_tube_zombie"), 4, 0);
+        var swimmer = level.raiseZombieFromGrave(id("ducky_tube_zombie"), 5, 0);
         tick(level, 65);
         assertTrue(swimmer.isAlive());
-        assertTrue(swimmer.cellX() < 4.5F, "a risen swimmer must resume moving across the sea");
+        assertTrue(swimmer.cellX() < 5.5F, "a risen swimmer must resume moving across the sea");
         assertEquals(0, swimmer.riseTicks());
     }
 
     @Test
     void clearingAndResumingAGraveKeepsItsWaterAndOnlyTheRemainingRespawnDelay() {
         LevelServer level = new LevelServer(definition, 41L);
-        assertTrue(level.clearGrave(4, 0));
-        assertEquals(id("water"), level.sceneIdAt(4, 0));
-        assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("lily_pad")), 4, 0), "the source remains reserved");
+        assertTrue(level.clearGrave(5, 0));
+        assertEquals(id("water"), level.sceneIdAt(5, 0));
+        assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(id("lily_pad")), 5, 0), "the source remains reserved");
         tick(level, 240);
         var save = level.save();
         LevelServer resumed = new LevelServer(definition, 41L);
         resumed.restore(save);
         tick(resumed, 359);
-        assertFalse(resumed.isGrave(4, 0));
+        assertFalse(resumed.isGrave(5, 0));
         tick(resumed, 1);
-        assertTrue(resumed.isGrave(4, 0));
-        assertEquals(id("water"), resumed.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, 4, 0).base());
+        assertTrue(resumed.isGrave(5, 0));
+        assertEquals(id("water"), resumed.sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, 5, 0).base());
     }
 
     @Test

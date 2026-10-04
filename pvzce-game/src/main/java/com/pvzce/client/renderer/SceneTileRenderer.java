@@ -495,8 +495,12 @@ public final class SceneTileRenderer {
             u = Math.floorMod(cx, TILE_CELLS) * uw;
             v = Math.floorMod(cy, TILE_CELLS) * vh;
         }
+        // Scene regions use bottom-left normalized UVs, like drawTextureRegion. The quad
+        // API instead accepts top-left pixels; preserve the same orientation and top slice
+        // when a grave sinks, then let drawTextureQuad perform the upload conversion once.
+        float pixelBottom = th - v, pixelTop = th - (v + vh);
         client.drawTextureQuad(texture, x, bl, right, br, right, tr, x, tl,
-                u, v, u + uw, v, u + uw, v + vh, u, v + vh,
+                u, pixelBottom, u + uw, pixelBottom, u + uw, pixelTop, u, pixelTop,
                 0.05F, 1F, 1F, 1F, alpha);
     }
 
