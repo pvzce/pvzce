@@ -163,7 +163,7 @@
 ### 我是僵尸的失败画面仍是"房子被吃掉"
 
 现象：`InGameScreen` 的失败序列只有一套（`isDefeat()` → 房屋被啃的表演），而解谜关里玩家是僵尸方：他输的意思是"僵尸没吃到脑子"，屏幕上却在演自家的房子被吃（`决策记录.md` Q186 定的是"僵尸走到房子算玩家赢"，这条一直是它自己的设计）。
-影响：只在这一段表演，结算与胜负都是对的（`gameStatus` 才是玩家的胜负）。
+影响：只在这一段表演，结算与胜负都是对的（胜负由 `GameStateS2C` 与 `LevelServer.winner()` 决定）。
 最小做法：给这一套表演一个"从哪一边看"的开关，或者给僵尸方写一段自己的失败表演。
 卡在：用户没有报过这条，属于观感上的不一致。
 
@@ -373,7 +373,7 @@
 
 ### 选卡页的棋盘预览在僵尸种类多时文字会挤在一起
 
-现象：`.smoke/w3b/seed.png`（3-6 的选卡页）里右侧棋盘预览上的僵尸名**纵向重叠**；`ChooseSeedsScreen.drawPreview` 逐只按 `cellY` 算标签位置，字号是 `clamp(previewH / count / 90, 0.45, 0.62)`——最小值 0.45 在种类多时会赢，而一个名字可能折成两行（`ducky_tube_buckethead_zombie`），于是行距不够。
+现象：`.smoke/w3b/seed.png`（3-6 的选卡页）里右侧棋盘预览上的僵尸名**纵向重叠**；`ChooseSeedsScreen.drawZombiePreview` 逐只按 `cellY` 算标签位置，字号是 `clamp(previewH / count / 90, 0.45, 0.62)`——最小值 0.45 在种类多时会赢，而一个名字可能折成两行（`ducky_tube_buckethead_zombie`），于是行距不够。
 影响：种类多的关卡看不清预览。
 最小做法：要么预先算行数、要么把列表截断并加一个"…"、要么把名字缩短到只留最后一段。
 最小做法：`previewH / count / 90` 的下限改成"按最长名字的行数算"，或把名字截到最后一段。
@@ -494,6 +494,13 @@
 最小做法：等真做联机时按当时的需求写一个 `PacketTransport` 实现。
 卡在：没有联机需求。
 
+### 关卡的入场状态没有统一的归属
+
+现象：客户端进入一关要经过 5 个入口，跨往返的中间状态散在 `directDialogueLevelId` / `deferredSavePrompt` / `savePromptOpen` 三个字段上，加一屏前置流程就要改 5 个入口里的分支（`UI切换与导航架构.md` 的「关卡入场的扩展瓶颈」）。
+影响：每加一屏的成本随入口数增长，而且"这一屏该不该弹"的判断散在多处。
+最小做法：把三个字段合成一个显式的入场请求（record：levelId / world / seeds / 意图 / 对话展示方），加一屏＝加一个 phase；协议那一半已经收口，只需要动客户端。
+卡在：靠"再加一屏"的需求驱动，没有具体下一屏要加时不必先做。
+
 ### 注册表同步与客户端资源同步
 
 现象：客户端目前依赖本地资源/数据包自行解析注册表（`PvzceClient.run` 里另建了一个 `PvzceResourceManager`），联机时应改为服务端按注册表下发定义；`PvzceDataLoader.RegistryData` 预留了"哪个注册表需要同步"的位置，但目前只有目录名与 codec 两个字段。
@@ -524,7 +531,7 @@
 
 ### HiDPI 缩放屏上点击会整体偏移
 
-现象：仓库里没有一处 `glfwGetContentScale` / `glfwGetWindowSize`：`guiMouseX` 拿 **framebuffer 宽度**去除 GLFW 报的**窗口坐标**，两者只在 contentScale = 1 时相等（本机实测 = 1，所以一直没暴露）。
+现象：仓库里没有一处调用 GLFW 的缩放查询：`guiMouseX` 拿 **framebuffer 宽度**去除 GLFW 报的**窗口坐标**，两者只在 contentScale = 1 时相等（本机实测 = 1，所以一直没暴露）。
 影响：显示器一旦是 150%/200% 缩放（`monitors.xml` 里就有 scale=2 的配置），每次点击（鼠标或手指）都会按 1/scale 偏移，表现就是"完全点不准"——而触摸设备几乎都是缩放屏。
 最小做法：把换算收在 `PvzceWindow` 一处：光标统一以 framebuffer 像素对外（乘 `framebuffer/window`），`warpCursor` / `setPointerPosition` 反向换算；冒烟钩子里"只记录不移动"的行为保持不变。
 卡在：手上没有缩放屏可以复现，属于"看代码就知道有、但没人踩到"的一条。

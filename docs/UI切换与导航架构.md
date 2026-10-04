@@ -145,14 +145,12 @@ else                              openSeedSelection(info, false); // ④ 其余�
 **③ 是关卡自己说的话**（`LevelDef.seedScreen`，JSON 里写 `"seed_screen": false`；哪些关卡写了这个键由各自的关卡 JSON 决定 —— 名单不在这里维护），
 判据 `PvzceClient.skipsSeedScreen(info)` = 关卡声明了不弹 **且** 它没有可挑的增益页（有增益页就还得开，
 那一页是真正的问题）。**它不与"固定卡组"划等号**：1-1 也固定卡，但它要那一屏 —— 它要在那里播开场对话。
-反过来说，**固定卡组 + 不播对话的关卡必须自己声明这一句**：4-5 与 2-5 都写过，而 2-5 是在玩家报
-"2-5 却弹出了选卡页面"之后才补上的（`seed_screen` 默认 true，没写就等于要那一屏）。服务端配合的一条：没有选卡页的关卡收到空的选择请求时按
+反过来说，**固定卡组 + 不播对话的关卡必须自己声明这一句**（`seed_screen` 默认 true，没写就等于要那一屏）。服务端配合的一条：没有选卡页的关卡收到空的选择请求时按
 "没人问过"处理（`SeedSelection.plan`），于是卡组是默认卡组而不是"只有固定卡"。
 
 **④ 里的"选卡页"有两种形态，由关卡决定**：有卡可选就是真正的选卡；卡组没得选（关卡的固定卡填满卡槽，
 或者这一关的卡由它自己发 —— 传送带）就是**仅预览过场**（`ChooseSeedsScreen.previewOnly`：不画面板、不画卡池、
-点击直接落到草坪上，播完开场对话后 2.1 秒自动开局）。**传送带关卡以前是直接进关的**：那样连"这一关会来哪些僵尸"
-都看不到 —— 关卡列表与选卡页之外没有第三处显示僵尸预览，所以它们现在也走这一屏（只是没得选）。
+点击直接落到草坪上，播完开场对话后 2.1 秒自动开局）。**传送带关卡也走这一屏**（只是没得选）：关卡列表与选卡页之外，没有第三处显示僵尸预览。
 
 **阵营是关卡声明的**（`LevelDef.playable_teams` → 每条 `TeamInfo.playable`），所以"要不要问"是关卡数据
 的回答而不是客户端的猜测：**只有一方可玩时 ② 整条分支不成立**，内置关卡因此从列表点进去就是选卡页/开局。
@@ -179,12 +177,10 @@ else                              openSeedSelection(info, false); // ④ 其余�
 | `PlayLevelC2S(levelId, world, restart, seeds)` | 选卡界面的「开始游戏」 | "**用这套卡组开一局**"。从列表来（`restart=false`）时有存档就加载并询问；从存档提示框的「重新开始」来（`restart=true`）则丢弃存档 |
 | `RestartLevelC2S(levelId, world, seeds)` | 暂停菜单的「重新开始」/ 冒烟（`restart=true`） | "**丢掉存档，从头开始**"，不需要选卡界面 |
 
-**这三个类型是分开的，不是一个包加一个 `restart` 布尔**：布尔本身就等于整条消息，
-旧实现要在一个 `restart` 布尔之外再自己跟踪一个 `confirmed` 布尔，才能拼出玩家到底选了
-「继续 / 重开 / 用这套卡开一局」中的哪一个。
+**这三个类型是分开的，不是一个包加一个 `restart` 布尔**：布尔本身就等于整条消息，所以「继续 / 重开 / 用这套卡开一局」各自是一种包类型，不需要在旁边再记一个"玩家已经表过态"的字段。
 
 **服务端 `createLevel(levelId, world, intent, requestedSeeds)`**（`PvzceServer.java`）对三者统一处理，
-`intent` 由**包的类型**翻译而来，服务端不再需要"玩家是否已经表过态"的布尔：
+`intent` 由**包的类型**翻译而来 —— "玩家是否已经表过态"就是包的类型本身：
 
 ```java
 // A save is a run to resume unless the player has already said no to it.
@@ -195,7 +191,7 @@ if (loadedSave) {
 }
 ```
 
-四种 intent 与旧实现的行为**逐格等价**（`fresh`＝"不接受已经在跑的那个实例"）：
+四种 intent 各自的行为：
 
 | 包 | intent | resync 已在跑的实例 | 读存档 | 删存档 | 弹存档框 |
 |---|---|---|---|---|---|
@@ -271,7 +267,6 @@ clearLevelClientState()
 setScreenReplacing(选卡)  ← 不是 push：旧关卡不会以冻结实例留在栈下面
 ```
 
-（旧实现把选卡 `push` 在仍在运行的关卡之上，按 ESC 会退回旧关卡的暂停菜单，看起来就是"选了重新开始，旧关卡却还开着"。）
 
 ---
 
@@ -288,8 +283,7 @@ setScreenReplacing(选卡)  ← 不是 push：旧关卡不会以冻结实例留�
 ```
 
 **界面要处理自己的点击区域，覆写钩子，不要覆写 `mouseClicked`。**
-**约束：界面自己判定点击范围时不要越过控件。** 曾经有界面先判定自己那块占满窗口的区域再委托，于是对话框的按钮
-全部点不动；现在 `mouseClicked` 是 `final`，模态分发先过它，结构上不可能再绕过。
+**约束：界面自己判定点击范围时不要越过控件。** 界面若先判定自己那块占满窗口的区域再委托，对话框的按钮就全部点不动；`mouseClicked` 是 `final`，模态分发先过它，结构上不可能再绕过。
 
 `Dialog` 是**屏内**的模态层，不是新屏：
 
@@ -346,14 +340,14 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 `init()` 同样是懒执行（`initIfNeeded()`），`onResize()` 丢掉 widget 让它们按新尺寸重建
 （控制台要自己把已输入的文本存下来再放回去）。
 
-**为什么不能压栈**（旧实现的代价）：
+**为什么不能压栈**：
 
-1. `screenDepth()` 语义被污染 —— 控制台开着时深度多 1，任何按深度判断的界面都会读错；
-2. 客户端要在两处特判它才能让下面的屏继续 `tick`/`render`；
+1. `screenDepth()` 会被污染 —— 控制台开着时深度多 1，任何按深度判断的界面都会读错；
+2. 帧循环要在两处特判它，才能让下面的屏继续 `tick`/`render`；
 3. 再加第二个覆盖层就要再加两处特判。
 
 现在加一个覆盖层 = 写一个 `Overlay` 子类 + 在 `PvzceClient` 里给它一个打开入口，
-帧循环一行都不用改 —— 聊天行就是这么加进来的：它是第二个实现，`PvzceClient` 里只多了
+帧循环一行都不用改 —— 聊天行是第二个实现，`PvzceClient` 里只多了
 `openChat()` 一个入口和"哪种浮层用哪个键"的两个分支。
 
 > 两者的分工是**键与形状**，不是同一件的两份：控制台是一个面板（工具，开着待一会儿），
@@ -367,7 +361,6 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 三层切换的机制本身没有待修的已知不一致：`POP` 是默认、无处可弹会报错并留在原地；`replaceRoot` 只在
 "客户端把这一屏当作流程根"时用；控制台是独立的 overlay 槽位；屏离开栈时 `onRemoved()` 一定被通知一次；
 关卡列表区分「猜的页」与「选的页」（`pagePickedByUser`），刷新只覆盖前者。
-> 这些当初是**修出来的**（三处不一致与三条顺带项），排查过程在 `架构变更记录/2026-09-UI导航的三处不一致（补记）.md`。
 
 ## 10. 扩展点：想加东西该接哪
 
@@ -381,16 +374,15 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 | 玩家/世界切换 | 标题页的木牌 → `PlayerPickerDialog`（只切换，不开关卡列表） | ✅ 玩家列表就是世界列表 |
 | 新的"菜单页"（固定构图、缩放到窗口） | `layout/MenuPageCanvas` + `Canvas.panel/widgetAt` | ✅ 现成（商店页与数据包页是它的两个调用者） |
 | 标题页左下角再添一个入口 | `TitleScreen` 的托盘格子（`cellAt` / `cellX` / `cellY` 三个方法一处定义，画与判定共用） | ✅ 现成（格子只有图标，名字走 `HoverTip`） |
-| 关卡对话里的玩家名 | 台词里写 `${user_name}`，替换在 `DialogueOverlay.create` | ✅ 见 `当前项目架构.md` §6.2.2 |
+| 关卡对话里的玩家名 | 台词里写 `${user_name}`，替换在 `DialogueOverlay.create` | ✅ 见 `架构-客户端.md` §6.2.2 |
 | 关卡自带的开场对话 | 关卡 JSON 的 `dialogue` 块，宿主是选卡页或游戏内 | ✅ 数据驱动 |
 | 新的"自供卡组"机制 | `common/level/mechanic` + `ClientMechanics` 路由 | ✅ 注册制 |
 | 新关卡分类页 | `level_theme` / `level_category` 注册表 + id 路径 | ✅ 数据驱动 |
 
 **关卡入场的扩展瓶颈**：加一屏前置流程 = 改 5 个入口里的分支 + 3 个跨往返字段
 （`directDialogueLevelId` / `deferredSavePrompt` / `savePromptOpen`），
-因为这些状态没有一个统一的归属。协议那一半已经收口了（见 §4.2），客户端这半边的收口方向是
-把它们合成一个显式的 `LevelEntryRequest`（record：levelId / world / seeds / 意图 / 对话展示方），
-加一屏 = 加一个 phase。
+因为它们的状态没有一个统一的归属 —— 这是已知未做的一条，见 `todo.md` 的「关卡的入场状态没有统一的归属」。
+协议那一半已经收口了（见 §4.2）。
 
 ---
 
