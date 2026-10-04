@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "pvzce:water"
+    "pvzce:water",
+    "pvzce:water_grave"
   ]
 }

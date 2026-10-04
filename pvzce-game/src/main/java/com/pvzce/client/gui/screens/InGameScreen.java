@@ -1869,8 +1869,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             SceneTileRenderer.render(client, client.level().width(), client.level().height(),
                     (x, y) -> {
                         var cell = client.level().sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, x, y);
-                        var element = client.level().sceneBoard().get(x, y);
-                        return cell != null && (element != null && element.isLiquid()
+                        return cell != null && (com.pvzce.client.renderer.liquid.LiquidTextures.liquidFor(cell.base().toString()).isPresent()
                                 || !cell.profile().equals(SurfaceProfile.FLAT)) ? null : client.level().sceneAt(x, y);
                     },
                     camera.unitY() / Math.max(0.0001F, camera.unitX()),

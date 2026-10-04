@@ -1,0 +1,10 @@
+{
+  "id": "pvzce:water_grave",
+  "surface": "GRAVE",
+  "max_height": 0,
+  "overlay": true,
+  "art": {
+    "texture": "pvzce:textures/scene/grave",
+    "underlay": "pvzce:water"
+  }
+}

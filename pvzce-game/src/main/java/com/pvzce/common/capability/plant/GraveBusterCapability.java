@@ -124,7 +124,12 @@ public final class GraveBusterCapability implements PlantCapability {
             return;
         }
         if (level instanceof LevelServer server && server.clearGrave(plant.gridX(), plant.gridY())) {
-            level.emitEffect(PvzceParticles.DIRT_BIG.toString(), plant.position(), plant.surfaceId(), sound.orElseGet(() -> PvzceSounds.EFFECT_SHOVEL));
+            var base = level.sceneAt(plant.gridX(), plant.gridY(), plant.surfaceId());
+            boolean water = base != null && com.pvzce.common.tag.PvzceTags.SCENE_ELEMENTS.contains(
+                    com.pvzce.common.tag.PvzceTags.SCENE_WATER, base.id());
+            level.emitEffect((water ? PvzceParticles.POOL_SPLASH : PvzceParticles.DIRT_BIG).toString(),
+                    plant.position(), plant.surfaceId(), water ? PvzceSounds.PLANT_PLANT_WATER
+                            : sound.orElseGet(() -> PvzceSounds.EFFECT_SHOVEL));
         }
         plant.remove();
     }

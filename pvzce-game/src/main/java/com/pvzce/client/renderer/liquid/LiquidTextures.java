@@ -43,6 +43,13 @@ public final class LiquidTextures {
         return CACHE.computeIfAbsent(sceneId, LiquidTextures::resolve);
     }
 
+    /** Liquid foundation named by either a liquid tile or a standing object's underlay. */
+    public static String liquidSceneId(String sceneId) {
+        if (liquidFor(sceneId).isPresent()) return sceneId;
+        Identifier underlay = com.pvzce.client.renderer.EntityTextures.sceneUnderlay(sceneId);
+        return underlay != null && liquidFor(underlay.toString()).isPresent() ? underlay.toString() : null;
+    }
+
     private static Optional<LiquidDef> resolve(String sceneId) {
         Identifier id = Identifier.tryParse(sceneId);
         if (id == null) {
@@ -105,7 +112,7 @@ public final class LiquidTextures {
         var frame = SceneBoard.DEFAULT_SURFACE.equals(surface)
                 ? client.camera().liquidFrame() : com.pvzce.client.renderer.LevelStage.LiquidFrame.CELL;
         LiquidRenderer.Request request = new LiquidRenderer.Request(liquid, board.width(), board.height(),
-                (x, y) -> { var cell = board.cell(surface, x, y); return cell != null && sceneId.equals(cell.element().toString()); },
+                (x, y) -> { var cell = board.cell(surface, x, y); return cell != null && sceneId.equals(cell.base().toString()); },
                 frame.originX(), 0F, frame.cellWidth(), 1F, RenderSystem.currentProjection(), client.renderTimeSeconds(),
                 client.worldTintR(), client.worldTintG(), client.worldTintB(), client.worldTintLift(), client.worldNightBlend(),
                 client.worldLightX(), client.worldLightY(), client.worldLightR(), client.worldLightG(), client.worldLightB(),
@@ -170,7 +177,7 @@ public final class LiquidTextures {
                              float tintR, float tintG, float tintB, float tintLift, float night,
                              float lightX, float lightY, float lightR, float lightG, float lightB,
                              float lightStrength) {
-        LiquidGeometry.Occupancy occupancy = (x, y) -> sceneId.equals(scene.sceneAt(x, y));
+        LiquidGeometry.Occupancy occupancy = (x, y) -> sceneId.equals(liquidSceneId(scene.sceneAt(x, y)));
         LiquidRenderer.Request request = new LiquidRenderer.Request(
                 liquid, width, height, occupancy, originX, originY, cellWidth, cellHeight,
                 projection, client.renderTimeSeconds(),

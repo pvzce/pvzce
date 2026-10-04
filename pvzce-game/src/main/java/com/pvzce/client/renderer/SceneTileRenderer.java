@@ -244,10 +244,15 @@ public final class SceneTileRenderer {
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight,
                                    SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame) {
-        // Collected first, drawn after: a liquid body has to be batched as a whole,
-        // and the flat tiles must go down before it so the water covers them. One
-        // entry per liquid, so a board with two liquids keeps them separate.
-        Map<String, List<Cell>> pending = new LinkedHashMap<>();
+        // Water goes under standing objects, including in the seed chooser/editor.
+        java.util.Set<String> liquids = new java.util.LinkedHashSet<>();
+        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
+            String id = LiquidTextures.liquidSceneId(scene.sceneAt(x, y));
+            if (id != null && !visibility.hides(id)) liquids.add(id);
+        }
+        for (String id : liquids) LiquidTextures.renderGuiBoard(client,
+                LiquidTextures.liquidFor(id).orElseThrow(), id, width, height, scene,
+                originX, originY, cellWidth, cellHeight, RenderSystem.currentProjection(), liquidFrame);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 String sceneId = scene.sceneAt(x, y);
@@ -255,7 +260,6 @@ public final class SceneTileRenderer {
                     continue;
                 }
                 if (isLiquid(sceneId)) {
-                    pending.computeIfAbsent(sceneId, ignored -> new ArrayList<>()).add(new Cell(x, y));
                     continue;
                 }
                 Identifier texture = textureFor(client, sceneId);
@@ -268,7 +272,7 @@ public final class SceneTileRenderer {
                 float drawX = originX + (x + 0.5F) * cellWidth - drawW / 2F;
                 float drawY = originY + (y + 0.5F) * cellHeight - drawH / 2F;
                 Identifier underlay = EntityTextures.sceneUnderlay(sceneId);
-                if (underlay != null && !visibility.hides(underlay.toString())) {
+                if (underlay != null && !isLiquid(underlay.toString()) && !visibility.hides(underlay.toString())) {
                     client.drawTexture(textureFor(client, underlay.toString()),
                             originX + x * cellWidth, originY + y * cellHeight,
                             cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
@@ -286,15 +290,6 @@ public final class SceneTileRenderer {
                     client.drawTexture(texture, drawX, drawY, drawW, drawH, 0F, 1F, 1F, 1F, 1F);
                 }
             }
-        }
-        for (Map.Entry<String, List<Cell>> layer : pending.entrySet()) {
-            var liquid = LiquidTextures.liquidFor(layer.getKey());
-            if (liquid.isEmpty()) {
-                continue;
-            }
-            LiquidTextures.renderGuiBoard(client, liquid.get(), layer.getKey(), width, height, scene,
-                    originX, originY, cellWidth, cellHeight,
-                    com.pvzce.client.renderer.RenderSystem.currentProjection(), liquidFrame);
         }
     }
 
@@ -337,6 +332,9 @@ public final class SceneTileRenderer {
                     // with `hidden_scene_elements`.
                     continue;
                 }
+                String liquid = LiquidTextures.liquidSceneId(sceneId);
+                if (liquid != null && !liquid.equals(sceneId) && !visibility.hides(liquid))
+                    layers.computeIfAbsent(liquid, ignored -> new ArrayList<>()).add(new Cell(x, y));
                 layers.computeIfAbsent(sceneId, ignored -> new ArrayList<>()).add(new Cell(x, y));
             }
         }
@@ -369,7 +367,7 @@ public final class SceneTileRenderer {
     private static void drawUnderlay(PvzceClient client, String sceneId, int x, int y,
                                      SceneVisibility visibility) {
         Identifier underlay = EntityTextures.sceneUnderlay(sceneId);
-        if (underlay == null || visibility.hides(underlay.toString())) {
+        if (underlay == null || isLiquid(underlay.toString()) || visibility.hides(underlay.toString())) {
             return;
         }
         String underlayId = underlay.toString();
@@ -455,14 +453,15 @@ public final class SceneTileRenderer {
         java.util.Set<String> liquids = new java.util.LinkedHashSet<>();
         for (var entry : board.snapshot()) {
             if (!entry.surfaceId().equals(surface)) continue;
-            String id = entry.elementId();
+            String id = entry.baseId();
             if (!client.level().sceneVisibility().hides(id) && LiquidTextures.liquidFor(id).isPresent()) liquids.add(id);
         }
         for (String id : liquids) LiquidTextures.renderSurface(client, LiquidTextures.liquidFor(id).orElseThrow(), id, surface);
         for (var entry : board.snapshot()) {
             if (!entry.surfaceId().equals(surface)) continue;
             var cell = board.cell(surface, entry.x(), entry.y());
-            if (ground && cell.profile().equals(SurfaceProfile.FLAT)) continue;
+            if (ground && cell.profile().equals(SurfaceProfile.FLAT)
+                    && (cell.overlay() == null || LiquidTextures.liquidFor(cell.base().toString()).isEmpty())) continue;
             String id = cell.element().toString();
             var element = board.get(surface, entry.x(), entry.y());
             if (element == null || element.isLiquid() || client.level().sceneVisibility().hides(id)) continue;

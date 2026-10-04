@@ -1590,5 +1590,13 @@
         "stream": true
       }
     ]
+  },
+  "music/graze_the_dongnanshan": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/custom/graze_the_dongnanshan",
+        "stream": true
+      }
+    ]
   }
 }

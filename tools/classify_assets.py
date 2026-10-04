@@ -23,6 +23,7 @@
              自己的设计（所有者 2026-09 明确的口径）。
     OWN      自产。程序生成或手绘的通用图形，不涉及任何角色形象。
     THIRD    第三方开源资源（字体，SIL OFL-1.1），可随仓库分发，但需随附许可。
+    CUSTOM   用户指定的非官方音乐；来源单列，作者与许可未提供，不归入原版或开源。
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ASSETS = REPO_ROOT / "pvzce-game" / "src" / "main" / "resources" / "assets" / "pvzce"
 
-PvZ, DERIV, ORIGINAL, OWN, THIRD = "PvZ", "DERIV", "ORIGINAL", "OWN", "THIRD"
+PvZ, DERIV, ORIGINAL, OWN, THIRD, CUSTOM = "PvZ", "DERIV", "ORIGINAL", "OWN", "THIRD", "CUSTOM"
 
 LABEL = {
     PvZ: "原版素材",
@@ -45,11 +46,14 @@ LABEL = {
     ORIGINAL: "原创",
     OWN: "自产",
     THIRD: "第三方开源",
+    CUSTOM: "非官方音乐",
 }
 
 #: 分类规则，**顺序敏感**——第一条命中的生效，所以特例要写在通例前面。
 #: 每条 = (正则, 分类, 依据)。正则匹配的是相对 `assets/pvzce/` 的路径。
 RULES: list[tuple[str, str, str]] = [
+    (r"^sounds/custom/graze_the_dongnanshan\.ogg$", CUSTOM,
+     "用户指定的非官方音乐，源自 refer/ms1/graze_the_dongnanshan.ogg；作者与许可尚未注明，不归为原版原声或第三方开源"),
     (r"^(textures/gui/cards/water_bucket\.png$|textures/entities/tool/water_bucket\.png$|animations/tool/water_bucket\.json$)", OWN,
      "tools/gen_water_bucket.py 绘制的通用水桶与倾倒动画，无原版素材"),
     (r"^(textures/entities/plant/environment/resonance_moss/|textures/gui/cards/resonance_moss\.png$|animations/plant/environment/resonance_moss\.json$)", ORIGINAL,
@@ -240,7 +244,7 @@ def main() -> int:
             a = agg.setdefault((e.kind, top), [0, 0])
             a[0] += 1
             a[1] += e.size
-        for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD):
+        for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD, CUSTOM):
             print(f"===== {LABEL[kind]}（{kind}）=====")
             n = s = 0
             for (k, top), (c, z) in sorted(agg.items()):
@@ -263,7 +267,7 @@ def main() -> int:
         print()
         print("| 汇总 | 文件数 | 体积 |")
         print("|---|---:|---:|")
-        for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD):
+        for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD, CUSTOM):
             n, s = totals.get(kind, [0, 0])
             print(f"| {LABEL[kind]}（`{kind}`） | {n} | {fmt_size(s)} |")
         return 0
@@ -274,7 +278,7 @@ def main() -> int:
         size = sum(i.size for i in items)
         print(f"{LABEL[kind]:10} {directory:56} {len(items):5} {fmt_size(size):>10}")
     print()
-    for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD):
+    for kind in (PvZ, DERIV, ORIGINAL, OWN, THIRD, CUSTOM):
         n, s = totals.get(kind, [0, 0])
         print(f"  {LABEL[kind]:10} {n:5} 文件  {fmt_size(s):>10}")
     return 0

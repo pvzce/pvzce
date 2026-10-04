@@ -147,6 +147,12 @@ warning."*），且该团队改名并改为自绘素材后仍被拒绝。完整�
 
 ---
 
+### 4.6 用户指定的非官方音乐
+
+`assets/pvzce/sounds/custom/graze_the_dongnanshan.ogg` 来自用户指定的 `refer/ms1/graze_the_dongnanshan.ogg`，
+原样复制用于海岛奇兵背景音乐。用户明确该曲不属于官方音乐；作者和许可未提供，当前不归入 PvZ 官方素材、
+项目自产音频或第三方开源资源。分类依据集中于 `tools/classify_assets.py`，元数据待补项见 `docs/todo.md`。
+
 ## 5. 构建期依赖
 
 以下依赖通过 Maven（`mavenCentral` / `maven.fabricmc.net` / `libraries.minecraft.net`）拉取，

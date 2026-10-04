@@ -33,8 +33,8 @@ import java.util.List;
  *                      should write. An entry naming an unregistered zombie is reported by the
  *                      validator and skipped when a grave comes up
  * @param minGraves     how many graves the level keeps on the lawn; smashing one below this
- *                      count makes a new one rise. Zero means the graves never come back, which
- *                      is the same as not declaring the mechanic at all
+ *                      count makes a new one rise. Zero disables scattering, while authored graves
+ *                      can still spawn zombies or return in fixed mode
  * @param initialGraves how many graves are raised when the level starts; -1 (or unwritten)
  *                      means "as many as {@code minGraves}", so a block that only cares about
  *                      the steady state does not have to write it twice
@@ -47,10 +47,31 @@ import java.util.List;
  *                      than nine, and each grave buster buys less room than the last. Zero (the
  *                      default) keeps a level's gravel count steady, which is what a level that
  *                      only wants the graves to come back needs
+ * @param phased        the built-in Whack-a-Zombie progression
+ * @param fixedGraves   restore the authored grave cells rather than scatter new ones
+ * @param respawnTicks  ticks from a fixed grave disappearing until it returns
+ * @param phases        tick-based spawn intervals and weighted pools; before the first phase,
+ *                      no grave zombie is raised
  */
 public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int initialGraves,
-                               int interval, int minX, int maxX, int gravesPerWave, boolean phased)
+                               int interval, int minX, int maxX, int gravesPerWave, boolean phased,
+                               boolean fixedGraves, int respawnTicks, List<Phase> phases)
         implements MechanicData {
+    /** Authored timeline; repeated zombie ids act as weights in the random pool. */
+    public record Phase(int atTick, int interval, List<Identifier> zombies) {
+        public static final Codec<Phase> CODEC = RecordCodecBuilder.create(i -> i.group(
+                Codec.intRange(0, Integer.MAX_VALUE).fieldOf("at_tick").forGetter(Phase::atTick),
+                Codec.intRange(1, Integer.MAX_VALUE).fieldOf("interval").forGetter(Phase::interval),
+                Identifier.CODEC.listOf().fieldOf("zombies").forGetter(Phase::zombies)
+        ).apply(i, Phase::new));
+        public Phase { zombies = List.copyOf(zombies); }
+    }
+
+    public GraveSpawnerData(List<Identifier> zombies, int minGraves, int initialGraves,
+                            int interval, int minX, int maxX, int gravesPerWave, boolean phased) {
+        this(zombies, minGraves, initialGraves, interval, minX, maxX, gravesPerWave,
+                phased, false, 0, List.of());
+    }
     public GraveSpawnerData(List<Identifier> zombies, int minGraves, int initialGraves,
                             int interval, int minX, int maxX, int gravesPerWave) {
         this(zombies, minGraves, initialGraves, interval, minX, maxX, gravesPerWave, false);
@@ -71,7 +92,11 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
             Codec.INT.optionalFieldOf("min_x", 0).forGetter(GraveSpawnerData::minX),
             Codec.INT.optionalFieldOf("max_x", MAX_X_UNSET).forGetter(GraveSpawnerData::maxX),
             Codec.INT.optionalFieldOf("graves_per_wave", 0).forGetter(GraveSpawnerData::gravesPerWave),
-            Codec.BOOL.optionalFieldOf("phased", false).forGetter(GraveSpawnerData::phased)
+            Codec.BOOL.optionalFieldOf("phased", false).forGetter(GraveSpawnerData::phased),
+            Codec.BOOL.optionalFieldOf("fixed_graves", false).forGetter(GraveSpawnerData::fixedGraves),
+            Codec.intRange(0, Integer.MAX_VALUE).optionalFieldOf("respawn_ticks", 0)
+                    .forGetter(GraveSpawnerData::respawnTicks),
+            Phase.CODEC.listOf().optionalFieldOf("phases", List.of()).forGetter(GraveSpawnerData::phases)
     ).apply(i, GraveSpawnerData::new));
 
     public static final Codec<GraveSpawnerData> CODEC = MAP_CODEC.codec();
@@ -83,6 +108,8 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
         interval = Math.max(1, interval);
         minX = Math.max(0, minX);
         gravesPerWave = Math.max(0, gravesPerWave);
+        respawnTicks = Math.max(0, respawnTicks);
+        phases = phases == null ? List.of() : List.copyOf(phases);
     }
 
     /** The region a new grave may appear in, clamped to a board {@code width} columns wide. */
@@ -109,7 +136,7 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
 
     /** True when this block can never raise a grave, and is therefore worth reporting. */
     public boolean inert() {
-        return minGraves <= 0 && zombies.isEmpty();
+        return minGraves <= 0 && zombies.isEmpty() && phases.isEmpty() && !fixedGraves;
     }
 
     /** One message per problem, for {@code LevelValidator}. */
@@ -123,10 +150,20 @@ public record GraveSpawnerData(List<Identifier> zombies, int minGraves, int init
             errors.add("grave_spawner has an empty region: min_x " + minX
                     + " is past max_x " + maxXFor(width) + " on a " + width + "-column board");
         }
-        if (zombies.isEmpty() && minGraves > 0) {
+        if (zombies.isEmpty() && phases.isEmpty() && minGraves > 0) {
             errors.add("grave_spawner raises graves but lists no zombies: nothing would ever"
                     + " come out of them");
         }
+        int previous = -1;
+        for (Phase phase : phases) {
+            if (phase.atTick() <= previous || phase.zombies().isEmpty())
+                errors.add("grave_spawner.phases must have increasing at_tick and nonempty zombies");
+            previous = phase.atTick();
+        }
+        if (phased && (!phases.isEmpty() || fixedGraves))
+            errors.add("grave_spawner.phased (Whack-a-Zombie) cannot also use phases or fixed_graves");
+        if (fixedGraves && (minGraves > 0 || initialGraves > 0 || gravesPerWave > 0))
+            errors.add("grave_spawner.fixed_graves restores the authored cells; it cannot scatter extra graves");
         return errors;
     }
 }

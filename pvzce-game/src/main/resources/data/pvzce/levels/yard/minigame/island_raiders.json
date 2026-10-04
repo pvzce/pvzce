@@ -1,0 +1,507 @@
+{
+  "id": "pvzce:yard/minigame/island_raiders",
+  "name": "海岛奇兵",
+  "description": "左岸两列草地，海中央六座墓碑持续冒怪，右端也有少量来敌。30秒布阵后，墓碑全场刷怪间隔逐段缩短为1.5秒、1秒、0.75秒。墓碑吞噬者可暂时关闭一个出怪点；清除10秒后原地重生，期间该格不能种植。海面种植需要睡莲，水生植物可直接种在空水面。",
+  "width": 9,
+  "height": 6,
+  "scene": {
+    "pvzce:grass": [
+      "0,0",
+      "1,0",
+      "0,1",
+      "1,1",
+      "0,2",
+      "1,2",
+      "0,3",
+      "1,3",
+      "0,4",
+      "1,4",
+      "0,5",
+      "1,5"
+    ],
+    "pvzce:water": [
+      "2,0",
+      "3,0",
+      "4,0",
+      "5,0",
+      "6,0",
+      "7,0",
+      "8,0",
+      "2,1",
+      "3,1",
+      "4,1",
+      "5,1",
+      "6,1",
+      "7,1",
+      "8,1",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2",
+      "7,2",
+      "8,2",
+      "2,3",
+      "3,3",
+      "4,3",
+      "5,3",
+      "6,3",
+      "7,3",
+      "8,3",
+      "2,4",
+      "3,4",
+      "4,4",
+      "5,4",
+      "6,4",
+      "7,4",
+      "8,4",
+      "2,5",
+      "3,5",
+      "4,5",
+      "5,5",
+      "6,5",
+      "7,5",
+      "8,5"
+    ],
+    "pvzce:water_grave": [
+      "4,0",
+      "5,1",
+      "4,2",
+      "5,3",
+      "4,4",
+      "5,5"
+    ]
+  },
+  "teams": [
+    {
+      "id": "pvzce:plant_team",
+      "name": "植物方",
+      "win_condition": "survive_waves"
+    },
+    {
+      "id": "pvzce:zombie_team",
+      "name": "僵尸方",
+      "win_condition": "plant_side_lost"
+    }
+  ],
+  "win_team": "pvzce:plant_team",
+  "playable_teams": [
+    "pvzce:plant_team"
+  ],
+  "rules": {
+    "pvzce:day_length": 0,
+    "pvzce:night_length": -1,
+    "pvzce:sun_spawn_interval_min": 480,
+    "pvzce:sun_spawn_interval_max": 720,
+    "pvzce:sun_spawn_initial_ticks": 300,
+    "pvzce:graves_spawn_night": false,
+    "pvzce:zombie_rise_ticks": 60
+  },
+  "env_vars": {},
+  "wave_interval_end_multiplier": 1.0,
+  "slots": [
+    "pvzce:sun",
+    "pvzce:shovel"
+  ],
+  "max_seed_slots": 8,
+  "seed_screen": true,
+  "initial_sun": 500,
+  "mechanics": [
+    {
+      "type": "pvzce:grave_spawner",
+      "fixed_graves": true,
+      "respawn_ticks": 600,
+      "phases": [
+        {
+          "at_tick": 1800,
+          "interval": 90,
+          "zombies": [
+            "pvzce:ducky_tube_zombie"
+          ]
+        },
+        {
+          "at_tick": 6000,
+          "interval": 60,
+          "zombies": [
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_conehead_zombie"
+          ]
+        },
+        {
+          "at_tick": 10200,
+          "interval": 45,
+          "zombies": [
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_zombie",
+            "pvzce:ducky_tube_conehead_zombie",
+            "pvzce:ducky_tube_conehead_zombie"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "pvzce:mower"
+    },
+    {
+      "type": "pvzce:wave_pacing",
+      "health_drain": false,
+      "clear_reward_factor": 1
+    }
+  ],
+  "waves": [
+    {
+      "type": "small",
+      "delay": 1800,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 1100,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 1100,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 1100,
+      "warning_ticks": 180,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 1100,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 1100,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 1100,
+      "warning_ticks": 180,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 1100,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 1100,
+      "warning_ticks": 0,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "final",
+      "delay": 1100,
+      "warning_ticks": 180,
+      "spawn_interval": 60,
+      "hold_until_dead_ticks": 0,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    }
+  ],
+  "music": {
+    "cues": [
+      {
+        "at_tick": 0,
+        "track": "background",
+        "event": "pvzce:music/graze_the_dongnanshan",
+        "loop": true,
+        "volume": 0.85,
+        "fade_seconds": 1.0
+      }
+    ]
+  },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/3_5"
+      }
+    ]
+  },
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "先用30秒建立阳光与六路防线。墓碑会在海中央冒怪；空海面种普通植物需要睡莲。",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "吞墓可暂时停止该点冒怪，清除10秒后原地重生；空出的墓碑格仍不能种植。",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "resource",
+        "id": "pvzce:diamond",
+        "amount": 1
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 200
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
+}

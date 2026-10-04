@@ -3,6 +3,7 @@ package com.pvzce.common.level.mechanic;
 import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.GraveSpawnerData;
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.util.Identifier;
@@ -11,6 +12,7 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.ListTag;
 import com.pvzce.server.level.LevelServer;
 
 import java.util.ArrayList;
@@ -33,8 +35,7 @@ import java.util.List;
  *
  * <p><strong>When it stops</strong>: the last wave. The field has to be able to fall to zero for
  * the level to be won, and a grave raising one zombie every second and a half never lets it. So
- * the rise clock is dropped once {@code waves} have all been released, while the graves
- * themselves keep being topped up to the standing count.
+ * both the rise clock and grave restoration stop once all waves have been released.
  *
  * <p>The run state is the countdown and the grave counter, kept in a {@link Rig} the level owns
  * (a mechanic instance is a shared registry entry, and two levels must not share one lawn's
@@ -61,12 +62,14 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
     @Override
     public List<String> validate(LevelDef def, GraveSpawnerData data) {
         List<String> errors = new ArrayList<>(data.validate(def.width()));
-        for (Identifier zombie : data.zombies()) {
+        for (Identifier zombie : previewZombieIds(def, data)) {
             if (BuiltInRegistries.ZOMBIES.get(zombie) == null) {
                 errors.add("grave_spawner names unknown zombie '" + zombie
                         + "': the graves would come up empty");
             }
         }
+        if (data.fixedGraves() && !hasGraveOnTheBoard(def))
+            errors.add("grave_spawner.fixed_graves requires authored graves");
         if (data.minGraves() > 0 && !hasGraveOnTheBoard(def)) {
             errors.add("grave_spawner keeps " + data.minGraves()
                     + " graves up but the level paints none, so the first one would appear"
@@ -86,7 +89,9 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
                 FieldSpec.integer("max_x", "pvzce.mechanic.grave_spawner.field.max_x",
                         GraveSpawnerData.MAX_X_UNSET, 64),
                 FieldSpec.integer("graves_per_wave", "pvzce.mechanic.grave_spawner.field.graves_per_wave",
-                        0, 81));
+                        0, 81),
+                FieldSpec.bool("fixed_graves", "pvzce.mechanic.grave_spawner.field.fixed_graves"),
+                FieldSpec.integer("respawn_ticks", "pvzce.mechanic.grave_spawner.field.respawn_ticks", 0, 12000));
     }
 
     /**
@@ -97,7 +102,17 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
      */
     @Override
     public List<Identifier> previewZombieIds(LevelDef def, GraveSpawnerData data) {
-        return List.copyOf(data.zombies());
+        var ids = new java.util.LinkedHashSet<>(data.zombies());
+        for (var phase : data.phases()) ids.addAll(phase.zombies());
+        return List.copyOf(ids);
+    }
+
+    @Override
+    public boolean canPlacePlant(LevelServer level, GraveSpawnerData data, PlantDef plant, int x, int y) {
+        // An empty fixed source is reserved during its respawn countdown. On a standing
+        // stone PlantPlacement remains the authority (only a grave buster can be planted).
+        return !data.fixedGraves() || level.isGrave(x, y)
+                || rig(level, data).fixed.stream().noneMatch(cell -> cell.x == x && cell.y == y);
     }
 
     @Override
@@ -134,29 +149,55 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         // The standing target grows with the waves that have arrived (see
         // GraveSpawnerData#standingTarget): every wave the level announces also asks the lawn
         // for more holes, which is how Whack-a-Zombie gets harder without a single road zombie.
-        int standing = data.standingTarget(level.currentWave());
-        int target = rig.raised < data.initialFor()
-                ? Math.max(standing, data.initialFor())
-                : standing;
-        keepGravesUp(level, data, rig, target);
+        if (data.fixedGraves()) {
+            for (FixedGrave cell : rig.fixed) {
+                if (level.isGrave(cell.x, cell.y)) {
+                    cell.remaining = -1;
+                } else {
+                    if (cell.remaining < 0) cell.remaining = data.respawnTicks();
+                    cell.remaining = Math.max(0, cell.remaining - 1);
+                    if (cell.remaining == 0 && level.placeGrave(cell.element, cell.x, cell.y))
+                        cell.remaining = -1;
+                }
+            }
+        } else {
+            int standing = data.standingTarget(level.currentWave());
+            int target = rig.raised < data.initialFor()
+                    ? Math.max(standing, data.initialFor()) : standing;
+            keepGravesUp(level, data, rig, target);
+        }
         // The graves stop giving up their dead once the level has sent its last wave. Without
         // this the field could never fall to zero - the level is won by clearing the board after
         // the final wave - and a 90-tick rise clock makes that a race no player can win. A level
         // with no waves at all (an endless sandbox) is unaffected, because "every wave released"
         // is false while there are none to release.
-        if (data.zombies().isEmpty()) {
-            return;
+        List<Identifier> pool = data.zombies();
+        int interval = data.interval();
+        if (!data.phases().isEmpty()) {
+            int index = -1;
+            for (int i = 0; i < data.phases().size(); i++) {
+                if (data.phases().get(i).atTick() <= level.tickCount()) index = i;
+            }
+            if (index < 0) return;
+            var phase = data.phases().get(index);
+            pool = phase.zombies();
+            interval = phase.interval();
+            if (index != rig.phaseIndex) {
+                rig.phaseIndex = index;
+                rig.ticksUntilRise = 1;
+            }
         }
+        if (pool.isEmpty()) return;
         if (--rig.ticksUntilRise > 0) {
             return;
         }
-        rig.ticksUntilRise = data.interval();
-        List<SceneGrid.Cell<SceneElementDef>> graves = level.graveCells();
+        rig.ticksUntilRise = interval;
+        List<SceneGrid.Cell<SceneElementDef>> graves = availableGraves(level);
         if (graves.isEmpty()) {
             return;
         }
         SceneGrid.Cell<SceneElementDef> chosen = graves.get(level.random().nextInt(graves.size()));
-        Identifier zombie = data.zombies().get(level.random().nextInt(data.zombies().size()));
+        Identifier zombie = pool.get(level.random().nextInt(pool.size()));
         level.raiseZombieFromGrave(zombie, chosen.x(), chosen.y());
     }
 
@@ -231,6 +272,16 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         tag.putInt("LastWave", rig.lastWave);
         tag.putInt("GraveTarget", rig.graveTarget);
         tag.putByte("FinalBurst", (byte) (rig.finalBurst ? 1 : 0));
+        tag.putInt("PhaseIndex", rig.phaseIndex);
+        ListTag fixed = new ListTag();
+        for (FixedGrave cell : rig.fixed) {
+            CompoundTag saved = new CompoundTag();
+            saved.putInt("X", cell.x);
+            saved.putInt("Y", cell.y);
+            saved.putInt("Remaining", cell.remaining);
+            fixed.add(saved);
+        }
+        tag.put("FixedGraves", fixed);
         root.put(KEY_GRAVE_SPAWNER, tag);
     }
 
@@ -249,6 +300,15 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         rig.lastWave = tag.getInt("LastWave");
         rig.graveTarget = tag.getInt("GraveTarget");
         rig.finalBurst = tag.getInt("FinalBurst") != 0;
+        rig.phaseIndex = tag.contains("PhaseIndex") ? tag.getInt("PhaseIndex") : -1;
+        ListTag fixed = tag.getList("FixedGraves");
+        if (fixed != null) for (var entry : fixed.values()) {
+            if (!(entry instanceof CompoundTag saved)) continue;
+            for (FixedGrave cell : rig.fixed) {
+                if (cell.x == saved.getInt("X") && cell.y == saved.getInt("Y"))
+                    cell.remaining = Math.max(-1, saved.getInt("Remaining"));
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -296,7 +356,16 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
 
     /** This level's grave clock. */
     private static Rig rig(LevelServer level, GraveSpawnerData data) {
-        return level.mechanicState(PvzceIds.MECHANIC_GRAVE_SPAWNER, () -> new Rig(data));
+        return level.mechanicState(PvzceIds.MECHANIC_GRAVE_SPAWNER, () -> new Rig(level, data));
+    }
+
+    private static final class FixedGrave {
+        final int x, y;
+        final Identifier element;
+        int remaining = -1;
+        FixedGrave(SceneGrid.Cell<SceneElementDef> cell) {
+            x = cell.x(); y = cell.y(); element = cell.value().id();
+        }
     }
 
     /** The countdown to the next rise, and how many graves this level has raised so far. */
@@ -307,9 +376,12 @@ public final class GraveSpawnerMechanic implements LevelMechanic<GraveSpawnerDat
         private int lastWave;
         private int graveTarget;
         private boolean finalBurst;
+        private int phaseIndex = -1;
+        private final List<FixedGrave> fixed;
 
-        private Rig(GraveSpawnerData data) {
+        private Rig(LevelServer level, GraveSpawnerData data) {
             this.ticksUntilRise = data.interval();
+            fixed = data.fixedGraves() ? level.graveCells().stream().map(FixedGrave::new).toList() : List.of();
         }
     }
 }

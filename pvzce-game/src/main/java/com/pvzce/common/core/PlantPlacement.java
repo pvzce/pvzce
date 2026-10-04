@@ -198,6 +198,11 @@ public final class PlantPlacement {
         }
         Terrain terrain = ctx.terrain(x, y);
         List<Support> below = supportsOf(terrain, plants, layerIndex(def));
+        // Water may have a blocking overlay. Its water tag still governs swimming,
+        // but must not let a lily pad bypass a gravestone's planting restriction.
+        if (terrainTagged(terrain, PvzceTags.SCENE_UNPLANTABLE) && !is(def, PvzceTags.GRAVE_ONLY)) {
+            return false;
+        }
 
         if (is(def, PvzceTags.PLANT_ONLY)) {
             // Coffee bean: on a plant, and on a plant only. Any plant strictly

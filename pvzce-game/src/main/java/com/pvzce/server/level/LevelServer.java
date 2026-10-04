@@ -3884,7 +3884,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // The dirt the grave gives up, for the whole climb. The arm that comes out with it is
         // the client's: it is a drawing of the climb, timed by the height published above, so
         // it cannot drift out of step with the body it belongs to.
-        emitEffect(PvzceParticles.DIRT_BIG.toString(), cellX, y + 0.5F, PvzceSounds.EFFECT_DIRT_RISE);
+        emitGraveRise(x, y);
         return riser;
     }
 
@@ -3909,11 +3909,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
-     * Replaces a gravestone with the grass it was standing on, and tells the client.
-     *
-     * <p>The grave buster's whole effect. Uniform grass rather than "the element that was
-     * underneath": the scene grid has no such memory, and every level that ships graves puts
-     * them on grass.
+     * Removes only the grave overlay, preserving its foundation (including water).
      */
     public boolean clearGrave(int x, int y) {
         if (!isGrave(x, y)) {
@@ -3925,35 +3921,27 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /**
-     * Raises a gravestone in a cell, if the cell is free <em>land</em>.
+     * Raises a gravestone on a free compatible foundation.
      *
      * <p>Used by the {@code grave_spawner} mechanic. Refused on a cell that already has a
      * gravestone (nothing to do) or a plant (a tombstone may not be dropped on the player's
      * lawn mid-level) - the caller picks another cell rather than this one being replaced.
      *
-     * <p>And refused on water, which is the check that took a while to be needed. A gravestone
-     * is a thing standing in soil: it is {@code #c:unplantable} terrain whose art is drawn over
-     * the lawn beneath it, so a stone raised in a pool lane both punches a hole in the water and
-     * takes the cell away from the plants that belong there. Nothing noticed while the only
-     * callers were night lawns - they have no water - and then the mutation levels arrived with
-     * their opening graves and a pool in the middle of the board, and the stones started landing
-     * in it. The rule belongs here rather than in each caller for the reason this method exists
-     * at all: "may a tombstone stand here" is one question.
+     * <p>Ordinary graves remain land-only. A grave explicitly tagged as water belongs on
+     * water instead, so random land-grave mechanics never invade pool lanes.
      */
     public boolean placeGrave(Identifier graveElement, int x, int y) {
         if (!inBounds(x, y) || sceneAt(x, y) == null || plantAt(x, y) != null) {
             return false;
         }
-        // Land only. `#c:ground` and `#c:plantable` are the pair the placement matrix already
-        // reads as "soil, and never water" - the same two the apocalypse mutation asks before
-        // it plants its doom-shrooms.
-        PlantPlacement.Terrain under = PlantPlacement.Terrain.of(sceneAt(x, y));
-        if (!PlantPlacement.terrainTagged(under, PvzceTags.SCENE_GROUND)
-                && !PlantPlacement.terrainTagged(under, PvzceTags.SCENE_PLANTABLE)) {
-            return false;
-        }
         SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(graveElement);
-        if (element == null || !PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) {
+        if (element == null || !PvzceIds.SURFACE_GRAVE.equals(element.surfaceClass())) return false;
+        PlantPlacement.Terrain under = PlantPlacement.Terrain.of(sceneAt(x, y));
+        boolean waterGrave = PlantPlacement.terrainTagged(PlantPlacement.Terrain.of(element), PvzceTags.SCENE_WATER);
+        boolean compatible = waterGrave ? PlantPlacement.terrainTagged(under, PvzceTags.SCENE_WATER) && !isGrave(x, y)
+                : PlantPlacement.terrainTagged(under, PvzceTags.SCENE_GROUND)
+                || PlantPlacement.terrainTagged(under, PvzceTags.SCENE_PLANTABLE);
+        if (!compatible) {
             return false;
         }
         scene.set(x, y, element);
@@ -3961,9 +3949,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // The dirt it pushes aside. The stone itself comes up out of the lawn on the client -
         // a cell that changes during play is animated there (see `SceneRises`) - so this is
         // the half of the event the simulation owns: the spray and the sound.
-        emitEffect(PvzceParticles.DIRT_BIG.toString(), x + 0.5F, y + 0.5F,
-                PvzceSounds.EFFECT_DIRT_RISE);
+        emitGraveRise(x, y);
         return true;
+    }
+
+    private void emitGraveRise(int x, int y) {
+        boolean water = PlantPlacement.terrainTagged(PlantPlacement.Terrain.of(sceneAt(x, y)), PvzceTags.SCENE_WATER);
+        emitEffect((water ? PvzceParticles.POOL_SPLASH : PvzceParticles.DIRT_BIG).toString(),
+                x + 0.5F, y + 0.5F, water ? PvzceSounds.ZOMBIE_SPLASH : PvzceSounds.EFFECT_DIRT_RISE);
     }
 
     /**
