@@ -3,6 +3,9 @@ package com.pvzce.server.level;
 import com.pvzce.api.content.SurfaceProfile;
 import com.pvzce.common.level.WorldPosition;
 import com.pvzce.common.level.SceneBoard;
+import com.pvzce.common.level.mechanic.StagesMechanic;
+import com.pvzce.common.level.mechanic.OutpostsMechanic;
+import com.pvzce.common.level.mechanic.SurfaceLinksMechanic;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.PlantDef;
@@ -853,6 +856,44 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /** True when any cell of {@code row} is water - what makes a row one of "the water rows". */
+    @Override
+    public boolean rowHasSupport(int row, String surface) {
+        return scene.exists(surface, width() - 1, row);
+    }
+
+    @Override
+    public boolean rowHasIce(int row, String surface) {
+        if (SceneBoard.DEFAULT_SURFACE.equals(surface)) {
+            return rowHasIce(row);
+        }
+        for (int x = 0; x < width(); x++) {
+            SceneElementDef element = scene.get(surface, x, row);
+            if (element != null && PvzceIds.ICE.equals(element.id())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public ZombieEntity spawnZombie(Identifier id, float x, int row, float healthScale, String surface) {
+        return spawnZombie(id, team(PvzceIds.ZOMBIE_TEAM), x, row, healthScale, surface);
+    }
+
+    @Override
+    public boolean rowIsWater(int row, String surface) {
+        if (SceneBoard.DEFAULT_SURFACE.equals(surface)) {
+            return rowIsWater(row);
+        }
+        for (int x = 0; x < width(); x++) {
+            SceneElementDef element = scene.get(surface, x, row);
+            if (element != null && PvzceIds.SURFACE_WATER.equals(element.surfaceClass())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean rowIsWater(int row) {
         if (scene == null) {
             return false;
@@ -1463,7 +1504,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         int left = PlantPlacement.upgradeAnchorX(def, placementContext(surface), x, y);
         for (int column = left; column < left + def.placement().width(); column++) {
             if (!scene.exists(surface, column, y)
-                    || !LevelMechanics.canPlacePlant(mechanics, this, def, column, y)
+                    || !LevelMechanics.canPlacePlant(mechanics, this, def, column, y, surface)
                     || mutations != null && !mutations.canPlacePlant(def, column, y)) return false;
         }
         return true;
@@ -2099,6 +2140,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale, String surface) {
+        if (SceneBoard.DEFAULT_SURFACE.equals(surface)) {
+            return spawnWaveZombie(id, x, row, healthScale);
+        }
+        if (!scene.exists(surface, Math.min(width() - 1, Math.max(0, (int) x)), row)) {
+            return null;
+        }
+        return spawnZombie(id, team(PvzceIds.ZOMBIE_TEAM), x, row, healthScale, surface);
+    }
+
     public ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale) {
         if (!def.id().equals(PvzceIds.id("yard/adventure/5_5")) || id.equals(PvzceIds.id("bungee_zombie"))) {
             return spawnZombie(id, x, row, healthScale);
@@ -2854,6 +2905,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // is choosing their next cards. Simulating through that would walk the next round's
         // zombies onto a board nobody is watching - and, because the lawn is kept between
         // rounds, it would do it while the player believes the game is paused.
+        if (StagesMechanic.isChoosing(this)) {
+            StagesMechanic.tickChoice(this, bridge);
+            return;
+        }
         if (tickRoundClear(bridge)) {
             return;
         }
@@ -2870,6 +2925,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // rather than on one that is halfway through moving.
             for (TypedMechanic typed : mechanics) {
                 LevelMechanics.tick(typed, this);
+            }
+            if (StagesMechanic.isChoosing(this)) {
+                return;
             }
             // After the mechanics and before the waves: a mutation that spawns or rewrites
             // something does it on the same board the mechanics just settled, and before the
@@ -2955,10 +3013,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (entity.isRemoved() && !(entity instanceof PlantEntity plant && plant.vanishing())) {
                 continue;
             }
+            String beforeSurface = entity.surfaceId();
             float beforeX = entity.cellX();
             int beforeRow = entity.gridY();
             type.cast(entity).tick(this);
             if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
+                SurfaceLinksMechanic.cross(this, zombie, beforeX, beforeSurface);
                 com.pvzce.common.level.mechanic.PortalMechanic.Exit exit =
                         com.pvzce.common.level.mechanic.PortalMechanic.cross(
                                 this, zombie.id(), beforeX, zombie.cellX(), beforeRow);
@@ -2969,6 +3029,29 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         flushPending(bridge);
+    }
+
+    /** Changes a paused stage's choices; card identity preserves recharge across deck swaps. */
+    public void replaceStageSelection(List<Identifier> cards, List<Identifier> buffs,
+                                      Map<Identifier, Integer> cooldowns, ServerBridge target) {
+        for (Slot slot : plantPlayer.slots()) {
+            cooldowns.put(slot.defId(), slot.cooldownLeft());
+        }
+        selectedCards = List.copyOf(cards);
+        rebuildCardBar();
+        for (Slot slot : plantPlayer.slots()) {
+            slot.startCooldown(cooldowns.getOrDefault(slot.defId(), 0));
+        }
+        setActiveBuffs(com.pvzce.server.LevelBuffSelection.resolve(buffs));
+        withBridge(target, () -> {
+            syncAllSlots();
+            return null;
+        });
+    }
+
+    public boolean fireOutpost(ServerBridge target, int point, int x, int y, String surface) {
+        return gameState.equals(GameStateS2C.RUNNING) && PvzceIds.PLANT_TEAM.equals(humanTeamId)
+                && withBridge(target, () -> OutpostsMechanic.fire(this, point, x, y, surface));
     }
 
     /** Recharges the opponent's cards. Silent: no client is watching the AI's bar. */
@@ -3448,7 +3531,46 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return List.copyOf(ids);
     }
 
+    /** Replaces the level's current music batch, also used by stage changes and resume. */
+    public void playStageMusic(List<LevelDef.MusicCue> cues) {
+        playStageMusic(cues, bridge != null ? bridge : outbound);
+    }
+
+    public void playStageMusic(List<LevelDef.MusicCue> cues, ServerBridge target) {
+        levelTracksSettled = true;
+        playingMusicCues.clear();
+        currentMusicCue = null;
+        if (target != null) {
+            target.send(MusicEventS2C.reset(MusicEventS2C.TRACK_MENU));
+            target.send(MusicEventS2C.reset(MusicEventS2C.TRACK_BATTLE));
+        }
+        if (target != null && cues.stream().noneMatch(cue -> MusicEventS2C.TRACK_BACKGROUND.equals(cue.track())
+                && cue.event().isPresent() && !cue.stop())) {
+            target.send(MusicEventS2C.reset(MusicEventS2C.TRACK_BACKGROUND));
+        }
+        for (LevelDef.MusicCue cue : cues) {
+            if (!cue.stop() && cue.event().isPresent()) {
+                playingMusicCues.add(cue);
+            }
+            if (!cue.manyZombiesLayer()) {
+                currentMusicCue = cue;
+            }
+            if (target != null) {
+                sendMusicCue(target, cue);
+            }
+        }
+    }
+
+    private static void sendMusicCue(ServerBridge target, LevelDef.MusicCue cue) {
+        target.send(new MusicEventS2C(cue.track(), cue.event().map(Identifier::toString).orElse(""),
+                cue.loop(), cue.stop() || cue.event().isEmpty(), Math.max(0F, Math.min(1F, cue.volume())),
+                Math.max(0F, cue.fadeSeconds()), false, cue.manyZombiesLayer()));
+    }
+
     private void processMusicCues(ServerBridge bridge) {
+        if (StagesMechanic.plan(this) != null) {
+            return;
+        }
         List<LevelDef.MusicCue> cues = musicCues();
         if (cues.isEmpty() && !levelTracksSettled) {
             levelTracksSettled = true;
@@ -3506,14 +3628,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         for (LevelDef.MusicCue cue : due) {
             currentMusicCue = cue.manyZombiesLayer() ? currentMusicCue : cue;
-            bridge.send(new MusicEventS2C(
-                    cue.track(),
-                    cue.event().map(Identifier::toString).orElse(""),
-                    cue.loop(),
-                    cue.stop() || cue.event().isEmpty(),
-                    Math.max(0F, Math.min(1F, cue.volume())),
-                    Math.max(0F, cue.fadeSeconds()), false,
-                    cue.manyZombiesLayer()));
+            sendMusicCue(bridge, cue);
         }
     }
 
@@ -3681,7 +3796,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public boolean holdsNextWave() {
-        return com.pvzce.common.level.mechanic.PreparationMechanic.holdsNextWave(this);
+        return StagesMechanic.holdsNextWave(this)
+                || com.pvzce.common.level.mechanic.PreparationMechanic.holdsNextWave(this);
     }
 
     public boolean currentWaveFullyReleased() {
@@ -4220,7 +4336,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * the board a moment before the bar they were paid from is replaced.
      */
     public boolean isRoundClearPending() {
-        return rounds && waves.pendingRoundClear();
+        return rounds && waves.pendingRoundClear() || StagesMechanic.isChoosing(this);
     }
 
     /**
@@ -4281,6 +4397,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // released and the lawn clear" true from the first tick.
         if (!rounds && gameState.equals(GameStateS2C.RUNNING)
                 && humanTeamId.equals(PvzceIds.PLANT_TEAM)
+                && StagesMechanic.isReady(this)
+                && (OutpostsMechanic.plan(this) == null || OutpostsMechanic.plan(this).goal().isEmpty())
                 && waves.allWavesReleased()
                 && hostileZombieCount() == 0) {
             markEnd(teams.get(PvzceIds.PLANT_TEAM));

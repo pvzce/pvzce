@@ -1,5 +1,6 @@
 package com.pvzce.api.content;
 
+import com.pvzce.common.level.SceneBoard;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.util.Identifier;
@@ -171,13 +172,19 @@ public record WaveDef(
      *                    zombie arrives in, and a level-wide zombie-health rule would be
      *                    rewritten under a running mutation's feet.
      */
-    public record Entry(Identifier id, int count, List<Integer> rows, float healthScale) {
+    public record Entry(Identifier id, int count, List<Integer> rows, float healthScale, String surface) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("id").forGetter(Entry::id),
                 Codec.INT.optionalFieldOf("count", 1).forGetter(Entry::count),
                 Codec.INT.listOf().optionalFieldOf("rows", List.of()).forGetter(Entry::rows),
-                Codec.FLOAT.optionalFieldOf("health_scale", 1F).forGetter(Entry::healthScale)
+                Codec.FLOAT.optionalFieldOf("health_scale", 1F).forGetter(Entry::healthScale),
+                Codec.STRING.optionalFieldOf("surface", SceneBoard.DEFAULT_SURFACE)
+                        .forGetter(Entry::surface)
         ).apply(i, Entry::new));
+
+        public Entry(Identifier id, int count, List<Integer> rows, float healthScale) {
+            this(id, count, rows, healthScale, SceneBoard.DEFAULT_SURFACE);
+        }
 
         public Entry(Identifier id, int count, List<Integer> rows) {
             this(id, count, rows, 1F);
@@ -190,6 +197,7 @@ public record WaveDef(
         public Entry {
             rows = rows == null ? List.of() : List.copyOf(rows);
             healthScale = healthScale > 0F ? healthScale : 1F;
+            surface = surface == null ? SceneBoard.DEFAULT_SURFACE : surface;
         }
 
         /**

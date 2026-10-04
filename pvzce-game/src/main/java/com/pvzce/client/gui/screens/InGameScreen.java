@@ -356,6 +356,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * (and because two plants can stand in one cell, one on the other).
      */
     private int aimingPlantId = -1;
+    private int aimingOutpost = -1;
     /**
      * The content id to put back in hand once the bar has been rebuilt, or {@code null}.
      *
@@ -3866,6 +3867,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             speedButton.mouseClicked(guiX, guiY, button);
             return;
         }
+        if (button == 0) {
+            int point = com.pvzce.client.mechanic.OutpostsClientMechanic.clickedArtillery(client, guiX, guiY);
+            if (point >= 0) {
+                cancelSelection();
+                aimingOutpost = point;
+                return;
+            }
+        }
         if (startWavesButton != null && startWavesButton.isVisible()
                 && startWavesButton.isMouseOver(guiX, guiY)) {
             startWavesButton.mouseClicked(guiX, guiY, button);
@@ -3977,6 +3986,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 return;
             }
             cancelSelection();
+            return;
+        }
+        if (aimingOutpost >= 0) {
+            client.connection().send(new com.pvzce.common.network.packet.OutpostStrikeC2S(
+                    client.level().levelId(), client.currentWorld(), aimingOutpost, cellX, cellY,
+                    client.level().activeSurface()));
+            aimingOutpost = -1;
             return;
         }
         // Aiming: this click is the target. Sent before everything else on purpose - a player who
@@ -4110,11 +4126,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     /** Leaves the aiming mode. Called by the shot, by a cancel, and by anything that takes the click. */
     private void cancelAiming() {
         aimingPlantId = -1;
+        aimingOutpost = -1;
     }
 
     /** Draws the original target and its shadow at the selected surface height. */
     private void renderAimReticle() {
-        if (aimingPlantId < 0) {
+        if (aimingPlantId < 0 && aimingOutpost < 0) {
             return;
         }
         int hoverX = client.camera().cellX(client.window().cursorX(), client.window().cursorY());

@@ -1,5 +1,9 @@
 package com.pvzce.server.level;
 
+import com.pvzce.common.level.mechanic.StagesMechanic;
+import com.pvzce.common.level.mechanic.OutpostsMechanic;
+import com.pvzce.common.PvzceIds;
+
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -73,6 +77,13 @@ class WavePacingMetricsTest {
     private static Metrics measure(LevelDef def, String profile, int killInterval) {
         LevelServer level = new LevelServer(def);
         Bridge bridge = new Bridge();
+        var outposts = OutpostsMechanic.plan(level);
+        if (outposts != null) {
+            for (var point : outposts.points()) {
+                level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("wall_nut")),
+                        level.team(PvzceIds.PLANT_TEAM), point.x(), point.y(), point.surface());
+            }
+        }
         int longestEmpty = 0;
         int emptyTicks = 0;
         int peakAlive = 0;
@@ -81,6 +92,28 @@ class WavePacingMetricsTest {
         int lastSpawnTick = 0;
         int tick = 0;
         for (; tick < TICK_BUDGET && level.gameState().equals(GameStateS2C.RUNNING); tick++) {
+            if (StagesMechanic.isChoosing(level)) {
+                StagesMechanic.resume(level, StagesMechanic.status(level).phase() + 2,
+                        List.of(), List.of(), bridge);
+            }
+            if (outposts != null && StagesMechanic.isReady(level)) {
+                // Occupation is a player action too: rebuild a lost anchor after the final clear.
+                for (var point : outposts.points()) {
+                    if (level.plantAt(point.x(), point.y(), point.surface()) == null) {
+                        level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("wall_nut")),
+                                level.team(PvzceIds.PLANT_TEAM), point.x(), point.y(), point.surface());
+                    }
+                }
+            }
+            if (OutpostsMechanic.canFinish(level)) {
+                var goal = outposts.goal().orElseThrow();
+                for (int i = 0; i < outposts.points().size(); i++) {
+                    if (outposts.points().get(i).charges() > 0) {
+                        level.fireOutpost(bridge, i, goal.x(), goal.y(), goal.surface());
+                        break;
+                    }
+                }
+            }
             if (level.isPreparing()) {
                 // A preparation level waits for the player. This loop *is* the player - it already
                 // models one who kills a zombie every N ticks - so it presses start on the first

@@ -156,6 +156,11 @@ public interface LevelMechanic<D extends MechanicData> {
         return true;
     }
 
+    /** Explicit surface context, defaulting to the existing planar veto for older mechanics. */
+    default boolean canPlacePlant(LevelServer level, D data, PlantDef def, int x, int y, String surface) {
+        return canPlacePlant(level, data, def, x, y);
+    }
+
     /**
      * A veto on spending a zombie card on a cell.
      *

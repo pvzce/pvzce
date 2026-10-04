@@ -126,6 +126,9 @@ public final class PvzceClientPacketListener implements PacketListener {
             // A mechanic's own state update. Routed by id so the protocol does not have to
             // know what a belt - or any future mechanic - is; see ClientMechanics.
             com.pvzce.client.mechanic.ClientMechanics.applySync(level, sync);
+            if (sync.mechanic().equals(com.pvzce.common.PvzceIds.MECHANIC_STAGES)) {
+                client.onStageResumed();
+            }
         } else if (packet instanceof GameStateS2C state) {
             level.setGameState(state.state(), state.winTeamId());
             level.setRunSummary(state.wavesArrived(), state.kills(), state.survivedTicks(),

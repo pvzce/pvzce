@@ -23,6 +23,10 @@ import com.pvzce.common.network.packet.LevelRewardS2C;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.packet.LevelTabsS2C;
 import com.pvzce.common.network.packet.MusicEventS2C;
+import com.pvzce.common.network.packet.StageChoiceC2S;
+import com.pvzce.common.network.packet.OutpostStrikeC2S;
+import com.pvzce.common.level.mechanic.StagesMechanic;
+import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.ProfileS2C;
@@ -1233,7 +1237,7 @@ public final class PvzceServer implements Runnable {
      * stop, and there is nothing to decode.
      */
     private void preloadClientLevelMusic(LevelDef def) {
-        for (LevelDef.MusicCue cue : def.music().cues()) {
+        for (LevelDef.MusicCue cue : LevelMechanics.musicCues(def)) {
             if (cue.stop() || cue.event().isEmpty()) {
                 continue;
             }
@@ -1553,6 +1557,23 @@ public final class PvzceServer implements Runnable {
                     if (data != null) {
                         current.useGrantedTool(bridge, data, granted.gridX(), granted.gridY(), granted.surfaceId());
                     }
+                }
+            } else if (packet instanceof StageChoiceC2S choice) {
+                if (current != null && currentWorld != null
+                        && current.def().id().toString().equals(choice.levelId())
+                        && currentWorld.equals(WorldPaths.sanitize(choice.worldName()))) {
+                    PlayerProfile profile = worlds.profileFor(currentWorld);
+                    List<Identifier> cards = SeedSelection.sanitize(current.def(),
+                            seedIds(choice.selectedSeeds()), profile);
+                    List<Identifier> buffs = LevelBuffSelection.sanitize(current.def(), profile.buffSlots(),
+                            seedIds(choice.selectedBuffs()), profile::ownsBuff);
+                    StagesMechanic.resume(current, choice.phase(), cards, buffs, bridge);
+                }
+            } else if (packet instanceof OutpostStrikeC2S strike) {
+                if (current != null && currentWorld != null
+                        && current.def().id().toString().equals(strike.levelId())
+                        && currentWorld.equals(WorldPaths.sanitize(strike.worldName()))) {
+                    current.fireOutpost(bridge, strike.point(), strike.x(), strike.y(), strike.surface());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.ReselectCardsC2S reselect) {
                 // The endless round-clear chooser's answer. Answered only by the run it names:

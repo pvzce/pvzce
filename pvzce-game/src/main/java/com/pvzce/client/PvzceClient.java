@@ -2713,6 +2713,23 @@ public final class PvzceClient {
                                        List<String> buffs) {
     }
 
+    public void onStageResumed() {
+        com.pvzce.common.level.mechanic.StagesMechanic.Status status = level.mechanicStateOrNull(
+                com.pvzce.common.PvzceIds.MECHANIC_STAGES,
+                com.pvzce.common.level.mechanic.StagesMechanic.Status.class);
+        if (status != null && !status.choosing()) {
+            onRoundStarted(status.phase() + 1);
+            if (currentScreen() instanceof ChooseSeedsScreen chooser && chooser.hasSubmittedStageChoice()) {
+                popScreen();
+            }
+        }
+    }
+
+    public void chooseStage(String levelId, int phase, List<String> cards, List<String> buffs) {
+        connection.send(new com.pvzce.common.network.packet.StageChoiceC2S(levelId, currentWorld, phase,
+                cards, buffs));
+    }
+
     /** Sends the next round's card selection to the running level. */
     public void reselectCards(String levelId, List<String> selectedSeeds) {
         connection.send(new com.pvzce.common.network.packet.ReselectCardsC2S(levelId, currentWorld,

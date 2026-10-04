@@ -11,6 +11,9 @@ import com.pvzce.api.util.Identifier;
  * here so the two copies cannot drift.
  */
 public final class PvzceIds {
+    public static final Identifier MECHANIC_SURFACE_LINKS = id("surface_links");
+    public static final Identifier MECHANIC_STAGES = id("stages");
+    public static final Identifier MECHANIC_OUTPOSTS = id("outposts");
     public static final Identifier FERTILIZER = id("fertilizer");
     public static final Identifier KERNEL_PULT = id("kernel_pult");
     public static final Identifier UMBRELLA_LEAF = id("umbrella_leaf");

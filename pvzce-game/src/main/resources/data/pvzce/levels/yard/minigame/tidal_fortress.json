@@ -1,0 +1,1963 @@
+{
+  "id": "pvzce:yard/minigame/tidal_fortress",
+  "name": "潮汐堡垒",
+  "description": "约30分钟的双层守岛战：守海滩、夺据点、挡反攻，再用岸防炮台摧毁红色指挥部。PgUp/PgDn或层按钮切换地面与栈桥；坡道在第3列。开局可在左4列布防，据点格可提前种植。第9波起守住标记格20秒占领，解锁该层前沿；失去驻守植物会失守。补给站按阶段提供阳光，炮台共3次定点炮击。阶段间可以重选卡牌和增益，保留阵地、阳光和冷却。终局炮击单独预留。",
+  "width": 11,
+  "height": 6,
+  "scene": {
+    "pvzce:grass": [
+      "0,0",
+      "1,0",
+      "2,0",
+      "3,0",
+      "4,0",
+      "5,0",
+      "6,0",
+      "7,0",
+      "8,0",
+      "9,0",
+      "10,0",
+      "0,1",
+      "1,1",
+      "2,1",
+      "3,1",
+      "4,1",
+      "5,1",
+      "6,1",
+      "7,1",
+      "8,1",
+      "9,1",
+      "10,1",
+      "0,2",
+      "1,2",
+      "2,2",
+      "0,3",
+      "1,3",
+      "2,3",
+      "0,4",
+      "1,4",
+      "2,4",
+      "3,4",
+      "4,4",
+      "5,4",
+      "6,4",
+      "7,4",
+      "8,4",
+      "9,4",
+      "10,4",
+      "0,5",
+      "1,5",
+      "2,5",
+      "3,5",
+      "4,5",
+      "5,5",
+      "6,5",
+      "7,5",
+      "8,5",
+      "9,5",
+      "10,5"
+    ],
+    "pvzce:water": [
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2",
+      "7,2",
+      "8,2",
+      "9,2",
+      "10,2",
+      "3,3",
+      "4,3",
+      "5,3",
+      "6,3",
+      "7,3",
+      "8,3",
+      "9,3",
+      "10,3"
+    ]
+  },
+  "surfaces": [
+    {
+      "id": "pvzce:tidal_bridge",
+      "name": "栈桥",
+      "profile": {
+        "elevation": -1,
+        "slope_x": 0.4,
+        "min": 0,
+        "max": 1.4
+      },
+      "thickness": 0.15,
+      "scene": {
+        "pvzce:grass": [
+          "2,2",
+          "3,2",
+          "4,2",
+          "5,2",
+          "6,2",
+          "7,2",
+          "8,2",
+          "9,2",
+          "10,2",
+          "2,3",
+          "3,3",
+          "4,3",
+          "5,3",
+          "6,3",
+          "7,3",
+          "8,3",
+          "9,3",
+          "10,3"
+        ]
+      }
+    }
+  ],
+  "teams": [
+    {
+      "id": "pvzce:plant_team",
+      "name": "植物方",
+      "win_condition": "survive_waves"
+    },
+    {
+      "id": "pvzce:zombie_team",
+      "name": "僵尸方",
+      "win_condition": "plant_side_lost"
+    }
+  ],
+  "win_team": "pvzce:plant_team",
+  "playable_teams": [
+    "pvzce:plant_team"
+  ],
+  "rules": {
+    "pvzce:day_length": 0,
+    "pvzce:night_length": 0,
+    "pvzce:graves_spawn_night": false
+  },
+  "slots": [
+    "pvzce:sun",
+    "pvzce:shovel",
+    "pvzce:glove"
+  ],
+  "initial_sun": 1000,
+  "max_seed_slots": 12,
+  "buffs": [
+    "pvzce:player_choice"
+  ],
+  "max_buff_slots": 3,
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "mechanics": [
+    {
+      "type": "pvzce:preparation",
+      "manual": true,
+      "refund": true
+    },
+    {
+      "type": "pvzce:stages",
+      "phases": [
+        {
+          "name": "level.pvzce.tidal_fortress.landing",
+          "from_wave": 1,
+          "supply_sun": 0,
+          "music": [
+            {
+              "event": "pvzce:music/watery_graves",
+              "track": "background",
+              "loop": true,
+              "volume": 0.75,
+              "fade_seconds": 3
+            }
+          ],
+          "atmosphere": "day"
+        },
+        {
+          "name": "level.pvzce.tidal_fortress.expansion",
+          "from_wave": 9,
+          "supply_sun": 400,
+          "music": [
+            {
+              "event": "pvzce:music/graze_the_roof",
+              "track": "background",
+              "loop": true,
+              "volume": 0.75,
+              "fade_seconds": 3
+            }
+          ],
+          "atmosphere": "dusk"
+        },
+        {
+          "name": "level.pvzce.tidal_fortress.counterattack",
+          "from_wave": 19,
+          "supply_sun": 400,
+          "music": [
+            {
+              "event": "pvzce:music/ultimate_battle",
+              "track": "background",
+              "loop": true,
+              "volume": 0.75,
+              "fade_seconds": 3
+            }
+          ],
+          "atmosphere": "night"
+        }
+      ]
+    },
+    {
+      "type": "pvzce:outposts",
+      "base_max_x": 3,
+      "points": [
+        {
+          "name": "level.pvzce.tidal_fortress.supply",
+          "surface": "pvzce:ground",
+          "x": 5,
+          "y": 1,
+          "capture_ticks": 1200,
+          "supply_sun": 250,
+          "charges": 0,
+          "damage": 0,
+          "radius": 1.5,
+          "from_wave": 9,
+          "unlocks_max_x": 7
+        },
+        {
+          "name": "level.pvzce.tidal_fortress.artillery",
+          "surface": "pvzce:tidal_bridge",
+          "x": 6,
+          "y": 3,
+          "capture_ticks": 1200,
+          "supply_sun": 0,
+          "charges": 3,
+          "damage": 1800,
+          "radius": 1.5,
+          "from_wave": 9,
+          "unlocks_max_x": 8
+        }
+      ],
+      "goal": {
+        "surface": "pvzce:ground",
+        "x": 10,
+        "y": 5
+      }
+    },
+    {
+      "type": "pvzce:surface_links",
+      "connections": [
+        {
+          "from": "pvzce:tidal_bridge",
+          "to": "pvzce:ground",
+          "x": 2,
+          "y": 2,
+          "direction": -1
+        },
+        {
+          "from": "pvzce:tidal_bridge",
+          "to": "pvzce:ground",
+          "x": 2,
+          "y": 3,
+          "direction": -1
+        }
+      ]
+    },
+    {
+      "type": "pvzce:rake",
+      "rows": []
+    },
+    {
+      "type": "pvzce:wave_pacing",
+      "clear_reward_factor": 1,
+      "health_drain": false
+    }
+  ],
+  "waves": [
+    {
+      "type": "small",
+      "delay": 900,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 480,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 480,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:catapult_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:gargantuar",
+          "count": 1,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:catapult_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 480,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:gargantuar",
+          "count": 1,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:catapult_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 0,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:football_zombie",
+          "count": 3,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    },
+    {
+      "type": "final",
+      "delay": 2400,
+      "spawn_interval": 60,
+      "warning_ticks": 480,
+      "hold_until_dead": 0,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 6,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:catapult_zombie",
+          "count": 1,
+          "rows": [
+            0,
+            5
+          ],
+          "surface": "pvzce:ground"
+        },
+        {
+          "id": "pvzce:gargantuar",
+          "count": 1,
+          "rows": [
+            2,
+            3
+          ],
+          "surface": "pvzce:tidal_bridge"
+        }
+      ]
+    }
+  ],
+  "music": {
+    "cues": []
+  },
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "coins",
+        "amount": 1500
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 600
+      }
+    ],
+    "coin_drop": "pvzce:coin_gold"
+  },
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/3_10"
+      }
+    ]
+  }
+}

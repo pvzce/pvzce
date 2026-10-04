@@ -21,6 +21,8 @@ import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.LeaveLevelC2S;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.ReselectCardsC2S;
+import com.pvzce.common.network.packet.StageChoiceC2S;
+import com.pvzce.common.network.packet.OutpostStrikeC2S;
 import com.pvzce.common.network.packet.RoundClearS2C;
 import com.pvzce.common.network.packet.RoundSyncS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
@@ -149,12 +151,15 @@ public final class PvzcePackets {
     //     the wave be called" (WaveProgressS2C.nextWaveAvailable).
     // 58: a music cue can be a layer of a song rather than a song (MusicEventS2C.manyZombiesLayer):
     //     the night roof's drum track rides with its theme and is faded in when the lawn fills up.
-    public static final int PROTOCOL_VERSION = 58;
+    // 59: staged choices and outpost strikes; wave entries retain their authored surface.
+    public static final int PROTOCOL_VERSION = 59;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
 
     // ---- client -> server ----
+    public static final int C2S_STAGE_CHOICE = 36;
+    public static final int C2S_OUTPOST_STRIKE = 37;
     public static final int C2S_CONTINUE_LEVEL = 1;
     public static final int C2S_PLAY_LEVEL = 2;
     public static final int C2S_RESTART_LEVEL = 3;
@@ -361,6 +366,10 @@ public final class PvzcePackets {
                     RoundSyncS2C::decode),
             def(S2C_ROUND_CLEAR, ConnectionDirection.CLIENTBOUND, RoundClearS2C.class,
                     RoundClearS2C::decode),
+            def(C2S_STAGE_CHOICE, ConnectionDirection.SERVERBOUND, StageChoiceC2S.class,
+                    StageChoiceC2S::decode),
+            def(C2S_OUTPOST_STRIKE, ConnectionDirection.SERVERBOUND, OutpostStrikeC2S.class,
+                    OutpostStrikeC2S::decode),
             def(C2S_RESELECT_CARDS, ConnectionDirection.SERVERBOUND, ReselectCardsC2S.class,
                     ReselectCardsC2S::decode),
             def(C2S_DISCARD_SAVE, ConnectionDirection.SERVERBOUND, DiscardLevelSaveC2S.class,

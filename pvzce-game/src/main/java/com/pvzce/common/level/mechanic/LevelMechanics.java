@@ -41,6 +41,26 @@ import java.util.Optional;
  * write one themselves.
  */
 public final class LevelMechanics {
+    /** Returns the first explicitly declared block of a registered mechanic type. */
+    public static <D extends MechanicData> D data(LevelDef def, Identifier id, Class<D> type) {
+        for (TypedMechanic block : def.mechanics()) {
+            if (block.type().equals(id) && type.isInstance(block.value())) {
+                return type.cast(block.value());
+            }
+        }
+        return null;
+    }
+
+    /** Every authored music event, including phases, can be decoded while the level loads. */
+    public static List<LevelDef.MusicCue> musicCues(LevelDef def) {
+        List<LevelDef.MusicCue> cues = new ArrayList<>(def.music().cues());
+        StagePlan stages = data(def, PvzceIds.MECHANIC_STAGES, StagePlan.class);
+        if (stages != null) {
+            stages.phases().forEach(phase -> cues.addAll(phase.music()));
+        }
+        return List.copyOf(cues);
+    }
+
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/Mechanics");
     public static final DeckMechanic DECK = new DeckMechanic();
@@ -82,6 +102,9 @@ public final class LevelMechanics {
 
     /** Registers every built-in mechanic; called from {@code BuiltInRegistries.bootstrap()}. */
     public static void bootstrap() {
+        register(PvzceIds.MECHANIC_SURFACE_LINKS, new SurfaceLinksMechanic());
+        register(PvzceIds.MECHANIC_STAGES, new StagesMechanic());
+        register(PvzceIds.MECHANIC_OUTPOSTS, new OutpostsMechanic());
         register(PvzceIds.MECHANIC_DECK, DECK);
         register(PvzceIds.MECHANIC_CONVEYOR, CONVEYOR);
         register(PvzceIds.MECHANIC_PLACEMENT_ZONE, PLACEMENT_ZONE);
@@ -530,9 +553,14 @@ public final class LevelMechanics {
     public static boolean canPlacePlant(List<TypedMechanic> mechanics,
                                         LevelServer level,
                                         PlantDef plant, int x, int y) {
+        return canPlacePlant(mechanics, level, plant, x, y, com.pvzce.common.level.SceneBoard.DEFAULT_SURFACE);
+    }
+
+    public static boolean canPlacePlant(List<TypedMechanic> mechanics, LevelServer level,
+                                        PlantDef plant, int x, int y, String surface) {
         for (TypedMechanic typed : mechanics) {
             LevelMechanic<?> mechanic = get(typed.type());
-            if (mechanic != null && !allows(mechanic, typed, level, plant, x, y)) {
+            if (mechanic != null && !allows(mechanic, typed, level, plant, x, y, surface)) {
                 return false;
             }
         }
@@ -680,8 +708,8 @@ public final class LevelMechanics {
     @SuppressWarnings("unchecked")
     private static <D extends MechanicData> boolean allows(LevelMechanic<D> mechanic, TypedMechanic typed,
                                                            LevelServer level,
-                                                           PlantDef plant, int x, int y) {
-        return mechanic.canPlacePlant(level, (D) typed.value(), plant, x, y);
+                                                           PlantDef plant, int x, int y, String surface) {
+        return mechanic.canPlacePlant(level, (D) typed.value(), plant, x, y, surface);
     }
 
     @SuppressWarnings("unchecked")

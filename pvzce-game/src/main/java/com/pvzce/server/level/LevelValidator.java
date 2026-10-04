@@ -1,5 +1,6 @@
 package com.pvzce.server.level;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.LevelUnlock;
@@ -469,6 +470,7 @@ public final class LevelValidator {
      */
     public static List<String> validateWaves(LevelDef def) {
         List<String> errors = new ArrayList<>();
+        com.pvzce.common.level.SceneBoard board = SceneBoard.forLevel(def);
         for (int index = 0; index < def.waves().size(); index++) {
             WaveDef wave = def.waves().get(index);
             int number = index + 1;
@@ -476,6 +478,12 @@ public final class LevelValidator {
                 if (entry.count() <= 0) {
                     errors.add("waves." + number + ": entry '" + entry.id()
                             + "' asks for " + entry.count() + " zombies, so it sends none");
+                }
+                List<Integer> arrivalRows = entry.rows().isEmpty()
+                        ? java.util.stream.IntStream.range(0, def.height()).boxed().toList() : entry.rows();
+                if (arrivalRows.stream().allMatch(row -> row >= 0 && row < def.height())
+                        && arrivalRows.stream().noneMatch(row -> board.exists(entry.surface(), def.width() - 1, row))) {
+                    errors.add("waves." + number + ": no supported arrival on surface " + entry.surface());
                 }
                 for (int row : entry.rows()) {
                     if (row < 0 || row >= def.height()) {
@@ -516,7 +524,7 @@ public final class LevelValidator {
             }
         }
         java.util.Set<Identifier> surfaces = new java.util.HashSet<>();
-        surfaces.add(Identifier.parse(com.pvzce.common.level.SceneBoard.DEFAULT_SURFACE));
+        surfaces.add(Identifier.parse(SceneBoard.DEFAULT_SURFACE));
         for (var surface : def.surfaces()) {
             if (!surfaces.add(surface.id())) errors.add("Duplicate surface '" + surface.id() + "'");
             for (var entry : surface.scene().entrySet()) {
@@ -582,7 +590,7 @@ public final class LevelValidator {
     public static List<String> validateInitialEntities(LevelDef def) {
         List<String> errors = new ArrayList<>();
         for (var init : def.initialEntities()) {
-            if (init.surface().isPresent() && !init.surface().get().toString().equals(com.pvzce.common.level.SceneBoard.DEFAULT_SURFACE)) {
+            if (init.surface().isPresent() && !init.surface().get().toString().equals(SceneBoard.DEFAULT_SURFACE)) {
                 var surface = def.surfaces().stream().filter(v -> v.id().equals(init.surface().get())).findFirst().orElse(null);
                 if (surface == null || SceneCells.parse(surface.scene(), def.width(), def.height()).stream()
                         .noneMatch(cell -> cell.x() == init.x() && cell.y() == init.y()))

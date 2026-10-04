@@ -8,6 +8,8 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final float OUTPOST_CONTEST_RADIUS_CELLS = 1.5F;
+    public static final float SURFACE_LINK_AIRBORNE_MARGIN_CELLS = 0.1F;
     public static final int PRODUCER_DROP_GAP_TICKS = 12;
     public static final float PRODUCER_DROP_SPACING_CELLS = 0.6F;
     public static final float WEATHER_CLEAR_SUNFLOWER_RATE = 1.25F;

@@ -41,6 +41,8 @@ public final class ClientMechanics {
         register(new WeatherClientMechanic());
         register(new RakeClientMechanic());
         register(new PreparationClientMechanic());
+        register(new StagesClientMechanic());
+        register(new OutpostsClientMechanic());
         register(new PortalClientMechanic());
         register(new SeedRainClientMechanic());
         register(new ResonanceClientMechanic());

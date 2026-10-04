@@ -4,6 +4,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.SceneVisibility;
+import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.gui.SeedCardRenderer;
@@ -550,7 +551,10 @@ public final class ChooseSeedsScreen extends Screen {
         ensurePreviewAnimations();
 
         startButton = new Button((int) panelX + 10, (int) panelY + 10, 10, 10,
-                nextRound ? "开始下一轮" : "开始游戏", this::start)
+                nextRound && client.level().mechanicData(com.pvzce.common.PvzceIds.MECHANIC_STAGES,
+                        com.pvzce.common.level.mechanic.StagePlan.class) != null
+                        ? GuiLang.raw("gui.pvzce.stages.start", "Enter next stage")
+                        : nextRound ? "开始下一轮" : "开始游戏", this::start)
                 .style(Button.Style.SEED_CHOOSER);
         clearButton = new Button((int) panelX + 10, (int) panelY + 10, 10, 10, "清空", this::clearSelection)
                 .style(Button.Style.SEED_CHOOSER);
@@ -1019,6 +1023,11 @@ public final class ChooseSeedsScreen extends Screen {
     }
 
     /** Sends the start packet exactly once, when the exit animation has played out. */
+    public boolean hasSubmittedStageChoice() {
+        return nextRound && startSent && client.level().mechanicData(com.pvzce.common.PvzceIds.MECHANIC_STAGES,
+                com.pvzce.common.level.mechanic.StagePlan.class) != null;
+    }
+
     private void finishStart() {
         if (startSent || exitNanos == 0L || exitProgress() < 1F) {
             return;
@@ -1027,6 +1036,12 @@ public final class ChooseSeedsScreen extends Screen {
         // The card row in bar order and the buff row in its own order: the server re-sorts
         // nothing, and both lists become what the run starts with (and, for buffs, what this
         // world pre-selects next time).
+        if (nextRound && client.level().mechanicData(com.pvzce.common.PvzceIds.MECHANIC_STAGES,
+                com.pvzce.common.level.mechanic.StagePlan.class) != null) {
+            client.chooseStage(levelId, nextRoundNumber, new ArrayList<>(orderedSelection(selectedOrder)),
+                    new ArrayList<>(selectedBuffs));
+            return;
+        }
         if (nextRound) {
             // The run is already going: this changes its bar and nothing else. The buffs are
             // deliberately not re-sent - a round does not re-open the buff page.
@@ -1620,7 +1635,11 @@ public final class ChooseSeedsScreen extends Screen {
         // The round chooser's label replaces the level's name rather than sitting beside it: the
         // player already knows which level they are in - they are standing on it - and "第 3 轮"
         // is the only thing this screen has to say about where the choice lands.
-        String label = nextRound
+        String label = nextRound && client.level().mechanicData(com.pvzce.common.PvzceIds.MECHANIC_STAGES,
+                com.pvzce.common.level.mechanic.StagePlan.class) != null
+                ? String.format(GuiLang.raw("gui.pvzce.stages.selection", "Stage %d · Cards and buffs"),
+                        nextRoundNumber)
+                : nextRound
                 ? "第 " + Math.max(1, nextRoundNumber) + " 轮 · 选择卡牌"
                 : levelName;
         if (label != null && !label.isBlank()) {

@@ -1,9 +1,12 @@
 package com.pvzce.client;
 
+import com.pvzce.common.PvzceIds;
+import com.pvzce.common.level.mechanic.OutpostPlan;
+import com.pvzce.common.level.mechanic.OutpostsMechanic;
+
 import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.animation.AnimationManager;
-import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.DayNightCycle;
 import com.pvzce.common.level.SceneGrid;
 import com.pvzce.common.network.packet.EffectEventS2C;
@@ -743,7 +746,10 @@ public final class ClientLevel {
 
     /** True when this cell is inside the level's plantable area. */
     public boolean inPlacementZone(int x, int y) {
-        return placementZone().contains(x, y);
+        OutpostPlan plan = mechanicData(PvzceIds.MECHANIC_OUTPOSTS, OutpostPlan.class);
+        OutpostsMechanic.Status status = mechanicStateOrNull(PvzceIds.MECHANIC_OUTPOSTS, OutpostsMechanic.Status.class);
+        return placementZone().contains(x, y) && (plan == null || plan.allowsPlacement(x, y, activeSurface(),
+                i -> status != null && i < status.points().size() && status.points().get(i).owned()));
     }
 
     /** Balance of one resource for one team. */

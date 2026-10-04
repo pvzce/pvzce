@@ -23,6 +23,10 @@
         └──────── setScreenReplacing(InGameScreen) ┘   ← 唯一"进入游戏"的那一步
 ```
 
+有限阶段关卡在同一块棋盘继续：`RoundClearS2C` → `RoundClearDialog` → push `ChooseSeedsScreen`，
+确认发送带阶段号的 `StageChoiceC2S`，收到非 choosing 的阶段同步后 pop 回原 `InGameScreen`。
+不重新发送关卡初始化，不替换场景、实体和资源；增益随阶段状态更新，准备阶段供玩家修整。
+
 ---
 
 ## 2. 三层切换机制
