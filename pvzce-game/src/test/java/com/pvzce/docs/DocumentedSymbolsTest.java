@@ -76,17 +76,37 @@ class DocumentedSymbolsTest {
         docsDir = root.resolve("docs");
 
         for (String sourceRoot : SourceTree.SOURCE_ROOTS) {
-            for (Path file : SourceTree.javaFiles(root.resolve(sourceRoot))) {
-                String name = file.getFileName().toString().replace(".java", "");
-                TYPES.putIfAbsent(name, file);
-                String source = Files.readString(file);
-                TYPE_SOURCES.putIfAbsent(name, source);
-                Matcher words = WORD.matcher(source);
-                while (words.find()) {
-                    MENTIONED.add(words.group());
-                }
+            indexSources(root.resolve(sourceRoot));
+        }
+        // The loader fork is not one of the shared source roots (the layering test has no business
+        // there), but the documents describe it, so its names have to count as existing.
+        indexSources(root.resolve("pvzce-loader/src"));
+    }
+
+    /** Adds one source tree's type names and vocabulary to the index. */
+    private static void indexSources(Path base) throws IOException {
+        for (Path file : SourceTree.javaFiles(base)) {
+            String name = file.getFileName().toString().replace(".java", "");
+            TYPES.putIfAbsent(name, file);
+            String source = Files.readString(file);
+            TYPE_SOURCES.putIfAbsent(name, source);
+            if (isThisTestsOwnPackage(file)) {
+                // The guard's own prose names the very symbols it is meant to catch. Counting those
+                // mentions as "the name exists somewhere" is how `BeltSyncS2C` stayed alive for a
+                // whole refactor after it was deleted: the only file that still mentioned it was
+                // this one, listing it as an example of a retired name.
+                continue;
+            }
+            Matcher words = WORD.matcher(source);
+            while (words.find()) {
+                MENTIONED.add(words.group());
             }
         }
+    }
+
+    /** Whether a source file is part of this test class's own package. */
+    private static boolean isThisTestsOwnPackage(Path file) {
+        return file.toString().replace('\\', '/').contains("/com/pvzce/docs/");
     }
 
     private static List<Path> documents() throws IOException {
@@ -96,30 +116,85 @@ class DocumentedSymbolsTest {
     }
 
     /**
-     * The documents this test holds to their word.
+     * The live documents this test holds to their word at all.
      *
-     * <p>Only the live documents in {@code docs/} itself: the archived changelog volumes
-     * ({@code docs/架构变更记录/}) and the frozen reports ({@code docs/报告/}) describe the code as
-     * it was at the time, so naming a class that has since been renamed is correct there. The
-     * directory is what excludes them, not the file name - a volume named {@code 架构-x.md} would
-     * otherwise be dragged back in by the prefix rule below.
+     * <p>Everything in {@code docs/} itself except the four frozen planning documents and the
+     * changelog index. The archive directories are excluded by directory, not by file name: the
+     * archived changelog volumes ({@code docs/架构变更记录/}), the frozen reports ({@code docs/报告/})
+     * and the third-party guide ({@code docs/mod-guide/}) all describe the code as it was at the time,
+     * so naming a class that has since been renamed is correct there.
+     *
+     * <p>This set is what the <em>precise</em> checks run over ({@code Type.member} and fully
+     * qualified names): both are claims about a specific declaration, so a hit is always real drift.
      */
-    private static boolean isAsBuilt(Path document) {
+    private static boolean isLiveDocument(Path document) {
         if (!docsDir.equals(document.getParent())) {
+            return false;
+        }
+        String name = document.getFileName().toString();
+        // Frozen: the three stage plans and the editor design are snapshots, not descriptions.
+        if (name.startsWith("01-") || name.startsWith("02-") || name.startsWith("03-")
+                || name.equals("关卡机制与拼装式编辑器-设计方案.md")) {
+            return false;
+        }
+        // The changelog index records what used to be true; it has to be able to name deleted things.
+        return !name.equals("架构变更记录.md");
+    }
+
+    /**
+     * The documents whose job is to say what the code <em>is</em>, so a type name in them is a claim.
+     *
+     * <p>Narrower than {@link #isLiveDocument} on purpose. A few live documents legitimately name
+     * things that do not exist as source files: {@code 代码规范.md} prescribes names
+     * ({@code SlotKind}, {@code FormRow}), {@code 验证约定.md} and {@code 冒烟与截图指南.md} quote
+     * Gradle and GLFW APIs, and {@code 00} is a plan. The eight below are the ones a reader (or an
+     * agent) opens to find out what exists today.
+     */
+    private static boolean describesTheCode(Path document) {
+        if (!isLiveDocument(document)) {
             return false;
         }
         String name = document.getFileName().toString();
         return name.equals("当前项目架构.md") || name.equals("UI切换与导航架构.md")
                 || name.equals("README.md") || name.equals("决策记录.md")
+                || name.equals("todo.md") || name.equals("踩坑清单.md")
                 || (name.startsWith("架构-") && name.endsWith(".md"));
     }
+
+    /** A name written in backticks that is followed by an argument list, so it claims to be a call. */
+    private static final Pattern CALL_SHAPED = Pattern.compile("`([A-Z][A-Za-z0-9]*)\\([^`]*\\)`");
+
+    /**
+     * Suffixes that make a PascalCase name a claim about a type of ours rather than a sketch.
+     *
+     * <p>{@code Status(x, energy)} and {@code POSITION(3)+COLOR(4)} are how these documents draw the
+     * <em>shape</em> of a record or a vertex layout, and {@code AddGraveStones(6, 1)} is an
+     * original-game function; all three are call-shaped without being calls. Naming the suffixes is
+     * what keeps this check at zero false positives, and the failure it does catch is the expensive
+     * one: {@code BeltSyncS2C(cards)} and {@code RequestLevelC2S(restart)} both read as a packet you
+     * can send, and neither class exists.
+     */
+    private static final Pattern TYPE_LIKE_SUFFIX = Pattern.compile(
+            "(S2C|C2S|Mechanic|Capability|Packet|Manager|Screen|Dialog|Renderer|Model|Page|Brain|"
+                    + "Source|System|Engine|Driver|Def|Registry|Factory|Listener|Handler)$");
+
+    /** A bare PascalCase name in backticks, claiming a type exists. */
+    private static final Pattern BARE_TYPE = Pattern.compile("`([A-Z][A-Za-z0-9_]*)`");
+
+    /**
+     * A line that is talking about the past or about the original game, where a name we do not ship
+     * is the right name: {@code TcpPacketTransport} was deleted on purpose and the document says so,
+     * and {@code VaseShatter.xml} is an asset of the original, not of this repository.
+     */
+    private static final Pattern MENTIONS_THE_PAST = Pattern.compile(
+            "曾经|已删|已不存在|不再|退役|原版|旧实现|已经不|以前|被退|过去|当年");
 
     @Test
     void everyFullyQualifiedNameInTheDocsExists() throws IOException {
         Pattern qualified = Pattern.compile("\\bcom\\.pvzce(?:\\.[a-z][a-z0-9_]*)*\\.([A-Z][A-Za-z0-9]*)\\b");
         Set<String> problems = new LinkedHashSet<>();
         for (Path document : documents()) {
-            if (!isAsBuilt(document)) {
+            if (!isLiveDocument(document)) {
                 continue;
             }
             String text = Files.readString(document);
@@ -148,7 +223,7 @@ class DocumentedSymbolsTest {
         Pattern member = Pattern.compile("`([A-Z][A-Za-z0-9]*)\\.([a-zA-Z_][A-Za-z0-9_]*)`");
         Set<String> problems = new LinkedHashSet<>();
         for (Path document : documents()) {
-            if (!isAsBuilt(document)) {
+            if (!isLiveDocument(document)) {
                 continue;
             }
             String text = Files.readString(document);
@@ -204,23 +279,23 @@ class DocumentedSymbolsTest {
      * {@code sanitizeWorldName}, {@code levelKey}, {@code worldPath}, {@code hitTicks},
      * {@code sanitizeSeedSelection}).
      *
-     * <p>Only lower camel case is checked, so the three shapes that legitimately have no Java
-     * declaration are excluded by construction: an asset or original-game name ({@code VaseShatter},
-     * {@code BossExplosion}, {@code ParticleScale}, {@code PoolCleaner}), a planned type
-     * ({@code LevelEntryRequest}) and a retired one named on purpose ({@code WorldSelectScreen},
-     * {@code BeltSyncS2C}) all start with a capital, and a data key has underscores
-     * ({@code max_seed_slots}). What is left is a name that can only be code.
+     * <p>Only lower camel case is checked here, so a data key with underscores
+     * ({@code max_seed_slots}) and every capitalised name are excluded by construction. The
+     * capitalised half is {@link #everyBareTypeNameInTheDocsExists}'s job, and it needs the extra
+     * shape rules that this one gets for free. What is left for this test is a name that can only be
+     * code.
      *
      * <p>The sources are searched as text, so a name that survives only inside another file's
      * comment counts as present. That is deliberate: this test is about the documents, and a
-     * rename that leaves stale javadoc behind is a job for the compiler and for review.
+     * rename that leaves stale javadoc behind is a job for the compiler and for review. This test's
+     * own package is the one exception - see {@link #isThisTestsOwnPackage}.
      */
     @Test
     void everyBareCamelCaseNameInTheDocsExists() throws IOException {
         Pattern bare = Pattern.compile("`([a-z][A-Za-z0-9]*[A-Z][A-Za-z0-9]*)`");
         Set<String> problems = new LinkedHashSet<>();
         for (Path document : documents()) {
-            if (!isAsBuilt(document)) {
+            if (!describesTheCode(document)) {
                 continue;
             }
             String text = Files.readString(document);
@@ -239,13 +314,90 @@ class DocumentedSymbolsTest {
         assertTrue(problems.isEmpty(), "stale names in prose:\n" + String.join("\n", problems));
     }
 
+    /**
+     * A type name written with an argument list has to be a type we ship.
+     *
+     * <p>This is the shape the expensive drift takes. {@code BeltSyncS2C(cards)} read as a packet to
+     * send for two rounds after the belt moved to a mechanic payload, and {@code
+     * RequestLevelC2S(restart)} / {@code StartLevelC2S(restart, seeds)} named the two level-entry
+     * packets wrongly after they were split into three. Three of the four shapes that look the same
+     * but claim nothing are excluded by suffix: a record's outline ({@code Status(tick, energy)}), a
+     * vertex layout ({@code POSITION(3)+COLOR(4)}) and an original-game function
+     * ({@code AddGraveStones(6, 1)}). Nested types are matched by simple name only, which is why the
+     * suffix list avoids words like {@code State} and {@code Animation}.
+     */
+    @Test
+    void everyCallShapedTypeNameInTheDocsExists() throws IOException {
+        Set<String> problems = new LinkedHashSet<>();
+        for (Path document : documents()) {
+            if (!describesTheCode(document)) {
+                continue;
+            }
+            String text = Files.readString(document);
+            Matcher matcher = CALL_SHAPED.matcher(text);
+            while (matcher.find()) {
+                String name = matcher.group(1);
+                if (!TYPE_LIKE_SUFFIX.matcher(name).find() || TYPES.containsKey(name)) {
+                    continue;
+                }
+                problems.add(document.getFileName() + " writes `" + matcher.group(1)
+                        + "(...)`, but no source file declares that type");
+            }
+        }
+        assertTrue(problems.isEmpty(), "call-shaped names with no type:\n" + String.join("\n", problems));
+    }
+
+    /**
+     * A PascalCase name in backticks has to be a type, a word some source file uses, or marked as gone.
+     *
+     * <p>The counterpart of {@link #everyBareCamelCaseNameInTheDocsExists}, which cannot see this
+     * shape: a deleted class starts with a capital, and the old rule exempted every capitalised name
+     * on the grounds that asset names, planned types and retired types look the same. That exemption
+     * is what let {@code WaveGenerator}, {@code WaveWarningFinal} and {@code RoofCleaner} sit in the
+     * server book as if they were code.
+     *
+     * <p>The three shapes that really do have no declaration are handled by shape rather than by an
+     * exception list: a file name ({@code PoolCleaner.reanim}) or a placeholder ({@code WallnutEat*})
+     * is skipped outright, and a line that is already talking about the past or about the original
+     * game ({@code MENTIONS_THE_PAST}) is allowed to name what it is talking about.
+     */
+    @Test
+    void everyBareTypeNameInTheDocsExists() throws IOException {
+        Set<String> problems = new LinkedHashSet<>();
+        for (Path document : documents()) {
+            if (!describesTheCode(document)) {
+                continue;
+            }
+            String text = Files.readString(document);
+            for (String line : text.split("\n", -1)) {
+                if (MENTIONS_THE_PAST.matcher(line).find()) {
+                    continue;
+                }
+                Matcher matcher = BARE_TYPE.matcher(line);
+                while (matcher.find()) {
+                    String name = matcher.group(1);
+                    if (name.equals(name.toUpperCase(java.util.Locale.ROOT)) || TYPES.containsKey(name)
+                            || MENTIONED.contains(name) || name.indexOf('_') >= 0) {
+                        // All-caps is a constant, an embedded underscore is a data key or an
+                        // original-asset name (`Zombie_duckytube`, `ALC_SOFT_device_clock`).
+                        continue;
+                    }
+                    problems.add(document.getFileName() + " says `" + name
+                            + "`, which is neither a declared type nor a word any source file uses");
+                }
+            }
+        }
+        assertTrue(problems.isEmpty(), "stale type names:\n" + String.join("\n", problems));
+    }
+
     private static boolean declares(String source, String member) {
         if (source == null) {
             return false;
         }
-        return source.contains(member + "(") || source.contains(member + ";")
-                || source.contains(member + ",") || source.contains(member + ")")
-                || source.contains(member + " ") || source.contains(member + "\n");
+        // Word boundaries, not a bare substring: `LINGER_TICKS` used to pass because
+        // `DEFAULT_LINGER_TICKS` was in the file, so a document could name a constant that does not
+        // exist and stay green as long as some other constant ended with the same word.
+        return Pattern.compile("\\b" + Pattern.quote(member) + "\\b").matcher(source).find();
     }
 
     /** A reminder that this file is only as good as the documents it reads. */
@@ -268,7 +420,7 @@ class DocumentedSymbolsTest {
             String name = document.getFileName().toString();
             if (name.startsWith("架构-")) {
                 books.add(name);
-                assertTrue(isAsBuilt(document), name + " is not treated as an as-built document");
+                assertTrue(describesTheCode(document), name + " is not treated as an as-built document");
             }
         }
         assertTrue(books.contains("架构-服务端.md"),

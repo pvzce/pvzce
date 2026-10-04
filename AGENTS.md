@@ -9,7 +9,7 @@ PVZCE 是一个**独立运行的桌面 PvZ 游戏**（不是 Minecraft 模组）
 ```bash
 export GRADLE_USER_HOME=$PWD/.gradle-user   # ~/.gradle 只读，不加会在 wrapper 解压阶段失败
 
-./gradlew :pvzce-game:test                      # 全量单测（约 20s）；:pvzce-api:test 另有 2 例
+./gradlew :pvzce-game:test                      # 全量单测（约 2 分钟，机器相关；:pvzce-api:test 另有几例）
 ./gradlew :pvzce-game:test --tests 'com.pvzce.server.VaseTest'    # 只跑一个类/包（秒级，优先）
 ./gradlew :pvzce-game:run -Ppvzce.gameDir=$PWD/.smoke/gd \
     -Ppvzce.smoke="pvzce.smokeLevel=pvzce:yard/adventure/1_1 pvzce.smokeFrames=400 \
@@ -28,7 +28,7 @@ export GRADLE_USER_HOME=$PWD/.gradle-user   # ~/.gradle 只读，不加会在 wr
 - 分层靠包约定维持（`api`/`common`/`server`/`client` 在同一个 source set），例外只有三类，
   由 `LayerDependencyTest` **按文件名白名单**钉住；加一处反向 import 就会红。不要放宽它，先读
   `docs/当前项目架构.md` §1。
-- 一个事实只有一个出处：数值进 `PvzceConstants`，内容 id 映射进 `EntityArt`/`EntityTextures`，
+- 一个事实只有一个出处：数值进 `PvzceConstants`，内容 id → 美术只有 `EntityArt`（`EntityTextures` 是它上面的兼容转发），
   放置判定只有 `PlantPlacement`……完整清单在 `docs/架构-扩展点与约定.md` §8（改之前先 grep 有没有现成实现）。
 - 不记用例数。"全绿"只有在用例本身确定的时候才是信号；偶发失败要么改成确定性断言、要么删掉。
 
@@ -57,7 +57,7 @@ export GRADLE_USER_HOME=$PWD/.gradle-user   # ~/.gradle 只读，不加会在 wr
 8. 提交：一行中文说清"这一批做了什么"，不写 `fix bug` / `update`。收官报告（如果用户要）按
    `docs/验证约定.md` §12.4 的七段结构写，放进 `docs/报告/`。
 
-**被用户指出问题、修好之后，同样要走一遍上面 7 步**——修复本身也要反思并落进文档，
+**被用户指出问题、修好之后，同样要走一遍上面这几步**——修复本身也要反思并落进文档，
 不要只在对话里说一句"已修复"。
 
 ## 地图

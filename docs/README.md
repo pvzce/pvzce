@@ -85,8 +85,20 @@
 3. 具体动作清单与命令模板见 `AGENTS.md` 的「收尾」一节与 `验证约定.md` §12。
 4. 跑 `python3 tools/doc_check.py`：改了源码却没改文档时它会点名候选文档（提醒，不是门）。
 5. **`docs/**` 与 `AGENTS.md` 是 `:pvzce-game:test` 的输入**，所以改完文档再跑一次测试，
-   三条守门会重新执行（数秒）：`DocumentedSymbolsTest`（文档里的类/方法真的存在）、
-   `DocStatsTest`（规模统计块与实际一致）、`DocLedgerTest`（每份文档都在台账里、每份归档卷都被索引链到）。
+   四条守门会重新执行（数秒）：
+
+   | 守门 | 管什么 |
+   |---|---|
+   | `DocumentedSymbolsTest` | 文档里的符号真的存在。**活文档**查全限定名与 `Type.member`；**描述现状的那八份**再查裸小驼峰、裸 PascalCase 类型名与"写成调用样子的类型名" |
+   | `DocStatsTest` | `当前项目架构.md` 的规模统计块与实际一致 |
+   | `DocLedgerTest` | 每份文档都在台账里、每份归档卷都被索引链到、变更记录 §1.1 的条数是对的 |
+   | `LayerDependencyTest` | 文档里那张分层例外表，与代码里的 import 一致 |
+
+   **不查**的是历史与快照：`架构变更记录.md`、`架构变更记录/`、`报告/`、`mod-guide/`、
+   `01`/`02`/`03` 与设计方案 —— 它们按定义就要能写出"已经删掉的东西"。
+   **只查精确形状**（全限定名与 `Type.member`，这两条误报为零）的是规范与流程类：
+   `验证约定.md`、`冒烟与截图指南.md`、`代码规范.md`（它规定命名，本来就会写不存在的名字）、
+   `素材对照表.md`、`00-架构总览与开发路线.md`。
 
 > 统计块（`当前项目架构.md` 开头那几行规模数字）不要手改：跑
 > `./gradlew :pvzce-game:test --tests '*DocStatsTest*' -Ppvzce.smoke=pvzce.updateDocStats=true`

@@ -10,6 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -123,6 +125,41 @@ class DocLedgerTest {
         for (String tier : List.of("活·每轮过一遍", "活·按条件写", "冻结")) {
             assertTrue(ledger.contains(tier), "docs/README.md no longer mentions the tier " + tier);
         }
+    }
+
+    /**
+     * The changelog's per-layer index counts the entries in each archived volume, and is right.
+     *
+     * <p>These five numbers are the only hand-written counts left in the live documents, and they had
+     * already drifted once: the client volume claimed 42 and held 37, so a reader choosing which
+     * volume to search had the wrong idea of its size. They are worth keeping - they are how you
+     * decide which volume is worth opening - so they get a checker rather than being deleted.
+     */
+    @Test
+    void theIndexedEntryCountsMatchTheArchivedVolumes() throws IOException {
+        String changelog = Files.readString(docs.resolve(CHANGELOG));
+        int start = changelog.indexOf("### 1.1");
+        int end = changelog.indexOf("####", start);
+        assertTrue(start > 0 && end > start, CHANGELOG + " lost its §1.1 per-layer table");
+        Matcher rows = Pattern.compile("\\|\\s*\\[[^\\]]+\\]\\(([^)]+)\\)\\s*\\|\\s*(\\d+)\\s*\\|")
+                .matcher(changelog.substring(start, end));
+        List<String> problems = new ArrayList<>();
+        int checked = 0;
+        while (rows.find()) {
+            Path volume = docs.resolve(rows.group(1));
+            if (!Files.isRegularFile(volume)) {
+                problems.add(rows.group(1) + " is linked from the index but does not exist");
+                continue;
+            }
+            long actual = Files.readString(volume).lines().filter(line -> line.startsWith("## ")).count();
+            long claimed = Long.parseLong(rows.group(2));
+            checked++;
+            if (actual != claimed) {
+                problems.add(rows.group(1) + ": the index says " + claimed + " entries, it has " + actual);
+            }
+        }
+        assertTrue(checked >= 5, "the §1.1 table lists only " + checked + " volumes (expected at least 5)");
+        assertTrue(problems.isEmpty(), "stale entry counts in " + CHANGELOG + ":\n" + String.join("\n", problems));
     }
 
     private static boolean isRegistered(String relative) {

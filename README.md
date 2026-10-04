@@ -38,7 +38,7 @@
 
 ```bash
 ./gradlew :pvzce-game:run                 # 启动游戏
-./gradlew :pvzce-game:test                # 全量单测（约 1 分钟）
+./gradlew :pvzce-game:test                # 全量单测（约 2 分钟）
 ./gradlew :pvzce-game:shadowJar           # 打可执行 fat jar → pvzce-game/build/libs/pvzce-1.0.jar
 ```
 
