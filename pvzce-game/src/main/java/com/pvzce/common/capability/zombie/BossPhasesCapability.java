@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.List;
 
 /**
@@ -71,14 +70,13 @@ public final class BossPhasesCapability implements ZombieCapability {
             nextPhaseIndex++;
             int row = level.random().nextInt(Math.max(1, level.height()));
             for (Identifier summon : phase.summons()) {
-                level.spawnZombie(summon, zombie.team(), level.width() + summonXSpawn, row);
+                level.spawnZombie(summon, zombie.team(), level.width() + summonXSpawn, row, 1F, zombie.surfaceId());
             }
             switch (phase.ability()) {
                 case "slam" -> {
-                    level.damageArea(ZombieEntity.damageType(SLAM_DAMAGE_TYPE), zombie.cellX(), zombie.cellY(),
-                            SLAM_RADIUS, SLAM_DAMAGE, zombie.team());
-                    level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), zombie.cellX(), zombie.cellY(),
-                            zombie.def().sounds().special().orElse(PvzceSounds.ZOMBIE_BOSS_BOULDER));
+                    level.damageArea(ZombieEntity.damageType(SLAM_DAMAGE_TYPE), zombie.position(),
+                            SLAM_RADIUS, SLAM_DAMAGE, zombie.team(), false);
+                    level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), zombie.position(), zombie.surfaceId(), zombie.def().sounds().special().orElse(PvzceSounds.ZOMBIE_BOSS_BOULDER));
                 }
                 case "charge" -> zombie.setSpeedBoost(CHARGE_TICKS);
                 default -> {

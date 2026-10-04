@@ -11,7 +11,6 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.Optional;
 
 /**
@@ -152,6 +151,9 @@ public final class CobCannonCapability implements PlantCapability {
      * @return {@code true} when the shot left the barrel
      */
     public boolean fireAt(PlantEntity plant, LevelAccess level, int gridX, int gridY) {
+        return fireAt(plant, level, gridX, gridY, plant.surfaceId());
+    }
+    public boolean fireAt(PlantEntity plant, LevelAccess level, int gridX, int gridY, String surface) {
         if (!(level instanceof LevelServer server)) {
             return false;
         }
@@ -161,7 +163,8 @@ public final class CobCannonCapability implements PlantCapability {
         if (!loaded()) {
             return false;
         }
-        if (gridX < 0 || gridX >= server.width() || gridY < 0 || gridY >= server.height()) {
+        if (gridX < 0 || gridX >= server.width() || gridY < 0 || gridY >= server.height()
+                || !server.sceneBoard().exists(surface, gridX, gridY)) {
             return false;
         }
         loaded = false;
@@ -176,9 +179,9 @@ public final class CobCannonCapability implements PlantCapability {
         // the three are one impact as far as the lawn is concerned, which is what "three bullets"
         // means for a weapon that fires once.
         for (int i = 0, shots = Math.max(1, level.projectileCountMultiplier(plant)); i < shots; i++) {
-            server.launchAimedProjectile(projectile, damage, plant, gridX, gridY);
+            server.launchAimedProjectile(projectile, damage, plant, gridX, gridY, surface);
         }
-        level.emitEffect("", plant.cellX(), plant.cellY(), sound.orElse(null));
+        level.emitEffect("", plant.position(), plant.surfaceId(), sound.orElse(null));
         return true;
     }
 

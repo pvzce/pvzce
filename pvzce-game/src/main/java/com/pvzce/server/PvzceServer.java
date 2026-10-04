@@ -57,7 +57,6 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
@@ -1499,13 +1498,13 @@ public final class PvzceServer implements Runnable {
             } else if (packet instanceof com.pvzce.common.network.packet.PlaceZombieC2S place) {
                 // I, Zombie's click. The level re-derives the price, the cooldown and the side.
                 if (level != null) {
-                    level.placeZombie(bridge, place.slotIndex(), place.gridX(), place.gridY());
+                    level.placeZombie(bridge, place.slotIndex(), place.gridX(), place.gridY(), place.surfaceId());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.FireAtC2S fire) {
                 // A hand-aimed shot. The level re-derives everything: which entity that id is,
                 // whether it is the sender's, whether it is loaded, and whether the cell exists.
                 if (level != null) {
-                    level.fireAt(bridge, fire.entityId(), fire.gridX(), fire.gridY());
+                    level.fireAt(bridge, fire.entityId(), fire.gridX(), fire.gridY(), fire.surfaceId());
                 }
             } else if (packet instanceof CreateWorldC2S create) {
                 createWorld(create.worldName(), create.unlockAll());
@@ -1519,11 +1518,11 @@ public final class PvzceServer implements Runnable {
                 }
             } else if (packet instanceof PlacePlantC2S place) {
                 if (current != null) {
-                    current.placePlant(bridge, place.slotIndex(), place.gridX(), place.gridY());
+                    current.placePlant(bridge, place.slotIndex(), place.gridX(), place.gridY(), place.surfaceId());
                 }
             } else if (packet instanceof UseToolC2S tool) {
                 if (current != null) {
-                    current.useTool(bridge, tool.slotIndex(), tool.gridX(), tool.gridY());
+                    current.useTool(bridge, tool.slotIndex(), tool.gridX(), tool.gridY(), tool.surfaceId());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.SmashContainerC2S smash) {
                 // A bare click on a vase or one of the vase level's pots. The client decides
@@ -1531,7 +1530,7 @@ public final class PvzceServer implements Runnable {
                 // the cell) and the server decides whether it broke - the same split every other
                 // click has.
                 if (current != null) {
-                    current.smashContainer(bridge, smash.gridX(), smash.gridY());
+                    current.smashContainer(bridge, smash.gridX(), smash.gridY(), smash.surfaceId());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.UseGrantedToolC2S granted) {
                 // A tool the level hands over rather than a card the player holds. Which tool
@@ -1544,7 +1543,7 @@ public final class PvzceServer implements Runnable {
                                     .findFirst()
                                     .orElse(null);
                     if (data != null) {
-                        current.useGrantedTool(bridge, data, granted.gridX(), granted.gridY());
+                        current.useGrantedTool(bridge, data, granted.gridX(), granted.gridY(), granted.surfaceId());
                     }
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.ReselectCardsC2S reselect) {
@@ -1573,7 +1572,7 @@ public final class PvzceServer implements Runnable {
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.PlantHeldCardC2S plantHeld) {
                 if (current != null) {
-                    current.plantHeldCard(bridge, plantHeld.gridX(), plantHeld.gridY());
+                    current.plantHeldCard(bridge, plantHeld.gridX(), plantHeld.gridY(), plantHeld.surfaceId());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.ReleaseHeldCardC2S) {
                 if (current != null) {

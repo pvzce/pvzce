@@ -3,7 +3,6 @@ package com.pvzce.api.content;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.util.Identifier;
-
 import java.util.Optional;
 
 /**
@@ -34,15 +33,35 @@ public record SceneElementDef(
         String surfaceClass,
         float maxHeight,
         Optional<Identifier> liquid,
-        Optional<SceneElementArt> art
+        Optional<SceneElementArt> art,
+        boolean overlay,
+        Optional<SurfaceProfile> profile
 ) implements com.pvzce.api.entity.LevelAccess.SceneElementAccess {
     public static final Codec<SceneElementDef> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.fieldOf("id").forGetter(SceneElementDef::id),
             Codec.STRING.fieldOf("surface").forGetter(SceneElementDef::surfaceClass),
             Codec.FLOAT.optionalFieldOf("max_height", 0F).forGetter(SceneElementDef::maxHeight),
             Identifier.CODEC.optionalFieldOf("liquid").forGetter(SceneElementDef::liquid),
-            SceneElementArt.CODEC.optionalFieldOf("art").forGetter(SceneElementDef::art)
+            SceneElementArt.CODEC.optionalFieldOf("art").forGetter(SceneElementDef::art),
+            Codec.BOOL.optionalFieldOf("overlay", false).forGetter(SceneElementDef::overlay),
+            SurfaceProfile.CODEC.optionalFieldOf("profile").forGetter(SceneElementDef::profile)
     ).apply(i, SceneElementDef::new));
+
+    public SceneElementDef(Identifier id, String surfaceClass, float maxHeight,
+                           Optional<Identifier> liquid, Optional<SceneElementArt> art) {
+        this(id, surfaceClass, maxHeight, liquid, art, false, Optional.empty());
+    }
+
+    /** Resolves old element definitions at the import boundary; runtime reads SceneBoard. */
+    public SurfaceProfile profileFor(int width) {
+        if (profile.isPresent()) return profile.get();
+        if ("ROOF".equals(surfaceClass)) return SurfaceProfile.flat(com.pvzce.common.PvzceConstants.ROOF_HEIGHT);
+        if ("ROOF_SLOPE".equals(surfaceClass)) return new SurfaceProfile(0F,
+                com.pvzce.common.PvzceConstants.ROOF_HEIGHT / com.pvzce.common.PvzceConstants.ROOF_SLOPE_COLUMNS,
+                0F, 0F, com.pvzce.common.PvzceConstants.ROOF_HEIGHT);
+        return new SurfaceProfile(0F, width <= 1 ? 0F : maxHeight / (width - 1), 0F,
+                -Float.MAX_VALUE, Float.MAX_VALUE);
+    }
 
     /** An element with no liquid surface and no art of its own; the common case for land tiles. */
     public SceneElementDef(Identifier id, String surfaceClass, float maxHeight) {
@@ -68,16 +87,7 @@ public record SceneElementDef(
     /** Native roof profile; other raised surfaces interpolate their declared maxHeight. */
     @Override
     public float heightAt(float x, int width) {
-        if ("ROOF_SLOPE".equals(surfaceClass)) {
-            return roofHeightAt(x);
-        }
-        if ("ROOF".equals(surfaceClass)) {
-            return com.pvzce.common.PvzceConstants.ROOF_HEIGHT;
-        }
-        if (maxHeight <= 0 || width <= 1) {
-            return 0F;
-        }
-        return maxHeight * (x / Math.max(1, width - 1));
+        return profileFor(width).at(x, 0F);
     }
 
     /** The shared roof profile used by simulation and mouse picking. */

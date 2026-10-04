@@ -11,7 +11,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.packet.MagnetItemS2C;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -49,6 +48,7 @@ public final class MagnetCapability implements PlantCapability {
     private boolean pulling;
     private String heldItem = "";
     private float itemX, itemY;
+    private float itemElevation = Float.NaN;
     private boolean resync;
 
     public MagnetCapability(float range, int intervalTicks, Optional<Identifier> sound) {
@@ -98,13 +98,12 @@ public final class MagnetCapability implements PlantCapability {
             if (ladder != null) {
                 ladder.setLaddered(false);
                 heldItem = com.pvzce.common.PvzceIds.id("ladder").toString();
-                itemX = ladder.cellX(); itemY = ladder.cellY();
+                itemX = ladder.cellX(); itemY = ladder.cellY(); itemElevation = ladder.height();
                 sendItem(plant, level, 0);
                 pulling = true;
                 cooldown = intervalTicks;
                 plant.setState(EntityAnimations.SHOOT);
-                level.emitEffect("", plant.cellX(), plant.cellY(),
-                        sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
+                level.emitEffect("", plant.position(), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
                 return;
             }
             // Nothing wearing anything within reach. The clock is *not* reset, so the pull happens
@@ -114,12 +113,11 @@ public final class MagnetCapability implements PlantCapability {
         }
         var item = target.magneticItem();
         if (target.removeMagneticItem(level)) {
-            heldItem = item.toString(); itemX = target.cellX(); itemY = target.cellY();
+            heldItem = item.toString(); itemX = target.cellX(); itemY = target.cellY(); itemElevation = target.height();
             sendItem(plant, level, 0);
             pulling = true;
             plant.setState(EntityAnimations.SHOOT);
-            level.emitEffect("", plant.cellX(), plant.cellY(),
-                    sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
+            level.emitEffect("", plant.position(), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
         }
         cooldown = intervalTicks;
     }
@@ -140,7 +138,8 @@ public final class MagnetCapability implements PlantCapability {
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;
         for (ZombieEntity zombie : level.enemiesOf(plant.team())) {
-            if (zombie.isRemoved() || zombie.magneticItem() == null) {
+            if (zombie.isRemoved() || zombie.magneticItem() == null
+                    || !level.reachedByBlast(plant.position(), zombie, range * level.weatherRangeMultiplier(plant), false)) {
                 continue;
             }
             if (Math.abs(zombie.gridY() - plant.gridY()) > Math.floor(2.5F * level.weatherRangeMultiplier(plant))) continue;
@@ -161,9 +160,10 @@ public final class MagnetCapability implements PlantCapability {
         int rows = (int) Math.floor(2.5F * level.weatherRangeMultiplier(plant));
         for (int row = Math.max(0, plant.gridY() - rows); row <= Math.min(level.height() - 1, plant.gridY() + rows); row++) {
             for (int col = 0; col < level.width(); col++) {
-                for (PlantEntity candidate : level.plantsAt(col, row)) {
+                for (PlantEntity candidate : level.plantsAt(col, row, plant.surfaceId())) {
                     double d = Math.hypot(candidate.cellX() - plant.cellX(), candidate.cellY() - plant.cellY());
-                    if (candidate.laddered() && !candidate.isRemoved() && d <= distance) {
+                    if (candidate.laddered() && !candidate.isRemoved() && d <= distance
+                            && level.reachedByBlast(plant.position(), candidate, range * level.weatherRangeMultiplier(plant), false)) {
                         best = candidate; distance = d;
                     }
                 }
@@ -173,16 +173,25 @@ public final class MagnetCapability implements PlantCapability {
     }
 
     private void sendItem(PlantEntity plant, LevelAccess level, int elapsed) {
-        level.emitMagnetItem(plant.id(), Identifier.parse(heldItem), itemX, itemY,
+        level.emitMagnetItem(plant.id(), Identifier.parse(heldItem), itemPosition(plant, level),
                 level.tickCount() - elapsed, com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS, intervalTicks);
+    }
+
+    private com.pvzce.common.level.WorldPosition itemPosition(PlantEntity plant, LevelAccess level) {
+        float elevation = Float.isFinite(itemElevation) ? itemElevation
+                : level == null ? plant.height() : level.surfaceHeight(plant.surfaceId(), itemX, itemY);
+        return new com.pvzce.common.level.WorldPosition(itemX, itemY, elevation);
     }
 
     /** Current held object, retaining its elapsed pull/recovery time on a joining client. */
     public MagnetItemS2C itemSnapshot(PlantEntity plant, int tick) {
+        return itemSnapshot(plant, tick, null);
+    }
+    public MagnetItemS2C itemSnapshot(PlantEntity plant, int tick, LevelAccess level) {
         if (cooldown <= 0 || heldItem.isEmpty()) return null;
         return new MagnetItemS2C(plant.id(), heldItem, itemX, itemY,
                 tick - (intervalTicks - cooldown),
-                com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS, intervalTicks);
+                com.pvzce.common.PvzceConstants.MAGNET_PULL_TICKS, intervalTicks, itemPosition(plant, level).elevation());
     }
 
     @Override
@@ -191,6 +200,7 @@ public final class MagnetCapability implements PlantCapability {
         tag.putInt("cooldown", cooldown);
         tag.putString("heldItem", heldItem);
         tag.putFloat("itemX", itemX); tag.putFloat("itemY", itemY);
+        if (Float.isFinite(itemElevation)) tag.putFloat("itemElevation", itemElevation);
     }
 
     @Override
@@ -199,6 +209,7 @@ public final class MagnetCapability implements PlantCapability {
         cooldown = Math.max(0, tag.getInt("cooldown"));
         heldItem = tag.getString("heldItem");
         itemX = tag.getFloat("itemX"); itemY = tag.getFloat("itemY");
+        itemElevation = tag.contains("itemElevation") ? tag.getFloat("itemElevation") : Float.NaN;
         resync = cooldown > 0 && !heldItem.isEmpty();
     }
 }

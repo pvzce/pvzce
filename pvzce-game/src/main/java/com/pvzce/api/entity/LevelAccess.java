@@ -1,11 +1,11 @@
 package com.pvzce.api.entity;
 
+import com.pvzce.common.level.WorldPosition;
 import com.pvzce.api.content.ProjectileRef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.server.Team;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.List;
 import java.util.Random;
 
@@ -25,6 +25,24 @@ public interface LevelAccess {
     int height();
 
     int tickCount();
+    default float surfaceHeight(String surface, float x, float y) {
+        SceneElementAccess element = sceneAt((int) Math.floor(x), (int) Math.floor(y), surface);
+        return element == null ? 0F : element.heightAt(x, width());
+    }
+    default boolean obstructed(WorldPosition from, WorldPosition to) {
+        return false;
+    }
+    default List<ZombieEntity> enemiesInRow(int row, Team team, String surface) {
+        return enemiesInRow(row, team).stream().filter(z -> z.surfaceId().equals(surface)).toList();
+    }
+    default List<PlantEntity> plantsAt(int x, int y, String surface) {
+        return plantsAt(x, y).stream().filter(p -> p.surfaceId().equals(surface)).toList();
+    }
+    default PlantEntity plantAt(int x, int y, String surface) {
+        return plantsAt(x, y, surface).stream().filter(p -> !p.isRemoved())
+                .max(java.util.Comparator.comparingInt(PlantEntity::layer)).orElse(null);
+    }
+
 
     /** The movement multiplier of the mechanics affecting this zombie right now. */
     default float zombieSpeedMultiplier(ZombieEntity zombie) {
@@ -76,6 +94,36 @@ public interface LevelAccess {
                 .filter(z -> Math.abs(z.cellX() - x) <= limit && Math.abs(z.cellY() - y) <= limit).toList();
     }
 
+    default List<ZombieEntity> enemiesInArea(Team team, WorldPosition center,
+                                            float radius, boolean square) {
+        return enemiesInArea(team, center.x(), center.y(), radius, square).stream()
+                .filter(z -> reachedByBlast(center, z, radius, square)).toList();
+    }
+    default void damageArea(com.pvzce.api.content.DamageTypeDef type, WorldPosition center,
+                            float radius, int damage, Team team, boolean square) {
+        damageArea(type, center.x(), center.y(), radius, damage, team, square);
+    }
+
+    /** Bodies reached by a spatial blast. Ground/carrier elevation and intervening decks apply. */
+    default boolean reachedByBlast(WorldPosition center,
+                                   com.pvzce.api.entity.Entity target, float radius, boolean square) {
+        float limit = radius + (square ? 0.5F : 0F);
+        float dx = target.cellX() - center.x(), dy = target.cellY() - center.y();
+        float dz = target.height() - center.elevation();
+        boolean inRange = square ? Math.abs(dx) <= limit && Math.abs(dy) <= limit && Math.abs(dz) <= limit
+                : dx * dx + dy * dy + dz * dz <= limit * limit;
+        float body = com.pvzce.common.PvzceConstants.COMBAT_BODY_HEIGHT / 2F;
+        return inRange && !obstructed(center.offset(0F, 0F, body), target.position().offset(0F, 0F, body));
+    }
+
+    default List<PlantEntity> plantsInArea(WorldPosition center, float radius, boolean square) {
+        java.util.ArrayList<PlantEntity> result = new java.util.ArrayList<>();
+        for (int x = 0; x < width(); x++) for (int y = 0; y < height(); y++)
+            for (PlantEntity plant : plantsAt(x, y))
+                if (!plant.isRemoved() && reachedByBlast(center, plant, radius, square)) result.add(plant);
+        return List.copyOf(result);
+    }
+
     List<PlantEntity> plantsAt(int column, int row);
 
     /**
@@ -92,6 +140,11 @@ public interface LevelAccess {
 
     /** Read-only view of the scene element in a cell; {@code null} when out of bounds. */
     SceneElementAccess sceneAt(int column, int row);
+    default SceneElementAccess sceneAt(int x, int y, String surface) { return sceneAt(x, y); }
+    default List<com.pvzce.server.entity.ProjectileEntity> projectilesInCell(int x, int y, String surface) {
+        return projectilesInCell(x, y).stream().filter(p -> p.surfaceId().equals(surface)).toList();
+    }
+
 
     /**
      * How much further a shot from this plant flies because of the run's rules; 1 when nothing
@@ -192,6 +245,16 @@ public interface LevelAccess {
      */
     void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team, float scale);
 
+    default void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                       float scale, String surface) {
+        spawnProducedResource(resourceId, amount, x, y, team, scale);
+    }
+
+    default void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                       float scale, float driftX, String surface) {
+        spawnProducedResource(resourceId, amount, x, y, team, scale, driftX);
+    }
+
     /** A batch drop's explicit sideways motion, keeping each independently collectible. */
     default void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
                                        float scale, float driftX) {
@@ -211,6 +274,13 @@ public interface LevelAccess {
     default ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row, float healthScale) {
         return spawnZombie(zombieId, team, x, row);
     }
+
+    default ZombieEntity spawnZombie(Identifier id, Team team, float x, int row, float healthScale, String surface) {
+        return spawnZombie(id, team, x, row, healthScale);
+    }
+    default void meltIce(float x, float y, float radius, boolean square, String surface) { meltIce(x, y, radius, square); }
+    default void leaveCraters(float x, float y, float radius, boolean square, String surface) { leaveCraters(x, y, radius, square); }
+    default void emitRippleAt(int x, int y, float strength, String surface) { emitRippleAt(x, y, strength); }
 
     /**
      * Opens every container within {@code radius} cells of a point.
@@ -265,6 +335,11 @@ public interface LevelAccess {
      * the fact, so it is the method.
      */
     void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam);
+    default void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team team, String surface) {
+        damageRow(type, row, damage, team);
+    }
+    default void meltIceRow(int row, String surface) { meltIceRow(row); }
+
 
     /**
      * Hits every zombie in one column, from the house to the road.
@@ -309,9 +384,23 @@ public interface LevelAccess {
 
     void emitEffect(String particle, float x, float y, Identifier sound);
 
+    default void emitEffect(String particle, WorldPosition position,
+                            String surface, Identifier sound) {
+        emitEffect(particle, position, surface, sound, 1F, 1F);
+    }
+    default void emitEffect(String particle, WorldPosition position,
+                            String surface, Identifier sound, float volume, float pitch) {
+        emitEffect(particle, position.x(), position.projectedY(), sound, volume, pitch);
+    }
+
+
     /** Publishes an already-decided equipment transfer for the client to animate. */
     default void emitMagnetItem(int plantId, Identifier item, float x, float y,
-                                int startTick, int pullTicks, int holdTicks) { }
+                               int startTick, int pullTicks, int holdTicks) { }
+    default void emitMagnetItem(int plantId, Identifier item, WorldPosition origin,
+                               int startTick, int pullTicks, int holdTicks) {
+        emitMagnetItem(plantId, item, origin.x(), origin.y(), startTick, pullTicks, holdTicks);
+    }
 
     /**
      * The same, with the volume and pitch the sound is played at.

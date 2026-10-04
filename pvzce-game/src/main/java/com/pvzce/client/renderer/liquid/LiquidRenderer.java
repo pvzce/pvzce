@@ -6,7 +6,6 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.config.PvzceClientConfig;
 import com.pvzce.client.renderer.Matrix4f;
 import org.lwjgl.opengl.GL13;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.List;
@@ -93,6 +92,9 @@ public final class LiquidRenderer {
 
     /** Shader-path draw; the caller has already checked {@link #available()}. */
     public static void render(PvzceClient client, Request request, LiquidRipples ripples) {
+        render(client, request, ripples, LiquidBatch.Elevation.FLAT);
+    }
+    public static void render(PvzceClient client, Request request, LiquidRipples ripples, LiquidBatch.Elevation elevation) {
         List<LiquidCell> cells = LiquidGeometry.collect(request.width(), request.height(),
                 request.occupancy(),
                 request.liquid().shallowColor()[0], request.liquid().shallowColor()[1],
@@ -106,7 +108,7 @@ public final class LiquidRenderer {
         // (setShadowMode, setTextured, the day/night values) would land on THIS
         // program's locations and silently corrupt it.
         try {
-            drawLiquid(client, request, cells, ripples);
+            drawLiquid(client, request, cells, ripples, elevation);
         } finally {
             com.pvzce.client.renderer.RenderSystem.setShader();
             GL13.glActiveTexture(GL13.GL_TEXTURE1);
@@ -126,7 +128,7 @@ public final class LiquidRenderer {
     private static final float CAUSTIC_GAIN = 0.55F;
 
     private static void drawLiquid(PvzceClient client, Request request, List<LiquidCell> cells,
-                                   LiquidRipples ripples) {
+                                   LiquidRipples ripples, LiquidBatch.Elevation elevation) {
         shader.setProjection(request.projection());
         Identifier texture = request.liquid().resolvedBaseTexture();
         boolean hasTexture = safeHasTexture(client, texture);
@@ -171,7 +173,7 @@ public final class LiquidRenderer {
 
         batch.reset();
         batch.addAll(cells, request.originX(), request.originY(),
-                request.cellWidth(), request.cellHeight());
+                request.cellWidth(), request.cellHeight(), elevation);
         reportOnce(request, cells);
         batch.draw();
     }
@@ -185,6 +187,9 @@ public final class LiquidRenderer {
      * cost of the parameters the definition exposes.
      */
     public static void renderFallback(PvzceClient client, Request request) {
+        renderFallback(client, request, LiquidBatch.Elevation.FLAT);
+    }
+    public static void renderFallback(PvzceClient client, Request request, LiquidBatch.Elevation elevation) {
         LiquidDef liquid = request.liquid();
         int frames = Math.max(1, liquid.staticFrames());
         int frame = (int) (request.time() / FALLBACK_FRAME_SECONDS) % frames;
@@ -205,19 +210,25 @@ public final class LiquidRenderer {
                 }
                 float drawX = request.originX() + x * request.cellWidth();
                 float drawY = request.originY() + y * request.cellHeight();
+                float bl = drawY + elevation.at(x, y), br = drawY + elevation.at(x + 1F, y);
+                float top = drawY + request.cellHeight();
+                float tr = top + elevation.at(x + 1F, y + 1F), tl = top + elevation.at(x, y + 1F);
                 if (hasTexture) {
                     // Drawn FLAT: the baked frame already contains the water colour over
                     // the sea floor, the caustics and the foam, so tinting it again with
                     // the surface colour is what turned the first fallback grey. Only
                     // alpha is passed, so a level's own water can still be translucent
                     // if a definition asks for it.
-                    client.drawTexture(texture, drawX, drawY, request.cellWidth(), request.cellHeight(),
+                    var sprite = client.textures().getOrLoad(texture);
+                    client.drawTextureQuad(texture, drawX, bl, drawX + request.cellWidth(), br,
+                            drawX + request.cellWidth(), tr, drawX, tl,
+                            0F, 0F, sprite.width(), 0F, sprite.width(), sprite.height(), 0F, sprite.height(),
                             0F, 1F, 1F, 1F, color[3]);
                 } else {
                     // Deep water colour, so the fallback at least reads as water and
                     // not as a missing texture.
                     float[] deep = liquid.deepColor();
-                    client.drawSolid(drawX, drawY, request.cellWidth(), request.cellHeight(),
+                    client.drawSolid(drawX, bl, request.cellWidth(), Math.max(tr, tl) - Math.min(bl, br),
                             0F, deep[0], deep[1], deep[2], 1F);
                 }
             }

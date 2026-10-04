@@ -1,5 +1,6 @@
 package com.pvzce.common.level.mechanic;
 
+import com.pvzce.common.level.SceneBoard;
 import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.RakeData;
@@ -13,7 +14,6 @@ import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -214,7 +214,8 @@ public final class RakeMechanic implements LevelMechanic<RakeData> {
             List<ZombieEntity> found = new ArrayList<>();
             for (var entity : level.entities()) {
                 if (entity instanceof ZombieEntity zombie && zombie.isAlive()
-                        && zombie.gridY() == row && zombie.layer() == EntityLayers.GROUND) {
+                        && zombie.gridY() == row && zombie.layer() == EntityLayers.GROUND
+                        && zombie.surfaceId().equals(SceneBoard.DEFAULT_SURFACE)) {
                     found.add(zombie);
                 }
             }

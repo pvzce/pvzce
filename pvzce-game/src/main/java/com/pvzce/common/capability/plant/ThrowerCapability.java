@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.plant;
 
+import com.pvzce.common.level.WorldPosition;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -12,7 +13,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -126,7 +126,7 @@ public final class ThrowerCapability implements PlantCapability {
 
     /** The nearest zombie in front of this plant, which is what a lob would come down on. */
     private ZombieEntity targetOf(PlantEntity plant, LevelAccess level) {
-        return level.enemiesInRow(plant.gridY(), plant.team()).stream()
+        return level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId()).stream()
                 .filter(z -> z.isAlive() && z.canBeHitByArc() && z.cellX() > plant.cellX())
                 .sorted((a, b) -> Float.compare(a.cellX(), b.cellX()))
                 .findFirst()
@@ -212,8 +212,8 @@ public final class ThrowerCapability implements PlantCapability {
                 continue;
             }
             level.spawnArcProjectile(pending.ref(), pending.x(), pending.y(), plant, pending.target());
-            level.emitEffect(PlantShots.MUZZLE_PARTICLE, pending.x(),
-                    pending.y() + plant.height() + PlantShots.LOB_MUZZLE_HEIGHT,
+            level.emitEffect(PlantShots.MUZZLE_PARTICLE, new WorldPosition(pending.x(), pending.y(),
+                            plant.height() + PlantShots.LOB_MUZZLE_HEIGHT), plant.surfaceId(),
                     sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_THROW)));
         }
     }

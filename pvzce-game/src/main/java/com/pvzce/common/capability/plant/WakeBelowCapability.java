@@ -9,7 +9,6 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.server.entity.PlantEntity;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -97,7 +96,7 @@ public final class WakeBelowCapability implements PlantCapability {
 
     @Override
     public void onPlaced(PlantEntity plant, LevelAccess level) {
-        List<PlantEntity> stacked = level.plantsAt(plant.gridX(), plant.gridY());
+        List<PlantEntity> stacked = level.plantsAt(plant.gridX(), plant.gridY(), plant.surfaceId());
         PlantEntity target = null;
         for (int i = stacked.size() - 1; i >= 0; i--) {
             if (stacked.get(i) != plant) {
@@ -108,14 +107,12 @@ public final class WakeBelowCapability implements PlantCapability {
         if (target == null) {
             // Placement rules say a coffee bean needs a plant under it, so this is the
             // editor or a command placing one in an empty cell: still spend it, and say so.
-            level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
-                    sound.orElse(PvzceSounds.UI_TAP));
+            level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.position(), plant.surfaceId(), sound.orElse(PvzceSounds.UI_TAP));
             plant.remove();
             return;
         }
         boolean woke = target.wake();
-        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
-                woke
+        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.position(), plant.surfaceId(), woke
                         ? wakeSound.orElse(PvzceSounds.PLANT_WAKEUP)
                         : sound.orElse(PvzceSounds.UI_TAP));
         plant.remove();

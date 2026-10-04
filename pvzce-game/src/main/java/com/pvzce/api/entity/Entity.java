@@ -1,8 +1,9 @@
 package com.pvzce.api.entity;
 
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
-
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -22,6 +23,7 @@ public abstract class Entity {
     protected float cellX;
     protected float cellY;
     protected float height;
+    protected String surfaceId = SceneBoard.DEFAULT_SURFACE;
     protected int health;
     protected String animation = EntityAnimations.IDLE;
     /**
@@ -100,7 +102,15 @@ public abstract class Entity {
         this.cellY = cellY;
     }
 
-    /** Vertical offset above the cell floor, in world cells. */
+    public String surfaceId() { return surfaceId; }
+    public void setSurfaceId(String surfaceId) {
+        this.surfaceId = java.util.Objects.requireNonNull(surfaceId);
+    }
+    public WorldPosition position() {
+        return new WorldPosition(cellX, cellY, height);
+    }
+
+    /** Absolute elevation above the board reference plane, in world cells. */
     public float height() {
         return height;
     }

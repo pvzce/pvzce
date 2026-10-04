@@ -9,7 +9,6 @@ import com.pvzce.client.mechanic.StormClientMechanic;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,7 +32,7 @@ public final class EchoLilyLinks {
     }
 
     private static boolean adjacent(ClientEntity a, ClientEntity b) {
-        return a.teamId().equals(b.teamId())
+        return a.surfaceId().equals(b.surfaceId()) && a.teamId().equals(b.teamId())
                 && Math.abs(a.gridX() - b.gridX()) + Math.abs(a.gridY() - b.gridY()) == 1;
     }
 
@@ -41,7 +40,8 @@ public final class EchoLilyLinks {
         return "resonate".equals(animation) || animation.startsWith("shoot") || animation.startsWith("echo");
     }
 
-    public void renderWorld(PvzceClient client) {
+    public void renderWorld(PvzceClient client) { renderWorld(client, null); }
+    public void renderWorld(PvzceClient client, String surface) {
         List<ClientEntity> lilies = visibleLilies(client);
         Set<Integer> live = new HashSet<>();
         double now = client.level().smoothLevelTicks();
@@ -54,13 +54,15 @@ public final class EchoLilyLinks {
         }
         seenAnimations.keySet().retainAll(live);
         shotTicks.keySet().retainAll(live);
+        if (surface != null) lilies = lilies.stream().filter(e -> e.surfaceId().equals(surface)).toList();
         var ring = BuiltInRegistries.PARTICLES.get(PvzceIds.ECHO_RING);
         if (ring != null) {
             for (ClientEntity host : client.level().entities().values()) {
-                if (!lilies.contains(host) && host.echoNetwork().rate() > 1F && host.health() > 0
+                if ((surface == null || host.surfaceId().equals(surface))
+                        && !lilies.contains(host) && host.echoNetwork().rate() > 1F && host.health() > 0
                         && !StormClientMechanic.hides(client.level())) {
                     client.drawTexture(ring.look().texture(), host.cellX() - 0.54F,
-                            host.cellY() - 0.54F, 1.08F, 1.08F, 0.07F, 1F, 0.95F, 0.55F, 0.8F);
+                            host.visualPosition().projectedY() - 0.54F, 1.08F, 1.08F, 0.07F, 1F, 0.95F, 0.55F, 0.8F);
                 }
             }
         }
@@ -69,7 +71,7 @@ public final class EchoLilyLinks {
             if (resonating && ring != null) {
                 float size = 1.18F + (float) Math.sin(now / 10F) * 0.04F;
                 client.drawTexture(ring.look().texture(),
-                        a.cellX() - size / 2F, a.cellY() - size / 2F, size, size,
+                        a.cellX() - size / 2F, a.visualPosition().projectedY() - size / 2F, size, size,
                         0.07F, 1F, 0.95F, 0.55F, 0.8F);
             }
             for (ClientEntity b : lilies) {
@@ -78,9 +80,9 @@ public final class EchoLilyLinks {
                 }
                 float thickness = resonating || b.echoNetwork().rate() > 1F ? 0.08F : 0.05F;
                 client.drawSolid(Math.min(a.cellX(), b.cellX()) - thickness / 2F,
-                        Math.min(a.cellY(), b.cellY()) - thickness / 2F,
+                        Math.min(a.visualPosition().projectedY(), b.visualPosition().projectedY()) - thickness / 2F,
                         Math.abs(a.cellX() - b.cellX()) + thickness,
-                        Math.abs(a.cellY() - b.cellY()) + thickness,
+                        Math.abs(a.visualPosition().projectedY() - b.visualPosition().projectedY()) + thickness,
                         0.06F, 1F, 0.83F, 0.3F, thickness > 0.05F ? 0.95F : 0.65F);
                 // A real shooting-state transition lights its outgoing connection; interpolation
                 // is decorative, not a client-side attack or a continuously running fake relay.
@@ -91,7 +93,7 @@ public final class EchoLilyLinks {
                 float phase = (float) ((now - Math.max(fromA, fromB)) / PvzceConstants.ECHO_RELAY_TICKS);
                 if (phase >= 0F && phase <= 1F) {
                     float x = source.cellX() + (target.cellX() - source.cellX()) * phase;
-                    float y = source.cellY() + (target.cellY() - source.cellY()) * phase;
+                    float y = source.visualPosition().projectedY() + (target.visualPosition().projectedY() - source.visualPosition().projectedY()) * phase;
                     client.drawSolid(x - 0.055F, y - 0.055F, 0.11F, 0.11F,
                             0.09F, 1F, 1F, 0.72F, 1F);
                 }
@@ -107,9 +109,9 @@ public final class EchoLilyLinks {
                 continue;
             }
             float cx = x + 0.5F;
-            float cy = y + 0.5F;
-            client.drawSolid(Math.min(cx, lily.cellX()) - 0.035F, Math.min(cy, lily.cellY()) - 0.035F,
-                    Math.abs(cx - lily.cellX()) + 0.07F, Math.abs(cy - lily.cellY()) + 0.07F,
+            float cy = y + 0.5F + client.level().sceneBoard().elevationAt(client.level().activeSurface(), x + .5F, y + .5F);
+            client.drawSolid(Math.min(cx, lily.cellX()) - 0.035F, Math.min(cy, lily.visualPosition().projectedY()) - 0.035F,
+                    Math.abs(cx - lily.cellX()) + 0.07F, Math.abs(cy - lily.visualPosition().projectedY()) + 0.07F,
                     0.1F, 1F, 0.87F, 0.32F, 0.8F);
         }
     }
@@ -118,7 +120,7 @@ public final class EchoLilyLinks {
         float scale = client.guiScale();
         float x = client.camera().screenX(lily.cellX()) / scale;
         // Above the tallest 0.61-cell shooting pose; GUI padding leaves the flower visible.
-        float y = client.camera().screenY(lily.cellY() + 0.68F) / scale;
+        float y = client.camera().screenY(lily.visualPosition().projectedY() + 0.68F) / scale;
         float ceiling = CardBarLayout.bankY(client.guiHeight()) - 24F;
         if (y > ceiling) {
             // On the top lawn row the card tray covers the space above the head. Put the
@@ -181,7 +183,7 @@ public final class EchoLilyLinks {
         if (!StormClientMechanic.hides(client.level())) {
             for (ClientEntity host : client.level().entities().values()) {
                 if (host.echoNetwork().lilies() == 0 || lilies.contains(host) || host.health() <= 0
-                        || FogClientMechanic.covers(client.level(), host.cellX(), host.cellY())) {
+                        || FogClientMechanic.covers(client.level(), host.cellX(), host.visualPosition().projectedY())) {
                     continue;
                 }
                 String text = host.echoNetwork().rate() > 1F
@@ -195,7 +197,7 @@ public final class EchoLilyLinks {
                 float width = client.fonts().body().width(text, scale) + 6F;
                 float x = client.camera().screenX(host.cellX()) / client.guiScale();
                 // The bottom row's feet overlap the mechanic HUD, which ends at y=46.
-                float y = Math.max(54F, client.camera().screenY(host.cellY() - 0.27F) / client.guiScale());
+                float y = Math.max(54F, client.camera().screenY(host.visualPosition().projectedY() - 0.27F) / client.guiScale());
                 client.drawSolid(x - width / 2, y, width, 11F, 8F, 0.03F, 0.16F, 0.13F, 0.95F);
                 client.fonts().body().draw(text, x - width / 2 + 3F, y + 2F,
                         scale, 1F, 0.9F, 0.45F, 1F);

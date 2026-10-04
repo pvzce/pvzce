@@ -1,5 +1,8 @@
 package com.pvzce.server.level;
 
+import com.pvzce.api.content.SurfaceProfile;
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.PlantDef;
@@ -71,7 +74,6 @@ import com.pvzce.server.env.LevelEnvVars;
 import com.pvzce.server.gamerule.GameRules;
 import com.pvzce.server.gamerule.PvzceClock;
 import com.pvzce.common.PvzceParticles;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -97,7 +99,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Level");
 
     private final LevelDef def;
-    private final SceneGrid<SceneElementDef> scene;
+    private final SceneBoard scene;
     /**
      * The card and buff pools the client was shown, resolved once by the server.
      *
@@ -156,7 +158,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * waiting here across a save is covered by that instead.
      */
     private final List<PvzceEntity> awaitSpawnPacket = new ArrayList<>();
-    private final Map<Integer, Integer> craterTimers = new HashMap<>();
+    private final Map<SceneBoard.Address, Integer> craterTimers = new HashMap<>();
     /**
      * How long each frozen cell has been frozen, keyed by cell.
      *
@@ -166,7 +168,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * resumed run gets a fresh clock on the ice it restored, which is the same forgiveness a
      * resumed run gives a crater.
      */
-    private final Map<Integer, Integer> iceTimers = new HashMap<>();
+    private final Map<SceneBoard.Address, Integer> iceTimers = new HashMap<>();
     private final Random random = new Random();
 
     /**
@@ -622,13 +624,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 || rhythmChart != null;
         this.waves = new WaveDirector(this, def.waves(), def.waveIntervalEndMultiplier(),
                 WavePacingMechanic.of(def), rounds);
-        this.scene = SceneGrid.create(def.width(), def.height(), defaultSceneElement());
-        for (SceneGrid.Cell<Identifier> cell : SceneCells.parse(def.scene(), def.width(), def.height())) {
-            SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(cell.value());
-            if (element != null) {
-                scene.set(cell.x(), cell.y(), element);
-            }
-        }
+        this.scene = SceneBoard.forLevel(def);
 
         for (TeamDef teamDef : def.teams()) {
             teams.put(teamDef.id(), new Team(teamDef.id(), teamDef.name()));
@@ -1027,10 +1023,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (init.kind().startsWith("p")) {
             PlantDef plantDef = BuiltInRegistries.PLANTS.get(init.id());
             if (plantDef != null && inBounds(init.x(), init.y())) {
-                spawnPlant(plantDef, plantTeam, init.x(), init.y());
+                spawnPlant(plantDef, plantTeam, init.x(), init.y(),
+                        init.surface().map(Identifier::toString).orElse(SceneBoard.DEFAULT_SURFACE));
             }
         } else if (init.kind().startsWith("z")) {
-            spawnZombie(init.id(), zombieTeam, init.x() + 0.5F, init.y());
+            spawnZombie(init.id(), zombieTeam, init.x() + 0.5F, init.y(), 1F,
+                    init.surface().map(Identifier::toString).orElse(SceneBoard.DEFAULT_SURFACE));
         }
     }
 
@@ -1292,6 +1290,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return clock.isNight(rules);
     }
 
+    public SceneBoard sceneBoard() { return scene; }
+    @Override
+    public float surfaceHeight(String surface, float x, float y) { return scene.elevationAt(surface, x, y); }
+    @Override
+    public boolean obstructed(WorldPosition from, WorldPosition to) {
+        return scene.obstructed(from, to);
+    }
+    @Override
+    public SceneElementDef sceneAt(int x, int y, String surface) { return scene.get(surface, x, y); }
+    public SceneElementDef sceneAt(String surface, int x, int y) { return scene.get(surface, x, y); }
+
     @Override
     public SceneElementDef sceneAt(int x, int y) {
         return scene.get(x, y);
@@ -1310,9 +1319,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public void setScene(int x, int y, Identifier elementId) {
+        setScene(x, y, elementId, SceneBoard.DEFAULT_SURFACE);
+    }
+    public void setScene(int x, int y, Identifier elementId, String surface) {
         SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(elementId);
         if (element != null) {
-            scene.set(x, y, element);
+            scene.set(surface, x, y, element);
         }
     }
 
@@ -1324,6 +1336,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 .toList();
     }
 
+    @Override
+    public List<PlantEntity> plantsAt(int x, int y, String surface) {
+        return plantsAt(x, y).stream().filter(p -> p.surfaceId().equals(surface)).toList();
+    }
+    @Override
+    public PlantEntity plantAt(int x, int y, String surface) {
+        return plantsAt(x, y, surface).stream().filter(PlantEntity::occupiesCell)
+                .max(Comparator.comparingInt((PlantEntity p) -> PlantPlacement.layerIndex(p.def()))
+                        .thenComparingInt(PlantEntity::id)).orElse(null);
+    }
+
     /**
      * The cell's stack, as the tag-driven placement rules see it.
      *
@@ -1331,19 +1354,21 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * of plants, and a cache would have to be invalidated on every spawn, removal
      * and scene write - three places that already disagree often enough.
      */
-    private final PlantPlacement.Ctx placementContext = new PlantPlacement.Ctx() {
+    private final PlantPlacement.Ctx placementContext = placementContext(SceneBoard.DEFAULT_SURFACE);
+    private PlantPlacement.Ctx placementContext(String surface) {
+        return new PlantPlacement.Ctx() {
         @Override
         public PlantPlacement.Terrain terrain(int x, int y) {
-            SceneElementDef element = sceneAt(x, y);
+            SceneElementDef element = sceneAt(surface, x, y);
             return element == null
                     ? PlantPlacement.Terrain.NONE
-                    : new PlantPlacement.Terrain(element, element.heightAt(x + 0.5F, width()));
+                    : new PlantPlacement.Terrain(element, scene.elevationAt(surface, x + 0.5F, y + 0.5F));
         }
 
         @Override
         public List<PlantPlacement.PlantLayer> plants(int x, int y) {
             List<PlantLayer> layers = new ArrayList<>();
-            for (PlantEntity plant : plantsAt(x, y)) {
+            for (PlantEntity plant : plantsAt(x, y, surface)) {
                 layers.add(new PlantLayer(plant.def(), plant.id(), plant.waterFilled()));
             }
             // Bottom-to-top, the order PlantPlacement documents: a caller that zips
@@ -1351,7 +1376,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             layers.sort(PlantPlacement.bottomFirst());
             return layers;
         }
-    };
+        };
+    }
 
     /** Plants in a cell ordered bottom-to-top by the tag-driven stacking rules. */
     public List<PlantEntity> plantsBottomFirst(int column, int row) {
@@ -1372,13 +1398,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     @Override
     public PlantEntity plantAt(int column, int row) {
-        List<PlantEntity> plants = plantsBottomFirst(column, row);
-        for (int i = plants.size() - 1; i >= 0; i--) {
-            if (plants.get(i).occupiesCell()) {
-                return plants.get(i);
-            }
-        }
-        return null;
+        return plantAt(column, row, SceneBoard.DEFAULT_SURFACE);
     }
 
     /**
@@ -1391,7 +1411,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * it.
      */
     public com.pvzce.server.entity.PlantEntity biteTargetAt(int column, int row) {
-        List<com.pvzce.server.entity.PlantEntity> plants = plantsBottomFirst(column, row);
+        return biteTargetAt(column, row, SceneBoard.DEFAULT_SURFACE);
+    }
+    public PlantEntity biteTargetAt(int column, int row, String surface) {
+        List<com.pvzce.server.entity.PlantEntity> plants = plantsAt(column, row, surface).stream()
+                .sorted(Comparator.comparingInt(p -> PlantPlacement.layerIndex(p.def()))).toList();
         for (int i = plants.size() - 1; i >= 0; i--) {
             com.pvzce.server.entity.PlantEntity plant = plants.get(i);
             if (!plant.occupiesCell()) {
@@ -1424,10 +1448,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * both are the level (or its author) placing things, not someone playing it.
      */
     public boolean canPlacePlant(PlantDef def, int x, int y) {
-        return inBounds(x, y)
+        return canPlacePlant(def, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+
+    public boolean canPlacePlant(PlantDef def, int x, int y, String surface) {
+        return scene.exists(surface, x, y)
                 && LevelMechanics.canPlacePlant(mechanics, this, def, x, y)
                 && (mutations == null || mutations.canPlacePlant(def, x, y))
-                && PlantPlacement.canPlace(def, placementContext, x, y);
+                && PlantPlacement.canPlace(def, placementContext(surface), x, y);
     }
 
     /**
@@ -1638,6 +1666,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     public void addEntity(PvzceEntity entity) {
         entity.setGridBounds(width(), height());
+        if (entity instanceof ResourceDropEntity drop) drop.initializeSurface(this);
         pendingAdd.add(entity);
     }
 
@@ -1647,6 +1676,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * command, level JSON and save restore - goes through here.
      */
     public PlantEntity spawnPlant(PlantDef def, Team team, int x, int y) {
+        return spawnPlant(def, team, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+
+    public PlantEntity spawnPlant(PlantDef def, Team team, int x, int y, String surface) {
         // Before the entity exists: a mutation that rewrites what a card plants has to rewrite
         // the definition, because the capabilities are built from it in the constructor and
         // "the same plant with another behaviour" is not something an entity can be told later.
@@ -1657,7 +1690,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 planted = replacement;
             }
         }
-        PlantEntity plant = spawnPlantInternal(planted, team, x, y);
+        PlantEntity plant = spawnPlantInternal(planted, team, x, y, surface);
         if (mutations != null) {
             mutations.onPlantPlaced(plant);
         }
@@ -1729,7 +1762,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /** The placement itself, past every rewrite: one entity, one {@code onPlaced}. */
-    private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y) {
+    private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y, String surface) {
         // The plant's full health, as this level's rules say it at this moment. Passed in rather
         // than left to the definition because the watering can heals to full and the client draws
         // a damaged plant against it - see `PlantEntity`'s own constructor.
@@ -1737,28 +1770,34 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 * rules.getFloat(PvzceIds.RULE_PLANT_HEALTH_MULTIPLIER)));
         PlantEntity plant = new PlantEntity(def, team, x, y, fullHealth);
         plant.setGridBounds(width(), height());
-        if (plantsAt(x, y).stream().anyMatch(LevelServer::isCarrier)) {
+        plant.setSurfaceId(surface);
+        if (plantsAt(x, y, surface).stream().anyMatch(LevelServer::isCarrier)) {
             plant.setCellX(plant.cellX() + PlantPlacement.CARRIER_X_OFFSET);
         }
-        plant.setHeight(PlantPlacement.placementHeight(placementContext, x, y));
+        plant.setHeight(PlantPlacement.placementHeight(placementContext(surface), x, y));
         plant.setActionSpeedMultiplier(rules.getFloat(PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER));
         addEntity(plant);
         flushPending();
         plant.onPlaced(this);
         flushPending();
         if (!plant.isRemoved()) {
-            emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, placementSound(def, x, y));
+            emitEffect(PvzceParticles.DIRT_SMALL.toString(), scene.ground(surface, x + 0.5F, y + 0.5F), surface, placementSound(def, x, y, surface));
         }
         return plant;
     }
 
-    private Identifier placementSound(PlantDef def, int x, int y) {
-        SceneElementDef base = sceneAt(x, y);
+    private Identifier placementSound(PlantDef def, int x, int y, String surface) {
+        SceneElementDef base = sceneAt(surface, x, y);
         Identifier fallback = base != null && PlantPlacement.terrainTagged(
                 PlantPlacement.Terrain.of(base), PvzceTags.SCENE_WATER)
                 ? PvzceSounds.PLANT_PLANT_WATER
                 : PvzceSounds.PLANT_PLANT;
         return def.sounds().place().orElse(fallback);
+    }
+
+    private void addProjectile(ProjectileEntity projectile, Entity source) {
+        projectile.setSurfaceId(source.surfaceId());
+        addEntity(projectile);
     }
 
     @Override
@@ -1768,7 +1807,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (projectileDef == null) {
             return;
         }
-        addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height()));
+        addProjectile(new ProjectileEntity(projectileDef, shot, source.team(), x, y, source.height()), source);
         if (mutations != null) {
             mutations.onProjectileFired(shot.projectile());
         }
@@ -1789,15 +1828,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (projectileDef == null) {
             return;
         }
-        addEntity(new ProjectileEntity(projectileDef, ref, source.team(), x, y, source.height()));
+        addProjectile(new ProjectileEntity(projectileDef, ref, source.team(), x, y, source.height()), source);
     }
 
     @Override
     public void spawnZombieArcProjectile(ProjectileRef ref, ZombieEntity source, PlantEntity target) {
         ProjectileDef def = BuiltInRegistries.PROJECTILES.get(ref.projectile());
         if (def != null) {
-            addEntity(new ProjectileEntity(def, ref, source.team(), source.cellX(), source.cellY(),
-                    source.height() + 0.65F, new ProjectileEntity.Aim(target.cellX(), target.height())));
+            addProjectile(new ProjectileEntity(def, ref, source.team(), source.cellX(), source.cellY(),
+                    source.height() + 0.65F, new ProjectileEntity.Aim(target.cellX(), target.height())), source);
         }
     }
 
@@ -1809,8 +1848,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return;
         }
         // The launcher reads the target, never rewrites the zombie's authoritative position.
-        addEntity(new ProjectileEntity(projectileDef, shot, source.team(), x, y,
-                source.height() + com.pvzce.common.capability.plant.PlantShots.LOB_MUZZLE_HEIGHT, target));
+        addProjectile(new ProjectileEntity(projectileDef, shot, source.team(), x, y,
+                source.height() + com.pvzce.common.capability.plant.PlantShots.LOB_MUZZLE_HEIGHT, target), source);
         if (mutations != null) {
             mutations.onProjectileFired(shot.projectile());
         }
@@ -1892,6 +1931,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public void launchAimedProjectile(com.pvzce.api.util.Identifier projectileId, int damage,
                                       PlantEntity source, int gridX, int gridY) {
+        launchAimedProjectile(projectileId, damage, source, gridX, gridY, source.surfaceId());
+    }
+    public void launchAimedProjectile(com.pvzce.api.util.Identifier projectileId, int damage,
+                                      PlantEntity source, int gridX, int gridY, String targetSurface) {
         if (source == null || !inBounds(gridX, gridY)) {
             return;
         }
@@ -1906,12 +1949,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 com.pvzce.api.content.ProjectileRef.UNLIMITED_RANGE, 0, 0, false);
         com.pvzce.api.content.ProjectileRef shot = scaledShot(ref, source);
         float targetX = gridX + 0.5F;
-        SceneElementDef base = sceneAt(gridX, gridY);
-        float targetHeight = base == null ? 0F : base.heightAt(targetX, width());
-        addEntity(new ProjectileEntity(projectileDef, shot, source.team(),
+        float targetHeight = surfaceHeight(targetSurface, targetX, gridY + 0.5F);
+        addProjectile(new ProjectileEntity(projectileDef, shot, source.team(),
                 source.cellX() + com.pvzce.common.capability.plant.PlantShots.MUZZLE_OFFSET_X, source.cellY(),
                 source.height(),
-                new ProjectileEntity.Aim(targetX, targetHeight)));
+                new ProjectileEntity.Aim(targetX, gridY + 0.5F, targetHeight)), source);
         if (mutations != null) {
             mutations.onProjectileFired(shot.projectile());
         }
@@ -1969,6 +2011,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     @Override
+    public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                      float scale, float driftX, String surface) {
+        spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE, scale, driftX, surface);
+    }
+
+    @Override
+    public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
+                                      float scale, String surface) {
+        spawnResource(resourceId, amount, x, y, team, ResourceDef.DropMotion.RISE, scale, null, surface);
+    }
+
+    @Override
     public void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team) {
         spawnProducedResource(resourceId, amount, x, y, team,
                 com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE);
@@ -1999,6 +2053,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
                                ResourceDef.DropMotion motion, float scale, Float forcedDrift) {
+        spawnResource(resourceId, amount, x, y, team, motion, scale, forcedDrift, SceneBoard.DEFAULT_SURFACE);
+    }
+    private void spawnResource(Identifier resourceId, int amount, float x, float y, Team team,
+                               ResourceDef.DropMotion motion, float scale, Float forcedDrift, String surface) {
         ResourceDef resource = BuiltInRegistries.RESOURCES.get(resourceId);
         if (resource == null) {
             return;
@@ -2009,8 +2067,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         float scatter = Math.max(0F, resource.riseScatter());
         float driftX = forcedDrift != null ? forcedDrift
                 : scatter <= 0F ? 0F : (random.nextFloat() * 2F - 1F) * scatter;
-        addEntity(new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y),
-                amount, motion, driftX, scale));
+        ResourceDropEntity drop = new ResourceDropEntity(resource, team, (int) Math.floor(x), (int) Math.floor(y),
+                amount, motion, driftX, scale);
+        drop.setSurfaceId(surface);
+        addEntity(drop);
     }
 
     /**
@@ -2051,6 +2111,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** One zombie, with the arriving wave's own health growth applied. */
     public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row,
                                     float healthScale) {
+        return spawnZombie(zombieId, team, x, row, healthScale, SceneBoard.DEFAULT_SURFACE);
+    }
+    public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row,
+                                    float healthScale, String surface) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(zombieId);
         if (def == null) {
             return null;
@@ -2059,12 +2123,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // promise a walker is never dropped into the pool: see spawnRowFor. Callers that picked a
         // lane blind - the wave director's shuffle, a mutation's random row, a boss summon, a
         // dancer's escort - all arrive through here.
-        row = spawnRowFor(def, row);
+        if (SceneBoard.DEFAULT_SURFACE.equals(surface)) row = spawnRowFor(def, row);
         // The level's own half of "how tough is this zombie", folded into the wave's growth here
         // because this is the one place a zombie is created. Read at spawn and never again: a
         // zombie's health is its health for life, and re-scaling one mid-bite would heal it.
         ZombieEntity zombie = new ZombieEntity(def, team, x, row,
                 healthScale * rules.getFloat(PvzceIds.RULE_ZOMBIE_HEALTH_MULTIPLIER));
+        zombie.setSurfaceId(surface);
+        zombie.setHeight(surfaceHeight(surface, zombie.cellX(), zombie.cellY()));
         addEntity(zombie);
         emitEffect("", x, row + 0.5F, def.sounds().spawn().orElse(PvzceSounds.ZOMBIE_GROAN));
         return zombie;
@@ -2097,7 +2163,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     yield false;
                 }
                 addEntity(new ProjectileEntity(def, null, teams.get(PvzceIds.PLANT_TEAM),
-                        x + 0.5F, y + 0.5F, sceneAt(x, y) == null ? 0F : sceneAt(x, y).heightAt(x + 0.5F, width())));
+                        x + 0.5F, y + 0.5F, surfaceHeight(SceneBoard.DEFAULT_SURFACE, x + .5F, y + .5F)));
                 yield true;
             }
             case "resource", "drop", "sun" -> {
@@ -2143,33 +2209,36 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public void damageArea(com.pvzce.api.content.DamageTypeDef type, float centerX, float centerY, float radius, int damage,
                            Team sourceTeam, boolean square) {
-        damage = weatherDamage(type, damage, sourceTeam);
-        // No multiplier here: ZombieEntity.damage applies it once, at the one entry
-        // point every hit goes through. A second copy made a rule that already means
-        // "how hard plants hit" depend on which damage path happened to run.
-        //
-        // A square footprint measured in cells says "this many cells to either side", and a
-        // cell is one wide either way from wherever the blast was centred: the plant stands
-        // at the centre of its own cell, so its own cell spans 0.5 in every direction and
-        // the next one another 1.0. The half-cell term is what makes a radius of 1 reach the
-        // neighbouring cell's far edge (and stop there) instead of stopping half a cell
-        // short of the zombie standing in it.
+        damageArea(type, scene.ground(SceneBoard.DEFAULT_SURFACE, centerX, centerY),
+                radius, damage, sourceTeam, square);
+    }
+
+    @Override
+    public void damageArea(com.pvzce.api.content.DamageTypeDef type, WorldPosition center,
+                           float radius, int damage, Team team, boolean square) {
+        int scaled = weatherDamage(type, damage, team);
+        for (ZombieEntity zombie : enemiesInArea(team, center, radius, square)) zombie.damage(scaled, type, this);
         float limit = square ? radius + 0.5F : radius;
-        for (PvzceEntity entity : new ArrayList<>(entities)) {
-            if (type != null && type.burns() && entity instanceof PlantEntity plant
-                    && Math.abs(plant.cellX() - centerX) <= limit && Math.abs(plant.cellY() - centerY) <= limit) {
-                plant.setLaddered(false);
+        if (type != null && type.burns()) {
+            for (PvzceEntity entity : entities) {
+                if (entity instanceof PlantEntity plant && Math.abs(plant.cellX() - center.x()) <= limit
+                        && Math.abs(plant.cellY() - center.y()) <= limit
+                        && Math.abs(plant.height() - center.elevation()) <= limit
+                        && !obstructed(center.offset(0F, 0F, com.pvzce.common.PvzceConstants.COMBAT_BODY_HEIGHT / 2F), plant.position().offset(0F, 0F, com.pvzce.common.PvzceConstants.COMBAT_BODY_HEIGHT / 2F)))
+                    plant.setLaddered(false);
             }
-        }
-        for (ZombieEntity zombie : enemiesInArea(sourceTeam, centerX, centerY, radius, square)) {
-            zombie.damage(damage, type, this);
         }
     }
 
     @Override
     public void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam) {
+        damageRow(type, row, damage, sourceTeam, SceneBoard.DEFAULT_SURFACE);
+    }
+    @Override
+    public void damageRow(com.pvzce.api.content.DamageTypeDef type, int row, int damage, Team sourceTeam, String surface) {
         damage = weatherDamage(type, damage, sourceTeam);
         for (PvzceEntity entity : new ArrayList<>(entities)) {
+            if (!entity.surfaceId().equals(surface)) continue;
             if (type != null && type.burns() && entity instanceof PlantEntity plant && plant.gridY() == row) {
                 plant.setLaddered(false);
             }
@@ -2203,6 +2272,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public void leaveCraters(float centerX, float centerY, float radius, boolean square) {
+        leaveCraters(centerX, centerY, radius, square, SceneBoard.DEFAULT_SURFACE);
+    }
+    public void leaveCraters(float centerX, float centerY, float radius, boolean square, String surface) {
         // The same footprint the blast itself used (see damageArea): a square measured in cells
         // reaches half a cell further than its number says, which is what makes a radius of 1
         // cover the neighbouring cells rather than stopping at their edge.
@@ -2212,14 +2284,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 if (Math.abs(x + 0.5F - centerX) > limit || Math.abs(y + 0.5F - centerY) > limit) {
                     continue;
                 }
-                if (!isBareGround(x, y)) {
+                if (!isBareGround(x, y, surface)) {
                     continue;
                 }
-                setScene(x, y, PvzceIds.CRATER);
+                setScene(x, y, PvzceIds.CRATER, surface);
                 // A hole that has just been made starts its recovery now rather than on the
                 // clock of whatever crater used to be in this cell.
-                craterTimers.remove(y * width() + x);
-                sendSceneCell(x, y);
+                craterTimers.remove(new SceneBoard.Address(surface, x, y));
+                sendSceneCell(x, y, surface);
             }
         }
     }
@@ -2232,7 +2304,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * worse answer than leaving them alone.
      */
     private boolean isBareGround(int x, int y) {
-        SceneElementDef element = scene.get(x, y);
+        return isBareGround(x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    private boolean isBareGround(int x, int y, String surfaceId) {
+        SceneElementDef element = scene.get(surfaceId, x, y);
         if (element == null) {
             return false;
         }
@@ -2262,7 +2337,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return;
         }
         bridge.send(new EffectEventS2C(particle, x, y, sound == null ? "" : sound.toString(),
-                volume, pitch, ripple == null ? "" : ripple, rippleStrength));
+                volume, pitch, ripple == null ? "" : ripple, rippleStrength,
+                surfaceHeight(SceneBoard.DEFAULT_SURFACE, x, y),
+                SceneBoard.DEFAULT_SURFACE));
+    }
+
+    @Override
+    public void emitEffect(String particle, WorldPosition position,
+                           String surface, Identifier sound, float volume, float pitch) {
+        send(new EffectEventS2C(particle, position.x(), position.y(), sound == null ? "" : sound.toString(),
+                volume, pitch, "", 0F, position.elevation(), surface));
     }
 
     @Override
@@ -2276,25 +2360,39 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     @Override
     public void emitMagnetItem(int plantId, Identifier item, float x, float y,
                                int startTick, int pullTicks, int holdTicks) {
-        send(new com.pvzce.common.network.packet.MagnetItemS2C(plantId, item.toString(), x, y,
-                startTick, pullTicks, holdTicks));
+        emitMagnetItem(plantId, item, scene.ground(SceneBoard.DEFAULT_SURFACE, x, y), startTick, pullTicks, holdTicks);
+    }
+    @Override
+    public void emitMagnetItem(int plantId, Identifier item, WorldPosition origin,
+                               int startTick, int pullTicks, int holdTicks) {
+        send(new com.pvzce.common.network.packet.MagnetItemS2C(plantId, item.toString(), origin.x(), origin.y(),
+                startTick, pullTicks, holdTicks, origin.elevation()));
     }
 
     @Override
     public void emitRippleAt(int cellX, int cellY, float strength) {
-        SceneElementDef element = sceneAt(cellX, cellY);
+        emitRippleAt(cellX, cellY, strength, SceneBoard.DEFAULT_SURFACE);
+    }
+    @Override
+    public void emitRippleAt(int cellX, int cellY, float strength, String surface) {
+        SceneElementDef element = sceneAt(surface, cellX, cellY);
         if (element == null || element.liquid().isEmpty()) {
             return;
         }
-        emitRipple(element.liquid().get(), cellX + 0.5F, cellY + 0.5F, strength);
+        var position = scene.ground(surface, cellX + 0.5F, cellY + 0.5F);
+        send(new EffectEventS2C("", position.x(), position.y(), "", 1F, 1F, element.liquid().get().toString(),
+                Math.min(1F, strength), position.elevation(), surface));
     }
 
     public void sendSceneCell(int x, int y) {
-        SceneElementDef element = sceneAt(x, y);
+        sendSceneCell(x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public void sendSceneCell(int x, int y, String surface) {
+        SceneElementDef element = sceneAt(surface, x, y);
         if (element != null) {
             // Through `send`, not straight down the ambient bridge: a mutation rewriting the scene
             // has no ambient bridge at all (see `outbound`).
-            send(SceneSyncS2C.of(x, y, element.id().toString()));
+            send(new SceneSyncS2C(List.of(scene.packetCell(surface, x, y))));
         }
     }
 
@@ -3252,26 +3350,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     public static List<SceneSyncS2C.Cell> openingBoard(LevelDef def, SeedContext seeds) {
         LevelServer level = new LevelServer(def, def.slots(), seeds);
-        return SceneCells.forGrid(level.sceneIds());
-    }
-
-    /**
-     * The built board's elements, in the same order {@link #sendFullState} walks them.
-     *
-     * <p>Read from the grid rather than from the definitions, because half of what stands on a
-     * night lawn got there through a mechanic rather than through the level file.
-     */
-    private SceneGrid<Identifier> sceneIds() {
-        SceneGrid<Identifier> ids = SceneGrid.create(width(), height(), null);
-        for (int x = 0; x < width(); x++) {
-            for (int y = 0; y < height(); y++) {
-                SceneElementDef element = scene.get(x, y);
-                if (element != null && element.id() != null) {
-                    ids.set(x, y, element.id());
-                }
-            }
-        }
-        return ids;
+        return level.scene.snapshot();
     }
 
     /**
@@ -3636,9 +3715,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // clamped to the recovery rather than allowed to outlast it.
         int fadeFrom = Math.max(0, recovery - Math.min(CRATER_FADE_TICKS, recovery));
         int iceMelt = rules.getInt(PvzceIds.RULE_ICE_MELT);
+        for (String surface : scene.surfaceIds()) {
         for (int x = 0; x < width(); x++) {
             for (int y = 0; y < height(); y++) {
-                SceneElementDef element = scene.get(x, y);
+                SceneElementDef element = scene.get(surface, x, y);
                 if (element == null) {
                     continue;
                 }
@@ -3650,39 +3730,42 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     if (iceMelt <= 0) {
                         continue;
                     }
-                    int key = y * width() + x;
+                    var key = new SceneBoard.Address(surface, x, y);
                     if (iceTimers.merge(key, 1, Integer::sum) >= iceMelt) {
                         // The timer is dropped inside `meltIceCell`, which the fire path shares.
-                        meltIceCell(x, y);
+                        meltIceCell(x, y, surface);
                     }
                     continue;
                 }
                 if (!PvzceIds.SURFACE_CRATER.equals(element.surfaceClass())) {
                     continue;
                 }
-                int key = y * width() + x;
+                var key = new SceneBoard.Address(surface, x, y);
                 int ticks = craterTimers.merge(key, 1, Integer::sum);
                 if (ticks >= recovery) {
                     craterTimers.remove(key);
-                    setScene(x, y, PvzceIds.GRASS);
-                    sendSceneCell(x, y);
+                    resetSceneCell(x, y, surface);
                 } else if (ticks >= fadeFrom && PvzceIds.CRATER.equals(element.id())) {
                     // The crater, not the fading crater: a cell that is already filling in has
                     // nothing left to change to.
-                    setScene(x, y, PvzceIds.CRATER_FADING);
-                    sendSceneCell(x, y);
+                    setScene(x, y, PvzceIds.CRATER_FADING, surface);
+                    sendSceneCell(x, y, surface);
                 }
             }
+        }
         }
     }
 
     /** One cell of ice back to the lawn it was: bare ground again, and the client told. */
     private void meltIceCell(int x, int y) {
-        iceTimers.remove(y * width() + x);
+        meltIceCell(x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    private void meltIceCell(int x, int y, String surface) {
+        iceTimers.remove(new SceneBoard.Address(surface, x, y));
         // The same write a broken vase makes, for the same reason: whatever this cell was before
         // the ice (lawn, bare dirt) is what "not ice" means, and `resetSceneCell` already owns
         // that answer plus its scene packet.
-        resetSceneCell(x, y);
+        resetSceneCell(x, y, surface);
     }
 
     /**
@@ -3698,17 +3781,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     @Override
     public void meltIce(float centerX, float centerY, float radius, boolean square) {
+        meltIce(centerX, centerY, radius, square, SceneBoard.DEFAULT_SURFACE);
+    }
+    public void meltIce(float centerX, float centerY, float radius, boolean square, String surface) {
         float limit = square ? radius + 0.5F : radius;
         for (int x = 0; x < width(); x++) {
             for (int y = 0; y < height(); y++) {
                 if (Math.abs(x + 0.5F - centerX) > limit || Math.abs(y + 0.5F - centerY) > limit) {
                     continue;
                 }
-                SceneElementDef element = scene.get(x, y);
+                SceneElementDef element = scene.get(surface, x, y);
                 if (element == null || !PvzceIds.ICE.equals(element.id())) {
                     continue;
                 }
-                meltIceCell(x, y);
+                meltIceCell(x, y, surface);
             }
         }
     }
@@ -3716,13 +3802,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** The same, for the one explosive whose blast is a whole row rather than a circle. */
     @Override
     public void meltIceRow(int row) {
+        meltIceRow(row, SceneBoard.DEFAULT_SURFACE);
+    }
+    @Override
+    public void meltIceRow(int row, String surface) {
         if (row < 0 || row >= height()) {
             return;
         }
         for (int x = 0; x < width(); x++) {
-            SceneElementDef element = scene.get(x, row);
+            SceneElementDef element = scene.get(surface, x, row);
             if (element != null && PvzceIds.ICE.equals(element.id())) {
-                meltIceCell(x, row);
+                scene.clearOverlay(surface, x, row);
+                iceTimers.remove(new SceneBoard.Address(surface, x, row));
+                send(new SceneSyncS2C(List.of(scene.packetCell(surface, x, row))));
             }
         }
     }
@@ -3827,7 +3919,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (!isGrave(x, y)) {
             return false;
         }
-        setScene(x, y, PvzceIds.GRASS);
+        scene.clearOverlay(SceneBoard.DEFAULT_SURFACE, x, y);
         sendSceneCell(x, y);
         return true;
     }
@@ -4244,7 +4336,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 ? rewards.coinDropAmount()
                 : drop.defaultValue() * rewards.coinDropAmount();
         spawnResource(drop == null ? rewards.coinDrop() : drop.id(), worth,
-                zombie.cellX(), zombie.cellY(), plantTeam);
+                zombie.cellX(), zombie.cellY(), plantTeam, null, 1F, null, zombie.surfaceId());
     }
 
     /**
@@ -4286,7 +4378,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             int x = Math.max(0, Math.min(width() - 1, cellX + random.nextInt(3) - 1));
             int y = Math.max(0, Math.min(height() - 1, cellY + random.nextInt(3) - 1));
             spawnResource(PvzceIds.SUN, value, x, y, plantTeam,
-                    ResourceDef.DropMotion.LANDED);
+                    ResourceDef.DropMotion.LANDED, 1F, null, zombie.surfaceId());
         }
     }
 
@@ -4382,10 +4474,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     // ------------------------------------------------------------------
 
     public boolean placePlant(ServerBridge bridge, int slotIndex, int x, int y) {
-        return withBridge(bridge, () -> placePlantInternal(bridge, slotIndex, x, y));
+        return placePlant(bridge, slotIndex, x, y, SceneBoard.DEFAULT_SURFACE);
     }
 
-    private boolean placePlantInternal(ServerBridge bridge, int slotIndex, int x, int y) {
+    public boolean placePlant(ServerBridge bridge, int slotIndex, int x, int y, String surface) {
+        return withBridge(bridge, () -> placePlantInternal(bridge, slotIndex, x, y, surface));
+    }
+
+    private boolean placePlantInternal(ServerBridge bridge, int slotIndex, int x, int y, String surface) {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             bridge.send(new ServerMessageS2C("游戏已经结束。"));
             return false;
@@ -4417,7 +4513,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("这张卡被变异锁住了。"));
             return false;
         }
-        if (!inBounds(x, y)) {
+        if (!scene.exists(surface, x, y)) {
             bridge.send(new ServerMessageS2C("不能在草坪外种植。"));
             return false;
         }
@@ -4431,7 +4527,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // through here - an empty one stores, a full one is refused by `storeCardInVase` - because
         // the vase's own cell is unplantable, which is exactly why this branch has to come first.
         // See `useVase` for the tool half.
-        if (isVaseAt(x, y)) {
+        if (SceneBoard.DEFAULT_SURFACE.equals(surface) && isVaseAt(x, y)) {
             return storeCardInVase(bridge, slot, plantDef, x, y);
         }
         // Where this one click lands. A cell, or - on a level that plants in columns - every cell
@@ -4439,7 +4535,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // silence rather than refusing the whole click: "this column, as far as it goes" is the
         // rule, and a lawn with one wall-nut in it must still be plantable around. See
         // `RULE_PLANT_WHOLE_COLUMN`.
-        List<Integer> rows = plantableRows(plantDef, x, y);
+        List<Integer> rows = plantableRows(plantDef, x, y, surface);
         if (rows.isEmpty()) {
             bridge.send(new ServerMessageS2C("该格不能种植。"));
             return false;
@@ -4456,8 +4552,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // The base goes before the upgrade appears, so the cell never holds both: a frame with
             // two plants in one cell is a frame the client would draw as one of them, and the
             // upgrade is what the player paid for.
-            plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, row));
-            spawnPlant(plantDef, plantPlayer.team(), x, row);
+            plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, row, surface));
+            spawnPlant(plantDef, plantPlayer.team(), x, row, surface);
             spreadKelpFrom(plantDef, x, row);
             LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, row, plantCount());
         }
@@ -4477,13 +4573,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * the card is spent: a column with nowhere to put the plant costs nothing and says so, which is
      * the same answer an occupied cell gives on an ordinary level.
      */
-    private List<Integer> plantableRows(PlantDef def, int x, int y) {
+    private List<Integer> plantableRows(PlantDef def, int x, int y, String surface) {
         if (!plantsWholeColumn()) {
-            return canPlacePlant(def, x, y) ? List.of(y) : List.of();
+            return canPlacePlant(def, x, y, surface) ? List.of(y) : List.of();
         }
         List<Integer> rows = new ArrayList<>();
         for (int row = 0; row < height(); row++) {
-            if (canPlacePlant(def, x, row)) {
+            if (canPlacePlant(def, x, row, surface)) {
                 rows.add(row);
             }
         }
@@ -4509,13 +4605,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * {@link PlantPlacement#upgradeBasesInPlace} - this is the same walk, in the same order (left
      * neighbour first), so the neighbour that is consumed is the one the placement previewed.
      */
-    private void consumeUpgradeBases(PlantDef.Upgrade upgrade, int x, int y) {
+    private void consumeUpgradeBases(PlantDef.Upgrade upgrade, int x, int y, String surface) {
         List<int[]> cells = new ArrayList<>();
         cells.add(new int[] {x, y});
         if (upgrade.adjacent() > 0) {
             int[] neighbour = null;
             for (int dx : new int[] {-1, 1}) {
-                if (PlantPlacement.countBase(upgrade, placementContext, x + dx, y)
+                if (PlantPlacement.countBase(upgrade, placementContext(surface), x + dx, y)
                         >= upgrade.adjacent()) {
                     neighbour = new int[] {x + dx, y};
                     break;
@@ -4526,7 +4622,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         for (int[] cell : cells) {
-            PlantEntity base = topmostBaseAt(upgrade.base(), cell[0], cell[1]);
+            PlantEntity base = topmostBaseAt(upgrade.base(), cell[0], cell[1], surface);
             if (base != null) {
                 base.remove();
             }
@@ -4535,12 +4631,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     /** The topmost plant in a cell whose definition is {@code baseId}, or {@code null}. */
-    private PlantEntity topmostBaseAt(Identifier baseId, int x, int y) {
+    private PlantEntity topmostBaseAt(Identifier baseId, int x, int y, String surface) {
         PlantEntity found = null;
         for (PvzceEntity entity : entities) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()
                     && plant.gridX() == x && plant.gridY() == y
-                    && baseId.equals(plant.def().id())) {
+                    && baseId.equals(plant.def().id()) && plant.surfaceId().equals(surface)) {
                 if (found == null || found.def() == null
                         || PlantPlacement.layerIndex(plant.def())
                                 >= PlantPlacement.layerIndex(found.def())) {
@@ -4634,8 +4730,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // - halfway down its fall, or a hand's width above the lawn after rising out of a
             // sunflower - and a sparkle on the grass under it reads as a glow belonging to the
             // lawn rather than to the sun.
-            emitEffect(drop.def().pickupEffect().map(Identifier::toString).orElse(""),
-                    drop.cellX(), drop.cellY() + Math.max(0F, drop.height()), drop.def().pickupSound());
+            emitEffect(drop.def().pickupEffect().map(Identifier::toString).orElse(""), drop.position(), drop.surfaceId(), drop.def().pickupSound());
             // The visual fly-to-bank animation is client-side only, but it still
             // needs the server-confirmed drop position and icon.
             bridge.send(new ResourceCollectS2C(drop.id(), drop.defId().toString(), drop.amount(),
@@ -4742,10 +4837,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * slot and a cell, and the price, the cooldown and the side are all re-derived here.
      */
     public boolean placeZombie(ServerBridge bridge, int slotIndex, int x, int y) {
-        return withBridge(bridge, () -> placeZombieInternal(bridge, slotIndex, x, y));
+        return placeZombie(bridge, slotIndex, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public boolean placeZombie(ServerBridge bridge, int slotIndex, int x, int y, String surface) {
+        return withBridge(bridge, () -> placeZombieInternal(bridge, slotIndex, x, y, surface));
     }
 
-    private boolean placeZombieInternal(ServerBridge bridge, int slotIndex, int x, int y) {
+    private boolean placeZombieInternal(ServerBridge bridge, int slotIndex, int x, int y, String surface) {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             bridge.send(new ServerMessageS2C("游戏已经结束。"));
             return false;
@@ -4765,7 +4863,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("无效的卡槽。"));
             return false;
         }
-        if (!inBounds(x, y)) {
+        if (!scene.exists(surface, x, y)) {
             bridge.send(new ServerMessageS2C("不能在草坪外放僵尸。"));
             return false;
         }
@@ -4788,7 +4886,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         int cost = slot.costSun();
-        ZombieEntity spawned = spawnZombie(slot.defId(), plantPlayer.team(), x + 0.5F, y);
+        ZombieEntity spawned = spawnZombie(slot.defId(), plantPlayer.team(), x + 0.5F, y, 1F, surface);
         if (spawned == null) {
             // Give the sun *and the card* back: the cell was refused somewhere the player cannot see,
             // and a card that costs sun, a cooldown and produces nothing is a bug report.
@@ -4815,6 +4913,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * and the two messages that say why nothing happened.
      */
     public boolean fireAt(ServerBridge bridge, int entityId, int gridX, int gridY) {
+        return fireAt(bridge, entityId, gridX, gridY, SceneBoard.DEFAULT_SURFACE);
+    }
+    public boolean fireAt(ServerBridge bridge, int entityId, int gridX, int gridY, String surface) {
         return withBridge(bridge, () -> {
             if (!gameState.equals(GameStateS2C.RUNNING)) {
                 return false;
@@ -4845,7 +4946,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 bridge.send(new ServerMessageS2C("玉米加农炮还在装填（还剩 " + seconds + " 秒）。"));
                 return false;
             }
-            if (!cannon.fireAt(plant, this, gridX, gridY)) {
+            if (!cannon.fireAt(plant, this, gridX, gridY, surface)) {
                 bridge.send(new ServerMessageS2C("不能打到草坪外。"));
                 return false;
             }
@@ -4854,7 +4955,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public boolean useTool(ServerBridge bridge, int slotIndex, int x, int y) {
-        return withBridge(bridge, () -> useToolInternal(bridge, slotIndex, x, y));
+        return useTool(bridge, slotIndex, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public boolean useTool(ServerBridge bridge, int slotIndex, int x, int y, String surface) {
+        return withBridge(bridge, () -> useToolInternal(bridge, slotIndex, x, y, surface));
     }
 
     /**
@@ -4870,10 +4974,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * because a default tool has no card whose price the ordinary path would have collected.
      */
     public boolean useGrantedTool(ServerBridge bridge, ToolData granted, int x, int y) {
-        return withBridge(bridge, () -> useGrantedToolInternal(bridge, granted, x, y));
+        return useGrantedTool(bridge, granted, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public boolean useGrantedTool(ServerBridge bridge, ToolData granted, int x, int y, String surface) {
+        return withBridge(bridge, () -> useGrantedToolInternal(bridge, granted, x, y, surface));
     }
 
-    private boolean useGrantedToolInternal(ServerBridge bridge, ToolData granted, int x, int y) {
+    private boolean useGrantedToolInternal(ServerBridge bridge, ToolData granted, int x, int y, String surface) {
         if (!gameState.equals(GameStateS2C.RUNNING) || !humanTeamId.equals(PvzceIds.PLANT_TEAM)
                 || plantPlayer == null || granted == null) {
             return false;
@@ -4882,7 +4989,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (tool == null) {
             return false;
         }
-        if (!inBounds(x, y)) {
+        if (!scene.exists(surface, x, y)) {
             return false;
         }
         int cost = ToolMechanic.sunCost(granted);
@@ -4892,7 +4999,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("阳光不足！"));
             return false;
         }
-        if (!applyToolEffect(tool, x, y, ToolMechanic.damage(granted), granted.singleTarget())) {
+        if (!applyToolEffect(tool, x, y, ToolMechanic.damage(granted), granted.singleTarget(), surface)) {
             return false;
         }
         if (cost > 0) {
@@ -4903,7 +5010,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return true;
     }
 
-    private boolean useToolInternal(ServerBridge bridge, int slotIndex, int x, int y) {
+    private boolean useToolInternal(ServerBridge bridge, int slotIndex, int x, int y, String surface) {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return false;
         }
@@ -4939,7 +5046,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("未知工具 " + slot.defId()));
             return false;
         }
-        if (!inBounds(x, y)) {
+        if (!scene.exists(surface, x, y)) {
             return false;
         }
         // A tool whose definition prices a use (the hammer's 50 sun) charges it here, from the
@@ -4953,7 +5060,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
             return false;
         }
-        if (!applyToolEffect(tool, x, y)) {
+        if (!applyToolEffect(tool, x, y, tool.damage(), false, surface)) {
             // The click was understood and refused (an empty cell, a plant in the way).
             // Spending a use on it would cost the player a charge for nothing, and would
             // leave the glove unusable for the case that comes next.
@@ -5037,20 +5144,23 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     private boolean applyToolEffect(ToolDef tool, int x, int y) {
-        return applyToolEffect(tool, x, y, tool.damage(), false);
+        return applyToolEffect(tool, x, y, tool.damage(), false, SceneBoard.DEFAULT_SURFACE);
     }
 
     private void strikeWithHammer(ZombieEntity zombie, ToolDef tool, int damage) {
         zombie.damage(damage, toolTypeFor(tool), this);
-        emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_BONK);
+        emitEffect("", zombie.position(), zombie.surfaceId(), PvzceSounds.EFFECT_BONK);
     }
 
     private boolean applyToolEffect(ToolDef tool, int x, int y, int damage, boolean singleTarget) {
+        return applyToolEffect(tool, x, y, damage, singleTarget, SceneBoard.DEFAULT_SURFACE);
+    }
+    private boolean applyToolEffect(ToolDef tool, int x, int y, int damage, boolean singleTarget, String surface) {
         return switch (tool.effect()) {
             // PVZ original: one shovel click removes exactly one plant, always the
             // topmost layer of the target cell.
             case "pvzce:shovel" -> {
-                PlantEntity plant = plantAt(x, y);
+                PlantEntity plant = plantAt(x, y, surface);
                 if (plant != null) {
                     // During a preparation phase the dig is a *rearrangement*, not a mistake: the
                     // original gives the whole price back until the first wave, which is what makes
@@ -5063,11 +5173,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     }
                     plant.remove();
                     flushPending();
-                    emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.EFFECT_SHOVEL);
+                    emitEffect(PvzceParticles.DIRT_SMALL.toString(), scene.ground(surface, x + 0.5F, y + 0.5F), surface, PvzceSounds.EFFECT_SHOVEL);
                 }
                 yield true;
             }
-            case "pvzce:glove" -> movePlant(x, y);
+            case "pvzce:glove" -> movePlant(x, y, surface);
             case "pvzce:hammer" -> {
                 // A pot is what this swing is for on a vase level (4-5), and a zombie is what it
                 // is for everywhere else - and on a vase level it is both at once: the swing
@@ -5075,7 +5185,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // mallet does not stop being a mallet just because the level is full of pots.
                 // (It used to `yield` here, so a zombie one cell away from a pot took nothing
                 // from a swing aimed at the pot it was standing next to.)
-                boolean smashed = ScaryPotterMechanic.isPot(this, x, y) && smashPot(x, y);
+                boolean smashed = SceneBoard.DEFAULT_SURFACE.equals(surface)
+                        && ScaryPotterMechanic.isPot(this, x, y) && smashPot(x, y);
                 // The ordinary card uses ToolDef.damage; a level can override it through
                 // ToolData. Whack-a-Zombie declares a 900-point, single-target impact: armour
                 // absorbs the entire blow, so a cone takes two swings and a bucket takes three.
@@ -5096,7 +5207,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     if (!(entity instanceof ZombieEntity zombie) || !zombie.isAlive()) {
                         continue;
                     }
-                    if (!isEnemyOf(zombie.team(), plantPlayer.team())) {
+                    if (!zombie.surfaceId().equals(surface) || !isEnemyOf(zombie.team(), plantPlayer.team())) {
                         continue;
                     }
                     // Measured in world cells on both axes, so a click between two rows reaches
@@ -5130,13 +5241,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 }
                 yield hitSomething || smashed;
             }
-            case "pvzce:water" -> waterPlant(x, y);
-            case "pvzce:fill_pot" -> fillFlowerPot(x, y);
-            case "pvzce:fertilize" -> fertilizePlant(x, y);
+            case "pvzce:water" -> waterPlant(x, y, surface);
+            case "pvzce:fill_pot" -> fillFlowerPot(x, y, surface);
+            case "pvzce:fertilize" -> fertilizePlant(x, y, surface);
             // The vase: place it, fill it, or smash it. Which of the three depends on the cell and
             // on what the player is holding, and the rule is the user's own wording ("选一张植物卡
             // 再点它可以把它存进去，空手点它直接砸开").
-            case "pvzce:vase" -> useVase(x, y);
+            case "pvzce:vase" -> SceneBoard.DEFAULT_SURFACE.equals(surface) && useVase(x, y);
             // An effect this build does not implement: refused, so no use is spent.
             default -> false;
         };
@@ -5278,6 +5389,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * breaks nothing must not spend anything, and there is nothing here to spend.
      */
     public boolean smashContainer(ServerBridge bridge, int x, int y) {
+        return smashContainer(bridge, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public boolean smashContainer(ServerBridge bridge, int x, int y, String surface) {
+        if (!SceneBoard.DEFAULT_SURFACE.equals(surface)) return false;
         return withBridge(bridge, () -> {
             if (!gameState.equals(GameStateS2C.RUNNING) || !inBounds(x, y)) {
                 return false;
@@ -5540,8 +5655,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * is exactly the shape that ends up with one copy forgetting the packet.
      */
     public void resetSceneCell(int x, int y) {
-        setScene(x, y, defaultSceneElement().id());
-        sendSceneCell(x, y);
+        resetSceneCell(x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public void resetSceneCell(int x, int y, String surface) {
+        scene.clearOverlay(surface, x, y);
+        sendSceneCell(x, y, surface);
     }
 
     /**
@@ -5573,7 +5691,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (card == null || !inBounds(x, y)) {
             return;
         }
-        addEntity(new com.pvzce.server.entity.CardDropEntity(card, teams.get(PvzceIds.PLANT_TEAM), x, y));
+        com.pvzce.server.entity.CardDropEntity drop = new com.pvzce.server.entity.CardDropEntity(card, teams.get(PvzceIds.PLANT_TEAM), x, y);
+        drop.setHeight(surfaceHeight(drop.surfaceId(), drop.cellX(), drop.cellY()));
+        addEntity(drop);
     }
 
     public void spawnFallingCardDrop(Identifier card, int x, int y) {
@@ -5582,6 +5702,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         com.pvzce.server.entity.CardDropEntity drop = new com.pvzce.server.entity.CardDropEntity(
                 card, teams.get(PvzceIds.PLANT_TEAM), x, y);
+        drop.setHeight(surfaceHeight(drop.surfaceId(), drop.cellX(), drop.cellY()));
         drop.fallFromSky(height());
         addEntity(drop);
     }
@@ -5676,6 +5797,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * refused click has: the click cost nothing.
      */
     public boolean plantHeldCard(ServerBridge bridge, int x, int y) {
+        return plantHeldCard(bridge, x, y, SceneBoard.DEFAULT_SURFACE);
+    }
+    public boolean plantHeldCard(ServerBridge bridge, int x, int y, String surface) {
         return withBridge(bridge, () -> {
             com.pvzce.server.entity.CardDropEntity drop = heldCardDrop();
             if (drop == null) {
@@ -5685,11 +5809,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (plant == null) {
                 return false;
             }
-            if (!inBounds(x, y)) {
+            if (!scene.exists(surface, x, y)) {
                 bridge.send(new ServerMessageS2C("不能在草坪外种植。"));
                 return false;
             }
-            if (isVaseAt(x, y)) {
+            if (SceneBoard.DEFAULT_SURFACE.equals(surface) && isVaseAt(x, y)) {
                 // The vase's own rule: a plant card on a vase is *stored*, not planted. A packet
                 // in hand is one plant and one use, so storing it would have to put a use back in
                 // the vase - more bookkeeping than the mechanic is worth, and the pot's plant is
@@ -5697,11 +5821,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 bridge.send(new ServerMessageS2C("手里这株植物不能放进花瓶。"));
                 return false;
             }
-            if (!canPlacePlant(plant, x, y)) {
+            if (!canPlacePlant(plant, x, y, surface)) {
                 bridge.send(new ServerMessageS2C("该格不能种植。"));
                 return false;
             }
-            spawnPlant(plant, plantPlayer.team(), x, y);
+            spawnPlant(plant, plantPlayer.team(), x, y, surface);
             drop.remove();
             clearHeldCard(bridge);
             return true;
@@ -5791,8 +5915,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return ((long) x << 32) | (y & 0xFFFFFFFFL);
     }
 
-    private boolean fillFlowerPot(int x, int y) {
-        List<PlantEntity> plants = plantsAt(x, y);
+    private boolean fillFlowerPot(int x, int y, String surface) {
+        List<PlantEntity> plants = plantsAt(x, y, surface);
         if (plants.size() != 1 || !PvzceIds.FLOWER_POT.equals(plants.get(0).defId())
                 || plants.get(0).waterFilled()) {
             bridge.send(new ServerMessageS2C("水桶只能给空花盆注水，已装满或种有植物的花盆不能注水。"));
@@ -5800,8 +5924,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         PlantEntity pot = plants.get(0);
         pot.fillWater();
-        emitEffect(PvzceParticles.POOL_SPLASH.toString(), pot.cellX(), pot.cellY(),
-                PvzceSounds.EFFECT_WATERING);
+        emitEffect(PvzceParticles.POOL_SPLASH.toString(), pot.position(), pot.surfaceId(), PvzceSounds.EFFECT_WATERING);
         return true;
     }
 
@@ -5824,8 +5947,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * <p>A click on a cell with nothing in it is refused - {@code false} - so it costs neither
      * the cooldown nor a use, exactly like a mallet swung at empty grass.
      */
-    private boolean waterPlant(int x, int y) {
-        PlantEntity plant = plantAt(x, y);
+    private boolean waterPlant(int x, int y, String surface) {
+        PlantEntity plant = plantAt(x, y, surface);
         if (plant == null || plant.isRemoved()) {
             return false;
         }
@@ -5833,22 +5956,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // Sound and splash at the plant's own position rather than the clicked cell: the plant
         // is drawn with its cell's offset (a lily pad rides low, a pot rides high), and a splash
         // at the cell's floor would come out of the lawn beside it.
-        emitEffect(PvzceParticles.POOL_SPLASH.toString(), plant.cellX(), plant.cellY(),
-                PvzceSounds.EFFECT_WATERING);
+        emitEffect(PvzceParticles.POOL_SPLASH.toString(), plant.position(), plant.surfaceId(), PvzceSounds.EFFECT_WATERING);
         // The glow used to be conditional on the watering having healed or ripened something -
         // which a plant that was already whole and already grown never does, so the commonest case
         // ("I watered a full-health peashooter") answered with a splash that is over in a quarter of
         // a second and nothing else. The player's report was exactly "I cannot tell whether it did
         // anything". The glow is now the answer to "the water landed on a plant": it says the click
         // was accepted, and the growth sound is what distinguishes the cases where it did more.
-        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(),
-                plant.cellX(), plant.cellY(),
-                watering.ripened() || watering.healed() > 0 ? PvzceSounds.PLANT_GROW : null);
+        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(), plant.position(), plant.surfaceId(), watering.ripened() || watering.healed() > 0 ? PvzceSounds.PLANT_GROW : null);
         return true;
     }
 
-    private boolean fertilizePlant(int x, int y) {
-        PlantEntity plant = plantAt(x, y);
+    private boolean fertilizePlant(int x, int y, String surface) {
+        PlantEntity plant = plantAt(x, y, surface);
         if (plant == null || plant.isRemoved() || plant.capabilityInstances().stream().noneMatch(i ->
                 i.capability().holdsFire(plant)
                         || i.capability() instanceof com.pvzce.common.capability.plant.ProducerCapability producer
@@ -5856,8 +5976,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         plant.fertilize();
-        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(), plant.cellX(), plant.cellY(),
-                PvzceIds.id("sfx/plant/fertilizer"));
+        emitEffect(PvzceParticles.POTTED_ZEN_GLOW.toString(), plant.position(), plant.surfaceId(), PvzceIds.id("sfx/plant/fertilizer"));
         return true;
     }
 
@@ -5873,7 +5992,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * hook, and its state is carried across so a moved lily pad is still a carrier and a
      * moved potato mine does not re-arm.
      */
-    private boolean movePlant(int x, int y) {
+    private boolean movePlant(int x, int y, String surface) {
         // One hand, not two: the glove may not start a lift while a seed packet is in it. Checked
         // before the move that is already in progress, because a carry of the glove's own has to
         // be finishable either way.
@@ -5883,7 +6002,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         if (carriedVaseFrom >= 0L) {
-            return dropCarriedVase(x, y);
+            return SceneBoard.DEFAULT_SURFACE.equals(surface) && dropCarriedVase(x, y);
         }
         if (carriedPlantId >= 0) {
             PlantEntity carried = plantById(carriedPlantId);
@@ -5892,7 +6011,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 return false;
             }
             PlantDef def = carried.def();
-            if (!canPlacePlant(def, x, y)) {
+            if (!canPlacePlant(def, x, y, surface)) {
                 bridge.send(new ServerMessageS2C("不能放在这里。"));
                 return false;
             }
@@ -5902,17 +6021,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             Team team = carried.team();
             carried.remove();
             flushPending();
-            PlantEntity moved = spawnPlant(def, team, x, y);
+            PlantEntity moved = spawnPlant(def, team, x, y, surface);
             if (moved != null && !moved.isRemoved()) {
                 moved.restoreStateWithoutPosition(state);
             }
             clearCarry();
-            emitEffect(PvzceParticles.DIRT_SMALL.toString(), x + 0.5F, y + 0.5F, PvzceSounds.PLANT_PLANT);
+            emitEffect(PvzceParticles.DIRT_SMALL.toString(), scene.ground(surface, x + 0.5F, y + 0.5F), surface, PvzceSounds.PLANT_PLANT);
             return true;
         }
-        PlantEntity plant = plantAt(x, y);
+        PlantEntity plant = plantAt(x, y, surface);
         if (plant == null) {
-            if (isVaseAt(x, y)) {
+            if (SceneBoard.DEFAULT_SURFACE.equals(surface) && isVaseAt(x, y)) {
                 return liftVase(x, y);
             }
             // The original treats a click on grass as picking up nothing at all: the glove
@@ -5924,7 +6043,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         carriedPlantId = plant.id();
         carryTimeoutTicks = CARRY_TIMEOUT_TICKS;
         send(new CarrySyncS2C(plant.def().id().toString()));
-        emitEffect(PvzceParticles.LANTERN_SHINE.toString(), x + 0.5F, y + 0.5F, PvzceSounds.UI_TAP);
+        emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.position(), surface, PvzceSounds.UI_TAP);
         bridge.send(new ServerMessageS2C("已拿起 " + plant.def().id() + "，再点一次放下。"));
         return true;
     }
@@ -5978,8 +6097,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return false;
         }
         Identifier card = carriedVaseCard;
-        setScene((int) (from >> 32), (int) from, defaultSceneElement().id());
-        sendSceneCell((int) (from >> 32), (int) from);
+        resetSceneCell((int) (from >> 32), (int) from);
         vaseContents.remove(from);
         if (card != null) {
             vaseContents.put(cellKey(x, y), card);
@@ -6177,7 +6295,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
             return null;
         });
-        bridge.send(new SceneSyncS2C(SceneCells.forGrid(sceneIds())));
+        bridge.send(new SceneSyncS2C(scene.snapshot()));
         for (TypedMechanic typed : mechanics) {
             LevelMechanics.sendState(typed, this, bridge);
         }
@@ -6210,7 +6328,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 plant.syncCare(bridge, true);
                 var magnet = plant.capability(com.pvzce.common.capability.plant.MagnetCapability.class);
                 if (magnet != null) {
-                    var item = magnet.itemSnapshot(plant, tickCount());
+                    var item = magnet.itemSnapshot(plant, tickCount(), this);
                     if (item != null) bridge.send(item);
                 }
             }
@@ -6433,21 +6551,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     private ListTag saveScene() {
-        ListTag cells = new ListTag();
-        for (int x = 0; x < width(); x++) {
-            for (int y = 0; y < height(); y++) {
-                SceneElementDef element = scene.get(x, y);
-                if (element == null) {
-                    continue;
-                }
-                CompoundTag cellTag = new CompoundTag();
-                cellTag.putInt("x", x);
-                cellTag.putInt("y", y);
-                cellTag.putString("element", element.id().toString());
-                cells.add(cellTag);
-            }
+        ListTag result = new ListTag();
+        for (SceneSyncS2C.Cell cell : scene.snapshot()) {
+            CompoundTag tag = new CompoundTag();
+            tag.putInt("x", cell.x()); tag.putInt("y", cell.y());
+            tag.putString("element", cell.elementId()); tag.putString("base", cell.baseId());
+            tag.putString("surface", cell.surfaceId()); tag.putString("surfaceName", cell.surfaceName());
+            tag.putFloat("thickness", cell.thickness());
+            var profile = cell.profile();
+            tag.putFloat("elevation", profile.elevation()); tag.putFloat("slopeX", profile.slopeX());
+            tag.putFloat("slopeY", profile.slopeY()); tag.putFloat("minElevation", profile.min());
+            tag.putFloat("maxElevation", profile.max()); result.add(tag);
         }
-        return cells;
+        return result;
     }
 
     /**
@@ -6523,15 +6639,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     private void restoreScene(ListTag cells) {
-        for (Tag element : cells.values()) {
-            if (!(element instanceof CompoundTag cellTag)) {
+        for (Tag entry : cells.values()) {
+            if (!(entry instanceof CompoundTag tag)) continue;
+            if (!tag.contains("surface")) {
+                SceneElementDef element = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.tryParse(tag.getString("element")));
+                if (element != null) scene.set(tag.getInt("x"), tag.getInt("y"), element);
                 continue;
             }
-            Identifier elementId = Identifier.tryParse(cellTag.getString("element"));
-            SceneElementDef sceneElement = elementId == null ? null : BuiltInRegistries.SCENE_ELEMENTS.get(elementId);
-            if (sceneElement != null) {
-                scene.set(cellTag.getInt("x"), cellTag.getInt("y"), sceneElement);
-            }
+            scene.apply(new SceneSyncS2C.Cell(tag.getInt("x"), tag.getInt("y"), tag.getString("element"),
+                    tag.getString("surface"), tag.getString("base"), new SurfaceProfile(
+                    tag.getFloat("elevation"), tag.getFloat("slopeX"), tag.getFloat("slopeY"),
+                    tag.getFloat("minElevation"), tag.getFloat("maxElevation")), tag.getFloat("thickness"), tag.getString("surfaceName")));
         }
     }
 
@@ -6585,11 +6703,36 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (entity == null) {
                 continue;
             }
-            entity.restoreState(entityTag);
+            if (!entityTag.contains("surface")) {
+                // Old pool saves contain the logical height before the renderer's water inset.
+                // Copy only the compound's scalar fields; capability state remains read-only here.
+                CompoundTag migrated = new CompoundTag();
+                entityTag.entries().forEach(migrated::put);
+                float x = entityTag.getFloat("x"), y = entityTag.getFloat("y");
+                if (entity instanceof com.pvzce.server.entity.CardDropEntity && entityTag.getInt("Falling") != 0) {
+                    y = entityTag.getFloat("LandingY");
+                    migrated.putFloat("y", y);
+                    migrated.putFloat("height", entityTag.getFloat("height") + entityTag.getFloat("y") - y);
+                }
+                migrated.putFloat("height", migrated.getFloat("height") + legacyElevationDelta(x, y));
+                if (entity instanceof ProjectileEntity) {
+                    float ty = entityTag.contains("targetY") ? entityTag.getFloat("targetY") : y;
+                    migrated.putFloat("targetHeight", entityTag.getFloat("targetHeight")
+                            + legacyElevationDelta(entityTag.getFloat("targetX"), ty));
+                }
+                migrated.putString("surface", SceneBoard.DEFAULT_SURFACE);
+                entity.restoreState(migrated);
+            } else entity.restoreState(entityTag);
             if (entity.health() > 0 && !entity.isRemoved()) {
                 addEntity(entity);
             }
         }
+    }
+
+    private float legacyElevationDelta(float x, float y) {
+        SceneElementDef element = sceneAt((int) Math.floor(x), (int) Math.floor(y));
+        float old = element == null ? 0F : element.heightAt(x, width());
+        return surfaceHeight(SceneBoard.DEFAULT_SURFACE, x, y) - old;
     }
 
     /** Rebuilds an entity shell from its saved kind + definition id; the state follows. */

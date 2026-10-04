@@ -105,14 +105,14 @@ public final class SubmergeCapability implements ZombieCapability {
      * (swamp, aquarium) submerges a snorkel without a code change - the same rule drowning uses.
      */
     private static boolean inWater(ZombieEntity zombie, LevelAccess level) {
-        var scene = level.sceneAt(zombie.gridX(), zombie.gridY());
+        var scene = level.sceneAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId());
         return scene != null && scene.id() != null
                 && PvzceTags.SCENE_ELEMENTS.contains(PvzceTags.SCENE_WATER, scene.id());
     }
 
     /** True when something is in the way, so the zombie is eating rather than swimming. */
     private static boolean blocked(ZombieEntity zombie, LevelAccess level) {
-        var plant = level.plantAt(zombie.gridX(), zombie.gridY());
+        var plant = level.plantAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId());
         return plant != null && !plant.isRemoved();
     }
 }

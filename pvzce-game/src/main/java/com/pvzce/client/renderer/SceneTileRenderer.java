@@ -1,12 +1,13 @@
 package com.pvzce.client.renderer;
 
+import com.pvzce.api.content.SurfaceProfile;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.SceneShifts;
 import com.pvzce.client.SceneVisibility;
 import com.pvzce.client.renderer.liquid.LiquidTextures;
 import com.pvzce.common.util.MathUtil;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -250,7 +251,7 @@ public final class SceneTileRenderer {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 String sceneId = scene.sceneAt(x, y);
-                if (visibility.hides(sceneId)) {
+                if (sceneId == null || visibility.hides(sceneId)) {
                     continue;
                 }
                 if (isLiquid(sceneId)) {
@@ -330,7 +331,7 @@ public final class SceneTileRenderer {
                 // to this pass: the new element is painted over it by drawShiftedCells once
                 // the rest of the board is down.
                 String sceneId = shift != null ? shift.under() : scene.sceneAt(x, y);
-                if (visibility.hides(sceneId)) {
+                if (sceneId == null || visibility.hides(sceneId)) {
                     // Hidden by the level: the backdrop is the picture in this cell. See
                     // SceneVisibility - a level whose backdrop already has the lawn says so
                     // with `hidden_scene_elements`.
@@ -444,6 +445,60 @@ public final class SceneTileRenderer {
     /** Delegates so the tile renderer and the editor canvas cannot diverge. */
     public static Identifier sceneTexture(String sceneId) {
         return com.pvzce.client.renderer.EntityTextures.forScene(sceneId);
+    }
+
+    /** Draws a surface in its own world frame, after lower-surface entities and before its occupants. */
+    public static void renderSurface(PvzceClient client, String surface) {
+        var board = client.level().sceneBoard();
+        boolean ground = SceneBoard.DEFAULT_SURFACE.equals(surface);
+        float alpha = client.level().activeSurface().equals(surface) ? 1F : 0.35F;
+        java.util.Set<String> liquids = new java.util.LinkedHashSet<>();
+        for (var entry : board.snapshot()) {
+            if (!entry.surfaceId().equals(surface)) continue;
+            String id = entry.elementId();
+            if (!client.level().sceneVisibility().hides(id) && LiquidTextures.liquidFor(id).isPresent()) liquids.add(id);
+        }
+        for (String id : liquids) LiquidTextures.renderSurface(client, LiquidTextures.liquidFor(id).orElseThrow(), id, surface);
+        for (var entry : board.snapshot()) {
+            if (!entry.surfaceId().equals(surface)) continue;
+            var cell = board.cell(surface, entry.x(), entry.y());
+            if (ground && cell.profile().equals(SurfaceProfile.FLAT)) continue;
+            String id = cell.element().toString();
+            var element = board.get(surface, entry.x(), entry.y());
+            if (element == null || element.isLiquid() || client.level().sceneVisibility().hides(id)) continue;
+            if (cell.overlay() != null && !client.level().sceneVisibility().hides(cell.base().toString()))
+                drawSurfaceCell(client, surface, cell, cell.base().toString(), entry.x(), entry.y(), alpha, 0F);
+            var shift = ground ? client.level().sceneShifts().at(entry.x(), entry.y()) : null;
+            drawSurfaceCell(client, surface, cell, id, entry.x(), entry.y(), alpha, shift == null ? 0F : shift.sink());
+        }
+    }
+
+    private static void drawSurfaceCell(PvzceClient client, String surface,
+                                        SceneBoard.Cell cell, String id, int cx, int cy, float alpha, float sink) {
+        var board = client.level().sceneBoard();
+        var element = com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.parse(id));
+        if (element == null || element.isLiquid()) return;
+        Identifier texture = textureFor(client, id);
+        var sprite = client.textures().getOrLoad(texture);
+        float tw = sprite == null ? 1F : sprite.width(), th = sprite == null ? 1F : sprite.height();
+        CellQuad quad = artQuad(id, cx, cy);
+        float shown = Math.max(.01F, Math.min(1F, 1F - sink));
+        float x = quad.x(), y = quad.y(), right = x + quad.width(), top = y + quad.height() * shown;
+        // Decals and standing objects translate with their support; tiled foundations bend with it.
+        float z = board.elevationAt(surface, cx + 0.5F, cy + 0.5F);
+        float bl = y + (element.overlay() ? z : cell.profile().at(x, y));
+        float br = y + (element.overlay() ? z : cell.profile().at(right, y));
+        float tr = top + (element.overlay() ? z : cell.profile().at(right, top));
+        float tl = top + (element.overlay() ? z : cell.profile().at(x, top));
+        float u = 0F, v = th * (1F - shown), uw = tw, vh = th * shown;
+        if (isTiled(id)) {
+            uw = tw / TILE_CELLS; vh = th / TILE_CELLS;
+            u = Math.floorMod(cx, TILE_CELLS) * uw;
+            v = Math.floorMod(cy, TILE_CELLS) * vh;
+        }
+        client.drawTextureQuad(texture, x, bl, right, br, right, tr, x, tl,
+                u, v, u + uw, v, u + uw, v + vh, u, v + vh,
+                0.05F, 1F, 1F, 1F, alpha);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.pvzce.client.mechanic;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.content.MowerData;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.util.Identifier;
@@ -13,7 +14,6 @@ import com.pvzce.client.renderer.PvzceCamera;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.mechanic.MowerMechanic;
 import com.pvzce.common.network.PacketByteBuf;
-
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -262,7 +262,9 @@ final class MowerClientMechanic implements ClientMechanic {
                 // One size factor on both axes: the mower is not a drop, so the width also
                 // wears the board's aspect correction and the height does not.
                 playback.render(client, placement.x(),
-                        placement.lane() + 0.5F - EntityVisuals.anchorLift(EntityKind.PLANT),
+                        placement.lane() + 0.5F + client.level().sceneBoard().elevationAt(
+                                SceneBoard.DEFAULT_SURFACE, placement.x(), placement.lane() + .5F)
+                                - EntityVisuals.anchorLift(EntityKind.PLANT),
                         EntityVisuals.baseZ(EntityKind.PLANT),
                         client.spriteXScale() * MOWER_RENDER_SCALE, MOWER_RENDER_SCALE);
             }

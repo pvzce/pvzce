@@ -13,7 +13,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -144,8 +143,7 @@ public final class SpikeCapability implements PlantCapability {
             cooldown = intervalTicks;
             plant.beginAction(EntityAnimations.ATTACK);
             if (sound.isPresent() || particle.isPresent()) {
-                level.emitEffect(particle.map(Identifier::toString).orElse(""),
-                        plant.cellX(), plant.cellY() + plant.height(), sound.orElse(null));
+                level.emitEffect(particle.map(Identifier::toString).orElse(""), plant.position(), plant.surfaceId(), sound.orElse(null));
             }
         } else {
             // Nothing to stab: the clock still ran out, so it is reset rather than left at zero.
@@ -178,8 +176,7 @@ public final class SpikeCapability implements PlantCapability {
             stabbing = true;
             plant.beginAction(EntityAnimations.ATTACK);
             if (sound.isPresent() || particle.isPresent()) {
-                level.emitEffect(particle.map(Identifier::toString).orElse(""),
-                        plant.cellX(), plant.cellY() + plant.height(), sound.orElse(null));
+                level.emitEffect(particle.map(Identifier::toString).orElse(""), plant.position(), plant.surfaceId(), sound.orElse(null));
             }
         }
         return hit;
@@ -210,7 +207,7 @@ public final class SpikeCapability implements PlantCapability {
     /** Damages everything this patch reaches in one row; answers whether it hit anything. */
     private boolean stabRow(PlantEntity plant, LevelAccess level, int row, float reach) {
         boolean hit = false;
-        for (ZombieEntity zombie : level.enemiesInRow(row, plant.team())) {
+        for (ZombieEntity zombie : level.enemiesInRow(row, plant.team(), plant.surfaceId())) {
             if (zombie.isRemoved() || zombie.layer() != EntityLayers.GROUND) {
                 // Underground diggers and fliers pass over it for the same reason they pass over
                 // a mower: the predicate is the zombie's own layer, so "on the ground" has one

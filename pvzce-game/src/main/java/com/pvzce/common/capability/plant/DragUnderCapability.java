@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -140,9 +139,8 @@ public final class DragUnderCapability implements PlantCapability {
         // has left is exactly what it takes - a damage type that ignores armour still has to be
         // worth more than the health bar it is cancelling.
         victim.damage(victim.health(), dragType(), level);
-        level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), plant.cellX(), plant.cellY(),
-                sound.orElse(PvzceSounds.ZOMBIE_SPLASH));
-        level.emitRippleAt(plant.gridX(), plant.gridY(), 1F);
+        level.emitEffect(PvzceParticles.POOL_SPLASH.toString(), plant.position(), plant.surfaceId(), sound.orElse(PvzceSounds.ZOMBIE_SPLASH));
+        level.emitRippleAt(plant.gridX(), plant.gridY(), 1F, plant.surfaceId());
     }
 
     /** What a drag lands as: armour does not absorb it. */

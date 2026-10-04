@@ -1,5 +1,7 @@
 package com.pvzce.client.gui.screens;
 
+import com.pvzce.api.content.SurfaceProfile;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.renderer.EntityVisuals;
 import com.pvzce.client.ClientEntity;
@@ -32,7 +34,6 @@ import com.pvzce.api.content.SlotDef;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.UseToolC2S;
 import org.lwjgl.glfw.GLFW;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -620,10 +621,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private static final class MalletSwing {
         final int cellX;
         final int cellY;
+        final String surface;
         final long startNanos = System.nanoTime();
         com.pvzce.client.animation.ArtTarget target;
 
-        MalletSwing(int cellX, int cellY) {
+        MalletSwing(int cellX, int cellY, String surface) {
+            this.surface = surface;
             this.cellX = cellX;
             this.cellY = cellY;
         }
@@ -683,6 +686,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             addWidget(speedButton);
         }
         addWidget(pauseButton);
+        if (client.level().sceneBoard().surfaceIds().size() > 1) {
+            addWidget(new Button(Math.max(12, speedX - 124), height - pauseHeight - 12,
+                    116, pauseHeight, GuiLang.raw("gui.pvzce.surface.switch", "Switch layer"), () -> { client.level().cycleSurface(); selectedCard = -1; }));
+        }
         pauseDialog = PauseDialog.create(client);
         pauseDialog.onClose(this::handlePauseDialogClosed);
         pauseDialog.setVisible(paused);
@@ -1500,7 +1507,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                         effect.particle(), effect.sound(), effect.x(), effect.y());
             }
             if (!effect.particle().isEmpty()) {
-                client.particles().spawn(effect.particle(), effect.x(), effect.y());
+                client.particles().spawn(effect.particle(), effect.position(), effect.surfaceId(), client.level().sceneBoard());
             }
             if (!effect.sound().isEmpty() && client.sound() != null) {
                 playEffectSound(effect);
@@ -1526,7 +1533,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // splash that made it.
                 com.pvzce.client.renderer.LevelStage.LiquidFrame frame =
                         client.camera().liquidFrame();
-                client.liquidRipples().add(frame.x(effect.x()), frame.y(effect.y()),
+                client.liquidRipples().add(frame.x(effect.x()), effect.position().projectedY(),
                         effect.rippleStrength());
             }
         }
@@ -1655,7 +1662,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // would be: the sprite itself then leans further left as it rises (see the
             // particle's own angle).
             client.particles().spawn(zzz.toString(),
-                    entity.cellX() - 0.18F, entity.cellY() + ZZZ_HEIGHT);
+                    entity.visualPosition().offset(-0.18F, 0F, ZZZ_HEIGHT), entity.surfaceId(), client.level().sceneBoard());
         }
         zzzNextNanos.keySet().retainAll(breathing);
         zzzStep.keySet().retainAll(breathing);
@@ -1860,7 +1867,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 Math.max(1, (int) Math.ceil(Math.abs(boardTop - boardBottom) + marginY * 2F)));
         try {
             SceneTileRenderer.render(client, client.level().width(), client.level().height(),
-                    (x, y) -> client.level().sceneAt(x, y),
+                    (x, y) -> {
+                        var cell = client.level().sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, x, y);
+                        var element = client.level().sceneBoard().get(x, y);
+                        return cell != null && (element != null && element.isLiquid()
+                                || !cell.profile().equals(SurfaceProfile.FLAT)) ? null : client.level().sceneAt(x, y);
+                    },
                     camera.unitY() / Math.max(0.0001F, camera.unitX()),
                     // The ring of grass outside the board exists to keep the edge tiles from
                     // ending in a hard line. A level that hides its lawn has a backdrop under
@@ -1871,7 +1883,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     // A tombstone raised mid-level pushes up through the lawn instead of
                     // appearing on it, and one being eaten sinks from the top down; see
                     // SceneShifts.
-                    client.level().sceneShifts()::at,
+                    (x, y) -> {
+                        var cell = client.level().sceneBoard().cell(SceneBoard.DEFAULT_SURFACE, x, y);
+                        return cell != null && cell.profile().equals(SurfaceProfile.FLAT)
+                                ? client.level().sceneShifts().at(x, y) : null;
+                    },
                     // The level's own backdrop may already contain some of the terrain, so the
                     // elements it hides are not painted - see SceneVisibility.
                     client.level().sceneVisibility(),
@@ -1885,13 +1901,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             overlay.render(client, camera);
         }
 
-        echoLilyLinks.renderWorld(client);
 
         // After the lawn, not before it: a riser is drawn at its standing position and cut
         // off at its row's ground line (see renderRisingZombies), so nothing of it may end up
         // behind the grass - and the part that is out has to be in front of it, like every
         // other zombie.
-        renderRisingZombies(camera);
 
         renderContainerHover(camera);
 
@@ -1941,34 +1955,46 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             renderEntities.add(new DrawEntry(entity, false));
         }
         renderEntities.sort(Comparator.comparingLong(entry -> renderOrder(entry.entity(), entry.shellBack())));
-        for (DrawEntry entry : renderEntities) {
-            ClientEntity entity = entry.entity();
-            // Risers were already drawn, before the lawn. Drawing them again here would put
-            // the buried half back on top of it.
-            if (isRising(entity)) {
-                continue;
+        for (String surface : client.level().sceneBoard().surfacesBottomFirst()) {
+            SceneTileRenderer.renderSurface(client, surface);
+            renderRisingZombies(camera, surface);
+            echoLilyLinks.renderWorld(client, surface);
+            for (DrawEntry entry : renderEntities) {
+                ClientEntity entity = entry.entity();
+                if (!client.level().sceneBoard().surfaceBelow(entity.visualPosition(), entity.surfaceId()).equals(surface)) continue;
+                // Risers were already drawn, before the lawn. Drawing them again here would put
+                // the buried half back on top of it.
+                if (isRising(entity)) {
+                    continue;
+                }
+                if (isSomebodyElsesPickup(entity)) {
+                    // A resource drop the player cannot pick up. On a versus level the plant side's sun
+                    // lands on the lawn whether or not the player is the plant side, and a zombie player
+                    // has no way to collect it: drawn, it is a lie about what can be clicked. The team
+                    // check is the collection rule itself (a drop belongs to its own team), so a level
+                    // where the player is the plant side hides nothing.
+                    continue;
+                }
+                if (com.pvzce.client.mechanic.StormClientMechanic.hides(client.level())) {
+                    // The storm's half of the same rule, and the whole of the original's storm
+                    // level: between strikes the lawn is black and nothing standing on it is drawn.
+                    // No position is consulted - a storm has no edge.
+                    continue;
+                }
+                boolean inactive = !client.level().activeSurface().equals(surface);
+                if (inactive) client.pushEntityAlpha(0.35F);
+                try {
+                    if (entry.shellBack()) {
+                        entity.playAnimation(entity.animation());
+                        drawShadow(client, entity, entityTexture(entity));
+                        if (client.animations() != null) client.animations().render(entity, -1);
+                    } else {
+                        renderEntity(entity);
+                    }
+                } finally { if (inactive) client.popEntityAlpha(); }
             }
-            if (isSomebodyElsesPickup(entity)) {
-                // A resource drop the player cannot pick up. On a versus level the plant side's sun
-                // lands on the lawn whether or not the player is the plant side, and a zombie player
-                // has no way to collect it: drawn, it is a lie about what can be clicked. The team
-                // check is the collection rule itself (a drop belongs to its own team), so a level
-                // where the player is the plant side hides nothing.
-                continue;
-            }
-            if (com.pvzce.client.mechanic.StormClientMechanic.hides(client.level())) {
-                // The storm's half of the same rule, and the whole of the original's storm
-                // level: between strikes the lawn is black and nothing standing on it is drawn.
-                // No position is consulted - a storm has no edge.
-                continue;
-            }
-            if (entry.shellBack()) {
-                entity.playAnimation(entity.animation());
-                drawShadow(client, entity, entityTexture(entity));
-                if (client.animations() != null) client.animations().render(entity, -1);
-            } else {
-                renderEntity(entity);
-            }
+            com.pvzce.client.renderer.MagnetItems.renderWorld(client, surface);
+            client.particles().render(client, surface);
         }
         // The fog, over everything the board is standing: what the cloud covers is what the player
         // cannot see, and the player's own hand (the ghost below, the carried plant, the mallet
@@ -1978,12 +2004,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         renderPlacementPreview();
         renderCarriedPlant();
-        client.particles().render(client);
         // Last of the board's own layers, so a summoned mallet is drawn over the burst it just
         // caused. It used to be drawn under the particles, and the pot's own POW is a
         // three-quarter-second cloud - the swing is a third of a second, so the gesture the
         // player asked for was entirely hidden behind the hit it made.
-        com.pvzce.client.renderer.MagnetItems.renderWorld(client);
         renderMalletSwings();
     }
 
@@ -2205,6 +2229,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         preview.setCellX(anchor[0]);
         preview.setCellY(anchor[1]);
         preview.setHeight(anchor[2]);
+        preview.setSurfaceId(client.level().activeSurface());
         preview.playAnimation(com.pvzce.api.entity.EntityAnimations.IDLE);
         client.pushEntityAlpha(PLACEMENT_PREVIEW_ALPHA);
         try {
@@ -2219,9 +2244,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     private float terrainHeight(float x, int y) {
-        Identifier id = Identifier.tryParse(client.level().sceneAt((int) Math.floor(x), y));
+        Identifier id = Identifier.tryParse(client.level().sceneAt(client.level().activeSurface(), (int) Math.floor(x), y));
         var terrain = id == null ? null : com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(id);
-        return terrain == null ? 0F : terrain.heightAt(x, client.level().width());
+        return terrain == null ? 0F : client.level().sceneBoard().elevationAt(client.level().activeSurface(), x, y + 0.5F);
     }
 
     /**
@@ -2301,8 +2326,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * {@code PvzceConstants#ZOMBIE_RISE_DEPTH_CELLS}), which is the whole of what the client
      * is told: the climb is a height animation, so no new field travels for it.
      */
-    private static boolean isRising(ClientEntity entity) {
-        return entity.kind().equals(com.pvzce.api.entity.EntityKind.ZOMBIE) && entity.height() < 0F
+    private boolean isRising(ClientEntity entity) {
+        return entity.kind().equals(com.pvzce.api.entity.EntityKind.ZOMBIE) && entity.height() < client.level().sceneBoard().elevationAt(entity.surfaceId(), entity.cellX(), entity.cellY()) - .01F
                 && entity.layer() != com.pvzce.api.entity.EntityLayers.UNDERGROUND;
     }
 
@@ -2313,8 +2338,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * constant - see {@link PvzceConstants#ZOMBIE_RISE_DEPTH_CELLS}. Clamped because the
      * interpolation between two syncs can overshoot either end.
      */
-    private static float riseBuried(ClientEntity entity) {
-        return MathUtil.clamp01(-entity.visualHeight() / PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS);
+    private float riseBuried(ClientEntity entity) {
+        return MathUtil.clamp01((client.level().sceneBoard().elevationAt(entity.surfaceId(), entity.visualCellX(), entity.visualCellY())
+                - entity.visualHeight()) / PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS);
     }
 
     /**
@@ -2354,14 +2380,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * <p>No shadow: a shadow under the grass would be the one part of a buried zombie the
      * player could see, and the sun does not reach down there.
      */
-    private void renderRisingZombies(PvzceCamera camera) {
+    private void renderRisingZombies(PvzceCamera camera, String surface) {
         for (ClientEntity entity : client.level().entities().values()) {
-            if (!isRising(entity)) {
+            if (!entity.surfaceId().equals(surface) || !isRising(entity)) {
                 continue;
             }
             entity.playAnimation(entity.animation());
             float climb = 1F - riseBuried(entity);
-            float groundY = entity.cellY() - 0.5F;
+            float groundY = entity.cellY() - 0.5F + client.level().sceneBoard().elevationAt(entity.surfaceId(), entity.cellX(), entity.cellY());
             // The arm first, on its own cut: a hand's length of zombie is out while the body
             // is still entirely under the lawn.
             drawRiseArm(entity, camera, climb, groundY);
@@ -2665,7 +2691,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     || entity.id() == client.level().heldCardEntityId()) {
                 continue;
             }
-            float dx = entity.cellX() - worldX;
+            float dx = entity.visualCellX() - worldX;
             // The box the packet is drawn in, plus a margin: the picture is deliberately small
             // (see EntityVisuals.CARD_DROP), and a card the player has to hit pixel-perfect is a
             // card they lose to the clock.
@@ -2800,22 +2826,26 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (entity.kind().equals("plant")) {
             float width = (visual == null ? 0.68F : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.76F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY + terrainHeight(drawX, entity.gridY()) - contact + liquidDrop(entity),
+            client.drawEntityShadow(texture, drawX, drawY + client.level().sceneBoard().elevationAt(entity.surfaceId(), drawX, entity.visualCellY()) - contact + liquidDrop(entity),
                     width * renderScale, height * renderScale, 0.4F);
         } else if (entity.kind().equals("zombie") && entity.layer() != -1) {
-            float lift = Math.max(0F, drawHeight - terrainHeight(drawX, entity.gridY()));
+            float lift = Math.max(0F, drawHeight - client.level().sceneBoard().elevationAt(entity.surfaceId(), drawX, entity.visualCellY()));
             float alpha = Math.max(0.14F, 0.34F - lift * 0.14F);
             float width = (visual == null
                     ? Math.max(0.46F, 0.62F - lift * 0.06F)
                     : Math.max(0.20F, visual[0] * 0.85F)) * spriteXScale;
             float height = visual == null ? 0.95F : Math.max(0.20F, visual[1]);
-            client.drawEntityShadow(texture, drawX, drawY + terrainHeight(drawX, entity.gridY()) - contact,
+            client.drawEntityShadow(texture, drawX, drawY + client.level().sceneBoard().elevationAt(entity.surfaceId(), drawX, entity.visualCellY()) - contact,
                     width * renderScale, height * renderScale, alpha);
         }
     }
 
     private void renderHud() {
         int height = client.guiHeight();
+        if (client.level().sceneBoard().surfaceIds().size() > 1) {
+            client.fonts().button().draw(String.format(GuiLang.raw("gui.pvzce.surface.current", "Layer: %s (PgUp/PgDn)"), client.level().activeSurfaceName()),
+                    16, height - 120, 0.75F, 1F, 0.95F, 0.35F, 1F);
+        }
         // The original PvZ-style sun bank appears when the player picked the SunBank card
         // in the seed chooser: collecting sun is what that card buys.
         if (hasSunBank()) {
@@ -3838,7 +3868,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // armed a cannon and then clicked a cell meant that cell, whatever is selected in the bar.
         if (aimingPlantId >= 0) {
             client.connection().send(new com.pvzce.common.network.packet.FireAtC2S(
-                    aimingPlantId, cellX, cellY));
+                    aimingPlantId, cellX, cellY, client.level().activeSurface()));
             cancelAiming();
             return;
         }
@@ -3848,7 +3878,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (client.level().holdingCard()) {
             selectedCard = -1;
             client.connection().send(
-                    new com.pvzce.common.network.packet.PlantHeldCardC2S(cellX, cellY));
+                    new com.pvzce.common.network.packet.PlantHeldCardC2S(cellX, cellY, client.level().activeSurface()));
             return;
         }
         // A plant in hand is a move in progress: the click puts it down, whichever card is
@@ -3868,7 +3898,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // whatever the player clicked on.
             selectedCard = -1;
             if (glove != null) {
-                client.connection().send(new UseToolC2S(glove.index(), cellX, cellY));
+                client.connection().send(new UseToolC2S(glove.index(), cellX, cellY, client.level().activeSurface()));
             }
             return;
         }
@@ -3886,7 +3916,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // the frame the player made it, not one round trip later.
             swingDefaultToolCursor();
             client.connection().send(new com.pvzce.common.network.packet.UseGrantedToolC2S(
-                    granted.tool(), cellX, cellY));
+                    granted.tool(), cellX, cellY, client.level().activeSurface()));
             return;
         }
         // Nothing in hand and no tool to swing: a container under the pointer is what a bare click
@@ -3918,7 +3948,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private ClientEntity targetablePlantAt(int cellX, int cellY) {
         for (ClientEntity entity : client.level().entities().values()) {
             if (!com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())
-                    || entity.gridX() != cellX || entity.gridY() != cellY) {
+                    || entity.gridX() != cellX || entity.gridY() != cellY
+                    || !entity.surfaceId().equals(client.level().activeSurface())) {
                 continue;
             }
             Identifier defId = Identifier.tryParse(entity.defIdString());
@@ -4016,9 +4047,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * server's answer, and a swing at a pot that is already gone costs nothing.
      */
     private void summonMallet(int cellX, int cellY) {
-        malletSwings.add(new MalletSwing(cellX, cellY));
+        malletSwings.add(new MalletSwing(cellX, cellY, client.level().activeSurface()));
         client.connection().send(
-                new com.pvzce.common.network.packet.SmashContainerC2S(cellX, cellY));
+                new com.pvzce.common.network.packet.SmashContainerC2S(cellX, cellY, client.level().activeSurface()));
     }
 
     /**
@@ -4066,7 +4097,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 continue;
             }
             playback.render(client, swing.cellX + 0.5F,
-                    swing.cellY + 0.5F
+                    swing.cellY + 0.5F + client.level().sceneBoard().elevationAt(swing.surface, swing.cellX + 0.5F, swing.cellY + 0.5F)
                             - com.pvzce.client.renderer.EntityVisuals.anchorLift(
                                     com.pvzce.api.entity.EntityKind.PLANT),
                     com.pvzce.client.renderer.EntityVisuals.baseZ(
@@ -4322,7 +4353,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // The gesture is played on the click and the answer is not waited for, the same
             // rule the level's own tool follows (see swingDefaultToolCursor).
             swingDefaultToolCursor();
-            client.connection().send(new UseToolC2S(selectedCard, cellX, cellY));
+            client.connection().send(new UseToolC2S(selectedCard, cellX, cellY, client.level().activeSurface()));
             selectedCard = -1;
             return;
         }
@@ -4331,9 +4362,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // in differs (see PlaceZombieC2S).
         if (selected.kind().equals("zombie")) {
             client.connection().send(
-                    new com.pvzce.common.network.packet.PlaceZombieC2S(selectedCard, cellX, cellY));
+                    new com.pvzce.common.network.packet.PlaceZombieC2S(selectedCard, cellX, cellY, client.level().activeSurface()));
         } else {
-            client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY));
+            client.connection().send(new PlacePlantC2S(selectedCard, cellX, cellY, client.level().activeSurface()));
         }
         selectedCard = -1;
     }
@@ -4437,8 +4468,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             if (!entity.kind().equals(com.pvzce.api.entity.EntityKind.RESOURCE)) {
                 continue;
             }
-            float dx = entity.cellX() - worldX;
-            float dy = entity.cellY() + Math.max(0F, entity.height()) - worldY;
+            float dx = entity.visualCellX() - worldX;
+            float dy = entity.visualPosition().projectedY() - worldY;
             float distance = dx * dx + dy * dy;
             if (distance <= radius * radius && distance < bestDistance) {
                 best = entity;
@@ -4601,6 +4632,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         Dialog modal = modalDialog();
         if (modal != null && modal != pauseDialog) {
             modal.keyPressed(key);
+            return;
+        }
+        if (key == GLFW.GLFW_KEY_PAGE_UP || key == GLFW.GLFW_KEY_PAGE_DOWN) {
+            client.level().cycleSurface(key == GLFW.GLFW_KEY_PAGE_UP ? -1 : 1);
+            selectedCard = -1;
             return;
         }
         if (key == GLFW.GLFW_KEY_ESCAPE) {

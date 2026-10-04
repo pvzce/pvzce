@@ -12,7 +12,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.Optional;
 
 /**
@@ -126,8 +125,7 @@ public final class CharmCapability implements PlantCapability {
         zombie.setTeam(plantTeam);
         // The mushroom on its head, and the original's sound. The tint the client draws comes
         // from the team change, which the entity update carries.
-        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), zombie.cellX(), zombie.cellY(),
-                sound.orElseGet(() -> PvzceSounds.PLANT_HYPNO_FLOOP));
+        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), zombie.position(), zombie.surfaceId(), sound.orElseGet(() -> PvzceSounds.PLANT_HYPNO_FLOOP));
         // The state the client has to hear about this tick, not on whichever third tick comes
         // next: the tint is the only thing that says the bite worked.
         server.requestEntitySync();

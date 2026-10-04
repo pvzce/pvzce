@@ -1,5 +1,7 @@
 package com.pvzce.common.capability.plant;
 
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -15,7 +17,6 @@ import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.Optional;
 
 /**
@@ -384,7 +385,7 @@ public final class ExplosiveCapability implements PlantCapability {
             detonate(plant, level);
             return;
         }
-        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team()).stream()
+        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId()).stream()
                 .filter(z -> !z.isRemoved() && z.canBeHitByGround()
                         && Math.abs(z.cellX() - plant.cellX()) < triggerRange)
                 .findFirst()
@@ -423,22 +424,22 @@ public final class ExplosiveCapability implements PlantCapability {
             // The whole row, which is a shape and not a distance - see LevelAccess.damageRow.
             // Through `fireRow` rather than inline, because a row blast is the one shape this
             // class can be asked for with no plant behind it (see `fireRow`).
-            fireRow(level, plant.gridY(), damage, damageType, meltsIce, null, plant.team());
+            fireRow(level, plant.gridY(), damage, damageType, meltsIce, null, plant.team(), plant.surfaceId());
         } else {
-            level.damageArea(ZombieEntity.damageType(damageType), plant.cellX(), plant.cellY(),
+            level.damageArea(ZombieEntity.damageType(damageType), plant.position(),
                     blastRadius, damage, plant.team(), square);
             if (meltsIce) {
                 // Fire takes the zamboni's lane back. The shape follows the blast the same way the
                 // damage did: a jalapeno burns one whole row and a cherry bomb burns the nine cells
                 // around itself, so the ice that goes is the ice that was in the fire.
-                level.meltIce(plant.cellX(), plant.cellY(), blastRadius, square);
+                level.meltIce(plant.cellX(), plant.cellY(), blastRadius, square, plant.surfaceId());
             }
         }
         if (leavesCrater) {
             // The hole the plant made, in its own cell - not the footprint of the blast. See
             // CRATER_RADIUS: the doom shroom is the one explosive that does not leave the lawn
             // as it found it, and it leaves *one* tile that way.
-            level.leaveCraters(plant.cellX(), plant.cellY(), CRATER_RADIUS, false);
+            level.leaveCraters(plant.cellX(), plant.cellY(), CRATER_RADIUS, false, plant.surfaceId());
         }
         // The effect, piece by piece, from the plant's own cell: a composition is a list, and
         // each piece is placed by its own birth offset (see ParticleMotion#offsetX). The sound
@@ -447,13 +448,12 @@ public final class ExplosiveCapability implements PlantCapability {
         Identifier blastSound = sound.orElseGet(
                 () -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION));
         for (int i = 0; i < particles.size(); i++) {
-            level.emitEffect(particles.get(i).toString(), plant.cellX(), plant.cellY(),
-                    i == 0 ? blastSound : null);
+            level.emitEffect(particles.get(i).toString(), plant.position(), plant.surfaceId(), i == 0 ? blastSound : null);
         }
         if (trigger == Trigger.ROW) {
             // A row's worth of fire, one tongue per cell along it - the shape and not the
             // damage, which `fireRow` above has already dealt. See `rowOfFire`.
-            rowOfFire(level, plant.gridY(), null);
+            rowOfFire(level, plant.gridY(), null, plant.surfaceId());
         }
         // The blast is over as far as the simulation is concerned, but the plant stays for its
         // own linger so the client can actually draw what just happened - which for the
@@ -489,11 +489,15 @@ public final class ExplosiveCapability implements PlantCapability {
      */
     public static void fireRow(LevelAccess level, int row, int damage, Identifier damageType,
                                boolean meltsIce, Identifier sound, Team team) {
-        level.damageRow(ZombieEntity.damageType(damageType), row, damage, team);
+        fireRow(level, row, damage, damageType, meltsIce, sound, team, SceneBoard.DEFAULT_SURFACE);
+    }
+    public static void fireRow(LevelAccess level, int row, int damage, Identifier damageType,
+                               boolean meltsIce, Identifier sound, Team team, String surface) {
+        level.damageRow(ZombieEntity.damageType(damageType), row, damage, team, surface);
         if (meltsIce) {
-            level.meltIceRow(row);
+            level.meltIceRow(row, surface);
         }
-        rowOfFire(level, row, sound);
+        rowOfFire(level, row, sound, surface);
     }
 
     /**
@@ -509,10 +513,12 @@ public final class ExplosiveCapability implements PlantCapability {
      * trigger rather than declared, because "a row" <em>is</em> this shape - the cherry bomb's
      * square gets the cloud and no square blast is a wall of flame.
      */
-    private static void rowOfFire(LevelAccess level, int row, Identifier sound) {
+    private static void rowOfFire(LevelAccess level, int row, Identifier sound, String surface) {
         float rowY = row + 0.5F;
         for (int cell = 0; cell < level.width(); cell++) {
-            level.emitEffect(PvzceParticles.JALAPENO_FIRE.toString(), cell + 0.5F, rowY,
+            if (level.sceneAt(cell, row, surface) == null) continue;
+            level.emitEffect(PvzceParticles.JALAPENO_FIRE.toString(),
+                    new WorldPosition(cell + 0.5F, rowY, level.surfaceHeight(surface, cell + 0.5F, rowY)), surface,
                     cell == 0 ? sound : null);
         }
     }

@@ -208,7 +208,7 @@ public final class BowlCapability implements PlantCapability {
         }
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;
-        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId())) {
             if (zombie.isRemoved() || !zombie.canBeHitByGround()) {
                 continue;
             }
@@ -230,13 +230,12 @@ public final class BowlCapability implements PlantCapability {
     private void strike(PlantEntity plant, ZombieEntity target, LevelAccess level) {
         hits++;
         target.damageImpact(damage, level);
-        level.emitEffect(PvzceParticles.HIT_SPARK.toString(), target.cellX(), target.cellY(),
-                impactSound(hits), 1F, impactPitch(hits));
+        level.emitEffect(PvzceParticles.HIT_SPARK.toString(), target.position(), target.surfaceId(), impactSound(hits), 1F, impactPitch(hits));
         if (hits >= coinFromHit) {
             // The ladder from the original: one coin on the second zombie, two on the
             // third, three on the fourth, and so on. The coin itself is the level's.
             level.dropCoin(target.cellX(), target.cellY(), hits - coinFromHit + 1);
-            level.emitEffect("", plant.cellX(), plant.cellY(), PvzceSounds.UI_POINTS);
+            level.emitEffect("", plant.position(), plant.surfaceId(), PvzceSounds.UI_POINTS);
         }
         hitCooldown = HIT_COOLDOWN_TICKS;
         if (explodeOnHit) {

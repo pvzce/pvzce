@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.plant;
 
+import com.pvzce.common.level.SceneBoard;
 import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.capability.PlantCapability;
 import com.pvzce.api.entity.LevelAccess;
@@ -19,9 +20,12 @@ public final class UmbrellaLeafCapability implements PlantCapability {
     }
 
     public static boolean block(LevelAccess level, int x, int y, Team defendedTeam) {
+        return block(level, x, y, defendedTeam, SceneBoard.DEFAULT_SURFACE);
+    }
+    public static boolean block(LevelAccess level, int x, int y, Team defendedTeam, String surface) {
         for (int row = Math.max(0, y - 1); row <= Math.min(level.height() - 1, y + 1); row++) {
             for (int col = Math.max(0, x - 1); col <= Math.min(level.width() - 1, x + 1); col++) {
-                for (PlantEntity plant : level.plantsAt(col, row)) {
+                for (PlantEntity plant : level.plantsAt(col, row, surface)) {
                     UmbrellaLeafCapability umbrella = plant.capability(UmbrellaLeafCapability.class);
                     if (!plant.isRemoved() && (defendedTeam == null || plant.team() == defendedTeam) && umbrella != null) {
                         umbrella.blockTicks = com.pvzce.common.PvzceConstants.UMBRELLA_BLOCK_TICKS;

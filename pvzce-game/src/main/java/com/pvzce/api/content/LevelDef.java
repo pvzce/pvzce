@@ -8,7 +8,6 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.mechanic.LevelMechanics;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -105,7 +104,8 @@ public record LevelDef(
          * plays), and 2-5 fixes three of its players' six. Unwritten is true - every level
          * written before this field wants the screen.
          */
-        boolean seedScreen
+        boolean seedScreen,
+        List<SceneSurfaceDef> surfaces
 ) {
     public static final float DEFAULT_WAVE_INTERVAL_END_MULTIPLIER = 1F;
     /**
@@ -135,6 +135,7 @@ public record LevelDef(
      */
     public LevelDef {
         maxSeedSlots = maxSeedSlots < 0 ? UNSET_MAX_SEED_SLOTS : Math.max(maxSeedSlots, slots.size());
+        surfaces = surfaces == null ? List.of() : List.copyOf(surfaces);
         mechanics = mechanics == null ? List.of() : List.copyOf(mechanics);
         dialogue = dialogue == null ? LevelDialogue.EMPTY : dialogue;
         hints = hints == null ? List.of() : List.copyOf(hints);
@@ -142,6 +143,22 @@ public record LevelDef(
         background = background == null ? Optional.empty() : background;
         hiddenSceneElements = hiddenSceneElements == null ? List.of() : List.copyOf(hiddenSceneElements);
         buffPlan = buffPlan == null ? LevelBuffPlan.NONE : buffPlan;
+    }
+
+    public LevelDef(Identifier id, String name, String description, int width, int height,
+                    Map<Identifier, List<String>> scene, List<TeamDef> teams, Identifier winTeam,
+                    Map<Identifier, JsonElement> rules, Map<Identifier, EnvValue> envVars,
+                    List<WaveDef> waves, float waveIntervalEndMultiplier, List<Identifier> slots,
+                    Map<Identifier, Boolean> unlockResources, int initialSun, LevelMusicDef music,
+                    List<InitialEntityDef> initialEntities, int maxSeedSlots, LevelRewards rewards,
+                    LevelUnlock unlock, List<TypedMechanic> mechanics, LevelDialogue dialogue,
+                    List<LevelHint> hints, List<Identifier> playableTeams, Optional<Identifier> background,
+                    List<String> hiddenSceneElements, boolean disableShaders, LevelBuffPlan buffPlan,
+                    boolean seedScreen) {
+        this(id, name, description, width, height, scene, teams, winTeam, rules, envVars, waves,
+                waveIntervalEndMultiplier, slots, unlockResources, initialSun, music, initialEntities,
+                maxSeedSlots, rewards, unlock, mechanics, dialogue, hints, playableTeams, background,
+                hiddenSceneElements, disableShaders, buffPlan, seedScreen, List.of());
     }
 
     /** The field's name in a level file, spelled once for the codec and the validator. */
@@ -303,12 +320,12 @@ public record LevelDef(
                     tail.music(), tail.initialEntities(), tail.maxSeedSlots(), tail.rewards(),
                     tail.unlock(), tail.mechanics(), tail.dialogue(), tail.hints(),
                     tail.playableTeams(), tail.background(), tail.hiddenSceneElements(),
-                    tail.disableShaders(), tail.buffPlan(), tail.seedScreen())));
+                    tail.disableShaders(), tail.buffPlan(), tail.seedScreen(), tail.surfaces())));
 
     public LevelTail tail() {
         return new LevelTail(music, initialEntities, maxSeedSlots, rewards, unlock, mechanics,
                 dialogue, hints, playableTeams, background, hiddenSceneElements, disableShaders,
-                buffPlan, seedScreen);
+                buffPlan, seedScreen, surfaces);
     }
 
     /**
@@ -370,7 +387,7 @@ public record LevelDef(
                             LevelDialogue dialogue, List<LevelHint> hints,
                             List<Identifier> playableTeams, Optional<Identifier> background,
                             List<String> hiddenSceneElements, boolean disableShaders,
-                            LevelBuffPlan buffPlan, boolean seedScreen) {
+                            LevelBuffPlan buffPlan, boolean seedScreen, List<SceneSurfaceDef> surfaces) {
         public static final com.mojang.serialization.MapCodec<LevelTail> MAP_CODEC =
                 RecordCodecBuilder.mapCodec(i -> i.group(
                         LevelMusicDef.CODEC.optionalFieldOf("music", LevelMusicDef.DEFAULT).forGetter(LevelTail::music),
@@ -404,7 +421,9 @@ public record LevelDef(
                         // Unwritten = the screen is shown, which is what every level written
                         // before it means. See {@link LevelDef#seedScreen}.
                         Codec.BOOL.optionalFieldOf(LevelDef.SEED_SCREEN_FIELD, true)
-                                .forGetter(LevelTail::seedScreen)
+                                .forGetter(LevelTail::seedScreen),
+                        SceneSurfaceDef.CODEC.listOf().optionalFieldOf("surfaces", List.of())
+                                .forGetter(LevelTail::surfaces)
                 ).apply(i, LevelTail::new));
 
         public LevelTail {

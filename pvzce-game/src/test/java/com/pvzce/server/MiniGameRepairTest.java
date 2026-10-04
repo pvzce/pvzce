@@ -203,16 +203,18 @@ class MiniGameRepairTest {
         tick(level, SILENT, 1);
         CardDropEntity first = level.entities().stream().filter(CardDropEntity.class::isInstance)
                 .map(CardDropEntity.class::cast).findFirst().orElseThrow();
-        float high = first.cellY();
+        float high = first.position().projectedY();
         tick(level, SILENT, 20);
-        assertTrue(first.cellY() < high);
-        assertTrue(first.cellY() > first.landingRow() + 0.5F);
+        assertTrue(first.position().projectedY() < high);
+        assertTrue(first.position().projectedY() > first.landingRow() + 0.5F);
+        assertEquals(first.landingRow() + 0.5F, first.cellY(), .001F);
         assertEquals(PvzceConstants.CARD_DROP_LIFETIME_TICKS, first.ticksLeft());
         LevelServer resumed = new LevelServer(def);
         resumed.restore(level.save());
         CardDropEntity saved = resumed.entities().stream().filter(CardDropEntity.class::isInstance)
                 .map(CardDropEntity.class::cast).findFirst().orElseThrow();
         assertEquals(first.cellY(), saved.cellY());
+        assertEquals(first.height(), saved.height());
         tick(resumed, SILENT, 500);
         assertEquals(saved.landingRow() + 0.5F, saved.cellY(), 0.001F);
         assertTrue(saved.ticksLeft() < PvzceConstants.CARD_DROP_LIFETIME_TICKS);

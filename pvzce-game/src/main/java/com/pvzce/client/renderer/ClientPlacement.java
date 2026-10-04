@@ -8,7 +8,6 @@ import com.pvzce.client.ClientEntity;
 import com.pvzce.client.ClientLevel;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantPlacement;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -53,7 +52,7 @@ public final class ClientPlacement {
         List<Stacked> plants = new ArrayList<>();
         for (ClientEntity entity : level.entities().values()) {
             if (!EntityKind.PLANT.equals(entity.kind()) || entity.gridX() != x
-                    || entity.gridY() != y) {
+                    || entity.gridY() != y || !entity.surfaceId().equals(level.activeSurface())) {
                 continue;
             }
             PlantDef def = BuiltInRegistries.PLANTS.get(entity.defId());
@@ -70,12 +69,12 @@ public final class ClientPlacement {
         return new PlantPlacement.Ctx() {
             @Override
             public PlantPlacement.Terrain terrain(int x, int y) {
-                Identifier id = Identifier.tryParse(level.sceneAt(x, y));
+                Identifier id = Identifier.tryParse(level.sceneAt(level.activeSurface(), x, y));
                 SceneElementDef element = id == null ? null
                         : BuiltInRegistries.SCENE_ELEMENTS.get(id);
                 return element == null ? PlantPlacement.Terrain.NONE
                         : new PlantPlacement.Terrain(element,
-                                element.heightAt(x + 0.5F, level.width()));
+                                level.sceneBoard().elevationAt(level.activeSurface(), x + 0.5F, y + 0.5F));
             }
 
             @Override

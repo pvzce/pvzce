@@ -4,7 +4,6 @@ import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -79,15 +78,24 @@ public final class LiquidBatch {
      * @param width   cell width in the caller's units
      * @param height  cell height in the caller's units
      */
+    @FunctionalInterface
+    public interface Elevation {
+        float at(float x, float y);
+        Elevation FLAT = (x, y) -> 0F;
+    }
+
     public void cell(LiquidCell cell, float originX, float originY, float width, float height) {
+        cell(cell, originX, originY, width, height, Elevation.FLAT);
+    }
+    public void cell(LiquidCell cell, float originX, float originY, float width, float height, Elevation elevation) {
         boolean shore = cell.borders() != 0 || cell.corners() != 0;
         for (float[] corner : OUTLINE) {
-            vertex(cell, originX, originY, width, height, corner[0], corner[1], shore);
+            vertex(cell, originX, originY, width, height, corner[0], corner[1], shore, elevation);
         }
     }
 
     private void vertex(LiquidCell cell, float originX, float originY, float width, float height,
-                        float localX, float localY, boolean shore) {
+                        float localX, float localY, boolean shore, Elevation elevation) {
         ensureCapacity(1);
 
         boolean north = (cell.borders() & LiquidCell.NORTH) != 0;
@@ -113,7 +121,8 @@ public final class LiquidBatch {
                 / LiquidCell.MAX_DEPTH_FACTOR * (LiquidCell.DEPTH_LEVELS - 1));
         float packedW = cell.corners() | (depthLevel << 4);
 
-        floats.put(originX + localX * width).put(originY + localY * height).put(0F);
+        floats.put(originX + localX * width).put(originY + localY * height
+                + elevation.at(cell.cellX() + localX, cell.cellY() + localY)).put(0F);
         floats.put(cell.color()[0]).put(cell.color()[1]).put(cell.color()[2]).put(shore ? 1F : 0F);
         floats.put(localX).put(localY);
         floats.put(packedX).put(packedY).put(packedZ).put(packedW);
@@ -209,8 +218,11 @@ public final class LiquidBatch {
 
     /** Convenience for callers that hold a list and a uniform cell size. */
     public void addAll(List<LiquidCell> cells, float originX, float originY, float width, float height) {
+        addAll(cells, originX, originY, width, height, Elevation.FLAT);
+    }
+    public void addAll(List<LiquidCell> cells, float originX, float originY, float width, float height, Elevation elevation) {
         for (LiquidCell cell : cells) {
-            cell(cell, originX + cell.cellX() * width, originY + cell.cellY() * height, width, height);
+            cell(cell, originX + cell.cellX() * width, originY + cell.cellY() * height, width, height, elevation);
         }
     }
 }

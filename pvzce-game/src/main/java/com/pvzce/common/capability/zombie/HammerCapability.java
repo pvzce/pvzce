@@ -12,7 +12,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.Optional;
 
 /**
@@ -90,7 +89,7 @@ public final class HammerCapability implements ZombieCapability {
         if (hammerCooldown > 0) {
             hammerCooldown--;
         } else {
-            PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY());
+            PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId());
             // Through the plant's own damage entry point, not remove(): an unexploded
             // bomb is not something a Gargantuar can smash (see
             // ExplosiveCapability.invulnerable), so the swing has to be a hit that the
@@ -99,8 +98,7 @@ public final class HammerCapability implements ZombieCapability {
             if (plant != null && plant.damageFrom(plant.health())) {
                 hammerCooldown = hammerIntervalTicks;
                 zombie.setAnimation(EntityAnimations.HAMMER);
-                level.emitEffect(PvzceParticles.EXPLOSION_POWIE.toString(), zombie.cellX(), zombie.cellY(),
-                        hammerSound.orElseGet(() -> zombie.def().sounds().special()
+                level.emitEffect(PvzceParticles.EXPLOSION_POWIE.toString(), zombie.position(), zombie.surfaceId(), hammerSound.orElseGet(() -> zombie.def().sounds().special()
                                 .orElse(PvzceSounds.ZOMBIE_GARGANTUAR_THUMP)));
             }
         }
@@ -112,8 +110,8 @@ public final class HammerCapability implements ZombieCapability {
             return;
         }
         impCooldown = impIntervalTicks;
-        level.spawnZombie(imp, zombie.team(), Math.max(1F, zombie.gridX() - impCellsAhead), zombie.gridY());
-        level.emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.ZOMBIE_IMP);
+        level.spawnZombie(imp, zombie.team(), Math.max(1F, zombie.gridX() - impCellsAhead), zombie.gridY(), 1F, zombie.surfaceId());
+        level.emitEffect("", zombie.position(), zombie.surfaceId(), PvzceSounds.ZOMBIE_IMP);
     }
 
     @Override

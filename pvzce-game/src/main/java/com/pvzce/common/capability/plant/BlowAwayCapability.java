@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -107,8 +106,7 @@ public final class BlowAwayCapability implements PlantCapability {
         for (ZombieEntity zombie : flying) {
             zombie.blowAway(plant.cellX() < 0.5F ? 1F : -1F);
         }
-        level.emitEffect("", plant.cellX(), plant.cellY(),
-                sound.orElseGet(() -> plant.def().sounds().shoot()
+        level.emitEffect("", plant.position(), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().shoot()
                         .orElse(PvzceSounds.PLANT_SHOOT_PEA)));
         // One use and it is gone: a blover that stayed would be a permanent "nothing may fly"
         // marker, which is a different plant from the one the original has.

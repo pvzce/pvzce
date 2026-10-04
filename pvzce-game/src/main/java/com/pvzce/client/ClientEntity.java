@@ -1,5 +1,6 @@
 package com.pvzce.client;
 
+import com.pvzce.common.level.WorldPosition;
 import com.pvzce.api.entity.Entity;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.animation.AnimationComponent;
@@ -140,6 +141,7 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
         // world's difficulty tier). A health bar drawn against the wrong ceiling shows a
         // hell-tier buckethead as permanently full.
         entity.setMaxHealth(spawn.maxHealth());
+        entity.setSurfaceId(spawn.surfaceId());
         return entity;
     }
 
@@ -352,6 +354,7 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
 
     /** Applies {@link EntityUpdateS2C} directly so the packet shape lives in one place. */
     public void apply(EntityUpdateS2C update) {
+        setSurfaceId(update.surfaceId());
         if (lastAnimationSequence != update.animationSequence()) {
             stopAnimation();
             lastAnimationSequence = update.animationSequence();
@@ -359,6 +362,10 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
         update(update.cellX(), update.cellY(), update.health(), update.animation(), update.height(),
                 update.armor(), update.chilled(), update.charmed(), update.frozen(), update.buttered(),
                 update.teamId());
+    }
+
+    public WorldPosition visualPosition() {
+        return new WorldPosition(visualCellX(), visualCellY(), visualHeight());
     }
 
     public void attachAnimationManager(AnimationManager manager) {

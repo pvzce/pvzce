@@ -34,6 +34,9 @@ public final class PvzceConstants {
     /** Original roof: five sloped columns, rising 20 pixels per column in an 85-pixel row. */
     public static final float ROOF_SLOPE_COLUMNS = 5F;
     public static final float ROOF_HEIGHT = 100F / 85F;
+    public static final float COMBAT_BODY_HEIGHT = 0.9F;
+    public static final float POOL_SURFACE_ORIGIN_Y = 0.2235294F;
+    public static final float POOL_SURFACE_CELL_HEIGHT = 0.8117647F;
     public static final int UMBRELLA_BLOCK_TICKS = 45;
     public static final int LADDER_PLACE_TICKS = 100;
     public static final int CATAPULT_AMMO = 20;

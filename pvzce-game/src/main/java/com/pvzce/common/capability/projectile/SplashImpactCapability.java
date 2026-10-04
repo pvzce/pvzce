@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.projectile;
 
+import com.pvzce.common.level.WorldPosition;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -11,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.server.entity.ProjectileEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -99,8 +99,8 @@ public final class SplashImpactCapability implements ProjectileCapability {
     }
 
     public List<ZombieEntity> targets(ProjectileEntity projectile, ZombieEntity hit, LevelAccess level) {
-        return level.enemiesInArea(projectile.team(), hit == null ? projectile.cellX() : hit.cellX(),
-                hit == null ? projectile.cellY() : hit.cellY(), effectiveRadius(projectile, level), square);
+        return level.enemiesInArea(projectile.team(), hit == null ? projectile.position() : hit.position(),
+                effectiveRadius(projectile, level), square);
     }
 
     @Override
@@ -121,7 +121,8 @@ public final class SplashImpactCapability implements ProjectileCapability {
             target.damage(projectile.def(), projectile.damage(), level, damageType, false);
         }
         String impact = projectile.def().impactParticle().map(Identifier::toString).orElse(particle.toString());
-        level.emitEffect(impact, x, y + (zombie == null ? projectile.height() : zombie.height()),
+        level.emitEffect(impact, new WorldPosition(x, y,
+                zombie == null ? projectile.height() : zombie.height()), projectile.surfaceId(),
                 sound.orElseGet(() -> projectile.def().sounds().impact().orElse(PvzceSounds.PROJECTILE_HIT)));
     }
 }

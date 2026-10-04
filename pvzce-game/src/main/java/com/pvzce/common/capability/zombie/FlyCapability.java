@@ -49,7 +49,7 @@ public final class FlyCapability implements ZombieCapability {
         if (zombie.isGrounded()) {
             return;
         }
-        zombie.setHeight(height);
+        zombie.setHeight(level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY()) + height);
     }
 
     @Override
@@ -57,13 +57,14 @@ public final class FlyCapability implements ZombieCapability {
         if (zombie.isGrounded()) {
             if (fallLeft > 0) {
                 zombie.setAnimation(EntityAnimations.FALL);
-                zombie.setHeight(height * --fallLeft / PvzceConstants.BALLOON_FALL_TICKS);
+                zombie.setHeight(level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY())
+                        + height * --fallLeft / PvzceConstants.BALLOON_FALL_TICKS);
                 return true;
             }
             return false;
         }
         zombie.setAnimation(EntityAnimations.FLY);
-        zombie.setHeight(height);
+        zombie.setHeight(level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY()) + height);
         zombie.setCellX(zombie.cellX() - zombie.moveSpeed(level) / PvzceConstants.TICKS_PER_SECOND);
         zombie.checkReachedLeft(level);
         return true;

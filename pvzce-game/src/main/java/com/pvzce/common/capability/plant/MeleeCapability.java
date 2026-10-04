@@ -12,7 +12,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.Optional;
 
 /**
@@ -128,7 +127,7 @@ public final class MeleeCapability implements PlantCapability {
 
     /** Swallows what is in reach, if anything is; answers whether a bite happened. */
     private boolean swallow(PlantEntity plant, LevelAccess level) {
-        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team()).stream()
+        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId()).stream()
                 .filter(z -> !z.isRemoved() && Math.abs(z.cellX() - plant.cellX()) < range)
                 .findFirst()
                 .orElse(null);
@@ -138,8 +137,7 @@ public final class MeleeCapability implements PlantCapability {
         target.remove();
         remainingChewTicks = Math.max(1, chewTicks);
         plant.setState(EntityAnimations.CHEW);
-        level.emitEffect(PvzceParticles.CHOMP.toString(), plant.cellX(), plant.cellY(),
-                sound.orElseGet(() -> plant.def().sounds().melee().orElse(PvzceSounds.EFFECT_BITE)));
+        level.emitEffect(PvzceParticles.CHOMP.toString(), plant.position(), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().melee().orElse(PvzceSounds.EFFECT_BITE)));
         return true;
     }
 

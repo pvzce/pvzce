@@ -47,7 +47,7 @@ public final class LevelStage {
      * world -0.0375..8.8125, so cells are 708/720 = 0.9833 wide.
      */
     public static final Geometry POOL = new Geometry("pool",
-            256F, 80F, 720F, 510F, 80F, 85F, new LiquidFrame(-0.0375F, 0.2235294F, 0.9833333F, 0.8117647F));
+            256F, 80F, 720F, 510F, 80F, 85F, new LiquidFrame(-0.0375F, com.pvzce.common.PvzceConstants.POOL_SURFACE_ORIGIN_Y, 0.9833333F, com.pvzce.common.PvzceConstants.POOL_SURFACE_CELL_HEIGHT));
 
     public static final int BOARD_COLUMNS = 9;
     /** Board::GridToPixelY: roof rows start at y=70; the left edge is 100 pixels lower. */

@@ -12,7 +12,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -93,7 +92,7 @@ public final class ZamboniCapability implements ZombieCapability {
             if (Math.abs(column + 0.5F - zombie.cellX()) > crushReach) {
                 continue;
             }
-            for (PlantEntity plant : server.plantsAt(column, row)) {
+            for (PlantEntity plant : server.plantsAt(column, row, zombie.surfaceId())) {
                 if (plant.isRemoved()) {
                     continue;
                 }
@@ -107,8 +106,7 @@ public final class ZamboniCapability implements ZombieCapability {
                     // what "扎毁" means and what keeps one spikeweed from clearing every zomboni in
                     // a lane.
                     plant.damageFrom(plant.health());
-                    server.emitEffect(com.pvzce.common.PvzceParticles.MOWER_CLOUD.toString(),
-                            plant.cellX(), plant.cellY(), null);
+                    server.emitEffect(com.pvzce.common.PvzceParticles.MOWER_CLOUD.toString(), plant.position(), plant.surfaceId(), null);
                     zombie.damage(zombie.health(),
                             ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT), server);
                     return false;
@@ -117,11 +115,10 @@ public final class ZamboniCapability implements ZombieCapability {
                 // fuse burns should not be flattened by a vehicle, for the same reason the
                 // explosion path deliberately does reach it.
                 plant.damageFrom(plant.health());
-                server.emitEffect(com.pvzce.common.PvzceParticles.MOWER_CLOUD.toString(),
-                        plant.cellX(), plant.cellY(), null);
+                server.emitEffect(com.pvzce.common.PvzceParticles.MOWER_CLOUD.toString(), plant.position(), plant.surfaceId(), null);
             }
             if (leavesIce) {
-                leaveIce(server, column, row);
+                leaveIce(server, column, row, zombie.surfaceId());
             }
         }
         zombie.setAnimation(EntityAnimations.DRIVE);
@@ -129,8 +126,8 @@ public final class ZamboniCapability implements ZombieCapability {
     }
 
     /** Freezes one cell, unless it is already ice or is not bare ground. */
-    private static void leaveIce(LevelServer level, int column, int row) {
-        var scene = level.sceneAt(column, row);
+    private static void leaveIce(LevelServer level, int column, int row, String surface) {
+        var scene = level.sceneAt(surface, column, row);
         if (scene == null) {
             return;
         }
@@ -149,12 +146,12 @@ public final class ZamboniCapability implements ZombieCapability {
                 && !PvzceIds.ROOF_FLAT.equals(id) && !PvzceIds.ROOF_SLOPE.equals(id)) {
             return;
         }
-        level.setScene(column, row, PvzceIds.ICE);
+        level.setScene(column, row, PvzceIds.ICE, surface);
         // Writing the cell is only half of it: the client draws what it was last told, and the
         // scene mirror is what it was told. Without this the lane stayed green on screen while the
         // server had it frozen - and the zamboni levels hide `pvzce:grass`, so the cell showed the
         // backdrop and read as "nothing happened here at all".
-        level.sendSceneCell(column, row);
+        level.sendSceneCell(column, row, surface);
     }
 
     /** The machine is spent with the zombie; its trail is the lawn's business now. */
@@ -166,8 +163,7 @@ public final class ZamboniCapability implements ZombieCapability {
             // original's own emitter file splits for the sake of its spawn scheduling - the runtime
             // here spawns each definition's particles at once, so the composition is the list.
             for (Identifier particle : com.pvzce.common.PvzceParticles.ZAMBONI_WRECK) {
-                server.emitEffect(particle.toString(), zombie.cellX(), zombie.cellY(),
-                        PvzceSounds.EFFECT_EXPLOSION);
+                server.emitEffect(particle.toString(), zombie.position(), zombie.surfaceId(), PvzceSounds.EFFECT_EXPLOSION);
             }
         }
     }

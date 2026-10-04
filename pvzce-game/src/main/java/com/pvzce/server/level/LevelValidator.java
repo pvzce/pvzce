@@ -13,7 +13,6 @@ import com.pvzce.common.core.LevelUnlocks;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.SceneGrid;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -516,6 +515,20 @@ public final class LevelValidator {
                 }
             }
         }
+        java.util.Set<Identifier> surfaces = new java.util.HashSet<>();
+        surfaces.add(Identifier.parse(com.pvzce.common.level.SceneBoard.DEFAULT_SURFACE));
+        for (var surface : def.surfaces()) {
+            if (!surfaces.add(surface.id())) errors.add("Duplicate surface '" + surface.id() + "'");
+            for (var entry : surface.scene().entrySet()) {
+                if (!BuiltInRegistries.SCENE_ELEMENTS.containsKey(entry.getKey()))
+                    errors.add("Unknown scene element '" + entry.getKey() + "' on " + surface.id());
+                for (String position : entry.getValue()) {
+                    int[] cell = SceneCells.parsePosition(position);
+                    if (cell == null || cell[0] < 0 || cell[0] >= def.width() || cell[1] < 0 || cell[1] >= def.height())
+                        errors.add("Invalid scene position '" + position + "' on " + surface.id());
+                }
+            }
+        }
         errors.addAll(unpaintedCells(def));
         return errors;
     }
@@ -569,6 +582,12 @@ public final class LevelValidator {
     public static List<String> validateInitialEntities(LevelDef def) {
         List<String> errors = new ArrayList<>();
         for (var init : def.initialEntities()) {
+            if (init.surface().isPresent() && !init.surface().get().toString().equals(com.pvzce.common.level.SceneBoard.DEFAULT_SURFACE)) {
+                var surface = def.surfaces().stream().filter(v -> v.id().equals(init.surface().get())).findFirst().orElse(null);
+                if (surface == null || SceneCells.parse(surface.scene(), def.width(), def.height()).stream()
+                        .noneMatch(cell -> cell.x() == init.x() && cell.y() == init.y()))
+                    errors.add("Initial entity '" + init.id() + "' has no supporting surface at " + init.x() + "," + init.y());
+            }
             String kind = init.kind() == null ? "" : init.kind();
             Identifier id = init.id();
             if (kind.startsWith("p")) {

@@ -1,5 +1,6 @@
 package com.pvzce.client.renderer.liquid;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.content.LiquidDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.util.Identifier;
@@ -8,7 +9,6 @@ import com.pvzce.client.renderer.Matrix4f;
 import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.client.renderer.SceneTileRenderer;
 import com.pvzce.common.core.BuiltInRegistries;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -97,6 +97,22 @@ public final class LiquidTextures {
                 client.worldLightX(), client.worldLightY(),
                 client.worldLightR(), client.worldLightG(), client.worldLightB(),
                 client.worldLightStrength());
+    }
+
+    /** Runtime liquids use the same sampled profile as simulation, particles and picking. */
+    public static void renderSurface(PvzceClient client, LiquidDef liquid, String sceneId, String surface) {
+        var board = client.level().sceneBoard();
+        var frame = SceneBoard.DEFAULT_SURFACE.equals(surface)
+                ? client.camera().liquidFrame() : com.pvzce.client.renderer.LevelStage.LiquidFrame.CELL;
+        LiquidRenderer.Request request = new LiquidRenderer.Request(liquid, board.width(), board.height(),
+                (x, y) -> { var cell = board.cell(surface, x, y); return cell != null && sceneId.equals(cell.element().toString()); },
+                frame.originX(), 0F, frame.cellWidth(), 1F, RenderSystem.currentProjection(), client.renderTimeSeconds(),
+                client.worldTintR(), client.worldTintG(), client.worldTintB(), client.worldTintLift(), client.worldNightBlend(),
+                client.worldLightX(), client.worldLightY(), client.worldLightR(), client.worldLightG(), client.worldLightB(),
+                client.worldLightStrength());
+        LiquidBatch.Elevation elevation = (x, y) -> board.elevationAt(surface, x, y);
+        if (LiquidRenderer.available()) LiquidRenderer.render(client, request, client.liquidRipples(), elevation);
+        else LiquidRenderer.renderFallback(client, request, elevation);
     }
 
     /**

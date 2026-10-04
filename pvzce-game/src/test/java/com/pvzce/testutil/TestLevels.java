@@ -111,6 +111,7 @@ public final class TestLevels {
         private boolean disableShaders;
         private LevelDef.LevelBuffPlan buffPlan = LevelDef.LevelBuffPlan.NONE;
         private boolean seedScreen = true;
+        private List<com.pvzce.api.content.SceneSurfaceDef> surfaces;
 
         private Builder(LevelDef def) {
             this.id = def.id();
@@ -142,6 +143,7 @@ public final class TestLevels {
             this.disableShaders = def.disableShaders();
             this.buffPlan = def.buffPlan();
             this.seedScreen = def.seedScreen();
+            this.surfaces = def.surfaces();
         }
 
         public Builder id(Identifier value) {
@@ -271,12 +273,17 @@ public final class TestLevels {
             return this;
         }
 
+        public Builder surfaces(List<com.pvzce.api.content.SceneSurfaceDef> value) {
+            this.surfaces = value;
+            return this;
+        }
+
         public LevelDef build() {
             return new LevelDef(id, name, description, width, height, scene, teams, winTeam, rules,
                     envVars, waves, waveIntervalEndMultiplier, slots, unlockResources, initialSun,
                     music, initialEntities, maxSeedSlots, rewards, unlock, mechanics, dialogue,
                     hints, playableTeams, background, hiddenSceneElements, disableShaders, buffPlan,
-                    seedScreen);
+                    seedScreen, surfaces);
         }
     }
 }

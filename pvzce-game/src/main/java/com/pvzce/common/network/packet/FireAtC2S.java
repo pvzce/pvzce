@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PvzcePacket;
@@ -19,7 +20,11 @@ import com.pvzce.common.network.PvzcePacket;
  * clicks, and it has no server-side meaning - exactly like {@code PickCardC2S}, which the server
  * reads and ignores.
  */
-public record FireAtC2S(int entityId, int gridX, int gridY) implements PvzcePacket {
+public record FireAtC2S(int entityId, int gridX, int gridY, String surfaceId) implements PvzcePacket {
+    public FireAtC2S(int entityId, int gridX, int gridY) {
+        this(entityId, gridX, gridY, SceneBoard.DEFAULT_SURFACE);
+    }
+
     @Override
     public ConnectionDirection direction() {
         return ConnectionDirection.SERVERBOUND;
@@ -30,9 +35,10 @@ public record FireAtC2S(int entityId, int gridX, int gridY) implements PvzcePack
         buf.writeInt(entityId);
         buf.writeInt(gridX);
         buf.writeInt(gridY);
+        buf.writeString(surfaceId);
     }
 
     public static FireAtC2S decode(PacketByteBuf buf) {
-        return new FireAtC2S(buf.readInt(), buf.readInt(), buf.readInt());
+        return new FireAtC2S(buf.readInt(), buf.readInt(), buf.readInt(), buf.readString());
     }
 }

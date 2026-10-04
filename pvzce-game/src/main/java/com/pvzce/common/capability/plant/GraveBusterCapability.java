@@ -13,7 +13,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.util.MathUtil;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.Optional;
 
 /**
@@ -119,14 +118,13 @@ public final class GraveBusterCapability implements PlantCapability {
         plant.setState(EntityAnimations.CHEW);
         // Down the stone as it goes: the plant's height is the meal's progress bar, published
         // with everything else the entity syncs, and the client crops the tombstone from it.
-        plant.setHeight(-SINK_DEPTH_CELLS * sinkProgress());
+        plant.setHeight(level.surfaceHeight(plant.surfaceId(), plant.cellX(), plant.cellY())
+                - SINK_DEPTH_CELLS * sinkProgress());
         if (--remaining > 0) {
             return;
         }
         if (level instanceof LevelServer server && server.clearGrave(plant.gridX(), plant.gridY())) {
-            level.emitEffect(PvzceParticles.DIRT_BIG.toString(),
-                    plant.cellX(), plant.cellY(),
-                    sound.orElseGet(() -> PvzceSounds.EFFECT_SHOVEL));
+            level.emitEffect(PvzceParticles.DIRT_BIG.toString(), plant.position(), plant.surfaceId(), sound.orElseGet(() -> PvzceSounds.EFFECT_SHOVEL));
         }
         plant.remove();
     }

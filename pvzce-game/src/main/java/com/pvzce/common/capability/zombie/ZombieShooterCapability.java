@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -131,8 +130,7 @@ public final class ZombieShooterCapability implements ZombieCapability {
             level.spawnZombieProjectile(ref, zombie.cellX() - 0.3F, zombie.cellY(), zombie);
         }
         zombie.setAnimation(EntityAnimations.SHOOT);
-        level.emitEffect("", zombie.cellX(), zombie.cellY(),
-                sound.orElse(PvzceSounds.PLANT_SHOOT_PEA));
+        level.emitEffect("", zombie.position(), zombie.surfaceId(), sound.orElse(PvzceSounds.PLANT_SHOOT_PEA));
         cooldown = intervalTicks;
     }
 
@@ -145,7 +143,7 @@ public final class ZombieShooterCapability implements ZombieCapability {
     private PlantEntity nearestPlant(ZombieEntity zombie, LevelAccess level) {
         PlantEntity best = null;
         for (int column = 0; column <= zombie.gridX(); column++) {
-            PlantEntity plant = level.plantAt(column, zombie.gridY());
+            PlantEntity plant = level.plantAt(column, zombie.gridY(), zombie.surfaceId());
             if (plant != null && !plant.isRemoved()) {
                 // The loop runs left to right, so the last one found is the nearest.
                 best = plant;

@@ -159,8 +159,7 @@ public final class ShatterCapability implements ProjectileCapability {
             // white-out (one 1600x white pixel at half opacity), and freezing a single zombie
             // with it flashed the entire board - the user's "很晃眼". The plant's own colours
             // are what should say "that one is ice".
-            level.emitEffect(PvzceParticles.SNOW_PEA_SPLAT.toString(),
-                    target.cellX(), target.cellY() + target.height(), null);
+            level.emitEffect(PvzceParticles.SNOW_PEA_SPLAT.toString(), target.position(), target.surfaceId(), null);
             return;
         }
         if (chill != null && chill.ticks() > 0) {
@@ -191,7 +190,6 @@ public final class ShatterCapability implements ProjectileCapability {
         } else {
             target.damage(amount, type, level);
         }
-        level.emitEffect(PvzceParticles.ICEBOOM_SHATTER.toString(),
-                target.cellX(), target.cellY() + target.height(), null);
+        level.emitEffect(PvzceParticles.ICEBOOM_SHATTER.toString(), target.position(), target.surfaceId(), null);
     }
 }

@@ -13,7 +13,6 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -203,7 +202,7 @@ public final class ProducerCapability implements PlantCapability {
             PendingDrop drop = iterator.next();
             if (--drop.ticks <= 0) {
                 level.spawnProducedResource(resource, drop.amount, plant.cellX(), plant.cellY(),
-                        plant.team(), drop.scale, drop.driftX);
+                        plant.team(), drop.scale, drop.driftX, plant.surfaceId());
                 iterator.remove();
             }
         }
@@ -223,7 +222,7 @@ public final class ProducerCapability implements PlantCapability {
             // `on_end`), not into the small idle.
             growingTicks = Math.max(1, growth.clipTicks());
             plant.setAnimation(EntityAnimations.GROW);
-            level.emitEffect("", plant.cellX(), plant.cellY(), growth.sound());
+            level.emitEffect("", plant.position(), plant.surfaceId(), growth.sound());
             return;
         }
         if (cooldown > 0) {
@@ -243,14 +242,14 @@ public final class ProducerCapability implements PlantCapability {
         int total = currentAmount();
         int count = Math.min(dropCount, total);
         if (count == 1) {
-            level.spawnProducedResource(resource, total, plant.cellX(), plant.cellY(), plant.team(), dropScale());
+            level.spawnProducedResource(resource, total, plant.cellX(), plant.cellY(), plant.team(), dropScale(), plant.surfaceId());
         } else {
             for (int index = 0; index < count; index++) {
                 int value = total / count + (index < total % count ? 1 : 0);
                 float drift = (index - (count - 1) / 2F) * PvzceConstants.PRODUCER_DROP_SPACING_CELLS;
                 if (index == 0) {
                     level.spawnProducedResource(resource, value, plant.cellX(), plant.cellY(),
-                            plant.team(), dropScale(), drift);
+                            plant.team(), dropScale(), drift, plant.surfaceId());
                 } else {
                     pendingDrops.add(new PendingDrop(index * PvzceConstants.PRODUCER_DROP_GAP_TICKS,
                             value, dropScale(), drift));
@@ -260,8 +259,7 @@ public final class ProducerCapability implements PlantCapability {
         // No fallback sound: "the definition did not name one" means the plant makes no
         // noise, and the chime that used to stand in for it belongs to the pickup. An
         // empty id is what LevelServer already reads as "play nothing".
-        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.cellX(), plant.cellY(),
-                sound.or(() -> plant.def().sounds().produce()).orElse(null));
+        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.position(), plant.surfaceId(), sound.or(() -> plant.def().sounds().produce()).orElse(null));
     }
 
     /**

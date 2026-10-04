@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
@@ -18,7 +19,11 @@ import com.pvzce.common.network.PvzcePacket;
  * draw a mallet cursor and give the swing a price and a cooldown, and what is being asked for here
  * is the board's own rule - "clicking a vase breaks it" - which holds in every level.
  */
-public record SmashContainerC2S(int gridX, int gridY) implements PvzcePacket {
+public record SmashContainerC2S(int gridX, int gridY, String surfaceId) implements PvzcePacket {
+    public SmashContainerC2S(int gridX, int gridY) {
+        this(gridX, gridY, SceneBoard.DEFAULT_SURFACE);
+    }
+
     @Override
     public ConnectionDirection direction() {
         return ConnectionDirection.SERVERBOUND;
@@ -27,7 +32,8 @@ public record SmashContainerC2S(int gridX, int gridY) implements PvzcePacket {
     public static final PacketStruct.Codec<SmashContainerC2S> CODEC = PacketStruct.<SmashContainerC2S>builder()
     .field(SmashContainerC2S::gridX, PacketByteBuf::writeInt, PacketByteBuf::readInt)
     .field(SmashContainerC2S::gridY, PacketByteBuf::writeInt, PacketByteBuf::readInt)
-            .build(values -> new SmashContainerC2S((Integer) values.get(0), (Integer) values.get(1)));
+            .field(SmashContainerC2S::surfaceId, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new SmashContainerC2S((Integer) values.get(0), (Integer) values.get(1), (String) values.get(2)));
 
     @Override
     public void encode(PacketByteBuf buf) {

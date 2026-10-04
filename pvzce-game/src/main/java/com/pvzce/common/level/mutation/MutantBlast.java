@@ -1,5 +1,7 @@
 package com.pvzce.common.level.mutation;
 
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.content.DamageTypeDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
@@ -97,6 +99,10 @@ public final class MutantBlast {
      * pea is an ordinary death again.
      */
     public static void detonate(LevelServer level, float x, float y) {
+        detonate(level, level.sceneBoard().ground(SceneBoard.DEFAULT_SURFACE, x, y),
+                SceneBoard.DEFAULT_SURFACE);
+    }
+    public static void detonate(LevelServer level, WorldPosition center, String surface) {
         DamageTypeDef ash = BuiltInRegistries.DAMAGE_TYPES.get(PvzceIds.DAMAGE_ASH);
         DamageTypeDef type = ash == null
                 ? ZombieEntity.damageType(PvzceIds.DAMAGE_ASH) : ash;
@@ -108,7 +114,7 @@ public final class MutantBlast {
         // mark has to be laid down around every hit either way, and `damageArea` cannot do that.
         for (PvzceEntity entity : new java.util.ArrayList<>(level.entities())) {
             if (entity instanceof ZombieEntity zombie && zombie.isAlive()
-                    && within(zombie.cellX(), zombie.cellY(), x, y)) {
+                    && level.reachedByBlast(center, zombie, RADIUS_CELLS, true)) {
                 zombie.markBlastDeath(tick);
                 zombie.damage(zombieDamage, type, level);
                 if (zombie.isAlive()) {
@@ -118,7 +124,7 @@ public final class MutantBlast {
         }
         for (PvzceEntity entity : new java.util.ArrayList<>(level.entities())) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()
-                    && within(plant.cellX(), plant.cellY(), x, y)) {
+                    && level.reachedByBlast(center, plant, RADIUS_CELLS, true)) {
                 // Deliberately `damage` and not `damageFrom`: a bomb sitting on its fuse should be
                 // caught by the blast that goes off beside it, and `damageFrom` would let its
                 // `isInvulnerable` arming state shrug this off. The consequence - a blast can
@@ -133,13 +139,8 @@ public final class MutantBlast {
         }
         // Smoke, not the mine's white flash: see the class doc. The sound stays, because a
         // silent explosion reads as a dropped frame.
-        level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), x, y,
+        level.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), center, surface,
                 PvzceSounds.EFFECT_EXPLOSION);
     }
 
-    /** True when a point is inside the square footprint a potato mine covers. */
-    private static boolean within(float cellX, float cellY, float centerX, float centerY) {
-        return Math.abs(cellX - centerX) <= RADIUS_CELLS + 0.5F
-                && Math.abs(cellY - centerY) <= RADIUS_CELLS + 0.5F;
-    }
 }

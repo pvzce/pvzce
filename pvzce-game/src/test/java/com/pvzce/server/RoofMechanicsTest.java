@@ -71,7 +71,7 @@ class RoofMechanicsTest {
                 && e.particle().equals("pvzce:gloom_cloud")).toList();
         assertFalse(effects.isEmpty());
         assertEquals(gloom.cellY() + gloom.height(),
-                ((com.pvzce.common.network.packet.EffectEventS2C) effects.get(0)).y());
+                ((com.pvzce.common.network.packet.EffectEventS2C) effects.get(0)).position().projectedY());
     }
 
     @Test void melonSplashHitsArmourOnBothTheTargetAndItsNeighboursAndEmitsOneLanding() {
@@ -96,7 +96,7 @@ class RoofMechanicsTest {
                     && e.particle().equals("pvzce:" + id + "_splat")).toList();
             assertEquals(1, effects.size());
             assertEquals(target.cellY() + target.height(),
-                    ((com.pvzce.common.network.packet.EffectEventS2C) effects.get(0)).y());
+                    ((com.pvzce.common.network.packet.EffectEventS2C) effects.get(0)).position().projectedY());
         }
     }
 

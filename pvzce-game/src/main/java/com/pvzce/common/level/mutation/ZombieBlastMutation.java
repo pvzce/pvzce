@@ -28,6 +28,6 @@ final class ZombieBlastMutation implements Mutation, MutationHooks {
         if (zombie.diedToBlast(level.tickCount())) {
             return;
         }
-        MutantBlast.detonate(level, zombie.cellX(), zombie.cellY());
+        MutantBlast.detonate(level, zombie.position(), zombie.surfaceId());
     }
 }

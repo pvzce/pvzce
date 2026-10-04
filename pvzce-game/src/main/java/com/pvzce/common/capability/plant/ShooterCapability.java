@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.plant;
 
+import com.pvzce.common.level.WorldPosition;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -13,7 +14,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -297,8 +297,7 @@ public final class ShooterCapability implements PlantCapability {
                 pendingShots.add(new PendingShot(shot, muzzleX, row, i * burst));
             }
         }
-        level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), plant.cellX() + 0.5F, plant.cellY(),
-                sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
+        level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), new WorldPosition(plant.cellX() + 0.5F, plant.cellY(), plant.height()), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
         plant.beginAction(independentShots && back
                 ? (front ? "shoot_both" : "shoot_back") : shootState);
         cooldown = intervalTicks;
@@ -345,7 +344,7 @@ public final class ShooterCapability implements PlantCapability {
             if (row < 0 || row >= level.height()) {
                 continue;
             }
-            boolean found = level.enemiesInRow(row, plant.team()).stream()
+            boolean found = level.enemiesInRow(row, plant.team(), plant.surfaceId()).stream()
                     .filter(z -> !z.isRemoved() && z.canBeHitByGround())
                     .anyMatch(z -> Math.abs(z.cellX() - plant.cellX()) <= hideWithin
                             // A zombie standing in the plant's own cell has already arrived;
@@ -392,7 +391,7 @@ public final class ShooterCapability implements PlantCapability {
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;
         for (int row = 0; row < level.height(); row++) {
-            for (ZombieEntity zombie : level.enemiesInRow(row, plant.team())) {
+            for (ZombieEntity zombie : level.enemiesInRow(row, plant.team(), plant.surfaceId())) {
                 if (zombie.isRemoved() || !zombie.canBeHitByGround()
                         || !shot.covers(muzzleX, zombie.cellX())) {
                     continue;
@@ -439,7 +438,7 @@ public final class ShooterCapability implements PlantCapability {
         for (int offset : shot.coveredRowOffsets()) {
             int row = plant.gridY() + offset;
             if (row < 0 || row >= level.height()) continue;
-            if (level.enemiesInRow(row, plant.team()).stream().anyMatch(z -> !z.isRemoved()
+            if (level.enemiesInRow(row, plant.team(), plant.surfaceId()).stream().anyMatch(z -> !z.isRemoved()
                     && (air ? !z.isGrounded() : z.canBeHitByGround())
                     && shot.covers(muzzleX, z.cellX()))) return true;
         }

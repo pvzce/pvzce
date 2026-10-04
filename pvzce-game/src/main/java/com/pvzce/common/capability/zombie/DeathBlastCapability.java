@@ -77,7 +77,7 @@ public final class DeathBlastCapability implements ZombieCapability {
                 if (plant.isRemoved()) {
                     continue;
                 }
-                if (Math.abs(plant.cellX() - zombie.cellX()) > radius + 0.5F) {
+                if (!server.reachedByBlast(zombie.position(), plant, radius, true)) {
                     continue;
                 }
                 // `damage` and not `damageFrom`: a bomb that goes off beside a plant should reach
@@ -85,8 +85,7 @@ public final class DeathBlastCapability implements ZombieCapability {
                 plant.damage(amount);
             }
         }
-        server.emitEffect(PvzceParticles.EXPLOSION_POW.toString(),
-                zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_EXPLOSION);
+        server.emitEffect(PvzceParticles.EXPLOSION_POW.toString(), zombie.position(), zombie.surfaceId(), PvzceSounds.EFFECT_EXPLOSION);
     }
 
     @Override

@@ -33,6 +33,6 @@ final class PlantBlastMutation implements Mutation, MutationHooks {
         if (plant == null || plant.diedToBlast(level.tickCount())) {
             return;
         }
-        MutantBlast.detonate(level, plant.cellX(), plant.cellY());
+        MutantBlast.detonate(level, plant.position(), plant.surfaceId());
     }
 }

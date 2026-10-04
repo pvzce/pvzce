@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -150,8 +149,8 @@ public final class BungeeCapability implements ZombieCapability {
     @Override
     public boolean tickMovement(ZombieEntity zombie, LevelAccess level) {
         phaseTicks++;
-        var terrain = level.sceneAt(targetColumn, zombie.gridY());
-        float ground = terrain == null ? 0F : terrain.heightAt(targetColumn + 0.5F, level.width());
+        var terrain = level.sceneAt(targetColumn, zombie.gridY(), zombie.surfaceId());
+        float ground = level.surfaceHeight(zombie.surfaceId(), targetColumn + 0.5F, zombie.cellY());
         return switch (stage) {
             case ARRIVING -> arrive(zombie, level);
             case DROPPING -> {
@@ -198,8 +197,8 @@ public final class BungeeCapability implements ZombieCapability {
         }
         zombie.setAnimation(EntityAnimations.BUNGEE_DROP);
         zombie.setCellX(targetColumn + 0.5F);
-        var terrain = level.sceneAt(targetColumn, zombie.gridY());
-        zombie.setHeight(dropHeight + (terrain == null ? 0F : terrain.heightAt(zombie.cellX(), level.width())));
+        var terrain = level.sceneAt(targetColumn, zombie.gridY(), zombie.surfaceId());
+        zombie.setHeight(dropHeight + level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY()));
         stage = Stage.DROPPING;
         phaseTicks = 0;
         return true;
@@ -210,7 +209,7 @@ public final class BungeeCapability implements ZombieCapability {
     private int pickColumn(ZombieEntity zombie, LevelAccess level) {
         List<Integer> candidates = new java.util.ArrayList<>();
         for (int x = 0; x < level.width(); x++) {
-            if (level.plantAt(x, zombie.gridY()) != null) {
+            if (level.plantAt(x, zombie.gridY(), zombie.surfaceId()) != null) {
                 candidates.add(x);
             }
         }
@@ -235,21 +234,21 @@ public final class BungeeCapability implements ZombieCapability {
     private boolean grab(ZombieEntity zombie, LevelAccess level) {
         zombie.setAnimation(EntityAnimations.BUNGEE_GRAB);
         if (com.pvzce.common.capability.plant.UmbrellaLeafCapability.block(level, targetColumn,
-                zombie.gridY(), null)) {
+                zombie.gridY(), null, zombie.surfaceId())) {
             cargo = null;
             stage = Stage.RISING;
             phaseTicks = 0;
             return true;
         }
         if (cargo != null) {
-            level.spawnZombie(cargo, zombie.team(), targetColumn + 0.5F, zombie.gridY(), cargoHealthScale);
+            level.spawnZombie(cargo, zombie.team(), targetColumn + 0.5F, zombie.gridY(), cargoHealthScale, zombie.surfaceId());
             cargo = null;
             stage = Stage.RISING;
             phaseTicks = 0;
             return true;
         }
         if (phaseTicks == 1) {
-            PlantEntity plant = level.plantAt(targetColumn, zombie.gridY());
+            PlantEntity plant = level.plantAt(targetColumn, zombie.gridY(), zombie.surfaceId());
             if (plant == null) {
                 // Eaten by something else between the drop and the grab. Try again with what is
                 // left, or leave.
@@ -263,15 +262,14 @@ public final class BungeeCapability implements ZombieCapability {
                 return true;
             }
             targetPlantId = plant.id();
-            level.emitEffect("", plant.cellX(), plant.cellY(),
-                    sound.orElse(PvzceSounds.ZOMBIE_GROAN));
+            level.emitEffect("", plant.position(), plant.surfaceId(), sound.orElse(PvzceSounds.ZOMBIE_GROAN));
         }
         if (phaseTicks < grabTicks) {
             return true;
         }
         // Looked up again rather than held: the plant is re-read at the moment it is taken, so a
         // plant that was dug up or eaten during the grab is simply not there to steal.
-        PlantEntity plant = level.plantAt(targetColumn, zombie.gridY());
+        PlantEntity plant = level.plantAt(targetColumn, zombie.gridY(), zombie.surfaceId());
         if (plant != null && plant.id() == targetPlantId) {
             plant.remove();
         }

@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -226,7 +225,7 @@ public final class SquashCapability implements PlantCapability {
         // something. The capability's own `sound` is that notice; the plant's `explode` slot is
         // the landing (the art has two takes of the same line, and this uses both).
         if (sound.isPresent()) {
-            level.emitEffect("", plant.cellX(), plant.cellY(), sound.get());
+            level.emitEffect("", plant.position(), plant.surfaceId(), sound.get());
         }
         lookLeft = LOOK_TICKS;
         plant.setState(targetOnTheLeft ? EntityAnimations.LOOK_LEFT : EntityAnimations.LOOK_RIGHT);
@@ -266,7 +265,7 @@ public final class SquashCapability implements PlantCapability {
      * still spends the plant (it jumped), and does not pretend to have hit anything.
      */
     private ZombieEntity zombieById(PlantEntity plant, LevelAccess level) {
-        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId())) {
             if (zombie.id() == targetId && !zombie.isRemoved()) {
                 return zombie;
             }
@@ -312,15 +311,14 @@ public final class SquashCapability implements PlantCapability {
         plant.setCellX(leapToX);
         plant.setHeight(leapBaseHeight);
         int cell = Math.round(plant.cellX() - 0.5F);
-        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId())) {
             if (zombie.isRemoved() || Math.round(zombie.cellX() - 0.5F) != cell) {
                 continue;
             }
             // `pvzce:crush` by default: armour does not save the zombie, and nothing is burned.
             zombie.damage(damage, ZombieEntity.damageType(damageType), level);
         }
-        level.emitEffect("", plant.cellX(), plant.cellY(),
-                plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_BONK));
+        level.emitEffect("", plant.position(), plant.surfaceId(), plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_BONK));
         plant.setState(EntityAnimations.EXPLODE);
         lingerLeft = LINGER_TICKS;
     }
@@ -352,7 +350,7 @@ public final class SquashCapability implements PlantCapability {
     private ZombieEntity findTarget(PlantEntity plant, LevelAccess level) {
         ZombieEntity best = null;
         float bestDistance = Float.MAX_VALUE;
-        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId())) {
             if (zombie.isRemoved()) {
                 continue;
             }

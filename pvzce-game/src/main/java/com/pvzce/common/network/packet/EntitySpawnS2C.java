@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
@@ -25,7 +26,14 @@ import com.pvzce.common.network.PvzcePacket;
 public record EntitySpawnS2C(int entityId, String entityKind, String defId, String teamId,
                              float cellX, float cellY, int layer, int health, int maxHealth,
                              String animation, float height, int armor,
-                             boolean chilled, float scale) implements PvzcePacket {
+                             boolean chilled, float scale, String surfaceId) implements PvzcePacket {
+    public EntitySpawnS2C(int entityId, String entityKind, String defId, String teamId,
+                             float cellX, float cellY, int layer, int health, int maxHealth,
+                             String animation, float height, int armor,
+                             boolean chilled, float scale) {
+        this(entityId, entityKind, defId, teamId, cellX, cellY, layer, health, maxHealth, animation, height, armor, chilled, scale, SceneBoard.DEFAULT_SURFACE);
+    }
+
     /**
      * The armour value of an entity that has none.
      *
@@ -64,11 +72,12 @@ public record EntitySpawnS2C(int entityId, String entityKind, String defId, Stri
             .field(EntitySpawnS2C::armor, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(EntitySpawnS2C::chilled, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
             .field(EntitySpawnS2C::scale, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+            .field(EntitySpawnS2C::surfaceId, PacketByteBuf::writeString, PacketByteBuf::readString)
             .build(values -> new EntitySpawnS2C((Integer) values.get(0), (String) values.get(1),
                     (String) values.get(2), (String) values.get(3), (Float) values.get(4),
                     (Float) values.get(5), (Integer) values.get(6), (Integer) values.get(7),
                     (Integer) values.get(8), (String) values.get(9), (Float) values.get(10),
-                    (Integer) values.get(11), (Boolean) values.get(12), (Float) values.get(13)));
+                    (Integer) values.get(11), (Boolean) values.get(12), (Float) values.get(13), (String) values.get(14)));
 
     @Override
     public ConnectionDirection direction() {

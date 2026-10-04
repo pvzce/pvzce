@@ -17,7 +17,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -209,14 +208,13 @@ public final class FreezeAllCapability implements PlantCapability {
                 String effect = particle.map(Identifier::toString).orElse("");
                 // The sound rides along with the first effect so a lawn of twenty zombies
                 // does not play twenty freezes on the same tick.
-                level.emitEffect(effect, zombie.cellX(), zombie.cellY() + zombie.height(), first ? held : null);
+                level.emitEffect(effect, zombie.position(), zombie.surfaceId(), first ? held : null);
                 first = false;
             }
         }
         if (first) {
             // Nothing on the lawn: the freeze still happened, and it should still be heard.
-            level.emitEffect(particle.map(Identifier::toString).orElse(""),
-                    plant.cellX(), plant.cellY(), held);
+            level.emitEffect(particle.map(Identifier::toString).orElse(""), plant.position(), plant.surfaceId(), held);
         }
     }
 

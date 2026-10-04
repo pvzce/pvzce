@@ -1,12 +1,13 @@
 package com.pvzce.client.particle;
 
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.content.ParticleDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.util.MathUtil;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -46,10 +47,14 @@ public final class ParticleEngine {
         ParticleDef.ParticleMotion motion;
         float x;
         float y;
+        float elevation;
+        float groundInset;
+        String surface;
+        SceneBoard scene;
         float vx;
         float vy;
-        /** World y of the ground line this particle stops at, or NaN when it ignores it. */
-        float groundY;
+        /** Absolute ground elevation this particle stops at, or NaN when it ignores it. */
+        float groundElevation;
         /** Elapsed lifetime in seconds. */
         float age;
         float lifetime;
@@ -86,6 +91,15 @@ public final class ParticleEngine {
      *               whose size scales with what caused them (a bigger splash)
      */
     public void spawn(String type, float x, float y, float amount) {
+        spawn(type, new WorldPosition(x, y, 0F),
+                SceneBoard.DEFAULT_SURFACE, null, amount);
+    }
+    public void spawn(String type, WorldPosition position, String surface,
+                      SceneBoard scene) {
+        spawn(type, position, surface, scene, 1F);
+    }
+    private void spawn(String type, WorldPosition position, String surface,
+                       SceneBoard scene, float amount) {
         ParticleDef def = definition(type);
         if (def == null) {
             return;
@@ -98,14 +112,16 @@ public final class ParticleEngine {
                 - def.countSpread() : 0);
         count = Math.max(1, Math.round(count * Math.max(0.1F, amount)));
         for (int i = 0; i < count; i++) {
-            particles.add(instantiate(def, x, y));
+            particles.add(instantiate(def, position, surface, scene));
         }
         while (particles.size() > MAX_PARTICLES) {
             particles.remove(0);
         }
     }
 
-    private Particle instantiate(ParticleDef def, float x, float y) {
+    private Particle instantiate(ParticleDef def, WorldPosition position,
+                                 String surface, SceneBoard scene) {
+        float x = position.x(); float y = position.y();
         if (Boolean.getBoolean("pvzce.traceEffects")) {
             LOGGER.info("particle trace: spawn {} at {},{}", def.id(), x, y);
         }
@@ -119,7 +135,10 @@ public final class ParticleEngine {
         // See ParticleMotion#offsetX - the doom-shroom's cloud is nine definitions that have to
         // come out in a mushroom shape, and that shape belongs to the art, not to the blast.
         particle.x = x + motion.offsetX();
-        particle.y = y + motion.offsetY();
+        particle.y = y;
+        particle.elevation = position.elevation() + motion.offsetY();
+        particle.surface = surface;
+        particle.scene = scene;
         particle.age = 0F;
         particle.lifetime = Math.max(0.02F, look.lifetime());
         float speed = motion.speed() + spread(motion.speedSpread());
@@ -134,7 +153,9 @@ public final class ParticleEngine {
         // a hat leaves the zombie's head (see ParticleMotion#groundOffset). Measured from where
         // this particle was born rather than from the emit point, so an offset piece lands
         // under itself.
-        particle.groundY = motion.bounce() ? particle.y - motion.groundOffset() : Float.NaN;
+        particle.groundElevation = motion.bounce() ? particle.elevation - motion.groundOffset() : Float.NaN;
+        particle.groundInset = scene == null ? 0F
+                : particle.groundElevation - scene.elevationAt(surface, particle.x, particle.y);
         particle.scale = Math.max(0.01F, look.scale() + spread(look.scaleSpread()));
         particle.angle = look.randomSpin() ? random.nextFloat() * 360F : 0F;
         // A series with no animation rate is a set of variants, not an animation: one piece of
@@ -207,7 +228,7 @@ public final class ParticleEngine {
             particle.age += dt;
             ParticleDef.ParticleMotion motion = particle.motion;
             particle.x += particle.vx * dt;
-            particle.y += particle.vy * dt;
+            particle.elevation += particle.vy * dt;
             particle.vy -= motion.gravity() * dt;
             if (motion.drag() > 0F) {
                 float damping = Math.max(0F, 1F - motion.drag() * dt);
@@ -215,8 +236,12 @@ public final class ParticleEngine {
                 particle.vy *= damping;
             }
             particle.angle += particle.spin * dt;
-            if (motion.bounce() && particle.y < particle.groundY && particle.vy < 0F) {
-                particle.y = particle.groundY;
+            if (motion.bounce() && particle.scene != null) {
+                particle.groundElevation = particle.scene.elevationAt(particle.surface, particle.x, particle.y)
+                        + particle.groundInset;
+            }
+            if (motion.bounce() && particle.elevation < particle.groundElevation && particle.vy < 0F) {
+                particle.elevation = particle.groundElevation;
                 particle.vy = 0F;
                 // The ground is the only thing here that touches horizontal speed. Without
                 // this the particle keeps its launch vx forever once it lands and slides
@@ -237,17 +262,22 @@ public final class ParticleEngine {
      * middle of a burst would flip the blend mode once per particle.
      */
     public void render(PvzceClient client) {
+        render(client, null);
+    }
+    public void render(PvzceClient client, String surface) {
         if (particles.isEmpty()) {
             return;
         }
-        renderPass(client, false);
-        renderPass(client, true);
+        renderPass(client, false, surface);
+        renderPass(client, true, surface);
         RenderSystem.blendNormal();
     }
 
-    private void renderPass(PvzceClient client, boolean additive) {
+    private void renderPass(PvzceClient client, boolean additive, String surface) {
         boolean active = false;
         for (Particle particle : particles) {
+            if (surface != null && !client.level().sceneBoard().surfaceBelow(
+                    new WorldPosition(particle.x, particle.y, particle.elevation), particle.surface).equals(surface)) continue;
             if (particle.def.additive() != additive) {
                 continue;
             }
@@ -280,7 +310,7 @@ public final class ParticleEngine {
         float halfHeight = size / 2F;
         float halfWidth = size * look.aspect() / 2F;
         float x = particle.x;
-        float y = particle.y;
+        float y = particle.y + particle.elevation;
 
         if (particle.angle == 0F) {
             client.drawTexture(texture, x - halfWidth, y - halfHeight, halfWidth * 2F, size, PARTICLE_Z,
@@ -377,7 +407,7 @@ public final class ParticleEngine {
             return null;
         }
         Particle particle = particles.get(index);
-        return new float[]{particle.x, particle.y};
+        return new float[]{particle.x, particle.y + particle.elevation};
     }
 
     /** The definition a live particle uses, or {@code null} when out of range. */

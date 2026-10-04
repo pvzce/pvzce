@@ -1,5 +1,6 @@
 package com.pvzce.server.entity;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.entity.Entity;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
@@ -96,12 +97,12 @@ public abstract class PvzceEntity extends Entity {
         return new EntitySpawnS2C(id(), entityKind(), defId().toString(),
                 team == null ? "" : team.id().toString(),
                 cellX(), cellY(), layer(), health(), maxHealth(), animation(), height(), armor(),
-                chilled(), renderScale());
+                chilled(), renderScale(), surfaceId());
     }
 
     public EntityUpdateS2C updatePacket() {
         return new EntityUpdateS2C(id(), cellX(), cellY(), health(), animation(), height(),
-                armor(), chilled(), charmed(), frozen(), buttered(), animationSequence(), teamIdForUpdate());
+                armor(), chilled(), charmed(), frozen(), buttered(), animationSequence(), teamIdForUpdate(), surfaceId());
     }
 
     /**
@@ -195,6 +196,7 @@ public abstract class PvzceEntity extends Entity {
         tag.putFloat("x", cellX());
         tag.putFloat("y", cellY());
         tag.putFloat("height", height());
+        tag.putString("surface", surfaceId());
         tag.putInt("health", health());
         tag.putString("animation", animation());
         return tag;
@@ -205,6 +207,7 @@ public abstract class PvzceEntity extends Entity {
         setCellX(tag.getFloat("x"));
         setCellY(tag.getFloat("y"));
         setHeight(tag.getFloat("height"));
+        setSurfaceId(tag.contains("surface") ? tag.getString("surface") : SceneBoard.DEFAULT_SURFACE);
         setHealth(tag.getInt("health"));
         setAnimation(tag.getString("animation"));
     }

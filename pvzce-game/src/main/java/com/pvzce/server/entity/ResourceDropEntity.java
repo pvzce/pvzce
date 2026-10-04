@@ -33,6 +33,8 @@ public class ResourceDropEntity extends PvzceEntity {
     private final int amount;
     private final float fallSpeed = START_HEIGHT / FALL_TICKS;
     private boolean landed;
+    private float groundHeight;
+    private boolean surfaceInitialized;
     private int expireTicks;
     private boolean collected;
     /** Ticks spent rising, for {@link ResourceDef.DropMotion#RISE}. */
@@ -102,6 +104,13 @@ public class ResourceDropEntity extends PvzceEntity {
         }
     }
 
+    public void initializeSurface(LevelServer level) {
+        if (surfaceInitialized) return;
+        groundHeight = level.surfaceHeight(surfaceId(), cellX(), cellY());
+        setHeight(height() + groundHeight);
+        surfaceInitialized = true;
+    }
+
     @Override
     public float renderScale() {
         return renderScale;
@@ -152,7 +161,7 @@ public class ResourceDropEntity extends PvzceEntity {
             return;
         }
         if (!landed) {
-            advance(motion());
+            advance(level, motion());
             return;
         }
         if (++expireTicks >= LIFETIME_TICKS) {
@@ -160,7 +169,7 @@ public class ResourceDropEntity extends PvzceEntity {
         }
     }
 
-    private void advance(ResourceDef.DropMotion motion) {
+    private void advance(LevelServer level, ResourceDef.DropMotion motion) {
         if (motion == ResourceDef.DropMotion.RISE) {
             // Up for half the arc, then back down. A sunflower's sun comes straight back down
             // onto the flower it came from (its scatter is zero); a coin is thrown a little to
@@ -168,11 +177,12 @@ public class ResourceDropEntity extends PvzceEntity {
             riseTicks++;
             float progress = Math.min(1F, riseTicks / (float) (ResourceDef.RISE_TICKS * 2F));
             // A parabola peaking at the resource's rise height halfway through.
-            setHeight(def.riseHeight() * 4F * progress * (1F - progress));
             setCellX(riseOriginX + driftX * progress);
+            groundHeight = level.surfaceHeight(surfaceId(), cellX(), cellY());
+            setHeight(groundHeight + def.riseHeight() * 4F * progress * (1F - progress));
             if (riseTicks >= ResourceDef.RISE_TICKS * 2) {
-                setHeight(0F);
                 setCellX(riseOriginX + driftX);
+                setHeight(groundHeight);
                 landed = true;
                 setAnimation(EntityAnimations.LANDED);
             }
@@ -183,9 +193,10 @@ public class ResourceDropEntity extends PvzceEntity {
             setAnimation(EntityAnimations.LANDED);
             return;
         }
+        groundHeight = level.surfaceHeight(surfaceId(), cellX(), cellY());
         setHeight(height() - fallSpeed);
-        if (height() <= 0F) {
-            setHeight(0F);
+        if (height() <= groundHeight) {
+            setHeight(groundHeight);
             landed = true;
             setAnimation(EntityAnimations.LANDED);
         }
@@ -194,6 +205,8 @@ public class ResourceDropEntity extends PvzceEntity {
     @Override
     public CompoundTag saveState() {
         CompoundTag tag = saveBaseState();
+        tag.putFloat("groundHeight", groundHeight);
+        tag.putInt("surfaceInitialized", surfaceInitialized ? 1 : 0);
         tag.putInt("amount", amount);
         tag.putInt("landed", landed ? 1 : 0);
         tag.putInt("expireTicks", expireTicks);
@@ -210,6 +223,8 @@ public class ResourceDropEntity extends PvzceEntity {
     @Override
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
+        groundHeight = tag.getFloat("groundHeight");
+        surfaceInitialized = tag.getInt("surfaceInitialized") != 0;
         landed = tag.getInt("landed") != 0;
         expireTicks = tag.getInt("expireTicks");
         collected = tag.getInt("collected") != 0;

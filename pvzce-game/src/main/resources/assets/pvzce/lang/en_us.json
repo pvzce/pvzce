@@ -1008,5 +1008,9 @@
   "gui.pvzce.weather.cloudy_fire": "Torch / ash weakened",
   "gui.pvzce.weather.rain_fire": "Torch out · ash cooldown doubled",
   "gui.pvzce.weather.cold": "Cold duration %d%% · icy splash %d%%",
-  "level_collection.pvzce.day_roof": "Day Roof"
+  "level_collection.pvzce.day_roof": "Day Roof",
+  "gui.pvzce.surface.ground": "Ground",
+  "gui.pvzce.surface.layer": "Layer %d",
+  "gui.pvzce.surface.switch": "Switch layer",
+  "gui.pvzce.surface.current": "Layer: %s (PgUp/PgDn)"
 }

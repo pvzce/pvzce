@@ -15,7 +15,6 @@ import com.pvzce.common.core.EntityArt;
 import com.pvzce.common.resource.PvzceResourceManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -90,61 +89,13 @@ public final class AnimationManager {
             return new float[]{0F, 0F};
         }
         float lift = com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
-        float height = entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND
-                ? 0F : entity.visualHeight();
+        float height = entity.visualHeight();
         return new float[]{entity.visualCellX(),
                 entity.visualCellY() + height - lift + liquidDrop(entity)};
     }
 
-    /**
-     * How far below its own cell an entity standing on a liquid is drawn, in world cells.
-     *
-     * <p>A stage's water is not always where its water cells are. The pool's backdrop paints the
-     * basin lower than the two lanes the level calls water - {@code LevelStage.POOL}'s frame says
-     * by how much - and everything downstream of that already follows it: the surface pass draws
-     * there, and a splash is placed through the same map. The entities standing in the water did
-     * not, because their anchor was the plain cell grid plus a per-kind constant, so a lily pad
-     * was drawn a third of a cell above the surface it is supposed to float on and read as
-     * hovering over the pool rim. Everything in a water lane is off by the same amount - the pad,
-     * the tangle kelp, a plant put on a pad, and the zombies swimming past - so it is corrected
-     * once here rather than per plant.
-     *
-     * <p>The frame is an affine map of the cell grid, so the shift is not one constant: it is the
-     * difference between where the entity's own coordinate lands under the frame and where it
-     * already is, which for the pool is -0.15 cells in the upper water lane and -0.34 in the
-     * lower one. Reading it from the frame keeps both rows right, and a stage whose liquid is
-     * exactly its cells (every other stage, {@code LiquidFrame.CELL}) is untouched.
-     *
-     * <p>Render position only, like every other number in this method: the server's coordinates,
-     * the placement rules and the save all still see the plain grid.
-     *
-     * <p>Public because the two other things pinned to the ground - the entity's shadow and the
-     * ice a frozen zombie stands in - are drawn from the same cell-grid contact point, and a
-     * shadow that stayed on the grid while its zombie moved down to the water would sit at the
-     * zombie's knees.
-     */
-    public float liquidDrop(ClientEntity entity) {
-        if (client == null || level == null) {
-            return 0F;
-        }
-        com.pvzce.client.renderer.PvzceCamera camera = client.camera();
-        if (camera == null) {
-            return 0F;
-        }
-        com.pvzce.client.renderer.LevelStage.LiquidFrame frame = camera.liquidFrame();
-        if (frame == null || !frame.shifted()) {
-            return 0F;
-        }
-        // Only where there is actually a liquid: a stage may declare a frame and still have dry
-        // cells, and a plant on one of those belongs on the grid.
-        String sceneId = level.sceneAt((int) Math.floor(entity.visualCellX()),
-                (int) Math.floor(entity.visualCellY()));
-        if (sceneId == null
-                || com.pvzce.client.renderer.liquid.LiquidTextures.liquidFor(sceneId).isEmpty()) {
-            return 0F;
-        }
-        return frame.y(entity.visualCellY()) - entity.visualCellY();
-    }
+    /** Legacy render hook; the shared surface projection is already in entity elevation. */
+    public float liquidDrop(ClientEntity entity) { return 0F; }
 
     public float baseZ(Animatable target) {
         if (!(target instanceof ClientEntity entity)) {

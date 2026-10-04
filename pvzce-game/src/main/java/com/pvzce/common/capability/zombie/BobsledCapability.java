@@ -231,8 +231,7 @@ public final class BobsledCapability implements ZombieCapability {
         // damage, and it also stops `ZombieEntity.damage` drawing the impact - so the spark is
         // raised here instead. Without it a player shooting the lead watched their peas vanish
         // into a zombie that never reacted.
-        level.emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.cellX(), zombie.cellY(),
-                PvzceSounds.ZOMBIE_SHIELD_HIT);
+        level.emitEffect(PvzceParticles.HIT_SPARK.toString(), zombie.position(), zombie.surfaceId(), PvzceSounds.ZOMBIE_SHIELD_HIT);
         if (sledHealth <= 0) {
             crash(zombie, level);
         }
@@ -243,7 +242,7 @@ public final class BobsledCapability implements ZombieCapability {
     private void call(ZombieEntity lead, LevelAccess level) {
         for (int position = 0; position < riders; position++) {
             float x = lead.cellX() + spacing * (position + 1);
-            ZombieEntity follower = level.spawnZombie(lead.defId(), lead.team(), x, lead.gridY());
+            ZombieEntity follower = level.spawnZombie(lead.defId(), lead.team(), x, lead.gridY(), 1F, lead.surfaceId());
             if (follower == null) {
                 continue;
             }
@@ -299,7 +298,7 @@ public final class BobsledCapability implements ZombieCapability {
         crashFactor = 1F + (level.random().nextFloat() * 2F - 1F) * crashSpread;
         Identifier crack = sound.orElseGet(() -> zombie.def().sounds().special()
                 .orElse(PvzceSounds.ZOMBIE_SHIELD_HIT));
-        level.emitEffect("", zombie.cellX(), zombie.cellY(), crack);
+        level.emitEffect("", zombie.position(), zombie.surfaceId(), crack);
     }
 
     @Override

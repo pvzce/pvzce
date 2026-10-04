@@ -34,6 +34,7 @@ public final class ArcMotionCapability implements ProjectileCapability {
      */
     private float direction = 1F;
     private float horizontalStep;
+    private float stepY;
 
     public ArcMotionCapability(float speedCellsPerSecond, float gravityCellsPerSecondSquared) {
         this.speedCellsPerSecond = speedCellsPerSecond;
@@ -74,15 +75,19 @@ public final class ArcMotionCapability implements ProjectileCapability {
      * right after the projectile is created.
      */
     public void launch(float startX, float startHeight, float targetX, float targetHeight) {
+        launch(startX, 0F, startHeight, targetX, 0F, targetHeight);
+    }
+    public void launch(float startX, float startY, float startHeight, float targetX, float targetY, float targetHeight) {
         float delta = targetX - startX;
         this.direction = delta < 0F ? -1F : 1F;
         // The absolute distance: a shot aimed behind the plant is the same flight, mirrored, and
         // a signed one would give it a negative time of flight (and so a downward launch).
-        float distance = Math.max(0.5F, Math.abs(delta));
+        float distance = Math.max(0.5F, (float) Math.hypot(delta, targetY - startY));
         float time = Math.max(PvzceConstants.LOB_MIN_FLIGHT_TICKS,
                 Math.min(PvzceConstants.LOB_MAX_FLIGHT_TICKS,
                         distance / Math.max(0.0001F, speedPerTick())));
         horizontalStep = Math.abs(delta) / time;
+        stepY = (targetY - startY) / time;
         // Semi-implicit integration subtracts gravity before moving: include that first step.
         this.vy = (targetHeight - startHeight) / time + 0.5F * gravityPerTick() * (time + 1F);
         this.launched = true;
@@ -100,8 +105,9 @@ public final class ArcMotionCapability implements ProjectileCapability {
     @Override
     public boolean move(ProjectileEntity projectile, LevelAccess level) {
         projectile.setCellX(projectile.cellX() + direction * (launched ? horizontalStep : speedPerTick()));
+        projectile.setCellY(projectile.cellY() + stepY);
         vy -= gravityPerTick();
-        projectile.setHeight(Math.max(0F, projectile.height() + vy));
+        projectile.setHeight(projectile.height() + vy);
         return true;
     }
 
@@ -111,11 +117,13 @@ public final class ArcMotionCapability implements ProjectileCapability {
         tag.putInt("launched", launched ? 1 : 0);
         tag.putFloat("direction", direction);
         tag.putFloat("horizontalStep", horizontalStep);
+        tag.putFloat("stepY", stepY);
     }
 
     @Override
     public void load(CompoundTag tag) {
         vy = tag.getFloat("vy");
+        stepY = tag.getFloat("stepY");
         launched = tag.getInt("launched") != 0;
         // A save written before the direction existed was written by a build where every arc went
         // right, so +1 is not a guess about the old value - it *is* the old value.

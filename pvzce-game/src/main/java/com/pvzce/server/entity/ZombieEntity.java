@@ -24,7 +24,6 @@ import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -161,7 +160,7 @@ public class ZombieEntity extends PvzceEntity {
     public void beginRise(int ticks) {
         riseTicksTotal = Math.max(1, ticks);
         riseTicks = riseTicksTotal;
-        setHeight(-PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS);
+        setHeight(height() - PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS);
         setAnimation(EntityAnimations.IDLE);
     }
 
@@ -267,10 +266,11 @@ public class ZombieEntity extends PvzceEntity {
             // its cell" and already travels every sync, so the climb needs no new field - and
             // the client reads it back as "how deep this body still is", which is how the
             // buried part ends up behind the lawn instead of on top of the row below.
-            setHeight(-PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS * (1F - riseProgress()));
+            setHeight(level.surfaceHeight(surfaceId(), cellX(), cellY())
+                    - PvzceConstants.ZOMBIE_RISE_DEPTH_CELLS * (1F - riseProgress()));
             tickStatuses();
             if (riseTicks <= 0) {
-                setHeight(0F);
+                setHeight(level.surfaceHeight(surfaceId(), cellX(), cellY()));
             }
             return;
         }
@@ -423,7 +423,7 @@ public class ZombieEntity extends PvzceEntity {
         }
         FlyCapability flight = capability(FlyCapability.class);
         if (flight != null && flight.falling()) return false;
-        var scene = level.sceneAt(gridX(), gridY());
+        var scene = level.sceneAt(surfaceId(), gridX(), gridY());
         // The tag, not the surface class string: a pack that adds its own water tile
         // (swamp, pool) tags it #c:water and drowning follows without a code change.
         if (scene != null && PlantPlacement.terrainTagged(
@@ -445,9 +445,9 @@ public class ZombieEntity extends PvzceEntity {
     }
 
     private void walkOrEat(LevelServer level) {
-        var scene = level.sceneAt(gridX(), gridY());
+        var scene = level.sceneAt(surfaceId(), gridX(), gridY());
         if (scene != null) {
-            setHeight(scene.heightAt(cellX(), level.width()));
+            setHeight(level.surfaceHeight(surfaceId(), cellX(), cellY()));
         }
         if (isImmobilized()) {
             setAnimation(EntityAnimations.IDLE);
@@ -471,8 +471,8 @@ public class ZombieEntity extends PvzceEntity {
         // `biteTargetAt` rather than `plantAt`: a spikeweed is a plant you walk over, and
         // stopping to eat one is the opposite of what it is for.
         PlantEntity plant = level instanceof LevelServer server
-                ? server.biteTargetAt(gridX(), gridY())
-                : level.plantAt(gridX(), gridY());
+                ? server.biteTargetAt(gridX(), gridY(), surfaceId())
+                : level.plantAt(gridX(), gridY(), surfaceId());
         if (plant != null && !plant.laddered()) {
             bitePlant(level, plant);
             return;
@@ -511,7 +511,7 @@ public class ZombieEntity extends PvzceEntity {
      */
     private ZombieEntity enemyZombieInFront(LevelServer level) {
         float facing = walkDirection();
-        for (ZombieEntity other : level.enemiesInRow(gridY(), team())) {
+        for (ZombieEntity other : level.enemiesInRow(gridY(), team(), surfaceId())) {
             if (other.id() == id()) {
                 continue;
             }
@@ -579,8 +579,7 @@ public class ZombieEntity extends PvzceEntity {
                     * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
             target.damage(damage, ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT), level);
             biteCooldown = biteIntervalTicks();
-            level.emitEffect(PvzceParticles.CHOMP.toString(), target.cellX(), target.cellY(),
-                    def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
+            level.emitEffect(PvzceParticles.CHOMP.toString(), target.position(), target.surfaceId(), def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
             return;
         }
         setAnimation(walkState());
@@ -631,8 +630,7 @@ public class ZombieEntity extends PvzceEntity {
         // The bite is the sound and the plant losing health, and nothing else. It used to fire
         // `pvzce:chomp` - the puff-shroom's eight big spore puffs - at the plant, which put a
         // purple cloud on the lawn for every bite any zombie ever took.
-        level.emitEffect("", plant.cellX(), plant.cellY(),
-                def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
+        level.emitEffect("", plant.position(), plant.surfaceId(), def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
     }
 
     /**

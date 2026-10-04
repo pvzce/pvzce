@@ -1,5 +1,6 @@
 package com.pvzce.client;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.animation.AnimationManager;
 import com.pvzce.common.PvzceIds;
@@ -11,7 +12,6 @@ import com.pvzce.common.network.packet.SeedOption;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SuggestionsS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -64,7 +64,8 @@ public final class ClientLevel {
      */
     private volatile List<String> activeBuffs = List.of();
     private volatile List<String> previewZombies = List.of();
-    private volatile SceneGrid<String> scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
+    private volatile SceneBoard scene = new SceneBoard(0, 0);
+
     /** Cells whose element is out of place right now; see {@link SceneShifts}. */
     private final SceneShifts sceneShifts = new SceneShifts();
     /** The backdrop this level is played on, or {@code null} for the built-in yard. */
@@ -256,7 +257,8 @@ public final class ClientLevel {
         this.shadersDisabled = shadersDisabled;
         this.plantsWholeColumn = plantsWholeColumn;
         applyMechanics(levelMechanics);
-        this.scene = SceneGrid.create(width, height, PvzceIds.GRASS.toString());
+        this.scene = new SceneBoard(width, height);
+        this.activeSurface = SceneBoard.DEFAULT_SURFACE;
         // Written without the rise bookkeeping: a level's opening graves were always there.
         writeSceneCells(sceneCells);
         sceneShifts.clear();
@@ -297,7 +299,8 @@ public final class ClientLevel {
         seedPool = List.of();
         maxSeedSlots = com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS;
         previewZombies = List.of();
-        scene = SceneGrid.create(0, 0, PvzceIds.GRASS.toString());
+        scene = new SceneBoard(0, 0);
+        activeSurface = SceneBoard.DEFAULT_SURFACE;
         sceneShifts.clear();
         background = null;
         sceneVisibility = SceneVisibility.NONE;
@@ -434,13 +437,7 @@ public final class ClientLevel {
     }
 
     /** Snapshot of the current scene grid, used by the seed chooser restart path. */
-    public List<SceneSyncS2C.Cell> sceneCells() {
-        List<SceneSyncS2C.Cell> cells = new ArrayList<>();
-        for (SceneGrid.Cell<String> cell : scene.cells()) {
-            cells.add(new SceneSyncS2C.Cell(cell.x(), cell.y(), cell.value()));
-        }
-        return List.copyOf(cells);
-    }
+    public List<SceneSyncS2C.Cell> sceneCells() { return scene.snapshot(); }
 
     public void addCollectAnimation(ResourceCollectAnimation animation) {
         collectAnimations.add(animation);
@@ -832,7 +829,7 @@ public final class ClientLevel {
             return;
         }
         for (SceneSyncS2C.Cell cell : cells) {
-            String previous = scene.get(cell.x(), cell.y());
+            String previous = sceneAt(cell.surfaceId(), cell.x(), cell.y());
             writeSceneCell(cell);
             sceneShifts.cellChanged(cell.x(), cell.y(), previous, cell.elementId(), gameSeconds());
         }
@@ -849,7 +846,7 @@ public final class ClientLevel {
     }
 
     private void writeSceneCell(SceneSyncS2C.Cell cell) {
-        scene.set(cell.x(), cell.y(), cell.elementId());
+        scene.apply(cell);
     }
 
     /**
@@ -963,8 +960,32 @@ public final class ClientLevel {
     }
 
     /** The scene element id in a cell; outside the board it reads as grass. */
+    private String activeSurface = SceneBoard.DEFAULT_SURFACE;
+    public SceneBoard sceneBoard() { return scene; }
+    public String activeSurface() { return activeSurface; }
+    public void setActiveSurface(String surface) {
+        if (scene.surfaceIds().contains(surface)) activeSurface = surface;
+    }
+    public void cycleSurface() { cycleSurface(1); }
+    public void cycleSurface(int direction) {
+        var ids = scene.surfaceIds();
+        if (!ids.isEmpty()) activeSurface = ids.get(Math.floorMod(ids.indexOf(activeSurface) + direction, ids.size()));
+    }
+    public String activeSurfaceName() {
+        String name = scene.surfaceName(activeSurface);
+        if (!name.isEmpty()) return name;
+        return activeSurface.equals(SceneBoard.DEFAULT_SURFACE)
+                ? com.pvzce.client.gui.GuiLang.raw("gui.pvzce.surface.ground", "Ground")
+                : String.format(com.pvzce.client.gui.GuiLang.raw("gui.pvzce.surface.layer", "Layer %d"),
+                        scene.surfaceIds().indexOf(activeSurface) + 1);
+    }
+    public String sceneAt(String surface, int x, int y) {
+        var element = scene.get(surface, x, y);
+        return element == null ? null : element.id().toString();
+    }
+
     public String sceneAt(int x, int y) {
-        String value = scene.get(x, y);
+        String value = sceneAt(SceneBoard.DEFAULT_SURFACE, x, y);
         return value == null ? PvzceIds.GRASS.toString() : value;
     }
 

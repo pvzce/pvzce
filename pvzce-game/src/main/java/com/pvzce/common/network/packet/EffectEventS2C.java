@@ -1,12 +1,14 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
 
 /**
- * Client-side presentation event: a particle at (x,y), an optional locally played
+ * Client-side presentation event: a particle at a world position (x,y,elevation), an optional locally played
  * sound, and an optional liquid ripple. The server never streams audio itself, and
  * it never streams a ripple's animation either - it only says that one happened.
  *
@@ -18,7 +20,16 @@ import com.pvzce.common.network.PvzcePacket;
  * position, driven by the server, that the simulation never reads back.
  */
 public record EffectEventS2C(String particle, float x, float y, String sound, float volume, float pitch,
-                             String ripple, float rippleStrength) implements PvzcePacket {
+                             String ripple, float rippleStrength, float elevation, String surfaceId) implements PvzcePacket {
+    public EffectEventS2C(String particle, float x, float y, String sound, float volume, float pitch,
+                          String ripple, float rippleStrength) {
+        this(particle, x, y, sound, volume, pitch, ripple, rippleStrength, 0F,
+                SceneBoard.DEFAULT_SURFACE);
+    }
+    public WorldPosition position() {
+        return new WorldPosition(x, y, elevation);
+    }
+
     public EffectEventS2C(String particle, float x, float y) {
         this(particle, x, y, "", 1F, 1F, "", 0F);
     }
@@ -46,7 +57,9 @@ public record EffectEventS2C(String particle, float x, float y, String sound, fl
     .field(EffectEventS2C::pitch, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
     .field(EffectEventS2C::ripple, PacketByteBuf::writeString, PacketByteBuf::readString)
     .field(EffectEventS2C::rippleStrength, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
-            .build(values -> new EffectEventS2C((String) values.get(0), (Float) values.get(1), (Float) values.get(2), (String) values.get(3), (Float) values.get(4), (Float) values.get(5), (String) values.get(6), (Float) values.get(7)));
+    .field(EffectEventS2C::elevation, PacketByteBuf::writeFloat, PacketByteBuf::readFloat)
+    .field(EffectEventS2C::surfaceId, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new EffectEventS2C((String) values.get(0), (Float) values.get(1), (Float) values.get(2), (String) values.get(3), (Float) values.get(4), (Float) values.get(5), (String) values.get(6), (Float) values.get(7), (Float) values.get(8), (String) values.get(9)));
 
     @Override
     public void encode(PacketByteBuf buf) {

@@ -59,9 +59,7 @@ public final class BungeeRig {
         // The same ground contact the shadow is drawn on, so the target lies on the lawn rather
         // than floating at whatever height the rope happens to be at.
         float groundY = entity.visualCellY() - EntityVisuals.anchorLift(entity.kind());
-        var terrainId = com.pvzce.api.util.Identifier.tryParse(client.level().sceneAt(entity.gridX(), entity.gridY()));
-        var terrain = terrainId == null ? null : com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(terrainId);
-        float groundHeight = terrain == null ? 0F : terrain.heightAt(cellX, client.level().width());
+        float groundHeight = client.level().sceneBoard().elevationAt(entity.surfaceId(), cellX, entity.visualCellY());
         groundY += groundHeight;
         client.drawTexture(TARGET, cellX - TARGET_WIDTH * 0.5F, groundY - TARGET_HEIGHT * 0.5F,
                 TARGET_WIDTH, TARGET_HEIGHT, TARGET_Z, 1F, 1F, 1F, 1F);

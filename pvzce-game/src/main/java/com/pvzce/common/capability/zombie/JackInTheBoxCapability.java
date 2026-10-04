@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.zombie;
 
+import com.pvzce.common.level.SceneBoard;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -14,7 +15,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -234,8 +234,7 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         // The lid coming up. The music box that has been playing for the whole walk is not this
         // sound: the client stops it as the walk state ends (`EntityLoops`), which is the
         // original's own split between `StopZombieSound` and `SOUND_BOING` here.
-        level.emitEffect("", zombie.cellX(), zombie.cellY(),
-                sound.orElseGet(() -> zombie.def().sounds().special()
+        level.emitEffect("", zombie.position(), zombie.surfaceId(), sound.orElseGet(() -> zombie.def().sounds().special()
                         .orElse(PvzceSounds.ZOMBIE_JACK_SURPRISE2)));
     }
 
@@ -256,13 +255,14 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         zombie.selfDestruct(level);
         DamageTypeDef type = ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT);
         // No source team: a bomb on the lawn does not have a side. See the class doc.
-        level.damageArea(type, x, y, zombieRadius, BLAST_DAMAGE, null);
+        level.damageArea(type, zombie.position(), zombieRadius, BLAST_DAMAGE, null, false);
         // The pots around it break open, which is the whole reason a jack-in-the-box is the
         // scariest thing in the vase level: it does not just kill what is standing there, it
         // spills whatever the pots beside it were holding. The user: "小丑僵尸炸的时候应该会炸开
         // 周围的花瓶". Done after the two damage passes, so a zombie that comes out of one of those
         // pots is not immediately killed by the blast that released it.
-        level.breakContainers(x, y, plantRadius);
+        if (SceneBoard.DEFAULT_SURFACE.equals(zombie.surfaceId()))
+            level.breakContainers(x, y, plantRadius);
         // And the box takes its owner with it: no corpse, no head, gone this tick. Every other
         // death leaves a body for `CORPSE_TICKS` so the death clip can be read, and a body that
         // blew itself up has nothing left to read - the cloud below is the whole funeral. The
@@ -272,9 +272,9 @@ public final class JackInTheBoxCapability implements ZombieCapability {
         zombie.remove();
         // The original's own two effects, converted with the rest of its particle set: the
         // cloud, and the spring that came out of the box.
-        level.emitEffect(PvzceParticles.JACK_EXPLODE_BIG_CLOUD.toString(), x, y,
+        level.emitEffect(PvzceParticles.JACK_EXPLODE_BIG_CLOUD.toString(), zombie.position(), zombie.surfaceId(),
                 PvzceSounds.EFFECT_EXPLOSION);
-        level.emitEffect(PvzceParticles.JACK_EXPLODE_SPROING.toString(), x, y,
+        level.emitEffect(PvzceParticles.JACK_EXPLODE_SPROING.toString(), zombie.position(), zombie.surfaceId(),
                 PvzceSounds.ZOMBIE_JACK_SURPRISE);
     }
 
@@ -299,7 +299,7 @@ public final class JackInTheBoxCapability implements ZombieCapability {
                     }
                     float dx = plant.cellX() - zombie.cellX();
                     float dy = plant.cellY() - zombie.cellY();
-                    if (Math.hypot(dx, dy) > plantRadius) {
+                    if (!level.reachedByBlast(zombie.position(), plant, plantRadius, false)) {
                         continue;
                     }
                     // `damage` and not `damageFrom`: a bomb that goes off beside a plant reaches

@@ -59,7 +59,6 @@ import com.pvzce.common.network.packet.SmashContainerC2S;
 import com.pvzce.common.network.packet.UseGrantedToolC2S;
 import com.pvzce.common.network.packet.UseToolC2S;
 import com.pvzce.common.network.packet.WaveProgressS2C;
-
 import java.util.List;
 import java.util.function.Function;
 
@@ -145,7 +144,8 @@ public final class PvzcePackets {
     //     and the client hands the server its Jev credential (AiSettingsC2S).
     // 54: fertilizer and attached ladders travel as PlantCareS2C.
     // 55: separate butter/freeze art and action sequence for exactly one gesture per volley.
-    public static final int PROTOCOL_VERSION = 55;
+    // 56: authoritative surface profiles, entity/effect elevations and selected operation surfaces.
+    public static final int PROTOCOL_VERSION = 56;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

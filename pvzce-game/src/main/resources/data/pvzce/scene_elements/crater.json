@@ -8,5 +8,6 @@
     "underlay": "pvzce:grass",
     "width": 1.125,
     "height": 0.7625
-  }
+  },
+  "overlay": true
 }

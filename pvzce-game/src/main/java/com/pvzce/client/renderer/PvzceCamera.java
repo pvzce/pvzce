@@ -1,5 +1,8 @@
 package com.pvzce.client.renderer;
 
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.SceneBoard;
+
 /**
  * Locked side-view orthographic camera over the original PvZ lawn background.
  *
@@ -42,6 +45,13 @@ public final class PvzceCamera {
      * is also the direction the backdrop slides on screen.
      */
     private final float panX;
+    private SceneBoard scene;
+    private String surface = SceneBoard.DEFAULT_SURFACE;
+    public PvzceCamera scene(SceneBoard scene, String surface) {
+        this.scene = scene; this.surface = surface; return this;
+    }
+    public float surfaceHeight(float x, float y) { return scene == null ? 0F : scene.elevationAt(surface, x, y); }
+    public float screenY(WorldPosition position) { return screenY(position.projectedY()); }
 
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows) {
         this(screenWidth, screenHeight, columns, rows, LevelStage.YARD, 0F);
@@ -102,7 +112,7 @@ public final class PvzceCamera {
 
     /** The same camera looking {@code panX} cells further toward the house. */
     public PvzceCamera panned(float panX) {
-        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX);
+        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX).scene(scene, surface);
     }
 
     /** How far this camera is looking toward the house, in cells. */
@@ -210,8 +220,7 @@ public final class PvzceCamera {
 
     /** Centre of a board cell, including the roof's rise, in framebuffer pixels. */
     public float cellScreenY(int x, int y) {
-        return screenY(y + 0.5F + ("roof".equals(geometry.name())
-                ? com.pvzce.api.content.SceneElementDef.roofHeightAt(x + 0.5F) : 0F));
+        return screenY(y + 0.5F + surfaceHeight(x + 0.5F, y + 0.5F));
     }
 
     public float worldX(double mouseX, double mouseY) {
@@ -228,9 +237,16 @@ public final class PvzceCamera {
     }
 
     public int cellY(double mouseX, double mouseY) {
-        float height = "roof".equals(geometry.name())
-                ? com.pvzce.api.content.SceneElementDef.roofHeightAt(worldX(mouseX, mouseY)) : 0F;
-        return (int) Math.floor(worldY(mouseX, mouseY) - height);
+        float x = worldX(mouseX, mouseY), projected = worldY(mouseX, mouseY);
+        if (scene == null) return (int) Math.floor(projected);
+        int column = (int) Math.floor(x);
+        for (int row = 0; row < rows; row++) {
+            if (!scene.exists(surface, column, row)) continue;
+            float bottom = row + surfaceHeight(x, row);
+            float top = row + 1F + surfaceHeight(x, Math.nextDown(row + 1F));
+            if (projected >= Math.min(bottom, top) && projected < Math.max(bottom, top)) return row;
+        }
+        return -1;
     }
 
     /**
@@ -244,18 +260,13 @@ public final class PvzceCamera {
      * clicked, and a strip above the board was accepted instead.
      */
     public boolean inBoard(double mouseX, double mouseY) {
-        if ("roof".equals(geometry.name())) {
-            int x = cellX(mouseX, mouseY), y = cellY(mouseX, mouseY);
-            return x >= 0 && x < columns && y >= 0 && y < rows;
-        }
-        double flippedY = screenHeight - mouseY;
-        float left = board.x() + panX * unitX;
-        return mouseX >= left && mouseX < left + board.width()
-                && flippedY >= board.y() && flippedY < board.y() + board.height();
+        int x = cellX(mouseX, mouseY), y = cellY(mouseX, mouseY);
+        return x >= 0 && x < columns && y >= 0 && y < rows;
+
     }
 
     /** True when a window pixel maps to a cell inside the board. */
     public boolean cellInBoard(double mouseX, double mouseY) {
-        return cellX(mouseX, mouseY) >= 0 && cellY(mouseX, mouseY) >= 0;
+        return inBoard(mouseX, mouseY);
     }
 }

@@ -87,7 +87,7 @@ public final class TorchwoodCapability implements PlantCapability {
             litThisTick = false;
             return;
         }
-        for (ProjectileEntity shot : level.projectilesInCell(plant.gridX(), plant.gridY())) {
+        for (ProjectileEntity shot : level.projectilesInCell(plant.gridX(), plant.gridY(), plant.surfaceId())) {
             // Only its own side's shots. A torchwood that burned the zombies' own peas would be a
             // defensive plant as well as an offensive one, which is not what it is.
             if (com.pvzce.server.level.LevelServer.isEnemyOf(shot.team(), plant.team())
@@ -103,8 +103,7 @@ public final class TorchwoodCapability implements PlantCapability {
             // sound and the flag: the original's ignite, which is a different thing from the pea
             // hitting something and used to be played as the mallet's knock by mistake.
             litThisTick = true;
-            level.emitEffect("", plant.cellX(), plant.cellY(),
-                    com.pvzce.common.PvzceSounds.PLANT_FIREPEA);
+            level.emitEffect("", plant.position(), plant.surfaceId(), com.pvzce.common.PvzceSounds.PLANT_FIREPEA);
         } else {
             litThisTick = false;
         }

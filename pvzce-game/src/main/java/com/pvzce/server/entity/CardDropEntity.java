@@ -37,12 +37,12 @@ public final class CardDropEntity extends PvzceEntity {
 
     public void fallFromSky(int rows) {
         landingY = cellY();
-        setCellY(rows + 0.5F);
+        setHeight(height() + rows + 0.5F - cellY());
         falling = true;
     }
 
     public int landingRow() {
-        return falling ? (int) Math.floor(landingY) : gridY();
+        return gridY();
     }
 
     public CardDropEntity(Identifier card, Team team, int gridX, int gridY) {
@@ -93,9 +93,10 @@ public final class CardDropEntity extends PvzceEntity {
             return;
         }
         if (falling) {
-            setCellY(Math.max(landingY, cellY() - PvzceConstants.SEED_RAIN_FALL_SPEED
+            float ground = level.surfaceHeight(surfaceId(), cellX(), cellY());
+            setHeight(Math.max(ground, height() - PvzceConstants.SEED_RAIN_FALL_SPEED
                     / PvzceConstants.TICKS_PER_SECOND));
-            falling = cellY() > landingY;
+            falling = height() > ground;
             return;
         }
         setHealth(health() - 1);

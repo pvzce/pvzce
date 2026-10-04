@@ -64,9 +64,9 @@ public final class DigCapability implements ZombieCapability {
                     : (hasAxe ? EntityAnimations.DIG_EXIT : "dig_exit_noaxe"));
             // The drill artwork already contains the dirt and rising body. Height is the
             // terrain anchor; burial and damage eligibility belong to the underground layer.
-            zombie.setHeight(0F);
+            zombie.setHeight(level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY()));
             if (--riseLeft == 0) {
-                underground = false; surfaced = true; zombie.setHeight(0F);
+                underground = false; surfaced = true; zombie.setHeight(level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY()));
                 movingRight = hasAxe;
                 dizzyLeft = hasAxe ? PvzceConstants.DIGGER_DIZZY_TICKS : 0;
             }
@@ -78,10 +78,10 @@ public final class DigCapability implements ZombieCapability {
         if (surfaced) return false;
         if (underground && (zombie.cellX() <= 0.5F || !hasAxe)) {
             riseLeft = emergeTicks;
-            level.emitEffect("", zombie.cellX(), zombie.cellY(), PvzceSounds.EFFECT_DIRT_RISE);
+            level.emitEffect("", zombie.position(), zombie.surfaceId(), PvzceSounds.EFFECT_DIRT_RISE);
             return true;
         }
-        zombie.setHeight(0F);
+        zombie.setHeight(level.surfaceHeight(zombie.surfaceId(), zombie.cellX(), zombie.cellY()));
         zombie.setAnimation(EntityAnimations.DIG);
         zombie.setCellX(zombie.cellX() - digSpeed / PvzceConstants.TICKS_PER_SECOND
                 * zombie.moveSpeed(level) / zombie.def().moveSpeed());

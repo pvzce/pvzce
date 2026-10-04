@@ -1,5 +1,6 @@
 package com.pvzce.client.mechanic;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientLevel;
@@ -61,9 +62,7 @@ final class RakeClientMechanic implements ClientMechanic {
     }
 
     private static float terrainHeight(ClientLevel level, float x, int row) {
-        var def = com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(
-                Identifier.tryParse(level.sceneAt((int) x, row)));
-        return def == null ? 0F : def.heightAt(x, level.width());
+        return level.sceneBoard().elevationAt(SceneBoard.DEFAULT_SURFACE, x, row + .5F);
     }
 
     /** The rake itself; one per level instance, shared by the sync handler and the renderer. */

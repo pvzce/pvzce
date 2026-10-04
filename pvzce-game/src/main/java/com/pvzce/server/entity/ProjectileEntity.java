@@ -1,5 +1,6 @@
 package com.pvzce.server.entity;
 
+import com.pvzce.common.level.WorldPosition;
 import com.pvzce.api.content.ProjectileDef;
 import com.pvzce.api.content.ProjectileRef;
 import com.pvzce.api.content.capability.ProjectileCapability;
@@ -13,7 +14,6 @@ import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,24 +28,6 @@ import java.util.List;
 public class ProjectileEntity extends PvzceEntity {
     /** Horizontal hit window against a zombie, in cells. */
     private static final float HIT_RADIUS_X = 0.4F;
-    /**
-     * How far above or below its own height a shot may be and still touch a zombie.
-     *
-     * <p>A shot leaves its owner at the height the owner <em>stands</em> at, which is the ground
-     * plus whatever platform it is on - a flower pot raises a plant by
-     * {@link PlantPlacement#FLOWER_POT_TOP}, a lily pad by {@link PlantPlacement#LILY_PAD_TOP} -
-     * while the zombie walking into that lane is at ground level. So the tolerance has to cover the
-     * tallest platform, and it used to be 0.2: less than the flower pot. A peashooter in a flower
-     * pot fired over the head of every zombie it was aimed at (measured: ten seconds of fire, no
-     * damage at all), and putting the lily pad's plants up on the pad's own surface turned the same
-     * bug loose on every pool level's water lanes.
-     *
-     * <p>What separates the layers is the capability flags ({@code canBeHitByGround},
-     * {@code canBeHitByArc}), not this: a balloon zombie is not hit by a ground shot whatever
-     * height it is at, and the row test above already keeps a shot inside its own lane.
-     */
-    private static final float HIT_TOLERANCE_Y =
-            Math.max(PlantPlacement.FLOWER_POT_TOP, PlantPlacement.LILY_PAD_TOP) + 0.12F;
     /** A homing shot counts as landed at or below this height. */
     private static final float LANDED_HEIGHT = 0.15F;
 
@@ -72,6 +54,7 @@ public class ProjectileEntity extends PvzceEntity {
     private int targetId;
     private float targetX;
     private float targetHeight;
+    private float targetY;
     /**
      * True when the shot was aimed at a cell rather than at a zombie.
      *
@@ -133,7 +116,8 @@ public class ProjectileEntity extends PvzceEntity {
      * the shot's. {@code height} is the ground line of the target cell, so a shot into the pool or
      * onto the roof lands on the surface rather than at y=0.
      */
-    public record Aim(float x, float height) {
+    public record Aim(float x, float y, float height) {
+        public Aim(float x, float height) { this(x, Float.NaN, height); }
     }
 
     /**
@@ -147,6 +131,9 @@ public class ProjectileEntity extends PvzceEntity {
     public ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
                             float cellX, float cellY, float startHeight, Aim aim) {
         this(def, ref, ownerTeam, cellX, cellY, startHeight, null, aim.x(), aim.height(), true);
+        targetY = Float.isNaN(aim.y()) ? cellY : aim.y();
+        ArcMotionCapability arc = capability(ArcMotionCapability.class);
+        if (arc != null) arc.launch(cellX, cellY, height(), targetX, targetY, targetHeight);
     }
 
     private ProjectileEntity(ProjectileDef def, ProjectileRef ref, Team ownerTeam,
@@ -158,6 +145,7 @@ public class ProjectileEntity extends PvzceEntity {
         this.direction = ref != null ? ref.direction() : 1F;
         this.targetId = target != null ? target.id() : -1;
         this.targetX = targetX;
+        this.targetY = target == null ? cellY : target.cellY();
         this.targetHeight = targetHeight;
         this.aimedAtPoint = aimedAtPoint;
         this.originX = cellX;
@@ -172,7 +160,7 @@ public class ProjectileEntity extends PvzceEntity {
         if (target != null || aimedAtPoint) {
             ArcMotionCapability arc = capability(ArcMotionCapability.class);
             if (arc != null) {
-                arc.launch(cellX, height(), targetX, targetHeight);
+                arc.launch(cellX, cellY, height(), targetX, targetY, targetHeight);
             }
         }
     }
@@ -277,6 +265,7 @@ public class ProjectileEntity extends PvzceEntity {
         if (removed) {
             return;
         }
+        WorldPosition before = position();
         float beforeX = cellX();
         int beforeRow = gridY();
         for (Instance instance : capabilities) {
@@ -310,10 +299,14 @@ public class ProjectileEntity extends PvzceEntity {
             remove();
             return;
         }
-        var terrain = level.sceneAt(gridX(), gridY());
-        if (!def.isAirLayer() && terrain != null && terrain.surfaceClass().startsWith("ROOF")
-                && height() < terrain.heightAt(cellX(), level.width())) {
-            remove();
+        var obstruction = level.sceneBoard().firstObstruction(before, position());
+        if (obstruction.isPresent()) {
+            var impact = obstruction.get();
+            setCellX(impact.x());
+            setCellY(impact.y());
+            setHeight(impact.elevation());
+            // Impact at the obstruction, including an underside of a bridge deck.
+            applyImpact(null, level);
             return;
         }
         ZombieEntity hit = findTarget(level);
@@ -328,7 +321,7 @@ public class ProjectileEntity extends PvzceEntity {
                 return;
             }
             if ((targetId >= 0 || aimedAtPoint)
-                    && Math.abs(cellX() - targetX) < HIT_RADIUS_X && hasLanded()) {
+                    && Math.hypot(cellX() - targetX, cellY() - targetY) < HIT_RADIUS_X && hasLanded()) {
                 applyImpact(null, level);
             }
             return;
@@ -381,23 +374,27 @@ public class ProjectileEntity extends PvzceEntity {
             if (Math.abs(column + 0.5F - cellX()) > HIT_RADIUS_X) {
                 continue;
             }
-            PlantEntity plant = level.plantAt(column, gridY());
-            if (plant != null && !plant.isRemoved()) {
-                if ("basketball".equals(def.id().path())) {
-                    if (Math.abs(cellX() - targetX) > HIT_RADIUS_X
-                            || height() > plant.height() + LANDED_HEIGHT) continue;
-                    if (com.pvzce.common.capability.plant.UmbrellaLeafCapability.block(
-                            level, column, gridY(), plant.team())) {
-                        remove();
-                        return null;
+            for (PlantEntity plant : level.plantsAt(column, gridY()).stream()
+                    .sorted(java.util.Comparator.comparingInt((PlantEntity p) -> PlantPlacement.layerIndex(p.def())).reversed()).toList()) {
+                if (plant != null && !plant.isRemoved() && height() >= plant.height() - LANDED_HEIGHT
+                        && height() <= plant.height() + com.pvzce.common.PvzceConstants.COMBAT_BODY_HEIGHT) {
+                    if ("basketball".equals(def.id().path())) {
+                        if (Math.abs(cellX() - targetX) > HIT_RADIUS_X
+                                || height() > plant.height() + LANDED_HEIGHT) continue;
+                        if (com.pvzce.common.capability.plant.UmbrellaLeafCapability.block(
+                                level, column, gridY(), plant.team(), plant.surfaceId())) {
+                            remove();
+                            return null;
+                        }
                     }
+                    if (com.pvzce.common.core.PlantPlacement.is(plant.def(),
+                            com.pvzce.common.tag.PvzceTags.ZOMBIE_PEA_PASSES_OVER)) {
+                        continue;
+                    }
+                    // Left to right, so the last one found is the nearest to a shot flying left.
+                    found = plant;
+                    break;
                 }
-                if (com.pvzce.common.core.PlantPlacement.is(plant.def(),
-                        com.pvzce.common.tag.PvzceTags.ZOMBIE_PEA_PASSES_OVER)) {
-                    continue;
-                }
-                // Left to right, so the last one found is the nearest to a shot flying left.
-                found = plant;
             }
         }
         return found;
@@ -421,6 +418,7 @@ public class ProjectileEntity extends PvzceEntity {
                 // Homing shots compare against the target's top, so a lobbed shot
                 // can still connect while it is descending.
                 return Math.abs(cellX() - zombie.cellX()) < HIT_RADIUS_X
+                        && height() >= zombie.height() - LANDED_HEIGHT
                         && height() <= zombie.height() + 0.18F ? zombie : null;
             }
             if (groundLayer && !zombie.canBeHitByGround()) {
@@ -428,7 +426,8 @@ public class ProjectileEntity extends PvzceEntity {
             }
             if ((vectorY == 0F || Math.abs(zombie.cellY() - cellY()) < 0.45F)
                     && Math.abs(zombie.cellX() - cellX()) < HIT_RADIUS_X + 0.05F
-                    && Math.abs(height() - zombie.height()) < HIT_TOLERANCE_Y) {
+                    && height() >= zombie.height() - LANDED_HEIGHT
+                    && height() <= zombie.height() + com.pvzce.common.PvzceConstants.COMBAT_BODY_HEIGHT) {
                 return zombie;
             }
         }
@@ -443,6 +442,7 @@ public class ProjectileEntity extends PvzceEntity {
         tag.putInt("targetId", targetId);
         tag.putFloat("targetX", targetX);
         tag.putFloat("targetHeight", targetHeight);
+        tag.putFloat("targetY", targetY);
         tag.putByte("aimedAtPoint", (byte) (aimedAtPoint ? 1 : 0));
         tag.putFloat("direction", direction);
         tag.putFloat("vectorX", vectorX);
@@ -467,6 +467,7 @@ public class ProjectileEntity extends PvzceEntity {
         targetId = tag.contains("targetId") ? tag.getInt("targetId") : -1;
         targetX = tag.getFloat("targetX");
         targetHeight = tag.getFloat("targetHeight");
+        targetY = tag.contains("targetY") ? tag.getFloat("targetY") : cellY();
         aimedAtPoint = tag.getInt("aimedAtPoint") != 0;
         direction = tag.contains("direction") ? tag.getFloat("direction") : 1F;
         vectorX = tag.contains("vectorX") ? tag.getFloat("vectorX") : 1F;

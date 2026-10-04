@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.zombie;
 
+import com.pvzce.common.level.WorldPosition;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -16,7 +17,6 @@ import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.common.PvzceParticles;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -259,10 +259,10 @@ public final class ArmorCapability implements ZombieCapability {
         // From the head, where the piece was: a cone that pops out of the zombie's boots
         // reads as a particle that happened to fire, not as a hat coming off.
         if (emitImpact || broke) {
-            level.emitEffect(particle, zombie.cellX(), zombie.cellY() + zombie.height() + DROP_HEIGHT, sound);
+            level.emitEffect(particle, new WorldPosition(zombie.cellX(), zombie.cellY(), zombie.height() + DROP_HEIGHT), zombie.surfaceId(), sound);
         }
         if (broke && zombie.def().sounds().special().isPresent()) {
-            level.emitEffect("", zombie.cellX(), zombie.cellY() + zombie.height(), zombie.def().sounds().special().get());
+            level.emitEffect("", zombie.position(), zombie.surfaceId(), zombie.def().sounds().special().get());
         }
         return true;
     }

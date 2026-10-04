@@ -21,7 +21,7 @@ public final class LadderCapability implements ZombieCapability {
     }
     @Override public boolean tickMovement(ZombieEntity zombie, LevelAccess level) {
         if (!carrying(zombie) || zombie.isImmobilized()) return false;
-        PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY());
+        PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId());
         if (plant == null || plant.laddered() || !java.util.Set.of("wall_nut", "tall_nut", "pumpkin")
                 .contains(plant.definitionId().path())) { placingTicks = 0; return false; }
         zombie.setAnimation("place_ladder");

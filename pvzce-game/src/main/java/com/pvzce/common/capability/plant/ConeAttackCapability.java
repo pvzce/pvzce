@@ -1,5 +1,6 @@
 package com.pvzce.common.capability.plant;
 
+import com.pvzce.common.level.WorldPosition;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -14,7 +15,6 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -231,7 +231,7 @@ public final class ConeAttackCapability implements PlantCapability {
             type = BuiltInRegistries.DAMAGE_TYPES.get(DEFAULT_DAMAGE_TYPE);
         }
         boolean hitAny = false;
-        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team())) {
+        for (ZombieEntity zombie : level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId())) {
             if (zombie.isRemoved() || !zombie.canBeHitByGround()) {
                 continue;
             }
@@ -280,7 +280,7 @@ public final class ConeAttackCapability implements PlantCapability {
         Identifier held = sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA));
         float gap = range * level.weatherRangeMultiplier(plant) / cloudCount;
         for (int i = 0; i < cloudCount; i++) {
-            level.emitEffect(particle, plant.cellX() + gap * (i + 0.5F), plant.cellY(), i == 0 ? held : null);
+            level.emitEffect(particle, new WorldPosition(plant.cellX() + gap * (i + 0.5F), plant.cellY(), plant.height()), plant.surfaceId(), i == 0 ? held : null);
         }
     }
 

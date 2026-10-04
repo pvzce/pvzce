@@ -70,7 +70,7 @@ public final class FloatCapability implements ZombieCapability {
      * submerging use.
      */
     private static boolean inWater(ZombieEntity zombie, LevelAccess level) {
-        var scene = level.sceneAt(zombie.gridX(), zombie.gridY());
+        var scene = level.sceneAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId());
         return scene != null && scene.id() != null
                 && PvzceTags.SCENE_ELEMENTS.contains(PvzceTags.SCENE_WATER, scene.id());
     }

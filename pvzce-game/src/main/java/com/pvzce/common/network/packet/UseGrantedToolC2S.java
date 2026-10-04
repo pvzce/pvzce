@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
@@ -18,7 +19,11 @@ import com.pvzce.common.network.PvzcePacket;
  * "which card" and "which granted tool" are different questions, and a slot index of -1 would
  * be a third meaning for a field that already has "an index" and "a belt card id".
  */
-public record UseGrantedToolC2S(Identifier tool, int gridX, int gridY) implements PvzcePacket {
+public record UseGrantedToolC2S(Identifier tool, int gridX, int gridY, String surfaceId) implements PvzcePacket {
+    public UseGrantedToolC2S(Identifier tool, int gridX, int gridY) {
+        this(tool, gridX, gridY, SceneBoard.DEFAULT_SURFACE);
+    }
+
     @Override
     public ConnectionDirection direction() {
         return ConnectionDirection.SERVERBOUND;
@@ -28,7 +33,8 @@ public record UseGrantedToolC2S(Identifier tool, int gridX, int gridY) implement
     .field(UseGrantedToolC2S::tool, PacketByteBuf::writeIdentifier, PacketByteBuf::readIdentifierOrNull)
     .field(UseGrantedToolC2S::gridX, PacketByteBuf::writeInt, PacketByteBuf::readInt)
     .field(UseGrantedToolC2S::gridY, PacketByteBuf::writeInt, PacketByteBuf::readInt)
-            .build(values -> new UseGrantedToolC2S((Identifier) values.get(0), (Integer) values.get(1), (Integer) values.get(2)));
+            .field(UseGrantedToolC2S::surfaceId, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new UseGrantedToolC2S((Identifier) values.get(0), (Integer) values.get(1), (Integer) values.get(2), (String) values.get(3)));
 
     @Override
     public void encode(PacketByteBuf buf) {

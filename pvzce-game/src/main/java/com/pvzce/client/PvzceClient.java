@@ -63,7 +63,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.glfw.GLFW;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1633,7 +1632,7 @@ public final class PvzceClient {
             this.cachedRows = rows;
             this.cachedGeometry = geometry;
         }
-        return cached;
+        return cached.scene(level.sceneBoard(), level.activeSurface());
     }
 
     private PvzceCamera cachedCamera;

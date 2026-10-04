@@ -849,8 +849,8 @@ class CombatSystemsTest {
         tick(level, bridge, 1_200);
         var debris = particle(bridge, "zombie_traffic_cone");
         assertNotNull(debris, "the cone itself is the debris when it breaks");
-        assertTrue(debris.y() > rowCentre + 0.3F,
-                "and it comes off the head, not the boots: y=" + debris.y() + " row " + rowCentre);
+        assertTrue(debris.position().projectedY() > rowCentre + 0.3F,
+                "and it comes off the head, not the boots: y=" + debris.position().projectedY() + " row " + rowCentre);
     }
 
     /**

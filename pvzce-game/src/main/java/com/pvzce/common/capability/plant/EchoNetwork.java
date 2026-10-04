@@ -5,7 +5,6 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.network.packet.EchoNetworkS2C;
 import com.pvzce.server.entity.PlantEntity;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,7 +33,7 @@ public final class EchoNetwork {
         visited.add(root.gridY() * level.width() + root.gridX());
         for (int i = 0; i < queue.size(); i++) {
             Cell cell = queue.get(i);
-            for (PlantEntity plant : level.plantsAt(cell.x(), cell.y())) {
+            for (PlantEntity plant : level.plantsAt(cell.x(), cell.y(), root.surfaceId())) {
                 if (node(plant, level) && plant.team().id().equals(root.team().id())) {
                     result.put(plant, cell.distance());
                 }
@@ -46,7 +45,7 @@ public final class EchoNetwork {
                         || visited.contains(y * level.width() + x)) {
                     continue;
                 }
-                if (level.plantsAt(x, y).stream().anyMatch(p -> node(p, level)
+                if (level.plantsAt(x, y, root.surfaceId()).stream().anyMatch(p -> node(p, level)
                         && p.team().id().equals(root.team().id()))) {
                     visited.add(y * level.width() + x);
                     queue.add(new Cell(x, y, cell.distance() + 1));
@@ -69,7 +68,7 @@ public final class EchoNetwork {
             if (plant.isRemoved() || plant.health() <= 0 || !plant.occupiesCell() || plant.isAsleep(level)) {
                 return EchoNetworkS2C.empty(plant.id());
             }
-            root = level.plantsAt(plant.gridX(), plant.gridY()).stream()
+            root = level.plantsAt(plant.gridX(), plant.gridY(), plant.surfaceId()).stream()
                     .filter(p -> node(p, level) && p.capability(EchoConduitCapability.class) != null
                             && PlantPlacement.layerIndex(p.def()) < PlantPlacement.layerIndex(plant.def()) && p.team().id().equals(plant.team().id()))
                     .findFirst().orElse(null);

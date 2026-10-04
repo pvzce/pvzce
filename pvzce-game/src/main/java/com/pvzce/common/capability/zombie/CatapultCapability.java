@@ -21,12 +21,12 @@ public final class CatapultCapability implements ZombieCapability {
         if (zombie.isImmobilized()) return true;
         if (zombie.cellX() > PvzceConstants.CATAPULT_STOP_X || ammo == 0) {
             zombie.setAnimation("walk");
-            for (PlantEntity plant : level.plantsAt(zombie.gridX(), zombie.gridY())) plant.damageFrom(plant.health());
+            for (PlantEntity plant : level.plantsAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId())) plant.damageFrom(plant.health());
             return false;
         }
         PlantEntity target = null;
         for (int x = 0; x < Math.min(level.width(), zombie.gridX()); x++) {
-            PlantEntity candidate = level.plantAt(x, zombie.gridY());
+            PlantEntity candidate = level.plantAt(x, zombie.gridY(), zombie.surfaceId());
             if (candidate != null && !candidate.isRemoved()) { target = candidate; break; }
         }
         if (target == null) return false;

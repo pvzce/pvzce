@@ -13,7 +13,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.util.MathUtil;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.Optional;
 
 /**
@@ -326,7 +325,7 @@ public final class VaultCapability implements ZombieCapability {
         if (bounce) {
             return bounce(zombie, level);
         }
-        PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY());
+        PlantEntity plant = level.plantAt(zombie.gridX(), zombie.gridY(), zombie.surfaceId());
         if (plant == null) {
             return false;
         }
@@ -398,7 +397,7 @@ public final class VaultCapability implements ZombieCapability {
     private PlantEntity plantToClear(ZombieEntity zombie, LevelAccess level) {
         PlantEntity best = null;
         for (int column = 0; column < level.width(); column++) {
-            PlantEntity plant = level.plantAt(column, zombie.gridY());
+            PlantEntity plant = level.plantAt(column, zombie.gridY(), zombie.surfaceId());
             if (plant == null || plant.isRemoved()) {
                 continue;
             }
@@ -442,7 +441,7 @@ public final class VaultCapability implements ZombieCapability {
         // The original's "bonk". This project's own bonk event is the Whack-a-Zombie mallet's
         // (see PvzceSounds.EFFECT_BONK), so the stick breaking plays the pogo's own sound: the
         // stick is what broke, and that is the sound it makes.
-        level.emitEffect("", zombie.cellX(), zombie.cellY(), soundOr(zombie));
+        level.emitEffect("", zombie.position(), zombie.surfaceId(), soundOr(zombie));
     }
 
     private void startVault(ZombieEntity zombie, LevelAccess level, float distance) {
@@ -453,7 +452,7 @@ public final class VaultCapability implements ZombieCapability {
         // started on a lily pad comes back down onto the pad rather than into the water.
         vaultBaseHeight = zombie.height();
         zombie.setAnimation(bounce ? EntityAnimations.POGO : EntityAnimations.JUMP);
-        level.emitEffect("", zombie.cellX(), zombie.cellY(), soundOr(zombie));
+        level.emitEffect("", zombie.position(), zombie.surfaceId(), soundOr(zombie));
     }
 
     /** What this zombie's vault (or bounce) sounds like; each has its own event. */

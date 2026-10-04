@@ -12,7 +12,6 @@ import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.ZombieEntity;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -275,15 +274,14 @@ public final class SummonDancersCapability implements ZombieCapability {
             if (occupied(level, zombie, row, x)) {
                 continue;
             }
-            if (level.spawnZombie(dancer, zombie.team(), x, row) != null) {
+            if (level.spawnZombie(dancer, zombie.team(), x, row, 1F, zombie.surfaceId()) != null) {
                 summonedAny = true;
             }
         }
         if (summonedAny) {
             // The crew arrives to the original's own sting; without it the formation simply
             // appears, which is the one thing about this zombie the player is meant to notice.
-            level.emitEffect("", zombie.cellX(), zombie.cellY(),
-                    sound.orElseGet(() -> zombie.def().sounds().special()
+            level.emitEffect("", zombie.position(), zombie.surfaceId(), sound.orElseGet(() -> zombie.def().sounds().special()
                             .orElse(PvzceSounds.ZOMBIE_DANCER)));
         }
     }

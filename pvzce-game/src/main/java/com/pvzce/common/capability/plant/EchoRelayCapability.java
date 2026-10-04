@@ -12,7 +12,6 @@ import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.Tag;
 import com.pvzce.server.entity.PlantEntity;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -127,7 +126,7 @@ public final class EchoRelayCapability implements PlantCapability {
     }
 
     private static boolean hasTarget(Map<PlantEntity, Integer> choir, LevelAccess level) {
-        return choir.keySet().stream().anyMatch(plant -> level.enemiesInRow(plant.gridY(), plant.team())
+        return choir.keySet().stream().anyMatch(plant -> level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId())
                 .stream().anyMatch(z -> !z.isRemoved() && z.isAlive() && z.canBeHitByGround()
                         && z.cellX() >= plant.cellX()));
     }
@@ -210,8 +209,7 @@ public final class EchoRelayCapability implements PlantCapability {
         plant.setState(animation);
         level.spawnProjectile(new ProjectileRef(PvzceIds.ECHO_WAVE, amount, 1),
                 plant.cellX() + PlantShots.MUZZLE_OFFSET_X, plant.cellY(), plant);
-        level.emitEffect(PvzceIds.ECHO_RING.toString(), plant.cellX(), plant.cellY(),
-                PvzceIds.ECHO_CHIME, 0.25F, "resonate".equals(animation) ? 1.2F : 1F);
+        level.emitEffect(PvzceIds.ECHO_RING.toString(), plant.position(), plant.surfaceId(), PvzceIds.ECHO_CHIME, 0.25F, "resonate".equals(animation) ? 1.2F : 1F);
     }
 
     @Override

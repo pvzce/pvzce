@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
@@ -26,7 +27,13 @@ import com.pvzce.common.network.PvzcePacket;
  */
 public record EntityUpdateS2C(int entityId, float cellX, float cellY, int health, String animation,
                               float height, int armor, boolean chilled, boolean charmed,
-                              boolean frozen, boolean buttered, int animationSequence, String teamId) implements PvzcePacket {
+                              boolean frozen, boolean buttered, int animationSequence, String teamId, String surfaceId) implements PvzcePacket {
+    public EntityUpdateS2C(int entityId, float cellX, float cellY, int health, String animation,
+                              float height, int armor, boolean chilled, boolean charmed,
+                              boolean frozen, boolean buttered, int animationSequence, String teamId) {
+        this(entityId, cellX, cellY, health, animation, height, armor, chilled, charmed, frozen, buttered, animationSequence, teamId, SceneBoard.DEFAULT_SURFACE);
+    }
+
     /** {@code teamId} unwritten: this entity has not changed sides since the spawn packet. */
     public static final String NO_TEAM = "";
 
@@ -80,7 +87,8 @@ public record EntityUpdateS2C(int entityId, float cellX, float cellY, int health
     .field(EntityUpdateS2C::buttered, PacketByteBuf::writeBoolean, PacketByteBuf::readBoolean)
     .field(EntityUpdateS2C::animationSequence, PacketByteBuf::writeInt, PacketByteBuf::readInt)
     .field(EntityUpdateS2C::teamId, PacketByteBuf::writeString, PacketByteBuf::readString)
-            .build(values -> new EntityUpdateS2C((Integer) values.get(0), (Float) values.get(1), (Float) values.get(2), (Integer) values.get(3), (String) values.get(4), (Float) values.get(5), (Integer) values.get(6), (Boolean) values.get(7), (Boolean) values.get(8), (Boolean) values.get(9), (Boolean) values.get(10), (Integer) values.get(11), (String) values.get(12)));
+            .field(EntityUpdateS2C::surfaceId, PacketByteBuf::writeString, PacketByteBuf::readString)
+            .build(values -> new EntityUpdateS2C((Integer) values.get(0), (Float) values.get(1), (Float) values.get(2), (Integer) values.get(3), (String) values.get(4), (Float) values.get(5), (Integer) values.get(6), (Boolean) values.get(7), (Boolean) values.get(8), (Boolean) values.get(9), (Boolean) values.get(10), (Integer) values.get(11), (String) values.get(12), (String) values.get(13)));
 
     @Override
     public void encode(PacketByteBuf buf) {

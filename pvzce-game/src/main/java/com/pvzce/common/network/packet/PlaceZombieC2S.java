@@ -1,5 +1,6 @@
 package com.pvzce.common.network.packet;
 
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PvzcePacket;
@@ -13,7 +14,11 @@ import com.pvzce.common.network.PvzcePacket;
  * two into one packet would have made "which registry does this id go in" a field of the message,
  * which is a decision the client would then be making.
  */
-public record PlaceZombieC2S(int slotIndex, int gridX, int gridY) implements PvzcePacket {
+public record PlaceZombieC2S(int slotIndex, int gridX, int gridY, String surfaceId) implements PvzcePacket {
+    public PlaceZombieC2S(int slotIndex, int gridX, int gridY) {
+        this(slotIndex, gridX, gridY, SceneBoard.DEFAULT_SURFACE);
+    }
+
     @Override
     public ConnectionDirection direction() {
         return ConnectionDirection.SERVERBOUND;
@@ -24,9 +29,10 @@ public record PlaceZombieC2S(int slotIndex, int gridX, int gridY) implements Pvz
         buf.writeInt(slotIndex);
         buf.writeInt(gridX);
         buf.writeInt(gridY);
+        buf.writeString(surfaceId);
     }
 
     public static PlaceZombieC2S decode(PacketByteBuf buf) {
-        return new PlaceZombieC2S(buf.readInt(), buf.readInt(), buf.readInt());
+        return new PlaceZombieC2S(buf.readInt(), buf.readInt(), buf.readInt(), buf.readString());
     }
 }

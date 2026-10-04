@@ -10,7 +10,6 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -119,8 +118,7 @@ public final class GoldMagnetCapability implements PlantCapability {
         if (collected) {
             pulling = true;
             plant.setState(EntityAnimations.SHOOT);
-            level.emitEffect("", plant.cellX(), plant.cellY(),
-                    sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
+            level.emitEffect("", plant.position(), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().shoot().orElse(null)));
             cooldown = intervalTicks;
         }
     }

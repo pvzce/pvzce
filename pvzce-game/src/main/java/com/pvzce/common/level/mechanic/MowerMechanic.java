@@ -1,5 +1,6 @@
 package com.pvzce.common.level.mechanic;
 
+import com.pvzce.common.level.SceneBoard;
 import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.MowerData;
@@ -16,7 +17,6 @@ import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.Tag;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -306,7 +306,8 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
                 // still coming, and `mow` would otherwise shred a body that is already
                 // playing its death animation.
                 if (entity instanceof ZombieEntity zombie && zombie.isAlive()
-                        && zombie.gridY() == row && zombie.layer() == EntityLayers.GROUND) {
+                        && zombie.gridY() == row && zombie.layer() == EntityLayers.GROUND
+                        && zombie.surfaceId().equals(SceneBoard.DEFAULT_SURFACE)) {
                     found.add(zombie);
                 }
             }
