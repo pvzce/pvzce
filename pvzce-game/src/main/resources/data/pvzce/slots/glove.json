@@ -4,7 +4,7 @@
   "content": "pvzce:glove",
   "cost": {
     "resources": {},
-    "cooldown": 180
+    "cooldown": 0
   },
   "icon": "pvzce:textures/entities/tool/glove"
 }
