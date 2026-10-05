@@ -14,6 +14,9 @@
     "pvzce:pot_leaf",
     "pvzce:water_grave",
     "pvzce:hillside_bank_low",
-    "pvzce:hillside_bank_high"
+    "pvzce:hillside_bank_high",
+    "pvzce:reef_slope_up",
+    "pvzce:reef_slope_down",
+    "pvzce:reef_ridge"
   ]
 }

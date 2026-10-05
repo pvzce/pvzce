@@ -1,0 +1,489 @@
+{
+  "id": "pvzce:yard/minigame/reef_passage",
+  "name": "礁石海道",
+  "description": "整片海：左端两列是码头（唯一的陆地），海里横着一道礁石——下坡、两列礁顶、上坡，再往外还有一道更高的礁石脊，最右端是出怪的开阔海面。所有僵尸都会游泳（浮圈三种、潜水、海豚骑士），它们从最右端游来，翻过礁石脊与礁石冲向码头。地形高度就是防线：礁石正面会吃掉低处的平射，礁顶上的僵尸又在低处水生植物的命中带之上，只有种在礁顶的植物或抛射能够得着；潜水僵尸在水里时平射完全打不到，得靠爆炸、窝瓜，或者等它咬到植物站起来。水行的小推车是泳池清洁机。卡组与增益都自选，不设槽位上限。",
+  "width": 11,
+  "height": 6,
+  "scene": {
+    "pvzce:grass": [
+      "0,0",
+      "0,1",
+      "0,2",
+      "0,3",
+      "0,4",
+      "0,5",
+      "1,0",
+      "1,1",
+      "1,2",
+      "1,3",
+      "1,4",
+      "1,5"
+    ],
+    "pvzce:water": [
+      "2,0",
+      "2,1",
+      "2,2",
+      "2,3",
+      "2,4",
+      "2,5",
+      "7,0",
+      "7,1",
+      "7,2",
+      "7,3",
+      "7,4",
+      "7,5",
+      "8,0",
+      "8,1",
+      "8,2",
+      "8,3",
+      "8,4",
+      "8,5",
+      "10,0",
+      "10,1",
+      "10,2",
+      "10,3",
+      "10,4",
+      "10,5"
+    ],
+    "pvzce:reef_slope_down": [
+      "3,0",
+      "3,1",
+      "3,2",
+      "3,3",
+      "3,4",
+      "3,5"
+    ],
+    "pvzce:reef_top": [
+      "4,0",
+      "4,1",
+      "4,2",
+      "4,3",
+      "4,4",
+      "4,5",
+      "5,0",
+      "5,1",
+      "5,2",
+      "5,3",
+      "5,4",
+      "5,5"
+    ],
+    "pvzce:reef_slope_up": [
+      "6,0",
+      "6,1",
+      "6,2",
+      "6,3",
+      "6,4",
+      "6,5"
+    ],
+    "pvzce:reef_ridge": [
+      "9,0",
+      "9,1",
+      "9,2",
+      "9,3",
+      "9,4",
+      "9,5"
+    ]
+  },
+  "teams": [
+    {
+      "id": "pvzce:plant_team",
+      "name": "植物方",
+      "win_condition": "survive_waves"
+    },
+    {
+      "id": "pvzce:zombie_team",
+      "name": "僵尸方",
+      "win_condition": "plant_side_lost"
+    }
+  ],
+  "win_team": "pvzce:plant_team",
+  "playable_teams": [
+    "pvzce:plant_team"
+  ],
+  "rules": {
+    "pvzce:day_length": 0,
+    "pvzce:night_length": -1,
+    "pvzce:sun_spawn_interval_min": 480,
+    "pvzce:sun_spawn_interval_max": 720,
+    "pvzce:sun_spawn_initial_ticks": 300
+  },
+  "env_vars": {},
+  "wave_interval_end_multiplier": 1.0,
+  "slots": [],
+  "initial_sun": 200,
+  "buffs": [
+    "pvzce:player_choice"
+  ],
+  "music": {
+    "cues": [
+      {
+        "at_tick": 0,
+        "track": "background",
+        "event": "pvzce:music/watery_graves",
+        "loop": true,
+        "volume": 0.85,
+        "fade_seconds": 1.0
+      }
+    ]
+  },
+  "unlock_resources": {
+    "pvzce:sun": true
+  },
+  "hints": [
+    {
+      "trigger": "on_start",
+      "text": "整片海只有会游泳的僵尸，它们会翻过礁石冲码头。",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "礁石正面吃掉低处的平射；礁顶上的僵尸只有礁顶的植物或抛射够得着。",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_start",
+      "text": "潜水僵尸在水里平射打不到：用爆炸、窝瓜，或等它咬到植物站起来。",
+      "duration_ticks": 600
+    },
+    {
+      "trigger": "on_card_refused"
+    }
+  ],
+  "mechanics": [
+    {
+      "type": "pvzce:mower",
+      "rows": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "kinds": [
+        {
+          "row": 0,
+          "kind": "pvzce:pool_cleaner",
+          "sound": "pvzce:sfx/ambient/pool_cleaner"
+        },
+        {
+          "row": 1,
+          "kind": "pvzce:pool_cleaner",
+          "sound": "pvzce:sfx/ambient/pool_cleaner"
+        },
+        {
+          "row": 2,
+          "kind": "pvzce:pool_cleaner",
+          "sound": "pvzce:sfx/ambient/pool_cleaner"
+        },
+        {
+          "row": 3,
+          "kind": "pvzce:pool_cleaner",
+          "sound": "pvzce:sfx/ambient/pool_cleaner"
+        },
+        {
+          "row": 4,
+          "kind": "pvzce:pool_cleaner",
+          "sound": "pvzce:sfx/ambient/pool_cleaner"
+        },
+        {
+          "row": 5,
+          "kind": "pvzce:pool_cleaner",
+          "sound": "pvzce:sfx/ambient/pool_cleaner"
+        }
+      ]
+    }
+  ],
+  "unlock": {
+    "requires": [
+      {
+        "type": "level",
+        "id": "pvzce:yard/adventure/3_10"
+      }
+    ]
+  },
+  "waves": [
+    {
+      "type": "small",
+      "delay": 1800,
+      "spawn_interval": 240,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            2,
+            3,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2100,
+      "spawn_interval": 200,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2100,
+      "spawn_interval": 180,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_buckethead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "huge",
+      "delay": 2400,
+      "spawn_interval": 120,
+      "warning_ticks": 480,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 5,
+          "rows": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 4,
+          "rows": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_buckethead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 180,
+      "entries": [
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 3,
+          "rows": [
+            1,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 150,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_buckethead_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "type": "small",
+      "delay": 2400,
+      "spawn_interval": 140,
+      "entries": [
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 3,
+          "rows": [
+            1,
+            2,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_buckethead_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            3,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "type": "final",
+      "delay": 2400,
+      "spawn_interval": 120,
+      "warning_ticks": 480,
+      "entries": [
+        {
+          "id": "pvzce:snorkel_zombie",
+          "count": 3,
+          "rows": [
+            0,
+            2,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_buckethead_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 5,
+          "rows": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        }
+      ]
+    }
+  ],
+  "rewards": {
+    "first_clear": [
+      {
+        "type": "coins",
+        "amount": 600
+      }
+    ],
+    "repeat": [
+      {
+        "type": "coins",
+        "amount": 400
+      }
+    ],
+    "coin_drop": "pvzce:coin_silver",
+    "coin_drop_chance": 0.25,
+    "coin_drop_amount": 1
+  }
+}

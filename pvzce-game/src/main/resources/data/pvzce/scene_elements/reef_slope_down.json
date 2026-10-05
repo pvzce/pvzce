@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:reef_slope_down",
+  "surface": "GROUND",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/ground",
+    "tiled": true
+  },
+  "profile": {
+    "elevation": 1.6,
+    "slope_x": -0.4,
+    "min": 0.0,
+    "max": 0.4
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:reef_ridge",
+  "surface": "GROUND",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/ground",
+    "tiled": true
+  },
+  "profile": {
+    "elevation": 8.5,
+    "slope_x": -0.85,
+    "min": 0.0,
+    "max": 0.85
+  }
+}
