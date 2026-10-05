@@ -53,6 +53,9 @@ import java.util.Optional;
 public final class BuiltInRegistries {
     public static final RegistryAccess ACCESS = new RegistryAccess();
 
+    public static final Registry<com.pvzce.api.entity.attribute.EntityAttribute> ATTRIBUTES =
+            ACCESS.newRegistry(PvzceRegistries.ATTRIBUTES);
+
     public static final Registry<PlantDef> PLANTS = ACCESS.newRegistry(PvzceRegistries.PLANTS);
     public static final Registry<ZombieDef> ZOMBIES = ACCESS.newRegistry(PvzceRegistries.ZOMBIES);
     public static final Registry<ProjectileDef> PROJECTILES = ACCESS.newRegistry(PvzceRegistries.PROJECTILES);
@@ -132,6 +135,8 @@ public final class BuiltInRegistries {
             return;
         }
         bootstrapped = true;
+
+        com.pvzce.common.entity.EntityAttributes.bootstrap();
 
         PlantCapabilities.bootstrap();
         ZombieCapabilities.bootstrap();

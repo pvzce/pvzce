@@ -68,22 +68,6 @@ class OriginalAdventureLevelsTest {
             44, "fertilizer",
             49, "butter_plenty");
 
-    /**
-     * 3-5's miniatures fold back onto their parents, for the same reason the pool forms do.
-     *
-     * <p>The original's tables name `ZOMBIE_NORMAL`; this project gives the level's shrunken
-     * bodies a card each (`mini_*`), so "which types may this level send" has to be asked of the
-     * parent, not of the picture.
-     */
-    private static final Map<String, String> MINI_FORMS = Map.of(
-            "mini_basic_zombie", "basic_zombie",
-            "mini_flag_zombie", "flag_zombie",
-            "mini_conehead_zombie", "conehead_zombie",
-            "mini_football_zombie", "football_zombie",
-            "mini_snorkel_zombie", "snorkel_zombie",
-            "mini_ducky_tube_zombie", "ducky_tube_zombie",
-            "mini_ducky_tube_conehead_zombie", "ducky_tube_conehead_zombie");
-
     /** The zombie that walks in the pool: this project draws it as a type of its own. */
     private static final Map<String, String> POOL_FORMS = Map.of(
             "ducky_tube_zombie", "basic_zombie",
@@ -151,11 +135,7 @@ class OriginalAdventureLevelsTest {
         for (WaveDef.Entry entry : wave.entries()) {
             String path = entry.id().path();
             String id = path.substring(path.lastIndexOf('/') + 1);
-            // Two folds, in order: a miniature of a ducky tube is first the ducky type and then
-            // the walker underneath it. (The default has to be the folded name, not the raw id -
-            // `getOrDefault` hands back whatever it was given as the default.)
-            String folded = MINI_FORMS.getOrDefault(id, id);
-            out.add(POOL_FORMS.getOrDefault(folded, folded));
+            out.add(POOL_FORMS.getOrDefault(id, id));
         }
         return out;
     }

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from write_adventure_levels import MINI_ATTRIBUTES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LEVELS = (REPO_ROOT / "pvzce-game" / "src" / "main" / "resources"
@@ -64,12 +65,8 @@ def zombie(zid: str, count: int, *, water: bool = False) -> dict:
 
 
 def little(zid: str, count: int, *, water: bool = False) -> dict:
-    """A 3-5 entry: the little version of `zid` (see the `mini_*` zombie definitions).
-
-    The original's "Big Trouble Little Zombie" scales the ordinary bodies down instead of
-    drawing new ones, so these ids borrow their parent's animation and halve its health.
-    """
-    return zombie(f"mini_{zid}", count, water=water)
+    """A normal content id with the canonical 3-5 per-entity attributes."""
+    return dict(zombie(zid, count, water=water), attributes=MINI_ATTRIBUTES)
 
 
 def wave(kind: str, delay: int, entries: list[dict], interval: int,
@@ -338,9 +335,8 @@ LEVEL_3_4 = base(
 # cards are free, and the only decision left is where they go.
 #
 # The crowd is the little zombies: the original does not draw new bodies for them, it scales
-# the ordinary ones down, quarters their health and doubles their speed - so `pvzce:mini_*` is
-# the parent's own body borrowed through `animation`, drawn at half size, and the fastest and
-# hungriest zombies in the game. Their health is HALF rather than the original's quarter, which
+# the ordinary ones down, quarters their health and doubles their speed. The same content ids
+# carry instance attributes for half-size art and faster movement and bites. Their health is HALF rather than the original's quarter, which
 # is this build's own difficulty call: at a quarter, three peas removed one of them and the
 # crowd was made of paper. Their hitboxes are NOT scaled, which is the part the player
 # feels: a little zombie still fills a whole lane. The original's own list for 3-5 is the small

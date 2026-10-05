@@ -154,40 +154,37 @@ class EquipmentArtTest {
     }
 
     @Test
-    void aLittleZombieDrawsTheBodyItBorrowed() {
-        // 3-5's crowd is the ordinary zombies drawn smaller, so the little definitions borrow the
-        // parent's whole animation file - `animation`, which is also what EntityArt#animationFile
-        // now answers with - instead of shipping a second copy of the art. Everything the parent
-        // draws therefore has to resolve through the little id: the parent's model, its arm bones,
-        // and the flag's own hand. A definition that named the file wrongly would not fail until a
-        // body-less zombie walked down the pool lane.
-        var bodies = Map.of(
-                "pvzce:mini_basic_zombie", "pvzce:basic_zombie",
-                "pvzce:mini_ducky_tube_zombie", "pvzce:ducky_tube_zombie",
-                "pvzce:mini_snorkel_zombie", "pvzce:snorkel_zombie",
-                "pvzce:mini_conehead_zombie", "pvzce:conehead_zombie",
-                "pvzce:mini_football_zombie", "pvzce:football_zombie",
-                "pvzce:mini_flag_zombie", "pvzce:flag_zombie");
-        for (var pair : bodies.entrySet()) {
-            assertEquals(com.pvzce.common.core.EntityArt.animationFile(Identifier.parse(pair.getValue())),
-                    com.pvzce.common.core.EntityArt.animationFile(Identifier.parse(pair.getKey())),
-                    pair.getKey() + " must draw the body of " + pair.getValue());
-            // `model` itself asserts that the file exists and is a controller model, which is the
-            // real claim - and the skeleton has to come with it, whole. The football zombie's rig
-            // names its arms its own way, so what the two share is the bone *count*, not the names.
-            assertEquals(model(pair.getValue()).bones().size(),
-                    model(pair.getKey()).bones().size(),
-                    pair.getKey() + " must load the whole rig of " + pair.getValue());
-            assertNotNull(model(pair.getKey()).bone("root"),
-                    pair.getKey() + " must have its parent's skeleton");
+    void aMiniatureUsesItsOwnMaximumHealthAndArmourForWear() {
+        for (String id : List.of("basic_zombie", "flag_zombie", "conehead_zombie", "football_zombie")) {
+            var entry = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/3_5"))
+                    .waves().stream().flatMap(wave -> wave.entries().stream())
+                    .filter(candidate -> candidate.id().path().equals(id)).findFirst().orElseThrow();
+            var server = new com.pvzce.server.entity.ZombieEntity(BuiltInRegistries.ZOMBIES.get(entry.id()),
+                    null, 2.5F, 1, 1F, entry.attributes());
+            server.setAnimation(EntityAnimations.WALK);
+            ClientEntity entity = ClientEntity.from(server.spawnPacket());
+            entity.apply(server.attributePacket());
+            ControllerModel model = model(entry.id().toString());
+            BoneArt art = EquipmentArt.forEntity(entity, model);
+            assertNotNull(art);
+            Set<String> visible = art.visibleBones(model, poses(entry.id().toString(), EntityAnimations.WALK));
+            assertTrue(visible.contains("root"));
+            if (id.equals("basic_zombie")) {
+                assertTrue(visible.contains("outerarm_hand"), "full miniature health keeps its arm");
+                entity.update(entity.cellX(), entity.cellY(), 40, EntityAnimations.WALK, entity.height(), entity.armor());
+                visible = art.visibleBones(model, poses(entry.id().toString(), EntityAnimations.WALK));
+                assertFalse(visible.contains("outerarm_hand"));
+            }
+            if (id.equals("conehead_zombie")) {
+                assertTrue(visible.contains("cone_1"), "half-strength armour still begins intact");
+                assertFalse(visible.contains("cone_2"));
+                entity.update(entity.cellX(), entity.cellY(), entity.health(), EntityAnimations.WALK,
+                        entity.height(), 100);
+                visible = art.visibleBones(model, poses(entry.id().toString(), EntityAnimations.WALK));
+                assertTrue(visible.contains("cone_2"));
+            }
+            if (id.equals("flag_zombie")) assertTrue(visible.contains("flaghand"));
         }
-
-        // The flag is the one piece of equipment that hangs off a bone of its own, so it is also
-        // the check that the borrowed model is the *whole* model and not just a walking body.
-        Set<String> visible = visibleBonesAt("pvzce:mini_flag_zombie", EntityAnimations.WALK, 50);
-        assertTrue(visible.contains("flaghand"), "the little flag bearer keeps its hand: " + visible);
-        assertTrue(visible.contains("zombie_flag_1") || visible.contains("zombie_flag_3"),
-                "and its flag: " + visible);
     }
 
     /** Every arm bone the flag zombie's equipment claims as its own. */
@@ -226,6 +223,8 @@ class EquipmentArtTest {
                                              int armor) {
         ClientEntity entity = new ClientEntity(1, "zombie", zombieId, 2.5F, 1.5F, health,
                 EntityLayers.GROUND, animation, 0F, "", armor);
+        entity.apply(new com.pvzce.common.network.packet.EntityAttributesS2C(1,
+                Map.of("pvzce:max_health", (double) BuiltInRegistries.ZOMBIES.get(Identifier.parse(zombieId)).health())));
         ControllerModel model = model(zombieId);
         BoneArt art = EquipmentArt.forEntity(entity, model);
         assertNotNull(art, zombieId + " must have a bone override to test");

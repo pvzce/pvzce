@@ -475,6 +475,8 @@ public final class LevelValidator {
             WaveDef wave = def.waves().get(index);
             int number = index + 1;
             for (WaveDef.Entry entry : wave.entries()) {
+                for (String error : entry.attributes().validate(BuiltInRegistries.ATTRIBUTES::get))
+                    errors.add("waves." + number + ": entry '" + entry.id() + "': " + error);
                 if (entry.count() <= 0) {
                     errors.add("waves." + number + ": entry '" + entry.id()
                             + "' asks for " + entry.count() + " zombies, so it sends none");
@@ -590,6 +592,8 @@ public final class LevelValidator {
     public static List<String> validateInitialEntities(LevelDef def) {
         List<String> errors = new ArrayList<>();
         for (var init : def.initialEntities()) {
+            for (String error : init.attributes().validate(BuiltInRegistries.ATTRIBUTES::get))
+                errors.add("Initial entity '" + init.id() + "': " + error);
             if (init.surface().isPresent() && !init.surface().get().toString().equals(SceneBoard.DEFAULT_SURFACE)) {
                 var surface = def.surfaces().stream().filter(v -> v.id().equals(init.surface().get())).findFirst().orElse(null);
                 if (surface == null || SceneCells.parse(surface.scene(), def.width(), def.height()).stream()

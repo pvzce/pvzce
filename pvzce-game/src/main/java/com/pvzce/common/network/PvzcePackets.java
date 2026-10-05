@@ -152,7 +152,8 @@ public final class PvzcePackets {
     // 58: a music cue can be a layer of a song rather than a song (MusicEventS2C.manyZombiesLayer):
     //     the night roof's drum track rides with its theme and is faded in when the lawn fills up.
     // 59: staged choices and outpost strikes; wave entries retain their authored surface.
-    public static final int PROTOCOL_VERSION = 59;
+    // 60: registered per-entity attributes publish computed values at spawn and on mutation.
+    public static final int PROTOCOL_VERSION = 60;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -228,6 +229,7 @@ public final class PvzcePackets {
     /** An endless round is over and the run is waiting for the player's next card choice. */
     public static final int S2C_ROUND_CLEAR = S2C_BASE + 29;
     public static final int S2C_PLANT_CARE = S2C_BASE + 33;
+    public static final int S2C_ENTITY_ATTRIBUTES = S2C_BASE + 34;
     public static final int S2C_ECHO_NETWORK = S2C_BASE + 31;
     public static final int S2C_MAGNET_ITEM = S2C_BASE + 32;
     /**
@@ -329,6 +331,9 @@ public final class PvzcePackets {
             def(S2C_OPEN_EDITOR, ConnectionDirection.CLIENTBOUND, OpenEditorS2C.class, OpenEditorS2C::decode),
             def(S2C_SCENE_SYNC, ConnectionDirection.CLIENTBOUND, SceneSyncS2C.class, SceneSyncS2C::decode),
             def(S2C_ENTITY_SPAWN, ConnectionDirection.CLIENTBOUND, EntitySpawnS2C.class, EntitySpawnS2C::decode),
+            def(S2C_ENTITY_ATTRIBUTES, ConnectionDirection.CLIENTBOUND,
+                    com.pvzce.common.network.packet.EntityAttributesS2C.class,
+                    com.pvzce.common.network.packet.EntityAttributesS2C::decode),
             def(S2C_PLANT_CARE, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.PlantCareS2C.class, com.pvzce.common.network.packet.PlantCareS2C::decode),
             def(S2C_ECHO_NETWORK, ConnectionDirection.CLIENTBOUND, EchoNetworkS2C.class, EchoNetworkS2C::decode),
             def(S2C_ENTITY_UPDATE, ConnectionDirection.CLIENTBOUND, EntityUpdateS2C.class, EntityUpdateS2C::decode),

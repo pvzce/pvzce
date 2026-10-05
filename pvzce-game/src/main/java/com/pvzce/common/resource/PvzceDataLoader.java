@@ -109,6 +109,8 @@ public final class PvzceDataLoader {
     private static final String CONTENT_SUFFIX = ".json";
 
     private static final List<RegistryData<?>> REGISTRIES = List.of(
+            new RegistryData<>(PvzceRegistries.ATTRIBUTES,
+                    com.pvzce.api.entity.attribute.EntityAttribute.CODEC, "attributes"),
             new RegistryData<>(PvzceRegistries.LEVELS, LevelDef.CODEC, "levels"),
             new RegistryData<>(PvzceRegistries.LEVEL_THEMES, LevelThemeDef.CODEC, "level_themes"),
             new RegistryData<>(PvzceRegistries.LEVEL_CATEGORIES, LevelCategoryDef.CODEC, "level_categories"),
@@ -239,6 +241,15 @@ public final class PvzceDataLoader {
             for (Map.Entry<String, PackResource> entry : files.entrySet()) {
                 loadOne(data, entry.getKey(), entry.getValue(), registry, sources, loaded, errors);
             }
+        }
+
+        Registry<com.pvzce.api.entity.attribute.EntityAttribute> attributes = access.get(PvzceRegistries.ATTRIBUTES);
+        java.util.function.Function<Identifier, com.pvzce.api.entity.attribute.EntityAttribute> attributeLookup =
+                attributes == null ? id -> null : attributes::get;
+        Registry<ZombieDef> zombies = access.get(PvzceRegistries.ZOMBIES);
+        if (zombies != null) for (ZombieDef zombie : zombies) {
+            for (String error : zombie.attributes().validate(attributeLookup))
+                errors.add(zombie.id() + ": " + error);
         }
 
         for (RegistryData<?> data : REGISTRIES) {

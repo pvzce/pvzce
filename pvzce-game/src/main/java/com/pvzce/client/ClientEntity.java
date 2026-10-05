@@ -96,10 +96,22 @@ public final class ClientEntity extends Entity implements com.pvzce.client.api.M
      * Draw-size multiplier on top of the definition's own {@code render_scale}.
      *
      * <p>{@link EntitySpawnS2C#DEFAULT_SCALE} for everything whose size is content; a
-     * small sun-shroom's sun is the one shipped drop that is the same resource at a
-     * smaller size (see {@code EntitySpawnS2C#scale}).
+     * miniature zombie or small sun has its own size (see {@code EntitySpawnS2C#scale}).
      */
-    private final float renderScale;
+    private float renderScale;
+    private java.util.Map<String, Double> attributes = java.util.Map.of();
+
+    /** Read-only computed values received from the server; no local modifier evaluation. */
+    public java.util.Map<String, Double> attributes() { return attributes; }
+    public double attributeValue(Identifier id, double fallback) {
+        return attributes.getOrDefault(id.toString(), fallback);
+    }
+
+    public void apply(com.pvzce.common.network.packet.EntityAttributesS2C packet) {
+        attributes = packet.values();
+        setMaxHealth((int) Math.round(attributeValue(com.pvzce.common.entity.EntityAttributes.MAX_HEALTH, maxHealth())));
+        renderScale = (float) attributeValue(com.pvzce.common.entity.EntityAttributes.RENDER_SCALE, renderScale);
+    }
     private final AnimationComponent animationComponent = new AnimationComponent(this);
 
     public ClientEntity(int id, String kind, String defId, float cellX, float cellY, int health,

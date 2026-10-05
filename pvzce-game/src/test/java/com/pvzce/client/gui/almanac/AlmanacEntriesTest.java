@@ -107,11 +107,11 @@ class AlmanacEntriesTest {
         assertTrue(paths.indexOf("gargantuar") < paths.indexOf("imp"));
         assertTrue(paths.indexOf("imp") < paths.indexOf("zombie_boss"));
         // The original's own list comes first, in its order, and the boss is the last of it;
-        // everything after him is this project's (the other two Ducky Tubes, the mini zombies).
+        // everything after him is this project's (the other two Ducky Tubes and ZomBotany).
         // Read from the list rather than from a fixed index, because "how many zombies the
         // original lists and we have" grows every time one is added - and a hardcoded 17 turned
         // adding the Zomboni into a failure of a test that is about ordering.
-        assertTrue(paths.indexOf("zombie_boss") < paths.indexOf("mini_basic_zombie"),
+        assertTrue(paths.indexOf("zombie_boss") < paths.indexOf("zombotany_pea_zombie"),
                 "the boss ends the original's list and ours follow; got " + paths);
         for (String path : paths) {
             assertTrue(AlmanacEntries.zombieOrderOf(Identifier.withDefaultNamespace(path)) >= 0,
@@ -133,11 +133,11 @@ class AlmanacEntriesTest {
         int boss = paths.indexOf("zombie_boss");
         assertTrue(boss >= 0, "the boss has to be in the table");
         List<String> ours = paths.stream()
-                .filter(p -> p.startsWith("mini_") || p.startsWith("zombotany_"))
+                .filter(p -> p.startsWith("zombotany_"))
                 .toList();
-        assertEquals(11, ours.size(),
-                "seven mini zombies of 3-5 (the pool's little conehead included) and the"
-                        + " ZomBotany four");
+        assertEquals(4, ours.size(), "the ZomBotany four");
+        assertFalse(paths.stream().anyMatch(p -> p.startsWith("mini_")),
+                "different instance attributes do not create almanac entries");
         for (String path : ours) {
             assertTrue(paths.indexOf(path) > boss,
                     path + " is this project's own and has to read after the original's list");

@@ -43,7 +43,8 @@ import java.util.regex.Pattern;
  * (the newspaper zombie's gasp, which drops the paper to shout) stays hidden - the override
  * only chooses <em>among</em> the drawings a frame was going to draw.
  *
- * <p>The armour denominator is the definition's whole armour, not the piece's: the wire
+ * <p>The armour denominator is the definition's whole armour scaled per piece by the instance
+ * durability attribute, rather than an individual piece: the wire
  * carries one number, which is the piece's for every zombie that exists (one piece each).
  * A two-piece zombie would wear both drawings at the average rate; none does today.
  */
@@ -186,7 +187,7 @@ public final class EquipmentArt implements BoneArt {
      * {@code ZombieEntity.damageBody}), and both read it from state the client already has.
      */
     private boolean lostArm() {
-        return entity.health() * 2 <= Math.max(1, def.health()) && entity.armor() <= 0;
+        return entity.health() * 2L <= entity.maxHealth() && entity.armor() <= 0;
     }
 
     /** One equipment entry and the bones that draw it, by damage state. */
@@ -227,10 +228,12 @@ public final class EquipmentArt implements BoneArt {
                 if (entity.armor() <= 0) {
                     return null;
                 }
-                float ratio = entity.armor() / (float) Math.max(1, armourTotal(def));
+                double multiplier = entity.attributeValue(
+                        com.pvzce.common.entity.EntityAttributes.ARMOR_DURABILITY_MULTIPLIER, 1D);
+                float ratio = entity.armor() / (float) Math.max(1, armourTotal(def, multiplier));
                 return bones.get(stateIndexFor(ratio));
             }
-            float ratio = entity.health() / (float) Math.max(1, def.health());
+            float ratio = entity.health() / (float) entity.maxHealth();
             if (ratio <= 0F) {
                 return null;
             }
@@ -254,12 +257,13 @@ public final class EquipmentArt implements BoneArt {
             return Math.max(0, index);
         }
 
-        private static int armourTotal(ZombieDef def) {
+        private static int armourTotal(ZombieDef def, double multiplier) {
             return def.capability(com.pvzce.common.capability.zombie.ArmorCapability.class)
                     .map(armour -> {
                         int total = 0;
                         for (com.pvzce.api.content.ArmorDef piece : armour.armor()) {
-                            total += Math.max(0, piece.durability());
+                            total += (int) Math.min(Integer.MAX_VALUE,
+                                    Math.max(0L, Math.round(piece.durability() * multiplier)));
                         }
                         return total;
                     })

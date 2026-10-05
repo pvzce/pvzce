@@ -56,8 +56,18 @@ public record ZombieDef(
          * {@link #effectiveBudgetCost()}. The field exists for the content a formula cannot know
          * about: a zombie whose threat is an ability rather than its health bar.
          */
-        int budgetCost
+        int budgetCost,
+        com.pvzce.api.entity.attribute.AttributeOverrides attributes
 ) {
+    /** Source compatibility for definitions created before per-entity attributes. */
+    public ZombieDef(Identifier id, int health, float moveSpeed, int biteDamage, int biteIntervalTicks,
+                     boolean canSwim, List<TypedCapability<ZombieCapability>> capabilities,
+                     Optional<Identifier> behavior, ZombieSounds sounds, AnimationBindings animations,
+                     Optional<Identifier> texture, float renderScale, Presentation presentation, int budgetCost) {
+        this(id, health, moveSpeed, biteDamage, biteIntervalTicks, canSwim, capabilities, behavior,
+                sounds, animations, texture, renderScale, presentation, budgetCost,
+                com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+    }
     public static final int DEFAULT_HEALTH = 200;
 
     /** A definition that does not care about presentation size: {@code render_scale} 1. */
@@ -124,7 +134,9 @@ public record ZombieDef(
             Identifier.CODEC.optionalFieldOf("texture").forGetter(ZombieDef::texture),
             ContentDefs.RENDER_SCALE_CODEC.forGetter(ZombieDef::renderScale),
             Presentation.MAP_CODEC.forGetter(ZombieDef::presentation),
-            Codec.INT.optionalFieldOf("budget_cost", 0).forGetter(ZombieDef::budgetCost)
+            Codec.INT.optionalFieldOf("budget_cost", 0).forGetter(ZombieDef::budgetCost),
+            com.pvzce.api.entity.attribute.AttributeOverrides.CODEC.optionalFieldOf("attributes",
+                    com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY).forGetter(ZombieDef::attributes)
     ).apply(i, ZombieDef::new));
 
     public static final Codec<ZombieDef> CODEC = MAP_CODEC.codec();
@@ -164,6 +176,7 @@ public record ZombieDef(
     public ZombieDef {
         capabilities = List.copyOf(capabilities);
         presentation = presentation == null ? Presentation.DEFAULT : presentation;
+        attributes = attributes == null ? com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY : attributes;
     }
 
     /**

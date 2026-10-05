@@ -2786,7 +2786,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private void drawHomingSpike(ClientEntity entity, Identifier texture) {
         var image = client.textures().getOrLoad(texture);
         float angle = entity.flightAngle() - (float) Math.PI / 3F;
-        float size = 0.14F * com.pvzce.common.core.EntityArt.renderScale(entity.defId());
+        float size = 0.14F * com.pvzce.common.core.EntityArt.renderScale(entity.defId()) * entity.renderScale();
         float cos = (float) Math.cos(angle) * size;
         float sin = (float) Math.sin(angle) * size;
         float x = entity.visualCellX(), y = entity.visualCellY() + entity.visualHeight();

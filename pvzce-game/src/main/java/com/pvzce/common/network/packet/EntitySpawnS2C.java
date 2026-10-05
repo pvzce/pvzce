@@ -16,12 +16,12 @@ import com.pvzce.common.network.PvzcePacket;
  * both sides derive them from the cell position and the level's own size through
  * the shared entity base, so sending them would be a second, divergent source.
  *
- * <p><b>{@code maxHealth} is the health this entity spawned with, not the content
+ * <p><b>{@code maxHealth} is this entity's current maximum, not the content
  * definition's number.</b> The definition is not the ceiling: a wave may grow it
  * ({@code healthScale}) and the world's difficulty tier multiplies it, so a client
  * that drew a health bar against the definition would show a hell-tier buckethead as
- * permanently full. It travels once, here, because it cannot change while the entity
- * lives - and it is what makes "show me the health bars" honest (F10).
+ * permanently full. This initial value and {@code scale} are projections of its attributes;
+ * later changes travel in {@link EntityAttributesS2C}.
  */
 public record EntitySpawnS2C(int entityId, String entityKind, String defId, String teamId,
                              float cellX, float cellY, int layer, int health, int maxHealth,
@@ -49,9 +49,9 @@ public record EntitySpawnS2C(int entityId, String entityKind, String defId, Stri
      *
      * <p>{@code render_scale} keeps living in the content definition and keeps <em>not</em>
      * travelling, because both sides load the same data pack. This field is the
-     * per-<em>entity</em> multiplier on top of it, and it exists for the drops that are one
-     * resource at two sizes: a small sun-shroom's sun is worth 15 and is drawn smaller than
-     * the 25 the sky drops. Nothing the server simulates changes with it.
+     * per-<em>entity</em> render-scale attribute on top of it. A miniature zombie and a
+     * small sun-shroom's sun use the same mechanism. Nothing the server simulates changes
+     * with this presentation attribute.
      */
     public static final float DEFAULT_SCALE = 1F;
 

@@ -177,6 +177,13 @@ public final class WaveDirector {
             return spawnZombie(id, x, row, healthScale);
         }
 
+        default ZombieEntity spawnZombie(Identifier id, float x, int row, float healthScale, String surface,
+                                         com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
+            ZombieEntity zombie = spawnZombie(id, x, row, healthScale, surface);
+            if (zombie != null) zombie.applySpawnAttributes(attributes);
+            return zombie;
+        }
+
         /** A scripted wave may deliver a walker by air instead of the road. */
         default ZombieEntity spawnWaveZombie(Identifier zombieId, float x, int row, float healthScale) {
             return spawnZombie(zombieId, x, row, healthScale);
@@ -185,6 +192,13 @@ public final class WaveDirector {
         default ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale,
                                              String surface) {
             return spawnWaveZombie(id, x, row, healthScale);
+        }
+
+        default ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale, String surface,
+                                             com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
+            ZombieEntity zombie = spawnWaveZombie(id, x, row, healthScale, surface);
+            if (zombie != null) zombie.applySpawnAttributes(attributes);
+            return zombie;
         }
 
         /**
@@ -980,9 +994,11 @@ public final class WaveDirector {
         // not apply to it: the planner answers with zombie ids and nothing else.
         List<QueuedZombie> zombies = pace.mode() == WavePacingData.WaveMode.BUDGET
                 ? BudgetPlanner.plan(pace, wave.entries(), host.random()).stream()
-                        .map(id -> new QueuedZombie(id, List.of(), 1F, wave.entries().stream()
-                                .filter(entry -> entry.id().equals(id)).findFirst().map(WaveDef.Entry::surface)
-                                .orElse(SceneBoard.DEFAULT_SURFACE)))
+                        .map(id -> {
+                            WaveDef.Entry entry = wave.entries().stream().filter(candidate -> candidate.id().equals(id))
+                                    .findFirst().orElse(new WaveDef.Entry(id, 1));
+                            return new QueuedZombie(id, List.of(), entry.healthScale(), entry.surface(), entry.attributes());
+                        })
                         .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                 : expandEntries(wave.entries());
         Collections.shuffle(zombies, host.random());
@@ -1218,7 +1234,7 @@ public final class WaveDirector {
         for (WaveDef.Entry entry : entries) {
             int count = Math.max(0, entry.count());
             for (int i = 0; i < count; i++) {
-                zombies.add(new QueuedZombie(entry.id(), entry.rows(), entry.healthScale(), entry.surface()));
+                zombies.add(new QueuedZombie(entry.id(), entry.rows(), entry.healthScale(), entry.surface(), entry.attributes()));
             }
         }
         return zombies;
@@ -1247,7 +1263,8 @@ public final class WaveDirector {
      * from a level rule: it belongs to the wave a zombie arrived in, and a level-wide multiplier
      * would be a rule the level rewrites under a running mutation's feet.
      */
-    private record QueuedZombie(Identifier id, List<Integer> rows, float healthScale, String surface) {
+    private record QueuedZombie(Identifier id, List<Integer> rows, float healthScale, String surface,
+                                com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
     }
 
     /**
@@ -1271,14 +1288,14 @@ public final class WaveDirector {
             ZombieEntity first = null;
             for (int position = 0; position <= sled.riders(); position++) {
                 ZombieEntity walker = host.spawnZombie(sled.fallback(),
-                        host.width() + 0.6F + position * sled.spacing(), row, queued.healthScale(), queued.surface());
+                        host.width() + 0.6F + position * sled.spacing(), row, queued.healthScale(), queued.surface(), queued.attributes());
                 if (first == null) {
                     first = walker;
                 }
             }
             return first;
         }
-        return host.spawnWaveZombie(queued.id(), host.width() + 0.6F, row, queued.healthScale(), queued.surface());
+        return host.spawnWaveZombie(queued.id(), host.width() + 0.6F, row, queued.healthScale(), queued.surface(), queued.attributes());
     }
 
     /** This zombie's bobsled capability, or {@code null} when it is not a sled. */
@@ -1606,6 +1623,7 @@ public final class WaveDirector {
             ListTag zombieRows = new ListTag();
             ListTag zombieScales = new ListTag();
             ListTag zombieSurfaces = new ListTag();
+            ListTag zombieAttributes = new ListTag();
             for (QueuedZombie queued : queue.zombies) {
                 zombies.add(new StringTag(queued.id().toString()));
                 ListTag lanes = new ListTag();
@@ -1615,6 +1633,7 @@ public final class WaveDirector {
                 zombieRows.add(lanes);
                 zombieScales.add(new FloatTag(queued.healthScale()));
                 zombieSurfaces.add(new StringTag(queued.surface()));
+                zombieAttributes.add(queued.attributes().save());
             }
             queueTag.put("Zombies", zombies);
             // Parallel to `Zombies`; a save written before a wave could name its lanes has no
@@ -1624,6 +1643,7 @@ public final class WaveDirector {
             // zombie, which is what every queue held before the rounds existed.
             queueTag.put("ZombieScales", zombieScales);
             queueTag.put("ZombieSurfaces", zombieSurfaces);
+            queueTag.put("ZombieAttributes", zombieAttributes);
             ListTag rows = new ListTag();
             for (int row : queue.rows) {
                 rows.add(new IntTag(row));
@@ -1763,6 +1783,7 @@ public final class WaveDirector {
             List<Tag> zombieRowTags = queueTag.getList("ZombieRows").values();
             List<Tag> scaleTags = queueTag.getList("ZombieScales").values();
             List<Tag> surfaceTags = queueTag.getList("ZombieSurfaces").values();
+            List<Tag> attributeTags = queueTag.getList("ZombieAttributes").values();
             List<QueuedZombie> zombieIds = new ArrayList<>();
             for (int index = 0; index < zombieTags.size(); index++) {
                 if (!(zombieTags.get(index) instanceof StringTag stringTag)) {
@@ -1789,7 +1810,15 @@ public final class WaveDirector {
                 }
                 String surface = index < surfaceTags.size() && surfaceTags.get(index) instanceof StringTag tag
                         ? tag.value() : SceneBoard.DEFAULT_SURFACE;
-                zombieIds.add(new QueuedZombie(zombieId, List.copyOf(lanes), scale, surface));
+                var attributes = index < attributeTags.size() && attributeTags.get(index) instanceof CompoundTag tag
+                        ? com.pvzce.api.entity.attribute.AttributeOverrides.restore(tag)
+                        : com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY;
+                WaveDef.Entry legacy = com.pvzce.common.entity.LegacyZombieAttributes.entry(zombieId);
+                if (legacy != null) {
+                    zombieId = legacy.id();
+                    attributes = legacy.attributes();
+                }
+                zombieIds.add(new QueuedZombie(zombieId, List.copyOf(lanes), scale, surface, attributes));
             }
             List<Integer> rows = new ArrayList<>();
             for (Tag tag : queueTag.getList("Rows").values()) {

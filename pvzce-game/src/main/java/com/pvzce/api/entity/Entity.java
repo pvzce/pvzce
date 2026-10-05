@@ -128,19 +128,20 @@ public abstract class Entity {
     }
 
     /**
-     * The health this entity was created with: its own maximum.
+     * This entity's current maximum health.
      *
      * <p>Not derivable from the definition, which is why it is kept: a zombie's health is its
      * definition's scaled by the wave's growth and the level's own health rule, and a plant's is its
      * definition's scaled by the rule that makes plants fragile. Both are read where the entity is
-     * created and are what "at full health" means for that one entity - what a watering can restores
+     * created; server attributes and their mirrored snapshots update the ceiling later. This is
+     * what "at full health" means for that one entity - what a watering can restores
      * a plant to, and what a share-of-maximum effect (the thorn lawn) takes its share of.
      */
     public int maxHealth() {
         return maxHealth;
     }
 
-    /** Writes {@link #maxHealth()}; for a restore, which reads it back from a save. */
+    /** Adopts the authoritative ceiling, from server attributes or their client snapshot. */
     protected void setMaxHealth(int maxHealth) {
         this.maxHealth = Math.max(1, maxHealth);
     }

@@ -36,6 +36,7 @@ public final class PvzceRegistries {
     private static final Identifier ROOT = Identifier.withDefaultNamespace("root");
 
     public static final ResourceKey<Registry<PlantDef>> PLANTS = key("plant");
+    public static final ResourceKey<Registry<com.pvzce.api.entity.attribute.EntityAttribute>> ATTRIBUTES = key("attribute");
     public static final ResourceKey<Registry<ZombieDef>> ZOMBIES = key("zombie");
     public static final ResourceKey<Registry<ProjectileDef>> PROJECTILES = key("projectile");
     public static final ResourceKey<Registry<ResourceDef>> RESOURCES = key("resource");
@@ -116,6 +117,7 @@ public final class PvzceRegistries {
     public static java.util.Map<String, ResourceKey<? extends Registry<?>>> byCategory() {
         java.util.Map<String, ResourceKey<? extends Registry<?>>> map = new java.util.LinkedHashMap<>();
         map.put("plant", PLANTS);
+        map.put("attribute", ATTRIBUTES);
         map.put("zombie", ZOMBIES);
         map.put("projectile", PROJECTILES);
         map.put("resource", RESOURCES);
@@ -148,6 +150,7 @@ public final class PvzceRegistries {
     /** Accepted aliases for the category names above (and the content directory spellings). */
     public static java.util.Map<String, String> categoryAliases() {
         return java.util.Map.ofEntries(
+                java.util.Map.entry("attributes", "attribute"),
                 java.util.Map.entry("plants", "plant"),
                 java.util.Map.entry("zombies", "zombie"),
                 java.util.Map.entry("projectiles", "projectile"),

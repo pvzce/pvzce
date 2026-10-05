@@ -61,9 +61,8 @@ public final class EntityArt {
      * content on a client that never loaded its data pack still gets the old path).
      *
      * <p>A definition may also <em>borrow</em> another entity's whole file with
-     * {@code animation} - the little zombies of 3-5 are the normal bodies drawn smaller, so
-     * they declare the normal file and a {@code render_scale} - and then the borrowed file is
-     * the answer, the same one {@code AnimationManager} plays. Only the whole-file override can
+     * {@code animation}. The borrowed file is then the answer, the same one
+     * {@code AnimationManager} plays. Only the whole-file override can
      * be answered here: {@code animations} overrides single states, and this accessor returns
      * one file.
      */

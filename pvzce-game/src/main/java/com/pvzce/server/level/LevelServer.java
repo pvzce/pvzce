@@ -1074,11 +1074,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             PlantDef plantDef = BuiltInRegistries.PLANTS.get(init.id());
             if (plantDef != null && inBounds(init.x(), init.y())) {
                 spawnPlant(plantDef, plantTeam, init.x(), init.y(),
-                        init.surface().map(Identifier::toString).orElse(SceneBoard.DEFAULT_SURFACE));
+                        init.surface().map(Identifier::toString).orElse(SceneBoard.DEFAULT_SURFACE), init.attributes());
             }
         } else if (init.kind().startsWith("z")) {
             spawnZombie(init.id(), zombieTeam, init.x() + 0.5F, init.y(), 1F,
-                    init.surface().map(Identifier::toString).orElse(SceneBoard.DEFAULT_SURFACE));
+                    init.surface().map(Identifier::toString).orElse(SceneBoard.DEFAULT_SURFACE), init.attributes());
         }
     }
 
@@ -1732,6 +1732,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public PlantEntity spawnPlant(PlantDef def, Team team, int x, int y, String surface) {
+        return spawnPlant(def, team, x, y, surface, com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+    }
+
+    public PlantEntity spawnPlant(PlantDef def, Team team, int x, int y, String surface,
+                                  com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
         // Before the entity exists: a mutation that rewrites what a card plants has to rewrite
         // the definition, because the capabilities are built from it in the constructor and
         // "the same plant with another behaviour" is not something an entity can be told later.
@@ -1742,7 +1747,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 planted = replacement;
             }
         }
-        PlantEntity plant = spawnPlantInternal(planted, team, x, y, surface);
+        PlantEntity plant = spawnPlantInternal(planted, team, x, y, surface, attributes);
         if (mutations != null) {
             mutations.onPlantPlaced(plant);
         }
@@ -1815,12 +1820,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     /** The placement itself, past every rewrite: one entity, one {@code onPlaced}. */
     private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y, String surface) {
+        return spawnPlantInternal(def, team, x, y, surface,
+                com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+    }
+
+    private PlantEntity spawnPlantInternal(PlantDef def, Team team, int x, int y, String surface,
+                                          com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
         // The plant's full health, as this level's rules say it at this moment. Passed in rather
         // than left to the definition because the watering can heals to full and the client draws
         // a damaged plant against it - see `PlantEntity`'s own constructor.
         int fullHealth = Math.max(1, Math.round(def.health()
                 * rules.getFloat(PvzceIds.RULE_PLANT_HEALTH_MULTIPLIER)));
         PlantEntity plant = new PlantEntity(def, team, x, y, fullHealth);
+        plant.applySpawnAttributes(attributes);
         plant.setGridBounds(width(), height());
         plant.setSurfaceId(surface);
         if (plantsAt(x, y, surface).stream().anyMatch(LevelServer::isCarrier)) {
@@ -2141,25 +2153,33 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale, String surface) {
-        if (SceneBoard.DEFAULT_SURFACE.equals(surface)) {
-            return spawnWaveZombie(id, x, row, healthScale);
+        return spawnWaveZombie(id, x, row, healthScale, surface,
+                com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+    }
+
+    @Override
+    public ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale, String surface,
+                                        com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
+        if (!SceneBoard.DEFAULT_SURFACE.equals(surface)
+                && !scene.exists(surface, Math.min(width() - 1, Math.max(0, (int) x)), row)) return null;
+        if (def.id().equals(PvzceIds.id("yard/adventure/5_5"))
+                && !id.equals(PvzceIds.id("bungee_zombie")) && SceneBoard.DEFAULT_SURFACE.equals(surface)) {
+            ZombieEntity carrier = spawnZombie(PvzceIds.id("bungee_zombie"), x, row, 1F);
+            if (carrier != null) carrier.capability(com.pvzce.common.capability.zombie.BungeeCapability.class)
+                    .deliver(id, 4 + random().nextInt(Math.max(1, width() - 4)), healthScale, attributes);
+            return carrier;
         }
-        if (!scene.exists(surface, Math.min(width() - 1, Math.max(0, (int) x)), row)) {
-            return null;
-        }
-        return spawnZombie(id, team(PvzceIds.ZOMBIE_TEAM), x, row, healthScale, surface);
+        return spawnZombie(id, zombieTeam(), x, row, healthScale, surface, attributes);
     }
 
     public ZombieEntity spawnWaveZombie(Identifier id, float x, int row, float healthScale) {
-        if (!def.id().equals(PvzceIds.id("yard/adventure/5_5")) || id.equals(PvzceIds.id("bungee_zombie"))) {
-            return spawnZombie(id, x, row, healthScale);
-        }
-        ZombieEntity carrier = spawnZombie(PvzceIds.id("bungee_zombie"), x, row, 1F);
-        if (carrier != null) {
-            carrier.capability(com.pvzce.common.capability.zombie.BungeeCapability.class)
-                    .deliver(id, 4 + random().nextInt(Math.max(1, width() - 4)), healthScale);
-        }
-        return carrier;
+        return spawnWaveZombie(id, x, row, healthScale, SceneBoard.DEFAULT_SURFACE);
+    }
+
+    @Override
+    public ZombieEntity spawnZombie(Identifier id, float x, int row, float healthScale, String surface,
+                                    com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
+        return spawnZombie(id, zombieTeam(), x, row, healthScale, surface, attributes);
     }
 
     public ZombieEntity spawnZombie(Identifier zombieId, float x, int row) {
@@ -2177,6 +2197,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
     public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row,
                                     float healthScale, String surface) {
+        return spawnZombie(zombieId, team, x, row, healthScale, surface,
+                com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+    }
+
+    @Override
+    public ZombieEntity spawnZombie(Identifier zombieId, Team team, float x, int row,
+                                    float healthScale, String surface,
+                                    com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
         ZombieDef def = BuiltInRegistries.ZOMBIES.get(zombieId);
         if (def == null) {
             return null;
@@ -2188,9 +2216,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (SceneBoard.DEFAULT_SURFACE.equals(surface)) row = spawnRowFor(def, row);
         // The level's own half of "how tough is this zombie", folded into the wave's growth here
         // because this is the one place a zombie is created. Read at spawn and never again: a
-        // zombie's health is its health for life, and re-scaling one mid-bite would heal it.
+        // the arriving factor becomes a named modifier, rather than healing a body on each tick.
         ZombieEntity zombie = new ZombieEntity(def, team, x, row,
-                healthScale * rules.getFloat(PvzceIds.RULE_ZOMBIE_HEALTH_MULTIPLIER));
+                healthScale * rules.getFloat(PvzceIds.RULE_ZOMBIE_HEALTH_MULTIPLIER), attributes);
         zombie.setSurfaceId(surface);
         zombie.setHeight(surfaceHeight(surface, zombie.cellX(), zombie.cellY()));
         addEntity(zombie);
@@ -2853,11 +2881,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         flushPending(bridge);
     }
 
+    private static void sendEntitySpawn(PvzceEntity entity, ServerBridge bridge) {
+        bridge.send(entity.spawnPacket());
+        bridge.send(entity.attributePacket());
+        entity.attributes().clearDirty();
+    }
+
     public void flushPending(ServerBridge bridge) {
         for (PvzceEntity entity : pendingAdd) {
             entities.add(entity);
             if (bridge != null) {
-                bridge.send(entity.spawnPacket());
+                sendEntitySpawn(entity, bridge);
             } else {
                 // Nothing to send it down, but the entity exists now: it joins the level and
                 // waits for the next flush that does have a bridge. Dropping the packet
@@ -2872,7 +2906,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return;
         }
         for (PvzceEntity entity : awaitSpawnPacket) {
-            bridge.send(entity.spawnPacket());
+            sendEntitySpawn(entity, bridge);
         }
         awaitSpawnPacket.clear();
         for (PvzceEntity entity : pendingRemove) {
@@ -3083,7 +3117,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // tick, and one on which nothing did keeps the slow cadence.
         boolean stateChanged = false;
         for (PvzceEntity entity : entities) {
-            if (entity.animationDirty()) {
+            if (entity.animationDirty() || entity.attributes().dirty()) {
                 stateChanged = true;
                 break;
             }
@@ -3094,6 +3128,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 // Cleared for every entity, not only the ones that changed: the whole board
                 // just went out in this packet batch, so every pending state has been told.
                 entity.clearAnimationDirty();
+                if (entity.attributes().dirty()) {
+                    bridge.send(entity.attributePacket());
+                    entity.attributes().clearDirty();
+                }
                 bridge.send(entity.updatePacket());
             }
         }
@@ -6521,7 +6559,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         for (PvzceEntity entity : entities) {
-            bridge.send(entity.spawnPacket());
+            sendEntitySpawn(entity, bridge);
         }
         for (PvzceEntity entity : entities) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
@@ -6952,6 +6990,14 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
             case com.pvzce.api.entity.EntityKind.ZOMBIE -> {
                 ZombieDef def = BuiltInRegistries.ZOMBIES.get(defId);
+                if (def == null) {
+                    WaveDef.Entry legacy = com.pvzce.common.entity.LegacyZombieAttributes.entry(defId);
+                    if (legacy != null) {
+                        def = BuiltInRegistries.ZOMBIES.get(legacy.id());
+                        yield def == null ? null : new ZombieEntity(def, zombieTeam(), tag.getFloat("x"),
+                                (int) Math.floor(tag.getFloat("y")), 1F, legacy.attributes());
+                    }
+                }
                 yield def == null ? null : new ZombieEntity(def, zombieTeam(), tag.getFloat("x"),
                         (int) Math.floor(tag.getFloat("y")));
             }

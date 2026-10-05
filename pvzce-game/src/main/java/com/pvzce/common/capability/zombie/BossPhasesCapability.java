@@ -61,7 +61,7 @@ public final class BossPhasesCapability implements ZombieCapability {
 
     @Override
     public void tick(ZombieEntity zombie, LevelAccess level) {
-        int maxHp = Math.max(1, zombie.def().health());
+        int maxHp = zombie.maxHealth();
         while (nextPhaseIndex < phases.size()) {
             BossPhaseDef phase = phases.get(nextPhaseIndex);
             if (zombie.health() > maxHp * phase.atHp()) {

@@ -24,6 +24,9 @@ import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.common.PvzceParticles;
+import com.pvzce.common.entity.EntityAttributes;
+import com.pvzce.api.entity.attribute.AttributeModifier;
+import com.pvzce.api.entity.attribute.AttributeOverrides;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -105,22 +108,48 @@ public class ZombieEntity extends PvzceEntity {
      * A zombie whose body is heavier than its definition, which is what an endless round asks for.
      *
      * <p>{@code healthScale} multiplies the definition's own health once, at spawn, and the
-     * result is this zombie's full health for the rest of its life: the half-health arm-loss
-     * transition still reads {@code def.health()} as its denominator (every zombie of a wave
-     * scales together, so the fraction is unchanged), and the client draws the bar from the health
-     * it was sent, so a scaled zombie's bar still reads full.
+     * result initializes its max-health attribute. Arm loss and health bars use that entity's
+     * maximum, including later attribute changes, rather than the definition's unscaled number.
      *
      * <p>Deliberately not a level rule: a rule would be one number for the whole lawn, and a
      * mutation that also scales zombie speed or damage would have to share it.
      */
     public ZombieEntity(ZombieDef def, Team team, float cellX, int gridY, float healthScale) {
-        super(def.id(), team, cellX, gridY + 0.5F,
-                Math.max(1, Math.round(def.health() * (healthScale > 0F ? healthScale : 1F))));
+        this(def, team, cellX, gridY, healthScale, AttributeOverrides.EMPTY);
+    }
+
+    /** Initializes every override before the entity can publish its first spawn snapshot. */
+    public ZombieEntity(ZombieDef def, Team team, float cellX, int gridY, float healthScale,
+                        AttributeOverrides overrides) {
+        super(def.id(), team, cellX, gridY + 0.5F, def.health());
         this.def = def;
         for (TypedCapability<ZombieCapability> entry : def.resolvedCapabilities()) {
             capabilities.add(new Instance(entry.type(), entry.value().instantiate()));
         }
+        attributes().add(EntityAttributes.MOVEMENT_SPEED, def.moveSpeed());
+        attributes().add(EntityAttributes.ATTACK_DAMAGE, def.biteDamage());
+        attributes().add(EntityAttributes.ATTACK_INTERVAL, def.biteIntervalTicks());
+        attributes().add(EntityAttributes.ARMOR_DURABILITY_MULTIPLIER);
+        attributes().apply(def.attributes());
+        if (Float.isFinite(healthScale) && healthScale > 0F && healthScale != 1F) {
+            attributes().get(EntityAttributes.MAX_HEALTH).setModifier(new AttributeModifier(
+                    EntityAttributes.SPAWN_HEALTH_MODIFIER, healthScale - 1D,
+                    AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+        }
+        attributes().apply(overrides);
+        setHealth(maxHealth());
         this.grounded = !def.spawnsAirborne();
+    }
+
+    @Override
+    protected void onAttributeChanged(Identifier id) {
+        super.onAttributeChanged(id);
+        if (EntityAttributes.ARMOR_DURABILITY_MULTIPLIER.equals(id) && capabilities != null) {
+            for (Instance entry : capabilities) {
+                if (entry.capability instanceof ArmorCapability armor)
+                    armor.setDurabilityMultiplier(attributes().value(id));
+            }
+        }
     }
 
     public ZombieDef def() {
@@ -575,8 +604,8 @@ public class ZombieEntity extends PvzceEntity {
                 biteCooldown--;
                 return;
             }
-            int damage = Math.round(def.biteDamage()
-                    * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
+            int damage = Math.round((float) (attributes().value(EntityAttributes.ATTACK_DAMAGE)
+                    * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER)));
             target.damage(damage, ZombieEntity.damageType(PvzceIds.DAMAGE_IMPACT), level);
             biteCooldown = biteIntervalTicks();
             level.emitEffect(PvzceParticles.CHOMP.toString(), target.position(), target.surfaceId(), def.sounds().bite().orElse(PvzceSounds.EFFECT_BITE));
@@ -615,8 +644,8 @@ public class ZombieEntity extends PvzceEntity {
             // runs, so taking the plant out of it here would be a concurrent modification.
             plant.remove();
         } else {
-            int damage = Math.round(def.biteDamage()
-                    * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER));
+            int damage = Math.round((float) (attributes().value(EntityAttributes.ATTACK_DAMAGE)
+                    * level.rules().getFloat(PvzceIds.RULE_ZOMBIE_DAMAGE_MULTIPLIER)));
             plant.damageFrom(damage);
         }
         // A plant that is gone after this bite was eaten, and the level is told so: the versus
@@ -662,7 +691,7 @@ public class ZombieEntity extends PvzceEntity {
      * is, and it is already what "how often" means here.
      */
     private int biteIntervalTicks() {
-        int interval = def.biteIntervalTicks();
+        int interval = (int) Math.round(attributes().value(EntityAttributes.ATTACK_INTERVAL));
         for (StatusInstance status : statuses) {
             if (status.status == ZombieStatus.SLOW) {
                 interval = Math.round(interval / Math.max(0.05F, status.magnitude));
@@ -673,7 +702,7 @@ public class ZombieEntity extends PvzceEntity {
 
     /** Move speed after capability multipliers, the speed boost and statuses. */
     public float moveSpeed(LevelAccess level) {
-        float speed = def.moveSpeed();
+        float speed = (float) attributes().value(EntityAttributes.MOVEMENT_SPEED);
         for (Instance instance : capabilities) {
             speed *= instance.capability.speedMultiplier(this);
         }
@@ -924,7 +953,7 @@ public class ZombieEntity extends PvzceEntity {
         // has no arms and no head to begin with, and the original's ash line leaves exactly
         // that drawing behind. This is why the arm and the head below both ask `burns`.
         if (!burns && !dismembered && def.dropsArm() && armorHealth() <= 0
-                && before * 2 > def.health() && health() * 2 <= def.health()) {
+                && before * 2L > maxHealth() && health() * 2L <= maxHealth()) {
             level.emitEffect(PvzceParticles.ZOMBIE_ARM.toString(), cellX(), cellY(),
                     def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
         }

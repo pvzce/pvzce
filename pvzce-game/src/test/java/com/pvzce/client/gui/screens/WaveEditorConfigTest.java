@@ -8,6 +8,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /** Editor wave model <-> JSON round-trip (used by the level editor's save button). */
 class WaveEditorConfigTest {
     @Test
+    void changingAnEntryCountPreservesItsInstanceAttributesAndArrivalMetadata() {
+        JsonObject root = com.google.gson.JsonParser.parseString("""
+                {"waves":[{"delay":10,"entries":[{"id":"pvzce:basic_zombie","count":2,
+                "rows":[2,3],"surface":"example:bridge","health_scale":1.5,
+                "attributes":{"pvzce:render_scale":0.5,"pvzce:max_health":{"modifiers":[
+                {"id":"example:small","amount":-0.5,"operation":"add_multiplied_total"}]}}}]}]}
+                """).getAsJsonObject();
+        JsonObject original = root.getAsJsonArray("waves").get(0).getAsJsonObject()
+                .getAsJsonArray("entries").get(0).getAsJsonObject();
+        WaveEditorModel.Config config = WaveEditorModel.Config.fromJson(root);
+        config.waves.get(0).entries.get(0).count = 3;
+        JsonObject written = config.toJson().getAsJsonArray("waves").get(0).getAsJsonObject()
+                .getAsJsonArray("entries").get(0).getAsJsonObject();
+        assertEquals(3, written.get("count").getAsInt());
+        assertEquals(2, original.get("count").getAsInt(), "the draft is not aliased");
+        for (String field : java.util.List.of("attributes", "rows", "surface", "health_scale"))
+            assertEquals(original.get(field), written.get(field));
+    }
+
+    @Test
     void configRoundTripsThroughLevelJson() {
         WaveEditorModel.Config config = new WaveEditorModel.Config();
         config.intervalEndMultiplier = 0.75F;

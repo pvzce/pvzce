@@ -57,7 +57,6 @@ public class ResourceDropEntity extends PvzceEntity {
      * <p>Not final, because it is state: a drop saved mid-fall and restored has to come
      * back the size it was, or a small sun grows into a big one by being reloaded.
      */
-    private float renderScale;
 
     public ResourceDropEntity(ResourceDef def, Team team, int gridX, int gridY, int amount) {
         this(def, team, gridX, gridY, amount, null, 0F);
@@ -89,9 +88,9 @@ public class ResourceDropEntity extends PvzceEntity {
         this.motionOverride = motion;
         this.riseOriginX = cellX();
         this.driftX = driftX;
-        this.renderScale = renderScale <= 0F
+        attributes().get(com.pvzce.common.entity.EntityAttributes.RENDER_SCALE).setBaseValue(renderScale <= 0F
                 ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE
-                : renderScale;
+                : renderScale);
         switch (motion()) {
             case FALL -> {
                 setHeight(START_HEIGHT);
@@ -109,11 +108,6 @@ public class ResourceDropEntity extends PvzceEntity {
         groundHeight = level.surfaceHeight(surfaceId(), cellX(), cellY());
         setHeight(height() + groundHeight);
         surfaceInitialized = true;
-    }
-
-    @Override
-    public float renderScale() {
-        return renderScale;
     }
 
     /** How this drop arrives. */
@@ -216,7 +210,6 @@ public class ResourceDropEntity extends PvzceEntity {
         tag.putInt("riseTicks", riseTicks);
         tag.putFloat("riseOriginX", riseOriginX);
         tag.putFloat("driftX", driftX);
-        tag.putFloat("renderScale", renderScale);
         return tag;
     }
 
@@ -234,8 +227,8 @@ public class ResourceDropEntity extends PvzceEntity {
         // A save written before drops carried a size of their own has no key; NBT's getFloat
         // would hand back 0, which is not a size, so the default stands in for it.
         float savedScale = tag.getFloat("renderScale");
-        renderScale = savedScale <= 0F
-                ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE
-                : savedScale;
+        if (!tag.contains("Attributes")) attributes().get(com.pvzce.common.entity.EntityAttributes.RENDER_SCALE)
+                .setBaseValue(savedScale <= 0F
+                        ? com.pvzce.common.network.packet.EntitySpawnS2C.DEFAULT_SCALE : savedScale);
     }
 }

@@ -172,15 +172,22 @@ public record WaveDef(
      *                    zombie arrives in, and a level-wide zombie-health rule would be
      *                    rewritten under a running mutation's feet.
      */
-    public record Entry(Identifier id, int count, List<Integer> rows, float healthScale, String surface) {
+    public record Entry(Identifier id, int count, List<Integer> rows, float healthScale, String surface,
+                        com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
         public static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("id").forGetter(Entry::id),
                 Codec.INT.optionalFieldOf("count", 1).forGetter(Entry::count),
                 Codec.INT.listOf().optionalFieldOf("rows", List.of()).forGetter(Entry::rows),
                 Codec.FLOAT.optionalFieldOf("health_scale", 1F).forGetter(Entry::healthScale),
                 Codec.STRING.optionalFieldOf("surface", SceneBoard.DEFAULT_SURFACE)
-                        .forGetter(Entry::surface)
+                        .forGetter(Entry::surface),
+                com.pvzce.api.entity.attribute.AttributeOverrides.CODEC.optionalFieldOf("attributes",
+                        com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY).forGetter(Entry::attributes)
         ).apply(i, Entry::new));
+
+        public Entry(Identifier id, int count, List<Integer> rows, float healthScale, String surface) {
+            this(id, count, rows, healthScale, surface, com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+        }
 
         public Entry(Identifier id, int count, List<Integer> rows, float healthScale) {
             this(id, count, rows, healthScale, SceneBoard.DEFAULT_SURFACE);
@@ -198,6 +205,7 @@ public record WaveDef(
             rows = rows == null ? List.of() : List.copyOf(rows);
             healthScale = healthScale > 0F ? healthScale : 1F;
             surface = surface == null ? SceneBoard.DEFAULT_SURFACE : surface;
+            attributes = attributes == null ? com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY : attributes;
         }
 
         /**

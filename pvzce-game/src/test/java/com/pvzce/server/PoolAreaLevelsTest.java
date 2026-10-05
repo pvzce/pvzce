@@ -236,78 +236,43 @@ class PoolAreaLevelsTest {
                 "the level is a crowd, not a speed modifier");
         for (WaveDef wave : def.waves()) {
             for (WaveDef.Entry entry : wave.entries()) {
-                assertTrue(entry.id().path().startsWith("mini_"),
-                        entry.id() + " must be a little zombie: the original shrinks the normal"
-                                + " bodies instead of adding new ones");
+                assertFalse(entry.id().path().startsWith("mini_"));
+                assertFalse(entry.attributes().values().isEmpty(), "every arrival has miniature attributes");
             }
         }
     }
 
-    /**
-     * The little zombies are the ordinary bodies, drawn smaller - the whole trick of the level.
-     *
-     * <p>{@code Big Trouble Little Zombie} does not add art for its crowd: it scales the normal
-     * zombies to half size, halves their health - armour included, so a little conehead is 100 +
-     * 185 and a little football zombie 100 + 700 - and doubles how fast they walk and eat. So
-     * every {@code mini_*} borrows its parent's animation file and halves the numbers, which also
-     * means a fix to the parent's art fixes the little one.
-     *
-     * <p>The original's own table puts its little zombies at a <em>quarter</em> of the health
-     * (140 for the conehead, 400 for the football zombie). Half is this build's deliberate
-     * difficulty call: at a quarter, three peas removed one and the level's crowd was made of
-     * paper. The rest of the trick is the original's - half the drawn size, twice the speed and
-     * the same hunger.
-     *
-     * <p>The one thing that is deliberately NOT scaled is the hitbox: a little zombie still fills
-     * its lane, because the size is presentation and {@code render_scale} is presentation-only.
-     */
+    /** A miniature is one ordinary entity with attributes, including half-strength armour. */
     @Test
     void theLittleZombiesAreTheNormalBodiesDrawnSmallerAndHalved() {
-        var pairs = Map.of(
-                "mini_basic_zombie", "basic_zombie",
-                "mini_flag_zombie", "flag_zombie",
-                "mini_conehead_zombie", "conehead_zombie",
-                "mini_football_zombie", "football_zombie",
-                "mini_ducky_tube_zombie", "ducky_tube_zombie",
-                "mini_ducky_tube_conehead_zombie", "ducky_tube_conehead_zombie",
-                "mini_snorkel_zombie", "snorkel_zombie");
-        for (var pair : pairs.entrySet()) {
-            ZombieDef little = BuiltInRegistries.ZOMBIES.get(PvzceIds.id(pair.getKey()));
-            ZombieDef parent = BuiltInRegistries.ZOMBIES.get(PvzceIds.id(pair.getValue()));
-            assertNotNull(little, pair.getKey() + " must be a registered zombie");
-            assertNotNull(parent, pair.getValue() + " must be a registered zombie");
-
-            assertEquals(EntityArt.animationFile(parent.id()), EntityArt.animationFile(little.id()),
-                    pair.getKey() + " must be the parent's own body, borrowed through `animation`");
-            assertEquals(0.5F, little.renderScale(),
-                    pair.getKey() + " is drawn at half size");
-            assertEquals(parent.renderScale(), 1F, pair.getValue() + " itself is untouched");
-            assertEquals(parent.health() / 2, little.health(),
-                    pair.getKey() + " has half of its parent's health bar");
-            assertEquals(parent.moveSpeed() * 2F, little.moveSpeed(), 1e-6F,
-                    pair.getKey() + " is twice as fast");
-            assertEquals(parent.biteIntervalTicks() / 2, little.biteIntervalTicks(),
-                    pair.getKey() + " eats twice as fast");
-            assertEquals(parent.biteDamage(), little.biteDamage(), "but bites just as hard");
-            assertEquals(parent.canSwim(), little.canSwim(),
-                    pair.getKey() + " arrives in the same lanes its parent does");
-
-            // Armour is halved with the body, and both halves divide exactly: 370 is 2 x 185 and
-            // 1400 is 2 x 700, so there is nothing to round away.
-            int parentArmor = armorDurability(parent);
-            int littleArmor = armorDurability(little);
-            assertEquals(parentArmor, littleArmor * 2,
-                    pair.getKey() + " carries " + littleArmor + " points of armour, which is not"
-                            + " half of its parent's " + parentArmor);
-            assertEquals(parent.health() + parentArmor, 2 * (little.health() + littleArmor),
-                    pair.getKey() + " is half of its parent including the armour");
+        var seen = new java.util.HashSet<Identifier>();
+        for (WaveDef wave : pool("3_5").waves()) for (WaveDef.Entry entry : wave.entries()) {
+            if (!seen.add(entry.id())) continue;
+            ZombieDef parent = BuiltInRegistries.ZOMBIES.get(entry.id());
+            assertNotNull(parent);
+            var little = new com.pvzce.server.entity.ZombieEntity(parent, null, 7F, 0, 1F, entry.attributes());
+            var ordinary = new com.pvzce.server.entity.ZombieEntity(parent, null, 7F, 0);
+            assertEquals(parent.id(), little.defId());
+            assertEquals(parent.health() / 2, little.health());
+            assertEquals(little.health(), little.maxHealth());
+            assertEquals(0.5F, little.renderScale());
+            assertEquals(parent.moveSpeed() * 2D, little.attributes().value(
+                    com.pvzce.common.entity.EntityAttributes.MOVEMENT_SPEED), 1e-6);
+            assertEquals(parent.biteIntervalTicks() / 2D, little.attributes().value(
+                    com.pvzce.common.entity.EntityAttributes.ATTACK_INTERVAL));
+            assertEquals(parent.biteDamage(), little.attributes().value(
+                    com.pvzce.common.entity.EntityAttributes.ATTACK_DAMAGE));
+            assertEquals(armorDurability(parent) / 2, Math.max(0, little.armorHealth()));
+            assertEquals(parent.health(), ordinary.health(), "another instance keeps its defaults");
+            assertEquals(1F, ordinary.renderScale());
+            assertEquals(parent.health() + armorDurability(parent),
+                    2 * (little.health() + Math.max(0, little.armorHealth())));
+            if (parent.id().path().equals("conehead_zombie"))
+                assertEquals(285, little.health() + little.armorHealth());
+            if (parent.id().path().equals("football_zombie"))
+                assertEquals(800, little.health() + little.armorHealth());
         }
-        // The two readings a player would recognise, as this build's numbers rather than the
-        // original's: a little conehead is 285 all in and a little football zombie 800.
-        assertEquals(285, 100 + armorDurability(
-                BuiltInRegistries.ZOMBIES.get(PvzceIds.id("mini_conehead_zombie"))));
-        assertEquals(800, 100 + armorDurability(
-                BuiltInRegistries.ZOMBIES.get(PvzceIds.id("mini_football_zombie"))));
+        assertFalse(BuiltInRegistries.ZOMBIES.keySet().stream().anyMatch(id -> id.path().startsWith("mini_")));
     }
 
     /**
@@ -333,7 +298,7 @@ class PoolAreaLevelsTest {
     @Test
     void everyFloatieHasItsSwimClipAndTheSwimClipIsTheWaterLook() throws Exception {
         for (String id : List.of("ducky_tube_zombie", "ducky_tube_conehead_zombie",
-                "ducky_tube_buckethead_zombie", "mini_ducky_tube_zombie")) {
+                "ducky_tube_buckethead_zombie")) {
             ZombieDef def = BuiltInRegistries.ZOMBIES.get(PvzceIds.id(id));
             assertNotNull(def, id + " must be a registered zombie");
             assertTrue(def.capability(com.pvzce.common.capability.zombie.FloatCapability.class)
@@ -564,16 +529,13 @@ class PoolAreaLevelsTest {
      *
      * <p>{@code EntityArt} is the one answer to "which animation file is this id": a definition
      * that forgets {@code animation_dir} (or spells it differently than the pack's directory)
-     * draws a magenta checkerboard with nothing else wrong, and a little zombie whose borrowed
-     * {@code animation} is ignored would do the same. Checking the resolution end to end is what
-     * catches both - the {@code mini_*} ids resolve to their <em>parent's</em> file on purpose.
+     * draws a magenta checkerboard with nothing else wrong. Checking resolution end to end
+     * catches a definition whose declared file was not shipped.
      */
     @Test
     void everyNewContentIdResolvesToArtThatExists() {
         for (String id : List.of("ducky_tube_zombie", "ducky_tube_conehead_zombie",
                 "ducky_tube_buckethead_zombie", "snorkel_zombie", "dolphin_rider_zombie",
-                "mini_basic_zombie", "mini_flag_zombie", "mini_conehead_zombie",
-                "mini_football_zombie", "mini_ducky_tube_zombie", "mini_snorkel_zombie",
                 "tangle_kelp", "watering_can")) {
             Identifier defId = Identifier.withDefaultNamespace(id);
             Identifier file = EntityArt.animationFile(defId);

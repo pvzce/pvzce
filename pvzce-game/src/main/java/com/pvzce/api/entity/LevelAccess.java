@@ -278,6 +278,12 @@ public interface LevelAccess {
     default ZombieEntity spawnZombie(Identifier id, Team team, float x, int row, float healthScale, String surface) {
         return spawnZombie(id, team, x, row, healthScale);
     }
+    default ZombieEntity spawnZombie(Identifier id, Team team, float x, int row, float healthScale, String surface,
+                                     com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
+        ZombieEntity zombie = spawnZombie(id, team, x, row, healthScale, surface);
+        if (zombie != null) zombie.applySpawnAttributes(attributes);
+        return zombie;
+    }
     default void meltIce(float x, float y, float radius, boolean square, String surface) { meltIce(x, y, radius, square); }
     default void leaveCraters(float x, float y, float radius, boolean square, String surface) { leaveCraters(x, y, radius, square); }
     default void emitRippleAt(int x, int y, float strength, String surface) { emitRippleAt(x, y, strength); }

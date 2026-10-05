@@ -51,12 +51,20 @@ public final class BungeeCapability implements ZombieCapability {
     private int attemptsLeft;
     private Identifier cargo;
     private float cargoHealthScale = 1F;
+    private com.pvzce.api.entity.attribute.AttributeOverrides cargoAttributes =
+            com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY;
 
     /** Wave-only delivery; the cargo appears at touchdown and is saved independently thereafter. */
     public void deliver(Identifier id, int column, float healthScale) {
+        deliver(id, column, healthScale, com.pvzce.api.entity.attribute.AttributeOverrides.EMPTY);
+    }
+
+    public void deliver(Identifier id, int column, float healthScale,
+                        com.pvzce.api.entity.attribute.AttributeOverrides attributes) {
         cargo = id;
         targetColumn = column;
         cargoHealthScale = healthScale;
+        cargoAttributes = attributes;
     }
 
     private enum Stage {
@@ -241,7 +249,8 @@ public final class BungeeCapability implements ZombieCapability {
             return true;
         }
         if (cargo != null) {
-            level.spawnZombie(cargo, zombie.team(), targetColumn + 0.5F, zombie.gridY(), cargoHealthScale, zombie.surfaceId());
+            level.spawnZombie(cargo, zombie.team(), targetColumn + 0.5F, zombie.gridY(), cargoHealthScale,
+                    zombie.surfaceId(), cargoAttributes);
             cargo = null;
             stage = Stage.RISING;
             phaseTicks = 0;
@@ -296,6 +305,7 @@ public final class BungeeCapability implements ZombieCapability {
         tag.putInt("stage", stage.ordinal());
         tag.putString("cargo", cargo == null ? "" : cargo.toString());
         tag.putFloat("cargo_scale", cargoHealthScale);
+        tag.put("cargo_attributes", cargoAttributes.save());
     }
 
     @Override
@@ -305,6 +315,7 @@ public final class BungeeCapability implements ZombieCapability {
         targetPlantId = tag.getInt("plant");
         cargo = Identifier.tryParse(tag.getString("cargo"));
         cargoHealthScale = tag.contains("cargo_scale") ? tag.getFloat("cargo_scale") : 1F;
+        cargoAttributes = com.pvzce.api.entity.attribute.AttributeOverrides.restore(tag.getCompound("cargo_attributes"));
         int ordinal = tag.getInt("stage");
         stage = ordinal >= 0 && ordinal < Stage.values().length
                 ? Stage.values()[ordinal] : Stage.ARRIVING;

@@ -563,27 +563,6 @@ RESOURCES = {
     ),
 }
 
-# The card line for a zombie that the original's own text did not open with.
-#
-# The six mini zombies are this project's own thing - the original has no almanac page for
-# "a basic zombie, but smaller" - so they take their parent's text and say what they are in
-# the first line. Their flavor is the parent's bio verbatim: the joke still reads, and a
-# reader who does not care about the distinction is not made to read it twice.
-MINI_ZOMBIES = {
-    "mini_basic_zombie": ("basic_zombie", "小僵尸", "A miniature Basic Zombie.",
-                          "一只缩小版的普通僵尸。"),
-    "mini_conehead_zombie": ("conehead_zombie", "小路障僵尸", "A miniature Conehead Zombie.",
-                             "一只缩小版的路障僵尸。"),
-    "mini_flag_zombie": ("flag_zombie", "小旗帜僵尸", "A miniature Flag Zombie.",
-                         "一只缩小版的旗帜僵尸。"),
-    "mini_ducky_tube_zombie": ("ducky_tube_zombie", "小鸭子救生圈僵尸",
-                               "A miniature Ducky Tube Zombie.", "一只缩小版的鸭子救生圈僵尸。"),
-    "mini_football_zombie": ("football_zombie", "小橄榄球僵尸", "A miniature Football Zombie.",
-                             "一只缩小版的橄榄球僵尸。"),
-    "mini_snorkel_zombie": ("snorkel_zombie", "小潜水僵尸", "A miniature Snorkel Zombie.",
-                            "一只缩小版的潜水僵尸。"),
-}
-
 GROUPS = {
     "plant": PLANTS,
     "zombie": ZOMBIES,
@@ -600,11 +579,6 @@ def entries():
             base = f"{category}.pvzce.{name}"
             rows.append((f"{base}.desc", desc_en, desc_zh))
             rows.append((f"{base}.flavor", flavor_en, flavor_zh))
-    for name, (parent, _, desc_en, desc_zh) in MINI_ZOMBIES.items():
-        parent_values = ZOMBIES[parent]
-        base = f"zombie.pvzce.{name}"
-        rows.append((f"{base}.desc", desc_en, desc_zh))
-        rows.append((f"{base}.flavor", parent_values[1], parent_values[3]))
     return rows
 
 

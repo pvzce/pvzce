@@ -8,6 +8,10 @@ import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.server.Team;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.api.entity.attribute.AttributeContainer;
+import com.pvzce.common.entity.EntityAttributes;
+import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.network.packet.EntityAttributesS2C;
 
 /**
  * Server-authoritative entity base (plants, zombies, projectiles, sun drops).
@@ -27,6 +31,7 @@ public abstract class PvzceEntity extends Entity {
      */
     protected Team team;
     protected boolean removed;
+    private final AttributeContainer attributes;
 
     /**
      * The tick a mutant blast dealt this entity its killing damage, or -1.
@@ -43,6 +48,30 @@ public abstract class PvzceEntity extends Entity {
     protected PvzceEntity(Identifier defId, Team team, float cellX, float cellY, int health) {
         super(defId, cellX, cellY, health);
         this.team = team;
+        BuiltInRegistries.bootstrap();
+        attributes = new AttributeContainer(BuiltInRegistries.ATTRIBUTES::get, this::onAttributeChanged);
+        attributes.add(EntityAttributes.MAX_HEALTH, Math.max(1, health));
+        attributes.add(EntityAttributes.RENDER_SCALE);
+    }
+
+    /** Server-owned attributes; add a registered id, then change its base or named modifiers. */
+    public final AttributeContainer attributes() { return attributes; }
+
+    /** Spawn-only initialization; runtime changes clamp current health and do not heal. */
+    public final void applySpawnAttributes(com.pvzce.api.entity.attribute.AttributeOverrides overrides) {
+        attributes.apply(overrides);
+        setHealth(maxHealth());
+    }
+
+    protected void onAttributeChanged(Identifier id) {
+        if (EntityAttributes.MAX_HEALTH.equals(id)) {
+            super.setMaxHealth((int) Math.round(attributes.value(id)));
+            setHealth(Math.min(health(), maxHealth()));
+        }
+    }
+
+    public EntityAttributesS2C attributePacket() {
+        return new EntityAttributesS2C(id(), attributes.syncedValues());
     }
 
     public abstract void tick(LevelServer level);
@@ -159,12 +188,11 @@ public abstract class PvzceEntity extends Entity {
      * {@code render_scale}.
      *
      * <p>{@link EntitySpawnS2C#DEFAULT_SCALE} for everything that is drawn at the size its
-     * definition declares - which is every entity whose size is content rather than state.
-     * A produced sun is the exception: the same resource is worth 15 and drawn small out of
-     * a small sun-shroom, so the <em>drop</em> carries the factor.
+     * definition declares. The render-scale attribute carries instance-specific size for
+     * miniature zombies, produced drops, and mod effects.
      */
     public float renderScale() {
-        return EntitySpawnS2C.DEFAULT_SCALE;
+        return (float) attributes.value(EntityAttributes.RENDER_SCALE);
     }
 
     /**
@@ -199,6 +227,7 @@ public abstract class PvzceEntity extends Entity {
         tag.putString("surface", surfaceId());
         tag.putInt("health", health());
         tag.putString("animation", animation());
+        tag.put("Attributes", attributes.save());
         return tag;
     }
 
@@ -208,8 +237,7 @@ public abstract class PvzceEntity extends Entity {
         setCellY(tag.getFloat("y"));
         setHeight(tag.getFloat("height"));
         setSurfaceId(tag.contains("surface") ? tag.getString("surface") : SceneBoard.DEFAULT_SURFACE);
-        setHealth(tag.getInt("health"));
-        setAnimation(tag.getString("animation"));
+        restoreBaseProperties(tag);
     }
 
     /**
@@ -224,7 +252,14 @@ public abstract class PvzceEntity extends Entity {
      * new place in its stack, both of which {@code spawnPlant} has already worked out.
      */
     protected void restoreStateWithoutPosition(CompoundTag tag) {
-        setHealth(tag.getInt("health"));
+        restoreBaseProperties(tag);
+    }
+
+    private void restoreBaseProperties(CompoundTag tag) {
+        if (tag.contains("Attributes")) attributes.restore(tag.getCompound("Attributes"));
+        else if (tag.getInt("health") > maxHealth())
+            attributes.get(EntityAttributes.MAX_HEALTH).setBaseValue(tag.getInt("health"));
+        setHealth(Math.min(tag.getInt("health"), maxHealth()));
         setAnimation(tag.getString("animation"));
     }
 }

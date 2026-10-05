@@ -55,9 +55,13 @@ public final class WaveEditorModel {
                         if (!entryJson.has("id")) {
                             continue;
                         }
-                        wave.entries.add(new EntryModel(
+                        EntryModel entry = new EntryModel(
                                 entryJson.get("id").getAsString(),
-                                entryJson.has("count") ? Math.max(1, entryJson.get("count").getAsInt()) : 1));
+                                entryJson.has("count") ? Math.max(1, entryJson.get("count").getAsInt()) : 1);
+                        entry.retained = entryJson.deepCopy();
+                        entry.retained.remove("id");
+                        entry.retained.remove("count");
+                        wave.entries.add(entry);
                     }
                 }
                 config.waves.add(wave);
@@ -83,7 +87,7 @@ public final class WaveEditorModel {
                 }
                 JsonArray entries = new JsonArray();
                 for (EntryModel entry : wave.entries) {
-                    JsonObject entryJson = new JsonObject();
+                    JsonObject entryJson = entry.retained.deepCopy();
                     entryJson.addProperty("id", entry.id);
                     entryJson.addProperty("count", entry.count);
                     entries.add(entryJson);
@@ -161,6 +165,8 @@ public final class WaveEditorModel {
     public static final class EntryModel {
         public String id;
         public int count;
+        /** Fields without controls, including attributes, rows, health growth and surface. */
+        private JsonObject retained = new JsonObject();
 
         public EntryModel(String id, int count) {
             this.id = id;

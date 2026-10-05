@@ -98,6 +98,29 @@ public final class PacketByteBuf {
         return delegate.readFloat();
     }
 
+    public void writeDouble(double value) { delegate.writeDouble(value); }
+    public double readDouble() { return delegate.readDouble(); }
+
+    /** Map collections use the same bounded lengths as lists; duplicate keys are invalid. */
+    public <K, V> void writeMap(java.util.Map<K, V> values, BiConsumer<K, PacketByteBuf> keyWriter,
+                              BiConsumer<V, PacketByteBuf> valueWriter) {
+        writeList(new ArrayList<>(values.entrySet()), (entry, buf) -> {
+            keyWriter.accept(entry.getKey(), buf);
+            valueWriter.accept(entry.getValue(), buf);
+        });
+    }
+
+    public <K, V> java.util.Map<K, V> readMap(Function<PacketByteBuf, K> keyReader,
+                                           Function<PacketByteBuf, V> valueReader) {
+        java.util.Map<K, V> values = new java.util.LinkedHashMap<>();
+        for (java.util.Map.Entry<K, V> entry : readList(buf -> java.util.Map.entry(
+                keyReader.apply(buf), valueReader.apply(buf)))) {
+            if (values.putIfAbsent(entry.getKey(), entry.getValue()) != null)
+                throw new DecoderException("Duplicate map key: " + entry.getKey());
+        }
+        return java.util.Map.copyOf(values);
+    }
+
     public void writeBoolean(boolean value) {
         delegate.writeBoolean(value);
     }

@@ -63,6 +63,18 @@ public final class ArmorCapability implements ZombieCapability {
         return postArmorSpeed;
     }
 
+    /** Applies one entity's durability factor, preserving each piece's remaining fraction. */
+    public void setDurabilityMultiplier(double multiplier) {
+        for (Piece piece : pieces) {
+            int maximum = (int) Math.min(Integer.MAX_VALUE,
+                    Math.max(0L, Math.round(piece.def.durability() * multiplier)));
+            if (maximum == piece.maximum) continue;
+            piece.hp = piece.maximum <= 0 ? 0
+                    : (int) Math.min(maximum, Math.round(piece.hp * (double) maximum / piece.maximum));
+            piece.maximum = maximum;
+        }
+    }
+
     /** Total remaining armor HP (used by tests and the HUD). */
     public int totalHealth() {
         int total = 0;
@@ -284,7 +296,7 @@ public final class ArmorCapability implements ZombieCapability {
         ListTag list = tag.getList("pieces");
         for (int i = 0; i < pieces.size() && i < list.size(); i++) {
             if (list.get(i) instanceof IntTag hp) {
-                pieces.get(i).hp = Math.max(0, hp.value());
+                pieces.get(i).hp = Math.max(0, Math.min(pieces.get(i).maximum, hp.value()));
             }
         }
     }
@@ -292,10 +304,12 @@ public final class ArmorCapability implements ZombieCapability {
     private static final class Piece {
         private final ArmorDef def;
         private int hp;
+        private int maximum;
 
         private Piece(ArmorDef def, int hp) {
             this.def = def;
             this.hp = hp;
+            this.maximum = hp;
         }
     }
 }

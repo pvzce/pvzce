@@ -423,18 +423,18 @@ PROSE: Dict[int, tuple] = {
 
 CARD_REFUSED = {"trigger": "on_card_refused"}
 
-#: 3-5 is the original's "Big Trouble Little Zombie": the ordinary bodies, drawn at half size and
-#: moving twice as fast. This project gives each miniature a zombie card of its own (`mini_*`),
-#: so the level's wave table is written with those rather than with the full-sized types the
-#: original's own tables name. Which types can appear is still the original's business.
-MINI_FORMS = {
-    "basic_zombie": "mini_basic_zombie",
-    "flag_zombie": "mini_flag_zombie",
-    "conehead_zombie": "mini_conehead_zombie",
-    "football_zombie": "mini_football_zombie",
-    "snorkel_zombie": "mini_snorkel_zombie",
-    "ducky_tube_zombie": "mini_ducky_tube_zombie",
-    "ducky_tube_conehead_zombie": "mini_ducky_tube_conehead_zombie",
+#: 3-5 uses the ordinary content ids with per-entity attributes. These values preserve
+#: this project's half-health difficulty choice, including armour, and its unchanged hitbox.
+#: The generated level is also the source used when reading removed mini_* ids from old saves.
+MINI_ATTRIBUTES = {
+    "pvzce:render_scale": 0.5,
+    "pvzce:max_health": {"modifiers": [
+        {"id": "pvzce:miniature", "amount": -0.5, "operation": "add_multiplied_total"}]},
+    "pvzce:movement_speed": {"modifiers": [
+        {"id": "pvzce:miniature", "amount": 1.0, "operation": "add_multiplied_total"}]},
+    "pvzce:attack_interval": {"modifiers": [
+        {"id": "pvzce:miniature", "amount": -0.5, "operation": "add_multiplied_total"}]},
+    "pvzce:armor_durability_multiplier": 0.5,
 }
 
 
@@ -451,10 +451,6 @@ PROSE.update({
     49: ("5-9·最后的屋顶防线", "综合应对梯子、投篮车与巨人，撑过三面旗帜。首次获胜解锁黄油充足增益：玉米投手的黄油概率由25%提高到40%。", ["叶子保护伞拦截空中威胁，西瓜投手处理密集敌人。"]),
     50: ("5-10·屋顶终章", "白天屋顶的传送带终章：免费发牌，守住三十波梯子、投篮车与巨人的进攻。首次获胜解锁忧郁菇，可将大喷菇升级为周围范围攻击的紫卡植物。", ["开场已有五列花盆，传送带免费送卡，不用收集阳光。", "投手负责输出，保护伞防空；樱桃炸弹与火爆辣椒留给密集敌人。", "忧郁菇种在大喷菇上；白天仍需要咖啡豆唤醒。"]),
 })
-
-
-def mini_form(card: str) -> str:
-    return MINI_FORMS.get(card, card)
 
 
 # ---------------------------------------------------------------------------
@@ -759,9 +755,7 @@ def waves_for(facts: original.LevelFacts) -> List[dict]:
             delay = wave.delay
         entries = wave.entries
         if facts.little_trouble:
-            entries = [dict(entry,
-                            id="pvzce:" + mini_form(entry["id"].removeprefix("pvzce:")))
-                       for entry in entries]
+            entries = [dict(entry, attributes=MINI_ATTRIBUTES) for entry in entries]
         body: Dict[str, object] = {
             "type": wave.type,
             "delay": delay,
