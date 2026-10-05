@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:tunnel_ridge",
+  "surface": "GROUND",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/ground",
+    "tiled": true
+  },
+  "profile": {
+    "elevation": 0.8
+  }
+}

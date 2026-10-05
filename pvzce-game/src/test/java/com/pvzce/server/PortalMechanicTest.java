@@ -1,7 +1,9 @@
 package com.pvzce.server;
 
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.PortalData;
+import com.pvzce.api.content.ZombieStatus;
 import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
@@ -10,6 +12,7 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
+import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -111,6 +114,54 @@ class PortalMechanicTest {
 
         assertEquals(0, rowOf(walker), "walking into (2,3) sends it to (6,0)");
         assertTrue(walker.cellX() < 6.5F, "and past that end's centre: " + walker.cellX());
+    }
+
+    /**
+     * A shot goes through the door, not through the wall between its ends.
+     *
+     * <p>The segment from where a shot entered a door to where it came out is a teleport, not a
+     * flight path, so the terrain in between must not matter. It has to not matter, or a level
+     * whose doors exist <em>because</em> a wall blocks the lane could never fire through them: the
+     * shot would die on the face of the very rock the door bypasses.
+     */
+    @Test
+    void aShotGoesThroughTheDoorAndNotTheWallBetweenItsEnds() {
+        LevelDef demo = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/demo_level"));
+        assertNotNull(demo, "demo_level must load");
+        List<String> lawn = new ArrayList<>();
+        for (int y = 0; y < 5; y++) {
+            for (int x = 0; x < 9; x++) {
+                lawn.add(x + "," + y);
+            }
+        }
+        java.util.Map<Identifier, com.google.gson.JsonElement> rules =
+                new java.util.LinkedHashMap<>(demo.rules());
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MIN, new com.google.gson.JsonPrimitive(0));
+        rules.put(PvzceIds.RULE_SUN_SPAWN_INTERVAL_MAX, new com.google.gson.JsonPrimitive(0));
+        LevelDef def = TestLevels.copy(demo)
+                .height(5)
+                .scene(java.util.Map.of(
+                        PvzceIds.GRASS, lawn,
+                        PvzceIds.id("tunnel_ridge"), List.of("5,0")))
+                .rules(rules)
+                .slots(List.of())
+                .initialSun(0)
+                .waves(List.of())
+                .mechanics(List.of(new TypedMechanic(PvzceIds.MECHANIC_PORTAL,
+                        new PortalData(List.of(new PortalData.Pair(4, 0, 6, 0))))))
+                .build();
+        LevelServer level = new LevelServer(def);
+        CapturingBridge bridge = new CapturingBridge();
+        level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter")),
+                level.team(PvzceIds.PLANT_TEAM), 2, 0);
+        ZombieEntity beyond = zombie(level, bridge, 7.5F, 0);
+        beyond.applyStatus(ZombieStatus.IMMOBILIZED, 900, 1F);
+
+        tick(level, bridge, 300);
+
+        assertTrue(beyond.health() < beyond.maxHealth(),
+                "the shot came out of the door instead of dying on the ridge between the two ends;"
+                        + " health=" + beyond.health());
     }
 
     /**

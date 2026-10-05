@@ -275,6 +275,7 @@ public class ProjectileEntity extends PvzceEntity {
         WorldPosition before = position();
         float beforeX = cellX();
         int beforeRow = gridY();
+        boolean teleported = false;
         for (Instance instance : capabilities) {
             if (instance.capability.move(this, level)) {
                 break;
@@ -292,6 +293,7 @@ public class ProjectileEntity extends PvzceEntity {
                 setCellY(cellY() + dy);
                 originX += dx;
                 originY += dy;
+                teleported = true;
             }
         }
         if (cellX() > level.width() + 1F || cellX() < -1F
@@ -306,15 +308,23 @@ public class ProjectileEntity extends PvzceEntity {
             remove();
             return;
         }
-        var obstruction = level.sceneBoard().firstObstruction(before, position());
-        if (obstruction.isPresent()) {
-            var impact = obstruction.get();
-            setCellX(impact.x());
-            setCellY(impact.y());
-            setHeight(impact.elevation());
-            // Impact at the obstruction, including an underside of a bridge deck.
-            applyImpact(null, level);
-            return;
+        // A portal is a discontinuity, not a flight path. The shot really did not travel the
+        // segment from where it entered the door to where it came out, so checking that segment
+        // would kill it on the very terrain the door just bypassed - a wall a level author put
+        // there so the door would have something to go through. What is checked instead is the
+        // cell it came out in: if the exit is inside terrain, the next tick's check (which starts
+        // from there) still destroys the shot.
+        if (!teleported) {
+            var obstruction = level.sceneBoard().firstObstruction(before, position());
+            if (obstruction.isPresent()) {
+                var impact = obstruction.get();
+                setCellX(impact.x());
+                setCellY(impact.y());
+                setHeight(impact.elevation());
+                // Impact at the obstruction, including an underside of a bridge deck.
+                applyImpact(null, level);
+                return;
+            }
         }
         ZombieEntity hit = findTarget(level);
         if (hit == null) {

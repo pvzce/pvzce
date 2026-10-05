@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:tunnel_slope_up",
+  "surface": "GROUND",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/ground",
+    "tiled": true
+  },
+  "profile": {
+    "elevation": -4.0,
+    "slope_x": 0.8,
+    "min": 0.0,
+    "max": 0.8
+  }
+}

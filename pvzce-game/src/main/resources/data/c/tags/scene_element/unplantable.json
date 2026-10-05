@@ -17,6 +17,9 @@
     "pvzce:hillside_bank_high",
     "pvzce:reef_slope_up",
     "pvzce:reef_slope_down",
-    "pvzce:reef_ridge"
+    "pvzce:reef_ridge",
+    "pvzce:tunnel_ridge",
+    "pvzce:tunnel_slope_up",
+    "pvzce:tunnel_slope_down"
   ]
 }
