@@ -1,8 +1,6 @@
 {
   "replace": false,
   "values": [
-    "pvzce:grass",
-    "pvzce:hillside_mid",
-    "pvzce:hillside_high"
+    "pvzce:grass"
   ]
 }

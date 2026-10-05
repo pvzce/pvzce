@@ -42,36 +42,24 @@ import java.util.Optional;
  *                     cell by itself
  * @param width        how wide the art is drawn, in cells, centred on the cell
  * @param height       and how tall
- * @param tiled        true when {@code texture} is a sheet of cell-sized tiles rather than one
- *                     cell-sized sprite: the drawn quad is still one cell, but the cell at
- *                     {@code (x, y)} samples the tile at {@code (x mod N, y mod N)} of an
- *                     {@code N x N} sheet, where {@code N} is the renderer's own tile grid
- *                     ({@code SceneTileRenderer.TILE_CELLS}). {@code width}/{@code height} stay
- *                     the drawn size - one cell - because the sheet's cell count is the renderer's
- *                     constant, not this element's. It is a field rather than a hardcoded list of
- *                     ids so a level or a pack can bring its own ground: the built-in lawn is
- *                     simply the grass sheet named by the element {@code pvzce:grass}, and
- *                     {@code pvzce:hillside_mid} is the same sheet under another name.
  */
 public record SceneElementArt(
         Optional<Identifier> texture,
         Optional<Identifier> nightTexture,
         Optional<Identifier> underlay,
         float width,
-        float height,
-        boolean tiled
+        float height
 ) {
     /** The convention: one cell, one texture derived from the element's id. */
     public static final SceneElementArt NONE =
-            new SceneElementArt(Optional.empty(), Optional.empty(), Optional.empty(), 1F, 1F, false);
+            new SceneElementArt(Optional.empty(), Optional.empty(), Optional.empty(), 1F, 1F);
 
     public static final Codec<SceneElementArt> CODEC = RecordCodecBuilder.create(i -> i.group(
             Identifier.CODEC.optionalFieldOf("texture").forGetter(SceneElementArt::texture),
             Identifier.CODEC.optionalFieldOf("night_texture").forGetter(SceneElementArt::nightTexture),
             Identifier.CODEC.optionalFieldOf("underlay").forGetter(SceneElementArt::underlay),
             Codec.FLOAT.optionalFieldOf("width", 1F).forGetter(SceneElementArt::width),
-            Codec.FLOAT.optionalFieldOf("height", 1F).forGetter(SceneElementArt::height),
-            Codec.BOOL.optionalFieldOf("tiled", false).forGetter(SceneElementArt::tiled)
+            Codec.FLOAT.optionalFieldOf("height", 1F).forGetter(SceneElementArt::height)
     ).apply(i, SceneElementArt::new));
 
     public SceneElementArt {
