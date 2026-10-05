@@ -12,6 +12,8 @@
     "pvzce:vase_full",
     "pvzce:pot_question",
     "pvzce:pot_leaf",
-    "pvzce:water_grave"
+    "pvzce:water_grave",
+    "pvzce:hillside_bank_low",
+    "pvzce:hillside_bank_high"
   ]
 }

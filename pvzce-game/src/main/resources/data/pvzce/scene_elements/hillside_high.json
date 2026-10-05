@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:hillside_high",
+  "surface": "GRASS",
+  "max_height": 0,
+  "art": {
+    "texture": "pvzce:textures/scene/grass",
+    "tiled": true
+  },
+  "profile": {
+    "elevation": 0.8
+  }
+}

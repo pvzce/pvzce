@@ -436,8 +436,9 @@ public final class SceneTileRenderer {
         return Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
     }
 
+    /** One answer for both draw paths and the editor: see {@code EntityTextures.sceneTiled}. */
     private static boolean isTiled(String sceneId) {
-        return "pvzce:grass".equals(sceneId) || "pvzce:ground".equals(sceneId);
+        return com.pvzce.client.renderer.EntityTextures.sceneTiled(sceneId);
     }
 
     /** Delegates so the tile renderer and the editor canvas cannot diverge. */
