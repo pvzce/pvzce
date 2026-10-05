@@ -53,7 +53,7 @@ class TunnelCorridorTest {
     private static final String GROUND = SceneBoard.DEFAULT_SURFACE;
     private static final Identifier BASIC = PvzceIds.id("basic_zombie");
     /** Column centres, the home lawn through the far shore. */
-    private static final float[] COLUMN_HEIGHTS = {0F, 0F, 0F, 0F, 0F, 0.4F, 0.8F, 0.8F, 0.4F, 0F, 0F};
+    private static final float[] COLUMN_HEIGHTS = {0F, 0F, 0F, 0F, 0F, 0.3F, 0.6F, 0.6F, 0.3F, 0F, 0F};
 
     private static LevelDef shipped;
 
@@ -189,6 +189,8 @@ class TunnelCorridorTest {
         assertEquals(3, data.pairs().size());
         assertEquals(1500, data.relocateIntervalTicks());
         assertEquals(1200, data.initialRelocateTicks());
+        assertEquals(3, data.relocateMinX(),
+                "the doors keep three columns of reaction room in front of the house");
 
         LevelServer level = level(6L);
         List<PvzcePacket> packets = new ArrayList<>();
@@ -206,6 +208,20 @@ class TunnelCorridorTest {
         assertFalse(Arrays.equals(portalSyncs.get(0).payload(), portalSyncs.get(portalSyncs.size() - 1).payload()),
                 "and the last set is not the one it started with");
         assertTrue(packets.stream().anyMatch(packet -> packet.toString() != null), "packets arrived");
+    }
+
+    @Test
+    void aLobbedShotAlsoCrossesTheMountain() {
+        // The doors are the flexible way past the mountain; a lobber is the other one. The ridge is
+        // deliberately low enough to lob over, so a player who brought no glove (or no door lane) is
+        // still in the game.
+        LevelServer level = level(7L);
+        plant(level, "cabbage_pult", 3, 2);
+        ZombieEntity beyond = walker(level, 9.5F, 2);
+        hold(beyond, 900);
+        tickTrackingShots(level, 500);
+        assertTrue(beyond.health() < beyond.maxHealth(),
+                "a lob clears the ridge; health=" + beyond.health());
     }
 
     @Test

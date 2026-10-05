@@ -42,8 +42,11 @@ public final class PortalMechanic implements LevelMechanic<PortalData> {
         final Map<Integer, Integer> immunityUntil = new HashMap<>();
         int ticks;
         boolean dirty = true;
+        /** The leftmost column a relocation may use; 0 is the whole board. */
+        final int relocateMinX;
         Rig(PortalData data) {
             pairs = new ArrayList<>(data.pairs());
+            relocateMinX = data.relocateMinX();
             ticks = data.initialRelocateTicks();
         }
     }
@@ -120,7 +123,7 @@ public final class PortalMechanic implements LevelMechanic<PortalData> {
         }
         List<int[]> available = new ArrayList<>();
         for (int y = 0; y < level.height(); y++) {
-            for (int x = 0; x <= level.width(); x++) {
+            for (int x = rig.relocateMinX; x <= level.width(); x++) {
                 if (x != otherX && y != otherY && !occupied.contains(x + "," + y)) {
                     available.add(new int[]{x, y});
                 }
@@ -172,6 +175,10 @@ public final class PortalMechanic implements LevelMechanic<PortalData> {
         List<String> errors = new ArrayList<>();
         Set<String> occupied = new HashSet<>();
         if (data.pairs().isEmpty()) errors.add("This level declares a portal mechanic with no pairs");
+        if (data.relocateMinX() > def.width()) {
+            errors.add("A portal relocation floor of " + data.relocateMinX()
+                    + " is off a board " + def.width() + " cells wide");
+        }
         for (PortalData.Pair pair : data.pairs()) {
             for (int[] cell : new int[][]{{pair.ax(), pair.ay()}, {pair.bx(), pair.by()}}) {
                 if (cell[0] < 0 || cell[0] > def.width() || cell[1] < 0 || cell[1] >= def.height()) {

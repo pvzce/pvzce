@@ -7,9 +7,9 @@
     "tiled": true
   },
   "profile": {
-    "elevation": -4.0,
-    "slope_x": 0.8,
+    "elevation": -3.0,
+    "slope_x": 0.6,
     "min": 0.0,
-    "max": 0.8
+    "max": 0.6
   }
 }

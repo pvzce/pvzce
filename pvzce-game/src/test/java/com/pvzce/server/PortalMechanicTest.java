@@ -8,7 +8,9 @@ import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.level.mechanic.PortalMechanic;
 import com.pvzce.common.network.PvzcePacket;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
@@ -114,6 +116,36 @@ class PortalMechanicTest {
 
         assertEquals(0, rowOf(walker), "walking into (2,3) sends it to (6,0)");
         assertTrue(walker.cellX() < 6.5F, "and past that end's centre: " + walker.cellX());
+    }
+
+    /**
+     * A relocation respects the level's floor: doors do not move onto the house's doorstep.
+     *
+     * <p>Without a floor the mechanic picks any free cell on the board, so a level that uses doors
+     * as its artillery can hand the zombies a lane that skips the whole defence. The floor is the
+     * data's way of saying "the walk from the house to a door is the player's reaction time".
+     */
+    @Test
+    void aRelocatedDoorStaysRightOfTheLevelsFloor() {
+        LevelServer level = level(new PortalData(
+                List.of(new PortalData.Pair(6, 0, 8, 3)), 40, 20, 4));
+        CapturingBridge bridge = new CapturingBridge();
+
+        tick(level, bridge, 400);
+
+        List<MechanicSyncS2C> syncs = bridge.packets.stream()
+                .filter(MechanicSyncS2C.class::isInstance)
+                .map(MechanicSyncS2C.class::cast)
+                .filter(sync -> PvzceIds.MECHANIC_PORTAL.equals(sync.mechanic()))
+                .toList();
+        assertTrue(syncs.size() >= 4, "several relocations happened; heard " + syncs.size());
+        for (MechanicSyncS2C sync : syncs) {
+            PortalMechanic.State state = PortalMechanic.State.CODEC.decode(sync.payloadBuffer());
+            for (PortalData.Pair pair : state.pairs()) {
+                assertTrue(pair.ax() >= 4, "a door moved to column " + pair.ax());
+                assertTrue(pair.bx() >= 4, "a door moved to column " + pair.bx());
+            }
+        }
     }
 
     /**

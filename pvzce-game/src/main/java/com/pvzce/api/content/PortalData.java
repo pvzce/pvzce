@@ -15,11 +15,16 @@ import java.util.List;
  * lane the player has not defended.
  *
  * @param pairs the portal pairs, each an "in" cell and an "out" cell
+ * @param relocateMinX the leftmost column a door may relocate to; the columns to its left are the
+ *                     player's reaction room, so a level can keep a door from moving onto the
+ *                     house's doorstep. Zero means the whole board, which is what a flat
+ *                     "斗转星移"-style board wants
  */
-public record PortalData(List<Pair> pairs, int relocateIntervalTicks, int initialRelocateTicks)
+public record PortalData(List<Pair> pairs, int relocateIntervalTicks, int initialRelocateTicks,
+                         int relocateMinX)
         implements MechanicData {
     public PortalData(List<Pair> pairs) {
-        this(pairs, 0, 0);
+        this(pairs, 0, 0, 0);
     }
     /**
      * One pair. Ends may occupy a lawn cell or the road column just beyond the right edge:
@@ -38,7 +43,8 @@ public record PortalData(List<Pair> pairs, int relocateIntervalTicks, int initia
     public static final MapCodec<PortalData> MAP_CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
             Pair.CODEC.listOf().fieldOf("pairs").forGetter(PortalData::pairs),
             Codec.INT.optionalFieldOf("relocate_interval_ticks", 0).forGetter(PortalData::relocateIntervalTicks),
-            Codec.INT.optionalFieldOf("initial_relocate_ticks", 0).forGetter(PortalData::initialRelocateTicks)
+            Codec.INT.optionalFieldOf("initial_relocate_ticks", 0).forGetter(PortalData::initialRelocateTicks),
+            Codec.INT.optionalFieldOf("relocate_min_x", 0).forGetter(PortalData::relocateMinX)
     ).apply(i, PortalData::new));
 
     public static final Codec<PortalData> CODEC = MAP_CODEC.codec();
@@ -47,5 +53,10 @@ public record PortalData(List<Pair> pairs, int relocateIntervalTicks, int initia
         pairs = pairs == null ? List.of() : List.copyOf(pairs);
         relocateIntervalTicks = Math.max(0, relocateIntervalTicks);
         initialRelocateTicks = initialRelocateTicks <= 0 ? relocateIntervalTicks : initialRelocateTicks;
+        relocateMinX = Math.max(0, relocateMinX);
+    }
+
+    public PortalData(List<Pair> pairs, int relocateIntervalTicks, int initialRelocateTicks) {
+        this(pairs, relocateIntervalTicks, initialRelocateTicks, 0);
     }
 }
