@@ -124,6 +124,19 @@ class TerracedHillsideTest {
     }
 
     @Test
+    void theDeckAndTheBuffsAreThePlayersToChoose() {
+        // The level pins no cards and no buffs: both pages of the card screen are the player's own
+        // backpack, and neither count is capped by the level (an unwritten max follows the profile).
+        assertTrue(shipped.slots().isEmpty(), "no card of this level is forced onto the bar");
+        assertFalse(shipped.declaresMaxSeedSlots(), "and its bar size is the player's, not the level's");
+        assertEquals(11, shipped.effectiveMaxSeedSlots(11), "so an 11-slot backpack gets 11 cards");
+        assertTrue(shipped.buffPlan().offersPlayerChoice(), "the buff page offers the player's own buffs");
+        assertTrue(shipped.buffPlan().fixedBuffs().isEmpty(), "with none fixed by the level");
+        assertFalse(shipped.buffPlan().declaresMaxBuffSlots(), "and no cap of its own on how many");
+        assertEquals(3, shipped.effectiveMaxBuffSlots(3), "so a 3-buff backpack gets 3");
+    }
+
+    @Test
     void theGroundUnderTheTerracesHasTwoLawnColumns() {
         LevelServer level = level(1L);
         PlantDef pea = BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter"));

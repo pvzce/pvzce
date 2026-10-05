@@ -150,6 +150,9 @@
   "wave_interval_end_multiplier": 1.0,
   "slots": [],
   "initial_sun": 200,
+  "buffs": [
+    "pvzce:player_choice"
+  ],
   "music": {
     "cues": [
       {
