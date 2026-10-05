@@ -116,6 +116,24 @@ public final class EntityTextures {
         return new float[]{art.width(), art.height()};
     }
 
+    /**
+     * True when this element's texture is a tile sheet rather than one cell-sized sprite.
+     *
+     * <p>The element says so in its own art ({@code "tiled": true}), which is how a level or a
+     * pack brings a terrain material of its own - see {@code pvzce:hillside_mid}. The two built-in
+     * atlases predate the field and are tiled by id, and that spelling is kept because a pack that
+     * replaces {@code pvzce:grass} without redeclaring the field still gets the lawn it had
+     * (compare {@code SceneElementDef.profileFor}, the same compatibility shape for the roof and
+     * the pool).
+     */
+    public static boolean sceneTiled(String sceneId) {
+        SceneElementDef def = BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.tryParse(sceneId));
+        if (def != null && def.artOrDefault().tiled()) {
+            return true;
+        }
+        return "pvzce:grass".equals(sceneId) || "pvzce:ground".equals(sceneId);
+    }
+
     private static Identifier resolve(Identifier id, String prefix) {
         if (id == null) {
             return Identifier.withDefaultNamespace(prefix + "unknown");

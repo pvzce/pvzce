@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/minigame/terraced_hillside",
   "name": "梯田山坡",
-  "description": "一座三层梯田：后院（0）、中层梯田（0.4 格）与上层梯田（0.8 格）。僵尸从最上层走下来，顺着每行的单向坡道先落到中层、再落进后院，所以三层是三条独立的战线——射手只打自己那一层，PgUp/PgDn（或层按钮）切换操作层分别布防；投石车会停在上层专门轰你上层的植物。梯田正下方（第 5、6 列）是两列草坪，可以安心种向日葵，棋子落在它前面的裸地上、不会踩到；同一格上下两层各能种一株。卡组自选，不设卡槽上限。",
+  "description": "一座两级梯田与它下面的一层：坡地这一层从左侧后院（0）起，经一列土坡升到中层梯田（0.4），再经一列土坡升到上层梯田（0.8）——它们同属一层，靠斜坡过渡，僵尸从上层一路走下来。低处的射手打不到高处的梯田（子弹会死在土坡上），投手能把卷心菜抛过坡地。按 PgUp/PgDn（或层按钮）切到「梯田下面」那一层：第 5、6 列是草坪葵田，两边是裸地（要花盆），僵尸不会下到这一层，所以可以安心种向日葵；落在下面的阳光切到那一层才看得清。卡组与增益都自选，不设槽位上限。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -20,7 +20,16 @@
       "2,1",
       "2,2",
       "2,3",
-      "2,4",
+      "2,4"
+    ],
+    "pvzce:hillside_bank_low": [
+      "3,0",
+      "3,1",
+      "3,2",
+      "3,3",
+      "3,4"
+    ],
+    "pvzce:hillside_mid": [
       "4,0",
       "4,1",
       "4,2",
@@ -32,17 +41,14 @@
       "5,3",
       "5,4"
     ],
-    "pvzce:ground": [
-      "3,0",
-      "3,1",
-      "3,2",
-      "3,3",
-      "3,4",
+    "pvzce:hillside_bank_high": [
       "6,0",
       "6,1",
       "6,2",
       "6,3",
-      "6,4",
+      "6,4"
+    ],
+    "pvzce:hillside_high": [
       "7,0",
       "7,1",
       "7,2",
@@ -53,52 +59,35 @@
       "8,2",
       "8,3",
       "8,4"
+    ],
+    "pvzce:crater": [
+      "8,1",
+      "7,2",
+      "8,4"
     ]
   },
   "surfaces": [
     {
-      "id": "pvzce:terrace_mid",
-      "name": "中层梯田",
+      "id": "pvzce:under_terrace",
+      "name": "梯田下面",
       "profile": {
-        "elevation": 0.4
+        "elevation": 0
       },
       "thickness": 0.15,
       "scene": {
         "pvzce:grass": [
-          "3,0",
-          "3,1",
-          "3,2",
-          "3,3",
-          "3,4",
           "4,0",
           "4,1",
           "4,2",
           "4,3",
-          "4,4"
-        ],
-        "pvzce:ground": [
+          "4,4",
           "5,0",
           "5,1",
           "5,2",
           "5,3",
           "5,4"
-        ]
-      }
-    },
-    {
-      "id": "pvzce:terrace_high",
-      "name": "上层梯田",
-      "profile": {
-        "elevation": 0.8
-      },
-      "thickness": 0.15,
-      "scene": {
-        "pvzce:grass": [
-          "5,0",
-          "5,1",
-          "5,2",
-          "5,3",
-          "5,4",
+        ],
+        "pvzce:ground": [
           "6,0",
           "6,1",
           "6,2",
@@ -113,11 +102,6 @@
           "8,1",
           "8,2",
           "8,3",
-          "8,4"
-        ],
-        "pvzce:crater": [
-          "8,1",
-          "7,2",
           "8,4"
         ]
       }
@@ -171,98 +155,21 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "草坪分三层：PgUp/PgDn（或层按钮）切换后院、中层梯田、上层梯田。",
+      "text": "草坪分两层：PgUp/PgDn（或层按钮）切换坡地与「梯田下面」。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "射手只打自己那一层，僵尸会顺着坡道一层层走下来。",
+      "text": "低处的射手打不到高处的梯田，子弹会死在土坡上；投手能抛过去。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "梯田下面的两列草坪是安全的向日葵田，棋盘预览按层显示。",
+      "text": "「梯田下面」第 5、6 列是安全葵田，切到那一层才种得下。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_card_refused"
-    }
-  ],
-  "mechanics": [
-    {
-      "type": "pvzce:surface_links",
-      "connections": [
-        {
-          "from": "pvzce:terrace_high",
-          "to": "pvzce:terrace_mid",
-          "x": 5,
-          "y": 0,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_high",
-          "to": "pvzce:terrace_mid",
-          "x": 5,
-          "y": 1,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_high",
-          "to": "pvzce:terrace_mid",
-          "x": 5,
-          "y": 2,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_high",
-          "to": "pvzce:terrace_mid",
-          "x": 5,
-          "y": 3,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_high",
-          "to": "pvzce:terrace_mid",
-          "x": 5,
-          "y": 4,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_mid",
-          "to": "pvzce:ground",
-          "x": 3,
-          "y": 0,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_mid",
-          "to": "pvzce:ground",
-          "x": 3,
-          "y": 1,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_mid",
-          "to": "pvzce:ground",
-          "x": 3,
-          "y": 2,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_mid",
-          "to": "pvzce:ground",
-          "x": 3,
-          "y": 3,
-          "direction": -1
-        },
-        {
-          "from": "pvzce:terrace_mid",
-          "to": "pvzce:ground",
-          "x": 3,
-          "y": 4,
-          "direction": -1
-        }
-      ]
     }
   ],
   "unlock": {
@@ -286,8 +193,7 @@
             0,
             2,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     },
@@ -303,8 +209,7 @@
             1,
             2,
             3
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
@@ -312,8 +217,7 @@
           "rows": [
             0,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     },
@@ -329,16 +233,14 @@
             0,
             2,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:buckethead_zombie",
           "count": 1,
           "rows": [
             2
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     },
@@ -353,8 +255,7 @@
           "count": 1,
           "rows": [
             2
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:basic_zombie",
@@ -364,8 +265,7 @@
             1,
             3,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
@@ -374,8 +274,7 @@
             0,
             2,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:buckethead_zombie",
@@ -383,8 +282,7 @@
           "rows": [
             1,
             3
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     },
@@ -399,8 +297,7 @@
           "rows": [
             1,
             3
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
@@ -408,16 +305,14 @@
           "rows": [
             0,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:buckethead_zombie",
           "count": 1,
           "rows": [
             2
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     },
@@ -431,8 +326,7 @@
           "count": 1,
           "rows": [
             0
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:buckethead_zombie",
@@ -440,8 +334,7 @@
           "rows": [
             1,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
@@ -450,16 +343,14 @@
             0,
             2,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:football_zombie",
           "count": 1,
           "rows": [
             3
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     },
@@ -473,8 +364,7 @@
           "count": 1,
           "rows": [
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:buckethead_zombie",
@@ -483,8 +373,7 @@
             0,
             2,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:football_zombie",
@@ -492,8 +381,7 @@
           "rows": [
             1,
             3
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
@@ -503,8 +391,14 @@
             1,
             3,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
+        },
+        {
+          "id": "pvzce:dancing_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
         }
       ]
     },
@@ -515,34 +409,35 @@
       "warning_ticks": 480,
       "entries": [
         {
-          "id": "pvzce:catapult",
-          "count": 2,
+          "id": "pvzce:gargantuar",
+          "count": 1,
           "rows": [
-            0,
-            4
-          ],
-          "surface": "pvzce:terrace_high"
+            2
+          ]
+        },
+        {
+          "id": "pvzce:catapult",
+          "count": 1,
+          "rows": [
+            0
+          ]
         },
         {
           "id": "pvzce:buckethead_zombie",
-          "count": 4,
+          "count": 3,
           "rows": [
             0,
-            1,
             3,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:football_zombie",
-          "count": 3,
+          "count": 2,
           "rows": [
             1,
-            2,
             4
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         },
         {
           "id": "pvzce:conehead_zombie",
@@ -552,8 +447,7 @@
             1,
             2,
             3
-          ],
-          "surface": "pvzce:terrace_high"
+          ]
         }
       ]
     }

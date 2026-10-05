@@ -4,6 +4,8 @@
     "pvzce:grass",
     "pvzce:ground",
     "pvzce:roof_flat",
-    "pvzce:roof_slope"
+    "pvzce:roof_slope",
+    "pvzce:hillside_mid",
+    "pvzce:hillside_high"
   ]
 }
