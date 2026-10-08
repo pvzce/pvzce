@@ -11,9 +11,9 @@ import com.pvzce.common.level.SceneBoard;
  * and one unit equals one cell. The projection maps the board into the
  * background's 9x5 dirt lawn while house/road remain addressable outside the
  * board (zombies enter from the right road before stepping onto the lawn).
- * Both axes use the board's native 80x100 cell ratio, so a board of any size
- * is only ever scaled uniformly; leftover space is background on the right or
- * above/below.</p>
+ * Normal stages preserve the background's aspect ratio. Permanent toolbars
+ * instead fit the whole background between them, with the grid following its
+ * two axes; the world renderer preserves plant and zombie proportions.</p>
  */
 public final class PvzceCamera {
     private final int screenWidth;
@@ -46,6 +46,7 @@ public final class PvzceCamera {
      */
     private final float panX;
     private final int bottomInset;
+    private final int topInset;
     private SceneBoard scene;
     private String surface = SceneBoard.DEFAULT_SURFACE;
     public PvzceCamera scene(SceneBoard scene, String surface) {
@@ -77,14 +78,21 @@ public final class PvzceCamera {
     /** Leaves permanent HUD space below the stage without covering a plantable cell. */
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
                        LevelStage.Geometry geometry, float panX, int bottomInset) {
+        this(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset, 0);
+    }
+
+    /** Leaves independent toolbar space above and below the entire playable stage. */
+    public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
+                       LevelStage.Geometry geometry, float panX, int bottomInset, int topInset) {
         this.bottomInset = Math.max(0, Math.min(screenHeight - 1, bottomInset));
+        this.topInset = Math.max(0, Math.min(screenHeight - this.bottomInset - 1, topInset));
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.columns = Math.max(1, columns);
         this.rows = Math.max(1, rows);
         this.geometry = geometry == null ? LevelStage.YARD : geometry;
-        LevelStage.Stage area = this.bottomInset == 0 ? LevelStage.cover(screenWidth, screenHeight)
-                : LevelStage.contain(screenWidth, screenHeight - this.bottomInset);
+        LevelStage.Stage area = this.bottomInset + this.topInset == 0 ? LevelStage.cover(screenWidth, screenHeight)
+                : LevelStage.fill(screenWidth, screenHeight - this.bottomInset - this.topInset);
         this.stage = new LevelStage.Stage(area.x(), area.y() + this.bottomInset, area.width(), area.height(), area.scale());
         LevelStage.Board lawn = LevelStage.board(this.columns, this.rows, this.geometry, area);
         this.board = new LevelStage.Board(lawn.x(), lawn.y() + this.bottomInset, lawn.width(), lawn.height(),
@@ -124,7 +132,7 @@ public final class PvzceCamera {
 
     /** The same camera looking {@code panX} cells further toward the house. */
     public PvzceCamera panned(float panX) {
-        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset).scene(scene, surface);
+        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset, topInset).scene(scene, surface);
     }
 
     /** How far this camera is looking toward the house, in cells. */
@@ -141,11 +149,11 @@ public final class PvzceCamera {
      * Anything sized in the backdrop's own pixels - the fog's cloud tiles, whose spacing is the
      * original's own - multiplies by this to stay the size the art was drawn at.
      *
-     * <p>One number for both axes: the board is scaled uniformly (see {@link LevelStage#board}),
-     * so the two can never disagree.
+     * <p>Use the vertical scale, as entity art preserves its proportions even when
+     * a permanent toolbar stage fills a wider rectangle.
      */
     public float boardScale() {
-        return unitX / Math.max(0.0001F, geometry.cellWidth());
+        return unitY / Math.max(0.0001F, geometry.cellHeight());
     }
 
     /**

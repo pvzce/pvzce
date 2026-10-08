@@ -12,9 +12,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LevelStageTest {
     @Test
     void permanentWorkshopLeavesEveryLawnCellVisibleAndClickable() {
-        var camera = new PvzceCamera(1920, 1080, 9, 5, LevelStage.YARD, 0F, 336);
-        assertTrue(camera.screenY(0F) >= 336);
-        assertTrue(camera.screenY(5F) <= 1080);
+        var camera = new PvzceCamera(1920, 1080, 9, 5, LevelStage.YARD, 0F, 256, 208);
+        assertEquals(0, camera.viewportX());
+        assertEquals(256, camera.viewportY());
+        assertEquals(1920, camera.viewportWidth());
+        assertEquals(616, camera.viewportHeight());
+        assertTrue(camera.screenY(0F) >= 256);
+        assertTrue(camera.screenY(5F) <= 872);
+        // Grid and backdrop use the same image points despite the wider stage.
+        assertEquals(256F * 1920F / 1400F, camera.screenX(0F), 0.001F);
+        assertEquals(256F + 20F * 616F / 600F, camera.screenY(0F), 0.001F);
         for (int x = 0; x < 9; x++) for (int y = 0; y < 5; y++) {
             float px = camera.screenX(x + 0.5F), py = 1080 - camera.cellScreenY(x, y);
             assertTrue(px >= 0 && px <= 1920);
@@ -23,6 +30,7 @@ class LevelStageTest {
             assertEquals(y, camera.cellY(px, py));
         }
         assertEquals(camera.screenY(0F), camera.panned(1F).screenY(0F));
+        assertEquals(camera.screenY(5F), camera.panned(1F).screenY(5F));
     }
     @Test
     void roofPickingReachesEveryCellIncludingTheRaisedTopRow() {

@@ -169,13 +169,16 @@ public final class LevelStage {
 
     /** The scaled reference image on screen; x/y are the bottom-left corner in screen pixels. */
     public record Stage(float x, float y, float width, float height, float scale) {
+        public float scaleX() { return width / IMAGE_WIDTH; }
+        public float scaleY() { return height / IMAGE_HEIGHT; }
+
         public float imageX(float imageX) {
-            return x + imageX * scale;
+            return x + imageX * scaleX();
         }
 
         /** Converts reference-image Y (top-down) to screen Y (bottom-up). */
         public float imageY(float imageY) {
-            return y + (IMAGE_HEIGHT - imageY) * scale;
+            return y + (IMAGE_HEIGHT - imageY) * scaleY();
         }
     }
 
@@ -214,13 +217,12 @@ public final class LevelStage {
         int safeRows = Math.max(1, rows);
         Geometry stage = geometry == null ? YARD : geometry;
 
-        // Contain-fit: one axis fills exactly, the other keeps its natural
-        // margin. No per-axis correction is applied, so cells keep the
-        // background art's native aspect ratio.
+        // Fit in reference-image coordinates first, then apply the backdrop's
+        // two axes. Toolbar stages fill their available band without cropping.
         float fit = Math.min(stage.lawnWidth() / (safeColumns * stage.cellWidth()),
                 stage.lawnHeight() / (safeRows * stage.cellHeight()));
-        float cellWidth = stage.cellWidth() * fit * cover.scale();
-        float cellHeight = stage.cellHeight() * fit * cover.scale();
+        float cellWidth = stage.cellWidth() * fit * cover.scaleX();
+        float cellHeight = stage.cellHeight() * fit * cover.scaleY();
 
         float boardWidth = safeColumns * cellWidth;
         float boardHeight = safeRows * cellHeight;
@@ -228,7 +230,7 @@ public final class LevelStage {
         float lawnScreenX = cover.imageX(stage.lawnLeft());
         float lawnScreenBottom = cover.imageY(stage.lawnTop() + stage.lawnHeight());
         float boardX = lawnScreenX; // anchor to the house side
-        float boardY = lawnScreenBottom + (stage.lawnHeight() * cover.scale() - boardHeight) / 2F;
+        float boardY = lawnScreenBottom + (stage.lawnHeight() * cover.scaleY() - boardHeight) / 2F;
 
         return new Board(boardX, boardY, boardWidth, boardHeight, cellWidth, cellHeight, fit);
     }
@@ -238,6 +240,11 @@ public final class LevelStage {
         float scale = Math.min(width / IMAGE_WIDTH, height / IMAGE_HEIGHT);
         return new Stage((width - IMAGE_WIDTH * scale) / 2F, (height - IMAGE_HEIGHT * scale) / 2F,
                 IMAGE_WIDTH * scale, IMAGE_HEIGHT * scale, scale);
+    }
+
+    /** Fills a toolbar stage's entire rectangle, keeping every reference-image point visible. */
+    public static Stage fill(int width, int height) {
+        return new Stage(0F, 0F, width, height, height / IMAGE_HEIGHT);
     }
 
     /** Cover-scales the reference image to the screen, preserving aspect ratio. */

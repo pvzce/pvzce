@@ -1,59 +1,78 @@
 package com.pvzce.client.mechanic;
 
+import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.ClientLevel;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
+import com.pvzce.client.gui.HoverTip;
 import com.pvzce.client.gui.SeedCardRenderer;
+import com.pvzce.client.gui.components.NinePatch;
+import com.pvzce.client.gui.hud.cardbar.CardPainter;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantRecipes;
 import com.pvzce.common.level.FusionState;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.packet.FusionActionC2S;
 import com.pvzce.common.network.packet.PickUpCardC2S;
 import com.pvzce.common.network.packet.ReleaseHeldCardC2S;
+import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.UseGrantedToolC2S;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/** A permanent workshop below the camera viewport, with the same geometry for paint and input. */
+import static com.pvzce.client.mechanic.FusionLayout.*;
+
+/** Familiar wood, paper and tool slots surrounding the lawn; all inventory remains a server mirror. */
 public final class FusionClientMechanic implements ClientMechanic {
-    private static final float WIDTH = 960F, HEIGHT = 168F;
-    private static final int PAGE_SIZE = 12;
+    private static final Identifier WOOD = PvzceIds.id("textures/gui/screen/seeds/seed_chooser_background");
+    private static final Identifier BUTTON = PvzceIds.id("textures/gui/screen/seeds/seed_chooser_button");
+    private static final Identifier BUTTON_DISABLED = PvzceIds.id("textures/gui/screen/seeds/seed_chooser_button_disabled");
+    private static final Identifier PAPER = PvzceIds.id("textures/gui/hud/seed_packet");
+    private static final Identifier SUN_BANK = PvzceIds.id("textures/gui/hud/sun_bank");
+    private static final Identifier SHOVEL_BANK = PvzceIds.id("textures/gui/hud/shovel_bank");
     private static final class View {
         FusionState state;
         boolean shovel;
         int page, seedPage, trayPage;
         String notice = "";
         long noticeUntil;
+        final Map<Identifier, Identifier> icons = new HashMap<>();
     }
     private static View view(ClientLevel level) {
         return level.mechanicState(PvzceIds.MECHANIC_FUSION, View::new);
     }
     public static boolean active(ClientLevel level) { return level.hasMechanic(PvzceIds.MECHANIC_FUSION); }
-    private static float scale(PvzceClient client) {
-        return Math.min(client.guiWidth() / WIDTH, client.guiHeight() / 540F);
+    private static FusionLayout layout(PvzceClient c) {
+        float right = c.currentScreen() instanceof com.pvzce.client.gui.screens.InGameScreen screen
+                ? screen.rightBound() : c.guiWidth();
+        return FusionLayout.of(c.guiWidth(), c.guiHeight(), right);
     }
-    public static int reservedPixels(PvzceClient client) {
-        return active(client.level()) ? Math.round(HEIGHT * scale(client) * client.window().height() / client.guiHeight()) : 0;
+    private static int pixels(PvzceClient c, float height) {
+        return active(c.level()) ? Math.round(height * layout(c).scale() * c.window().height() / c.guiHeight()) : 0;
     }
-    public static float[] sunTarget(PvzceClient client) {
-        float s = scale(client);
-        return new float[]{(client.guiWidth() - WIDTH * s) / 2F + 52 * s, 106 * s};
+    public static int reservedPixels(PvzceClient c) { return pixels(c, BOTTOM_HEIGHT); }
+    public static int reservedTopPixels(PvzceClient c) { return pixels(c, TOP_HEIGHT); }
+    public static float[] sunTarget(PvzceClient c) {
+        var l = layout(c);
+        return new float[]{l.left() + 46 * l.scale(), (l.topY() + 28) * l.scale()};
     }
     @Override public Identifier id() { return PvzceIds.MECHANIC_FUSION; }
     @Override public void applySync(ClientLevel level, PacketByteBuf payload) {
-        view(level).state = FusionState.CODEC.decode(payload);
+        View v = view(level); v.state = FusionState.CODEC.decode(payload);
+        v.noticeUntil = 0L;
     }
     public static void showNotice(ClientLevel level, String message) {
         if (!active(level)) return;
-        View view = view(level); view.notice = message;
-        view.noticeUntil = System.nanoTime() + 4_000_000_000L;
+        View v = view(level); v.notice = message; v.noticeUntil = System.nanoTime() + 4_000_000_000L;
     }
-    private static List<Identifier> abilities(View view) {
+    private static List<Identifier> abilities() {
         List<Identifier> result = new ArrayList<>(PlantRecipes.abilities());
         List<String> first = List.of("shooter", "producer", "defense", "carrier", "explosive", "thrower", "nocturnal", "melee");
         result.sort(Comparator.<Identifier>comparingInt(id -> first.indexOf(id.path()) < 0 ? first.size() : first.indexOf(id.path()))
@@ -63,163 +82,221 @@ public final class FusionClientMechanic implements ClientMechanic {
     private static int count(List<FusionState.Count> counts, String ability) {
         return counts.stream().filter(c -> c.ability().equals(ability)).mapToInt(FusionState.Count::amount).sum();
     }
-    private static List<ClientEntity> seeds(PvzceClient client) {
-        return client.level().entities().values().stream().filter(e -> "card_drop".equals(e.kind())
-                && e.id() != client.level().heldCardEntityId()).sorted(Comparator.comparingInt(ClientEntity::id)).toList();
+    private static List<ClientEntity> seeds(PvzceClient c) {
+        return c.level().entities().values().stream().filter(e -> "card_drop".equals(e.kind())
+                && e.id() != c.level().heldCardEntityId()).sorted(Comparator.comparingInt(ClientEntity::id)).toList();
     }
     private static String name(String ability) {
         Identifier id = Identifier.tryParse(ability);
         if (id == null) return ability;
-        String key = "plant_capability." + id.namespace() + "." + id.path();
-        String result = GuiLang.raw(key, ability);
-        return result.equals(ability) ? GuiLang.raw("capability." + id.namespace() + "." + id.path(), ability) : result;
+        return GuiLang.raw("plant_capability." + id.namespace() + "." + id.path(),
+                GuiLang.raw("capability." + id.namespace() + "." + id.path(), ability));
     }
-    private static void send(PvzceClient client, String action, String ability, int drop) {
-        client.connection().send(new FusionActionC2S(action, ability, drop));
+    private static Identifier abilityIcon(View v, Identifier ability) {
+        return v.icons.computeIfAbsent(ability, key -> BuiltInRegistries.PLANTS.keySet().stream()
+                .map(BuiltInRegistries.PLANTS::get)
+                .filter(plant -> plant.resolvedCapabilities().stream().anyMatch(cap -> cap.type().equals(key)))
+                .min(Comparator.comparingInt(PlantDef::order).thenComparing(plant -> plant.id().toString()))
+                .map(plant -> CardPainter.icon(plant.id().toString())).orElse(null));
     }
-    private static void rect(PvzceClient c, float x, float y, float w, float h, float r, float g, float b) {
-        float s = scale(c), left = (c.guiWidth() - WIDTH * s) / 2F;
-        c.drawSolid(left + x * s, y * s, w * s, h * s, 8F, r, g, b, 1F);
+    private static void send(PvzceClient c, String action, String ability, int drop) {
+        c.connection().send(new FusionActionC2S(action, ability, drop));
+    }
+    private static boolean hovered(PvzceClient c, Box box) {
+        var l = layout(c);
+        return box.contains(l.x(c.guiMouseX(c.window().cursorX())), l.y(c.guiMouseY(c.window().cursorY())));
+    }
+    private static void texture(PvzceClient c, Identifier id, Box box, float brightness) {
+        var l = layout(c);
+        c.drawTexture(id, l.left() + box.x() * l.scale(), box.y() * l.scale(),
+                box.width() * l.scale(), box.height() * l.scale(), 8F, brightness, brightness, brightness, 1F);
+    }
+    private static void wash(PvzceClient c, Box box, float alpha) {
+        var l = layout(c);
+        c.drawSolid(l.left() + box.x() * l.scale(), box.y() * l.scale(), box.width() * l.scale(), box.height() * l.scale(),
+                8.1F, 1F, 0.95F, 0.45F, alpha);
+    }
+    private static void wood(PvzceClient c, Box box) {
+        var l = layout(c);
+        // The native frame has transparent carved corners. Give them a wooden
+        // backing so edge-to-edge toolbars never expose the clear colour.
+        c.drawSolid(l.left() + box.x() * l.scale(), box.y() * l.scale(),
+                box.width() * l.scale(), box.height() * l.scale(), 7.9F, 0.22F, 0.075F, 0.024F, 1F);
+        NinePatch.drawNineSliceTiled(c, WOOD, l.left() + box.x() * l.scale(), box.y() * l.scale(),
+                box.width() * l.scale(), box.height() * l.scale(), 8F,
+                465F, 513F, 16F, 16F, 34F, 16F, 0.45F * l.scale(), 1F, 1F, 1F, 1F);
     }
     private static void text(PvzceClient c, String value, float x, float y, float size, float r, float g, float b) {
-        float s = scale(c), left = (c.guiWidth() - WIDTH * s) / 2F;
-        c.fonts().body().draw(value, left + x * s, y * s, size * s, r, g, b, 1F);
+        var l = layout(c);
+        c.fonts().body().draw(value, l.left() + x * l.scale(), y * l.scale(), size * l.scale(), r, g, b, 1F);
     }
-    private static void fitText(PvzceClient c, String value, float x, float y, float width, float r, float g, float b) {
-        float size = Math.min(0.72F, width / Math.max(1F, c.fonts().body().width(value, 1F)));
-        text(c, value, x, y, size, r, g, b);
+    private static void fitText(PvzceClient c, String value, float x, float y, float width, float size, float r, float g, float b) {
+        text(c, value, x, y, Math.min(size, width / Math.max(1F, c.fonts().body().width(value, 1F))), r, g, b);
     }
-    private static void button(PvzceClient c, String label, float x, float y, float w, float h, boolean enabled) {
-        rect(c, x, y, w, h, enabled ? 0.20F : 0.13F, enabled ? 0.42F : 0.23F, enabled ? 0.35F : 0.22F);
-        fitText(c, label, x + 7, y + h / 2F - 4, w - 14, enabled ? 0.96F : 0.52F, enabled ? 0.91F : 0.60F, 0.73F);
+    private static void button(PvzceClient c, String label, Box box, boolean enabled) {
+        texture(c, enabled ? BUTTON : BUTTON_DISABLED, box, 1F);
+        if (enabled && hovered(c, box)) wash(c, box, 0.14F);
+        float size = Math.min(0.8F, Math.min((box.width() - 8F) / Math.max(1F, c.fonts().button().width(label, 1F)),
+                box.height() * 0.55F / c.fonts().button().lineHeight(1F)));
+        var l = layout(c);
+        c.fonts().button().draw(label,
+                l.left() + (box.x() + (box.width() - c.fonts().button().width(label, size)) / 2F) * l.scale(),
+                (box.y() + (box.height() - c.fonts().button().lineHeight(size)) / 2F + 2F) * l.scale(),
+                size * l.scale(), 1F, 0.97F, 0.82F, enabled ? 1F : 0.55F);
     }
+    private static void token(PvzceClient c, View v, String ability, int amount, Box box) {
+        var l = layout(c); Identifier icon = abilityIcon(v, Identifier.tryParse(ability));
+        float bright = amount > 0 ? 1F : 0.52F;
+        if (icon == null) {
+            texture(c, PAPER, box, bright);
+            text(c, "?", box.x() + box.width() / 2F - 5F, box.y() + box.height() / 2F, 1F, 0.35F, 0.22F, 0.10F);
+        } else {
+            SeedCardRenderer.draw(c, SeedCardRenderer.CardModel.of(icon, SeedCardRenderer.CardKind.BUFF, SlotInfo.NO_PRICE).withBrightness(bright),
+                    l.left() + box.x() * l.scale(), box.y() * l.scale(), box.width() * l.scale(), box.height() * l.scale());
+        }
+        fitText(c, name(ability), box.x() + 3F, box.y() + 3F, box.width() - 6F, 0.58F, 0.18F, 0.27F, 0.09F);
+        if (box.width() >= 32F) {
+            // A separate wooden quantity tag stays readable over the packet's printed header.
+            button(c, "×" + amount, new Box(box.x() + box.width() - 26F, box.y() + box.height() - 16F, 24F, 14F), amount > 0);
+        }
+        if (amount > 0 && hovered(c, box)) wash(c, box, 0.16F);
+    }
+    private static void seed(PvzceClient c, Identifier plant, Box box) {
+        var l = layout(c);
+        SeedCardRenderer.draw(c, SeedCardRenderer.CardModel.of(CardPainter.icon(plant.toString()), SeedCardRenderer.CardKind.PLANT, SlotInfo.NO_PRICE),
+                l.left() + box.x() * l.scale(), box.y() * l.scale(), box.width() * l.scale(), box.height() * l.scale());
+        if (hovered(c, box)) wash(c, box, 0.12F);
+    }
+
     @Override public void renderHud(PvzceClient c) {
         View v = view(c.level()); FusionState state = v.state;
         if (state == null) return;
+        var l = layout(c);
         var data = c.level().mechanicData(id(), com.pvzce.api.content.FusionData.class);
-        int lossChance = Math.round(100F * data.lossChance()), dropChance = Math.round(100F * data.dropChance());
-        float s = scale(c), left = (c.guiWidth() - WIDTH * s) / 2F;
-        c.drawSolid(0, 0, c.guiWidth(), HEIGHT * s, 8F, 0.055F, 0.12F, 0.12F, 1F);
-        rect(c, 0, 165, WIDTH, 3, 0.82F, 0.66F, 0.32F);
-        int wave = c.level().currentWave(), total = c.level().totalWaves();
-        float progress = total <= 0 ? 0F : Math.min(1F, (wave + c.level().waveProgress()) / total);
-        rect(c, 0, 165, WIDTH * progress, 3, 0.35F, 0.80F, 0.65F);
-        rect(c, 108, 8, 1, 130, 0.25F, 0.36F, 0.30F);
-        rect(c, 460, 8, 1, 130, 0.25F, 0.36F, 0.30F);
-        rect(c, 756, 8, 1, 130, 0.25F, 0.36F, 0.30F);
-        String[] lesson = {"01  选择分解铲，再点击草坪上的一株豌豆射手（这一次不会损耗）",
-                "02  点击库存中的“射手”，把一份能力放入合成区",
-                "03  点击“合成植物”：相同能力的背包植物会随机出现一种",
-                "04  点击待种卡片，再点击可种植的草坪格子；完成后开始迎战"};
-        String line = !state.success() ? state.message() : state.tutorialStep() < 4 ? lesson[state.tutorialStep()] : state.message().isEmpty()
-                ? "击败僵尸有" + dropChance + "%概率掉落能力 · 点击库存放入，点击合成区撤回 · 右侧 + 用阳光购买" : state.message();
-        if (System.nanoTime() < v.noticeUntil) line = v.notice;
-        fitText(c, line, 16, 147, 832, state.success() ? 0.90F : 1F, state.success() ? 0.92F : 0.55F, 0.65F);
-        text(c, "波次 " + wave + "/" + total, 855, 147, 0.75F, 0.80F, 0.9F, 0.78F);
-        text(c, "融合工坊", 12, 121, 0.85F, 0.98F, 0.83F, 0.48F);
-        text(c, "阳光  " + c.level().sun(), 12, 101, 0.80F, 1F, 0.91F, 0.51F);
-        rect(c, 12, 28, 84, 62, 0.20F, 0.42F, 0.35F);
-        fitText(c, v.shovel ? "分解中 [S]" : "分解铲 [S]", 19, 38, 70, 0.96F, 0.91F, 0.73F);
-        if (v.shovel) rect(c, 12, 28, 84, 2, 1F, 0.72F, 0.28F);
-        c.drawTexture(PvzceIds.id("textures/entities/tool/shovel"), left + 40 * s, 55 * s, 29 * s, 29 * s, 8.1F, 1F, 1F, 1F, 1F);
-        text(c, "损耗：" + lossChance + "% / 一份", 12, 12, 0.62F, 0.65F, 0.77F, 0.70F);
-        text(c, "能力库存", 120, 123, 0.8F, 0.87F, 0.95F, 0.85F);
-        text(c, "+ 购买 / " + state.price() + " 阳光", 290, 123, 0.66F, 0.85F, 0.76F, 0.53F);
-        List<Identifier> ids = abilities(v); int pages = Math.max(1, (ids.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+        int loss = Math.round(100F * data.lossChance());
+        // The materials reach the actual window edges, including wide windows
+        // whose centered controls leave space outside the reference layout.
+        float edge = -l.left() / l.scale(), fullWidth = c.guiWidth() / l.scale();
+        wood(c, new Box(edge, l.topY(), fullWidth, TOP_HEIGHT));
+        wood(c, new Box(edge, 0, fullWidth, BOTTOM_HEIGHT));
+        texture(c, SUN_BANK, new Box(14, l.topY() + 21, 64, 72), 1F);
+        String sun = String.valueOf(c.level().sun());
+        float sunSize = Math.min(0.9F, 49F / Math.max(1F, c.fonts().button().width(sun, 1F)));
+        c.fonts().button().draw(sun, l.left() + (46F - c.fonts().button().width(sun, sunSize) / 2F) * l.scale(),
+                (l.topY() + 27F) * l.scale(), sunSize * l.scale(), 0.18F, 0.10F, 0.03F, 1F);
+        texture(c, SHOVEL_BANK, l.shovel(), 1F);
+        if (v.shovel) wash(c, l.shovel(), 0.25F);
+        texture(c, PvzceIds.id("textures/entities/tool/shovel"), new Box(105, l.topY() + 43, 30, 31), 1F);
+        fitText(c, v.shovel ? "分解中 [S]" : "分解铲 [S]", 85, l.topY() + 11, 73, 0.67F, 1F, 0.94F, 0.68F);
+        text(c, "能力库存", 174, l.topY() + 91, 0.72F, 1F, 0.95F, 0.75F);
+        text(c, "每份 " + state.price() + " 阳光", 289, l.topY() + 91, 0.62F, 0.94F, 0.82F, 0.59F);
+        int pageSize = l.abilitiesPerPage();
+        List<Identifier> ids = abilities(); int pages = Math.max(1, (ids.size() + pageSize - 1) / pageSize);
         v.page = Math.min(v.page, pages - 1);
-        for (int i = 0; i < PAGE_SIZE && v.page * PAGE_SIZE + i < ids.size(); i++) {
-            String id = ids.get(v.page * PAGE_SIZE + i).toString();
-            float x = 120 + i % 4 * 84, y = 86 - i / 4 * 27;
-            int amount = count(state.inventory(), id);
-            rect(c, x, y, 61, 24, amount > 0 ? 0.23F : 0.12F, amount > 0 ? 0.35F : 0.22F, 0.25F);
-            fitText(c, name(id), x + 4, y + 13, 54, amount > 0 ? 0.95F : 0.55F, 0.86F, 0.66F);
-            text(c, "×" + amount, x + 4, y + 3, 0.57F, 0.70F, 0.84F, 0.76F);
-            button(c, "+", x + 63, y, 18, 24, c.level().sun() >= state.price());
+        for (int i = 0; i < l.abilitiesPerPage() && v.page * l.abilitiesPerPage() + i < ids.size(); i++) {
+            String ability = ids.get(v.page * l.abilitiesPerPage() + i).toString();
+            token(c, v, ability, count(state.inventory(), ability), l.ability(i));
+            button(c, "+" + state.price(), l.buy(i), c.level().sun() >= state.price());
         }
-        button(c, "‹", 120, 8, 25, 19, v.page > 0);
-        text(c, (v.page + 1) + " / " + pages, 155, 14, 0.65F, 0.7F, 0.8F, 0.74F);
-        button(c, "›", 204, 8, 25, 19, v.page < pages - 1);
-        button(c, "收集掉落 (" + state.drops().size() + ")", 242, 8, 207, 19, !state.drops().isEmpty());
-        text(c, "合成区", 474, 123, 0.8F, 0.98F, 0.86F, 0.55F);
-        text(c, "点击能力即可撤回", 581, 123, 0.65F, 0.65F, 0.79F, 0.72F);
-        int trayPages = Math.max(1, (state.tray().size() + 5) / 6); v.trayPage = Math.min(v.trayPage, trayPages - 1);
-        rect(c, 473, 52, 270, 59, 0.10F, 0.20F, 0.19F);
-        if (state.tray().isEmpty()) fitText(c, "从左侧库存选择能力，尝试新的组合", 486, 78, 246, 0.58F, 0.70F, 0.64F);
-        for (int i = 0; i < 6 && v.trayPage * 6 + i < state.tray().size(); i++) {
-            FusionState.Count entry = state.tray().get(v.trayPage * 6 + i);
-            button(c, name(entry.ability()) + " ×" + entry.amount(), 478 + i % 3 * 87, 82 - i / 3 * 26, 82, 23, true);
+        button(c, "‹", l.abilityPrevious(), v.page > 0);
+        button(c, "›", l.abilityNext(), v.page < pages - 1);
+        text(c, (v.page + 1) + " / " + pages, l.topRight() - 69F, l.topY() + 24, 0.65F, 1F, 0.9F, 0.66F);
+        String[] lesson = {"选分解铲，再点一株豌豆射手（首次无损）", "点上方的射手能力，把它放入合成区",
+                "点“合成植物”，相同能力的背包植物随机出现一种", "取出下方种子卡，再点可种植格子；种下后开始迎战"};
+        if (state.tutorialStep() == 1 && state.inventory().isEmpty()) lesson[1] = "能力已经损耗：再分解一株豌豆射手，然后重新合成";
+        String line = !state.success() ? state.message() : state.tutorialStep() < 4 ? lesson[state.tutorialStep()]
+                : state.message().isEmpty() ? "点击能力加料、点击合成区取回；不用的卡片可分解，损耗 " + loss + "%" : state.message();
+        if (System.nanoTime() < v.noticeUntil) line = v.notice;
+        fitText(c, line, 23, 113, 785, 0.72F, 1F, state.success() ? 0.94F : 0.60F, 0.67F);
+        fitText(c, "波次 " + c.level().currentWave() + "/" + c.level().totalWaves(), 831, 113, 101, 0.72F, 1F, 0.94F, 0.67F);
+        text(c, "合成区", 24, 98, 0.72F, 1F, 0.95F, 0.75F);
+        text(c, "点能力取回", 119, 98, 0.60F, 0.90F, 0.79F, 0.58F);
+        int trayPages = Math.max(1, (state.tray().size() + TRAY_PER_PAGE - 1) / TRAY_PER_PAGE);
+        v.trayPage = Math.min(v.trayPage, trayPages - 1);
+        if (state.tray().isEmpty()) fitText(c, "从上方选能力，试试新的组合", 33, 61, 352, 0.8F, 0.87F, 0.77F, 0.55F);
+        for (int i = 0; i < TRAY_PER_PAGE && v.trayPage * TRAY_PER_PAGE + i < state.tray().size(); i++) {
+            var entry = state.tray().get(v.trayPage * TRAY_PER_PAGE + i);
+            token(c, v, entry.ability(), entry.amount(), l.tray(i));
         }
-        button(c, "合成植物", 474, 8, 140, 34, !state.tray().isEmpty());
-        button(c, "全部返还", 621, 8, 91, 34, !state.tray().isEmpty());
-        button(c, "›", 718, 8, 25, 34, trayPages > 1);
-        text(c, "待种卡片", 770, 123, 0.8F, 0.87F, 0.95F, 0.85F);
-        List<ClientEntity> seeds = seeds(c); int seedPages = Math.max(1, (seeds.size() + 2) / 3); v.seedPage = Math.min(v.seedPage, seedPages - 1);
-        for (int i = 0; i < 3 && v.seedPage * 3 + i < seeds.size(); i++) {
-            ClientEntity seed = seeds.get(v.seedPage * 3 + i); Identifier plant = seed.defId();
-            SeedCardRenderer.draw(c, SeedCardRenderer.CardModel.of(com.pvzce.client.gui.hud.cardbar.CardPainter.icon(plant.toString()), SeedCardRenderer.CardKind.PLANT, 0),
-                    left + (772 + i * 57) * s, 47 * s, 49 * s, 65 * s);
-        }
-        if (seeds.isEmpty()) fitText(c, "合成后在这里取卡", 775, 76, 166, 0.58F, 0.70F, 0.64F);
-        button(c, "‹", 772, 8, 25, 26, v.seedPage > 0);
-        text(c, seeds.size() + " 张 · " + (v.seedPage + 1) + "/" + seedPages, 806, 18, 0.65F, 0.7F, 0.8F, 0.74F);
-        button(c, "›", 917, 8, 25, 26, v.seedPage < seedPages - 1);
-        double mx = (c.guiMouseX(c.window().cursorX()) - left) / s;
-        double my = c.guiMouseY(c.window().cursorY()) / s;
-        for (int i = 0; i < 3 && v.seedPage * 3 + i < seeds.size(); i++) {
-            if (inside(mx, my, 772 + i * 57, 47, 49, 65)) {
-                String label = com.pvzce.client.gui.HoverTip.nameOf(seeds.get(v.seedPage * 3 + i).defId().toString(), "plant");
-                fitText(c, label, 772, 34, 171, 1F, 0.88F, 0.59F);
+        button(c, "合成植物", l.fuse(), !state.tray().isEmpty());
+        button(c, "全部返还", l.clear(), !state.tray().isEmpty());
+        button(c, "›", l.trayNext(), trayPages > 1);
+        button(c, "收集 (" + state.drops().size() + ")", l.collect(), !state.drops().isEmpty());
+        text(c, "待种卡片", 426, 98, 0.72F, 1F, 0.95F, 0.75F);
+        List<ClientEntity> seeds = seeds(c); int seedPages = Math.max(1, (seeds.size() + SEEDS_PER_PAGE - 1) / SEEDS_PER_PAGE);
+        v.seedPage = Math.min(v.seedPage, seedPages - 1);
+        for (int i = 0; i < SEEDS_PER_PAGE && v.seedPage * SEEDS_PER_PAGE + i < seeds.size(); i++) {
+            var packet = seeds.get(v.seedPage * SEEDS_PER_PAGE + i);
+            seed(c, packet.defId(), l.seed(i));
+            button(c, "分解", l.recycle(i), true);
+            if (hovered(c, l.seed(i)) || hovered(c, l.recycle(i))) {
+                fitText(c, HoverTip.nameOf(packet.defId().toString(), "plant") + (hovered(c, l.recycle(i)) ? " · 损耗 " + loss + "%" : ""),
+                        540, 98, 253, 0.62F, 1F, 0.94F, 0.66F);
             }
         }
-        // Visible on the lawn and also collectable together from the workshop; no expiry pressure.
+        if (seeds.isEmpty()) text(c, "合成后在这里取卡", 437, 60, 0.76F, 0.87F, 0.77F, 0.55F);
+        button(c, "‹", l.seedPrevious(), v.seedPage > 0);
+        button(c, "›", l.seedNext(), v.seedPage < seedPages - 1);
+        text(c, (v.seedPage + 1) + "/" + seedPages, 741, 42, 0.65F, 1F, 0.9F, 0.66F);
+        text(c, "手持", 835, 98, 0.7F, 1F, 0.95F, 0.75F);
+        if (c.level().holdingCard()) seed(c, Identifier.tryParse(c.level().heldCard()), l.held());
+        else text(c, "手上为空", 811, 60, 0.76F, 0.87F, 0.77F, 0.55F);
+        button(c, "分解手持", l.recycleHeld(), c.level().holdingCard());
         for (FusionState.Drop drop : state.drops()) {
-            float x = c.camera().screenX(drop.x()) / Math.max(1, c.guiScale());
-            float y = c.camera().screenY(drop.y() + 0.45F) / Math.max(1, c.guiScale());
-            c.drawSolid(x - 15 * s, y - 9 * s, 30 * s, 18 * s, 8F, 0.24F, 0.63F, 0.60F, 0.92F);
-            c.fonts().body().draw(name(drop.ability()), x - 12 * s, y - 3 * s, 0.6F * s, 1F, 1F, 0.80F, 1F);
+            float x = (c.camera().screenX(drop.x()) / Math.max(1, c.guiScale()) - l.left()) / l.scale();
+            float y = c.camera().screenY(drop.y() + 0.45F) / Math.max(1, c.guiScale()) / l.scale();
+            token(c, v, drop.ability(), 1, new Box(x - 14, y - 20, 28, 40));
         }
     }
 
-    private static boolean inside(double x, double y, float rx, float ry, float w, float h) {
-        return x >= rx && x < rx + w && y >= ry && y < ry + h;
-    }
     public static boolean click(PvzceClient c, double guiX, double guiY, int button) {
         if (!active(c.level())) return false;
         View v = view(c.level()); if (v.state == null) return false;
-        float s = scale(c); double x = (guiX - (c.guiWidth() - WIDTH * s) / 2F) / s, y = guiY / s;
-        if (y >= HEIGHT) {
+        var l = layout(c); double x = l.x(guiX), y = l.y(guiY);
+        if (!l.inToolbar(x, y)) {
             if (button == 0) for (FusionState.Drop drop : v.state.drops()) {
                 double dx = c.camera().screenX(drop.x()) / Math.max(1, c.guiScale()), dy = c.camera().screenY(drop.y() + 0.45F) / Math.max(1, c.guiScale());
-                if (Math.hypot((guiX - dx) / s, (guiY - dy) / s) < 23) { send(c, "collect", "", drop.id()); return true; }
+                if (Math.hypot((guiX - dx) / l.scale(), (guiY - dy) / l.scale()) < 24) {
+                    send(c, "collect", "", drop.id()); return true;
+                }
             }
             return false;
         }
         if (button != 0) return true;
-        if (inside(x, y, 12, 28, 84, 62)) { toggleShovel(c); return true; }
-        List<Identifier> ids = abilities(v);
-        for (int i = 0; i < PAGE_SIZE && v.page * PAGE_SIZE + i < ids.size(); i++) {
-            String id = ids.get(v.page * PAGE_SIZE + i).toString(); float rx = 120 + i % 4 * 84, ry = 86 - i / 4 * 27;
-            if (inside(x, y, rx, ry, 61, 24)) send(c, "add", id, -1);
-            if (inside(x, y, rx + 63, ry, 18, 24)) send(c, "buy", id, -1);
+        if (l.shovel().contains(x, y)) { toggleShovel(c); return true; }
+        List<Identifier> ids = abilities();
+        for (int i = 0; i < l.abilitiesPerPage() && v.page * l.abilitiesPerPage() + i < ids.size(); i++) {
+            String id = ids.get(v.page * l.abilitiesPerPage() + i).toString();
+            if (l.ability(i).contains(x, y)) send(c, "add", id, -1);
+            if (l.buy(i).contains(x, y)) send(c, "buy", id, -1);
         }
-        if (inside(x, y, 120, 8, 25, 19)) v.page = Math.max(0, v.page - 1);
-        if (inside(x, y, 204, 8, 25, 19)) v.page = Math.min((ids.size() - 1) / PAGE_SIZE, v.page + 1);
-        if (inside(x, y, 242, 8, 207, 19)) send(c, "collect", "", -1);
-        for (int i = 0; i < 6 && v.trayPage * 6 + i < v.state.tray().size(); i++) {
-            if (inside(x, y, 478 + i % 3 * 87, 82 - i / 3 * 26, 82, 23)) send(c, "remove", v.state.tray().get(v.trayPage * 6 + i).ability(), -1);
+        if (l.abilityPrevious().contains(x, y)) v.page = Math.max(0, v.page - 1);
+        if (l.abilityNext().contains(x, y)) v.page = Math.min((ids.size() - 1) / l.abilitiesPerPage(), v.page + 1);
+        for (int i = 0; i < TRAY_PER_PAGE && v.trayPage * TRAY_PER_PAGE + i < v.state.tray().size(); i++) {
+            if (l.tray(i).contains(x, y)) send(c, "remove", v.state.tray().get(v.trayPage * TRAY_PER_PAGE + i).ability(), -1);
         }
-        if (inside(x, y, 474, 8, 140, 34)) send(c, "fuse", "", -1);
-        if (inside(x, y, 621, 8, 91, 34)) send(c, "clear", "", -1);
-        if (inside(x, y, 718, 8, 25, 34)) v.trayPage = (v.trayPage + 1) % Math.max(1, (v.state.tray().size() + 5) / 6);
+        if (l.fuse().contains(x, y)) { v.shovel = false; send(c, "fuse", "", -1); }
+        if (l.clear().contains(x, y)) send(c, "clear", "", -1);
+        if (l.trayNext().contains(x, y)) v.trayPage = (v.trayPage + 1) % Math.max(1, (v.state.tray().size() + TRAY_PER_PAGE - 1) / TRAY_PER_PAGE);
+        if (l.collect().contains(x, y)) send(c, "collect", "", -1);
         List<ClientEntity> seeds = seeds(c);
-        for (int i = 0; i < 3 && v.seedPage * 3 + i < seeds.size(); i++) {
-            if (inside(x, y, 772 + i * 57, 47, 49, 65) && !c.level().holdingCard()) {
-                v.shovel = false; c.connection().send(new PickUpCardC2S(seeds.get(v.seedPage * 3 + i).id()));
+        for (int i = 0; i < SEEDS_PER_PAGE && v.seedPage * SEEDS_PER_PAGE + i < seeds.size(); i++) {
+            int id = seeds.get(v.seedPage * SEEDS_PER_PAGE + i).id();
+            if (l.recycle(i).contains(x, y)) send(c, "recycle", "", id);
+            if (l.seed(i).contains(x, y)) {
+                if (!recycleSelected(c, id) && !c.level().holdingCard()) {
+                    v.shovel = false; c.connection().send(new PickUpCardC2S(id));
+                }
             }
         }
-        if (inside(x, y, 772, 8, 25, 26)) v.seedPage = Math.max(0, v.seedPage - 1);
-        if (inside(x, y, 917, 8, 25, 26)) v.seedPage = Math.min(Math.max(0, (seeds.size() - 1) / 3), v.seedPage + 1);
+        if (l.seedPrevious().contains(x, y)) v.seedPage = Math.max(0, v.seedPage - 1);
+        if (l.seedNext().contains(x, y)) v.seedPage = Math.min(Math.max(0, (seeds.size() - 1) / SEEDS_PER_PAGE), v.seedPage + 1);
+        if (l.recycleHeld().contains(x, y) && c.level().holdingCard()) send(c, "recycle", "", c.level().heldCardEntityId());
         return true;
+    }
+    public static boolean recycleSelected(PvzceClient c, int entityId) {
+        if (!active(c.level()) || !view(c.level()).shovel) return false;
+        send(c, "recycle", "", entityId); return true;
     }
     public static void toggleShovel(PvzceClient c) {
         View v = view(c.level()); v.shovel = !v.shovel;

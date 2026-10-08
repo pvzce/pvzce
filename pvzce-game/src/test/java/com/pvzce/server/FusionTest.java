@@ -140,6 +140,65 @@ class FusionTest {
         action(restored, bridge, "clear", null); assertEquals(2, amount(state(restored).inventory(), SHOOTER));
     }
 
+    private static boolean recycle(LevelServer level, Bridge bridge, int id) {
+        return level.fusionAction(bridge, new FusionActionC2S("recycle", "", id));
+    }
+
+    @Test void anUnplantableGroundCardCanBeRecycledOnlyOnce() {
+        LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> true); Bridge bridge = new Bridge();
+        level.spawnCardDrop(PvzceIds.id("cattail"), 0, 0); level.flushPending(bridge);
+        CardDropEntity packet = cards(level).getFirst();
+        assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(packet.card()), 0, 0));
+        assertTrue(recycle(level, bridge, packet.id())); assertTrue(packet.isRemoved());
+        assertEquals(1, amount(state(level).inventory(), SHOOTER));
+        assertFalse(recycle(level, bridge, packet.id()));
+        assertFalse(level.pickUpCardDrop(bridge, packet.id()));
+        assertEquals(1, amount(state(level).inventory(), SHOOTER));
+        assertTrue(bridge.packets.stream().anyMatch(p -> p instanceof com.pvzce.common.network.packet.EntityDespawnS2C d && d.entityId() == packet.id()));
+    }
+
+    @Test void heldCardRecyclingClearsTheHandAndStillPaysLossDuringTeaching() {
+        LevelServer level = level(new FusionData(true, 1F, 0F, 25), id -> true); Bridge bridge = new Bridge();
+        level.spawnCardDrop(PvzceIds.id("pea_shooter"), 0, 0); level.flushPending(bridge);
+        CardDropEntity packet = cards(level).getFirst();
+        assertTrue(level.pickUpCardDrop(bridge, packet.id())); assertNotNull(level.heldCard());
+        assertTrue(recycle(level, bridge, packet.id())); assertNull(level.heldCard());
+        assertTrue(state(level).inventory().isEmpty(), "packet recycling never takes the lossless first-dig exception");
+        assertFalse(level.plantHeldCard(bridge, 0, 0));
+        assertTrue(bridge.packets.contains(com.pvzce.common.network.packet.HeldCardS2C.NONE));
+    }
+
+    @Test void aMultiAbilityPacketLosesOneCopyAndTheTutorialCanBeRepeatedAfterRecycling() {
+        LevelServer lossy = level(new FusionData(false, 1F, 0F, 25), id -> true); Bridge bridge = new Bridge();
+        lossy.spawnCardDrop(PvzceIds.id("puff_shroom"), 0, 0); lossy.flushPending(bridge);
+        int expected = PlantRecipes.recipe(BuiltInRegistries.PLANTS.get(PvzceIds.id("puff_shroom"))).size() - 1;
+        assertTrue(expected > 0); assertTrue(recycle(lossy, bridge, cards(lossy).getFirst().id()));
+        assertEquals(expected, state(lossy).inventory().stream().mapToInt(FusionState.Count::amount).sum());
+
+        LevelServer teaching = level(new FusionData(true, 0F, 0F, 25), id -> id.equals(PvzceIds.id("pea_shooter")));
+        dig(teaching, bridge, 0); action(teaching, bridge, "add", SHOOTER); action(teaching, bridge, "fuse", null);
+        assertTrue(recycle(teaching, bridge, cards(teaching).getFirst().id()));
+        assertEquals(1, state(teaching).tutorialStep());
+        action(teaching, bridge, "add", SHOOTER); action(teaching, bridge, "fuse", null);
+        assertTrue(teaching.pickUpCardDrop(bridge, cards(teaching).getFirst().id()));
+        assertTrue(teaching.plantHeldCard(bridge, 2, 0)); assertFalse(teaching.isPreparing());
+    }
+
+    @Test void staleForeignNonCardAndFinishedRunRequestsCannotYieldAbilities() {
+        LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> true); Bridge bridge = new Bridge();
+        CardDropEntity foreign = new CardDropEntity(PvzceIds.id("pea_shooter"), level.team(PvzceIds.ZOMBIE_TEAM), 0, 0);
+        level.addEntity(foreign); level.flushPending(bridge);
+        assertFalse(recycle(level, bridge, foreign.id())); assertFalse(foreign.isRemoved());
+        assertFalse(recycle(level, bridge, level.plantAt(2, 0).id())); assertFalse(recycle(level, bridge, -1));
+        CardDropEntity expired = new CardDropEntity(PvzceIds.id("pea_shooter"), level.plantPlayer().team(), 0, 1, 1);
+        level.addEntity(expired); level.flushPending(bridge); expired.tick(level);
+        assertFalse(recycle(level, bridge, expired.id()));
+        level.spawnCardDrop(PvzceIds.id("pea_shooter"), 0, 2); level.flushPending(bridge);
+        var owned = cards(level).stream().filter(c -> c.team().equals(level.plantPlayer().team())).findFirst().orElseThrow();
+        level.declareVictory(); assertFalse(recycle(level, bridge, owned.id()));
+        assertTrue(state(level).inventory().isEmpty());
+    }
+
     @Test void allShippedLevelsStartWithFivePeasAndNoSlotsOrSkySun() {
         for (int i = 1; i <= 3; i++) {
             LevelDef def = shipped(i); assertNotNull(def);

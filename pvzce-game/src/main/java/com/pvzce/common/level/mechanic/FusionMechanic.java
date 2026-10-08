@@ -10,6 +10,7 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantRecipes;
+import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.FusionState;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
@@ -80,14 +81,39 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
             feedback(level, "这株植物没有可分解的能力。", false);
             return true;
         }
-        Identifier lost = null;
-        if (!(data.tutorial() && work.tutorialStep == 0) && level.random().nextFloat() < data.lossChance()) {
-            lost = abilities.remove(level.random().nextInt(abilities.size()));
-        }
-        for (Identifier ability : abilities) work.inventory.merge(ability, 1, Integer::sum);
+        boolean lost = recoverAbilities(level, abilities, data.tutorial() && work.tutorialStep == 0);
         plant.remove();
         if (work.tutorialStep == 0) work.tutorialStep = 1;
-        feedback(level, lost == null ? "分解完成，能力已收进库存。" : "分解完成，损失一份能力。", true);
+        feedback(level, lost ? "分解完成，损失一份能力。" : "分解完成，能力已收进库存。", true);
+        return true;
+    }
+
+    /** Both a planted specimen and a packet yield the same recipe and lose at most one copy. */
+    private static boolean recoverAbilities(LevelServer level, List<Identifier> recipe, boolean lossless) {
+        List<Identifier> recovered = new ArrayList<>(recipe);
+        boolean lost = !lossless && level.random().nextFloat() < data(level).lossChance();
+        if (lost) recovered.remove(level.random().nextInt(recovered.size()));
+        for (Identifier ability : recovered) workshop(level).inventory.merge(ability, 1, Integer::sum);
+        return lost;
+    }
+
+    private static boolean recycle(LevelServer level, int entityId) {
+        CardDropEntity packet = level.entities().stream()
+                .filter(entity -> entity.id() == entityId && entity instanceof CardDropEntity && !entity.isRemoved())
+                .map(entity -> (CardDropEntity) entity).findFirst().orElse(null);
+        if (packet == null || !packet.team().equals(level.plantPlayer().team())) return false;
+        Identifier content = SlotResolver.resolve(packet.card()).map(SlotResolver.ResolvedCard::content).orElse(packet.card());
+        var plant = BuiltInRegistries.PLANTS.get(content);
+        if (plant == null || PlantRecipes.recipe(plant).isEmpty()) {
+            feedback(level, "这张卡没有可分解的植物能力。", false);
+            return false;
+        }
+        if (!level.consumeCardDrop(packet)) return false;
+        // Packets always pay the normal loss chance, including during a tutorial.
+        boolean lost = recoverAbilities(level, PlantRecipes.recipe(plant), false);
+        if (workshop(level).tutorialStep == 3) workshop(level).tutorialStep = 1;
+        feedback(level, lost ? "卡片已分解，损失一份能力。" : "卡片已分解，能力已收进库存。", true);
+        sound(level, PvzceSounds.EFFECT_SHOVEL);
         return true;
     }
 
@@ -118,6 +144,7 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
         Workshop work = workshop(level);
         Identifier ability = Identifier.tryParse(request.ability());
         switch (request.action()) {
+            case "recycle" -> { return recycle(level, request.dropId()); }
             case "add" -> {
                 if (ability == null || work.inventory.getOrDefault(ability, 0) <= 0
                         || work.tray.size() >= PvzceConstants.FUSION_TRAY_CAPACITY) return false;

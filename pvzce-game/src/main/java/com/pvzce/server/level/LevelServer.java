@@ -5988,6 +5988,16 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return null;
     }
 
+    /** Consumes one real packet, clearing a matching held-card reference in the same operation. */
+    public boolean consumeCardDrop(com.pvzce.server.entity.CardDropEntity packet) {
+        if (packet == null || packet.isRemoved() || !entities.contains(packet)
+                || plantPlayer == null || !packet.team().equals(plantPlayer.team())) return false;
+        packet.remove();
+        if (heldCardDropId == packet.id()) clearHeldCard(bridge);
+        send(new EntityDespawnS2C(packet.id()));
+        return true;
+    }
+
     /**
      * Picks a seed packet up: the plant goes into the player's hand, and is planted by the next
      * click on a cell.

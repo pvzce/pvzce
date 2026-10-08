@@ -3966,6 +3966,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // up by accident and then refuse the next (a hand holds one plant).
             ClientEntity packet = cardDropAt(rawX, rawY);
             if (packet != null) {
+                if (com.pvzce.client.mechanic.FusionClientMechanic.recycleSelected(client, packet.id())) return;
                 client.connection().send(
                         new com.pvzce.common.network.packet.PickUpCardC2S(packet.id()));
                 return;
