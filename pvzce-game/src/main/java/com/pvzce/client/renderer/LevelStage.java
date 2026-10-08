@@ -205,10 +205,14 @@ public final class LevelStage {
      */
     public static Board board(int screenWidth, int screenHeight, int columns, int rows,
                               Geometry geometry) {
+        return board(columns, rows, geometry, cover(screenWidth, screenHeight));
+    }
+
+    /** Fits the grid to an already selected backdrop rectangle. */
+    public static Board board(int columns, int rows, Geometry geometry, Stage cover) {
         int safeColumns = Math.max(1, columns);
         int safeRows = Math.max(1, rows);
         Geometry stage = geometry == null ? YARD : geometry;
-        Stage cover = cover(screenWidth, screenHeight);
 
         // Contain-fit: one axis fills exactly, the other keeps its natural
         // margin. No per-axis correction is applied, so cells keep the
@@ -227,6 +231,13 @@ public final class LevelStage {
         float boardY = lawnScreenBottom + (stage.lawnHeight() * cover.scale() - boardHeight) / 2F;
 
         return new Board(boardX, boardY, boardWidth, boardHeight, cellWidth, cellHeight, fit);
+    }
+
+    /** Contains the entire backdrop in the available rectangle, leaving side margins as needed. */
+    public static Stage contain(int width, int height) {
+        float scale = Math.min(width / IMAGE_WIDTH, height / IMAGE_HEIGHT);
+        return new Stage((width - IMAGE_WIDTH * scale) / 2F, (height - IMAGE_HEIGHT * scale) / 2F,
+                IMAGE_WIDTH * scale, IMAGE_HEIGHT * scale, scale);
     }
 
     /** Cover-scales the reference image to the screen, preserving aspect ratio. */

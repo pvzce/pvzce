@@ -91,8 +91,12 @@ class ServerMenuFlowTest {
 
             List<LevelListS2C.LevelInfo> boxes = list.levels().stream()
                     .filter(LevelListS2C.LevelInfo::isCollection).toList();
-            assertEquals(10, boxes.size(), "the shipped collections are rows of the list: "
+            assertEquals(11, boxes.size(), "the shipped collections are rows of the list: "
                     + boxes.stream().map(LevelListS2C.LevelInfo::id).toList());
+            var fusion = boxes.stream().filter(box -> box.id().equals("pvzce:collections/fusion")).findFirst().orElseThrow();
+            assertEquals("pvzce:minigame", fusion.category());
+            assertEquals(List.of("pvzce:yard/minigame/fusion_1", "pvzce:yard/minigame/fusion_2",
+                    "pvzce:yard/minigame/fusion_3"), fusion.collection().members());
             for (LevelListS2C.LevelInfo box : boxes) {
                 assertFalse(box.collection().members().isEmpty(), box.id() + " has members");
                 assertTrue(box.isUncategorized() == false, box.id() + " is on a real page");

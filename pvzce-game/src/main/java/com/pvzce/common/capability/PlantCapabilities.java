@@ -42,6 +42,10 @@ import java.util.List;
  * and can then use it from data JSON immediately.
  */
 public final class PlantCapabilities {
+    public static final CapabilityType<com.pvzce.common.capability.plant.MarkerCapability> DEFENSE =
+            type("defense", com.pvzce.common.capability.plant.MarkerCapability.CODEC);
+    public static final CapabilityType<com.pvzce.common.capability.plant.MarkerCapability> CARRIER =
+            type("carrier", com.pvzce.common.capability.plant.MarkerCapability.CODEC);
     public static final CapabilityType<com.pvzce.common.capability.plant.GarlicCapability> GARLIC =
             type("garlic", com.pvzce.common.capability.plant.GarlicCapability.CODEC);
     public static final CapabilityType<com.pvzce.common.capability.plant.UmbrellaLeafCapability> UMBRELLA =
@@ -151,6 +155,8 @@ public final class PlantCapabilities {
 
     /** Registers every built-in plant capability; called from {@code BuiltInRegistries}. */
     public static void bootstrap() {
+        register(DEFENSE, "defense");
+        register(CARRIER, "carrier");
         register(GARLIC, "garlic");
         register(UMBRELLA, "umbrella");
         register(CACTUS, "cactus");

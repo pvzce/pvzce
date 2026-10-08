@@ -1,8 +1,6 @@
 package com.pvzce.common.level.mutation;
 
 import com.pvzce.api.content.PlantDef;
-import com.pvzce.api.content.capability.PlantCapability;
-import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.SlotResolver;
@@ -41,14 +39,7 @@ final class PlantAbilityGroups {
      * files listed them in.
      */
     static List<Identifier> keyOf(PlantDef def) {
-        List<Identifier> ids = new ArrayList<>();
-        if (def != null) {
-            for (TypedCapability<PlantCapability> capability : def.resolvedCapabilities()) {
-                ids.add(capability.type());
-            }
-        }
-        ids.sort(java.util.Comparator.comparing(Identifier::toString));
-        return List.copyOf(ids);
+        return def == null ? List.of() : com.pvzce.common.core.PlantRecipes.recipe(def);
     }
 
     /**

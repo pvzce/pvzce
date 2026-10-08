@@ -64,6 +64,7 @@ public final class LevelMechanics {
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/Mechanics");
     public static final DeckMechanic DECK = new DeckMechanic();
+    public static final FusionMechanic FUSION = new FusionMechanic();
     public static final ConveyorMechanic CONVEYOR = new ConveyorMechanic();
     public static final PlacementZoneMechanic PLACEMENT_ZONE = new PlacementZoneMechanic();
     public static final MowerMechanic MOWER = new MowerMechanic();
@@ -102,6 +103,7 @@ public final class LevelMechanics {
 
     /** Registers every built-in mechanic; called from {@code BuiltInRegistries.bootstrap()}. */
     public static void bootstrap() {
+        register(PvzceIds.MECHANIC_FUSION, FUSION);
         register(PvzceIds.MECHANIC_SURFACE_LINKS, new SurfaceLinksMechanic());
         register(PvzceIds.MECHANIC_STAGES, new StagesMechanic());
         register(PvzceIds.MECHANIC_OUTPOSTS, new OutpostsMechanic());

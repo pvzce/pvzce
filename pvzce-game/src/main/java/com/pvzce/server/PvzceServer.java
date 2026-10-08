@@ -1532,6 +1532,8 @@ public final class PvzceServer implements Runnable {
                 if (current != null) {
                     current.placePlant(bridge, place.slotIndex(), place.gridX(), place.gridY(), place.surfaceId());
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.FusionActionC2S fusion) {
+                if (current != null) current.fusionAction(bridge, fusion);
             } else if (packet instanceof UseToolC2S tool) {
                 if (current != null) {
                     current.useTool(bridge, tool.slotIndex(), tool.gridX(), tool.gridY(), tool.surfaceId());

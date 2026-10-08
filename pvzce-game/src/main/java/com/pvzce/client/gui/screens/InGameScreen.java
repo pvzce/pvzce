@@ -2918,6 +2918,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     }
 
     private void renderHud() {
+        if (com.pvzce.client.mechanic.FusionClientMechanic.active(client.level())) {
+            renderWaveWarning();
+            return;
+        }
         int height = client.guiHeight();
         if (client.level().sceneBoard().surfaceIds().size() > 1) {
             client.fonts().button().draw(String.format(GuiLang.raw("gui.pvzce.surface.current", "Layer: %s (PgUp/PgDn)"), client.level().activeSurfaceName()),
@@ -3078,7 +3082,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * still draws no bank.
      */
     public boolean hasSunBank() {
-        return hasSunBank(client.level().slots()) || client.level().sun() > 0;
+        return com.pvzce.client.mechanic.FusionClientMechanic.active(client.level())
+                || hasSunBank(client.level().slots()) || client.level().sun() > 0;
     }
 
     /**
@@ -3286,6 +3291,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // The coin bank's bag, which is the left third of the art.
             return new float[]{CardBarLayout.MARGIN + COIN_BANK_WIDTH * 0.15F,
                     CardBarLayout.MARGIN + COIN_BANK_HEIGHT / 2F};
+        }
+        if (com.pvzce.client.mechanic.FusionClientMechanic.active(client.level())) {
+            return com.pvzce.client.mechanic.FusionClientMechanic.sunTarget(client);
         }
         return CardBarLayout.bankCentre(client.guiHeight());
     }
@@ -3823,6 +3831,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     protected void onMouseClicked(double guiX, double guiY, int button) {
+        if (button == 1) com.pvzce.client.mechanic.FusionClientMechanic.cancelShovel(client.level());
         // The mowers stand half a cell off the left edge of the board, where no cell
         // exists - so this is the one press that has to be tested before the board bounds
         // reject it, and before the drop sweep claims it.
@@ -3881,6 +3890,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
 
+        if (com.pvzce.client.mechanic.FusionClientMechanic.click(client, guiX, guiY, button)) {
+            cancelSelection();
+            return;
+        }
         int slot = slotAt(guiX, guiY);
         if (slot >= 0) {
             if (button == 0) {
@@ -4022,6 +4035,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // move, and the fallback for when it was lost resolved the carried *plant's* card - which
         // the server refuses as "不是工具卡", leaving the plant in hand with no way to put it
         // down.
+        if (com.pvzce.client.mechanic.FusionClientMechanic.dig(client, cellX, cellY)) return;
         if (!client.level().carriedPlant().isEmpty()) {
             SlotInfo glove = gloveInBar();
             // The move is over as far as the player is concerned; the card goes back with it.
@@ -4761,6 +4775,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (modal != null && modal != pauseDialog) {
             modal.keyPressed(key);
             return;
+        }
+        if (modal == null && key == GLFW.GLFW_KEY_S
+                && client.level().gameState().equals("running")
+                && com.pvzce.client.mechanic.FusionClientMechanic.active(client.level())) {
+            com.pvzce.client.mechanic.FusionClientMechanic.toggleShovel(client);
+            cancelSelection(); return;
         }
         if (key == GLFW.GLFW_KEY_PAGE_UP || key == GLFW.GLFW_KEY_PAGE_DOWN) {
             client.level().cycleSurface(key == GLFW.GLFW_KEY_PAGE_UP ? -1 : 1);

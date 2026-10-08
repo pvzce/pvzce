@@ -1543,7 +1543,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * copy: one answer to "are the waves being held", owned by the mechanic that holds them.
      */
     public boolean isPreparing() {
-        return com.pvzce.common.level.mechanic.PreparationMechanic.isPreparing(this);
+        return com.pvzce.common.level.mechanic.PreparationMechanic.isPreparing(this)
+                || com.pvzce.common.level.mechanic.FusionMechanic.teaching(this);
     }
 
     /** Starts this level's preparation phase. Called by the mechanic when the level is built. */
@@ -1559,6 +1560,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * means.
      */
     public void beginWaves() {
+        if (com.pvzce.common.level.mechanic.FusionMechanic.teaching(this)) return;
         if (!isPreparing()) {
             return;
         }
@@ -4550,6 +4552,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (!gameState.equals(GameStateS2C.RUNNING)) {
             return;
         }
+        com.pvzce.common.level.mechanic.FusionMechanic.defeated(this, zombie);
         // The death animation has to reach the client even if the level ends this tick;
         // see entitySyncPending.
         entitySyncPending = true;
@@ -4949,7 +4952,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                     }
                     return false;
                 }
-                if (humanCollector && !plantPlayer.hasResourceCard(drop.defId())) {
+                if (humanCollector && !plantPlayer.hasResourceCard(drop.defId())
+                        && !(PvzceIds.SUN.equals(drop.defId())
+                        && com.pvzce.common.level.mechanic.FusionMechanic.data(this) != null)) {
                     if (!auto) {
                         bridge.send(new ServerMessageS2C("没有对应资源卡，无法收集。"));
                     }
@@ -4987,6 +4992,15 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             return true;
         }
         return false;
+    }
+
+    /** Routes an ability workshop request through the active packet bridge. */
+    public boolean fusionAction(ServerBridge bridge, com.pvzce.common.network.packet.FusionActionC2S request) {
+        return withBridge(bridge, () -> {
+            boolean accepted = com.pvzce.common.level.mechanic.FusionMechanic.action(this, request);
+            flushPending();
+            return accepted;
+        });
     }
 
     /**
@@ -5398,6 +5412,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // topmost layer of the target cell.
             case "pvzce:shovel" -> {
                 PlantEntity plant = plantAt(x, y, surface);
+                if (plant != null && com.pvzce.common.level.mechanic.FusionMechanic.decompose(this, plant)) {
+                    flushPending();
+                    emitEffect(PvzceParticles.DIRT_SMALL.toString(), scene.ground(surface, x + 0.5F, y + 0.5F),
+                            surface, PvzceSounds.EFFECT_SHOVEL);
+                    yield true;
+                }
                 if (plant != null) {
                     // During a preparation phase the dig is a *rearrangement*, not a mistake: the
                     // original gives the whole price back until the first wave, which is what makes
@@ -6063,6 +6083,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 return false;
             }
             spawnPlant(plant, plantPlayer.team(), x, y, surface);
+            com.pvzce.common.level.mechanic.FusionMechanic.planted(this);
             drop.remove();
             clearHeldCard(bridge);
             return true;

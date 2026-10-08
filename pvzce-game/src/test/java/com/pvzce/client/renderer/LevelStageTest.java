@@ -11,6 +11,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Geometry contract for fitting level boards into the original 1400x600 stages. */
 class LevelStageTest {
     @Test
+    void permanentWorkshopLeavesEveryLawnCellVisibleAndClickable() {
+        var camera = new PvzceCamera(1920, 1080, 9, 5, LevelStage.YARD, 0F, 336);
+        assertTrue(camera.screenY(0F) >= 336);
+        assertTrue(camera.screenY(5F) <= 1080);
+        for (int x = 0; x < 9; x++) for (int y = 0; y < 5; y++) {
+            float px = camera.screenX(x + 0.5F), py = 1080 - camera.cellScreenY(x, y);
+            assertTrue(px >= 0 && px <= 1920);
+            assertTrue(camera.inBoard(px, py));
+            assertEquals(x, camera.cellX(px, py));
+            assertEquals(y, camera.cellY(px, py));
+        }
+        assertEquals(camera.screenY(0F), camera.panned(1F).screenY(0F));
+    }
+    @Test
     void roofPickingReachesEveryCellIncludingTheRaisedTopRow() {
         var camera = new PvzceCamera(1920, 1080, 9, 5, LevelStage.ROOF, 0F);
         for (int x = 0; x < 9; x++) for (int y = 0; y < 5; y++) {

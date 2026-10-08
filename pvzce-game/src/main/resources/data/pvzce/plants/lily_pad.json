@@ -12,7 +12,11 @@
     "count": 1,
     "group": "carrier"
   },
-  "capabilities": [],
+  "capabilities": [
+    {
+      "type": "pvzce:carrier"
+    }
+  ],
   "sounds": {
     "place": "pvzce:sfx/plant/plant_water"
   },

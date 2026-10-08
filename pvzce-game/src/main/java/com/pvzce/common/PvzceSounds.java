@@ -12,6 +12,7 @@ import com.pvzce.api.util.Identifier;
  * {@code sounds} block of a definition.
  */
 public final class PvzceSounds {
+    public static final Identifier UI_CHIME = id("sfx/ui/chime");
     public static final Identifier PLANT_SHOOT_PEA = id("sfx/plant/shoot_pea");
     /**
      * The hypno-shroom turning a zombie: the original's own "floop".

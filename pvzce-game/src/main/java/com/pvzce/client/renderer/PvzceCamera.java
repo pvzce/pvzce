@@ -45,6 +45,7 @@ public final class PvzceCamera {
      * is also the direction the backdrop slides on screen.
      */
     private final float panX;
+    private final int bottomInset;
     private SceneBoard scene;
     private String surface = SceneBoard.DEFAULT_SURFACE;
     public PvzceCamera scene(SceneBoard scene, String surface) {
@@ -70,13 +71,24 @@ public final class PvzceCamera {
      */
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
                        LevelStage.Geometry geometry, float panX) {
+        this(screenWidth, screenHeight, columns, rows, geometry, panX, 0);
+    }
+
+    /** Leaves permanent HUD space below the stage without covering a plantable cell. */
+    public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
+                       LevelStage.Geometry geometry, float panX, int bottomInset) {
+        this.bottomInset = Math.max(0, Math.min(screenHeight - 1, bottomInset));
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
         this.columns = Math.max(1, columns);
         this.rows = Math.max(1, rows);
         this.geometry = geometry == null ? LevelStage.YARD : geometry;
-        this.stage = LevelStage.cover(screenWidth, screenHeight);
-        this.board = LevelStage.board(screenWidth, screenHeight, this.columns, this.rows, this.geometry);
+        LevelStage.Stage area = this.bottomInset == 0 ? LevelStage.cover(screenWidth, screenHeight)
+                : LevelStage.contain(screenWidth, screenHeight - this.bottomInset);
+        this.stage = new LevelStage.Stage(area.x(), area.y() + this.bottomInset, area.width(), area.height(), area.scale());
+        LevelStage.Board lawn = LevelStage.board(this.columns, this.rows, this.geometry, area);
+        this.board = new LevelStage.Board(lawn.x(), lawn.y() + this.bottomInset, lawn.width(), lawn.height(),
+                lawn.cellWidth(), lawn.cellHeight(), lawn.fit());
         this.unitX = board.cellWidth();
         this.unitY = board.cellHeight();
         this.liquidFrame = this.geometry.liquid();
@@ -112,7 +124,7 @@ public final class PvzceCamera {
 
     /** The same camera looking {@code panX} cells further toward the house. */
     public PvzceCamera panned(float panX) {
-        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX).scene(scene, surface);
+        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset).scene(scene, surface);
     }
 
     /** How far this camera is looking toward the house, in cells. */

@@ -46,7 +46,11 @@ public final class CardDropEntity extends PvzceEntity {
     }
 
     public CardDropEntity(Identifier card, Team team, int gridX, int gridY) {
-        super(card, team, gridX + 0.5F, gridY + 0.5F, PvzceConstants.CARD_DROP_LIFETIME_TICKS);
+        this(card, team, gridX, gridY, PvzceConstants.CARD_DROP_LIFETIME_TICKS);
+    }
+
+    public CardDropEntity(Identifier card, Team team, int gridX, int gridY, int lifetimeTicks) {
+        super(card, team, gridX + 0.5F, gridY + 0.5F, lifetimeTicks);
         this.card = card;
     }
 
@@ -87,7 +91,7 @@ public final class CardDropEntity extends PvzceEntity {
 
     @Override
     public void tick(LevelServer level) {
-        if (held) {
+        if (held || com.pvzce.common.level.mechanic.FusionMechanic.teaching(level)) {
             // A packet in the player's hand is not on the lawn's clock: the twenty seconds are
             // the time the player has to notice it where it fell, not a deadline on using it.
             return;

@@ -77,6 +77,7 @@ class WavePacingMetricsTest {
     private static Metrics measure(LevelDef def, String profile, int killInterval) {
         LevelServer level = new LevelServer(def);
         Bridge bridge = new Bridge();
+        completeFusionLesson(level, bridge);
         var outposts = OutpostsMechanic.plan(level);
         if (outposts != null) {
             for (var point : outposts.points()) {
@@ -149,6 +150,24 @@ class WavePacingMetricsTest {
         return new Metrics(def.id().toString(), profile, tick, level.currentWave(),
                 bridge.spawns, longestEmpty, Math.round(100F * emptyTicks / span),
                 peakAlive, winner == null ? "" : winner.toString());
+    }
+
+    /** A tutorial needs the same four real actions the player must perform, not a skip flag. */
+    private static void completeFusionLesson(LevelServer level, Bridge bridge) {
+        if (!com.pvzce.common.level.mechanic.FusionMechanic.teaching(level)) return;
+        level.flushPending(bridge);
+        var shovel = com.pvzce.common.level.mechanic.ToolMechanic.declared(level.def()).getFirst();
+        level.useGrantedTool(bridge, shovel, 2, 0);
+        level.fusionAction(bridge, new com.pvzce.common.network.packet.FusionActionC2S("add", "pvzce:shooter", -1));
+        level.fusionAction(bridge, new com.pvzce.common.network.packet.FusionActionC2S("fuse", "", -1));
+        var packet = level.entities().stream().filter(e -> e instanceof com.pvzce.server.entity.CardDropEntity)
+                .map(e -> (com.pvzce.server.entity.CardDropEntity) e).findFirst().orElseThrow();
+        level.pickUpCardDrop(bridge, packet.id());
+        for (int x = 0; x < level.width(); x++) for (int y = 0; y < level.height(); y++) {
+            if (level.canPlacePlant(BuiltInRegistries.PLANTS.get(packet.card()), x, y)
+                    && level.plantHeldCard(bridge, x, y)) return;
+        }
+        throw new AssertionError("fusion tutorial card has no plantable cell");
     }
 
     /** Kills the zombie nearest the house, which is the one the player would shoot first. */

@@ -7,7 +7,11 @@
     "cooldown": 1800
   },
   "health": 8000,
-  "capabilities": [],
+  "capabilities": [
+    {
+      "type": "pvzce:defense"
+    }
+  ],
   "animation_dir": "plant/defense",
   "texture": "pvzce:textures/entities/plant/defense/tall_nut",
   "render_scale": 0.85,

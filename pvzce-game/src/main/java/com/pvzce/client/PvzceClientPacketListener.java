@@ -153,6 +153,7 @@ public final class PvzceClientPacketListener implements PacketListener {
             // draws its own list, while a menu has no level messages to draw - a refusal that
             // arrived while the player was in the packs page used to be dropped on the floor.
             level.addMessage(message.message());
+            com.pvzce.client.mechanic.FusionClientMechanic.showNotice(level, message.message());
             client.onServerMessage(message.message());
         } else if (packet instanceof WaveProgressS2C wave) {
             level.setWaveProgress(wave.currentWave(), wave.totalWaves(), wave.progress(),

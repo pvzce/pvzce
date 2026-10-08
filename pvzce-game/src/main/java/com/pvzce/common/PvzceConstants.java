@@ -8,6 +8,12 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final float FUSION_LOSS_CHANCE = 0.20F;
+    public static final float FUSION_DROP_CHANCE = 0.20F;
+    public static final int FUSION_ABILITY_PRICE = 25;
+    public static final int FUSION_TRAY_CAPACITY = 32;
+    public static final int FUSION_CARD_LIFETIME_TICKS = 90 * PvzceConstants.TICKS_PER_SECOND;
+
     public static final float OUTPOST_CONTEST_RADIUS_CELLS = 1.5F;
     public static final float SURFACE_LINK_AIRBORNE_MARGIN_CELLS = 0.1F;
     public static final int PRODUCER_DROP_GAP_TICKS = 12;

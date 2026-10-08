@@ -153,12 +153,14 @@ public final class PvzcePackets {
     //     the night roof's drum track rides with its theme and is faded in when the lawn fills up.
     // 59: staged choices and outpost strikes; wave entries retain their authored surface.
     // 60: registered per-entity attributes publish computed values at spawn and on mutation.
-    public static final int PROTOCOL_VERSION = 60;
+    // 61: authoritative ability fusion requests and workshop state.
+    public static final int PROTOCOL_VERSION = 61;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
 
     // ---- client -> server ----
+    public static final int C2S_FUSION_ACTION = 38;
     public static final int C2S_STAGE_CHOICE = 36;
     public static final int C2S_OUTPOST_STRIKE = 37;
     public static final int C2S_CONTINUE_LEVEL = 1;
@@ -280,6 +282,9 @@ public final class PvzcePackets {
             def(C2S_PICK_CARD, ConnectionDirection.SERVERBOUND, PickCardC2S.class, PickCardC2S::decode),
             def(C2S_PLACE_PLANT, ConnectionDirection.SERVERBOUND, PlacePlantC2S.class, PlacePlantC2S::decode),
             def(C2S_USE_TOOL, ConnectionDirection.SERVERBOUND, UseToolC2S.class, UseToolC2S::decode),
+            def(C2S_FUSION_ACTION, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.FusionActionC2S.class,
+                    com.pvzce.common.network.packet.FusionActionC2S::decode),
             def(C2S_COLLECT_RESOURCE, ConnectionDirection.SERVERBOUND, CollectResourceC2S.class,
                     CollectResourceC2S::decode),
             def(C2S_COMMAND, ConnectionDirection.SERVERBOUND, CommandC2S.class, CommandC2S::decode),

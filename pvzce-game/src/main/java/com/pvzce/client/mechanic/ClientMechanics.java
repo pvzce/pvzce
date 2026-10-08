@@ -32,6 +32,7 @@ public final class ClientMechanics {
             return;
         }
         bootstrapped = true;
+        register(new FusionClientMechanic());
         register(new ConveyorClientMechanic());
         register(new PlacementZoneClientMechanic());
         register(new MowerClientMechanic());
