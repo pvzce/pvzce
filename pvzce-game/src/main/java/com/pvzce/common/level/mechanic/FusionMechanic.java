@@ -12,6 +12,7 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantRecipes;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.FusionState;
+import com.pvzce.common.level.FusionDrops;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.Tag;
@@ -65,6 +66,7 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
     }
     @Override public List<FieldSpec> editorFields() {
         return List.of(FieldSpec.bool("tutorial", "pvzce.mechanic.fusion.field.tutorial"),
+                FieldSpec.decimal("drop_multiplier", "pvzce.mechanic.fusion.field.drop_multiplier", 0F, 5F),
                 FieldSpec.integer("price", "pvzce.mechanic.fusion.field.price", 1, 10000));
     }
     @Override public List<String> validate(LevelDef def, FusionData data) {
@@ -81,20 +83,33 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
             feedback(level, "这株植物没有可分解的能力。", false);
             return true;
         }
-        boolean lost = recoverAbilities(level, abilities, data.tutorial() && work.tutorialStep == 0);
+        List<Identifier> recovered = recoverAbilities(level, abilities, data.tutorial() && work.tutorialStep == 0);
+        boolean lost = recovered.size() < abilities.size();
+        dropAbilities(level, recovered, plant.cellX(), plant.cellY());
         plant.remove();
         if (work.tutorialStep == 0) work.tutorialStep = 1;
-        feedback(level, lost ? "分解完成，损失一份能力。" : "分解完成，能力已收进库存。", true);
+        feedback(level, recovered.isEmpty() ? "分解完成，唯一能力已损失。"
+                : lost ? "分解完成，损失一份能力；点击地面能力收集。" : "分解完成，点击地面能力收集。", true);
         return true;
     }
 
     /** Both a planted specimen and a packet yield the same recipe and lose at most one copy. */
-    private static boolean recoverAbilities(LevelServer level, List<Identifier> recipe, boolean lossless) {
+    private static List<Identifier> recoverAbilities(LevelServer level, List<Identifier> recipe, boolean lossless) {
         List<Identifier> recovered = new ArrayList<>(recipe);
         boolean lost = !lossless && level.random().nextFloat() < data(level).lossChance();
         if (lost) recovered.remove(level.random().nextInt(recovered.size()));
-        for (Identifier ability : recovered) workshop(level).inventory.merge(ability, 1, Integer::sum);
-        return lost;
+        return recovered;
+    }
+
+    private static void dropAbilities(LevelServer level, List<Identifier> abilities, float x, float y) {
+        if (abilities.isEmpty()) return;
+        Workshop work = workshop(level);
+        float span = Math.min(level.width() - 1F, (abilities.size() - 1) * PvzceConstants.FUSION_DROP_SPACING);
+        float left = Math.max(0.5F, Math.min(level.width() - 0.5F - span, x - span / 2F));
+        for (int i = 0; i < abilities.size(); i++) {
+            float offset = abilities.size() < 2 ? 0F : span * i / (abilities.size() - 1);
+            work.drops.add(new FusionState.Drop(work.nextDrop++, abilities.get(i).toString(), left + offset, y));
+        }
     }
 
     private static boolean recycle(LevelServer level, int entityId) {
@@ -110,7 +125,10 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
         }
         if (!level.consumeCardDrop(packet)) return false;
         // Packets always pay the normal loss chance, including during a tutorial.
-        boolean lost = recoverAbilities(level, PlantRecipes.recipe(plant), false);
+        List<Identifier> recipe = PlantRecipes.recipe(plant);
+        List<Identifier> recovered = recoverAbilities(level, recipe, false);
+        boolean lost = recovered.size() < recipe.size();
+        for (Identifier ability : recovered) workshop(level).inventory.merge(ability, 1, Integer::sum);
         if (workshop(level).tutorialStep == 3) workshop(level).tutorialStep = 1;
         feedback(level, lost ? "卡片已分解，损失一份能力。" : "卡片已分解，能力已收进库存。", true);
         sound(level, PvzceSounds.EFFECT_SHOVEL);
@@ -120,13 +138,13 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
     public static void defeated(LevelServer level, ZombieEntity zombie) {
         FusionData data = data(level);
         if (data == null || !GameStateS2C.RUNNING.equals(level.gameState()) || zombie.unearned()) return;
-        if (level.random().nextFloat() >= data.dropChance()) return;
+        int count = FusionDrops.count(zombie.def(), data.dropMultiplier(), level.random().nextFloat());
+        if (count == 0) return;
         List<Identifier> abilities = PlantRecipes.abilities();
         if (abilities.isEmpty()) return;
-        Workshop work = workshop(level);
-        Identifier ability = abilities.get(level.random().nextInt(abilities.size()));
-        work.drops.add(new FusionState.Drop(work.nextDrop++, ability.toString(),
-                Math.max(0.5F, Math.min(level.width() - 0.5F, zombie.cellX())), zombie.cellY()));
+        List<Identifier> dropped = new ArrayList<>();
+        for (int i = 0; i < count; i++) dropped.add(abilities.get(level.random().nextInt(abilities.size())));
+        dropAbilities(level, dropped, zombie.cellX(), zombie.cellY());
         sync(level, data);
     }
 

@@ -14,15 +14,14 @@ class FusionLayoutTest {
             for (int i = 0; i < layout.abilitiesPerPage(); i++) {
                 var card = layout.ability(i); var buy = layout.buy(i);
                 assertTrue(card.x() + card.width() < layout.abilityPrevious().x());
-                assertTrue(buy.y() + buy.height() <= card.y());
+                assertTrue(buy.y() >= card.y() + card.height());
                 assertTrue(layout.abilityNext().x() + layout.abilityNext().width() < layout.topRight());
                 double x = card.x() + card.width() / 2F, y = card.y() + card.height() / 2F;
                 assertEquals(x, layout.x(layout.left() + x * layout.scale()), 0.001);
                 assertEquals(y, layout.y(y * layout.scale()), 0.001);
                 assertTrue(card.contains(x, y));
             }
-            assertTrue(layout.topY() > FusionLayout.BOTTOM_HEIGHT);
-            assertFalse(layout.inToolbar(400, (layout.topY() + FusionLayout.BOTTOM_HEIGHT) / 2));
+            assertFalse(layout.inToolbar(400, layout.topY() / 2));
         }
     }
     @Test void eachPacketHasASeparateRecyclingTargetUnderItsPickingTarget() {
@@ -31,6 +30,26 @@ class FusionLayoutTest {
             var card = layout.seed(i); var recycle = layout.recycle(i);
             assertTrue(recycle.y() + recycle.height() < card.y());
             assertFalse(card.contains(recycle.x() + recycle.width() / 2, recycle.y() + recycle.height() / 2));
+        }
+    }
+
+    @Test void overlayControlsKeepAllLawnCellsAndTheirArtClearAtDifferentAspectRatios() {
+        for (int[] size : new int[][]{{960, 540}, {427, 240}, {960, 720}, {1440, 540}}) {
+            var l = FusionLayout.of(size[0], size[1]);
+            var camera = new com.pvzce.client.renderer.PvzceCamera(size[0], size[1], 9, 5,
+                    com.pvzce.client.renderer.LevelStage.YARD, 0F, true);
+            assertEquals(0.8F, (camera.screenX(1F) - camera.screenX(0F)) /
+                    (camera.screenY(1F) - camera.screenY(0F)), 0.0001F, "native 80:100 cell aspect ratio");
+            assertTrue(l.x(camera.screenX(9F)) < FusionLayout.WORKSHOP_LEFT);
+            assertTrue(l.y(camera.screenY(5F)) <= l.topY() + 0.001F);
+            assertTrue(l.y(camera.screenY(0F)) >= FusionLayout.FOOTER_HEIGHT - 0.001F);
+            for (int x = 0; x < 9; x++) for (int y = 0; y < 5; y++) {
+                float px = camera.screenX(x + 0.5F), py = camera.cellScreenY(x, y);
+                assertFalse(l.inToolbar(l.x(px), l.y(py)), "cell " + x + "," + y + " must receive the click");
+                assertTrue(camera.inBoard(px, size[1] - py));
+                assertEquals(x, camera.cellX(px, size[1] - py));
+                assertEquals(y, camera.cellY(px, size[1] - py));
+            }
         }
     }
 }

@@ -1633,28 +1633,25 @@ public final class PvzceClient {
         // 85px lanes with the water drawn on its own frame, the front lawn's is five 100px
         // ones. A level swapped in at the same window size must not keep the old geometry.
         LevelStage.Geometry geometry = LevelStage.geometryFor(level.background());
-        int bottomInset = com.pvzce.client.mechanic.FusionClientMechanic.reservedPixels(this);
-        int topInset = com.pvzce.client.mechanic.FusionClientMechanic.reservedTopPixels(this);
+        boolean workshop = com.pvzce.client.mechanic.FusionClientMechanic.active(level);
         PvzceCamera cached = this.cachedCamera;
         if (cached == null || cachedWidth != width || cachedHeight != height
                 || cachedColumns != columns || cachedRows != rows
-                || !geometry.equals(cachedGeometry) || bottomInset != cachedBottomInset || topInset != cachedTopInset) {
-            cached = new PvzceCamera(width, height, columns, rows, geometry, 0F, bottomInset, topInset);
+                || !geometry.equals(cachedGeometry) || workshop != cachedWorkshop) {
+            cached = new PvzceCamera(width, height, columns, rows, geometry, 0F, workshop);
             this.cachedCamera = cached;
             this.cachedWidth = width;
             this.cachedHeight = height;
             this.cachedColumns = columns;
             this.cachedRows = rows;
             this.cachedGeometry = geometry;
-            this.cachedBottomInset = bottomInset;
-            this.cachedTopInset = topInset;
+            this.cachedWorkshop = workshop;
         }
         return cached.scene(level.sceneBoard(), level.activeSurface());
     }
 
     private PvzceCamera cachedCamera;
-    private int cachedBottomInset = -1;
-    private int cachedTopInset = -1;
+    private boolean cachedWorkshop;
     private int cachedWidth = -1;
     private int cachedHeight = -1;
     private int cachedColumns = -1;

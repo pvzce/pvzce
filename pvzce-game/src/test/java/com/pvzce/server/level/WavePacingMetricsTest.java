@@ -152,12 +152,12 @@ class WavePacingMetricsTest {
                 peakAlive, winner == null ? "" : winner.toString());
     }
 
-    /** A tutorial needs the same four real actions the player must perform, not a skip flag. */
+    /** Complete the lesson through the same collection, crafting and planting actions as a player. */
     private static void completeFusionLesson(LevelServer level, Bridge bridge) {
         if (!com.pvzce.common.level.mechanic.FusionMechanic.teaching(level)) return;
         level.flushPending(bridge);
-        var shovel = com.pvzce.common.level.mechanic.ToolMechanic.declared(level.def()).getFirst();
-        level.useGrantedTool(bridge, shovel, 2, 0);
+        level.useTool(bridge, level.plantPlayer().slots().getFirst().index(), 2, 0);
+        level.fusionAction(bridge, new com.pvzce.common.network.packet.FusionActionC2S("collect", "", -1));
         level.fusionAction(bridge, new com.pvzce.common.network.packet.FusionActionC2S("add", "pvzce:shooter", -1));
         level.fusionAction(bridge, new com.pvzce.common.network.packet.FusionActionC2S("fuse", "", -1));
         var packet = level.entities().stream().filter(e -> e instanceof com.pvzce.server.entity.CardDropEntity)

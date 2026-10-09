@@ -11,9 +11,8 @@ import com.pvzce.common.level.SceneBoard;
  * and one unit equals one cell. The projection maps the board into the
  * background's 9x5 dirt lawn while house/road remain addressable outside the
  * board (zombies enter from the right road before stepping onto the lawn).
- * Normal stages preserve the background's aspect ratio. Permanent toolbars
- * instead fit the whole background between them, with the grid following its
- * two axes; the world renderer preserves plant and zombie proportions.</p>
+ * The background and grid keep their aspect ratio. Workshop overlays use a
+ * reference viewport so every plantable cell stays clear of the controls.</p>
  */
 public final class PvzceCamera {
     private final int screenWidth;
@@ -47,6 +46,7 @@ public final class PvzceCamera {
     private final float panX;
     private final int bottomInset;
     private final int topInset;
+    private final boolean workshop;
     private SceneBoard scene;
     private String surface = SceneBoard.DEFAULT_SURFACE;
     public PvzceCamera scene(SceneBoard scene, String surface) {
@@ -84,6 +84,17 @@ public final class PvzceCamera {
     /** Leaves independent toolbar space above and below the entire playable stage. */
     public PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
                        LevelStage.Geometry geometry, float panX, int bottomInset, int topInset) {
+        this(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset, topInset, false);
+    }
+
+    public PvzceCamera(int width, int height, int columns, int rows,
+                       LevelStage.Geometry geometry, float panX, boolean workshop) {
+        this(width, height, columns, rows, geometry, panX, 0, 0, workshop);
+    }
+
+    private PvzceCamera(int screenWidth, int screenHeight, int columns, int rows,
+                        LevelStage.Geometry geometry, float panX, int bottomInset, int topInset, boolean workshop) {
+        this.workshop = workshop;
         this.bottomInset = Math.max(0, Math.min(screenHeight - 1, bottomInset));
         this.topInset = Math.max(0, Math.min(screenHeight - this.bottomInset - 1, topInset));
         this.screenWidth = screenWidth;
@@ -91,8 +102,10 @@ public final class PvzceCamera {
         this.columns = Math.max(1, columns);
         this.rows = Math.max(1, rows);
         this.geometry = geometry == null ? LevelStage.YARD : geometry;
-        LevelStage.Stage area = this.bottomInset + this.topInset == 0 ? LevelStage.cover(screenWidth, screenHeight)
-                : LevelStage.fill(screenWidth, screenHeight - this.bottomInset - this.topInset);
+        LevelStage.Stage area = workshop ? LevelStage.fitReference(screenWidth, screenHeight,
+                com.pvzce.client.mechanic.FusionLayout.WIDTH, com.pvzce.client.mechanic.FusionLayout.HEIGHT)
+                : this.bottomInset + this.topInset == 0 ? LevelStage.cover(screenWidth, screenHeight)
+                : LevelStage.contain(screenWidth, screenHeight - this.bottomInset - this.topInset);
         this.stage = new LevelStage.Stage(area.x(), area.y() + this.bottomInset, area.width(), area.height(), area.scale());
         LevelStage.Board lawn = LevelStage.board(this.columns, this.rows, this.geometry, area);
         this.board = new LevelStage.Board(lawn.x(), lawn.y() + this.bottomInset, lawn.width(), lawn.height(),
@@ -132,7 +145,7 @@ public final class PvzceCamera {
 
     /** The same camera looking {@code panX} cells further toward the house. */
     public PvzceCamera panned(float panX) {
-        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset, topInset).scene(scene, surface);
+        return new PvzceCamera(screenWidth, screenHeight, columns, rows, geometry, panX, bottomInset, topInset, workshop).scene(scene, surface);
     }
 
     /** How far this camera is looking toward the house, in cells. */

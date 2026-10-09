@@ -239,18 +239,23 @@ public record ZombieDef(
         }
         float points = BASE_BUDGET_COST;
         points += HEALTH_POINTS_PER_DEFAULT_HEALTH * ((health - DEFAULT_HEALTH) / (float) DEFAULT_HEALTH);
-        int armorDurability = 0;
-        for (TypedCapability<ZombieCapability> entry : resolvedCapabilities()) {
-            if (entry.value() instanceof ArmorCapability armor) {
-                for (ArmorDef piece : armor.armor()) {
-                    armorDurability += Math.max(0, piece.durability());
-                }
-            }
-        }
-        points += ARMOR_POINTS_PER_HEALTH_BAR * (armorDurability / (float) DEFAULT_HEALTH);
+        points += ARMOR_POINTS_PER_HEALTH_BAR * (armorDurability() / (float) DEFAULT_HEALTH);
         points += SPEED_POINTS_PER_DEFAULT_SPEED
                 * Math.max(0F, moveSpeed / DEFAULT_MOVE_SPEED - 1F);
         return Math.min(MAX_BUDGET_COST, Math.max(MIN_BUDGET_COST, Math.round(points)));
+    }
+
+    /** Initial armour durability, shared by wave pricing and ability-drop strength. */
+    public int armorDurability() {
+        int durability = 0;
+        for (TypedCapability<ZombieCapability> entry : resolvedCapabilities()) {
+            if (entry.value() instanceof ArmorCapability armor) {
+                for (ArmorDef piece : armor.armor()) {
+                    durability += Math.max(0, piece.durability());
+                }
+            }
+        }
+        return durability;
     }
 
     /** Explicit capabilities when present, otherwise the {@code behavior} preset. */

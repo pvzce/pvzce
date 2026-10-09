@@ -155,7 +155,8 @@ public final class PvzcePackets {
     // 60: registered per-entity attributes publish computed values at spawn and on mutation.
     // 61: authoritative ability fusion requests and workshop state.
     // 62: ability fusion can consume a ground or held seed packet.
-    public static final int PROTOCOL_VERSION = 62;
+    // 63: fusion level payload uses a drop multiplier and the ordinary shovel slot.
+    public static final int PROTOCOL_VERSION = 63;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

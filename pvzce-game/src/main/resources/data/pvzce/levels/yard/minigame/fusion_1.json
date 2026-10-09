@@ -83,7 +83,8 @@
   "mechanics": [
     {
       "type": "pvzce:fusion",
-      "tutorial": true
+      "tutorial": true,
+      "drop_multiplier": 1.0
     },
     {
       "type": "pvzce:tool",

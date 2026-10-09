@@ -1741,10 +1741,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         com.pvzce.client.animation.AnimationManager animations = client.animations();
         if (animations == null) {
+            renderStaticToolCursor(toolId);
             return;
         }
         com.pvzce.client.animation.ArtTarget cursor = toolCursor(animations, toolId);
         if (cursor == null) {
+            renderStaticToolCursor(toolId);
             return;
         }
         // The held pose unless a swing is on screen. Asking every frame is what makes the
@@ -1757,6 +1759,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             playback = animations.playback(cursor);
         }
         if (playback == null) {
+            renderStaticToolCursor(toolId);
             return;
         }
         float size = Math.max(24F, client.guiHeight() * 0.055F);
@@ -1780,6 +1783,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         } finally {
             client.beginGuiView();
         }
+    }
+
+    /** Tools without a controller (including the shovel) still follow the pointer. */
+    private void renderStaticToolCursor(Identifier toolId) {
+        float size = Math.max(24F, client.guiHeight() * 0.055F);
+        float x = (float) client.guiMouseX(client.window().cursorX());
+        float y = (float) client.guiMouseY(client.window().cursorY());
+        client.drawTexture(com.pvzce.client.gui.hud.cardbar.CardPainter.icon(toolId.toString()),
+                x - size / 2F, y - size / 2F, size, size, 9F, 1F, 1F, 1F, 1F);
     }
 
     /**
@@ -3831,7 +3843,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     protected void onMouseClicked(double guiX, double guiY, int button) {
-        if (button == 1) com.pvzce.client.mechanic.FusionClientMechanic.cancelShovel(client.level());
         // The mowers stand half a cell off the left edge of the board, where no cell
         // exists - so this is the one press that has to be tested before the board bounds
         // reject it, and before the drop sweep claims it.
@@ -3966,7 +3977,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // up by accident and then refuse the next (a hand holds one plant).
             ClientEntity packet = cardDropAt(rawX, rawY);
             if (packet != null) {
-                if (com.pvzce.client.mechanic.FusionClientMechanic.recycleSelected(client, packet.id())) return;
+                if (com.pvzce.client.mechanic.FusionClientMechanic.recycleSelected(client, packet.id())) {
+                    cancelSelection(); return;
+                }
                 client.connection().send(
                         new com.pvzce.common.network.packet.PickUpCardC2S(packet.id()));
                 return;
@@ -4036,7 +4049,6 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // move, and the fallback for when it was lost resolved the carried *plant's* card - which
         // the server refuses as "不是工具卡", leaving the plant in hand with no way to put it
         // down.
-        if (com.pvzce.client.mechanic.FusionClientMechanic.dig(client, cellX, cellY)) return;
         if (!client.level().carriedPlant().isEmpty()) {
             SlotInfo glove = gloveInBar();
             // The move is over as far as the player is concerned; the card goes back with it.
@@ -4780,8 +4792,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (modal == null && key == GLFW.GLFW_KEY_S
                 && client.level().gameState().equals("running")
                 && com.pvzce.client.mechanic.FusionClientMechanic.active(client.level())) {
-            com.pvzce.client.mechanic.FusionClientMechanic.toggleShovel(client);
-            cancelSelection(); return;
+            for (SlotInfo tool : cardBar().toolSlots()) if (SHOVEL_CARD_ID.equals(tool.defId())) {
+                int previous = selectedCard;
+                cancelSelection();
+                if (previous != tool.index()) {
+                    selectedCard = tool.index(); playCardSound(tool);
+                    if (client.level().holdingCard()) client.connection().send(new com.pvzce.common.network.packet.ReleaseHeldCardC2S());
+                }
+                break;
+            }
+            return;
         }
         if (key == GLFW.GLFW_KEY_PAGE_UP || key == GLFW.GLFW_KEY_PAGE_DOWN) {
             client.level().cycleSurface(key == GLFW.GLFW_KEY_PAGE_UP ? -1 : 1);

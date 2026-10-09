@@ -1053,5 +1053,6 @@
   "level_collection.pvzce.fusion": "融合与分解",
   "pvzce.mechanic.fusion": "融合与分解",
   "pvzce.mechanic.fusion.field.tutorial": "操作教程",
+  "pvzce.mechanic.fusion.field.drop_multiplier": "能力掉落概率倍率",
   "pvzce.mechanic.fusion.field.price": "能力价格"
 }

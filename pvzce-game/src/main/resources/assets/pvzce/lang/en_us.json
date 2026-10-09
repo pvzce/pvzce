@@ -1053,5 +1053,6 @@
   "level_collection.pvzce.fusion": "Ability Fusion",
   "pvzce.mechanic.fusion": "Ability Fusion",
   "pvzce.mechanic.fusion.field.tutorial": "Tutorial",
+  "pvzce.mechanic.fusion.field.drop_multiplier": "Ability drop probability multiplier",
   "pvzce.mechanic.fusion.field.price": "Ability Price"
 }

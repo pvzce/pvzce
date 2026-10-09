@@ -254,4 +254,13 @@ public final class LevelStage {
         float height = IMAGE_HEIGHT * scale;
         return new Stage((screenWidth - width) / 2F, (screenHeight - height) / 2F, width, height, scale);
     }
+
+    /** Fits a reference viewport uniformly, so background overlays keep the same lawn clearance. */
+    public static Stage fitReference(int width, int height, float referenceWidth, float referenceHeight) {
+        float fit = Math.min(width / referenceWidth, height / referenceHeight);
+        Stage reference = cover(Math.round(referenceWidth), Math.round(referenceHeight));
+        return new Stage((width - referenceWidth * fit) / 2F + reference.x() * fit,
+                (height - referenceHeight * fit) / 2F + reference.y() * fit,
+                reference.width() * fit, reference.height() * fit, reference.scale() * fit);
+    }
 }

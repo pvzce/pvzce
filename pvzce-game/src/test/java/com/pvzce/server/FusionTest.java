@@ -8,6 +8,7 @@ import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantRecipes;
 import com.pvzce.common.level.FusionState;
+import com.pvzce.common.level.FusionDrops;
 import com.pvzce.common.level.mechanic.FusionMechanic;
 import com.pvzce.common.level.mechanic.LevelMechanics;
 import com.pvzce.common.network.PvzcePacket;
@@ -55,7 +56,8 @@ class FusionTest {
         return level.fusionAction(bridge, new FusionActionC2S(action, ability == null ? "" : ability.toString(), -1));
     }
     private static void dig(LevelServer level, Bridge bridge, int row) {
-        assertTrue(level.useGrantedTool(bridge, com.pvzce.common.level.mechanic.ToolMechanic.declared(level.def()).getFirst(), 2, row));
+        assertTrue(level.useTool(bridge, level.plantPlayer().slots().getFirst().index(), 2, row));
+        action(level, bridge, "collect", null);
     }
     private static List<CardDropEntity> cards(LevelServer level) {
         return level.entities().stream().filter(e -> e instanceof CardDropEntity && !e.isRemoved()).map(e -> (CardDropEntity) e).toList();
@@ -79,7 +81,7 @@ class FusionTest {
         LevelServer level = level(new FusionData(true, 1F, 0F, 25), id -> id.equals(PvzceIds.id("pea_shooter")));
         Bridge bridge = new Bridge(); assertTrue(level.isPreparing());
         level.beginWaves(); assertTrue(level.isPreparing());
-        assertTrue(level.plantPlayer().slots().isEmpty());
+        assertEquals(PvzceIds.id("shovel"), level.plantPlayer().slots().getFirst().defId());
         assertEquals(5, level.entities().stream().filter(e -> e instanceof PlantEntity).count());
         dig(level, bridge, 0); assertEquals(1, amount(state(level).inventory(), SHOOTER));
         assertEquals(1, state(level).tutorialStep());
@@ -127,17 +129,19 @@ class FusionTest {
     }
 
     @Test void inventoryTrayDropsAndTutorialSurviveSaveAndWireRoundTrip() {
-        LevelServer level = level(new FusionData(true, 0F, 1F, 25), id -> true); Bridge bridge = new Bridge();
+        LevelServer level = level(new FusionData(true, 0F, 2F, 25), id -> true); Bridge bridge = new Bridge();
         dig(level, bridge, 0); dig(level, bridge, 1); action(level, bridge, "add", SHOOTER);
         ZombieEntity zombie = new ZombieEntity(BuiltInRegistries.ZOMBIES.get(PvzceIds.id("basic_zombie")), level.team(PvzceIds.ZOMBIE_TEAM), 5F, 0);
-        FusionMechanic.defeated(level, zombie); assertEquals(1, state(level).drops().size());
+        FusionMechanic.defeated(level, zombie); assertFalse(state(level).drops().isEmpty());
         FusionState before = state(level);
-        LevelServer restored = level(new FusionData(true, 0F, 1F, 25), id -> true); restored.restore(level.save());
+        LevelServer restored = level(new FusionData(true, 0F, 2F, 25), id -> true); restored.restore(level.save());
         assertEquals(before, state(restored));
         MechanicSyncS2C wire = MechanicSyncS2C.of(PvzceIds.MECHANIC_FUSION, FusionState.CODEC, before);
         assertEquals(before, FusionState.CODEC.decode(wire.payloadBuffer()));
         action(restored, bridge, "collect", null); assertTrue(state(restored).drops().isEmpty());
-        action(restored, bridge, "clear", null); assertEquals(2, amount(state(restored).inventory(), SHOOTER));
+        action(restored, bridge, "clear", null);
+        int droppedShooters = (int) before.drops().stream().filter(d -> d.ability().equals(SHOOTER.toString())).count();
+        assertEquals(2 + droppedShooters, amount(state(restored).inventory(), SHOOTER));
     }
 
     private static boolean recycle(LevelServer level, Bridge bridge, int id) {
@@ -199,13 +203,15 @@ class FusionTest {
         assertTrue(state(level).inventory().isEmpty());
     }
 
-    @Test void allShippedLevelsStartWithFivePeasAndNoSlotsOrSkySun() {
+    @Test void allShippedLevelsStartWithFivePeasAndOnlyTheOrdinaryShovelWithoutSkySun() {
         for (int i = 1; i <= 3; i++) {
             LevelDef def = shipped(i); assertNotNull(def);
             assertTrue(LevelMechanics.validate(def).isEmpty());
             LevelServer level = new LevelServer(def); level.flushPending(new Bridge());
             assertEquals(5, level.entities().stream().filter(e -> e instanceof PlantEntity p && p.defId().equals(PvzceIds.id("pea_shooter"))).count());
-            assertTrue(level.plantPlayer().slots().isEmpty()); assertEquals(0, def.initialSun());
+            assertEquals(1, level.plantPlayer().slots().size());
+            assertEquals(com.pvzce.common.core.Slot.Kind.TOOL, level.plantPlayer().slots().getFirst().kind());
+            assertEquals(0, def.initialSun());
             assertEquals(i == 1, FusionMechanic.data(level).tutorial());
         }
     }
@@ -221,11 +227,12 @@ class FusionTest {
                 dig(level, bridge, 0); action(level, bridge, "add", SHOOTER); action(level, bridge, "fuse", null);
                 level.pickUpCardDrop(bridge, cards(level).getFirst().id()); level.plantHeldCard(bridge, 2, 0);
             }
-            int elapsed = 0, peak = 0, produced = 0, bought = 0;
+            int elapsed = 0, peak = 0, produced = 0, bought = 0, collectedAbilities = 0;
             while ("running".equals(level.gameState()) && elapsed < 60 * 1800) {
                 level.tick(bridge); level.flushPending(bridge); elapsed++;
                 peak = Math.max(peak, (int) level.aliveZombieCount());
                 if (elapsed % 60 != 0) continue;
+                collectedAbilities += state(level).drops().size();
                 action(level, bridge, "collect", null);
                 for (var entity : level.entities()) if (entity instanceof ResourceDropEntity drop && !drop.isRemoved()) {
                     if (level.collectResource(bridge, drop.id()) && drop.defId().equals(PvzceIds.SUN)) produced += drop.amount();
@@ -247,10 +254,61 @@ class FusionTest {
                 }
                 bridge.packets.clear();
             }
-            System.out.printf("[FUSION] level=%d outcome=%s seconds=%.1f kills=%d peak=%d sunCollected=%d purchased=%d inventory=%d%n",
-                    number, level.gameState(), elapsed / 60F, level.zombieKills(), peak, produced, bought,
+            System.out.printf("[FUSION] level=%d multiplier=%.2f outcome=%s seconds=%.1f kills=%d peak=%d abilityDrops=%d sunCollected=%d purchased=%d inventory=%d%n",
+                    number, FusionMechanic.data(level).dropMultiplier(), level.gameState(), elapsed / 60F, level.zombieKills(), peak, collectedAbilities, produced, bought,
                     state(level).inventory().stream().mapToInt(FusionState.Count::amount).sum());
             assertNotEquals("running", level.gameState(), "shipped waves must reach an outcome in a bounded run");
         }
+    }
+
+    @Test void aShovelledPlantLeavesPersistentClickableAbilitiesInsteadOfCreditingInventory() {
+        LevelServer level = level(new FusionData(true, 1F, 0F, 25), id -> true); Bridge bridge = new Bridge();
+        PlantEntity plant = level.plantAt(2, 0);
+        float x = plant.cellX(), y = plant.cellY();
+        int slot = level.plantPlayer().slots().getFirst().index();
+        assertTrue(level.useTool(bridge, slot, 2, 0));
+        assertTrue(plant.isRemoved()); assertTrue(state(level).inventory().isEmpty());
+        FusionState.Drop drop = state(level).drops().getFirst();
+        assertEquals(x, drop.x(), 0.001F); assertEquals(y, drop.y(), 0.001F);
+        assertFalse(action(level, bridge, "add", SHOOTER));
+        LevelServer restored = level(new FusionData(true, 1F, 0F, 25), id -> true); restored.restore(level.save());
+        assertEquals(state(level), state(restored));
+        assertTrue(restored.fusionAction(bridge, new FusionActionC2S("collect", "", drop.id())));
+        assertEquals(1, amount(state(restored).inventory(), SHOOTER));
+        assertFalse(restored.fusionAction(bridge, new FusionActionC2S("collect", "", drop.id())));
+        assertTrue(restored.useTool(bridge, slot, 2, 1));
+        assertTrue(state(restored).drops().isEmpty(), "later digs still pay the configured loss chance");
+    }
+
+    @Test void threatAndLevelMultiplierSelectAnExactDropQuantityWithNoIndependentExtraRolls() {
+        var basic = BuiltInRegistries.ZOMBIES.get(PvzceIds.id("basic_zombie"));
+        var cone = BuiltInRegistries.ZOMBIES.get(PvzceIds.id("conehead_zombie"));
+        var bucket = BuiltInRegistries.ZOMBIES.get(PvzceIds.id("buckethead_zombie"));
+        assertEquals(1, FusionDrops.count(basic, 1F, 0.39F));
+        assertEquals(2, FusionDrops.count(basic, 1F, 0.41F));
+        assertEquals(0, FusionDrops.count(basic, 1F, 0.51F));
+        assertEquals(1, FusionDrops.count(cone, 1F, 0.49F));
+        assertEquals(2, FusionDrops.count(cone, 1F, 0.51F));
+        assertEquals(0, FusionDrops.count(cone, 1F, 0.71F));
+        assertEquals(1, FusionDrops.count(bucket, 1F, 0.49F));
+        assertEquals(2, FusionDrops.count(bucket, 1F, 0.51F));
+        assertEquals(3, FusionDrops.count(bucket, 1F, 0.76F));
+        assertEquals(0, FusionDrops.count(bucket, 1F, 0.86F));
+        assertEquals(0, FusionDrops.count(basic, 0F, 0F));
+        assertEquals(2, FusionDrops.count(basic, 0.5F, 0.24F));
+        assertEquals(0, FusionDrops.count(basic, 0.5F, 0.26F));
+        assertEquals(2, FusionDrops.count(basic, 4F, 0.99F));
+        assertEquals(4, FusionDrops.count(BuiltInRegistries.ZOMBIES.get(PvzceIds.id("gargantuar")), 1F, 0.95F));
+        assertEquals(4, FusionDrops.count(BuiltInRegistries.ZOMBIES.get(PvzceIds.id("football_zombie")), 1F, 0.95F));
+
+        // A high multiplier must create distinct, in-bounds ground tokens, never credit the bag.
+        LevelServer level = level(new FusionData(false, 0F, 4F, 25), id -> true);
+        ZombieEntity zombie = new ZombieEntity(bucket, level.team(PvzceIds.ZOMBIE_TEAM), 20F, 0);
+        level.random().setSeed(17L);
+        FusionMechanic.defeated(level, zombie);
+        assertTrue(state(level).inventory().isEmpty());
+        assertTrue(state(level).drops().size() >= 2);
+        assertEquals(state(level).drops().size(), state(level).drops().stream().map(FusionState.Drop::x).distinct().count());
+        assertTrue(state(level).drops().stream().allMatch(d -> d.x() >= 0.5F && d.x() <= 8.5F));
     }
 }

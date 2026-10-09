@@ -9,7 +9,17 @@ package com.pvzce.common;
  */
 public final class PvzceConstants {
     public static final float FUSION_LOSS_CHANCE = 0.20F;
-    public static final float FUSION_DROP_CHANCE = 0.20F;
+    public static final float FUSION_DROP_MULTIPLIER = 1F;
+    /** Mutually exclusive probabilities of exactly 1, 2, ... abilities, by threat tier. */
+    public static final java.util.List<java.util.List<Float>> FUSION_DROP_CHANCES = java.util.List.of(
+            java.util.List.of(0.40F, 0.10F),
+            java.util.List.of(0.50F, 0.20F),
+            java.util.List.of(0.50F, 0.25F, 0.10F),
+            java.util.List.of(0.40F, 0.30F, 0.20F, 0.10F),
+            java.util.List.of(0.20F, 0.30F, 0.30F, 0.20F));
+    public static final int FUSION_STRONG_DURABILITY = 1300;
+    public static final int FUSION_ELITE_DURABILITY = 2600;
+    public static final float FUSION_DROP_SPACING = 0.40F;
     public static final int FUSION_ABILITY_PRICE = 25;
     public static final int FUSION_TRAY_CAPACITY = 32;
     public static final int FUSION_CARD_LIFETIME_TICKS = 90 * PvzceConstants.TICKS_PER_SECOND;
