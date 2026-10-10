@@ -102,13 +102,18 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
     }
 
     private static void dropAbilities(LevelServer level, List<Identifier> abilities, float x, float y) {
+        dropAbilities(level, abilities, x, y, -1);
+    }
+
+    private static void dropAbilities(LevelServer level, List<Identifier> abilities, float x, float y, int firstId) {
         if (abilities.isEmpty()) return;
         Workshop work = workshop(level);
         float span = Math.min(level.width() - 1F, (abilities.size() - 1) * PvzceConstants.FUSION_DROP_SPACING);
         float left = Math.max(0.5F, Math.min(level.width() - 0.5F - span, x - span / 2F));
         for (int i = 0; i < abilities.size(); i++) {
             float offset = abilities.size() < 2 ? 0F : span * i / (abilities.size() - 1);
-            work.drops.add(new FusionState.Drop(work.nextDrop++, abilities.get(i).toString(), left + offset, y));
+            int id = i == 0 && firstId >= 0 ? firstId : work.nextDrop++;
+            work.drops.add(new FusionState.Drop(id, abilities.get(i).toString(), left + offset, y));
         }
     }
 
@@ -178,7 +183,7 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
                 work.tray.clear();
             }
             case "buy" -> {
-                if (ability == null || BuiltInRegistries.PLANT_CAPABILITIES.get(ability) == null) return false;
+                if (ability == null || !PlantRecipes.abilities().contains(ability)) return false;
                 if (!level.plantPlayer().team().consume(PvzceIds.SUN, data.price())) {
                     feedback(level, "阳光不足，先合成生产能力并种下向日葵。", false); return false;
                 }
@@ -304,15 +309,29 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
         work.message = tag.getString("Message"); work.success = tag.getInt("Success") != 0;
         for (Tag item : tag.getList("Inventory").values()) if (item instanceof CompoundTag entry) {
             Identifier ability = savedAbility(entry);
-            if (ability != null && entry.getInt("Amount") > 0) work.inventory.put(ability, entry.getInt("Amount"));
+            if (ability != null && entry.getInt("Amount") > 0) {
+                for (Identifier component : PlantRecipes.components(ability)) {
+                    work.inventory.merge(component, entry.getInt("Amount"), Integer::sum);
+                }
+            }
         }
         for (Tag item : tag.getList("Tray").values()) if (item instanceof CompoundTag entry) {
             Identifier ability = savedAbility(entry);
-            if (ability != null && work.tray.size() < PvzceConstants.FUSION_TRAY_CAPACITY) work.tray.add(ability);
+            if (ability != null) for (Identifier component : PlantRecipes.components(ability)) {
+                if (work.tray.size() < PvzceConstants.FUSION_TRAY_CAPACITY) work.tray.add(component);
+                else work.inventory.merge(component, 1, Integer::sum);
+            }
         }
+        List<FusionState.Drop> savedDrops = new ArrayList<>();
         for (Tag item : tag.getList("Drops").values()) if (item instanceof CompoundTag entry && savedAbility(entry) != null) {
-            work.drops.add(new FusionState.Drop(entry.getInt("Id"), entry.getString("Ability"), entry.getFloat("X"), entry.getFloat("Y")));
+            savedDrops.add(new FusionState.Drop(entry.getInt("Id"), entry.getString("Ability"), entry.getFloat("X"), entry.getFloat("Y")));
             work.nextDrop = Math.max(work.nextDrop, entry.getInt("Id") + 1);
+        }
+        // Reserve every saved id before splitting, so new components cannot collide with later drops.
+        for (FusionState.Drop drop : savedDrops) {
+            List<Identifier> components = PlantRecipes.components(Identifier.tryParse(drop.ability()));
+            if (components.size() == 1) work.drops.add(drop);
+            else dropAbilities(level, components, drop.x(), drop.y(), drop.id());
         }
     }
     private static Identifier savedAbility(CompoundTag tag) {

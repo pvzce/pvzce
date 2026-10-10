@@ -617,6 +617,18 @@ class MutationManagerTest {
         assertNotNull(level);
     }
 
+    @Test
+    void compositeRecipesKeepShellsAndCannonsOutOfSingleRoleReplacementGroups() {
+        List<Identifier> chosen = List.of(PvzceIds.id("pumpkin"), PvzceIds.id("cob_cannon"));
+        LevelServer picked = new LevelServer(TestLevels.copy(endless).slots(chosen).build());
+        assertNotNull(picked.mutations().add(MutationRegistry.get(PvzceIds.MUTATION_SLOT_REPLACE), Mutation.Roll.NONE));
+        assertEquals(chosen, cardsOf(picked), "a shell must not become a wall or carrier, nor a cannon a plain thrower or bomb");
+        assertEquals(List.of(PvzceIds.id("carrier"), PvzceIds.id("defense")),
+                PlantAbilityGroups.keyOf(BuiltInRegistries.PLANTS.get(chosen.getFirst())));
+        assertEquals(List.of(PvzceIds.id("explosive"), PvzceIds.id("thrower")),
+                PlantAbilityGroups.keyOf(BuiltInRegistries.PLANTS.get(chosen.getLast())));
+    }
+
     /** The bar's card ids, in order. */
     private static List<Identifier> cardsOf(LevelServer level) {
         List<Identifier> ids = new ArrayList<>();

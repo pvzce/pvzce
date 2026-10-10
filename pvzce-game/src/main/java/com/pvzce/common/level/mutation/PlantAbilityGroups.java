@@ -20,9 +20,9 @@ import java.util.Map;
  * keeps every count the same at once, which is the only reading of "the same as the player
  * originally chose" that survives a plant having more than one job.
  *
- * <p>A plant with no capabilities at all (Wall-nut, Lily Pad, Flower Pot) has nothing to keep
- * equal, so it is its own group: replacing a Wall-nut with a Lily Pad would change what the
- * player can build even though neither has an "ability".
+ * <p>The shared recipe expands composite abilities into materials. Defence and carrier markers
+ * keep passive plants in their own roles; a shell belongs to defence-plus-carrier, not either
+ * single-material group.
  *
  * <p>Pure functions over definitions - no level, no player - so the whole rule is testable
  * without running a game.
@@ -32,7 +32,7 @@ final class PlantAbilityGroups {
     }
 
     /**
-     * The group key of one plant: its capabilities' ids, sorted.
+     * The group key of one plant: its complete material recipe, sorted.
      *
      * <p>A sorted list rather than a set, so the key is comparable and a group can be looked up
      * by value. Two plants that share their capabilities are one group whichever order their

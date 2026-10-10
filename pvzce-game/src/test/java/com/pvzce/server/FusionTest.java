@@ -11,6 +11,8 @@ import com.pvzce.common.level.FusionState;
 import com.pvzce.common.level.FusionDrops;
 import com.pvzce.common.level.mechanic.FusionMechanic;
 import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.FusionActionC2S;
@@ -93,6 +95,132 @@ class FusionTest {
         assertTrue(level.plantHeldCard(bridge, 2, 0)); assertFalse(level.isPreparing());
         assertEquals(0, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
         dig(level, bridge, 1); assertEquals(0, amount(state(level).inventory(), SHOOTER), "a one-ability plant can lose its only ability");
+    }
+
+    @Test void compositePlantsCraftAndDecomposeThroughTheirSharedMaterials() {
+        for (String name : List.of("pumpkin", "cob_cannon")) {
+            Identifier plantId = PvzceIds.id(name);
+            var def = BuiltInRegistries.PLANTS.get(plantId);
+            List<Identifier> expected = name.equals("pumpkin")
+                    ? List.of(PvzceIds.id("carrier"), PvzceIds.id("defense"))
+                    : List.of(PvzceIds.id("explosive"), PvzceIds.id("thrower"));
+            assertEquals(expected, PlantRecipes.recipe(def));
+            assertEquals(List.of(plantId), PlantRecipes.candidates(expected.reversed(), id -> true));
+            assertTrue(PlantRecipes.candidates(expected, id -> false).isEmpty());
+            assertTrue(PlantRecipes.candidates(expected.subList(0, 1), plantId::equals).isEmpty());
+
+            LevelServer level = level(new FusionData(false, 0F, 0F, 25), plantId::equals);
+            Bridge bridge = new Bridge();
+            level.spawnCardDrop(plantId, 0, 0); level.flushPending(bridge);
+            assertTrue(recycle(level, bridge, cards(level).getFirst().id()));
+            for (Identifier ability : expected) {
+                assertEquals(1, amount(state(level).inventory(), ability));
+                assertTrue(action(level, bridge, "add", ability));
+            }
+            assertTrue(action(level, bridge, "fuse", null));
+            CardDropEntity packet = cards(level).getFirst();
+            assertEquals(plantId, packet.card());
+            assertTrue(level.pickUpCardDrop(bridge, packet.id()));
+            assertTrue(level.plantHeldCard(bridge, 4, 0));
+            PlantEntity plant = level.plantAt(4, 0);
+            assertNotNull(plant); assertEquals(plantId, plant.defId());
+            // Recipe expansion must not replace the behaviour implementing shell placement or cannon aiming.
+            assertEquals(name.equals("pumpkin") ? PvzceIds.id("shell") : plantId,
+                    plant.def().resolvedCapabilities().getFirst().type());
+            assertTrue(level.useTool(bridge, level.plantPlayer().slots().getFirst().index(), 4, 0));
+            assertTrue(plant.isRemoved());
+            assertTrue(state(level).inventory().isEmpty());
+            assertEquals(expected.stream().map(Identifier::toString).toList(),
+                    state(level).drops().stream().map(FusionState.Drop::ability).toList());
+            assertTrue(action(level, bridge, "collect", null));
+            for (Identifier ability : expected) assertEquals(1, amount(state(level).inventory(), ability));
+        }
+    }
+
+    @Test void compositeTokensAreExcludedFromPurchaseAndZombieDrops() {
+        List<Identifier> pool = PlantRecipes.abilities();
+        assertFalse(pool.contains(PvzceIds.id("shell")));
+        assertFalse(pool.contains(PvzceIds.id("cob_cannon")));
+        assertTrue(pool.containsAll(List.of(PvzceIds.id("carrier"), PvzceIds.id("defense"),
+                PvzceIds.id("explosive"), PvzceIds.id("thrower"))));
+        assertEquals(pool.size(), pool.stream().distinct().count());
+        LevelServer level = level(new FusionData(false, 0F, 2F, 25), id -> true);
+        Bridge bridge = new Bridge();
+        level.spawnResource(PvzceIds.SUN, 100, 1F, 1F, level.plantPlayer().team()); level.flushPending(bridge);
+        ResourceDropEntity sun = (ResourceDropEntity) level.entities().stream()
+                .filter(e -> e instanceof ResourceDropEntity).findFirst().orElseThrow();
+        assertTrue(level.collectResource(bridge, sun.id()));
+        assertFalse(action(level, bridge, "buy", PvzceIds.id("shell")));
+        assertFalse(action(level, bridge, "buy", PvzceIds.id("cob_cannon")));
+        assertEquals(100, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
+        assertTrue(action(level, bridge, "buy", PvzceIds.id("defense")));
+        assertEquals(75, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
+        ZombieEntity zombie = new ZombieEntity(BuiltInRegistries.ZOMBIES.get(PvzceIds.id("buckethead_zombie")),
+                level.team(PvzceIds.ZOMBIE_TEAM), 5F, 0);
+        for (int i = 0; i < 100; i++) FusionMechanic.defeated(level, zombie);
+        assertFalse(state(level).drops().isEmpty());
+        assertTrue(state(level).drops().stream().allMatch(drop -> pool.contains(Identifier.tryParse(drop.ability()))));
+    }
+
+    private static CompoundTag savedToken(String ability, int amount) {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("Ability", PvzceIds.id(ability).toString()); tag.putInt("Amount", amount);
+        return tag;
+    }
+
+    @Test void legacyInventoryTrayAndDropsExpandWithoutDuplicatingOnTheNextRestore() {
+        LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> true);
+        CompoundTag root = new CompoundTag(), fusion = new CompoundTag();
+        ListTag inventory = new ListTag(), tray = new ListTag(), drops = new ListTag();
+        inventory.add(savedToken("shell", 2)); inventory.add(savedToken("defense", 3));
+        inventory.add(savedToken("cob_cannon", 1));
+        tray.add(savedToken("shell", 1)); tray.add(savedToken("cob_cannon", 1));
+        List<String> oldAbilities = List.of("shell", "shooter", "cob_cannon");
+        for (int i = 0; i < oldAbilities.size(); i++) {
+            CompoundTag drop = savedToken(oldAbilities.get(i), 1);
+            drop.putInt("Id", 7 + i); drop.putFloat("X", i == 2 ? level.width() - 0.5F : 0.5F);
+            drop.putFloat("Y", 0.5F); drops.add(drop);
+        }
+        fusion.put("Inventory", inventory); fusion.put("Tray", tray); fusion.put("Drops", drops);
+        fusion.putInt("Step", 4); fusion.putInt("NextDrop", 1); root.put("Fusion", fusion);
+        new FusionMechanic().applySave(level, FusionMechanic.data(level), root);
+        FusionState migrated = state(level);
+        assertEquals(5, amount(migrated.inventory(), PvzceIds.id("defense")));
+        assertEquals(2, amount(migrated.inventory(), PvzceIds.id("carrier")));
+        assertEquals(1, amount(migrated.inventory(), PvzceIds.id("explosive")));
+        assertEquals(1, amount(migrated.inventory(), PvzceIds.id("thrower")));
+        assertEquals(4, migrated.tray().stream().mapToInt(FusionState.Count::amount).sum());
+        assertEquals(5, migrated.drops().size());
+        assertEquals(5, migrated.drops().stream().map(FusionState.Drop::id).distinct().count());
+        assertTrue(migrated.drops().stream().map(FusionState.Drop::id).toList().containsAll(List.of(7, 8, 9)));
+        assertTrue(migrated.drops().stream().allMatch(drop -> drop.x() >= 0.5F && drop.x() <= level.width() - 0.5F));
+        assertTrue(migrated.drops().stream().allMatch(drop -> PlantRecipes.abilities().contains(Identifier.tryParse(drop.ability()))));
+        LevelServer restored = level(new FusionData(false, 0F, 0F, 25), id -> true);
+        restored.restore(level.save()); assertEquals(migrated, state(restored));
+        Bridge bridge = new Bridge();
+        assertTrue(restored.fusionAction(bridge, new FusionActionC2S("collect", "", 7)));
+        assertFalse(restored.fusionAction(bridge, new FusionActionC2S("collect", "", 7)));
+        assertTrue(action(restored, bridge, "collect", null));
+        assertEquals(6, amount(state(restored).inventory(), PvzceIds.id("defense")));
+        assertEquals(3, amount(state(restored).inventory(), PvzceIds.id("carrier")));
+        assertEquals(2, amount(state(restored).inventory(), PvzceIds.id("explosive")));
+        assertEquals(2, amount(state(restored).inventory(), PvzceIds.id("thrower")));
+        assertEquals(1, amount(state(restored).inventory(), SHOOTER));
+    }
+
+    @Test void legacyTrayExpansionReturnsOverflowToInventoryWithoutLosingMaterials() {
+        LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> true);
+        CompoundTag root = new CompoundTag(), fusion = new CompoundTag(); ListTag tray = new ListTag();
+        for (int i = 0; i < com.pvzce.common.PvzceConstants.FUSION_TRAY_CAPACITY; i++) tray.add(savedToken("cob_cannon", 1));
+        fusion.put("Tray", tray); fusion.putInt("Step", 4); root.put("Fusion", fusion);
+        new FusionMechanic().applySave(level, FusionMechanic.data(level), root);
+        assertEquals(com.pvzce.common.PvzceConstants.FUSION_TRAY_CAPACITY,
+                state(level).tray().stream().mapToInt(FusionState.Count::amount).sum());
+        assertTrue(action(level, new Bridge(), "clear", null));
+        assertEquals(com.pvzce.common.PvzceConstants.FUSION_TRAY_CAPACITY,
+                amount(state(level).inventory(), PvzceIds.id("explosive")));
+        assertEquals(com.pvzce.common.PvzceConstants.FUSION_TRAY_CAPACITY,
+                amount(state(level).inventory(), PvzceIds.id("thrower")));
     }
 
     @Test void failedRecipeLosesExactlyOneAndReturnsTheRestWithoutUnlockBypass() {
