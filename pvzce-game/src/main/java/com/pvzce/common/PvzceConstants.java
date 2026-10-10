@@ -8,6 +8,14 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final int RANDOM_PLANT_MAX_ABILITIES = 4;
+    public static final int RANDOM_BELT_MIN_ATTACKERS = 3;
+    public static final int RANDOM_PAYLOAD_ENTITY_LIMIT = 128;
+    public static final int RANDOM_LAUNCH_DAMAGE = 20;
+    public static final int MOWER_DAMAGE = 100_000;
+    public static final float RANDOM_LAUNCH_MIN_SPEED = 3F;
+    public static final float RANDOM_LAUNCH_MAX_SPEED = 5F;
+    public static final float RANDOM_LAUNCH_HIT_RADIUS = 0.35F;
     public static final float FUSION_LOSS_CHANCE = 0.20F;
     public static final float FUSION_DROP_MULTIPLIER = 1F;
     /** Mutually exclusive probabilities of exactly 1, 2, ... abilities, by threat tier. */

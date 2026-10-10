@@ -31,6 +31,18 @@ public abstract class PvzceEntity extends Entity {
      */
     protected Team team;
     protected boolean removed;
+    private EntityLaunch launch;
+    private boolean randomPayload;
+
+    public boolean randomPayload() { return randomPayload; }
+    public boolean launched() { return launch != null; }
+    public void markRandomPayload() { randomPayload = true; }
+    public void launch(float speed, float vx, float vy, int damage, float distance) {
+        launch = new EntityLaunch(speed, vx, vy, damage, distance);
+    }
+    public void tickLaunch(LevelServer level) {
+        if (launch != null && !isRemoved() && !launch.tick(this, level)) launch = null;
+    }
     private final AttributeContainer attributes;
 
     /**
@@ -228,6 +240,9 @@ public abstract class PvzceEntity extends Entity {
         tag.putInt("health", health());
         tag.putString("animation", animation());
         tag.put("Attributes", attributes.save());
+        if (randomPayload) tag.putInt("RandomPayload", 1);
+        if (launch != null) tag.put("Launch", launch.save());
+        if (team != null) tag.putString("Team", team.id().toString());
         return tag;
     }
 
@@ -256,6 +271,8 @@ public abstract class PvzceEntity extends Entity {
     }
 
     private void restoreBaseProperties(CompoundTag tag) {
+        randomPayload = tag.getInt("RandomPayload") != 0;
+        launch = tag.contains("Launch") ? EntityLaunch.load(tag.getCompound("Launch")) : null;
         if (tag.contains("Attributes")) attributes.restore(tag.getCompound("Attributes"));
         else if (tag.getInt("health") > maxHealth())
             attributes.get(EntityAttributes.MAX_HEALTH).setBaseValue(tag.getInt("health"));

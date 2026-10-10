@@ -1054,5 +1054,10 @@
   "pvzce.mechanic.fusion": "融合与分解",
   "pvzce.mechanic.fusion.field.tutorial": "操作教程",
   "pvzce.mechanic.fusion.field.drop_multiplier": "能力掉落概率倍率",
-  "pvzce.mechanic.fusion.field.price": "能力价格"
+  "pvzce.mechanic.fusion.field.price": "能力价格",
+  "level_collection.pvzce.random_plants": "异能洗牌",
+  "projectile.pvzce.random_mower": "小推车",
+  "gui.pvzce.random_plants.seed": "种子 %d",
+  "gui.pvzce.random_plants.shot": "发射：%s · %.1f 格/秒",
+  "gui.pvzce.random_plants.product": "产物：%s"
 }

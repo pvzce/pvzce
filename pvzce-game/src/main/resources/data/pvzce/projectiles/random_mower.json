@@ -1,0 +1,15 @@
+{
+  "id": "pvzce:random_mower",
+  "layer": "ground",
+  "capabilities": [
+    {
+      "type": "pvzce:linear",
+      "speed": 3.3
+    },
+    {
+      "type": "pvzce:pierce"
+    }
+  ],
+  "damage_type": "pvzce:mower",
+  "animation": "pvzce:mechanic/lawn_mower"
+}

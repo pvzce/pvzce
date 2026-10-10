@@ -1054,5 +1054,10 @@
   "pvzce.mechanic.fusion": "Ability Fusion",
   "pvzce.mechanic.fusion.field.tutorial": "Tutorial",
   "pvzce.mechanic.fusion.field.drop_multiplier": "Ability drop probability multiplier",
-  "pvzce.mechanic.fusion.field.price": "Ability Price"
+  "pvzce.mechanic.fusion.field.price": "Ability Price",
+  "level_collection.pvzce.random_plants": "Ability Shuffle",
+  "projectile.pvzce.random_mower": "Lawn Mower",
+  "gui.pvzce.random_plants.seed": "Seed %d",
+  "gui.pvzce.random_plants.shot": "Shot: %s · %.1f cells/s",
+  "gui.pvzce.random_plants.product": "Produces: %s"
 }

@@ -104,6 +104,7 @@ public final class LevelMechanics {
     /** Registers every built-in mechanic; called from {@code BuiltInRegistries.bootstrap()}. */
     public static void bootstrap() {
         register(PvzceIds.MECHANIC_FUSION, FUSION);
+        register(PvzceIds.MECHANIC_RANDOM_PLANTS, new RandomPlantsMechanic());
         register(PvzceIds.MECHANIC_SURFACE_LINKS, new SurfaceLinksMechanic());
         register(PvzceIds.MECHANIC_STAGES, new StagesMechanic());
         register(PvzceIds.MECHANIC_OUTPOSTS, new OutpostsMechanic());

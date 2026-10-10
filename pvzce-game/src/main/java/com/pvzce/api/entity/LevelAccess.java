@@ -255,6 +255,12 @@ public interface LevelAccess {
         spawnProducedResource(resourceId, amount, x, y, team, scale, driftX);
     }
 
+    /** Source-aware production lets level mechanics rewrite a plant's output without affecting sky/loot drops. */
+    default void spawnProducedResource(Identifier resourceId, int amount, float x, float y,
+                                       PlantEntity source, float scale, float driftX) {
+        spawnProducedResource(resourceId, amount, x, y, source.team(), scale, driftX, source.surfaceId());
+    }
+
     /** A batch drop's explicit sideways motion, keeping each independently collectible. */
     default void spawnProducedResource(Identifier resourceId, int amount, float x, float y, Team team,
                                        float scale, float driftX) {

@@ -77,7 +77,7 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
      * reading the target's health would have made the damage depend on what it hit - a
      * Gargantuar is not supposed to survive one mower because a formula said so.
      */
-    private static final int MOWER_DAMAGE = 100_000;
+    private static final int MOWER_DAMAGE = PvzceConstants.MOWER_DAMAGE;
 
     /** The NBT key this mechanic's run state is written under. */
     private static final String KEY_MOWERS = "Mowers";

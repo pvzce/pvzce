@@ -1598,5 +1598,21 @@
         "stream": true
       }
     ]
+  },
+  "music/zany_the_lawn_main": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/original/zany_the_lawn_main",
+        "stream": true
+      }
+    ]
+  },
+  "music/zany_the_lawn_drums": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/original/zany_the_lawn_drums",
+        "stream": true
+      }
+    ]
   }
 }

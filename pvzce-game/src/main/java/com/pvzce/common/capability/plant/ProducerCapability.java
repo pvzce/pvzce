@@ -202,7 +202,7 @@ public final class ProducerCapability implements PlantCapability {
             PendingDrop drop = iterator.next();
             if (--drop.ticks <= 0) {
                 level.spawnProducedResource(resource, drop.amount, plant.cellX(), plant.cellY(),
-                        plant.team(), drop.scale, drop.driftX, plant.surfaceId());
+                        plant, drop.scale, drop.driftX);
                 iterator.remove();
             }
         }
@@ -242,14 +242,14 @@ public final class ProducerCapability implements PlantCapability {
         int total = currentAmount();
         int count = Math.min(dropCount, total);
         if (count == 1) {
-            level.spawnProducedResource(resource, total, plant.cellX(), plant.cellY(), plant.team(), dropScale(), plant.surfaceId());
+            level.spawnProducedResource(resource, total, plant.cellX(), plant.cellY(), plant, dropScale(), 0F);
         } else {
             for (int index = 0; index < count; index++) {
                 int value = total / count + (index < total % count ? 1 : 0);
                 float drift = (index - (count - 1) / 2F) * PvzceConstants.PRODUCER_DROP_SPACING_CELLS;
                 if (index == 0) {
                     level.spawnProducedResource(resource, value, plant.cellX(), plant.cellY(),
-                            plant.team(), dropScale(), drift, plant.surfaceId());
+                            plant, dropScale(), drift);
                 } else {
                     pendingDrops.add(new PendingDrop(index * PvzceConstants.PRODUCER_DROP_GAP_TICKS,
                             value, dropScale(), drift));

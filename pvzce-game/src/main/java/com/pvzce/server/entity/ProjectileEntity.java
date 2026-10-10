@@ -276,9 +276,12 @@ public class ProjectileEntity extends PvzceEntity {
         float beforeX = cellX();
         int beforeRow = gridY();
         boolean teleported = false;
-        for (Instance instance : capabilities) {
-            if (instance.capability.move(this, level)) {
-                break;
+        if (launched()) {
+            tickLaunch(level);
+            if (isRemoved()) return;
+        } else {
+            for (Instance instance : capabilities) {
+                if (instance.capability.move(this, level)) break;
             }
         }
         if (capability(com.pvzce.common.capability.projectile.LinearMotionCapability.class) != null

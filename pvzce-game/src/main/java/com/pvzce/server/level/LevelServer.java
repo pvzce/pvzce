@@ -1,11 +1,5 @@
 package com.pvzce.server.level;
 
-import com.pvzce.api.content.SurfaceProfile;
-import com.pvzce.common.level.WorldPosition;
-import com.pvzce.common.level.SceneBoard;
-import com.pvzce.common.level.mechanic.StagesMechanic;
-import com.pvzce.common.level.mechanic.OutpostsMechanic;
-import com.pvzce.common.level.mechanic.SurfaceLinksMechanic;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.LevelRewards;
 import com.pvzce.api.content.PlantDef;
@@ -14,6 +8,7 @@ import com.pvzce.api.content.ProjectileRef;
 import com.pvzce.api.content.ResourceDef;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.content.SlotDef;
+import com.pvzce.api.content.SurfaceProfile;
 import com.pvzce.api.content.TeamDef;
 import com.pvzce.api.content.ToolData;
 import com.pvzce.api.content.ToolDef;
@@ -21,43 +16,52 @@ import com.pvzce.api.content.WaveDef;
 import com.pvzce.api.content.ZombieDef;
 import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.entity.Entity;
+import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.entity.LevelAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
+import com.pvzce.common.PvzceParticles;
 import com.pvzce.common.PvzceSounds;
 import com.pvzce.common.core.BuiltInRegistries;
-import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.core.PlantPlacement.PlantLayer;
+import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.core.SceneCells;
 import com.pvzce.common.core.SeedOptions;
+import com.pvzce.common.core.Slot;
 import com.pvzce.common.level.CardCooldown;
-import com.pvzce.common.level.mechanic.LevelMechanics;
-import com.pvzce.common.level.mechanic.RakeMechanic;
-import com.pvzce.common.level.mechanic.ScaryPotterMechanic;
-import com.pvzce.common.level.mechanic.WavePacingMechanic;
-import com.pvzce.common.level.mechanic.ToolMechanic;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.level.SceneGrid;
+import com.pvzce.common.level.WorldPosition;
+import com.pvzce.common.level.mechanic.LevelMechanics;
+import com.pvzce.common.level.mechanic.OutpostsMechanic;
+import com.pvzce.common.level.mechanic.RakeMechanic;
+import com.pvzce.common.level.mechanic.RandomPlantsMechanic;
+import com.pvzce.common.level.mechanic.ScaryPotterMechanic;
+import com.pvzce.common.level.mechanic.StagesMechanic;
+import com.pvzce.common.level.mechanic.SurfaceLinksMechanic;
+import com.pvzce.common.level.mechanic.ToolMechanic;
+import com.pvzce.common.level.mechanic.WavePacingMechanic;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
 import com.pvzce.common.nbt.StringTag;
 import com.pvzce.common.nbt.Tag;
 import com.pvzce.common.network.PvzcePacket;
-import com.pvzce.common.network.packet.EffectEventS2C;
+import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.CarrySyncS2C;
+import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.EntityDespawnS2C;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.HeldCardS2C;
-import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelPayload;
 import com.pvzce.common.network.packet.MusicEventS2C;
 import com.pvzce.common.network.packet.ResourceCollectS2C;
 import com.pvzce.common.network.packet.ResourceDeltaS2C;
 import com.pvzce.common.network.packet.SceneSyncS2C;
-import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SeedOption;
+import com.pvzce.common.network.packet.ServerMessageS2C;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.SlotSyncS2C;
 import com.pvzce.common.network.packet.TimeOfDayS2C;
@@ -65,7 +69,6 @@ import com.pvzce.common.network.packet.WaveProgressS2C;
 import com.pvzce.common.tag.PvzceTags;
 import com.pvzce.server.PvzcePlayer;
 import com.pvzce.server.SeedSelection;
-import com.pvzce.common.core.Slot;
 import com.pvzce.server.Team;
 import com.pvzce.server.ai.PlantAIPlayer;
 import com.pvzce.server.entity.PlantEntity;
@@ -76,7 +79,6 @@ import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.env.LevelEnvVars;
 import com.pvzce.server.gamerule.GameRules;
 import com.pvzce.server.gamerule.PvzceClock;
-import com.pvzce.common.PvzceParticles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -86,6 +88,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Stream;
 
 /**
  * The authoritative level simulation.
@@ -1838,6 +1841,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // a damaged plant against it - see `PlantEntity`'s own constructor.
         int fullHealth = Math.max(1, Math.round(def.health()
                 * rules.getFloat(PvzceIds.RULE_PLANT_HEALTH_MULTIPLIER)));
+        def = RandomPlantsMechanic.plant(this, def);
         PlantEntity plant = new PlantEntity(def, team, x, y, fullHealth);
         plant.applySpawnAttributes(attributes);
         plant.setGridBounds(width(), height());
@@ -1868,6 +1872,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     private void addProjectile(ProjectileEntity projectile, Entity source) {
         projectile.setSurfaceId(source.surfaceId());
+        if (source instanceof PlantEntity plant
+                && RandomPlantsMechanic.fire(this, plant, projectile)) return;
         addEntity(projectile);
     }
 
@@ -2073,6 +2079,74 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return new ProjectileRef(replacement, ref.damage(), ref.count(), ref.rowOffset(),
                 ref.backward(), ref.rows(), ref.range(), ref.burstDelay(), ref.initialDelay(),
                 ref.targetRow(), ref.vectorX(), ref.vectorY(), ref.launchHeight());
+    }
+
+    @Override
+    public void spawnProducedResource(Identifier resourceId, int amount, float x, float y,
+                                      PlantEntity source, float scale, float driftX) {
+        if (RandomPlantsMechanic.produce(this, source, amount, x, y)) return;
+        spawnProducedResource(resourceId, amount, x, y, source.team(), scale, driftX, source.surfaceId());
+    }
+
+    /** A real registered entity, with its own behaviour, on the emitting plant's team. */
+    public PvzceEntity spawnRandomPayload(
+            RandomPlantsMechanic.Payload payload, PlantEntity source,
+            float x, float y, float height, int damage, int amount, float speed, float vx, float vy) {
+        long active = entities.stream().filter(e -> e.randomPayload() && !e.isRemoved()).count()
+                + pendingAdd.stream().filter(e -> e.randomPayload() && !e.isRemoved()).count();
+        if (active >= PvzceConstants.RANDOM_PAYLOAD_ENTITY_LIMIT) {
+            // Keep attacks working even when a producer has filled the lawn with descendants.
+            Stream.concat(entities.stream(), pendingAdd.stream())
+                    .filter(e -> e.randomPayload() && !e.isRemoved()).findFirst().ifPresent(PvzceEntity::remove);
+        }
+        PvzceEntity entity = switch (payload.kind()) {
+            case EntityKind.PLANT -> {
+                PlantDef def = BuiltInRegistries.PLANTS.get(payload.id());
+                yield def == null ? null : new PlantEntity(
+                        RandomPlantsMechanic.plant(this, def),
+                        source.team(), (int) Math.floor(x), (int) Math.floor(y));
+            }
+            case EntityKind.ZOMBIE -> {
+                ZombieDef def = BuiltInRegistries.ZOMBIES.get(payload.id());
+                yield def == null ? null : new ZombieEntity(def, source.team(), x, (int) Math.floor(y));
+            }
+            case EntityKind.RESOURCE -> {
+                ResourceDef def = BuiltInRegistries.RESOURCES.get(payload.id());
+                yield def == null ? null : new ResourceDropEntity(def, source.team(),
+                        (int) Math.floor(x), (int) Math.floor(y), Math.max(1, amount), ResourceDef.DropMotion.LANDED, 0F);
+            }
+            case EntityKind.PROJECTILE -> {
+                ProjectileDef def = BuiltInRegistries.PROJECTILES.get(payload.id());
+                if (def == null) yield null;
+                int hitDamage = def.damageType().filter(PvzceIds.DAMAGE_MOWER::equals).isPresent()
+                        ? PvzceConstants.MOWER_DAMAGE : damage;
+                ProjectileRef shot = new ProjectileRef(payload.id(), hitDamage, 1, 0, false, 0,
+                        0F, 0, 0, false, vx, vy, 0F);
+                // Randomized launch motion is shared by all payloads; native impact capabilities remain.
+                yield new ProjectileEntity(def, shot, source.team(), x, y, height);
+            }
+            default -> null;
+        };
+        if (entity == null) return null;
+        entity.markRandomPayload();
+        entity.setGridBounds(width(), height());
+        entity.setSurfaceId(source.surfaceId());
+        entity.setCellX(x);
+        entity.setCellY(y);
+        entity.setHeight(height);
+        if (speed > 0F || entity instanceof ProjectileEntity)
+            entity.launch(speed > 0F ? speed : PvzceConstants.RANDOM_LAUNCH_MIN_SPEED,
+                    vx, vy, damage, width() + height());
+        if (entity instanceof ProjectileEntity projectile
+                && projectile.def().damageType().filter(PvzceIds.DAMAGE_MOWER::equals).isPresent())
+            entity.setAnimation("drive");
+        addEntity(entity);
+        if (entity instanceof PlantEntity plant) {
+            plant.setActionSpeedMultiplier(rules.getFloat(PvzceIds.RULE_PLANT_ACTION_SPEED_MULTIPLIER));
+            flushPending();
+            plant.onPlaced(this);
+        }
+        return entity;
     }
 
     @Override
@@ -3064,6 +3138,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             float beforeX = entity.cellX();
             int beforeRow = entity.gridY();
             type.cast(entity).tick(this);
+            if (!(entity instanceof ProjectileEntity)) entity.tickLaunch(this);
             if (entity instanceof ZombieEntity zombie && zombie.isAlive()) {
                 SurfaceLinksMechanic.cross(this, zombie, beforeX, beforeSurface);
                 com.pvzce.common.level.mechanic.PortalMechanic.Exit exit =
@@ -6980,6 +7055,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             if (entity == null) {
                 continue;
             }
+            Identifier savedTeam = Identifier.tryParse(entityTag.getString("Team"));
+            if (savedTeam != null && teams.containsKey(savedTeam)) entity.setTeam(teams.get(savedTeam));
             if (!entityTag.contains("surface")) {
                 // Old pool saves contain the logical height before the renderer's water inset.
                 // Copy only the compound's scalar fields; capability state remains read-only here.
@@ -7021,12 +7098,13 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         String kind = tag.getString(KEY_KIND);
         return switch (kind) {
-            case com.pvzce.api.entity.EntityKind.PLANT -> {
+            case EntityKind.PLANT -> {
                 PlantDef def = BuiltInRegistries.PLANTS.get(defId);
-                yield def == null ? null : new PlantEntity(def, teams.get(PvzceIds.PLANT_TEAM),
+                yield def == null ? null : new PlantEntity(
+                        RandomPlantsMechanic.plant(this, def), teams.get(PvzceIds.PLANT_TEAM),
                         (int) tag.getFloat("x"), (int) tag.getFloat("y"));
             }
-            case com.pvzce.api.entity.EntityKind.ZOMBIE -> {
+            case EntityKind.ZOMBIE -> {
                 ZombieDef def = BuiltInRegistries.ZOMBIES.get(defId);
                 if (def == null) {
                     WaveDef.Entry legacy = com.pvzce.common.entity.LegacyZombieAttributes.entry(defId);
@@ -7039,16 +7117,24 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 yield def == null ? null : new ZombieEntity(def, zombieTeam(), tag.getFloat("x"),
                         (int) Math.floor(tag.getFloat("y")));
             }
-            case com.pvzce.api.entity.EntityKind.PROJECTILE -> {
+            case EntityKind.PROJECTILE -> {
                 ProjectileDef def = BuiltInRegistries.PROJECTILES.get(defId);
                 Identifier owner = Identifier.tryParse(tag.getString("ownerTeam"));
                 yield def == null ? null : new ProjectileEntity(def, null, teams.getOrDefault(owner, teams.get(PvzceIds.PLANT_TEAM)),
                         tag.getFloat("x"), tag.getFloat("y"), tag.getFloat("height"));
             }
-            // A seed packet is the one drop that is restored rather than dropped with the save:
+            case EntityKind.RESOURCE -> {
+                // A randomized resource is a payload, including a sun in flight, and must resume.
+                // Ordinary sky/loot drops keep their existing save behaviour.
+                ResourceDef def = BuiltInRegistries.RESOURCES.get(defId);
+                yield def == null || tag.getInt("RandomPayload") == 0 ? null : new ResourceDropEntity(
+                        def, teams.get(PvzceIds.PLANT_TEAM), (int) Math.floor(tag.getFloat("x")),
+                        (int) Math.floor(tag.getFloat("y")), tag.getInt("amount"), ResourceDef.DropMotion.LANDED, 0F);
+            }
+            // A seed packet is restored rather than dropped with the save:
             // it is a plant the player earned by breaking a container, and losing it to a quit
             // would be losing a card. A sun lying on the lawn is worth 25 and is not.
-            case com.pvzce.api.entity.EntityKind.CARD_DROP ->
+            case EntityKind.CARD_DROP ->
                     new com.pvzce.server.entity.CardDropEntity(defId,
                             teams.get(PvzceIds.PLANT_TEAM),
                             (int) Math.floor(tag.getFloat("x")), (int) Math.floor(tag.getFloat("y")));

@@ -12,6 +12,7 @@ import com.pvzce.api.util.Identifier;
  */
 public final class PvzceIds {
     public static final Identifier MECHANIC_FUSION = id("fusion");
+    public static final Identifier MECHANIC_RANDOM_PLANTS = id("random_plants");
     public static final Identifier MECHANIC_SURFACE_LINKS = id("surface_links");
     public static final Identifier MECHANIC_STAGES = id("stages");
     public static final Identifier MECHANIC_OUTPOSTS = id("outposts");
