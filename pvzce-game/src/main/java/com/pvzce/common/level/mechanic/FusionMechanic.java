@@ -183,7 +183,7 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
                 work.tray.clear();
             }
             case "buy" -> {
-                if (ability == null || !PlantRecipes.abilities().contains(ability)) return false;
+                if (ability == null || !PlantRecipes.canBuy(ability)) return false;
                 if (!level.plantPlayer().team().consume(PvzceIds.SUN, data.price())) {
                     feedback(level, "阳光不足，先合成生产能力并种下向日葵。", false); return false;
                 }

@@ -94,4 +94,22 @@ class InGameScreenFusionTest {
             assertEquals(-1, screen.selectedCardIndex());
         }
     }
+
+    @Test void productionCannotBePurchasedButCanStillBeAddedFromInventory() throws Exception {
+        try (ClientHarness harness = ClientHarness.create("pvzce-fusion-production")) {
+            InGameScreen screen = screen(harness); PvzceClient client = harness.client();
+            ClientMechanics.applySync(client.level(), MechanicSyncS2C.of(PvzceIds.MECHANIC_FUSION, FusionState.CODEC,
+                    new FusionState(List.of(new FusionState.Count("pvzce:producer", 1)), List.of(), List.of(), 4, 25, "", true)));
+            var l = FusionLayout.of(client.guiWidth(), client.guiHeight());
+            var buy = l.buy(1);
+            screen.dispatchMouseClicked(l.left() + (buy.x() + buy.width() / 2) * l.scale(),
+                    (buy.y() + buy.height() / 2) * l.scale(), 0);
+            assertTrue(harness.sentPackets().stream().noneMatch(p -> p instanceof FusionActionC2S));
+            var ability = l.ability(1);
+            screen.dispatchMouseClicked(l.left() + (ability.x() + ability.width() / 2) * l.scale(),
+                    (ability.y() + ability.height() / 2) * l.scale(), 0);
+            assertEquals(List.of(new FusionActionC2S("add", "pvzce:producer", -1)), harness.sentPackets().stream()
+                    .filter(p -> p instanceof FusionActionC2S).toList());
+        }
+    }
 }

@@ -327,13 +327,21 @@ class FusionTest {
         assertFalse(level.isPreparing());
     }
 
-    @Test void buyingConsumesSunAndProducedSunCanBeCollectedWithoutAResourceCard() {
+    @Test void productionCannotBeBoughtButCollectedSunCanFundOtherMaterials() {
         LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> id.equals(PvzceIds.id("sunflower"))); Bridge bridge = new Bridge();
         assertFalse(action(level, bridge, "buy", PRODUCER));
         level.spawnResource(PvzceIds.SUN, 25, 1F, 1F, level.plantPlayer().team()); level.flushPending(bridge);
         ResourceDropEntity sun = (ResourceDropEntity) level.entities().stream().filter(e -> e instanceof ResourceDropEntity).findFirst().orElseThrow();
-        assertTrue(level.collectResource(bridge, sun.id())); assertTrue(action(level, bridge, "buy", PRODUCER));
+        assertTrue(level.collectResource(bridge, sun.id()));
+        assertFalse(action(level, bridge, "buy", PRODUCER));
+        assertEquals(25, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
+        assertTrue(action(level, bridge, "buy", SHOOTER));
         assertEquals(0, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
+        level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("sunflower")), level.plantPlayer().team(), 4, 0);
+        level.flushPending(bridge);
+        assertTrue(level.useTool(bridge, level.plantPlayer().slots().getFirst().index(), 4, 0));
+        assertTrue(action(level, bridge, "collect", null));
+        assertEquals(1, amount(state(level).inventory(), PRODUCER));
         action(level, bridge, "add", PRODUCER); action(level, bridge, "fuse", null);
         assertEquals(PvzceIds.id("sunflower"), cards(level).getFirst().card());
         assertTrue(bridge.packets.stream().anyMatch(p -> p instanceof EffectEventS2C e && e.sound().endsWith("chime")));
@@ -414,22 +422,61 @@ class FusionTest {
         assertTrue(state(level).inventory().isEmpty());
     }
 
-    @Test void allShippedLevelsStartWithFivePeasAndOnlyTheOrdinaryShovelWithoutSkySun() {
-        for (int i = 1; i <= 3; i++) {
+    @Test void allShippedLevelsHaveInitialLaneDefenceAndOnlyTheOrdinaryShovelWithoutSkySun() {
+        for (int i = 1; i <= 4; i++) {
             LevelDef def = shipped(i); assertNotNull(def);
             assertTrue(LevelMechanics.validate(def).isEmpty());
             LevelServer level = new LevelServer(def); level.flushPending(new Bridge());
-            assertEquals(5, level.entities().stream().filter(e -> e instanceof PlantEntity p && p.defId().equals(PvzceIds.id("pea_shooter"))).count());
+            assertEquals(def.height(), level.entities().stream().filter(e -> e instanceof PlantEntity p && p.defId().equals(PvzceIds.id("pea_shooter"))).count());
             assertEquals(1, level.plantPlayer().slots().size());
             assertEquals(com.pvzce.common.core.Slot.Kind.TOOL, level.plantPlayer().slots().getFirst().kind());
             assertEquals(0, def.initialSun());
             assertEquals(i == 1, FusionMechanic.data(level).tutorial());
+            level.plantPlayer().team().addResource(PvzceIds.SUN, 100);
+            assertFalse(action(level, new Bridge(), "buy", PRODUCER));
+            assertEquals(100, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
         }
+        assertTrue(PlantRecipes.abilities().contains(PRODUCER), "production remains obtainable from drops and decomposition");
+        assertFalse(PlantRecipes.canBuy(PRODUCER));
+        assertTrue(PlantRecipes.canBuy(SHOOTER));
+    }
+
+    @Test void thePoolChallengeHasLegalWaterWavesSupportedInitialShootersAndHigherThreat() {
+        LevelDef def = shipped(4); LevelServer level = new LevelServer(def);
+        Bridge bridge = new Bridge(); level.flushPending(bridge);
+        assertEquals(6, def.height()); assertEquals(30, def.waves().size());
+        assertEquals(1.25F, FusionMechanic.data(level).dropMultiplier());
+        assertEquals(PvzceIds.id("yard/minigame/fusion_3"), def.unlock().requires().getFirst().id().orElseThrow());
+        assertTrue(level.hasMechanic(PvzceIds.id("mower")));
+        for (int row = 0; row < 6; row++) {
+            assertEquals(row == 2 || row == 3, level.rowIsWater(row));
+            assertEquals(PvzceIds.id("pea_shooter"), level.plantAt(2, row).defId());
+            if (level.rowIsWater(row)) {
+                assertTrue(level.plantsAt(2, row).stream().anyMatch(p -> p.defId().equals(PvzceIds.id("lily_pad"))));
+                assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter")), 0, row));
+                assertTrue(level.canPlacePlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("lily_pad")), 0, row));
+            }
+        }
+        for (var wave : def.waves()) for (var entry : wave.entries()) {
+            var zombie = BuiltInRegistries.ZOMBIES.get(entry.id()); assertNotNull(zombie);
+            assertFalse(entry.rows().isEmpty(), "water and land entries must declare their eligible lanes");
+            for (int row : entry.rows()) {
+                assertTrue(row >= 0 && row < 6);
+                assertEquals(zombie.canSwim(), level.rowIsWater(row), entry.id() + " must spawn on its intended terrain");
+            }
+        }
+        var threats = def.waves().stream().flatMap(w -> w.entries().stream()).map(e -> e.id().path()).collect(java.util.stream.Collectors.toSet());
+        assertTrue(threats.containsAll(List.of("buckethead_zombie", "football_zombie", "snorkel_zombie", "dolphin_rider_zombie")));
+        double poolBudget = def.waves().stream().flatMap(w -> w.entries().stream())
+                .mapToDouble(e -> e.count() * BuiltInRegistries.ZOMBIES.get(e.id()).effectiveBudgetCost()).sum();
+        double previousBudget = shipped(3).waves().stream().flatMap(w -> w.entries().stream())
+                .mapToDouble(e -> e.count() * BuiltInRegistries.ZOMBIES.get(e.id()).effectiveBudgetCost()).sum();
+        assertTrue(poolBudget > previousBudget, "harder means a larger declared threat budget, not just a new background");
     }
 
     /** A real run, without injected sun: keep the five lanes and reinvest earned production. */
     @Test void simulateShippedEconomyAndPacing() {
-        for (int number = 1; number <= 3; number++) {
+        for (int number = 1; number <= 4; number++) {
             LevelDef def = shipped(number);
             LevelServer level = new LevelServer(def, List.of(), LevelServer.SeedContext.all(def), List.of(),
                     id -> List.of("pea_shooter", "repeater", "sunflower", "wall_nut").contains(id.path()));
@@ -457,7 +504,7 @@ class FusionTest {
                 for (CardDropEntity card : cards(level)) {
                     if (card.held()) continue;
                     boolean planted = false;
-                    for (int x = 0; x < 7 && !planted; x++) for (int y = 0; y < 5 && !planted; y++) {
+                    for (int x = 0; x < 7 && !planted; x++) for (int y = 0; y < level.height() && !planted; y++) {
                         var plant = BuiltInRegistries.PLANTS.get(card.card());
                         if (!level.canPlacePlant(plant, x, y)) continue;
                         if (level.pickUpCardDrop(bridge, card.id())) planted = level.plantHeldCard(bridge, x, y);
@@ -531,7 +578,7 @@ class FusionTest {
             var plant = BuiltInRegistries.PLANTS.get(PvzceIds.id(id));
             assertTrue(plant.upgrade().isPresent(), "purple packet metadata must be preserved");
             assertFalse(ordinary.canPlacePlant(plant, 0, 0), "ordinary levels still require " + id + "'s base");
-            for (int number = 1; number <= 3; number++) {
+            for (int number = 1; number <= 4; number++) {
                 LevelServer level = new LevelServer(shipped(number)); Bridge bridge = new Bridge(); level.flushPending(bridge);
                 assertTrue(level.canPlacePlant(plant, 0, 0), id + " must plant directly in fusion " + number);
                 level.spawnCardDrop(plant.id(), 0, 0); level.flushPending(bridge);

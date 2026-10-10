@@ -209,7 +209,8 @@ public final class FusionClientMechanic implements ClientMechanic {
         for (int i = 0; i < l.abilitiesPerPage() && v.page * l.abilitiesPerPage() + i < ids.size(); i++) {
             String ability = ids.get(v.page * l.abilitiesPerPage() + i).toString();
             token(c, v, ability, count(state.inventory(), ability), l.ability(i));
-            button(c, "+" + state.price(), l.buy(i), c.level().sun() >= state.price());
+            boolean buyable = PlantRecipes.canBuy(ids.get(v.page * l.abilitiesPerPage() + i));
+            button(c, buyable ? "+" + state.price() : "不可购买", l.buy(i), buyable && c.level().sun() >= state.price());
         }
         button(c, "‹", l.abilityPrevious(), v.page > 0);
         button(c, "›", l.abilityNext(), v.page < pages - 1);
@@ -281,7 +282,7 @@ public final class FusionClientMechanic implements ClientMechanic {
         for (int i = 0; i < l.abilitiesPerPage() && v.page * l.abilitiesPerPage() + i < ids.size(); i++) {
             String id = ids.get(v.page * l.abilitiesPerPage() + i).toString();
             if (l.ability(i).contains(x, y)) send(c, "add", id, -1);
-            if (l.buy(i).contains(x, y)) send(c, "buy", id, -1);
+            if (l.buy(i).contains(x, y) && PlantRecipes.canBuy(ids.get(v.page * l.abilitiesPerPage() + i))) send(c, "buy", id, -1);
         }
         if (l.abilityPrevious().contains(x, y)) v.page = Math.max(0, v.page - 1);
         if (l.abilityNext().contains(x, y)) v.page = Math.min((ids.size() - 1) / l.abilitiesPerPage(), v.page + 1);

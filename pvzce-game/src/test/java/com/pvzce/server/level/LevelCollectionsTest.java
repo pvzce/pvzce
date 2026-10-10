@@ -124,7 +124,14 @@ class LevelCollectionsTest {
         }
     }
 
-    /** Every member of every collection is a level this pack ships, and lives in exactly one box. */
+    /** The fusion collection ends with its harder pool challenge. */
+    @Test
+    void fusionProgressesFromTheThreeLawnsToThePoolChallenge() {
+        assertEquals(List.of("pvzce:yard/minigame/fusion_1", "pvzce:yard/minigame/fusion_2",
+                        "pvzce:yard/minigame/fusion_3", "pvzce:yard/minigame/fusion_4"),
+                find("collections/fusion").members().stream().map(Identifier::toString).toList());
+    }
+
     @Test
     void membershipIsRealAndDisjoint() {
         java.util.Set<Identifier> seen = new java.util.HashSet<>();

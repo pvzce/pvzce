@@ -57,4 +57,9 @@ public final class PlantRecipes {
                 .flatMap(ability -> components(ability).stream()).distinct()
                 .sorted(Comparator.comparing(Identifier::toString)).toList();
     }
+
+    /** Production remains a crafting/drop material, but cannot be bought from the workshop. */
+    public static boolean canBuy(Identifier ability) {
+        return !PlantCapabilities.PRODUCER.id().equals(ability) && abilities().contains(ability);
+    }
 }

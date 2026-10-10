@@ -75,4 +75,19 @@ class FusionLayoutTest {
             assertTrue(l.tray(0).y() + l.tray(0).height() < l.randomFill().y());
         }
     }
+
+    @Test void thePoolOverlayLeavesEveryCellInItsSixRowsVisibleAndClickable() {
+        for (int[] size : new int[][]{{960, 540}, {427, 240}, {960, 720}}) {
+            var l = FusionLayout.of(size[0], size[1]);
+            var camera = new com.pvzce.client.renderer.PvzceCamera(size[0], size[1], 9, 6,
+                    com.pvzce.client.renderer.LevelStage.POOL, 0F, true);
+            for (int x = 0; x < 9; x++) for (int row = 0; row < 6; row++) {
+                float px = camera.screenX(x + 0.5F), py = camera.cellScreenY(x, row);
+                assertFalse(l.inToolbar(l.x(px), l.y(py)), "pool cell " + x + "," + row + " must be clear of controls");
+                assertTrue(camera.inBoard(px, size[1] - py));
+                assertEquals(x, camera.cellX(px, size[1] - py));
+                assertEquals(row, camera.cellY(px, size[1] - py));
+            }
+        }
+    }
 }
