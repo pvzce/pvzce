@@ -1408,6 +1408,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     private PlantPlacement.Ctx placementContext(String surface) {
         return new PlantPlacement.Ctx() {
         @Override
+        public boolean upgradesWithoutBases() {
+            return hasMechanic(PvzceIds.MECHANIC_FUSION);
+        }
+
+        @Override
         public PlantPlacement.Terrain terrain(int x, int y) {
             SceneElementDef element = sceneAt(surface, x, y);
             return element == null
@@ -4792,7 +4797,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // two plants in one cell is a frame the client would draw as one of them, and the
             // upgrade is what the player paid for.
             int anchorX = PlantPlacement.upgradeAnchorX(plantDef, placementContext(surface), x, row);
-            plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, row, surface));
+            if (PlantPlacement.requiresUpgradeBase(plantDef, placementContext(surface))) {
+                plantDef.upgrade().ifPresent(upgrade -> consumeUpgradeBases(upgrade, x, row, surface));
+            }
             spawnPlant(plantDef, plantPlayer.team(), anchorX, row, surface);
             spreadKelpFrom(plantDef, x, row);
             LOGGER.debug("Planted {} at ({},{}) count={}", slot.defId(), x, row, plantCount());

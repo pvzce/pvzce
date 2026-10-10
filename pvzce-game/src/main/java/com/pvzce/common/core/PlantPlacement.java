@@ -98,7 +98,7 @@ public final class PlantPlacement {
 
     /** The same neighbour choice used by preview, validation and upgrade consumption. */
     public static int upgradeAnchorX(PlantDef def, Ctx ctx, int x, int y) {
-        if (def.placement().width() > 1 && def.upgrade().isPresent()
+        if (def.placement().width() > 1 && requiresUpgradeBase(def, ctx)
                 && def.upgrade().get().adjacent() > 0 && countBase(def.upgrade().get(), ctx, x - 1, y) >= def.upgrade().get().adjacent()) {
             return x - 1;
         }
@@ -159,6 +159,13 @@ public final class PlantPlacement {
         Terrain terrain(int x, int y);
 
         List<PlantLayer> plants(int x, int y);
+
+        /** A level may let purple packets behave as ordinary seeds. */
+        default boolean upgradesWithoutBases() { return false; }
+    }
+
+    public static boolean requiresUpgradeBase(PlantDef def, Ctx ctx) {
+        return def.upgrade().isPresent() && !ctx.upgradesWithoutBases();
     }
 
     /** True when {@code def} carries {@code tag} in the plant registry. */
@@ -203,7 +210,7 @@ public final class PlantPlacement {
         if (def == null || ctx == null) {
             return false;
         }
-        if (def.upgrade().isPresent()) return canPlaceSingle(def, ctx, x, y);
+        if (requiresUpgradeBase(def, ctx)) return canPlaceSingle(def, ctx, x, y);
         for (int column = x; column < x + def.placement().width(); column++) {
             if (!canPlaceSingle(def, ctx, column, y)) return false;
         }
@@ -216,7 +223,7 @@ public final class PlantPlacement {
         // replaces, and its footprint has no conflicting plants. The base passed support rules when it
         // was planted, and asking them again would refuse the case the rule exists for - a cattail
         // goes on a lily pad, and the lily pad is what makes that water cell plantable.
-        if (def.upgrade().isPresent()) {
+        if (requiresUpgradeBase(def, ctx)) {
             if (!upgradeBasesInPlace(def.upgrade().get(), ctx, x, y, plants)) return false;
             int left = upgradeAnchorX(def, ctx, x, y);
             for (int column = left; column < left + def.placement().width(); column++) {

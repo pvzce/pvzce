@@ -2,10 +2,11 @@ package com.pvzce.client.mechanic;
 
 /** One reference layout for drawing and picking both toolbars, independent of a live window. */
 public record FusionLayout(float scale, float left, float topY, float topRight, int abilitiesPerPage) {
-    public static final float WIDTH = 960F;
+    public static final float WORKSHOP_SHIFT = 55F;
+    public static final float WIDTH = 960F + WORKSHOP_SHIFT;
     public static final float HEIGHT = 540F;
     public static final float TOP_HEIGHT = 72F;
-    public static final float WORKSHOP_LEFT = 740F;
+    public static final float WORKSHOP_LEFT = 740F + WORKSHOP_SHIFT;
     public static final float FOOTER_HEIGHT = 18F;
     public static final int ABILITIES_PER_PAGE = 8;
     public static final int SEEDS_PER_PAGE = 3;
@@ -13,6 +14,7 @@ public record FusionLayout(float scale, float left, float topY, float topRight, 
 
     public record Box(float x, float y, float width, float height) {
         public Box offset(float dy) { return new Box(x, y + dy, width, height); }
+        public Box offsetX(float dx) { return new Box(x + dx, y, width, height); }
         public boolean contains(double px, double py) {
             return px >= x && px < x + width && py >= y && py < y + height;
         }
@@ -29,6 +31,7 @@ public record FusionLayout(float scale, float left, float topY, float topRight, 
     }
     public double x(double guiX) { return (guiX - left) / scale; }
     public double y(double guiY) { return guiY / scale; }
+    public static float workshopX(float x) { return x + WORKSHOP_SHIFT; }
     public boolean inToolbar(double x, double y) {
         return y < FOOTER_HEIGHT || y >= topY || x >= WORKSHOP_LEFT;
     }
@@ -37,15 +40,15 @@ public record FusionLayout(float scale, float left, float topY, float topRight, 
     public Box buy(int index) { return new Box(170 + index * 57, 54, 47, 15).offset(topY); }
     public Box abilityPrevious() { return new Box(topRight - 74F, 27, 25, 25).offset(topY); }
     public Box abilityNext() { return new Box(topRight - 38F, 27, 25, 25).offset(topY); }
-    public Box tray(int index) { return new Box(752 + index % 3 * 60, 370 - index / 3 * 60, 43, 54); }
-    public Box fuse() { return new Box(752, 278, 112, 26); }
-    public Box clear() { return new Box(871, 278, 72, 26); }
-    public Box trayNext() { return new Box(916, 427, 27, 26); }
-    public Box collect() { return new Box(752, 246, 191, 26); }
-    public Box seed(int index) { return new Box(752 + index * 60, 140, 43, 60); }
-    public Box recycle(int index) { return new Box(750 + index * 60, 110, 47, 23); }
-    public Box seedPrevious() { return new Box(752, 206, 23, 25); }
-    public Box seedNext() { return new Box(920, 206, 23, 25); }
-    public Box held() { return new Box(752, 35, 43, 60); }
-    public Box recycleHeld() { return new Box(815, 39, 111, 26); }
+    public Box tray(int index) { return new Box(752 + index % 3 * 60, 370 - index / 3 * 60, 43, 54).offsetX(WORKSHOP_SHIFT); }
+    public Box fuse() { return new Box(752, 278, 112, 26).offsetX(WORKSHOP_SHIFT); }
+    public Box clear() { return new Box(871, 278, 72, 26).offsetX(WORKSHOP_SHIFT); }
+    public Box trayNext() { return new Box(916, 427, 27, 26).offsetX(WORKSHOP_SHIFT); }
+    public Box collect() { return new Box(752, 246, 191, 26).offsetX(WORKSHOP_SHIFT); }
+    public Box seed(int index) { return new Box(752 + index * 60, 140, 43, 60).offsetX(WORKSHOP_SHIFT); }
+    public Box recycle(int index) { return new Box(750 + index * 60, 110, 47, 23).offsetX(WORKSHOP_SHIFT); }
+    public Box seedPrevious() { return new Box(752, 206, 23, 25).offsetX(WORKSHOP_SHIFT); }
+    public Box seedNext() { return new Box(920, 206, 23, 25).offsetX(WORKSHOP_SHIFT); }
+    public Box held() { return new Box(752, 35, 43, 60).offsetX(WORKSHOP_SHIFT); }
+    public Box recycleHeld() { return new Box(815, 39, 111, 26).offsetX(WORKSHOP_SHIFT); }
 }

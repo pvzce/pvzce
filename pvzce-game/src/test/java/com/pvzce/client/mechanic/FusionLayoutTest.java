@@ -41,6 +41,8 @@ class FusionLayoutTest {
             assertEquals(0.8F, (camera.screenX(1F) - camera.screenX(0F)) /
                     (camera.screenY(1F) - camera.screenY(0F)), 0.0001F, "native 80:100 cell aspect ratio");
             assertTrue(l.x(camera.screenX(9F)) < FusionLayout.WORKSHOP_LEFT);
+            assertTrue(l.x(camera.screenX(9.4F)) < FusionLayout.WORKSHOP_LEFT,
+                    "the right background must leave room to observe approaching zombies");
             assertTrue(l.y(camera.screenY(5F)) <= l.topY() + 0.001F);
             assertTrue(l.y(camera.screenY(0F)) >= FusionLayout.FOOTER_HEIGHT - 0.001F);
             for (int x = 0; x < 9; x++) for (int y = 0; y < 5; y++) {
@@ -49,6 +51,25 @@ class FusionLayoutTest {
                 assertTrue(camera.inBoard(px, size[1] - py));
                 assertEquals(x, camera.cellX(px, size[1] - py));
                 assertEquals(y, camera.cellY(px, size[1] - py));
+            }
+        }
+    }
+
+    @Test void everyShiftedWorkshopControlRemainsInsideTheVisibleWindow() {
+        for (int[] size : new int[][]{{960, 540}, {427, 240}, {960, 720}, {1440, 540}}) {
+            var l = FusionLayout.of(size[0], size[1]);
+            var controls = new java.util.ArrayList<FusionLayout.Box>();
+            controls.addAll(java.util.List.of(l.fuse(), l.clear(), l.collect(), l.trayNext(),
+                    l.seedPrevious(), l.seedNext(), l.held(), l.recycleHeld()));
+            for (int i = 0; i < FusionLayout.TRAY_PER_PAGE; i++) controls.add(l.tray(i));
+            for (int i = 0; i < FusionLayout.SEEDS_PER_PAGE; i++) {
+                controls.add(l.seed(i)); controls.add(l.recycle(i));
+            }
+            for (var box : controls) {
+                assertTrue(box.x() >= FusionLayout.WORKSHOP_LEFT);
+                assertTrue(l.left() + (box.x() + box.width()) * l.scale() <= size[0]);
+                assertTrue((box.y() + box.height()) * l.scale() <= size[1]);
+                assertTrue(l.inToolbar(box.x() + box.width() / 2, box.y() + box.height() / 2));
             }
         }
     }

@@ -221,12 +221,12 @@ public final class FusionClientMechanic implements ClientMechanic {
                 : state.message().isEmpty() ? "点击能力加料、点击合成区取回；不用的卡片可分解，损耗 " + loss + "%" : state.message();
         if (System.nanoTime() < v.noticeUntil) line = v.notice;
         fitText(c, line, 15, 4, 710, 0.72F, 1F, state.success() ? 0.94F : 0.60F, 0.67F);
-        fitText(c, "波次 " + c.level().currentWave() + "/" + c.level().totalWaves(), 752, 453, 150, 0.65F, 1F, 0.94F, 0.67F);
-        text(c, "合成区", 752, 432, 0.72F, 1F, 0.95F, 0.75F);
-        text(c, "点能力取回", 820, 433, 0.54F, 0.90F, 0.79F, 0.58F);
+        fitText(c, "波次 " + c.level().currentWave() + "/" + c.level().totalWaves(), workshopX(752), 453, 150, 0.65F, 1F, 0.94F, 0.67F);
+        text(c, "合成区", workshopX(752), 432, 0.72F, 1F, 0.95F, 0.75F);
+        text(c, "点能力取回", workshopX(820), 433, 0.54F, 0.90F, 0.79F, 0.58F);
         int trayPages = Math.max(1, (state.tray().size() + TRAY_PER_PAGE - 1) / TRAY_PER_PAGE);
         v.trayPage = Math.min(v.trayPage, trayPages - 1);
-        if (state.tray().isEmpty()) fitText(c, "从上方选能力加料", 759, 361, 178, 0.8F, 0.87F, 0.77F, 0.55F);
+        if (state.tray().isEmpty()) fitText(c, "从上方选能力加料", workshopX(759), 361, 178, 0.8F, 0.87F, 0.77F, 0.55F);
         for (int i = 0; i < TRAY_PER_PAGE && v.trayPage * TRAY_PER_PAGE + i < state.tray().size(); i++) {
             var entry = state.tray().get(v.trayPage * TRAY_PER_PAGE + i);
             token(c, v, entry.ability(), entry.amount(), l.tray(i));
@@ -235,7 +235,7 @@ public final class FusionClientMechanic implements ClientMechanic {
         button(c, "全部返还", l.clear(), !state.tray().isEmpty());
         button(c, "›", l.trayNext(), trayPages > 1);
         button(c, "收集 (" + state.drops().size() + ")", l.collect(), !state.drops().isEmpty());
-        text(c, "待种卡片", 796, 220, 0.65F, 1F, 0.95F, 0.75F);
+        text(c, "待种卡片", workshopX(796), 220, 0.65F, 1F, 0.95F, 0.75F);
         List<ClientEntity> seeds = seeds(c); int seedPages = Math.max(1, (seeds.size() + SEEDS_PER_PAGE - 1) / SEEDS_PER_PAGE);
         v.seedPage = Math.min(v.seedPage, seedPages - 1);
         for (int i = 0; i < SEEDS_PER_PAGE && v.seedPage * SEEDS_PER_PAGE + i < seeds.size(); i++) {
@@ -244,16 +244,16 @@ public final class FusionClientMechanic implements ClientMechanic {
             button(c, "分解", l.recycle(i), true);
             if (hovered(c, l.seed(i)) || hovered(c, l.recycle(i))) {
                 fitText(c, HoverTip.nameOf(packet.defId().toString(), "plant") + (hovered(c, l.recycle(i)) ? " · 损耗 " + loss + "%" : ""),
-                        752, 96, 191, 0.62F, 1F, 0.94F, 0.66F);
+                        workshopX(752), 96, 191, 0.62F, 1F, 0.94F, 0.66F);
             }
         }
-        if (seeds.isEmpty()) text(c, "合成后在这里取卡", 757, 167, 0.65F, 0.87F, 0.77F, 0.55F);
+        if (seeds.isEmpty()) text(c, "合成后在这里取卡", workshopX(757), 167, 0.65F, 0.87F, 0.77F, 0.55F);
         button(c, "‹", l.seedPrevious(), v.seedPage > 0);
         button(c, "›", l.seedNext(), v.seedPage < seedPages - 1);
-        text(c, (v.seedPage + 1) + "/" + seedPages, 841, 204, 0.55F, 1F, 0.9F, 0.66F);
-        text(c, "手持", 815, 78, 0.7F, 1F, 0.95F, 0.75F);
+        text(c, (v.seedPage + 1) + "/" + seedPages, workshopX(841), 204, 0.55F, 1F, 0.9F, 0.66F);
+        text(c, "手持", workshopX(815), 78, 0.7F, 1F, 0.95F, 0.75F);
         if (c.level().holdingCard()) seed(c, Identifier.tryParse(c.level().heldCard()), l.held());
-        else text(c, "为空", 760, 60, 0.7F, 0.87F, 0.77F, 0.55F);
+        else text(c, "为空", workshopX(760), 60, 0.7F, 0.87F, 0.77F, 0.55F);
         button(c, "分解手持", l.recycleHeld(), c.level().holdingCard());
         for (FusionState.Drop drop : state.drops()) {
             float x = (c.camera().screenX(drop.x()) / Math.max(1, c.guiScale()) - l.left()) / l.scale();

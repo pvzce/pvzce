@@ -79,6 +79,11 @@ public final class ClientPlacement {
     private static PlantPlacement.Ctx context(ClientLevel level) {
         return new PlantPlacement.Ctx() {
             @Override
+            public boolean upgradesWithoutBases() {
+                return level.hasMechanic(com.pvzce.common.PvzceIds.MECHANIC_FUSION);
+            }
+
+            @Override
             public PlantPlacement.Terrain terrain(int x, int y) {
                 Identifier id = Identifier.tryParse(level.sceneAt(level.activeSurface(), x, y));
                 SceneElementDef element = id == null ? null

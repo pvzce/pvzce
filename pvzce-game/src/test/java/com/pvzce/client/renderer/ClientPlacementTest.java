@@ -94,4 +94,16 @@ class ClientPlacementTest {
         assertEquals(6.5F + PlantPlacement.CARRIER_X_OFFSET, anchor[0], 0.0001F);
         assertEquals(PlantPlacement.FLOWER_POT_TOP, anchor[2], 0.0001F);
     }
+
+    @Test void aFusionCannonPreviewStartsAtTheClickedCellDespiteANeighbouringBase() {
+        var def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/minigame/fusion_2"));
+        ClientLevel level = new ClientLevel();
+        level.init(def.id().toString(), 9, 5, List.of(), List.of(), List.of(), 0,
+                List.of(), List.of(), "pvzce:plant_team", "植物方", LevelMechanics.payloads(def));
+        level.addEntity(new ClientEntity(1, "plant", "pvzce:kernel_pult", 3.5F, 0.5F, 300,
+                com.pvzce.api.entity.EntityLayers.PLANT, com.pvzce.api.entity.EntityAnimations.IDLE, 0F, "pvzce:plant_team"));
+        var cannon = BuiltInRegistries.PLANTS.get(PvzceIds.id("cob_cannon"));
+        assertEquals(4, ClientPlacement.footprintLeft(level, cannon, 4, 0));
+        assertEquals(5F, ClientPlacement.anchoredAt(level, cannon, 4, 0)[0], 0.0001F);
+    }
 }

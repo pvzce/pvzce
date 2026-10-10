@@ -108,15 +108,19 @@ class FusionTest {
         assertFalse(action(level, bridge, "add", PvzceIds.id("unknown")));
     }
 
-    @Test void teachingCraftAvoidsAWaterOnlyCardWhileOrdinaryCraftStillIncludesIt() {
-        Predicate<Identifier> owns = id -> id.equals(PvzceIds.id("pea_shooter")) || id.equals(PvzceIds.id("cattail"));
+    @Test void teachingCraftCanPlantACattailWithoutALilyPad() {
+        Predicate<Identifier> owns = id -> id.equals(PvzceIds.id("cattail"));
         assertTrue(PlantRecipes.candidates(List.of(SHOOTER), owns).contains(PvzceIds.id("cattail")));
         LevelServer level = level(new FusionData(true, 0F, 0F, 25), owns); Bridge bridge = new Bridge();
         dig(level, bridge, 0); action(level, bridge, "add", SHOOTER); action(level, bridge, "fuse", null);
-        assertEquals(PvzceIds.id("pea_shooter"), cards(level).getFirst().card());
+        CardDropEntity packet = cards(level).getFirst();
+        assertEquals(PvzceIds.id("cattail"), packet.card());
+        assertTrue(level.pickUpCardDrop(bridge, packet.id()));
+        assertTrue(level.plantHeldCard(bridge, 0, 0));
+        assertFalse(level.isPreparing());
     }
 
-    @Test void buyingConsumesSunAndProducedSunCanBeCollectedWithoutAnySlots() {
+    @Test void buyingConsumesSunAndProducedSunCanBeCollectedWithoutAResourceCard() {
         LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> id.equals(PvzceIds.id("sunflower"))); Bridge bridge = new Bridge();
         assertFalse(action(level, bridge, "buy", PRODUCER));
         level.spawnResource(PvzceIds.SUN, 25, 1F, 1F, level.plantPlayer().team()); level.flushPending(bridge);
@@ -148,11 +152,11 @@ class FusionTest {
         return level.fusionAction(bridge, new FusionActionC2S("recycle", "", id));
     }
 
-    @Test void anUnplantableGroundCardCanBeRecycledOnlyOnce() {
+    @Test void aGroundCardCanBeRecycledOnlyOnce() {
         LevelServer level = level(new FusionData(false, 0F, 0F, 25), id -> true); Bridge bridge = new Bridge();
         level.spawnCardDrop(PvzceIds.id("cattail"), 0, 0); level.flushPending(bridge);
         CardDropEntity packet = cards(level).getFirst();
-        assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(packet.card()), 0, 0));
+        assertTrue(level.canPlacePlant(BuiltInRegistries.PLANTS.get(packet.card()), 0, 0));
         assertTrue(recycle(level, bridge, packet.id())); assertTrue(packet.isRemoved());
         assertEquals(1, amount(state(level).inventory(), SHOOTER));
         assertFalse(recycle(level, bridge, packet.id()));
@@ -310,5 +314,43 @@ class FusionTest {
         assertTrue(state(level).drops().size() >= 2);
         assertEquals(state(level).drops().size(), state(level).drops().stream().map(FusionState.Drop::x).distinct().count());
         assertTrue(state(level).drops().stream().allMatch(d -> d.x() >= 0.5F && d.x() <= 8.5F));
+    }
+
+    @Test void everyPurplePacketPlantsDirectlyInAllFusionLevelsAndKeepsItsFootprint() {
+        List<String> upgrades = List.of("gatling_pea", "twin_sunflower", "gloom_shroom", "cattail",
+                "winter_melon", "gold_magnet", "spikerock", "cob_cannon");
+        LevelServer ordinary = new LevelServer(BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/1_4")));
+        for (String id : upgrades) {
+            var plant = BuiltInRegistries.PLANTS.get(PvzceIds.id(id));
+            assertTrue(plant.upgrade().isPresent(), "purple packet metadata must be preserved");
+            assertFalse(ordinary.canPlacePlant(plant, 0, 0), "ordinary levels still require " + id + "'s base");
+            for (int number = 1; number <= 3; number++) {
+                LevelServer level = new LevelServer(shipped(number)); Bridge bridge = new Bridge(); level.flushPending(bridge);
+                assertTrue(level.canPlacePlant(plant, 0, 0), id + " must plant directly in fusion " + number);
+                level.spawnCardDrop(plant.id(), 0, 0); level.flushPending(bridge);
+                CardDropEntity packet = cards(level).getFirst();
+                assertTrue(level.pickUpCardDrop(bridge, packet.id()));
+                assertTrue(level.plantHeldCard(bridge, 0, 0));
+                assertEquals(plant.id(), level.plantsAt(0, 0).getFirst().defId());
+                assertFalse(level.canPlacePlant(plant, 0, 0), "direct planting still respects occupancy");
+                if (id.equals("cob_cannon")) {
+                    assertEquals(level.plantsAt(0, 0).getFirst(), level.plantsAt(1, 0).getFirst());
+                    assertFalse(level.canPlacePlant(plant, 8, 1), "a two-cell cannon cannot cross the lawn edge");
+                    assertFalse(level.canPlacePlant(plant, 1, 2), "the occupied second footprint cell blocks planting");
+                }
+            }
+        }
+    }
+
+    @Test void aDirectCannonDoesNotShiftOntoOrConsumeANeighbouringKernelPult() {
+        LevelServer level = new LevelServer(shipped(2)); Bridge bridge = new Bridge(); level.flushPending(bridge);
+        PlantEntity neighbour = level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("kernel_pult")),
+                level.plantPlayer().team(), 3, 0);
+        level.spawnCardDrop(PvzceIds.id("cob_cannon"), 0, 0); level.flushPending(bridge);
+        assertTrue(level.pickUpCardDrop(bridge, cards(level).getFirst().id()));
+        assertTrue(level.plantHeldCard(bridge, 4, 0));
+        assertFalse(neighbour.isRemoved());
+        assertEquals(PvzceIds.id("cob_cannon"), level.plantsAt(4, 0).getFirst().defId());
+        assertEquals(4, level.plantsAt(4, 0).getFirst().gridX());
     }
 }
