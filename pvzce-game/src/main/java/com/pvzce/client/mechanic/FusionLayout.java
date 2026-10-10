@@ -44,6 +44,7 @@ public record FusionLayout(float scale, float left, float topY, float topRight, 
     public Box fuse() { return new Box(752, 278, 112, 26).offsetX(WORKSHOP_SHIFT); }
     public Box clear() { return new Box(871, 278, 72, 26).offsetX(WORKSHOP_SHIFT); }
     public Box trayNext() { return new Box(916, 427, 27, 26).offsetX(WORKSHOP_SHIFT); }
+    public Box randomFill() { return new Box(828, 427, 80, 26).offsetX(WORKSHOP_SHIFT); }
     public Box collect() { return new Box(752, 246, 191, 26).offsetX(WORKSHOP_SHIFT); }
     public Box seed(int index) { return new Box(752 + index * 60, 140, 43, 60).offsetX(WORKSHOP_SHIFT); }
     public Box recycle(int index) { return new Box(750 + index * 60, 110, 47, 23).offsetX(WORKSHOP_SHIFT); }

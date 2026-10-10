@@ -65,6 +65,85 @@ class FusionTest {
         return level.entities().stream().filter(e -> e instanceof CardDropEntity && !e.isRemoved()).map(e -> (CardDropEntity) e).toList();
     }
 
+    @Test void availableRecipesDeduplicatePlantVariantsAndRequireEveryMaterial() {
+        var materials = java.util.Map.of(SHOOTER, 1, PRODUCER, 1,
+                PvzceIds.id("defense"), 1, PvzceIds.id("carrier"), 1);
+        List<String> owned = List.of("pea_shooter", "repeater", "gatling_pea", "sunflower", "twin_sunflower", "pumpkin");
+        var recipes = PlantRecipes.availableRecipes(materials, id -> owned.contains(id.path()));
+        assertEquals(3, recipes.size(), "three shooter variants still contribute only one combination");
+        assertTrue(recipes.containsAll(List.of(List.of(SHOOTER), List.of(PRODUCER),
+                List.of(PvzceIds.id("carrier"), PvzceIds.id("defense")))));
+        assertTrue(PlantRecipes.availableRecipes(java.util.Map.of(PvzceIds.id("defense"), 9),
+                PvzceIds.id("pumpkin")::equals).isEmpty(), "extra defence cannot stand in for missing carrying");
+        assertTrue(PlantRecipes.availableRecipes(materials, id -> false).isEmpty());
+        assertTrue(PlantRecipes.availableRecipes(java.util.Map.of(), id -> true).isEmpty());
+    }
+
+    @Test void randomFillReturnsOldTrayMaterialsAndOnlyLoadsACompleteOwnedRecipe() {
+        LevelServer level = level(new FusionData(false, 0F, 0F, 25), PvzceIds.id("pumpkin")::equals);
+        Bridge bridge = new Bridge();
+        dig(level, bridge, 0); assertTrue(action(level, bridge, "add", SHOOTER));
+        level.spawnCardDrop(PvzceIds.id("pumpkin"), 0, 0); level.flushPending(bridge);
+        assertTrue(recycle(level, bridge, cards(level).getFirst().id()));
+        assertTrue(action(level, bridge, "random", null));
+        assertEquals(1, amount(state(level).inventory(), SHOOTER));
+        assertEquals(0, amount(state(level).inventory(), PvzceIds.id("defense")));
+        assertEquals(0, amount(state(level).inventory(), PvzceIds.id("carrier")));
+        assertEquals(1, amount(state(level).tray(), PvzceIds.id("defense")));
+        assertEquals(1, amount(state(level).tray(), PvzceIds.id("carrier")));
+        assertEquals(2, state(level).tray().stream().mapToInt(FusionState.Count::amount).sum());
+        assertTrue(cards(level).isEmpty(), "random filling is not automatic crafting");
+        FusionState once = state(level);
+        assertTrue(action(level, bridge, "random", null));
+        assertEquals(once, state(level), "drawing again also reuses the current tray without duplicating materials");
+        assertTrue(action(level, bridge, "fuse", null));
+        assertEquals(PvzceIds.id("pumpkin"), cards(level).getFirst().card());
+        assertEquals(0, level.plantPlayer().team().resourcesOf(PvzceIds.SUN));
+    }
+
+    @Test void failedRandomFillPreservesMaterialsAndPlaysOneErrorSound() {
+        LevelServer level = level(new FusionData(false, 0F, 0F, 25), PvzceIds.id("pumpkin")::equals);
+        Bridge bridge = new Bridge();
+        dig(level, bridge, 0); assertTrue(action(level, bridge, "add", SHOOTER));
+        level.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("pumpkin")), level.plantPlayer().team(), 4, 0);
+        level.flushPending(bridge);
+        assertTrue(level.useTool(bridge, level.plantPlayer().slots().getFirst().index(), 4, 0));
+        FusionState before = state(level); assertEquals(2, before.drops().size());
+        bridge.packets.clear();
+        assertFalse(action(level, bridge, "random", null));
+        assertEquals(before.inventory(), state(level).inventory());
+        assertEquals(before.tray(), state(level).tray());
+        assertEquals(before.drops(), state(level).drops(), "uncollected ground materials are not usable inventory");
+        assertEquals(before.tutorialStep(), state(level).tutorialStep());
+        assertFalse(state(level).success());
+        assertEquals(1, bridge.packets.stream().filter(p -> p instanceof EffectEventS2C e && e.sound().endsWith("buzzer")).count());
+        assertTrue(cards(level).isEmpty());
+        assertTrue(action(level, bridge, "collect", null));
+        assertTrue(action(level, bridge, "random", null));
+
+        LevelServer locked = level(new FusionData(false, 0F, 0F, 25), id -> false);
+        dig(locked, bridge, 0);
+        assertFalse(action(locked, bridge, "random", null), "materials alone cannot bypass the backpack");
+        assertEquals(1, amount(state(locked).inventory(), SHOOTER));
+    }
+
+    @Test void randomFillingAdvancesTheLessonAndExcludesUnplantableTeachingRecipes() {
+        LevelServer level = level(new FusionData(true, 0F, 0F, 25),
+                id -> List.of("pea_shooter", "lily_pad").contains(id.path()));
+        Bridge bridge = new Bridge();
+        dig(level, bridge, 0);
+        level.plantPlayer().team().addResource(PvzceIds.SUN, 25);
+        assertTrue(action(level, bridge, "buy", PvzceIds.id("carrier")));
+        assertTrue(action(level, bridge, "random", null));
+        assertEquals(2, state(level).tutorialStep());
+        assertEquals(List.of(new FusionState.Count(SHOOTER.toString(), 1)), state(level).tray());
+        assertEquals(1, amount(state(level).inventory(), PvzceIds.id("carrier")));
+        assertTrue(action(level, bridge, "fuse", null));
+        assertTrue(level.pickUpCardDrop(bridge, cards(level).getFirst().id()));
+        assertTrue(level.plantHeldCard(bridge, 2, 0));
+        assertEquals(4, state(level).tutorialStep());
+    }
+
     @Test void recipesIncludeMarkersAndIgnoreParametersButRetainDuplicates() {
         assertEquals(List.of(PvzceIds.id("defense")), PlantRecipes.recipe(BuiltInRegistries.PLANTS.get(PvzceIds.id("wall_nut"))));
         assertEquals(List.of(PvzceIds.id("carrier")), PlantRecipes.recipe(BuiltInRegistries.PLANTS.get(PvzceIds.id("lily_pad"))));

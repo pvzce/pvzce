@@ -156,7 +156,8 @@ public final class PvzcePackets {
     // 61: authoritative ability fusion requests and workshop state.
     // 62: ability fusion can consume a ground or held seed packet.
     // 63: fusion level payload uses a drop multiplier and the ordinary shovel slot.
-    public static final int PROTOCOL_VERSION = 63;
+    // 64: fusion can request random filling from complete, affordable backpack recipes.
+    public static final int PROTOCOL_VERSION = 64;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

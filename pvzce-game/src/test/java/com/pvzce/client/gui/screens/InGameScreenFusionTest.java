@@ -79,4 +79,19 @@ class InGameScreenFusionTest {
                     .filter(p -> p instanceof FusionActionC2S).toList());
         }
     }
+
+    @Test void clickingRandomFillSendsOneRequestEvenWithAnEmptyInventory() throws Exception {
+        try (ClientHarness harness = ClientHarness.create("pvzce-fusion-random")) {
+            InGameScreen screen = screen(harness); PvzceClient client = harness.client();
+            var l = FusionLayout.of(client.guiWidth(), client.guiHeight()); var button = l.randomFill();
+            double x = l.left() + (button.x() + button.width() / 2) * l.scale();
+            double y = (button.y() + button.height() / 2) * l.scale();
+            screen.dispatchMouseClicked(x, y, 1);
+            assertTrue(harness.sentPackets().isEmpty());
+            screen.dispatchMouseClicked(x, y, 0);
+            assertEquals(List.of(new FusionActionC2S("random", "", -1)), harness.sentPackets().stream()
+                    .filter(p -> p instanceof FusionActionC2S).toList());
+            assertEquals(-1, screen.selectedCardIndex());
+        }
+    }
 }

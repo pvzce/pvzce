@@ -199,11 +199,35 @@ public final class FusionMechanic implements LevelMechanic<FusionData> {
                 work.drops.removeAll(collected);
                 sound(level, PvzceSounds.UI_COLLECT);
             }
+            case "random" -> { return randomFill(level); }
             case "fuse" -> { return fuse(level, data); }
             default -> { return false; }
         }
         work.message = ""; work.success = true;
         sync(level, data);
+        return true;
+    }
+
+    private static boolean randomFill(LevelServer level) {
+        Workshop work = workshop(level);
+        Map<Identifier, Integer> available = new LinkedHashMap<>(work.inventory);
+        for (Identifier ability : work.tray) available.merge(ability, 1, Integer::sum);
+        boolean teachingRecipe = work.tutorialStep < 3;
+        List<List<Identifier>> recipes = PlantRecipes.availableRecipes(available,
+                        id -> level.ownedCards().test(id) && (!teachingRecipe || plantable(level, id))).stream()
+                .filter(recipe -> recipe.size() <= PvzceConstants.FUSION_TRAY_CAPACITY).toList();
+        if (recipes.isEmpty()) {
+            feedback(level, "现有材料无法凑出可用的背包植物配方。", false);
+            return false;
+        }
+        List<Identifier> recipe = recipes.get(level.random().nextInt(recipes.size()));
+        // Commit only after finding a whole recipe: a failed draw never disturbs the current tray.
+        work.inventory.clear(); work.inventory.putAll(available); work.tray.clear();
+        for (Identifier ability : recipe) {
+            change(work.inventory, ability, -1); work.tray.add(ability);
+        }
+        if (work.tutorialStep == 1) work.tutorialStep = 2;
+        feedback(level, "随机加料完成，点击“合成植物”进行合成。", true);
         return true;
     }
 

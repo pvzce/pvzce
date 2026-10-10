@@ -59,7 +59,7 @@ class FusionLayoutTest {
         for (int[] size : new int[][]{{960, 540}, {427, 240}, {960, 720}, {1440, 540}}) {
             var l = FusionLayout.of(size[0], size[1]);
             var controls = new java.util.ArrayList<FusionLayout.Box>();
-            controls.addAll(java.util.List.of(l.fuse(), l.clear(), l.collect(), l.trayNext(),
+            controls.addAll(java.util.List.of(l.fuse(), l.clear(), l.collect(), l.trayNext(), l.randomFill(),
                     l.seedPrevious(), l.seedNext(), l.held(), l.recycleHeld()));
             for (int i = 0; i < FusionLayout.TRAY_PER_PAGE; i++) controls.add(l.tray(i));
             for (int i = 0; i < FusionLayout.SEEDS_PER_PAGE; i++) {
@@ -71,6 +71,8 @@ class FusionLayoutTest {
                 assertTrue((box.y() + box.height()) * l.scale() <= size[1]);
                 assertTrue(l.inToolbar(box.x() + box.width() / 2, box.y() + box.height() / 2));
             }
+            assertTrue(l.randomFill().x() + l.randomFill().width() < l.trayNext().x());
+            assertTrue(l.tray(0).y() + l.tray(0).height() < l.randomFill().y());
         }
     }
 }

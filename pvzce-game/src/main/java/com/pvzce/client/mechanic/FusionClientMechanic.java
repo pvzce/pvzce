@@ -223,7 +223,7 @@ public final class FusionClientMechanic implements ClientMechanic {
         fitText(c, line, 15, 4, 710, 0.72F, 1F, state.success() ? 0.94F : 0.60F, 0.67F);
         fitText(c, "波次 " + c.level().currentWave() + "/" + c.level().totalWaves(), workshopX(752), 453, 150, 0.65F, 1F, 0.94F, 0.67F);
         text(c, "合成区", workshopX(752), 432, 0.72F, 1F, 0.95F, 0.75F);
-        text(c, "点能力取回", workshopX(820), 433, 0.54F, 0.90F, 0.79F, 0.58F);
+        button(c, "随机加料", l.randomFill(), true);
         int trayPages = Math.max(1, (state.tray().size() + TRAY_PER_PAGE - 1) / TRAY_PER_PAGE);
         v.trayPage = Math.min(v.trayPage, trayPages - 1);
         if (state.tray().isEmpty()) fitText(c, "从上方选能力加料", workshopX(759), 361, 178, 0.8F, 0.87F, 0.77F, 0.55F);
@@ -290,6 +290,7 @@ public final class FusionClientMechanic implements ClientMechanic {
         }
         if (l.fuse().contains(x, y)) send(c, "fuse", "", -1);
         if (l.clear().contains(x, y)) send(c, "clear", "", -1);
+        if (l.randomFill().contains(x, y)) send(c, "random", "", -1);
         if (l.trayNext().contains(x, y)) v.trayPage = (v.trayPage + 1) % Math.max(1, (v.state.tray().size() + TRAY_PER_PAGE - 1) / TRAY_PER_PAGE);
         if (l.collect().contains(x, y)) send(c, "collect", "", -1);
         List<ClientEntity> seeds = seeds(c);

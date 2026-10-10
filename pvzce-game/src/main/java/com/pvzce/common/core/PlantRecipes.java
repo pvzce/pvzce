@@ -5,6 +5,7 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.capability.PlantCapabilities;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -33,6 +34,22 @@ public final class PlantRecipes {
         return BuiltInRegistries.PLANTS.keySet().stream().filter(owns)
                 .filter(id -> recipe(BuiltInRegistries.PLANTS.get(id)).equals(key))
                 .sorted(Comparator.comparing(Identifier::toString)).toList();
+    }
+
+    /** Unique complete recipes, so owning more variants does not make a combination more likely. */
+    public static List<List<Identifier>> availableRecipes(Map<Identifier, Integer> materials, Predicate<Identifier> owns) {
+        return BuiltInRegistries.PLANTS.keySet().stream().filter(owns)
+                .sorted(Comparator.comparing(Identifier::toString))
+                .map(id -> recipe(BuiltInRegistries.PLANTS.get(id)))
+                .filter(recipe -> !recipe.isEmpty() && fits(recipe, materials)).distinct().toList();
+    }
+
+    private static boolean fits(List<Identifier> recipe, Map<Identifier, Integer> materials) {
+        Map<Identifier, Integer> used = new HashMap<>();
+        for (Identifier ability : recipe) {
+            if (used.merge(ability, 1, Integer::sum) > materials.getOrDefault(ability, 0)) return false;
+        }
+        return true;
     }
 
     public static List<Identifier> abilities() {
