@@ -7,8 +7,6 @@ import com.pvzce.api.content.ToolDef;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
-import com.pvzce.common.core.Slot;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.HashSet;
@@ -27,8 +25,7 @@ import java.util.Set;
  * ids are reported once instead of being papered over.
  */
 public final class SlotResolver {
-    private static final org.slf4j.Logger LOGGER =
-            org.slf4j.LoggerFactory.getLogger("PVZCE/Slots");
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Slots");
     private static final Set<Identifier> REPORTED = new HashSet<>();
 
     /**
@@ -88,6 +85,12 @@ public final class SlotResolver {
             }
             return Optional.of(new ResolvedCard(slotId, slot.content(), kind, cost, cooldown, uses,
                     slot.icon().isPresent() ? slot.icon() : fallbackIcon(kind, slot.content())));
+        }
+        PlantDef plant = BuiltInRegistries.PLANTS.get(slotId);
+        if (plant != null) {
+            return Optional.of(new ResolvedCard(slotId, slotId, Slot.Kind.PLANT,
+                    plant.cost().amountOf(PvzceIds.SUN), plant.cost().cooldownTicks(), Slot.UNLIMITED_USES,
+                    fallbackIcon(Slot.Kind.PLANT, slotId)));
         }
         reportUnknown(slotId);
         return Optional.empty();

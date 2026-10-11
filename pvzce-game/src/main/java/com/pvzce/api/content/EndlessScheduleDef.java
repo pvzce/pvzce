@@ -88,7 +88,7 @@ public record EndlessScheduleDef(
      * and a schedule that sets it to zero is a legitimate choice.
      *
      * @param healthPerRound extra health per round, as a fraction of the definition's own
-     * @param healthCap      the most that extra may ever amount to, as a multiplier
+     * @param healthCap      maximum multiplier; zero explicitly requests continuing growth
      */
     public record StatGrowth(float healthPerRound, float healthCap) {
         /** The shipped growth: five percent a round, never more than double. */
@@ -104,8 +104,8 @@ public record EndlessScheduleDef(
         /** The health multiplier a zombie of this round is spawned with, never below one. */
         public float healthMultiplier(int round) {
             float growth = Math.max(0F, healthPerRound) * Math.max(0, round - 1);
-            float cap = Math.max(1F, healthCap);
-            return Math.min(cap, 1F + growth);
+            // Zero explicitly requests continuing growth, while existing schedules keep their cap.
+            return healthCap == 0F ? 1F + growth : Math.min(Math.max(1F, healthCap), 1F + growth);
         }
     }
 

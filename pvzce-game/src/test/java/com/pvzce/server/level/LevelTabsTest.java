@@ -64,10 +64,10 @@ class LevelTabsTest {
         List<Identifier> categories = new ArrayList<>(BuiltInRegistries.LEVEL_CATEGORIES.keySet());
         int endlessLevels = 0;
         for (LevelDef def : BuiltInRegistries.LEVELS) {
-            // I, Zombie's endless is a *puzzle* mode and lives on the puzzle page: the rule this
-            // loop enforces is "the survival family's endless modes are one page", not "every
-            // level whose id says endless is survival". The puzzle one is asserted below.
-            if (def.id().path().contains("/puzzle/")) {
+            // Endless puzzles and random-plant conveyors belong with their own families.
+            // Only the survival family's modes share the survival page.
+            if (def.id().path().contains("/puzzle/")
+                    || com.pvzce.common.level.mechanic.RandomPlantsMechanic.data(def) != null) {
                 continue;
             }
             if (def.id().path().contains("endless") || def.id().path().contains("mutation_")) {
@@ -81,6 +81,10 @@ class LevelTabsTest {
                 LevelGrouping.resolve(PvzceIds.id("yard/puzzle/i_zombie_endless"), themes, categories)
                         .category().path(),
                 "I, Zombie's endless mode is a puzzle level, and sits with the rest of them");
+        assertEquals("minigame",
+                LevelGrouping.resolve(PvzceIds.id("yard/minigame/random_plants_belt_endless"), themes, categories)
+                        .category().path(),
+                "the endless shuffled pool sits with its random-plant collection");
         assertTrue(endlessLevels >= 5,
                 "the pool endless level and the four mutation tiers are all there, found "
                         + endlessLevels);

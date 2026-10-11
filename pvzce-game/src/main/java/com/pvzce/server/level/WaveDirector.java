@@ -170,6 +170,9 @@ public final class WaveDirector {
             return false;
         }
 
+        /** A conveyor may advance stages without clearing the field or opening a chooser. */
+        default boolean continuousRounds() { return false; }
+
         /** How many zombies of this one {@code healthScale} times its own health; 1 for ordinary. */
         ZombieEntity spawnZombie(Identifier zombieId, float x, int row, float healthScale);
 
@@ -632,7 +635,7 @@ public final class WaveDirector {
     }
 
     /**
-     * Marks the round as waiting to be closed, once the lawn really is clear.
+     * Advances a continuous stage after release, or waits for a survival round to clear.
      *
      * <p>The zombies matter as much as the waves: a round that ended the moment its last wave
      * was <em>released</em> would stop the clock with the field still full, and - because the
@@ -640,6 +643,10 @@ public final class WaveDirector {
      */
     private void finishRound() {
         if (roundClearPending || !pendingWaveSpawns.isEmpty()) {
+            return;
+        }
+        if (host.continuousRounds()) {
+            beginNextRound();
             return;
         }
         if (host.aliveZombieCount() > 0) {
@@ -981,7 +988,7 @@ public final class WaveDirector {
         nextWaveRequested = false;
         dirty = true;
 
-        int holdTicks = wave.holdUntilDead(waveIndex);
+        int holdTicks = host.continuousRounds() && round > 1 ? 0 : wave.holdUntilDead(waveIndex);
         // An opening wave hands its pacing to the player, and the wave after it waits for the
         // field to be clear. Recorded here, where the wave is known, because by the time the
         // wait matters the queue is gone.
@@ -1454,9 +1461,9 @@ public final class WaveDirector {
      *
      * <p>Called by the level when the player's card choice arrives (or when the wait for it runs
      * out). The per-wave bookkeeping is dropped rather than carried: the lawn is empty by
-     * definition - that is what let the round close - so no zombie on the field belongs to a
-     * previous round, and wave keys of a round nobody is playing any more would be a slow leak
-     * on a run long enough to matter.
+     * definition in survival mode. Continuous stages may keep old enemies, but only the current
+     * stage's wave counts affect its pacing; the level still owns and simulates every survivor.
+     * Old wave keys and announcement sets are discarded to keep a long run bounded in memory.
      *
      * @return the round that just began, one-based
      */
@@ -1486,6 +1493,8 @@ public final class WaveDirector {
         healthOnLawnByWave.clear();
         healthDrainTarget = -1;
         waveOwner.clear();
+        announcedWaves.clear();
+        announcedWarnings.clear();
         dirty = true;
         return round;
     }

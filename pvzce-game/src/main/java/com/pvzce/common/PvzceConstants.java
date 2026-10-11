@@ -9,6 +9,7 @@ package com.pvzce.common;
  */
 public final class PvzceConstants {
     public static final int RANDOM_PLANT_MAX_ABILITIES = 4;
+    public static final int RANDOM_PEASHOOTER_SUN_INTERVAL = 18 * PvzceConstants.TICKS_PER_SECOND;
     public static final int RANDOM_BELT_MIN_ATTACKERS = 3;
     public static final int RANDOM_PAYLOAD_ENTITY_LIMIT = 128;
     public static final int RANDOM_LAUNCH_DAMAGE = 20;

@@ -1,13 +1,19 @@
 package com.pvzce.client.renderer;
 
 import com.pvzce.api.content.PlantDef;
+import com.pvzce.api.content.RandomPlantsData;
+import com.pvzce.api.content.capability.PlantCapability;
+import com.pvzce.api.content.capability.TypedCapability;
+import com.pvzce.common.capability.plant.MarkerCapability;
 import com.pvzce.api.content.SceneElementDef;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.ClientLevel;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantPlacement;
+import com.pvzce.common.level.RandomPlantsState;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -55,6 +61,7 @@ public final class ClientPlacement {
                 continue;
             }
             PlantDef def = BuiltInRegistries.PLANTS.get(entity.defId());
+            def = plantDef(level, def);
             if (def != null && PlantPlacement.coversCell(def, entity.gridX(), entity.gridY(), x, y)) {
                 plants.add(new Stacked(def, entity.id()));
             }
@@ -65,6 +72,24 @@ public final class ClientPlacement {
 
     public static int footprintLeft(ClientLevel level, PlantDef def, int x, int y) {
         return def == null ? x : PlantPlacement.upgradeAnchorX(def, context(level), x, y);
+    }
+
+    /** Carrying is mirrored from the server's recipe, never rolled by the client. */
+    public static PlantDef plantDef(ClientLevel level, PlantDef def) {
+        RandomPlantsData data = level.mechanicData(PvzceIds.MECHANIC_RANDOM_PLANTS, RandomPlantsData.class);
+        RandomPlantsState state = level.mechanicStateOrNull(PvzceIds.MECHANIC_RANDOM_PLANTS, RandomPlantsState.class);
+        if (def != null && data != null && data.abilityPlacement() && state != null) {
+            String id = def.id().toString();
+            var card = state.cards().stream().filter(c -> c.plant().equals(id)).findFirst().orElse(null);
+            if (card != null) return PlantPlacement.withAbilityPlacement(def, card.abilities().stream()
+                    .map(type -> new TypedCapability<PlantCapability>(Identifier.tryParse(type), MarkerCapability.INSTANCE))
+                    .toList());
+        }
+        if (def != null && data != null && data.carriersOnWater() && state != null
+                && state.cards().stream().anyMatch(c -> c.plant().equals(def.id().toString())
+                && c.abilities().contains(PvzceIds.id("carrier").toString())))
+            return PlantPlacement.withCarrierPlacement(def);
+        return def;
     }
 
     public static float[] anchoredAt(ClientLevel level, PlantDef def, int x, int y) {
@@ -80,7 +105,9 @@ public final class ClientPlacement {
         return new PlantPlacement.Ctx() {
             @Override
             public boolean upgradesWithoutBases() {
-                return level.hasMechanic(com.pvzce.common.PvzceIds.MECHANIC_FUSION);
+                var data = level.mechanicData(PvzceIds.MECHANIC_RANDOM_PLANTS, RandomPlantsData.class);
+                return level.hasMechanic(PvzceIds.MECHANIC_FUSION)
+                        || data != null && data.upgradesWithoutBases();
             }
 
             @Override

@@ -101,7 +101,8 @@ class ServerMenuFlowTest {
                     .findFirst().orElseThrow();
             assertEquals("pvzce:minigame", shuffle.category());
             assertEquals(List.of("pvzce:yard/minigame/random_plants_belt_1", "pvzce:yard/minigame/random_plants_deck_1",
-                    "pvzce:yard/minigame/random_plants_belt_2", "pvzce:yard/minigame/random_plants_deck_2"),
+                    "pvzce:yard/minigame/random_plants_belt_2", "pvzce:yard/minigame/random_plants_deck_2",
+                    "pvzce:yard/minigame/random_plants_belt_3", "pvzce:yard/minigame/random_plants_belt_endless"),
                     shuffle.collection().members());
             for (LevelListS2C.LevelInfo box : boxes) {
                 assertFalse(box.collection().members().isEmpty(), box.id() + " has members");

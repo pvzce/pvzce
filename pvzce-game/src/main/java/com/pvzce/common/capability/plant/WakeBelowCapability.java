@@ -97,15 +97,13 @@ public final class WakeBelowCapability implements PlantCapability {
     @Override
     public void onPlaced(PlantEntity plant, LevelAccess level) {
         List<PlantEntity> stacked = level.plantsAt(plant.gridX(), plant.gridY(), plant.surfaceId());
-        PlantEntity target = null;
-        for (int i = stacked.size() - 1; i >= 0; i--) {
-            if (stacked.get(i) != plant
-                    && com.pvzce.common.core.PlantPlacement.layerIndex(stacked.get(i).def())
-                    == com.pvzce.api.content.PlacementDef.LAYER_GROUND) {
-                target = stacked.get(i);
-                break;
-            }
-        }
+        PlantEntity target = stacked.stream().filter(other -> other != plant
+                && (plant.def().placement().abilityDriven()
+                || com.pvzce.common.core.PlantPlacement.layerIndex(other.def())
+                == com.pvzce.api.content.PlacementDef.LAYER_GROUND))
+                .max(java.util.Comparator.comparingInt((PlantEntity other) ->
+                        com.pvzce.common.core.PlantPlacement.layerIndex(other.def()))
+                        .thenComparingInt(PlantEntity::id)).orElse(null);
         if (target == null) {
             // Placement rules say a coffee bean needs a plant under it, so this is the
             // editor or a command placing one in an empty cell: still spend it, and say so.

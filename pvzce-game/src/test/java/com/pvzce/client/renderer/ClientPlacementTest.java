@@ -106,4 +106,28 @@ class ClientPlacementTest {
         assertEquals(4, ClientPlacement.footprintLeft(level, cannon, 4, 0));
         assertEquals(5F, ClientPlacement.anchoredAt(level, cannon, 4, 0)[0], 0.0001F);
     }
+    @Test void shuffledPlacementsUseSynchronizedAbilitiesInsteadOfOriginalTags() {
+        var def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/minigame/random_plants_belt_endless"));
+        ClientLevel level = new ClientLevel();
+        level.init(def.id().toString(), 9, 6, List.of(), List.of(), List.of(), 0,
+                List.of(), List.of(), "pvzce:plant_team", "植物方", LevelMechanics.payloads(def));
+        var recipes = com.pvzce.common.level.mechanic.RandomPlantsMechanic.recipes(
+                com.pvzce.common.level.mechanic.RandomPlantsMechanic.data(def));
+        var cards = recipes.values().stream().map(r -> new com.pvzce.common.level.RandomPlantsState.Card(
+                r.plant().id().toString(), r.plant().resolvedCapabilities().stream().map(c -> c.type().toString()).toList(),
+                r.shot().kind(), r.shot().id().toString(), r.product().kind(), r.product().id().toString(), r.launchSpeed())).toList();
+        level.setMechanicState(PvzceIds.MECHANIC_RANDOM_PLANTS,
+                new com.pvzce.common.level.RandomPlantsState(20261111L, cards));
+        for (var recipe : recipes.values()) {
+            var original = BuiltInRegistries.PLANTS.get(recipe.plant().id());
+            var actual = PlantPlacement.withAbilityPlacement(recipe.plant());
+            var client = ClientPlacement.plantDef(level, original);
+            assertEquals(actual.placement(), client.placement(), original.id().toString());
+            assertEquals(PlantPlacement.isCarrier(actual), PlantPlacement.isCarrier(client));
+        }
+        level.addEntity(new ClientEntity(1, "plant", "pvzce:sunflower", 3.5F, 2.5F, 300,
+                com.pvzce.api.entity.EntityLayers.PLANT, com.pvzce.api.entity.EntityAnimations.IDLE, 0F, "pvzce:plant_team"));
+        assertEquals(PlantPlacement.LILY_PAD_TOP, ClientPlacement.anchoredAt(level, 3, 2)[2], 0.0001F);
+    }
+
 }

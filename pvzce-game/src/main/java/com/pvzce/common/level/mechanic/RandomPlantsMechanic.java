@@ -14,8 +14,10 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.capability.PlantCapabilities;
+import com.pvzce.common.capability.plant.ProducerCapability;
 import com.pvzce.common.capability.plant.ShooterCapability;
 import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.RandomPlantsState;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
@@ -42,6 +44,10 @@ import java.util.stream.Collectors;
 
 /** Immutable, level-local recipes. Sampling never writes into a content registry. */
 public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsData> {
+    private static final Set<Identifier> TEMPORARY_ABILITIES = Set.of(
+            PvzceIds.id("nocturnal"), PvzceIds.id("explosive"), PvzceIds.id("freeze_all"),
+            PvzceIds.id("blow_away"), PvzceIds.id("grave_buster"), PvzceIds.id("bowl"),
+            PvzceIds.id("melee"), PvzceIds.id("squash"), PvzceIds.id("drag_under"));
     public record Payload(String kind, Identifier id) {}
 
     public record Recipe(PlantDef plant, Payload shot, Payload product, float launchSpeed) {}
@@ -107,13 +113,31 @@ public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsDat
             Recipe recipe = result.get(id);
             List<TypedCapability<PlantCapability>> abilities = new ArrayList<>(recipe.plant().resolvedCapabilities());
             // A persistent shooter must not sleep, consume itself, or explode on a timer.
-            abilities.removeIf(c -> c.type().equals(shooter) || c.type().equals(PvzceIds.id("nocturnal"))
-                    || c.type().equals(PvzceIds.id("explosive")) || c.type().equals(PvzceIds.id("freeze_all"))
-                    || c.value().consumesOnPlace());
+            abilities.removeIf(c -> c.type().equals(shooter) || interruptsPersistence(c));
             if (abilities.size() == PvzceConstants.RANDOM_PLANT_MAX_ABILITIES) abilities.removeLast();
             abilities.add(attack);
             result.put(id, new Recipe(withAbilities(recipe.plant(), abilities), recipe.shot(),
                     recipe.product(), recipe.launchSpeed()));
+        }
+        Recipe pea = result.get(PvzceIds.id("pea_shooter"));
+        if (pea != null) {
+            Identifier producer = PvzceIds.id("producer");
+            List<TypedCapability<PlantCapability>> abilities = new ArrayList<>(pea.plant().resolvedCapabilities());
+            // A guaranteed producer must survive long enough to produce, in daytime as well as at night.
+            abilities.removeIf(c -> c.type().equals(producer) || interruptsPersistence(c));
+            if (abilities.size() == PvzceConstants.RANDOM_PLANT_MAX_ABILITIES) {
+                for (int i = abilities.size() - 1; i >= 0; i--) {
+                    if (!abilities.get(i).type().equals(shooter)) {
+                        abilities.remove(i);
+                        break;
+                    }
+                }
+            }
+            abilities.add(new TypedCapability<>(producer, new ProducerCapability(PvzceIds.SUN,
+                    ProducerCapability.DEFAULT_AMOUNT, PvzceConstants.RANDOM_PEASHOOTER_SUN_INTERVAL,
+                    ProducerCapability.DEFAULT_FIRST_DELAY, Optional.empty())));
+            result.put(pea.plant().id(), new Recipe(withAbilities(pea.plant(), abilities), pea.shot(),
+                    new Payload(EntityKind.RESOURCE, PvzceIds.SUN), pea.launchSpeed()));
         }
         return Collections.unmodifiableMap(result);
     }
@@ -136,12 +160,16 @@ public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsDat
     private static boolean attacks(Recipe recipe) {
         var abilities = recipe.plant().resolvedCapabilities();
         return abilities.stream().anyMatch(c -> c.value() instanceof ShooterCapability shooter && !shooter.shots().isEmpty())
-                && abilities.stream().noneMatch(c -> c.value().consumesOnPlace() || c.type().equals(PvzceIds.id("nocturnal"))
-                    || c.type().equals(PvzceIds.id("explosive")) || c.type().equals(PvzceIds.id("freeze_all")));
+                && abilities.stream().noneMatch(RandomPlantsMechanic::interruptsPersistence);
+    }
+
+    private static boolean interruptsPersistence(TypedCapability<PlantCapability> capability) {
+        return capability.value().consumesOnPlace() || TEMPORARY_ABILITIES.contains(capability.type());
     }
 
     /** The belt adds missing attackers; it never changes an already rolled plant's abilities. */
     public static LevelBelt belt(LevelDef def, LevelBelt original) {
+        original = ConveyorMechanic.expandPlants(original);
         RandomPlantsData data = data(def);
         if (data == null) return original;
         Map<Identifier, Recipe> recipes = recipes(data);
@@ -183,7 +211,13 @@ public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsDat
 
     public static PlantDef plant(LevelServer level, PlantDef original) {
         Recipe recipe = recipes(level).get(original.id());
-        return recipe == null ? original : recipe.plant();
+        if (recipe == null) return original;
+        PlantDef plant = recipe.plant();
+        if (data(level.def()).abilityPlacement()) return PlantPlacement.withAbilityPlacement(plant);
+        if (data(level.def()).carriersOnWater()
+                && plant.resolvedCapabilities().stream().anyMatch(c -> c.type().equals(PvzceIds.id("carrier"))))
+            return PlantPlacement.withCarrierPlacement(plant);
+        return plant;
     }
 
     public static boolean fire(LevelServer level, PlantEntity source, ProjectileEntity original) {

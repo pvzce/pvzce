@@ -1,6 +1,7 @@
 package com.pvzce.common.level.mechanic;
 
 import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.EndlessScheduleDef;
 import com.pvzce.api.content.LevelDef;
@@ -42,14 +43,18 @@ public final class EndlessMechanic implements LevelMechanic<EndlessMechanic.Data
      * Survival Endless writes the type and nothing else.
      *
      * @param schedule which endless schedule this level generates its waves from
+     * @param continuous continue stages without clearing the field or replacing cards
      */
-    public record Data(Identifier schedule) implements MechanicData {
+    public record Data(Identifier schedule, boolean continuous) implements MechanicData {
         /** The schedule a level that does not name one gets. */
         public static final Identifier DEFAULT_SCHEDULE = PvzceIds.ENDLESS_SCHEDULE_POOL;
 
         public static final MapCodec<Data> CODEC = RecordCodecBuilder.mapCodec(i -> i.group(
-                Identifier.CODEC.optionalFieldOf("schedule", DEFAULT_SCHEDULE).forGetter(Data::schedule)
+                Identifier.CODEC.optionalFieldOf("schedule", DEFAULT_SCHEDULE).forGetter(Data::schedule),
+                Codec.BOOL.optionalFieldOf("continuous", false).forGetter(Data::continuous)
         ).apply(i, Data::new));
+
+        public Data(Identifier schedule) { this(schedule, false); }
     }
 
     @Override
@@ -100,6 +105,12 @@ public final class EndlessMechanic implements LevelMechanic<EndlessMechanic.Data
     /** True when this level generates its waves rather than reading them. */
     public static boolean generatesWaves(LevelDef def) {
         return LevelMechanics.has(def, PvzceIds.MECHANIC_ENDLESS);
+    }
+
+    /** Continue the wave clock across stages, even with survivors still on the lawn. */
+    public static boolean continuous(LevelDef def) {
+        Data data = LevelMechanics.data(def, PvzceIds.MECHANIC_ENDLESS, Data.class);
+        return data != null && data.continuous();
     }
 
     /**

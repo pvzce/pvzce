@@ -1,11 +1,10 @@
 package com.pvzce.api.content;
 
+import com.pvzce.api.content.mechanic.MechanicData;
+import com.pvzce.api.util.Identifier;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.pvzce.api.content.mechanic.MechanicData;
-import com.pvzce.api.util.Identifier;
-
 import java.util.List;
 import java.util.Random;
 
@@ -18,6 +17,8 @@ import java.util.Random;
  * is data: {@code interval_ticks} is how often a card arrives, {@code capacity} how
  * many may sit on the belt at once, {@code initial_cards} how many are already there
  * when the level starts, and {@code cards} the weighted pool it draws from.
+ * {@code all_plants} additionally expands the loaded plant registry into the pool;
+ * explicitly listed plants retain their authored weight and delivery limit.
  *
  * <p>This record is the block of the {@code pvzce:conveyor} level mechanic, so it is
  * authored inside the level's {@code mechanics} list rather than as a top-level key:
@@ -28,7 +29,7 @@ import java.util.Random;
  * ]
  * }</pre>
  */
-public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<BeltCard> cards)
+public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<BeltCard> cards, boolean allPlants)
         implements MechanicData {
     public static final int DEFAULT_INTERVAL_TICKS = 300;
     public static final int DEFAULT_CAPACITY = 6;
@@ -66,11 +67,16 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
             Codec.INT.optionalFieldOf("interval_ticks", DEFAULT_INTERVAL_TICKS).forGetter(LevelBelt::intervalTicks),
             Codec.INT.optionalFieldOf("capacity", DEFAULT_CAPACITY).forGetter(LevelBelt::capacity),
             Codec.INT.optionalFieldOf("initial_cards", DEFAULT_INITIAL_CARDS).forGetter(LevelBelt::initialCards),
-            BeltCard.CODEC.listOf().optionalFieldOf("cards", List.of()).forGetter(LevelBelt::cards)
+            BeltCard.CODEC.listOf().optionalFieldOf("cards", List.of()).forGetter(LevelBelt::cards),
+            Codec.BOOL.optionalFieldOf("all_plants", false).forGetter(LevelBelt::allPlants)
     ).apply(i, LevelBelt::new));
 
     /** The block as a standalone object; used where a belt is not inside a mechanics list. */
     public static final Codec<LevelBelt> CODEC = MAP_CODEC.codec();
+
+    public LevelBelt(int intervalTicks, int capacity, int initialCards, List<BeltCard> cards) {
+        this(intervalTicks, capacity, initialCards, cards, false);
+    }
 
     public LevelBelt {
         // A zero interval would spawn a card every tick, and a belt wider than the screen
@@ -162,12 +168,12 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
     /** One message per authoring problem, for {@code LevelValidator}. */
     public List<String> validate() {
         List<String> errors = new java.util.ArrayList<>();
-        if (cards.isEmpty()) {
+        if (cards.isEmpty() && !allPlants) {
             errors.add("conveyor declares no cards: the belt would stay empty forever");
-        } else if (!producesCards()) {
+        } else if (!allPlants && !producesCards()) {
             errors.add("conveyor lists cards but all weights are 0: the belt would stay empty forever");
         }
-        if (initialCards <= 0 && !producesCards()) {
+        if (initialCards <= 0 && !allPlants && !producesCards()) {
             errors.add("conveyor starts empty and can never produce a card");
         }
         for (BeltCard card : cards) {

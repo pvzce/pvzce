@@ -830,6 +830,11 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return com.pvzce.common.level.endless.EndlessRamp.wavesInRound(endlessSchedule, round);
     }
 
+    @Override
+    public boolean continuousRounds() {
+        return com.pvzce.common.level.mechanic.EndlessMechanic.continuous(def);
+    }
+
     /**
      * True when this level's waves should not be counted on screen: no meter, no "wave 3 of 9".
      *
@@ -1412,7 +1417,19 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return new PlantPlacement.Ctx() {
         @Override
         public boolean upgradesWithoutBases() {
-            return hasMechanic(PvzceIds.MECHANIC_FUSION);
+            var randomPlants = RandomPlantsMechanic.data(def);
+            return hasMechanic(PvzceIds.MECHANIC_FUSION)
+                    || randomPlants != null && randomPlants.upgradesWithoutBases();
+        }
+
+        @Override public boolean graveBustersAnywhere() {
+            var data = RandomPlantsMechanic.data(def);
+            return data != null && data.graveBustersAnywhere();
+        }
+
+        @Override public boolean carriersOnWater() {
+            var data = RandomPlantsMechanic.data(def);
+            return data != null && data.carriersOnWater();
         }
 
         @Override
@@ -1508,6 +1525,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     }
 
     public boolean canPlacePlant(PlantDef def, int x, int y, String surface) {
+        if (def == null) return false;
+        def = RandomPlantsMechanic.plant(this, def);
         if (!PlantPlacement.canPlace(def, placementContext(surface), x, y)) return false;
         int left = PlantPlacement.upgradeAnchorX(def, placementContext(surface), x, y);
         for (int column = left; column < left + def.placement().width(); column++) {
@@ -3064,7 +3083,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 syncWaveAndTime(bridge);
             } else {
                 int previousWave = currentWave();
+                int previousRound = round();
                 waves.tick();
+                if (previousRound != round()) bridge.send(roundSyncPacket());
                 if (previousWave != currentWave()) {
                     for (TypedMechanic typed : mechanics) LevelMechanics.onWaveChanged(typed, this);
                 }

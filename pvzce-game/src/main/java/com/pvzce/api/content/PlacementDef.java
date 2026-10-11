@@ -50,14 +50,21 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
  * the {@code #c:carrier} / {@code #c:requires_ground} tags, so a mod adds a
  * plant-on-plant-cover (pumpkin) by tagging it rather than by asking for a
  * server branch.
+ *
+ * <p>{@code abilityDriven} marks a run-local projection: placement uses its actual abilities
+ * instead of the original plant's identity tags. Authored placements default to false.
  */
-public record PlacementDef(int layer, int count, String group, int width) {
+public record PlacementDef(int layer, int count, String group, int width, boolean abilityDriven) {
     public PlacementDef {
         width = Math.max(1, width);
     }
 
     public PlacementDef(int layer, int count, String group) {
         this(layer, count, group, 1);
+    }
+
+    public PlacementDef(int layer, int count, String group, int width) {
+        this(layer, count, group, width, false);
     }
     /** Plants on the ground. */
     public static final int LAYER_CARRIER = 0;
@@ -84,6 +91,7 @@ public record PlacementDef(int layer, int count, String group, int width) {
             Codec.INT.optionalFieldOf("layer", LAYER_GROUND).forGetter(PlacementDef::layer),
             Codec.INT.optionalFieldOf("count", 1).forGetter(PlacementDef::count),
             Codec.STRING.optionalFieldOf("group", GROUP_PLANTABLE).forGetter(PlacementDef::group),
-            Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("width", 1).forGetter(PlacementDef::width)
+            Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("width", 1).forGetter(PlacementDef::width),
+            Codec.BOOL.optionalFieldOf("ability_driven", false).forGetter(PlacementDef::abilityDriven)
     ).apply(i, PlacementDef::new));
 }

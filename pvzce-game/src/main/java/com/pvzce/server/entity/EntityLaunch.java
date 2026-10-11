@@ -46,7 +46,16 @@ public final class EntityLaunch {
             }
         }
         if (hit != null) {
-            hit.damage(damage, ZombieEntity.damageType(PvzceIds.DAMAGE_PROJECTILE), level);
+            // A fired plant attacks through its own capabilities, including after landing.
+            // Inspect the actual kind rather than saved Damage, so old plant payloads also comply.
+            if (entity instanceof PlantEntity) {
+                float landing = segmentSquared == 0F ? 0F : Math.max(0F,
+                        first - PvzceConstants.RANDOM_LAUNCH_HIT_RADIUS / (float) Math.sqrt(segmentSquared));
+                entity.setCellX(beforeX + landing * dx);
+                entity.setCellY(beforeY + landing * dy);
+            } else {
+                hit.damage(damage, ZombieEntity.damageType(PvzceIds.DAMAGE_PROJECTILE), level);
+            }
             return false;
         }
         if (distanceLeft <= 0F || entity.cellX() < -1F || entity.cellX() > level.width() + 1F

@@ -1,0 +1,112 @@
+{
+  "round_waves_base": 9,
+  "round_waves_per_round": 0,
+  "round_waves_max": 10,
+  "huge_waves_per_round": 1,
+  "spawn_interval_start": 180,
+  "spawn_interval_end": 60,
+  "spawn_interval_ramp_rounds": 12,
+  "gap_start": 900,
+  "gap_end": 360,
+  "gap_ramp_rounds": 12,
+  "count_start": 6,
+  "count_end": 30,
+  "count_ramp_rounds": 20,
+  "stat_growth": {
+    "health_per_round": 0.12,
+    "health_cap": 0
+  },
+  "pool": [
+    {
+      "zombie": "pvzce:basic_zombie",
+      "from_round": 1,
+      "weight": 10,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:conehead_zombie",
+      "from_round": 1,
+      "weight": 6,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:buckethead_zombie",
+      "from_round": 2,
+      "weight": 5,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:newspaper_zombie",
+      "from_round": 3,
+      "weight": 3,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:pole_vaulter_zombie",
+      "from_round": 3,
+      "weight": 3,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:football_zombie",
+      "from_round": 4,
+      "weight": 4,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:door_zombie",
+      "from_round": 5,
+      "weight": 4,
+      "water": false,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:gargantuar",
+      "from_round": 7,
+      "weight": 3,
+      "water": false,
+      "max_per_wave": 2
+    },
+    {
+      "zombie": "pvzce:ducky_tube_zombie",
+      "from_round": 1,
+      "weight": 10,
+      "water": true,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:ducky_tube_conehead_zombie",
+      "from_round": 2,
+      "weight": 6,
+      "water": true,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:ducky_tube_buckethead_zombie",
+      "from_round": 3,
+      "weight": 5,
+      "water": true,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:snorkel_zombie",
+      "from_round": 4,
+      "weight": 3,
+      "water": true,
+      "max_per_wave": 0
+    },
+    {
+      "zombie": "pvzce:dolphin_rider_zombie",
+      "from_round": 5,
+      "weight": 3,
+      "water": true,
+      "max_per_wave": 0
+    }
+  ]
+}

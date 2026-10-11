@@ -1,12 +1,15 @@
 package com.pvzce.common.core;
 
-import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.PlacementDef;
+import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.SceneElementDef;
+import com.pvzce.api.content.capability.PlantCapability;
+import com.pvzce.api.content.capability.TypedCapability;
 import com.pvzce.api.tag.TagKey;
 import com.pvzce.api.util.Identifier;
+import com.pvzce.common.PvzceIds;
+import com.pvzce.common.capability.plant.MarkerCapability;
 import com.pvzce.common.tag.PvzceTags;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -146,7 +149,8 @@ public final class PlantPlacement {
         @Override
         public boolean has(TagKey<?> tag) {
             return !(waterFilled && tag.equals(PvzceTags.PLANTABLE))
-                    && def.id() != null && PvzceTags.PLANTS.contains(tag.id(), def.id());
+                    && (tag.equals(PvzceTags.PLANTABLE) && isAbilityCarrier(def)
+                    || def.id() != null && PvzceTags.PLANTS.contains(tag.id(), def.id()));
         }
     }
 
@@ -162,20 +166,61 @@ public final class PlantPlacement {
 
         /** A level may let purple packets behave as ordinary seeds. */
         default boolean upgradesWithoutBases() { return false; }
+        default boolean graveBustersAnywhere() { return false; }
+        default boolean carriersOnWater() { return false; }
     }
 
     public static boolean requiresUpgradeBase(PlantDef def, Ctx ctx) {
-        return def.upgrade().isPresent() && !ctx.upgradesWithoutBases();
+        return def.upgrade().isPresent() && !def.placement().abilityDriven() && !ctx.upgradesWithoutBases();
     }
 
     /** True when {@code def} carries {@code tag} in the plant registry. */
     public static boolean is(PlantDef def, TagKey<PlantDef> tag) {
-        return def != null && def.id() != null && PvzceTags.PLANTS.contains(tag, def.id());
+        return def != null && !def.placement().abilityDriven()
+                && def.id() != null && PvzceTags.PLANTS.contains(tag, def.id());
     }
 
     /** True when this plant carries other plants (flower pot, lily pad). */
     public static boolean isCarrier(PlantDef def) {
-        return is(def, PvzceTags.CARRIER);
+        return is(def, PvzceTags.CARRIER) || isAbilityCarrier(def);
+    }
+
+    private static boolean isAbilityCarrier(PlantDef def) {
+        return def != null
+                && (def.placement().abilityDriven() || def.placement().layer() == PlacementDef.LAYER_CARRIER
+                && PlacementDef.GROUP_CARRIER.equals(def.placement().group()))
+                && def.resolvedCapabilities().stream().anyMatch(c -> c.type().equals(PvzceIds.id("carrier")));
+    }
+
+    /** Retain the footprint, but derive terrain and stack roles from this run's abilities. */
+    public static PlantDef withAbilityPlacement(PlantDef def) {
+        return withAbilityPlacement(def, def.resolvedCapabilities());
+    }
+
+    /** The client supplies the synchronized ability types; it never rolls a recipe. */
+    public static PlantDef withAbilityPlacement(PlantDef def, List<TypedCapability<PlantCapability>> abilities) {
+        boolean carrier = abilities.stream().anyMatch(c -> c.type().equals(PvzceIds.id("carrier")));
+        boolean shell = abilities.stream().anyMatch(c -> c.type().equals(PvzceIds.id("shell")));
+        boolean wake = abilities.stream().anyMatch(c -> c.type().equals(PvzceIds.id("wake_below")));
+        int layer = shell || wake ? PlacementDef.LAYER_ON_PLANT
+                : carrier ? PlacementDef.LAYER_CARRIER : PlacementDef.LAYER_GROUND;
+        String group = wake ? "" : shell ? "shell"
+                : carrier ? PlacementDef.GROUP_CARRIER : PlacementDef.GROUP_PLANTABLE;
+        PlacementDef placement = new PlacementDef(layer, def.placement().count(), group,
+                def.placement().width(), true);
+        return new PlantDef(def.id(), def.cost(), def.health(), placement, abilities, def.behavior(),
+                def.sounds(), def.animations(), def.texture(), def.renderScale(), def.order(), def.upgrade());
+    }
+
+    /** Project a shuffled carrying ability into placement, without changing registry data. */
+    public static PlantDef withCarrierPlacement(PlantDef def) {
+        List<TypedCapability<PlantCapability>> abilities = new ArrayList<>(def.resolvedCapabilities());
+        if (abilities.stream().noneMatch(c -> c.type().equals(PvzceIds.id("carrier"))))
+            abilities.add(new TypedCapability<>(PvzceIds.id("carrier"), MarkerCapability.INSTANCE));
+        PlacementDef placement = new PlacementDef(PlacementDef.LAYER_CARRIER, def.placement().count(),
+                PlacementDef.GROUP_CARRIER, def.placement().width());
+        return new PlantDef(def.id(), def.cost(), def.health(), placement, abilities, def.behavior(),
+                def.sounds(), def.animations(), def.texture(), def.renderScale(), def.order(), def.upgrade());
     }
 
     /**
@@ -187,6 +232,7 @@ public final class PlantPlacement {
         if (def == null) {
             return PlacementDef.LAYER_GROUND;
         }
+        if (def.placement().abilityDriven()) return def.placement().layer();
         if (isCarrier(def)) {
             return PlacementDef.LAYER_CARRIER;
         }
@@ -239,12 +285,24 @@ public final class PlantPlacement {
             return false;
         }
         Terrain terrain = ctx.terrain(x, y);
+        if (def.placement().abilityDriven()) {
+            if (terrain.def() == null || terrainTagged(terrain, PvzceTags.SCENE_UNPLANTABLE)) return false;
+            if (layerIndex(def) == PlacementDef.LAYER_ON_PLANT && !plants.isEmpty()) return true;
+            if (isCarrier(def)) return terrainTagged(terrain, PvzceTags.SCENE_WATER)
+                    || terrainTagged(terrain, PvzceTags.SCENE_GROUND)
+                    || terrainTagged(terrain, PvzceTags.SCENE_PLANTABLE);
+            // A mixed carrier/shell still carries the ordinary plant protected inside it.
+            return terrainTagged(terrain, PvzceTags.SCENE_PLANTABLE)
+                    || plants.stream().anyMatch(p -> isCarrier(p.def()) && !p.waterFilled());
+        }
         List<Support> below = supportsOf(terrain, plants, layerIndex(def));
         // Water may have a blocking overlay. Its water tag still governs swimming,
         // but must not let a lily pad bypass a gravestone's planting restriction.
         if (terrainTagged(terrain, PvzceTags.SCENE_UNPLANTABLE) && !is(def, PvzceTags.GRAVE_ONLY)) {
             return false;
         }
+
+        if (ctx.carriersOnWater() && isCarrier(def) && terrainTagged(terrain, PvzceTags.SCENE_WATER)) return true;
 
         if (is(def, PvzceTags.PLANT_ONLY)) {
             // Coffee bean: on a plant, and on a plant only. Any plant strictly
@@ -265,7 +323,8 @@ public final class PlantPlacement {
             // Grave buster: the gravestone itself, and nowhere else. Checked before
             // `#c:requires_ground` because a grave is also unplantable, so the general rules
             // would refuse the one plant whose whole job is to stand on it.
-            return terrainTagged(terrain, PvzceTags.SCENE_GRAVE);
+            return terrainTagged(terrain, PvzceTags.SCENE_GRAVE)
+                    || ctx.graveBustersAnywhere() && has(below, PvzceTags.PLANTABLE);
         }
         if (is(def, PvzceTags.REQUIRES_GROUND)) {
             if (plants.stream().anyMatch(PlantLayer::waterFilled) && !isCarrier(def)) {
@@ -283,7 +342,8 @@ public final class PlantPlacement {
             // Only the terrain can be under an empty carrier layer: ground holds the
             // pot, water holds the lily pad.
             return terrainTagged(terrain, PvzceTags.SCENE_GROUND)
-                    || terrainTagged(terrain, PvzceTags.SCENE_WATER);
+                    || terrainTagged(terrain, PvzceTags.SCENE_WATER)
+                    || ctx.carriersOnWater() && terrainTagged(terrain, PvzceTags.SCENE_PLANTABLE);
         }
         // Everything else: a plantable tile, or a plantable plant beneath it (which
         // is how a flower pot on bare ground - or on a roof - becomes plantable).

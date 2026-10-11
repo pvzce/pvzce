@@ -1059,5 +1059,6 @@
   "projectile.pvzce.random_mower": "Lawn Mower",
   "gui.pvzce.random_plants.seed": "Seed %d",
   "gui.pvzce.random_plants.shot": "Shot: %s · %.1f cells/s",
-  "gui.pvzce.random_plants.product": "Produces: %s"
+  "gui.pvzce.random_plants.product": "Produces: %s",
+  "pvzce.mechanic.conveyor.field.all_plants": "All registered plants"
 }

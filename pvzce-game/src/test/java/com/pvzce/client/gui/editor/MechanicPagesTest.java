@@ -30,12 +30,12 @@ class MechanicPagesTest {
     @Test
     void theConveyorDescribesEveryFieldTheEditorNeeds() {
         List<FieldSpec> fields = LevelMechanics.get(PvzceIds.MECHANIC_CONVEYOR).editorFields();
-        assertEquals(List.of("interval_ticks", "capacity", "initial_cards", "cards"),
+        assertEquals(List.of("interval_ticks", "capacity", "initial_cards", "all_plants", "cards"),
                 fields.stream().map(FieldSpec::path).toList());
         assertTrue(fields.get(0) instanceof FieldSpec.Number, "the interval is a number");
         // The pool is a list of card ids; weights stay a JSON-only detail until there is a
         // weighted-list widget, and must not be silently dropped by the editor.
-        FieldSpec cards = fields.get(3);
+        FieldSpec cards = fields.get(4);
         assertTrue(cards instanceof FieldSpec.Ref ref && ref.multiple(),
                 "the card pool is a list of ids, so it edits as one");
     }

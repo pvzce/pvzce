@@ -1,38 +1,39 @@
 package com.pvzce.client.gui.screens;
 
+import com.pvzce.api.content.SlotDef;
 import com.pvzce.api.content.SurfaceProfile;
-import com.pvzce.common.level.SceneBoard;
 import com.pvzce.api.util.Identifier;
-import com.pvzce.client.renderer.EntityVisuals;
 import com.pvzce.client.ClientEntity;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.ResourceCollectAnimation;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
+import com.pvzce.client.gui.SeedCardRenderer;
+import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.components.Dialog;
+import com.pvzce.client.gui.components.DialogueOverlay;
 import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
 import com.pvzce.client.input.ScrollRegion;
-import com.pvzce.client.gui.SeedCardRenderer;
-import com.pvzce.common.core.SlotResolver;
+import com.pvzce.client.renderer.ClientPlacement;
+import com.pvzce.client.renderer.EntityVisuals;
+import com.pvzce.client.renderer.LevelStage;
+import com.pvzce.client.renderer.PvzceCamera;
+import com.pvzce.client.renderer.SceneTileRenderer;
 import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
-import com.pvzce.common.network.packet.LevelRewardS2C;
-import com.pvzce.common.util.MathUtil;
-import com.pvzce.client.gui.components.Button;
-import com.pvzce.client.gui.components.DialogueOverlay;
-import com.pvzce.client.gui.components.Dialog;
-import com.pvzce.client.renderer.PvzceCamera;
-import com.pvzce.client.renderer.LevelStage;
-import com.pvzce.client.renderer.SceneTileRenderer;
+import com.pvzce.common.core.SlotResolver;
+import com.pvzce.common.level.SceneBoard;
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.EffectEventS2C;
+import com.pvzce.common.network.packet.LevelRewardS2C;
+import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.PickCardC2S;
 import com.pvzce.common.network.packet.PlacePlantC2S;
-import com.pvzce.common.network.packet.PauseGameC2S;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
-import com.pvzce.api.content.SlotDef;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.UseToolC2S;
+import com.pvzce.common.util.MathUtil;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2367,8 +2368,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 && def.capability(com.pvzce.common.capability.plant.ShellCapability.class).isPresent();
     }
 
-    private static long renderOrder(ClientEntity entity, boolean shellBack) {
-        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId());
+    private long renderOrder(ClientEntity entity, boolean shellBack) {
+        var def = ClientPlacement.plantDef(client.level(),
+                com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId()));
         int pass = "plant".equals(entity.kind()) && def != null
                 ? 2 * com.pvzce.common.core.PlantPlacement.layerIndex(def) : 0;
         return EntityVisuals.renderOrder(entity.kind(), entity.layer(), entity.gridY(), entity.id(),
@@ -3579,7 +3581,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         int total = client.level().totalWaves();
         int current = Math.max(0, Math.min(total, client.level().currentWave()));
-        String text = "第 " + Math.max(1, client.level().round()) + " 轮 · " + current + "/" + total + " 波";
+        var endless = client.level().mechanicData(PvzceIds.MECHANIC_ENDLESS,
+                com.pvzce.common.level.mechanic.EndlessMechanic.Data.class);
+        String text = endless != null && endless.continuous()
+                ? "无尽 · 第 " + Math.max(1, client.level().round()) + " 阶段 · " + current + " 波"
+                : "第 " + Math.max(1, client.level().round()) + " 轮 · " + current + "/" + total + " 波";
         // On the meter's own line, left of it like the level name and above it like nothing:
         // the space above the meter is the pause button's, and a label drawn there is behind it.
         float scale = Math.max(0.75F, Math.min(0.95F, 1.2F * (METER_SCALE)));

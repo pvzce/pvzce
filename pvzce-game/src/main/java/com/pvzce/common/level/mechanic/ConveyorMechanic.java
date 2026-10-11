@@ -1,12 +1,17 @@
 package com.pvzce.common.level.mechanic;
 
-import com.mojang.serialization.MapCodec;
 import com.pvzce.api.content.LevelBelt;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.mechanic.FieldSpec;
-
+import com.pvzce.api.util.Identifier;
+import com.pvzce.common.core.BuiltInRegistries;
+import com.pvzce.common.core.SlotResolver;
+import com.mojang.serialization.MapCodec;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A conveyor belt, the card source Wall-nut Bowling is built on.
@@ -17,6 +22,20 @@ import java.util.List;
  * existed.
  */
 public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
+    /** Expand at level creation, after built-in and mod plants have all been registered. */
+    public static LevelBelt expandPlants(LevelBelt data) {
+        if (!data.allPlants()) return data;
+        List<LevelBelt.BeltCard> cards = new ArrayList<>(data.cards());
+        Set<Identifier> included = new HashSet<>();
+        for (var card : cards) {
+            SlotResolver.resolve(card.card()).ifPresent(slot -> included.add(slot.content()));
+        }
+        BuiltInRegistries.PLANTS.keySet().stream().sorted(Comparator.comparing(Identifier::toString))
+                .filter(id -> !included.contains(id))
+                .forEach(id -> cards.add(new LevelBelt.BeltCard(id, 1, LevelBelt.BeltCard.UNLIMITED)));
+        return new LevelBelt(data.intervalTicks(), data.capacity(), data.initialCards(), cards);
+    }
+
     @Override
     public MapCodec<LevelBelt> codec() {
         return LevelBelt.MAP_CODEC;
@@ -62,6 +81,7 @@ public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
 
     @Override
     public List<String> validate(LevelDef def, LevelBelt data) {
+        data = expandPlants(data);
         List<String> errors = new ArrayList<>(data.validate());
         // Two answers to "what is in the card bar" is one answer too many: a *plant* card the level
         // lists is never granted on a belt level - the belt deals the plants - so listing one is a
@@ -111,6 +131,7 @@ public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
                         1, LevelBelt.MAX_CAPACITY),
                 FieldSpec.integer("initial_cards", "pvzce.mechanic.conveyor.field.initial_cards",
                         0, LevelBelt.MAX_CAPACITY),
+                FieldSpec.bool("all_plants", "pvzce.mechanic.conveyor.field.all_plants"),
                 // The pool is edited as one line of card ids. Per-card weights are part of the
                 // format and are honoured on load, but the editor has no weighted-list widget
                 // yet, so a hand-written weight survives an edit rather than being shown wrong.
