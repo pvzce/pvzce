@@ -145,7 +145,7 @@
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
-  "disable_shaders": true,
+  "disable_shaders": false,
   "mechanics": [
     {
       "type": "pvzce:random_plants",

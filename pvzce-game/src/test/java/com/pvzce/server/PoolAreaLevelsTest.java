@@ -96,6 +96,16 @@ class PoolAreaLevelsTest {
             assertEquals(List.of("pvzce:grass"), def.hiddenSceneElements(),
                     name + " hides the lawn its backdrop already draws");
         }
+        LevelDef reference = pool("3_1");
+        for (String name : List.of("random_plants_belt_3", "random_plants_belt_endless")) {
+            LevelDef def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/minigame/" + name));
+            assertNotNull(def);
+            assertEquals(reference.background(), def.background(), name + " uses 3-1's pool backdrop");
+            assertEquals(reference.scene(), def.scene(), name + " uses 3-1's water cells");
+            assertFalse(com.pvzce.server.level.LevelServer.payloadFor(def,
+                    com.pvzce.server.level.LevelServer.SeedContext.all(def)).shadersDisabled(),
+                    name + " must enable 3-1's liquid pass on the client");
+        }
     }
 
     /** The chain: 3-1 opens off 2-10, and each level after it off the one before. */
