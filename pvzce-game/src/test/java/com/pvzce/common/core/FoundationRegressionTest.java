@@ -219,6 +219,10 @@ class FoundationRegressionTest {
         assertEquals(42F, tag.getFloat("int"), 0.0001F);
         assertEquals(42D, tag.getDouble("int"), 0.0001D);
         assertEquals(42L, tag.getLong("int"));
+        tag.putLong("seed", (1L << 60) + 123);
+        assertEquals((1L << 60) + 123, tag.getLong("seed"));
+        tag.putLong("seed", Long.MAX_VALUE);
+        assertEquals(Long.MAX_VALUE, tag.getLong("seed"));
         // A genuinely wrong type still falls back rather than throwing.
         tag.put("text", new StringTag("nope"));
         assertEquals(0, tag.getInt("text"));

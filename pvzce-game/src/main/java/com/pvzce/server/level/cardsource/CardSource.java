@@ -121,9 +121,13 @@ public interface CardSource {
 
     /** Everything a source may need when it is built; one record so signatures stay stable. */
     record Context(PvzcePlayer player, LevelDef def, List<com.pvzce.api.util.Identifier> selectedSlots,
-                   Random random) {
+                   Random random, LevelServer level) {
         public Context {
             selectedSlots = selectedSlots == null ? List.of() : List.copyOf(selectedSlots);
+        }
+
+        public Context(PvzcePlayer player, LevelDef def, List<Identifier> selectedSlots, Random random) {
+            this(player, def, selectedSlots, random, null);
         }
     }
 }

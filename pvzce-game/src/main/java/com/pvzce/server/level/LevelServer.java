@@ -674,7 +674,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         this.selectedCards = List.copyOf(selectedSlotsOrDef(selectedSlots));
         this.cardSource = this.plantPlayer != null
                 ? LevelMechanics.createCardSource(def, new com.pvzce.server.level.cardsource.CardSource.Context(
-                        this.plantPlayer, def, this.selectedCards, random))
+                        this.plantPlayer, def, this.selectedCards, random, this))
                 : null;
         // The opponent's own bar, if this level has one: the versus mode hands the AI a deck, and a
         // deck without a bar is a deck without cooldowns - which is exactly how the opponent came to
@@ -4519,7 +4519,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (factory != null) {
             com.pvzce.server.level.cardsource.CardSource created = factory.createCardSource(this,
                     new com.pvzce.server.level.cardsource.CardSource.Context(
-                            plantPlayer, def, selectedCards, random));
+                            plantPlayer, def, selectedCards, random, this));
             if (created != null) {
                 cardSource = created;
                 return;
@@ -4527,7 +4527,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         cardSource = LevelMechanics.createCardSource(def,
                 new com.pvzce.server.level.cardsource.CardSource.Context(
-                        plantPlayer, def, selectedCards, random));
+                        plantPlayer, def, selectedCards, random, this));
         plantPlayer.replaceSlots(PvzcePlayer.deckSlots(selectedCards));
         if (mutations != null) {
             mutations.reapplyBarRewrite();
@@ -6991,6 +6991,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         restoreScene(root.getList("Scene"));
         restoreVaseContents(root.getList("VaseContents"));
         restoreTeams(root.getCompound("Teams"));
+        if (RandomPlantsMechanic.restoreRunSeed(this, root)) rebuildCardBar();
         // Before restoreSlots: a self-dealt bar is a projection of the source, so the source
         // has to be restored first or its cards would have nothing to be put back into.
         if (cardSource != null) {

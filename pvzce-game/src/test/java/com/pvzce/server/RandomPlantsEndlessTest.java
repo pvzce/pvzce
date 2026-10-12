@@ -1,12 +1,21 @@
 package com.pvzce.server;
 
 import com.pvzce.api.content.LevelDef;
+import com.pvzce.api.content.PlantDef;
+import com.pvzce.api.content.RandomPlantsData;
+import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.level.mechanic.EndlessMechanic;
 import com.pvzce.common.level.mechanic.RandomPlantsMechanic;
+import com.pvzce.common.level.RandomPlantsState;
+import com.pvzce.common.nbt.CompoundTag;
+import com.pvzce.common.nbt.NbtIo;
+import com.pvzce.common.network.packet.CommandC2S;
+import com.pvzce.common.network.packet.MechanicSyncS2C;
+import com.pvzce.common.network.packet.PlayLevelC2S;
 import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.RoundClearS2C;
 import com.pvzce.common.network.packet.RoundSyncS2C;
@@ -15,8 +24,12 @@ import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.TestLevels;
+import com.pvzce.testutil.ServerHarness;
+import com.mojang.serialization.JsonOps;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,6 +39,16 @@ class RandomPlantsEndlessTest {
     @BeforeAll static void load() throws Exception { TestContent.loadBuiltInContentAndTags(); }
     private static LevelDef endless() {
         return BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/minigame/random_plants_belt_endless"));
+    }
+
+    /** Deterministic ability fixtures; the shipped level must still roll fresh seeds. */
+    private static LevelDef fixedEndless(long seed) {
+        var def = endless();
+        var data = RandomPlantsMechanic.data(def);
+        return TestLevels.copy(def).mechanics(def.mechanics().stream().map(m ->
+                m.type().equals(PvzceIds.MECHANIC_RANDOM_PLANTS) ? new TypedMechanic(m.type(),
+                        new RandomPlantsData(seed, data.upgradesWithoutBases(), data.graveBustersAnywhere(),
+                                data.carriersOnWater(), data.abilityPlacement())) : m).toList()).build();
     }
 
     @Test void thePoolContinuesWithSurvivorsAndKeepsItsBeltAfterResume() {
@@ -53,6 +76,7 @@ class RandomPlantsEndlessTest {
         LevelServer resumed = new LevelServer(def);
         resumed.restore(level.save());
         resumed.flushPending();
+        assertEquals(RandomPlantsMechanic.seed(level), RandomPlantsMechanic.seed(resumed));
         assertEquals(cards, resumed.plantPlayer().slots().stream().map(s -> s.defId()).toList());
         assertEquals(level.cumulativeWaves(), resumed.cumulativeWaves());
         for (int t = 0; t < 30000 && resumed.round() < 3; t++) {
@@ -76,7 +100,7 @@ class RandomPlantsEndlessTest {
     }
 
     @Test void originalIdentityDoesNotRestrictTheShuffledAbilityRoles() {
-        LevelServer level = new LevelServer(endless());
+        LevelServer level = new LevelServer(fixedEndless(RandomPlantsMechanic.data(endless()).seed()));
         var recipes = RandomPlantsMechanic.recipes(level);
         for (var original : BuiltInRegistries.PLANTS) {
             var actual = RandomPlantsMechanic.plant(level, original);
@@ -111,6 +135,87 @@ class RandomPlantsEndlessTest {
         assertFalse(sleepingShell.isAsleep(level), "shuffled wake targets the top host, including a shell");
 
         assertFalse(level.canPlacePlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("cob_cannon")), 8, 0));
+    }
+
+    @Test void restartingRerollsTheWireStateButContinuingKeepsIt(@TempDir Path dir) throws Exception {
+        String id = endless().id().toString();
+        String world = "randomseeds";
+        RandomPlantsState saved;
+        try (var server = ServerHarness.createWithWorld(dir, world, true)) {
+            server.send(new PlayLevelC2S(id, world, true, List.of()));
+            var first = awaitRecipes(server);
+            server.clear();
+            // RestartLevelC2S is used by the level list's fresh-start action.
+            server.requestLevel(id, world, true);
+            var restarted = awaitRecipes(server);
+            assertNotEquals(first.seed(), restarted.seed());
+            assertEquals(RandomPlantsMechanic.seed(server.server().level()), restarted.seed());
+            server.clear();
+            // PlayLevelC2S is used by the pause menu's restart action.
+            server.send(new PlayLevelC2S(id, world, true, List.of()));
+            saved = awaitRecipes(server);
+            assertNotEquals(restarted.seed(), saved.seed());
+            server.clear();
+            server.requestLevel(id, world, false);
+            assertEquals(saved, awaitRecipes(server), "continuing the running level keeps every recipe");
+            server.send(new CommandC2S("/save"));
+            server.waitForFile(dir.resolve("saves/" + world
+                    + "/levels/70767a6365__yard%2Fminigame%2Frandom_plants_belt_endless/level.dat"), 5_000);
+        }
+        try (var server = ServerHarness.create(dir)) {
+            server.requestLevel(id, world, false);
+            assertEquals(saved, awaitRecipes(server), "disk continuation must send the same seed and recipes");
+        }
+    }
+
+    private static RandomPlantsState awaitRecipes(ServerHarness server) throws Exception {
+        server.waitFor(p -> p instanceof MechanicSyncS2C s
+                && s.mechanic().equals(PvzceIds.MECHANIC_RANDOM_PLANTS), 5_000);
+        var packet = server.packets().stream().filter(p -> p instanceof MechanicSyncS2C s
+                && s.mechanic().equals(PvzceIds.MECHANIC_RANDOM_PLANTS))
+                .map(p -> (MechanicSyncS2C) p).reduce((a, b) -> b).orElseThrow();
+        var buf = packet.payloadBuffer();
+        try { return RandomPlantsState.CODEC.decode(buf); }
+        finally { buf.delegate().release(); }
+    }
+
+    @Test void savedSeedsRestoreBeforePlantsAndLegacySavesKeepTheirAbilities(@TempDir Path dir) throws Exception {
+        long authored = RandomPlantsMechanic.data(endless()).seed();
+        for (long seed : new long[]{authored, (1L << 60) + 123, Long.MIN_VALUE + 123}) {
+            LevelServer before = new LevelServer(fixedEndless(seed));
+            before.spawnPlant(BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter")),
+                    before.plantPlayer().team(), 1, 0);
+            for (int t = 0; t < 180; t++) before.tick(p -> {});
+            CompoundTag tag = before.save();
+            if (seed != authored) {
+                CompoundTag state = new CompoundTag();
+                state.putLong("Seed", seed);
+                tag.put("RandomPlants", state);
+            }
+            // The authored case intentionally has no seed block, like saves predating random starts.
+            Path file = dir.resolve("seed-" + seed + ".dat");
+            NbtIo.writeCompressed(tag, file);
+            LevelServer after = new LevelServer(endless());
+            after.restore(NbtIo.readCompressed(file));
+            assertEquals(seed, RandomPlantsMechanic.seed(after));
+            var restoredRecipes = RandomPlantsMechanic.recipes(after);
+            for (var entry : RandomPlantsMechanic.recipes(before).entrySet()) {
+                var expected = entry.getValue();
+                var actual = restoredRecipes.get(entry.getKey());
+                assertEquals(PlantDef.CODEC.encodeStart(JsonOps.INSTANCE, expected.plant()).getOrThrow(),
+                        PlantDef.CODEC.encodeStart(JsonOps.INSTANCE, actual.plant()).getOrThrow(), entry.getKey().toString());
+                assertEquals(expected.shot(), actual.shot());
+                assertEquals(expected.product(), actual.product());
+                assertEquals(expected.launchSpeed(), actual.launchSpeed());
+            }
+            assertEquals(before.slotInfos(), after.slotInfos(), "restoring seed cannot replace the dealt cards or tools");
+            var plant = after.entities().stream().filter(e -> e instanceof PlantEntity p
+                    && p.defId().equals(PvzceIds.id("pea_shooter"))).map(e -> (PlantEntity) e).findFirst().orElseThrow();
+            assertEquals(PlantDef.CODEC.encodeStart(JsonOps.INSTANCE,
+                            RandomPlantsMechanic.plant(before, BuiltInRegistries.PLANTS.get(plant.defId()))).getOrThrow(),
+                    PlantDef.CODEC.encodeStart(JsonOps.INSTANCE, plant.def()).getOrThrow());
+            assertEquals(seed, after.save().getCompound("RandomPlants").getLong("Seed"));
+        }
     }
 
     @Test void firedPlantsDealOnlyTheirOwnAttackDamageEvenAfterSave() {

@@ -153,7 +153,8 @@
       "upgrades_without_bases": true,
       "grave_busters_anywhere": true,
       "carriers_on_water": true,
-      "ability_placement": true
+      "ability_placement": true,
+      "random_seed_on_start": true
     },
     {
       "type": "pvzce:conveyor",

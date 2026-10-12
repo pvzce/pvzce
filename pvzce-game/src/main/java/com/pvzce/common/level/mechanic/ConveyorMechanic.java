@@ -54,7 +54,9 @@ public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
     @Override
     public com.pvzce.server.level.cardsource.CardSource createCardSource(
             com.pvzce.server.level.cardsource.CardSource.Context context, LevelBelt data) {
-        return new com.pvzce.server.level.cardsource.BeltCardSource(context, RandomPlantsMechanic.belt(context.def(), data));
+        LevelBelt belt = context.level() == null ? RandomPlantsMechanic.belt(context.def(), data)
+                : RandomPlantsMechanic.belt(context.level(), data);
+        return new com.pvzce.server.level.cardsource.BeltCardSource(context, belt);
     }
 
     /**

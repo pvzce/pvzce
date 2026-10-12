@@ -61,7 +61,9 @@ public final class CompoundTag implements Tag {
     }
 
     public long getLong(String key) {
-        return (long) number(key, 0D);
+        // Long identities (including random seeds) must not round through double.
+        Tag tag = tags.get(key);
+        return tag instanceof LongTag value ? value.value() : (long) number(key, 0D);
     }
 
     public float getFloat(String key) {

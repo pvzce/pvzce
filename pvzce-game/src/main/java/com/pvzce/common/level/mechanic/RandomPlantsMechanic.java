@@ -20,6 +20,7 @@ import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.core.PlantPlacement;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.RandomPlantsState;
+import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.server.entity.PlantEntity;
 import com.pvzce.server.entity.ProjectileEntity;
@@ -44,6 +45,10 @@ import java.util.stream.Collectors;
 
 /** Immutable, level-local recipes. Sampling never writes into a content registry. */
 public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsData> {
+    private static final String SAVE_KEY = "RandomPlants";
+    private static final java.util.concurrent.atomic.AtomicLong RUN_SEEDS =
+            new java.util.concurrent.atomic.AtomicLong(java.util.concurrent.ThreadLocalRandom.current().nextLong());
+    private record Run(long seed, Map<Identifier, Recipe> recipes) { }
     private static final Set<Identifier> TEMPORARY_ABILITIES = Set.of(
             PvzceIds.id("nocturnal"), PvzceIds.id("explosive"), PvzceIds.id("freeze_all"),
             PvzceIds.id("blow_away"), PvzceIds.id("grave_buster"), PvzceIds.id("bowl"),
@@ -169,10 +174,17 @@ public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsDat
 
     /** The belt adds missing attackers; it never changes an already rolled plant's abilities. */
     public static LevelBelt belt(LevelDef def, LevelBelt original) {
-        original = ConveyorMechanic.expandPlants(original);
         RandomPlantsData data = data(def);
-        if (data == null) return original;
-        Map<Identifier, Recipe> recipes = recipes(data);
+        return belt(original, data == null ? Map.of() : recipes(data));
+    }
+
+    public static LevelBelt belt(LevelServer level, LevelBelt original) {
+        return belt(original, recipes(level));
+    }
+
+    private static LevelBelt belt(LevelBelt original, Map<Identifier, Recipe> recipes) {
+        original = ConveyorMechanic.expandPlants(original);
+        if (recipes.isEmpty()) return original;
         List<LevelBelt.BeltCard> cards = new ArrayList<>(original.cards());
         Set<Identifier> attackers = new HashSet<>();
         for (var card : cards) {
@@ -205,8 +217,37 @@ public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsDat
 
     public static Map<Identifier, Recipe> recipes(LevelServer level) {
         RandomPlantsData data = data(level.def());
-        return data == null ? Map.of() : level.mechanicState(PvzceIds.MECHANIC_RANDOM_PLANTS,
-                () -> recipes(data));
+        return data == null ? Map.of() : run(level, data).recipes();
+    }
+
+    private static Run run(LevelServer level, RandomPlantsData data) {
+        return level.mechanicState(PvzceIds.MECHANIC_RANDOM_PLANTS, () -> {
+            // A randomly initialized counter mixed into distinct long seeds; never spend wave/belt dice.
+            long seed = data.randomSeedOnStart()
+                    ? new java.util.SplittableRandom(RUN_SEEDS.getAndIncrement()).nextLong() : data.seed();
+            return new Run(seed, recipes(data.withSeed(seed)));
+        });
+    }
+
+    public static long seed(LevelServer level) {
+        return run(level, data(level.def())).seed();
+    }
+
+    @Override public void collectSave(LevelServer level, RandomPlantsData data, CompoundTag root) {
+        if (!data.randomSeedOnStart()) return;
+        CompoundTag saved = new CompoundTag();
+        saved.putLong("Seed", seed(level));
+        root.put(SAVE_KEY, saved);
+    }
+
+    /** Restore identity before the card source and plants are rebuilt. Old saves keep their authored seed. */
+    public static boolean restoreRunSeed(LevelServer level, CompoundTag root) {
+        RandomPlantsData data = data(level.def());
+        if (data == null || !data.randomSeedOnStart()) return false;
+        CompoundTag saved = root.getCompound(SAVE_KEY);
+        long seed = saved.contains("Seed") ? saved.getLong("Seed") : data.seed();
+        level.setMechanicState(PvzceIds.MECHANIC_RANDOM_PLANTS, new Run(seed, recipes(data.withSeed(seed))));
+        return true;
     }
 
     public static PlantDef plant(LevelServer level, PlantDef original) {
@@ -242,7 +283,7 @@ public final class RandomPlantsMechanic implements LevelMechanic<RandomPlantsDat
                 r.plant().id().toString(), r.plant().resolvedCapabilities().stream().map(c -> c.type().toString()).toList(),
                 r.shot().kind(), r.shot().id().toString(), r.product().kind(), r.product().id().toString(), r.launchSpeed())).toList();
         bridge.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_RANDOM_PLANTS,
-                RandomPlantsState.CODEC, new RandomPlantsState(data.seed(), cards)));
+                RandomPlantsState.CODEC, new RandomPlantsState(seed(level), cards)));
     }
 
     @Override public List<String> validate(LevelDef def, RandomPlantsData data) {
