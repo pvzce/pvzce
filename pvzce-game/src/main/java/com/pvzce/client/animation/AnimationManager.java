@@ -124,7 +124,12 @@ public final class AnimationManager {
         // Which clip this state actually plays: a member of the state's family, the state
         // itself, or - for a state the art does not define - `idle`, which is the same
         // substitution every unknown clip has always got.
-        String resolved = AnimationVariants.resolve(animationFile, state, variantSeed(target));
+        String mappedState = state;
+        if (target instanceof ClientEntity entity) {
+            AnimationBindings mapping = EntityArt.bindings(entity.defId(), entity.kind(), entity.previewCatalog());
+            if (mapping != null) mappedState = mapping.clipName(state);
+        }
+        String resolved = AnimationVariants.resolve(animationFile, mappedState, variantSeed(target));
         String activeName = resolved == null ? EntityAnimations.IDLE : resolved;
         AnimationClip clip = animationFile.clip(activeName).orElse(null);
         if (clip == null) {
@@ -424,7 +429,7 @@ public final class AnimationManager {
 
     /** The definition's {@code render_scale}, or 1 for anything that declares none. */
     float renderScale(ClientEntity entity) {
-        return EntityArt.renderScale(entity.defId()) * entity.renderScale();
+        return EntityArt.renderScale(entity.defId(), entity.previewCatalog()) * entity.renderScale();
     }
 
     void onPlaybackStopped(AnimationPlayback playback) {
@@ -505,11 +510,12 @@ public final class AnimationManager {
         if (defId == null) {
             return null;
         }
-        AnimationBindings bindings = bindings(entity.kind(), defId);
+        AnimationBindings bindings = EntityArt.bindings(defId, entity.kind(), entity.previewCatalog());
+        final AnimationBindings resolvedBindings = bindings == null ? AnimationBindings.EMPTY : bindings;
         // An override names a file directly; otherwise the entity's own file lives in
         // the directory its definition declares (or mirrors the id when it declares none).
-        return bindings.resolve(state)
-                .orElseGet(() -> bindings.fileId(defId));
+        return resolvedBindings.resolve(state)
+                .orElseGet(() -> resolvedBindings.fileId(defId));
     }
 
     /**

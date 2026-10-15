@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * The ordinary card bar: a row of seed packets along the bottom of the screen, scrolled
- * with the wheel when there are more cards than fit.
+ * with the wheel or arrow buttons when there are more cards than fit.
  *
  * <p>Moved out of {@code InGameScreen} without changing what it draws. The layout is
  * recomputed on every use rather than stored, because the buttons it shares the row with
@@ -18,10 +18,13 @@ public final class SeedCardBar implements CardBar {
     /** The SunBank is HUD, not a card; it is drawn in the corner instead of in the row, and
      * {@link CardBarLayout} is where its rectangle and the room it takes live. */
     private static final String SUN_CARD_ID = com.pvzce.common.PvzceIds.SUN.toString();
+    private static final int SCROLL_BUTTON_WIDTH = 18;
 
     private final Host host;
     private int cardScrollOffset;
     private int cardMaxScroll;
+    private int barX;
+    private int barWidth;
     private int viewportX;
     private int viewportY;
     private int viewportWidth;
@@ -100,10 +103,26 @@ public final class SeedCardBar implements CardBar {
         }
 
         if (cardMaxScroll > 0) {
-            client.fonts().body().draw("<", viewportX + 2, viewportY + cardHeight / 2F - 8, 1F, 1F, 1F, 1F, 1F);
-            client.fonts().body().draw(">", viewportX + viewportWidth - 12,
-                    viewportY + cardHeight / 2F - 8, 1F, 1F, 1F, 1F, 1F);
+            drawArrow(client, barX, "<", cardScrollOffset > 0);
+            drawArrow(client, viewportX + viewportWidth, ">", cardScrollOffset < cardMaxScroll);
         }
+    }
+
+    private void drawArrow(PvzceClient client, int x, String text, boolean enabled) {
+        client.drawSolid(x, viewportY, SCROLL_BUTTON_WIDTH, cardHeight, 0F,
+                0.2F, 0.16F, 0.08F, 0.9F);
+        float brightness = enabled ? 1F : 0.45F;
+        client.fonts().body().draw(text, x + 4, viewportY + cardHeight / 2F - 8,
+                1F, brightness, brightness, brightness, 1F);
+    }
+
+    @Override
+    public boolean click(double guiX, double guiY, int button) {
+        if (button != 0 || !contains(guiX, guiY) || cardMaxScroll == 0) return false;
+        int direction = guiX < viewportX ? -1 : guiX >= viewportX + viewportWidth ? 1 : 0;
+        if (direction == 0) return false;
+        scrollBy(direction);
+        return true;
     }
 
     @Override
@@ -113,7 +132,7 @@ public final class SeedCardBar implements CardBar {
             return -1;
         }
         updateLayout(slots.size());
-        if (guiX < viewportX || guiX > viewportX + viewportWidth
+        if (guiX < viewportX || guiX >= viewportX + viewportWidth
                 || guiY < viewportY || guiY > viewportY + viewportHeight) {
             return -1;
         }
@@ -135,7 +154,7 @@ public final class SeedCardBar implements CardBar {
             return false;
         }
         updateLayout(slots.size());
-        return guiX >= viewportX && guiX <= viewportX + viewportWidth
+        return guiX >= barX && guiX < barX + barWidth
                 && guiY >= viewportY && guiY <= viewportY + viewportHeight;
     }
 
@@ -144,10 +163,13 @@ public final class SeedCardBar implements CardBar {
         if (!contains(guiX, guiY)) {
             return false;
         }
-        int delta = amount > 0 ? -1 : 1;
+        if (amount != 0) scrollBy(amount > 0 ? -1 : 1);
+        return true;
+    }
+
+    private void scrollBy(int delta) {
         cardScrollOffset = Math.max(0, Math.min(cardMaxScroll,
                 cardScrollOffset + delta * (cardWidth + cardGap)));
-        return true;
     }
 
     @Override
@@ -173,12 +195,11 @@ public final class SeedCardBar implements CardBar {
 
     private void updateLayout(int slotCount) {
         PvzceClient client = host.client();
-        int guiW = client.guiWidth();
         int guiH = client.guiHeight();
         int left = CardBarLayout.cardsLeft(host.hasSunBank());
         int right = (int) host.rightBound();
-        viewportX = left;
-        viewportWidth = Math.max(120, right - left);
+        barX = left;
+        barWidth = Math.max(120, right - left);
         cardHeight = Math.max(56, Math.min(74, guiH / 6));
         cardWidth = Math.max(38, Math.round(cardHeight * 100F / 140F));
         cardGap = Math.max(2, cardWidth / 10);
@@ -186,6 +207,9 @@ public final class SeedCardBar implements CardBar {
         viewportHeight = cardHeight;
 
         int contentWidth = slotCount * (cardWidth + cardGap) - cardGap;
+        boolean overflowing = contentWidth > barWidth;
+        viewportX = barX + (overflowing ? SCROLL_BUTTON_WIDTH : 0);
+        viewportWidth = barWidth - (overflowing ? 2 * SCROLL_BUTTON_WIDTH : 0);
         cardMaxScroll = Math.max(0, contentWidth - viewportWidth);
         cardScrollOffset = Math.max(0, Math.min(cardScrollOffset, cardMaxScroll));
     }

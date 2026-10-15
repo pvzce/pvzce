@@ -40,6 +40,10 @@ public final class EditorContext {
         return screen;
     }
 
+    public java.util.Set<Identifier> contentIds(com.pvzce.api.registry.ResourceKey<? extends com.pvzce.api.registry.Registry<?>> key) {
+        return screen.editorContentIds(key);
+    }
+
     public PvzceClient client() {
         return screen.client();
     }

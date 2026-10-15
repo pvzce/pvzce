@@ -68,6 +68,11 @@ public final class PvzceResourceManager implements AutoCloseable {
     private final List<PvzcePack> packs = new ArrayList<>();
     private final ClassLoader classLoader;
     private Path gameDir;
+    private Path workspaceOverlay;
+
+    /** Session-only overlay: never part of pack discovery or saved selection. */
+    public Path workspaceOverlay() { return workspaceOverlay; }
+    public void workspaceOverlay(Path root) { workspaceOverlay = root; }
 
     public PvzceResourceManager(ClassLoader classLoader) {
         this.classLoader = classLoader;
@@ -95,6 +100,7 @@ public final class PvzceResourceManager implements AutoCloseable {
                 addDirectoryPacks(root, selection);
             }
         }
+        if (workspaceOverlay != null) packs.add(new DirectoryPack(workspaceOverlay, "workshop-preview"));
     }
 
     private void addDirectoryPacks(PackRoot root, PackSelection selection) throws IOException {

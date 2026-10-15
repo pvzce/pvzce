@@ -524,7 +524,26 @@ final public class SmokeDriver {
     }
 
     boolean openNamedScreen(String smokeScreen) {
-        if ("mods".equals(smokeScreen)) {
+        if ("workshop".equals(smokeScreen)) {
+            var menu=new com.pvzce.client.gui.screens.TitleScreen(client);
+            client.setScreenReplacing(menu); menu.initIfNeeded();
+            String label=com.pvzce.client.gui.GuiLang.raw("gui.pvzce.workshop.title", "创意工坊");
+            for(var widget:menu.widgets())if(widget instanceof com.pvzce.client.gui.components.Button button && button.label().equals(label)) {
+                menu.dispatchMouseClicked(button.x()+button.width()/2D,button.y()+button.height()/2D,0);break;
+            }
+        } else if (java.util.Set.of("workspace", "workshop_content", "workshop_frames", "workshop_animation").contains(smokeScreen)) {
+            try {
+                var workspace=com.pvzce.common.workshop.Workspace.list(client.gameDir()).stream()
+                        .filter(w->w.namespace().equals(System.getProperty("pvzce.smokeWorkspace", "demo"))).findFirst().orElseThrow();
+                if(smokeScreen.equals("workspace"))client.setScreenReplacing(new com.pvzce.client.gui.workshop.WorkshopScreen(client,workspace));
+                else {
+                    String path=System.getProperty(smokeScreen.equals("workshop_content")?"pvzce.smokeContent":"pvzce.smokeAnimation", "");
+                    client.setScreenReplacing(smokeScreen.equals("workshop_animation")
+                            ?new com.pvzce.client.gui.workshop.WorkshopPreviewScreen(client,workspace,path)
+                            :new com.pvzce.client.gui.workshop.WorkshopJsonScreen(client,workspace,path));
+                }
+            } catch(Exception e) { client.setScreenReplacing(new com.pvzce.client.gui.workshop.WorkshopMessageScreen(client,e.getMessage())); }
+        } else if ("mods".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.mods.ModsScreen(client));
         } else if ("settings".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.SettingsScreen(client));

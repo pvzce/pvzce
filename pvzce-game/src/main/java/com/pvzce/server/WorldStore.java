@@ -32,6 +32,10 @@ public final class WorldStore {
     private static final String LEVEL_SAVE_FILE = "level.dat";
 
     private final Path gameDir;
+    private PlayerProfile sandbox;
+    public void beginSandbox() { flushProfile(); sandbox = PlayerProfile.unlockEverything(); }
+    public void endSandbox() { sandbox = null; }
+    public boolean sandbox() { return sandbox != null; }
     private PlayerProfile profile;
     private String profileWorld;
 
@@ -52,6 +56,7 @@ public final class WorldStore {
      * callers do not have to decide what an absent profile means.
      */
     public PlayerProfile profileFor(String worldName) {
+        if (sandbox != null) return sandbox;
         String safeWorld = WorldPaths.sanitize(worldName);
         if (profile != null && safeWorld.equals(profileWorld)) {
             return profile;
@@ -72,6 +77,7 @@ public final class WorldStore {
 
     /** Writes a world's profile, creating the world directory when needed. */
     public void saveProfile(String worldName, PlayerProfile toSave) {
+        if (sandbox != null) { sandbox = toSave; return; }
         String safeWorld = WorldPaths.sanitize(worldName);
         Path worldDir = WorldPaths.worldDir(gameDir, safeWorld);
         try {
@@ -86,6 +92,7 @@ public final class WorldStore {
 
     /** Flushes the cached profile if it belongs to this world; used on the way out. */
     public void flushProfile() {
+        if (sandbox != null) return;
         if (profile != null && profileWorld != null) {
             saveProfile(profileWorld, profile);
         }
@@ -134,6 +141,7 @@ public final class WorldStore {
      */
     public void writeCompletion(Path worldDir, Identifier id, Identifier winner, int tickCount,
                                 int plantCount) throws IOException {
+        if (sandbox != null) return;
         Path statusFile = LevelKey.statusFile(worldDir, id);
         Files.createDirectories(statusFile.getParent());
         CompoundTag status = new CompoundTag();

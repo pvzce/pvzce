@@ -45,6 +45,7 @@ public final class EntityPreview {
     private static final String POSE = "idle";
 
     private final PvzceClient client;
+    private final com.pvzce.api.registry.RegistryAccess content;
     private final Map<Identifier, ClientEntity> live = new LinkedHashMap<>(16, 0.75F, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<Identifier, ClientEntity> eldest) {
@@ -57,7 +58,12 @@ public final class EntityPreview {
     };
 
     public EntityPreview(PvzceClient client) {
+        this(client, com.pvzce.common.core.BuiltInRegistries.ACCESS);
+    }
+
+    public EntityPreview(PvzceClient client, com.pvzce.api.registry.RegistryAccess content) {
         this.client = client;
+        this.content = content;
     }
 
     /**
@@ -87,6 +93,7 @@ public final class EntityPreview {
         if (entity == null) {
             entity = new ClientEntity(-1 - live.size(), kind, contentId.toString(),
                     CELLS / 2F, CELLS / 2F, 100, 1, POSE, 0F, "");
+            entity.previewCatalog(content);
             entity.attachAnimationManager(client.animations());
             live.put(contentId, entity);
         }
@@ -95,7 +102,11 @@ public final class EntityPreview {
         client.clipping().push(x, y, width, height);
         try {
             client.beginOverlayWorldView(x, y, width, height, 0F, CELLS, 0F, CELLS);
-            client.animations().render(entity);
+            if (!client.animations().render(entity)) {
+                Identifier sprite = EntityArt.sprite(contentId, kind, content);
+                if (!client.hasTexture(sprite)) return false;
+                client.drawTexture(sprite, CELLS*0.1F, CELLS*0.1F, CELLS*0.8F, CELLS*0.8F, 0, 1, 1, 1, 1);
+            }
         } finally {
             client.clipping().pop();
             client.beginGuiView();

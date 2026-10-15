@@ -47,10 +47,14 @@ public final class SlotResolver {
     }
 
     public static Optional<ResolvedCard> resolve(Identifier slotId) {
+        return resolve(slotId, BuiltInRegistries.ACCESS);
+    }
+
+    public static Optional<ResolvedCard> resolve(Identifier slotId, com.pvzce.api.registry.RegistryAccess access) {
         if (slotId == null) {
             return Optional.empty();
         }
-        SlotDef slot = BuiltInRegistries.SLOT_TYPES.get(slotId);
+        SlotDef slot = access.get(PvzceRegistries.SLOT_TYPES).get(slotId);
         if (slot != null) {
             Slot.Kind kind = switch (slot.kind()) {
                 case PLANT -> Slot.Kind.PLANT;
@@ -62,7 +66,7 @@ public final class SlotResolver {
             int cooldown = slot.cost().cooldownTicks();
             int uses = Slot.UNLIMITED_USES;
             if (kind == Slot.Kind.PLANT) {
-                PlantDef plant = BuiltInRegistries.PLANTS.get(slot.content());
+                PlantDef plant = access.get(PvzceRegistries.PLANTS).get(slot.content());
                 if (plant != null && cost == 0) {
                     cost = plant.cost().amountOf(PvzceIds.SUN);
                 }
@@ -70,7 +74,7 @@ public final class SlotResolver {
                     cooldown = plant.cost().cooldownTicks();
                 }
             } else if (kind == Slot.Kind.TOOL) {
-                ToolDef tool = BuiltInRegistries.TOOLS.get(slot.content());
+                ToolDef tool = access.get(PvzceRegistries.TOOLS).get(slot.content());
                 if (tool != null) {
                     uses = tool.uses();
                     if (cooldown == 0) {
@@ -86,7 +90,7 @@ public final class SlotResolver {
             return Optional.of(new ResolvedCard(slotId, slot.content(), kind, cost, cooldown, uses,
                     slot.icon().isPresent() ? slot.icon() : fallbackIcon(kind, slot.content())));
         }
-        PlantDef plant = BuiltInRegistries.PLANTS.get(slotId);
+        PlantDef plant = access.get(PvzceRegistries.PLANTS).get(slotId);
         if (plant != null) {
             return Optional.of(new ResolvedCard(slotId, slotId, Slot.Kind.PLANT,
                     plant.cost().amountOf(PvzceIds.SUN), plant.cost().cooldownTicks(), Slot.UNLIMITED_USES,

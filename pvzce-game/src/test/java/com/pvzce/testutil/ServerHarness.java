@@ -51,6 +51,12 @@ public final class ServerHarness implements AutoCloseable {
         return harness;
     }
 
+    /** Queues a batch before starting, so every packet reaches the same initial receive pass. */
+    public static ServerHarness createWithPackets(Path gameDir, List<? extends PvzcePacket> initialPackets)
+            throws Exception {
+        return new ServerHarness(gameDir, initialPackets);
+    }
+
     /** Starts a server and creates {@code world} on it (unlocked/sandbox when asked). */
     public static ServerHarness createWithWorld(Path gameDir, String world, boolean unlockAll) throws Exception {
         ServerHarness harness = new ServerHarness(gameDir);
@@ -59,11 +65,16 @@ public final class ServerHarness implements AutoCloseable {
     }
 
     private ServerHarness(Path gameDir) throws Exception {
+        this(gameDir, List.of());
+    }
+
+    private ServerHarness(Path gameDir, List<? extends PvzcePacket> initialPackets) throws Exception {
         this.gameDir = gameDir;
         PvzcePackets.register();
         this.pair = Connection.createMemoryPair();
         this.server = new PvzceServer(pair.server(), gameDir, Thread.currentThread().getContextClassLoader());
         pair.client().setListener(packets::add);
+        initialPackets.forEach(pair.client()::send);
         server.start();
     }
 

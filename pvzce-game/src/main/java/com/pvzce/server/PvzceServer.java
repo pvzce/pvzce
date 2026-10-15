@@ -339,6 +339,47 @@ public final class PvzceServer implements Runnable {
         }
     }
 
+    private String workshopWorld;
+    private String workshopPreviousWorld;
+
+    private void workshopSession(String workspace) {
+        try {
+            if (workspace.isEmpty()) {
+                if (workshopWorld != null) {
+                    leaveLevel();
+                    worlds.endSandbox();
+                    workshopWorld = null;
+                    lastRequestedWorld = workshopPreviousWorld;
+                    resourceManager.workspaceOverlay(null);
+                    reloadData(false);
+                }
+                connection.send(new com.pvzce.common.network.packet.WorkshopSessionS2C(false, ""));
+                refreshLevelList();
+                return;
+            }
+            if (level != null || workshopWorld != null) throw new IllegalStateException("Leave the current level or test first");
+            workshopPreviousWorld = lastRequestedWorld;
+            var source = com.pvzce.common.workshop.Workspace.list(gameDir).stream()
+                    .filter(w -> w.root().getFileName().toString().equals(workspace)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Workspace does not exist"));
+            com.pvzce.common.workshop.WorkshopContent.validate(source);
+            workshopWorld = "workshop_test_" + java.util.UUID.randomUUID().toString().replace("-", "");
+            worlds.beginSandbox();
+            resourceManager.workspaceOverlay(source.root());
+            reloadData(false);
+            connection.send(new com.pvzce.common.network.packet.WorkshopSessionS2C(true, ""));
+            lastRequestedWorld = workshopWorld;
+            sendLevelList(workshopWorld);
+        } catch (Exception e) {
+            resourceManager.workspaceOverlay(null);
+            worlds.endSandbox();
+            workshopWorld = null;
+            lastRequestedWorld = workshopPreviousWorld;
+            reloadData(false);
+            connection.send(new com.pvzce.common.network.packet.WorkshopSessionS2C(false, java.util.Objects.toString(e.getMessage(), e.toString())));
+        }
+    }
+
     public void reloadData(boolean announce) {
         try {
             resourceManager.reload();
@@ -1060,6 +1101,7 @@ public final class PvzceServer implements Runnable {
     private void createLevel(String levelId, String worldName, LevelIntent intent,
                              List<Identifier> requestedSeeds, List<Identifier> requestedBuffs,
                              Identifier requestedTeam) {
+        if (workshopWorld != null) worldName = workshopWorld;
         Identifier id = Identifier.parse(levelId);
         LevelDef def = BuiltInRegistries.LEVELS.get(id);
         if (def == null) {
@@ -1184,8 +1226,10 @@ public final class PvzceServer implements Runnable {
         this.savePromptPending = false;
         this.manualPause = false;
         try {
-            Files.createDirectories(worldDir);
-            Files.writeString(worldDir.resolve("session.lock"), String.valueOf(System.currentTimeMillis()));
+            if (!worlds.sandbox()) {
+                Files.createDirectories(worldDir);
+                Files.writeString(worldDir.resolve("session.lock"), String.valueOf(System.currentTimeMillis()));
+            }
         } catch (IOException ignored) {
         }
         // A run's music belongs to that run. A level's timeline switches from the background
@@ -1316,6 +1360,7 @@ public final class PvzceServer implements Runnable {
     private Identifier pendingSaveLevel;
 
     public void saveGame() {
+        if (worlds.sandbox()) return;
         LevelServer current = level;
         if (current == null || currentWorld == null) {
             return;
@@ -1613,6 +1658,8 @@ public final class PvzceServer implements Runnable {
                 if (current != null) {
                     current.releaseMower(mower.row());
                 }
+            } else if (packet instanceof com.pvzce.common.network.packet.WorkshopSessionC2S workshop) {
+                workshopSession(workshop.workspace());
             } else if (packet instanceof ReloadPacksC2S) {
                 // The player switched a pack off on the packs page. The list is the file both
                 // sides read, so a reload here picks it up; the message reloadData sends is also
@@ -1623,6 +1670,10 @@ public final class PvzceServer implements Runnable {
                 refreshLevelList();
             } else if (packet instanceof CommandC2S command) {
                 submitCommand(command.command());
+                // Packet handlers already run on the server thread. Complete this command
+                // before the next packet observes its effects (notably an unlock followed
+                // by a level request in smokeSetup); stdin remains queued on the same path.
+                processCommands();
             } else if (packet instanceof com.pvzce.common.network.packet.PickCardC2S) {
                 // Selected card remains client-side; the server validates on placement.
             }

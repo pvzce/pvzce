@@ -99,7 +99,7 @@ public final class RhythmPage implements EditorPage {
         labels.add(new String[] {GuiLang.raw("pvzce.editor.rhythm.music", "曲目"),
                 Integer.toString(y), Integer.toString(area.x() + 12)});
         musicBox = context.own(new EditBox(x, y, fieldW, rowH, () -> { }));
-        musicBox.setValue(defaultMusic());
+        musicBox.setValue(defaultMusic(context));
         y -= rowH + 8;
         labels.add(new String[] {GuiLang.raw("pvzce.editor.rhythm.bpm", "BPM"),
                 Integer.toString(y), Integer.toString(area.x() + 12)});
@@ -152,8 +152,8 @@ public final class RhythmPage implements EditorPage {
     }
 
     /** The first music event the pack has, so the field starts on something real. */
-    private static String defaultMusic() {
-        for (Identifier id : BuiltInRegistries.SOUND_EVENTS.keySet()) {
+    private static String defaultMusic(EditorContext context) {
+        for (Identifier id : context.contentIds(com.pvzce.common.core.PvzceRegistries.SOUND_EVENTS)) {
             if (id.path().startsWith("music/")) {
                 return id.toString();
             }
@@ -211,8 +211,8 @@ public final class RhythmPage implements EditorPage {
                 category = parts[1];
             }
         }
-        Path dir = context.client().gameDir()
-                .resolve("datapacks/user_levels/data/pvzce/levels")
+        Path dir = context.screen().editorPackRoot()
+                .resolve("data").resolve(current == null ? "pvzce" : current.namespace()).resolve("levels")
                 .resolve(theme).resolve(category);
         try {
             Files.createDirectories(dir);
@@ -225,7 +225,7 @@ public final class RhythmPage implements EditorPage {
                 // typed above. The level's own name is the author's prefix plus the difficulty -
                 // the song is not in it, because the author chose the prefix.
                 Files.writeString(file, RhythmCharts.levelJson(
-                        Identifier.of("pvzce", theme + "/" + category + "/" + name),
+                        Identifier.of(current == null ? "pvzce" : current.namespace(), theme + "/" + category + "/" + name),
                         prefix + " · " + tier.label(), song, music, bpm, tier, volleys, sun,
                         initialSun));
                 written++;

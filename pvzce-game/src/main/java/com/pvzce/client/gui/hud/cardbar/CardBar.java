@@ -47,6 +47,11 @@ public interface CardBar {
     /** Draws the bar. */
     void render();
 
+    /** Non-card controls, handled before card picking; true when the press was consumed. */
+    default boolean click(double guiX, double guiY, int button) {
+        return false;
+    }
+
     /** The card index under the cursor, or {@code -1}. */
     int slotAt(double guiX, double guiY);
 

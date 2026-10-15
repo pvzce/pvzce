@@ -149,7 +149,7 @@ public final class MusicPage implements EditorPage {
                 Math.max(50, eventsTop - eventsBottom), MathUtil.clamp(rowH - 2, 24, 32),
                 (renderClient, event, rx, ry) -> renderClient.fonts().body().draw(event, rx, ry + 4,
                         0.68F, 0.9F, 0.95F, 0.9F, 1F)));
-        musicEventList.setEntries(musicEventOptions());
+        musicEventList.setEntries(musicEventOptions(context));
 
         refreshMusicDetail();
     }
@@ -198,11 +198,11 @@ public final class MusicPage implements EditorPage {
      * <p>Read from the sound-event registry rather than a literal list, so a data pack or a
      * mod that registers a music event gets it in this list.
      */
-    private static List<String> musicEventOptions() {
+    private static List<String> musicEventOptions(EditorContext context) {
         List<String> events = new ArrayList<>();
         events.add(MusicEditorModel.STOP_LABEL);
-        BuiltInRegistries.SOUND_EVENTS.keySet().stream()
-                .filter(id -> id.path().startsWith("music/"))
+        context.contentIds(com.pvzce.common.core.PvzceRegistries.SOUND_EVENTS).stream()
+
                 .map(Identifier::toString)
                 .sorted()
                 .forEach(events::add);

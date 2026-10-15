@@ -51,10 +51,10 @@ public final class SoundEngine implements AutoCloseable {
     private static final long SFX_MIN_INTERVAL_NANOS = 130_000_000L;
     private static final Random RANDOM = new Random();
 
-    private record SoundVariant(String file, int weight, float volume, float pitch) {
+    record SoundVariant(String file, int weight, float volume, float pitch) {
     }
 
-    private record EventDefinition(List<SoundVariant> variants) {
+    record EventDefinition(List<SoundVariant> variants) {
     }
 
     private final PvzceResourceManager resources;
@@ -595,26 +595,26 @@ public final class SoundEngine implements AutoCloseable {
         if (cached != null) {
             return cached;
         }
-        EventDefinition parsed = parseDefinition(eventPath);
+        EventDefinition parsed = parseDefinition(resources, eventPath);
         events.put(eventPath, parsed);
         return parsed;
     }
 
-    private EventDefinition parseDefinition(String eventPath) {
+    static EventDefinition parseDefinition(PvzceResourceManager resources, String eventPath) {
         try {
-            var meta = resources.getAsset(Identifier.withDefaultNamespace("sounds.json"));
+            Identifier eventId = Identifier.parse(eventPath);
+            var meta = resources.getAsset(Identifier.of(eventId.namespace(), "sounds.json"));
             if (meta.isPresent()) {
                 JsonObject root = JsonParser.parseString(meta.get().readString()).getAsJsonObject();
-                JsonObject event = root.getAsJsonObject(eventPath);
+                JsonObject event = root.getAsJsonObject(eventId.path());
                 if (event != null && event.has("sounds")) {
                     List<SoundVariant> variants = new ArrayList<>();
                     for (JsonElement element : event.getAsJsonArray("sounds")) {
-                        JsonObject sound = element.getAsJsonObject();
-                        String name = sound.get("name").getAsString();
-                        String file = name.contains(":") ? name.substring(name.indexOf(':') + 1) : name;
-                        if (file.startsWith("sounds/")) {
-                            file = file.substring("sounds/".length());
-                        }
+                        JsonObject sound = element.isJsonObject() ? element.getAsJsonObject() : new JsonObject();
+                        String name = element.isJsonPrimitive() ? element.getAsString() : sound.get("name").getAsString();
+                        Identifier named = Identifier.parse(name.contains(":") ? name : eventId.namespace() + ":" + name);
+                        String relative = named.path().startsWith("sounds/") ? named.path().substring(7) : named.path();
+                        String file = named.namespace() + ":" + relative;
                         int weight = sound.has("weight") ? Math.max(1, sound.get("weight").getAsInt()) : 1;
                         float volume = sound.has("volume") ? sound.get("volume").getAsFloat() : 1F;
                         float pitch = sound.has("pitch") ? sound.get("pitch").getAsFloat() : 1F;
@@ -666,13 +666,8 @@ public final class SoundEngine implements AutoCloseable {
 
     private int loadBuffer(String file) {
         try {
-            var resource = resources.getResource("assets/pvzce/sounds/" + file + ".ogg");
-            if (resource.isEmpty()) {
-                Identifier id = Identifier.tryParse("pvzce:sounds/" + file);
-                if (id != null) {
-                    resource = resources.getAsset(id.withSuffix(".ogg"));
-                }
-            }
+            Identifier named = Identifier.parse(file);
+            var resource = resources.getAsset(Identifier.of(named.namespace(), "sounds/" + named.path() + ".ogg"));
             if (resource.isEmpty()) {
                 LOGGER.warn("Missing sound file {}", file);
                 return 0;
@@ -713,7 +708,7 @@ public final class SoundEngine implements AutoCloseable {
     }
 
     private static String eventPath(String soundId) {
-        return soundId.contains(":") ? soundId.substring(soundId.indexOf(':') + 1) : soundId;
+        return Identifier.parse(soundId).toString();
     }
 
     /** Pitch is clamped to the OpenAL-safe range in one place. */

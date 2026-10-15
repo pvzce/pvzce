@@ -110,8 +110,14 @@ public final class HammerCapability implements ZombieCapability {
             return;
         }
         impCooldown = impIntervalTicks;
-        level.spawnZombie(imp, zombie.team(), Math.max(1F, zombie.gridX() - impCellsAhead), zombie.gridY(), 1F, zombie.surfaceId());
-        level.emitEffect("", zombie.position(), zombie.surfaceId(), PvzceSounds.ZOMBIE_IMP);
+        float x = Math.max(1F, zombie.gridX() - impCellsAhead);
+        if (level.sceneAt((int) Math.floor(x), zombie.gridY(), zombie.surfaceId()) == null) {
+            x = zombie.cellX();
+        }
+        if (level.sceneAt((int) Math.floor(x), zombie.gridY(), zombie.surfaceId()) != null
+                && level.spawnZombie(imp, zombie.team(), x, zombie.gridY(), 1F, zombie.surfaceId()) != null) {
+            level.emitEffect("", zombie.position(), zombie.surfaceId(), PvzceSounds.ZOMBIE_IMP);
+        }
     }
 
     @Override

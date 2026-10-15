@@ -73,6 +73,9 @@ public class ZombieEntity extends PvzceEntity {
      */
     public static final int RISE_TICKS = PvzceConstants.ZOMBIE_RISE_TICKS;
 
+    private String capabilityAction;
+    public void capabilityState(String state) { capabilityAction = state; setAnimation(state); }
+    public void beginCapabilityAction(String state) { capabilityAction = state; restartAnimation(state); }
     private final ZombieDef def;
     private final List<Instance> capabilities = new ArrayList<>();
     private final List<StatusInstance> statuses = new ArrayList<>();
@@ -303,6 +306,7 @@ public class ZombieEntity extends PvzceEntity {
             }
             return;
         }
+        capabilityAction = null;
         tickStatuses();
         if (drownInWater(level)) {
             return;
@@ -319,6 +323,7 @@ public class ZombieEntity extends PvzceEntity {
             }
         }
         walkOrEat(level);
+        if (capabilityAction != null) setAnimation(capabilityAction);
     }
 
     /**
@@ -1156,10 +1161,11 @@ public class ZombieEntity extends PvzceEntity {
         tag.putInt("corpseTicks", corpseTicks);
 
         CompoundTag saved = new CompoundTag();
+        java.util.Map<Identifier,Integer> occurrences = new java.util.HashMap<>();
         for (Instance instance : capabilities) {
             CompoundTag capabilityTag = new CompoundTag();
             instance.capability.save(capabilityTag);
-            saved.put(instance.type.toString(), capabilityTag);
+            saved.put(com.pvzce.api.content.capability.EntityCapability.stateKey(instance.type, occurrences), capabilityTag);
         }
         tag.put("capabilities", saved);
 
@@ -1193,8 +1199,11 @@ public class ZombieEntity extends PvzceEntity {
         corpseTicks = Math.max(0, Math.min(CORPSE_TICKS, tag.getInt("corpseTicks")));
 
         CompoundTag saved = tag.getCompound("capabilities");
+        java.util.Map<Identifier,Integer> occurrences = new java.util.HashMap<>();
         for (Instance instance : capabilities) {
-            instance.capability.load(saved.getCompound(instance.type.toString()));
+            String stateKey = com.pvzce.api.content.capability.EntityCapability.stateKey(instance.type, occurrences);
+            if (!saved.contains(stateKey)) stateKey = instance.type.toString();
+            instance.capability.load(saved.getCompound(stateKey));
         }
 
         buildups.clear();

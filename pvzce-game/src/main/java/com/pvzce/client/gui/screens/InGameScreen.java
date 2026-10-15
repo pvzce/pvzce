@@ -3911,6 +3911,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             cancelSelection();
             return;
         }
+        if (cardBar().click(guiX, guiY, button)) {
+            return;
+        }
         int slot = slotAt(guiX, guiY);
         if (slot >= 0) {
             if (button == 0) {

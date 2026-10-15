@@ -118,7 +118,7 @@ public final class PaletteList extends AbstractSelectionList<PaletteList.Item> {
 
     private final Kind kind;
     private final int iconSize;
-    private final EntityPreview previews;
+    private EntityPreview previews;
 
     public PaletteList(PvzceClient client, int x, int y, int width, int height, int entryHeight,
                        Kind kind) {
@@ -130,6 +130,11 @@ public final class PaletteList extends AbstractSelectionList<PaletteList.Item> {
         this.iconSize = Math.max(MIN_ICON, (int) (entryHeight * 0.7F));
         this.previews = new EntityPreview(client);
         setEntryRenderer(this::renderRow);
+    }
+
+    public void previewCatalog(com.pvzce.api.registry.RegistryAccess content, PvzceClient client) {
+        previews.release();
+        previews = new EntityPreview(client, content);
     }
 
     public Kind kind() {

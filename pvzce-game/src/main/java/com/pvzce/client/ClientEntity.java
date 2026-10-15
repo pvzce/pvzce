@@ -20,6 +20,10 @@ import com.pvzce.common.network.packet.EchoNetworkS2C;
  * server decision (a zombie's layer changes while it digs or flies).
  */
 public final class ClientEntity extends Entity implements com.pvzce.client.api.MovingTarget {
+    private com.pvzce.api.registry.RegistryAccess previewCatalog;
+    public void previewCatalog(com.pvzce.api.registry.RegistryAccess access) { previewCatalog = access; }
+    public com.pvzce.api.registry.RegistryAccess previewCatalog() { return previewCatalog == null ? com.pvzce.common.core.BuiltInRegistries.ACCESS : previewCatalog; }
+
     private EchoNetworkS2C echoNetwork;
     private boolean fertilized;
     private boolean laddered;

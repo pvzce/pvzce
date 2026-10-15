@@ -98,6 +98,7 @@ public final class CanvasPage implements EditorPage {
                 // preview entities never come from a spawn packet, so without this their
                 // playAnimation() was a no-op and every preset stayed a static sprite.
                 if (context.client().animations() != null) {
+                    entity.previewCatalog(context.screen().editorCatalog());
                     entity.attachAnimationManager(context.client().animations());
                 }
                 canvasEntities.add(new CanvasEntity(json, entity));
@@ -349,7 +350,7 @@ public final class CanvasPage implements EditorPage {
             // Grass last, i.e. at the bottom row: the list is drawn bottom-up, and the
             // bottom row is the one nearest the board an author is painting.
             case SCENE -> java.util.stream.Stream.concat(
-                            BuiltInRegistries.SCENE_ELEMENTS.keySet().stream()
+                            context.contentIds(com.pvzce.common.core.PvzceRegistries.SCENE_ELEMENTS).stream()
                                     .sorted()
                                     .filter(id -> !"grass".equals(id.path())),
                             java.util.stream.Stream.of(Identifier.withDefaultNamespace("grass")))
@@ -358,8 +359,8 @@ public final class CanvasPage implements EditorPage {
                     .toList();
             case ENTITY -> {
                 boolean zombies = view == View.ZOMBIE;
-                yield (zombies ? BuiltInRegistries.ZOMBIES.keySet()
-                        : BuiltInRegistries.PLANTS.keySet()).stream()
+                yield (zombies ? context.contentIds(com.pvzce.common.core.PvzceRegistries.ZOMBIES)
+                        : context.contentIds(com.pvzce.common.core.PvzceRegistries.PLANTS)).stream()
                         .sorted()
                         .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY,
                                 zombies ? "zombie" : "plant", id, null))
@@ -367,6 +368,7 @@ public final class CanvasPage implements EditorPage {
             }
             default -> List.of();
         };
+        palette.previewCatalog(context.screen().editorCatalog(), context.client());
         palette.setItems(items);
         if (!items.isEmpty()) {
             palette.select(0);
@@ -465,7 +467,7 @@ public final class CanvasPage implements EditorPage {
         // No animation resource: fall back to the sprite with the same visuals table
         // the board uses, so the size still matches the game.
         EntityVisuals.Visuals visuals = EntityVisuals.of(entry.kind());
-        client.drawTexture(EntityTextures.forEntity(entry.id()),
+        client.drawTexture(com.pvzce.common.core.EntityArt.sprite(Identifier.tryParse(entry.id()), entry.kind(), context.screen().editorCatalog()),
                 entry.x() + 0.5F - visuals.spriteWidth() / 2F,
                 entry.y() + 0.5F - visuals.spriteHeight() / 2F + height,
                 visuals.spriteWidth(), visuals.spriteHeight(), visuals.baseZ(), 1F, 1F, 1F, 1F);

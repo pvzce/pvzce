@@ -74,6 +74,14 @@ public class MappedRegistry<T> implements Registry<T> {
         RegistryEntryAddedCallback.fire(this, id, value);
     }
 
+    /** Isolated reload baseline: no old data-pack entries, tags or callback subscriptions. */
+    public MappedRegistry<T> copyForReload() {
+        MappedRegistry<T> copy = new MappedRegistry<>(key);
+        for (Identifier id : byKey.keySet()) if (!dynamicKeys.contains(id)) copy.putInternal(id, byKey.get(id), false);
+        copy.freeze();
+        return copy;
+    }
+
     public void clearDynamic() {
         if (frozen) {
             throw new IllegalStateException("Registry is frozen");

@@ -48,7 +48,7 @@ import java.util.Optional;
  * <em>the dancer's own team</em>, so a hypnotised dancer summons dancers that fight for the
  * plants - the original's "Disco is Undead" achievement, with no branch for it here.
  */
-public final class SummonDancersCapability implements ZombieCapability {
+public final class SummonDancersCapability implements ZombieCapability, com.pvzce.api.content.capability.PlantCapability {
     /**
      * Where the original's dancer stops to summon.
      *
@@ -177,13 +177,19 @@ public final class SummonDancersCapability implements ZombieCapability {
     }
 
     @Override
-    public ZombieCapability instantiate() {
+    public SummonDancersCapability instantiate() {
         return new SummonDancersCapability(dancer, count, summonAtX, approachSpeed, summonTicks,
                 resummonTicks, sound);
     }
 
     @Override
-    public void tick(ZombieEntity zombie, LevelAccess level) {
+    public void tick(ZombieEntity zombie, LevelAccess level) { tickHost(new com.pvzce.common.capability.CapabilityHost(zombie), level); }
+    @Override
+    public void tick(com.pvzce.server.entity.PlantEntity plant, LevelAccess level) {
+        if (phase == Phase.APPROACH) { phase = Phase.SUMMONING; timer = summonTicks; }
+        tickHost(new com.pvzce.common.capability.CapabilityHost(plant), level);
+    }
+    private void tickHost(com.pvzce.common.capability.CapabilityHost zombie, LevelAccess level) {
         switch (phase) {
             case APPROACH -> {
                 if (zombie.cellX() <= summonAtX) {
@@ -262,13 +268,16 @@ public final class SummonDancersCapability implements ZombieCapability {
      * afterwards; the scan is over the three rows the formation touches, which is where a
      * member of the crew can be.
      */
-    private void call(ZombieEntity zombie, LevelAccess level) {
+    private void call(com.pvzce.common.capability.CapabilityHost zombie, LevelAccess level) {
         boolean summonedAny = false;
         for (int slot = 0; slot < count; slot++) {
             int[] offset = FORMATION.get(slot);
             int row = zombie.gridY() + offset[1];
             float x = zombie.cellX() + offset[0];
             if (row < 0 || row >= level.height() || x < 0 || x > level.width()) {
+                continue;
+            }
+            if (level.sceneAt((int) Math.floor(x), row, zombie.surfaceId()) == null) {
                 continue;
             }
             if (occupied(level, zombie, row, x)) {
@@ -281,7 +290,7 @@ public final class SummonDancersCapability implements ZombieCapability {
         if (summonedAny) {
             // The crew arrives to the original's own sting; without it the formation simply
             // appears, which is the one thing about this zombie the player is meant to notice.
-            level.emitEffect("", zombie.position(), zombie.surfaceId(), sound.orElseGet(() -> zombie.def().sounds().special()
+            level.emitEffect("", zombie.position(), zombie.surfaceId(), sound.orElseGet(() -> (zombie.entity() instanceof ZombieEntity z ? z.def().sounds().special() : java.util.Optional.<Identifier>empty())
                             .orElse(PvzceSounds.ZOMBIE_DANCER)));
         }
     }
@@ -293,11 +302,12 @@ public final class SummonDancersCapability implements ZombieCapability {
      * team and must not be mistaken for holes in the formation - and must not stop this one
      * from calling its own either.
      */
-    private boolean occupied(LevelAccess level, ZombieEntity dancer, int row, float x) {
+    private boolean occupied(LevelAccess level, com.pvzce.common.capability.CapabilityHost dancer, int row, float x) {
         return level.zombiesInRow(row).stream()
                 .filter(other -> other != null && !other.isRemoved())
                 .filter(other -> other.defId().equals(this.dancer))
                 .filter(other -> other.team() == dancer.team())
+                .filter(other -> other.surfaceId().equals(dancer.surfaceId()))
                 .anyMatch(other -> Math.abs(other.cellX() - x) <= SLOT_TOLERANCE);
     }
 

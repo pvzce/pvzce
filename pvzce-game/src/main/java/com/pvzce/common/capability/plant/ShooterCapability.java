@@ -25,7 +25,7 @@ import java.util.Optional;
  * "look for a target before committing" rule and the one-tick {@code idle} reset
  * now live here instead of inside {@code PlantEntity}.
  */
-public final class ShooterCapability implements PlantCapability {
+public final class ShooterCapability implements PlantCapability, com.pvzce.api.content.capability.ZombieCapability {
     public static final int DEFAULT_INTERVAL = 90;
 
     /**
@@ -143,12 +143,15 @@ public final class ShooterCapability implements PlantCapability {
     }
 
     @Override
-    public PlantCapability instantiate() {
+    public ShooterCapability instantiate() {
         return new ShooterCapability(intervalTicks, shots, sound, firstDelayTicks, hideWithin, independentShots, shootState);
     }
 
     @Override
-    public void tick(PlantEntity plant, LevelAccess level) {
+    public void tick(PlantEntity plant, LevelAccess level) { tickHost(new com.pvzce.common.capability.CapabilityHost(plant), level); }
+    @Override
+    public void tick(ZombieEntity zombie, LevelAccess level) { tickHost(new com.pvzce.common.capability.CapabilityHost(zombie), level); }
+    private void tickHost(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         // The tail of a volley leaves even if the plant ducks or starts its next cooldown in the
         // meantime: those projectiles were fired, and a repeater's second pea appearing only if
         // its plant kept facing the right way would be a shot the player is owed and does not get.
@@ -215,7 +218,7 @@ public final class ShooterCapability implements PlantCapability {
     /** The tail of a volley whose ticks have come; no cooldown, no target, no new decision. */
     @Override
     public void tickPending(PlantEntity plant, LevelAccess level) {
-        firePendingShots(plant, level);
+        firePendingShots(new com.pvzce.common.capability.CapabilityHost(plant), level);
     }
 
     /**
@@ -228,16 +231,16 @@ public final class ShooterCapability implements PlantCapability {
      */
     @Override
     public boolean strike(PlantEntity plant, LevelAccess level) {
-        if (removed(plant)) {
+        if (plant == null || plant.isRemoved()) {
             return false;
         }
-        fire(plant, level, shots);
+        fire(new com.pvzce.common.capability.CapabilityHost(plant), level, shots);
         java.util.Arrays.fill(shotCooldowns, intervalTicks);
         return true;
     }
 
     /** True for a plant that has already left the field; a strike on one does nothing. */
-    private static boolean removed(PlantEntity plant) {
+    private static boolean removed(com.pvzce.common.capability.CapabilityHost plant) {
         return plant == null || plant.isRemoved();
     }
 
@@ -248,13 +251,14 @@ public final class ShooterCapability implements PlantCapability {
      * The cooldown is set here too: a play-ordered volley that did not reset it would let a plant
      * fire on its own the moment the level stopped holding fire, as if the note had never happened.
      */
-    private void fire(PlantEntity plant, LevelAccess level, List<ProjectileRef> volley) {
+    private void fire(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level, List<ProjectileRef> volley) {
         boolean front = false;
         boolean back = false;
         // The level's say over how big a volley is (the rhythm levels' energy bar doubles and
         // triples it). Read per volley, because the bar moves while the run is going.
-        int repeats = Math.max(1, level.projectileCountMultiplier(plant));
-        for (ProjectileRef shot : volley) {
+        int repeats = Math.max(1, plant.projectileMultiplier(level));
+        for (ProjectileRef rawShot : volley) {
+            ProjectileRef shot = plant.entity() instanceof PlantEntity ? rawShot : plant.scaled(rawShot, level);
             if (shot.backward()) back = true; else front = true;
             // The muzzle sits on the firing side, so a backward shot leaves the plant
             // from its other edge instead of appearing inside it.
@@ -283,7 +287,7 @@ public final class ShooterCapability implements PlantCapability {
                 // multi-row volley has to keep - the threepeater's three peas belong to different
                 // lanes, so they are not a burst at all and leave together.
                 for (int i = 0; i < count; i++) {
-                    level.spawnProjectile(shot, muzzleX, row, plant);
+                    plant.shoot(level, shot, muzzleX, row);
                 }
                 continue;
             }
@@ -291,13 +295,13 @@ public final class ShooterCapability implements PlantCapability {
             // repeater - see ProjectileRef#burstDelay for why firing them together is the same
             // as firing one.
             if (count > 0) {
-                level.spawnProjectile(shot, muzzleX, row, plant);
+                plant.shoot(level, shot, muzzleX, row);
             }
             for (int i = 1; i < count; i++) {
                 pendingShots.add(new PendingShot(shot, muzzleX, row, i * burst));
             }
         }
-        level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), new WorldPosition(plant.cellX() + 0.5F, plant.cellY(), plant.height()), plant.surfaceId(), sound.orElseGet(() -> plant.def().sounds().shoot().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
+        level.emitEffect(PvzceParticles.PUFF_SHROOM_MUZZLE.toString(), new WorldPosition(plant.cellX() + 0.5F, plant.cellY(), plant.height()), plant.surfaceId(), sound.orElseGet(() -> plant.shootSound().orElse(PvzceSounds.PLANT_SHOOT_PEA)));
         plant.beginAction(independentShots && back
                 ? (front ? "shoot_both" : "shoot_back") : shootState);
         cooldown = intervalTicks;
@@ -310,7 +314,7 @@ public final class ShooterCapability implements PlantCapability {
      * here: a pea that has left the barrel does not follow the plant, and a repeat of the aiming
      * arithmetic would be a second answer to "where does this shot come from".
      */
-    private void firePendingShots(PlantEntity plant, LevelAccess level) {
+    private void firePendingShots(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         if (pendingShots.isEmpty()) {
             return;
         }
@@ -324,7 +328,7 @@ public final class ShooterCapability implements PlantCapability {
                 continue;
             }
             pendingShots.remove(i);
-            level.spawnProjectile(pending.shot(), pending.muzzleX(), pending.row(), plant);
+            plant.shoot(level, pending.shot(), pending.muzzleX(), pending.row());
         }
     }
 
@@ -338,14 +342,14 @@ public final class ShooterCapability implements PlantCapability {
      * same {@code canBeHitByGround} rule the firing search uses, so "what it shoots" and
      * "what it hides from" cannot drift apart.
      */
-    private boolean somethingTooClose(PlantEntity plant, LevelAccess level) {
+    private boolean somethingTooClose(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
             int row = plant.gridY() + rowOffset;
             if (row < 0 || row >= level.height()) {
                 continue;
             }
-            boolean found = level.enemiesInRow(row, plant.team(), plant.surfaceId()).stream()
-                    .filter(z -> !z.isRemoved() && z.canBeHitByGround())
+            boolean found = plant.enemies(level, row).stream()
+                    .filter(z -> !z.isRemoved() && com.pvzce.common.capability.CapabilityHost.ground(z))
                     .anyMatch(z -> Math.abs(z.cellX() - plant.cellX()) <= hideWithin
                             // A zombie standing in the plant's own cell has already arrived;
                             // it is as close as close gets, and `cellX` alone would read it as
@@ -362,11 +366,11 @@ public final class ShooterCapability implements PlantCapability {
      * The row a shot leaves in. Homing shots launch from the plant's own row;
      * ordinary target-row shots use the nearest reachable target's row.
      */
-    private float aimRow(ProjectileRef shot, PlantEntity plant, LevelAccess level) {
+    private float aimRow(ProjectileRef shot, com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         if (!shot.targetRow() || homing(shot)) {
             return plant.cellY() + shot.rowOffset();
         }
-        ZombieEntity nearest = nearestTarget(shot, plant, level);
+        com.pvzce.server.entity.PvzceEntity nearest = nearestTarget(shot, plant, level);
         return nearest == null ? plant.cellY() + shot.rowOffset() : nearest.gridY();
     }
 
@@ -376,17 +380,17 @@ public final class ShooterCapability implements PlantCapability {
                 c.value() instanceof com.pvzce.common.capability.projectile.HomingMotionCapability);
     }
 
-    private ZombieEntity nearestTarget(ProjectileRef shot, PlantEntity plant, LevelAccess level) {
-        if (homing(shot)) {
+    private com.pvzce.server.entity.PvzceEntity nearestTarget(ProjectileRef shot, com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
+        if (homing(shot) && plant.entity() instanceof PlantEntity) {
             return com.pvzce.common.capability.projectile.HomingMotionCapability.target(
                     level, plant.team(), plant.cellX(), plant.cellY());
         }
         float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
-        ZombieEntity best = null;
+        com.pvzce.server.entity.PvzceEntity best = null;
         float bestDistance = Float.MAX_VALUE;
         for (int row = 0; row < level.height(); row++) {
-            for (ZombieEntity zombie : level.enemiesInRow(row, plant.team(), plant.surfaceId())) {
-                if (zombie.isRemoved() || !zombie.canBeHitByGround()
+            for (com.pvzce.server.entity.PvzceEntity zombie : plant.enemies(level, row)) {
+                if (zombie.isRemoved() || !com.pvzce.common.capability.CapabilityHost.ground(zombie)
                         || !shot.covers(muzzleX, zombie.cellX())) {
                     continue;
                 }
@@ -415,25 +419,29 @@ public final class ShooterCapability implements PlantCapability {
      * the shot lengthens the reach that decides when to fire it - one number, both halves.
      */
     public boolean hasTarget(PlantEntity plant, LevelAccess level) {
+        return hasTarget(new com.pvzce.common.capability.CapabilityHost(plant), level);
+    }
+
+    private boolean hasTarget(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         return shots.stream().anyMatch(shot -> hasTarget(shot, plant, level));
     }
 
-    private boolean hasTarget(ProjectileRef raw, PlantEntity plant, LevelAccess level) {
-        ProjectileRef shot = PlantShots.scaled(raw, plant, level);
+    private boolean hasTarget(ProjectileRef raw, com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
+        ProjectileRef shot = plant.scaled(raw, level);
         float muzzleX = plant.cellX() + PlantShots.MUZZLE_OFFSET_X * shot.direction();
         var def = com.pvzce.common.core.BuiltInRegistries.PROJECTILES.get(shot.projectile());
         boolean air = def != null && def.isAirLayer() && shot.launchHeight() > 0F;
         if (shot.targetRow()) return nearestTarget(shot, plant, level) != null;
         if (shot.vectorY() != 0F || shot.vectorX() != 1F) {
-            return level.enemiesOf(plant.team()).stream()
-                    .anyMatch(z -> !z.isRemoved() && z.canBeHitByGround()
+            return plant.enemies(level).stream()
+                    .anyMatch(z -> !z.isRemoved() && com.pvzce.common.capability.CapabilityHost.ground(z)
                             && shot.covers(muzzleX, plant.cellY(), z.cellX(), z.cellY()));
         }
         for (int offset : shot.coveredRowOffsets()) {
             int row = plant.gridY() + offset;
             if (row < 0 || row >= level.height()) continue;
-            if (level.enemiesInRow(row, plant.team(), plant.surfaceId()).stream().anyMatch(z -> !z.isRemoved()
-                    && (air ? !z.isGrounded() : z.canBeHitByGround())
+            if (plant.enemies(level, row).stream().anyMatch(z -> !z.isRemoved()
+                    && (air ? com.pvzce.common.capability.CapabilityHost.air(z) : com.pvzce.common.capability.CapabilityHost.ground(z))
                     && shot.covers(muzzleX, z.cellX()))) return true;
         }
         return false;

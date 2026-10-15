@@ -36,7 +36,7 @@ import java.util.Optional;
  * speed and the same damage type, and the same code decides whether it hits. Nothing about
  * "zombie ammunition" is a special case.
  */
-public final class ZombieShooterCapability implements ZombieCapability {
+public final class ZombieShooterCapability implements ZombieCapability, com.pvzce.api.content.capability.PlantCapability {
     public static final int DEFAULT_INTERVAL_TICKS = 90;
 
     private final int intervalTicks;
@@ -45,7 +45,7 @@ public final class ZombieShooterCapability implements ZombieCapability {
     private final Identifier projectile;
     private final Optional<Identifier> sound;
 
-    private int cooldown;
+    private final com.pvzce.common.capability.plant.ShooterCapability engine;
 
     public ZombieShooterCapability(int intervalTicks, int damage, int count, Identifier projectile,
                                    Optional<Identifier> sound) {
@@ -55,6 +55,9 @@ public final class ZombieShooterCapability implements ZombieCapability {
         this.projectile = projectile == null
                 ? Identifier.withDefaultNamespace("pea") : projectile;
         this.sound = sound;
+        this.engine = new com.pvzce.common.capability.plant.ShooterCapability(this.intervalTicks,
+                java.util.List.of(new ProjectileRef(this.projectile, this.damage, this.count)), sound, 0);
+        CompoundTag initial = new CompoundTag(); initial.putInt("cooldown", 0); engine.load(initial);
     }
 
     public static final MapCodec<ZombieShooterCapability> CODEC =
@@ -93,7 +96,7 @@ public final class ZombieShooterCapability implements ZombieCapability {
     }
 
     @Override
-    public ZombieCapability instantiate() {
+    public ZombieShooterCapability instantiate() {
         return new ZombieShooterCapability(intervalTicks, damage, count, projectile, sound);
     }
 
@@ -105,60 +108,25 @@ public final class ZombieShooterCapability implements ZombieCapability {
      * shoots on its own clock on top of that.
      */
     @Override
-    public void tick(ZombieEntity zombie, LevelAccess level) {
-        if (cooldown > 0) {
-            cooldown--;
-            return;
-        }
-        PlantEntity target = nearestPlant(zombie, level);
-        if (target == null) {
-            // Nothing in front of it: the clock is not reset, so the first plant to come into
-            // the lane is fired at immediately rather than up to a second and a half later.
-            return;
-        }
-        for (int shot = 0; shot < count; shot++) {
-            // Every shot leaves on the same tick, and a burst is expressed by `count` rather than
-            // by a delay: this is the gatling head's whole difference from the pea head, and a
-            // stagger would make it look like a slower plant rather than a faster one.
-            // `backward` is what makes it travel toward the house: a projectile's direction is
-            // +1 down the lawn, and a zombie's shot goes the other way. Firing a forward ref
-            // looked exactly like "the zombie never shoots", because the pea left the screen.
-            ProjectileRef ref = new ProjectileRef(projectile, damage, 1, 0, true, 1,
-                    ProjectileRef.UNLIMITED_RANGE, 0);
-            // `cellY()` is already the lane's centre: adding a half would fire into the lane
-            // below, which is a mistake that looks like "the zombie never shoots".
-            level.spawnZombieProjectile(ref, zombie.cellX() - 0.3F, zombie.cellY(), zombie);
-        }
-        zombie.setAnimation(EntityAnimations.SHOOT);
-        level.emitEffect("", zombie.position(), zombie.surfaceId(), sound.orElse(PvzceSounds.PLANT_SHOOT_PEA));
-        cooldown = intervalTicks;
-    }
-
-    /**
-     * The nearest plant to this zombie's left.
-     *
-     * <p>"To its left" because a zombie walks left: the plants behind it are the ones it has
-     * already passed, and shooting backwards would be a different zombie.
-     */
-    private PlantEntity nearestPlant(ZombieEntity zombie, LevelAccess level) {
-        PlantEntity best = null;
-        for (int column = 0; column <= zombie.gridX(); column++) {
-            PlantEntity plant = level.plantAt(column, zombie.gridY(), zombie.surfaceId());
-            if (plant != null && !plant.isRemoved()) {
-                // The loop runs left to right, so the last one found is the nearest.
-                best = plant;
-            }
-        }
-        return best;
-    }
+    public void tick(ZombieEntity zombie, LevelAccess level) { engine.tick(zombie, level); }
+    @Override
+    public void tick(PlantEntity plant, LevelAccess level) { engine.tick(plant, level); }
+    @Override
+    public boolean holdsFire(PlantEntity plant) { return engine.holdsFire(plant); }
+    @Override
+    public boolean hasPendingWork(PlantEntity plant) { return engine.hasPendingWork(plant); }
+    @Override
+    public void tickPending(PlantEntity plant, LevelAccess level) { engine.tickPending(plant, level); }
+    @Override
+    public boolean strike(PlantEntity plant, LevelAccess level) { return engine.strike(plant, level); }
 
     @Override
     public void save(CompoundTag tag) {
-        tag.putInt("cooldown", cooldown);
+        engine.save(tag);
     }
 
     @Override
     public void load(CompoundTag tag) {
-        cooldown = Math.max(0, tag.getInt("cooldown"));
+        engine.load(tag);
     }
 }

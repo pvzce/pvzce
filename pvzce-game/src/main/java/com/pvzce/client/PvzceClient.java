@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -354,6 +355,7 @@ public final class PvzceClient {
     /** Horizontal compensation for the 80x100 PvZ board cells; 1 in GUI/overlay space. */
     private float spriteXScale = 1F;
     private final java.util.Set<Identifier> missingTextures = new HashSet<>();
+    private final Map<Identifier, Boolean> shadowTextures = new HashMap<>();
     private final com.pvzce.client.gui.Clipping clipping = new com.pvzce.client.gui.Clipping(this);
     /** How long a menu keeps showing the last line the server pushed. */
     private static final long MESSAGE_VISIBLE_NANOS =
@@ -515,6 +517,7 @@ public final class PvzceClient {
      *         waiting on the reload does not wait forever
      */
     public boolean reloadContent() {
+        shadowTextures.clear();
         if (resources == null) {
             // A windowless client (tests, tooling) never loaded a stack, so there is nothing to
             // rebuild; counting it keeps "waiting for the reload to land" from waiting forever.
@@ -574,6 +577,14 @@ public final class PvzceClient {
     }
 
     /** How many times the pack stack has been rebuilt; a screen watches it to see its request land. */
+    public void previewWorkspaceAssets(Path root) {
+        resources.workspaceOverlay(root);
+        try { resources.reload(); } catch (IOException e) { throw new IllegalStateException(e); }
+        if (animations != null) animations.invalidate();
+        if (textures != null) textures.invalidate();
+        if (sound != null) sound.invalidate();
+    }
+
     public int contentReloads() {
         return contentReloads;
     }
@@ -1892,15 +1903,18 @@ public final class PvzceClient {
         float shadowR = MathUtil.lerp(0.02F, 0.03F, nightBlend);
         float shadowG = MathUtil.lerp(0.03F, 0.06F, nightBlend);
         float shadowB = MathUtil.lerp(0.08F, 0.22F, nightBlend);
-        try {
-            SpriteRenderer.projectedShadow(Sprite.whole(textures.getOrLoad(texture)),
-                    lightX, lightY, centerY, centerX, width, height, 0.04F,
-                    shadowR, shadowG, shadowB, alpha);
-        } catch (Exception e) {
-            warnMissingTexture(texture);
-            SpriteRenderer.shadow(centerX, centerY, width / 2F, Math.max(0.06F, width * 0.12F),
-                    0.04F, shadowR, shadowG, shadowB, alpha * 0.6F);
+        if (shadowTextures.computeIfAbsent(texture, this::hasTexture)) {
+            try {
+                SpriteRenderer.projectedShadow(Sprite.whole(textures.getOrLoad(texture)),
+                        lightX, lightY, centerY, centerX, width, height, 0.04F,
+                        shadowR, shadowG, shadowB, alpha);
+                return;
+            } catch (Exception e) {
+                warnMissingTexture(texture);
+            }
         }
+        SpriteRenderer.shadow(centerX, centerY, width / 2F, Math.max(0.06F, width * 0.12F),
+                0.04F, shadowR, shadowG, shadowB, alpha * 0.6F);
     }
 
     public float worldLightX() {
@@ -2157,12 +2171,12 @@ public final class PvzceClient {
      */
 
     public void openEditor(Identifier levelId) {
-        openScreen(new EditorScreen(this, levelId));
+        com.pvzce.client.gui.workshop.WorkshopScreen.editLevel(this, levelId, null, 0, 0);
     }
 
     /** Opens the editor for a brand-new level described by the create dialog. */
     public void openNewLevelEditor(Identifier levelId, String name, int width, int height) {
-        openScreen(new EditorScreen(this, levelId, name, width, height));
+        com.pvzce.client.gui.workshop.WorkshopScreen.editLevel(this, levelId, name, width, height);
     }
 
     public void showTitle() {
@@ -2971,6 +2985,7 @@ public final class PvzceClient {
     }
 
     public void leaveLevel() {
+        if (workshopTesting()) { endWorkshopTest(); return; }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
         showWorldSelect();
@@ -3072,6 +3087,7 @@ public final class PvzceClient {
 
     /** Backs out of a level-entry flow to the level list of the current world. */
     public void showLevelList() {
+        if (workshopTesting()) { endWorkshopTest(); return; }
         setScreenReplacing(new LevelSelectScreen(this));
     }
 
@@ -3184,6 +3200,7 @@ public final class PvzceClient {
      * it paid out, so the finished level's row is current.
      */
     public void finishLevelAndShowList() {
+        if (workshopTesting()) { endWorkshopTest(); return; }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
         showLevelList();
@@ -3443,6 +3460,45 @@ public final class PvzceClient {
      * server to start the level - so testing skipped the seed chooser that opening the same
      * level from the list shows. Both paths now go through {@link #openSeedSelection}.
      */
+    private com.pvzce.common.workshop.Workspace workshopTest;
+    private List<Screen> workshopScreens;
+    private String workshopPreviousWorld;
+
+    public boolean workshopTesting() { return workshopTest != null; }
+
+    public void testWorkspace(com.pvzce.common.workshop.Workspace workspace, String levelId) {
+        if (workshopTest != null) return;
+        try { com.pvzce.client.gui.workshop.WorkshopScreen.validateWorkspace(workspace); }
+        catch (Exception e) { openScreen(new com.pvzce.client.gui.workshop.WorkshopMessageScreen(this, e.getMessage())); return; }
+        workshopTest = workspace;
+        workshopPreviousWorld = currentWorld;
+        workshopScreens = screens.suspend();
+        setScreenReplacing(new com.pvzce.client.gui.workshop.WorkshopWaitingScreen(this));
+        pendingTestLevelId = levelId;
+        connection.send(new com.pvzce.common.network.packet.WorkshopSessionC2S(workspace.root().getFileName().toString()));
+    }
+
+    public void endWorkshopTest() {
+        if (workshopTest == null) return;
+        pendingTestLevelId = null;
+        connection.send(new com.pvzce.common.network.packet.WorkshopSessionC2S(""));
+    }
+
+    public void onWorkshopSession(boolean active, String error) {
+        if (workshopTest == null) return;
+        resources.workspaceOverlay(active ? workshopTest.root() : null);
+        reloadContent();
+        if (active) return;
+        clearLevelClientState();
+        currentWorld = workshopPreviousWorld;
+        workshopTest = null;
+        pendingTestLevelId = null;
+        screens.restore(workshopScreens);
+        workshopScreens = null;
+        if (currentWorld != null) connection.send(new com.pvzce.common.network.packet.RequestProfileC2S(currentWorld));
+        if (!error.isBlank()) openScreen(new com.pvzce.client.gui.workshop.WorkshopMessageScreen(this, error));
+    }
+
     public void testEditedLevel(String levelId) {
         if (levelId == null) {
             return;

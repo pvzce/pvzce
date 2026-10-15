@@ -323,6 +323,34 @@ class LevelFileWriterTest {
         assertFalse(draft.json().has("dialogue"));
     }
 
+    @Test
+    void clearingOpeningLinesPreservesTimedDialogueAndUnknownFields() {
+        JsonObject root = JsonParser.parseString("""
+                {"dialogue":{"enter":"none","lines":[{"text":"开场"}],
+                  "timed":[{"at_tick":120,"line":{"text":"战斗中"}}],
+                  "future_trigger":{"event":"victory"}}}
+                """).getAsJsonObject();
+        JsonObject expected = root.getAsJsonObject("dialogue").deepCopy();
+        expected.remove("lines");
+        JsonDraft draft = JsonDraft.of(root.deepCopy());
+        LevelFileWriter.dialogue(draft, new com.pvzce.client.gui.screens.DialogueEditorModel.Config());
+        assertEquals(expected, draft.json().getAsJsonObject("dialogue"));
+        // Reopening and saving a timed-only level must also be lossless.
+        LevelFileWriter.dialogue(draft,
+                com.pvzce.client.gui.screens.DialogueEditorModel.Config.fromJson(draft.json()));
+        assertEquals(expected, draft.json().getAsJsonObject("dialogue"));
+        assertTrue(root.getAsJsonObject("dialogue").has("lines"));
+    }
+
+    @Test
+    void emptyTimedDialogueAndOpeningEffectsDoNotKeepAnEmptyBlockAlive() {
+        JsonDraft draft = JsonDraft.of(JsonParser.parseString("""
+                {"dialogue":{"lines":[],"timed":[],"enter":"none","exit":"slide"}}
+                """).getAsJsonObject());
+        LevelFileWriter.dialogue(draft, new com.pvzce.client.gui.screens.DialogueEditorModel.Config());
+        assertFalse(draft.json().has("dialogue"));
+    }
+
     /**
      * A save from the 对话 page may not delete the stage or the question it cannot edit.
      *

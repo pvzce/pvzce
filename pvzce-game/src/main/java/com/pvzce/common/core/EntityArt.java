@@ -104,14 +104,18 @@ public final class EntityArt {
      * so a projectile that asked without saying so was answered with the plant's texture.
      */
     public static Identifier sprite(Identifier defId, String kind) {
+        return sprite(defId, kind, BuiltInRegistries.ACCESS);
+    }
+
+    public static Identifier sprite(Identifier defId, String kind, com.pvzce.api.registry.RegistryAccess access) {
         if (defId == null) {
             return MISSING_TEXTURE;
         }
-        Identifier declared = declaredTexture(defId, kind);
+        Identifier declared = declaredTexture(defId, kind, access);
         if (declared != null) {
             return declared;
         }
-        ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
+        ResourceDef resource = access.get(PvzceRegistries.RESOURCES).get(defId);
         if (EntityKind.RESOURCE.equals(kind) || (kind == null && resource != null)) {
             if (resource != null) {
                 return resource.icon() == null ? withPrefix(RESOURCE_PREFIX, defId) : resource.icon();
@@ -134,26 +138,34 @@ public final class EntityArt {
      * caller that has no kind (a card, an editor palette) still has to get an answer.
      */
     public static AnimationBindings bindings(Identifier defId, String kind) {
+        return bindings(defId, kind, BuiltInRegistries.ACCESS);
+    }
+
+    public static AnimationBindings bindings(Identifier defId, String kind, com.pvzce.api.registry.RegistryAccess access) {
         if (defId == null) {
             return null;
         }
-        PlantDef plant = BuiltInRegistries.PLANTS.get(defId);
+        PlantDef plant = access.get(PvzceRegistries.PLANTS).get(defId);
         if (EntityKind.PLANT.equals(kind)) {
             return plant == null ? null : plant.animations();
         }
-        ZombieDef zombie = BuiltInRegistries.ZOMBIES.get(defId);
+        ZombieDef zombie = access.get(PvzceRegistries.ZOMBIES).get(defId);
         if (EntityKind.ZOMBIE.equals(kind)) {
             return zombie == null ? null : zombie.animations();
         }
-        ProjectileDef projectile = BuiltInRegistries.PROJECTILES.get(defId);
+        ProjectileDef projectile = access.get(PvzceRegistries.PROJECTILES).get(defId);
         if (EntityKind.PROJECTILE.equals(kind)) {
             return projectile == null ? null : projectile.animations();
         }
-        ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
+        ResourceDef resource = access.get(PvzceRegistries.RESOURCES).get(defId);
         if (EntityKind.RESOURCE.equals(kind)) {
             return resource == null ? null : resource.animations();
         }
-        return bindings(defId);
+        if (plant != null) return plant.animations();
+        if (zombie != null) return zombie.animations();
+        if (projectile != null) return projectile.animations();
+        if (resource != null) return resource.animations();
+        return null;
     }
 
     /**
@@ -201,32 +213,36 @@ public final class EntityArt {
      * this field existed is drawn exactly as it was.
      */
     public static float renderScale(Identifier defId) {
+        return renderScale(defId, BuiltInRegistries.ACCESS);
+    }
+
+    public static float renderScale(Identifier defId, com.pvzce.api.registry.RegistryAccess access) {
         if (defId == null) {
             return ContentDefs.DEFAULT_RENDER_SCALE;
         }
-        PlantDef plant = BuiltInRegistries.PLANTS.get(defId);
+        PlantDef plant = access.get(PvzceRegistries.PLANTS).get(defId);
         if (plant != null) {
             return plant.renderScale();
         }
-        ZombieDef zombie = BuiltInRegistries.ZOMBIES.get(defId);
+        ZombieDef zombie = access.get(PvzceRegistries.ZOMBIES).get(defId);
         if (zombie != null) {
             return zombie.renderScale();
         }
-        ProjectileDef projectile = BuiltInRegistries.PROJECTILES.get(defId);
+        ProjectileDef projectile = access.get(PvzceRegistries.PROJECTILES).get(defId);
         if (projectile != null) {
             return projectile.renderScale();
         }
-        ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
+        ResourceDef resource = access.get(PvzceRegistries.RESOURCES).get(defId);
         return resource == null ? ContentDefs.DEFAULT_RENDER_SCALE : resource.renderScale();
     }
 
-    private static Identifier declaredTexture(Identifier defId, String kind) {
+    private static Identifier declaredTexture(Identifier defId, String kind, com.pvzce.api.registry.RegistryAccess access) {
         Identifier texture = null;
-        PlantDef plant = BuiltInRegistries.PLANTS.get(defId);
-        ZombieDef zombie = BuiltInRegistries.ZOMBIES.get(defId);
-        ProjectileDef projectile = BuiltInRegistries.PROJECTILES.get(defId);
-        ResourceDef resource = BuiltInRegistries.RESOURCES.get(defId);
-        ToolDef tool = BuiltInRegistries.TOOLS.get(defId);
+        PlantDef plant = access.get(PvzceRegistries.PLANTS).get(defId);
+        ZombieDef zombie = access.get(PvzceRegistries.ZOMBIES).get(defId);
+        ProjectileDef projectile = access.get(PvzceRegistries.PROJECTILES).get(defId);
+        ResourceDef resource = access.get(PvzceRegistries.RESOURCES).get(defId);
+        ToolDef tool = access.get(PvzceRegistries.TOOLS).get(defId);
         // The kind, when the caller has one, picks the registry outright: an id in two
         // registries (the snow pea is a plant and a projectile) otherwise answers with
         // whichever is tested first.

@@ -161,7 +161,7 @@ public final class WavePage implements EditorPage {
                 listW, listH, rowHeight, PaletteList.Kind.ENTITY));
         waveZombieList = context.own(new PaletteList(context.client(), detailX + listW + gap,
                 listBottom, listW, listH, rowHeight, PaletteList.Kind.ENTITY));
-        waveZombieList.setItems(BuiltInRegistries.ZOMBIES.keySet().stream()
+        waveZombieList.setItems(context.contentIds(com.pvzce.common.core.PvzceRegistries.ZOMBIES).stream()
                 .sorted()
                 .map(id -> PaletteList.Item.of(context.client(), PaletteList.Kind.ENTITY, "zombie", id, null))
                 .toList());

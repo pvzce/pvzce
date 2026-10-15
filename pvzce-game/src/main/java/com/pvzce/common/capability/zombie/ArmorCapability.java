@@ -28,7 +28,7 @@ import java.util.List;
  * The armor list and the post-armor speed now live in this capability rather
  * than being fields every zombie carries.
  */
-public final class ArmorCapability implements ZombieCapability {
+public final class ArmorCapability implements ZombieCapability, com.pvzce.api.content.capability.PlantCapability {
     /**
      * How high above the zombie's cell a broken piece starts its fall, in cells.
      *
@@ -104,9 +104,19 @@ public final class ArmorCapability implements ZombieCapability {
     }
 
     @Override
-    public ZombieCapability instantiate() {
+    public ArmorCapability instantiate() {
         return new ArmorCapability(armor, postArmorSpeed);
     }
+
+    public int absorbPlantDamage(int amount) {
+        Piece piece = pieces.stream().filter(p -> p.hp > 0).findFirst().orElse(null);
+        if (piece == null) return amount;
+        piece.hp = Math.max(0, piece.hp - amount);
+        return 0;
+    }
+
+    @Override
+    public int incomingDamage(com.pvzce.server.entity.PlantEntity plant, int amount) { return absorbPlantDamage(amount); }
 
     @Override
     public float speedMultiplier(ZombieEntity zombie) {

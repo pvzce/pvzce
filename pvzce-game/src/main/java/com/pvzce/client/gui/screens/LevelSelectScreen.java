@@ -125,7 +125,6 @@ public final class LevelSelectScreen extends Screen {
     private int createY;
     private int createHeight;
     private Button nextButton;
-    private Button editButton;
     /** The 剧情 switch; its label carries the state, so it is re-labelled on every click. */
     private Button storyToggle;
     private String lastLevelSignature = "";
@@ -201,29 +200,20 @@ public final class LevelSelectScreen extends Screen {
         // what makes a level you already made reachable again - before this the only way
         // into the editor was a button that always opened the same fixed id.
         int rowGap = 8;
-        int quadWidth = Math.min(170, (guiW - 16 - rowGap * 3) / 4);
-        int startX = centerX(quadWidth * 4 + rowGap * 3);
+        int quadWidth = Math.min(170, (guiW - 16 - rowGap * 2) / 3);
+        int startX = centerX(quadWidth * 3 + rowGap * 2);
         nextButton = new Button(startX, actionY, quadWidth, actionHeight, "下一步", this::openSetup)
                 .style(Button.Style.SEED_CHOOSER);
         nextButton.setActive(selectedRow >= 0);
         addWidget(nextButton);
-        editButton = new Button(startX + quadWidth + rowGap, actionY, quadWidth, actionHeight,
-                GuiLang.raw("pvzce.editor.edit", "编辑关卡"), this::editSelected)
-                .style(Button.Style.SEED_CHOOSER);
-        editButton.setActive(selectedRow >= 0);
-        addWidget(editButton);
         // The almanac belongs here rather than on the title screen: this is the screen where
         // "what may I bring into a level" is the question the player is asking, and the book
         // answers both halves of it - which cards are unlocked, and what each one is.
-        addWidget(new Button(startX + (quadWidth + rowGap) * 2, actionY, quadWidth, actionHeight,
+        addWidget(new Button(startX + (quadWidth + rowGap), actionY, quadWidth, actionHeight,
                 GuiLang.raw("gui.pvzce.almanac.title", "图鉴"),
                 () -> client.openScreen(new AlmanacScreen(client))).style(Button.Style.SEED_CHOOSER));
-        addWidget(new Button(startX + (quadWidth + rowGap) * 3, actionY, quadWidth, actionHeight,
+        addWidget(new Button(startX + (quadWidth + rowGap) * 2, actionY, quadWidth, actionHeight,
                 GuiLang.raw("pvzce.back", "返回"), this::requestClose).style(Button.Style.SEED_CHOOSER));
-
-        addWidget(new Button(centerX(customWidth), createY, customWidth, createHeight,
-                GuiLang.raw("pvzce.editor.new_level", "新建关卡"), this::openCreateDialog)
-                .style(Button.Style.SEED_CHOOSER));
 
         addWidget(storyToggle(guiW, guiH));
         updateActionButtons();
@@ -476,11 +466,7 @@ public final class LevelSelectScreen extends Screen {
                     : (selected != null && selected.hasRunningSave() ? "继续游戏" : "下一步")));
             nextButton.setActive(selected != null && (!locked || buyable));
         }
-        if (editButton != null) {
-            // A collection is not a level: there is no file behind it and nothing to open in the
-            // editor, so the button greys out rather than opening whatever shares its id.
-            editButton.setActive(selected != null && !selected.isCollection());
-        }
+
     }
 
     /**
@@ -724,34 +710,6 @@ public final class LevelSelectScreen extends Screen {
     /** The selected level, or {@code null}; selection lives in {@link #selectedLevelId}. */
     private LevelListS2C.LevelInfo selected() {
         return selectedRow >= 0 && selectedRow < rows.size() ? rows.get(selectedRow) : null;
-    }
-
-    /** Opens the selected level in the editor. */
-    private void editSelected() {
-        LevelListS2C.LevelInfo selected = selected();
-        if (selected == null) {
-            return;
-        }
-        Identifier id = Identifier.tryParse(selected.id());
-        if (id == null) {
-            return;
-        }
-        client.openEditor(id);
-    }
-
-    /**
-     * Asks for the new level's name, group and size before the editor opens.
-     *
-     * <p>The open page is offered as the group: a level created while looking at
-     * 庭院/冒险模式 starts out there rather than in some default bucket.
-     */
-    private void openCreateDialog() {
-        String theme = openTab == null ? UNCATEGORIZED_ID : openTab.themeId();
-        String category = openTab == null ? UNCATEGORIZED_ID : openTab.categoryId();
-        LevelCreateDialog dialog = LevelCreateDialog.create(client, theme, category,
-                request -> client.openNewLevelEditor(request.id(), request.name(),
-                        request.width(), request.height()));
-        showDialog(dialog);
     }
 
     @Override

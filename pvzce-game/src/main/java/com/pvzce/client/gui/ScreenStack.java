@@ -64,6 +64,18 @@ public final class ScreenStack {
     // ------------------------------------------------------------------
 
     /** Installs {@code screen} as the new root, discarding and releasing what was there. */
+    public List<Screen> suspend() {
+        List<Screen> saved = List.copyOf(screens);
+        screens.clear();
+        return saved;
+    }
+
+    public void restore(List<Screen> saved) {
+        bringDown();
+        for (int i = saved.size() - 1; i >= 0; i--) screens.push(saved.get(i));
+        resizeAll();
+    }
+
     public void replace(Screen screen) {
         requireScreen(screen);
         bringDown();

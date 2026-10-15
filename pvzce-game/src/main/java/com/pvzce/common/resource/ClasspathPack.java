@@ -37,8 +37,24 @@ public final class ClasspathPack implements PvzcePack {
     }
 
     @Override
-    public InputStream open(String path) {
-        return classLoader.getResourceAsStream(path);
+    public InputStream open(String path) throws IOException {
+        URL url = classLoader.getResource(path);
+        if (url == null) return null;
+        if ("file".equals(url.getProtocol())) {
+            try {
+                if (!Files.isRegularFile(Path.of(url.toURI()))) return null;
+            } catch (java.net.URISyntaxException e) {
+                throw new IOException("Invalid classpath resource URL: " + url, e);
+            }
+        }
+        URLConnection connection = url.openConnection();
+        if (connection instanceof JarURLConnection jarConnection) {
+            JarEntry entry = jarConnection.getJarEntry();
+            if (entry == null || entry.isDirectory()) return null;
+        }
+        // getResourceAsStream can return a directory listing in development, and an empty
+        // stream for a jar directory. Neither is an asset (or a decodable static texture).
+        return connection.getInputStream();
     }
 
     @Override

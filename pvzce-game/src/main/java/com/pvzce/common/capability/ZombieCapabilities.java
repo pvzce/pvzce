@@ -113,6 +113,9 @@ public final class ZombieCapabilities {
     }
 
     public static void bootstrap() {
+        register(new CapabilityType<>(Identifier.withDefaultNamespace("producer"), com.pvzce.common.capability.plant.ProducerCapability.CODEC), "producer");
+        register(new CapabilityType<>(Identifier.withDefaultNamespace("shooter"), com.pvzce.common.capability.plant.ShooterCapability.CODEC), "shooter");
+        register(new CapabilityType<>(Identifier.withDefaultNamespace("explosive"), com.pvzce.common.capability.plant.ExplosiveCapability.CODEC), "explosive");
         register(LADDER, "ladder");
         register(CATAPULT, "catapult");
         register(ARMOR, "armor");

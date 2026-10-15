@@ -157,7 +157,7 @@ public final class PvzcePackets {
     // 62: ability fusion can consume a ground or held seed packet.
     // 63: fusion level payload uses a drop multiplier and the ordinary shovel slot.
     // 64: fusion can request random filling from complete, affordable backpack recipes.
-    public static final int PROTOCOL_VERSION = 64;
+    public static final int PROTOCOL_VERSION = 65;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -265,11 +265,20 @@ public final class PvzcePackets {
      */
     public static final int C2S_NEXT_WAVE = 35;
 
+    public static final int C2S_WORKSHOP_SESSION = 39;
+    public static final int S2C_WORKSHOP_SESSION = S2C_BASE + 35;
+
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
     }
 
     private static final List<Definition> DEFINITIONS = List.of(
+            def(C2S_WORKSHOP_SESSION, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.WorkshopSessionC2S.class,
+                    com.pvzce.common.network.packet.WorkshopSessionC2S::decode),
+            def(S2C_WORKSHOP_SESSION, ConnectionDirection.CLIENTBOUND,
+                    com.pvzce.common.network.packet.WorkshopSessionS2C.class,
+                    com.pvzce.common.network.packet.WorkshopSessionS2C::decode),
             def(C2S_CONTINUE_LEVEL, ConnectionDirection.SERVERBOUND, ContinueLevelC2S.class,
                     ContinueLevelC2S::decode),
             def(C2S_PLAY_LEVEL, ConnectionDirection.SERVERBOUND, PlayLevelC2S.class, PlayLevelC2S::decode),

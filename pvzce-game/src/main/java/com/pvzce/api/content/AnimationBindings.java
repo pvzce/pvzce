@@ -22,16 +22,9 @@ import java.util.Optional;
  * same flat map codec.</p>
  */
 public record AnimationBindings(Optional<Identifier> animation, Map<String, Identifier> animations,
-                                Optional<String> animationDir) {
+                                Optional<String> animationDir, Map<String, String> clips) {
     public static final AnimationBindings EMPTY =
             new AnimationBindings(Optional.empty(), Map.of(), Optional.empty());
-
-    public static final Codec<AnimationBindings> CODEC = RecordCodecBuilder.create(i -> i.group(
-            Identifier.CODEC.optionalFieldOf("animation").forGetter(AnimationBindings::animation),
-            Codec.unboundedMap(Codec.STRING, Identifier.CODEC)
-                    .optionalFieldOf("animations", Map.of()).forGetter(AnimationBindings::animations),
-            AnimationSource.CODEC.optionalFieldOf("animation_dir").forGetter(AnimationBindings::animationDir)
-    ).apply(i, AnimationBindings::new));
 
     /**
      * Flat {@link com.mojang.serialization.MapCodec} form: {@code animation},
@@ -46,11 +39,21 @@ public record AnimationBindings(Optional<Identifier> animation, Map<String, Iden
                     Identifier.CODEC.optionalFieldOf("animation").forGetter(AnimationBindings::animation),
                     Codec.unboundedMap(Codec.STRING, Identifier.CODEC)
                             .optionalFieldOf("animations", Map.of()).forGetter(AnimationBindings::animations),
-                    AnimationSource.CODEC.optionalFieldOf("animation_dir").forGetter(AnimationBindings::animationDir)
+                    AnimationSource.CODEC.optionalFieldOf("animation_dir").forGetter(AnimationBindings::animationDir),
+                    Codec.unboundedMap(Codec.STRING, Codec.STRING).optionalFieldOf("animation_clips", Map.of()).forGetter(AnimationBindings::clips)
             ).apply(i, AnimationBindings::new));
+
+    public static final Codec<AnimationBindings> CODEC = MAP_CODEC.codec();
+
+    public AnimationBindings(Optional<Identifier> animation, Map<String, Identifier> animations, Optional<String> animationDir) {
+        this(animation, animations, animationDir, Map.of());
+    }
+
+    public String clipName(String state) { return clips.getOrDefault(state, state); }
 
     public AnimationBindings {
         animations = Map.copyOf(animations);
+        clips = Map.copyOf(clips);
         animationDir = animationDir.map(AnimationSource::normalize);
     }
 
@@ -75,6 +78,6 @@ public record AnimationBindings(Optional<Identifier> animation, Map<String, Iden
     }
 
     public boolean isEmpty() {
-        return animation.isEmpty() && animations.isEmpty();
+        return animation.isEmpty() && animations.isEmpty() && clips.isEmpty();
     }
 }

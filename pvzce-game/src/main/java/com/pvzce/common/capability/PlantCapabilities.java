@@ -155,6 +155,9 @@ public final class PlantCapabilities {
 
     /** Registers every built-in plant capability; called from {@code BuiltInRegistries}. */
     public static void bootstrap() {
+        register(new CapabilityType<>(Identifier.withDefaultNamespace("armor"), com.pvzce.common.capability.zombie.ArmorCapability.CODEC), "armor");
+        register(new CapabilityType<>(Identifier.withDefaultNamespace("summon_dancers"), com.pvzce.common.capability.zombie.SummonDancersCapability.CODEC), "summon_dancers");
+        register(new CapabilityType<>(Identifier.withDefaultNamespace("zombie_shooter"), com.pvzce.common.capability.zombie.ZombieShooterCapability.CODEC), "zombie_shooter");
         register(DEFENSE, "defense");
         register(CARRIER, "carrier");
         register(GARLIC, "garlic");

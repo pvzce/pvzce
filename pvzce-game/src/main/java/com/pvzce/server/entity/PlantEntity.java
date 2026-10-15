@@ -543,6 +543,22 @@ public class PlantEntity extends PvzceEntity {
      *         off - a caller that swings on a timer (the Gargantuar's hammer) has to be
      *         able to tell, or it spends its blow on a bomb and counts it as a smash
      */
+    @Override
+    public void damage(int amount) {
+        if (isInvulnerable()) return;
+        for (Instance entry : capabilities) amount = entry.capability.incomingDamage(this, amount);
+        if (amount > 0) super.damage(amount);
+    }
+
+    @Override
+    public int armor() {
+        int total = -1;
+        for (Instance entry : capabilities) if (entry.capability instanceof com.pvzce.common.capability.zombie.ArmorCapability armor) {
+            total = Math.max(0, total) + armor.totalHealth();
+        }
+        return total;
+    }
+
     public boolean damageFrom(int amount) {
         if (isInvulnerable()) {
             return false;
@@ -740,10 +756,11 @@ public class PlantEntity extends PvzceEntity {
         tag.putByte("laddered", (byte) (laddered ? 1 : 0));
         sharedClock.save(tag);
         CompoundTag saved = new CompoundTag();
+        java.util.Map<Identifier,Integer> occurrences = new java.util.HashMap<>();
         for (Instance instance : capabilities) {
             CompoundTag capabilityTag = new CompoundTag();
             instance.capability.save(capabilityTag);
-            saved.put(instance.type.toString(), capabilityTag);
+            saved.put(com.pvzce.api.content.capability.EntityCapability.stateKey(instance.type, occurrences), capabilityTag);
         }
         tag.put("capabilities", saved);
         return tag;
@@ -773,8 +790,11 @@ public class PlantEntity extends PvzceEntity {
 
     private void restoreCapabilities(CompoundTag tag) {
         CompoundTag saved = tag.getCompound("capabilities");
+        java.util.Map<Identifier,Integer> occurrences = new java.util.HashMap<>();
         for (Instance instance : capabilities) {
-            CompoundTag capabilityTag = saved.getCompound(instance.type.toString());
+            String stateKey = com.pvzce.api.content.capability.EntityCapability.stateKey(instance.type, occurrences);
+            if (!saved.contains(stateKey)) stateKey = instance.type.toString();
+            CompoundTag capabilityTag = saved.getCompound(stateKey);
             instance.capability.load(capabilityTag);
         }
     }

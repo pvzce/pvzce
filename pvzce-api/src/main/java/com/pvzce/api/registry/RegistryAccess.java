@@ -26,6 +26,17 @@ public final class RegistryAccess {
         return (Registry<T>) registries.get(key);
     }
 
+    /** Independent registries for editors/validators; normal reload fills their dynamic entries. */
+    public RegistryAccess copyForReload() {
+        RegistryAccess copy = new RegistryAccess();
+        for (var entry : registries.entrySet()) {
+            if (!(entry.getValue() instanceof MappedRegistry<?> registry))
+                throw new IllegalStateException("Unsupported registry implementation: " + entry.getKey());
+            copy.registerRegistry(entry.getKey(), registry.copyForReload());
+        }
+        return copy;
+    }
+
     public Map<ResourceKey<?>, Registry<?>> registries() {
         return Collections.unmodifiableMap(registries);
     }

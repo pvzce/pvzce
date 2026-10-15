@@ -60,7 +60,7 @@ import java.util.Optional;
  *       mushroom cloud is nine.</li>
  * </ul>
  */
-public final class ExplosiveCapability implements PlantCapability {
+public final class ExplosiveCapability implements PlantCapability, com.pvzce.api.content.capability.ZombieCapability {
     public enum Trigger {
         TIMED,
         PROXIMITY,
@@ -318,7 +318,7 @@ public final class ExplosiveCapability implements PlantCapability {
     }
 
     @Override
-    public PlantCapability instantiate() {
+    public ExplosiveCapability instantiate() {
         return new ExplosiveCapability(trigger, fuseTicks, radius, damage, triggerRange, square,
                 leavesCrater, sound, damageType, particles, lingerTicks, meltsIce);
     }
@@ -351,7 +351,10 @@ public final class ExplosiveCapability implements PlantCapability {
     }
 
     @Override
-    public void tick(PlantEntity plant, LevelAccess level) {
+    public void tick(PlantEntity plant, LevelAccess level) { tick(new com.pvzce.common.capability.CapabilityHost(plant), level); }
+    @Override
+    public void tick(ZombieEntity zombie, LevelAccess level) { tick(new com.pvzce.common.capability.CapabilityHost(zombie), level); }
+    private void tick(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         if (linger != LINGER_NONE) {
             // The blast has already happened: everything left is the drawing. The plant
             // removes itself when the count runs out, which is what makes this a state on
@@ -364,7 +367,7 @@ public final class ExplosiveCapability implements PlantCapability {
             return;
         }
         if (fuse > 0) {
-            fuse = Math.max(0, fuse - weatherClock.step(level.weatherActionMultiplier(plant)));
+            fuse = Math.max(0, fuse - weatherClock.step(plant.weatherAction(level)));
             plant.setState(trigger == Trigger.PROXIMITY
                     ? (fuse == 0 ? EntityAnimations.ARMED : EntityAnimations.GROW)
                     // A timed explosive has nothing to grow into. The ash line's own art
@@ -385,8 +388,8 @@ public final class ExplosiveCapability implements PlantCapability {
             detonate(plant, level);
             return;
         }
-        ZombieEntity target = level.enemiesInRow(plant.gridY(), plant.team(), plant.surfaceId()).stream()
-                .filter(z -> !z.isRemoved() && z.canBeHitByGround()
+        com.pvzce.server.entity.PvzceEntity target = plant.enemies(level, plant.gridY()).stream()
+                .filter(z -> !z.isRemoved() && com.pvzce.common.capability.CapabilityHost.ground(z)
                         && Math.abs(z.cellX() - plant.cellX()) < triggerRange)
                 .findFirst()
                 .orElse(null);
@@ -399,7 +402,7 @@ public final class ExplosiveCapability implements PlantCapability {
         detonate(plant, level);
     }
 
-    private void detonate(PlantEntity plant, LevelAccess level) {
+    private void detonate(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         plant.setState(EntityAnimations.EXPLODE);
         // The blast has to cover whatever set it off. A proximity mine triggers on
         // "a zombie is within trigger_range", so a mine whose blast falls short of that
@@ -409,7 +412,7 @@ public final class ExplosiveCapability implements PlantCapability {
         // the trigger zone left it at ~0.599, just past the 0.55 blast.
         // The two values are still authored separately (a mine may want a wider blast), but
         // the blast can never be narrower than the zone that armed it.
-        float blastRadius = Math.max(MIN_RADIUS, radius * level.weatherRangeMultiplier(plant));
+        float blastRadius = Math.max(MIN_RADIUS, radius * plant.weatherRange(level));
         if (trigger == Trigger.PROXIMITY) {
             // How far from the centre the blast actually reaches: a radial blast reaches
             // `radius`, a square one reaches the far edge of the cell `radius` cells away
@@ -435,6 +438,7 @@ public final class ExplosiveCapability implements PlantCapability {
                 level.meltIce(plant.cellX(), plant.cellY(), blastRadius, square, plant.surfaceId());
             }
         }
+        plant.damagePlants(level, blastRadius, damage, square, trigger == Trigger.ROW);
         if (leavesCrater) {
             // The hole the plant made, in its own cell - not the footprint of the blast. See
             // CRATER_RADIUS: the doom shroom is the one explosive that does not leave the lawn
@@ -446,7 +450,7 @@ public final class ExplosiveCapability implements PlantCapability {
         // rides on the first piece only - every emit carries the whole effect event, so asking
         // for it at each stop would play one blast as many times as the cloud has parts.
         Identifier blastSound = sound.orElseGet(
-                () -> plant.def().sounds().explode().orElse(PvzceSounds.EFFECT_EXPLOSION));
+                () -> plant.explodeSound().orElse(PvzceSounds.EFFECT_EXPLOSION));
         for (int i = 0; i < particles.size(); i++) {
             level.emitEffect(particles.get(i).toString(), plant.position(), plant.surfaceId(), i == 0 ? blastSound : null);
         }

@@ -77,6 +77,22 @@ class LevelUnlockFlowTest {
         }
     }
 
+    @Test
+    void setupCommandsFinishBeforeTheFollowingLevelPacketInTheSameReceivePass() throws Exception {
+        try (ServerHarness harness = ServerHarness.createWithPackets(gameDir, List.of(
+                new CreateWorldC2S(WORLD, false),
+                new com.pvzce.common.network.packet.RequestProfileC2S(WORLD),
+                new com.pvzce.common.network.packet.CommandC2S("profile unlockall"),
+                new com.pvzce.common.network.packet.CommandC2S("profile slots 12"),
+                new PlayLevelC2S(SECOND, WORLD, true, List.of())))) {
+            LevelInitS2C init = harness.awaitPacket(LevelInitS2C.class, 5_000);
+            assertEquals(SECOND, init.levelId());
+            assertEquals(12, harness.server().worlds().profileFor(WORLD).seedSlots());
+            assertTrue(harness.packets().stream().filter(ServerMessageS2C.class::isInstance)
+                    .map(ServerMessageS2C.class::cast).noneMatch(p -> p.message().contains("尚未解锁")));
+        }
+    }
+
     /**
      * A completion marker on the prerequisite opens the next level.
      *

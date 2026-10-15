@@ -13,7 +13,7 @@ import com.pvzce.server.entity.PlantEntity;
  * hold configuration can leave {@link #instantiate()} alone and are shared
  * between every plant of that type.
  */
-public interface PlantCapability {
+public interface PlantCapability extends EntityCapability {
     /**
      * Creates the per-plant instance. Stateful capabilities must return a fresh
      * copy with reset timers; stateless ones keep the default (shared) instance.
@@ -269,16 +269,14 @@ public interface PlantCapability {
      *
      * @return true when the bite did something other than damage (it charmed the biter)
      */
+    default int incomingDamage(PlantEntity plant, int amount) { return amount; }
+
     default boolean onBittenBy(PlantEntity plant, com.pvzce.server.entity.ZombieEntity zombie,
                               LevelAccess level) {
         return false;
     }
 
     /** Persists per-plant state; the caller stores it under this capability's type id. */
-    default void save(CompoundTag tag) {
-    }
 
     /** Restores state written by {@link #save}. */
-    default void load(CompoundTag tag) {
-    }
 }

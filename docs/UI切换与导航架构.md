@@ -91,40 +91,19 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ### 3.3 导航状态图
 
 ```
-                    ┌──────────────────────────────────────────────┐
-                    │                 TitleScreen                  │
-                    │  左上：谁要玩游戏？（玩家列表＝世界列表）      │
-                    │  中列：开始游戏 / 模组列表 / 设置 / 退出       │
-                    │  左下：木托盘 = 商店 / 数据包（两个图标格子）  │
-                    └───┬──────────────┬───────────────┬───────────┘
-                 push   │              │ push          │ push
-                        ▼              ▼               ▼
-       ┌────────────────────────┐  ┌────────────┐  ┌──────────────┐
-       │  LevelSelectScreen     │  │ ModsScreen │  │SettingsScreen│
-       │  (关卡列表 + 图鉴按钮)  │  └────────────┘  └───┬──────────┘
-       └──┬──────────┬──────────┘                       │ push
-          │ push     │ push            ┌─────────────▼──────────────┐
-          ▼          ▼                 │ConfigScreen / VideoSettings│
-   ┌────────────┐  ┌──────────────┐    │KeybindScreen /             │
-   │LevelSetup  │  │ EditorScreen │    │AiSettingsScreen /         │
-   │(关卡准备)   │  │ (编辑器)      │    │ShopScreen / PackScreen     │
-   └──┬─────────┘  └──────────────┘    └────────────────────────────┘
-      │
-      │ 开始游戏 → enterLevelFromMenu（带上玩家选的阵营）
-      │   （阵营为空才是"来问我"；答过就直接进关，见 asksForTeamChoice）
-      ▼
-   ┌──────────────────┐
-   │ ChooseSeedsScreen│  （有存档：跳过这一屏；卡组没得选时是"仅预览"过场）
-   │ (选卡)            │
-   └──┬───────────────┘
-      │ PlayLevelC2S → 服务端 LevelInitS2C
-      ▼
-   ┌────────────────────────────────────────────┐
-   │ InGameScreen    ← setScreenReplacing（整栈替换）
-   │  ├ ESC → PauseDialog（对话框，不是新屏）
-   │  ├ 胜利+奖励 → 领奖 → push AwardScreen
-   │  └ 失败 → 点击离开 → finishLevelAndShowList()
-   └────────────────────────────────────────────┘
+TitleScreen
+ ├ 开始游戏 → LevelSelectScreen → LevelSetupScreen / ChooseSeedsScreen → InGameScreen
+ ├ 创意工坊 → WorkshopScreen（工作区列表）→ WorkshopScreen（工作区内容）
+ │                                          ├ EditorScreen（关卡）
+ │                                          ├ WorkshopJsonScreen（定义、标签、帧动画、翻译）
+ │                                          └ WorkshopPreviewScreen（素材预览/试听）
+ ├ ModsScreen
+ ├ SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen
+ └ 左下木托盘 → ShopScreen / PackScreen
+
+工坊测试：悬置原屏幕栈 → WorkshopWaitingScreen → 选卡 / InGameScreen
+退出测试：服务端恢复确认 → 恢复原屏幕栈与编辑位置
+普通关卡：ESC 打开 PauseDialog；领奖进入 AwardScreen；离开回到关卡列表
 ```
 
 > 控制台（`ConsoleOverlay`）与聊天行（`ChatOverlay`）不在图里：它们是覆盖层（§8），
@@ -168,7 +147,7 @@ else                              openSeedSelection(info, false); // ④ 其余�
 | 2 | 关卡准备「开始游戏」 | `LevelSetupScreen.startGame()` | 转发给 `enterLevelFromMenu`（同一决策，第二份调用） |
 | 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（`onBack` 回到提示框）；取不到关卡信息、或这一关声明了 `seed_screen: false` 时回落到 `RestartLevelC2S`（重开不是一次选卡） |
 | 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()` | `LeaveLevelC2S` → 清状态 → 选卡页（`onBack = showLevelList`；没得选的关卡是仅预览过场，会自己开始） |
-| 5 | 编辑器「测试」 | `PvzceClient.testEditedLevel()` | `/reload` → 等 `LevelListS2C` → `enterLevelFromMenu`（`setLevelList` 里续上） |
+| 5 | 编辑器「测试」 | `PvzceClient.testWorkspace()` | 保存草稿 → 临时会话确认 → 新关卡列表 → 选卡；退出恢复编辑屏幕栈 |
 
 > 把关卡列表那一屏的分支收进 `enterLevelFromMenu` 是必要的，不只是整洁：入口 5 与冒烟钩子都直接
 > 调它，列表里那份判断它们走不到 —— 一个"有两方以上可玩"的关卡从编辑器进去会跳过阵营选择。
@@ -419,3 +398,11 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 13. **有真实构图的整屏页面 → `MenuPageCanvas`**（800x600 画布 + contain 缩放），不要直接在 GUI 单位里
     排版：默认窗口只有 427x240，直接排版出来的东西没有面板也没有层次（商店页与数据包页就是这么坏掉的）。
     控件仍留在 GUI 单位，用 `Canvas.widgetAt` / `interiorX/Width/Bottom/Height` 放进面板。
+
+
+### 工坊测试的栈生命周期
+
+`ScreenStack.suspend` 暂存原屏幕对象，不触发离开回调；测试场景可正常替换自身根屏。
+`ScreenStack.restore` 释放测试屏，再恢复原栈并按当前窗口尺寸重建布局。
+`PvzceClient.showLevelList`、离开关卡与完成关卡入口在测试期间均结束临时会话，取消选卡也走这一条路。
+工作区素材预览保留前一个素材覆盖层，关闭预览后返回所属编辑器的覆盖层。

@@ -198,9 +198,9 @@ public final class TitleScreen extends Screen {
         // their own - a menu row is a list of things you *do*, and these two are a corner of the
         // game you *visit*. They live in the tray at the bottom left now (see {@link #renderTray}),
         // which also gave the menu column the room to breathe.
-        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 4, titleReserve, 8);
+        int buttonHeight = GuiLayout.fitHeight(guiH, 68, 5, titleReserve, 8);
         int gap = GuiLayout.gapFor(buttonHeight);
-        int blockHeight = 4 * buttonHeight + 3 * gap;
+        int blockHeight = 5 * buttonHeight + 4 * gap;
 
         // Buttons are anchored to the bottom so the menu fills the screen and
         // no large blank strip remains under the last button.
@@ -212,12 +212,14 @@ public final class TitleScreen extends Screen {
         // say the same word on purpose.
         String[] labels = {
                 GuiLang.raw("gui.pvzce.title.start", "Start playing"),
+                GuiLang.raw("gui.pvzce.workshop.title", "创意工坊"),
                 GuiLang.raw("gui.pvzce.title.mods", "Mods"),
                 GuiLang.raw("gui.pvzce.title.settings", "Settings"),
                 GuiLang.raw("gui.pvzce.title.quit", "Quit")
         };
         Runnable[] actions = {
                 this::enterCurrentPlayer,
+                () -> client.openScreen(new com.pvzce.client.gui.workshop.WorkshopScreen(client)),
                 () -> client.openScreen(new ModsScreen(client)),
                 () -> client.openScreen(new SettingsScreen(client)),
                 () -> client.window().requestClose()
@@ -290,7 +292,7 @@ public final class TitleScreen extends Screen {
      */
     static int menuButtonHeight(int guiHeight) {
         int titleReserve = Math.max(56, Math.min(140, guiHeight * 30 / 100));
-        return GuiLayout.fitHeight(guiHeight, 68, 4, titleReserve, 8);
+        return GuiLayout.fitHeight(guiHeight, 68, 5, titleReserve, 8);
     }
 
     /**

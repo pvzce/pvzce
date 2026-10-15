@@ -34,7 +34,7 @@ import java.util.Optional;
  * deliberately keeps its own coin ring, because its drop is small change rather than the
  * resource the level is played with.
  */
-public final class ProducerCapability implements PlantCapability {
+public final class ProducerCapability implements PlantCapability, com.pvzce.api.content.capability.ZombieCapability {
     public static final int DEFAULT_AMOUNT = 25;
     /** The first drop arrives sooner than the steady-state interval. */
     public static final int DEFAULT_FIRST_DELAY = 300;
@@ -189,20 +189,24 @@ public final class ProducerCapability implements PlantCapability {
     }
 
     @Override
-    public PlantCapability instantiate() {
+    public ProducerCapability instantiate() {
         return new ProducerCapability(resource, amount, everyTicks, firstDelayTicks, sound,
                 dropScale, growth(), dropCount);
     }
 
     @Override
-    public void tick(PlantEntity plant, LevelAccess level) {
+    public void tick(PlantEntity plant, LevelAccess level) { tick(new com.pvzce.common.capability.CapabilityHost(plant), level); }
+    @Override
+    public void tick(com.pvzce.server.entity.ZombieEntity zombie, LevelAccess level) {
+        tick(new com.pvzce.common.capability.CapabilityHost(zombie), level);
+    }
+    private void tick(com.pvzce.common.capability.CapabilityHost plant, LevelAccess level) {
         // Promised drops keep their own short visual delay while the production
         // clock advances, so batches cannot overwrite one another at high rates.
         for (var iterator = pendingDrops.iterator(); iterator.hasNext();) {
             PendingDrop drop = iterator.next();
             if (--drop.ticks <= 0) {
-                level.spawnProducedResource(resource, drop.amount, plant.cellX(), plant.cellY(),
-                        plant, drop.scale, drop.driftX);
+                plant.produce(level, resource, drop.amount, plant.cellX(), plant.cellY(), drop.scale, drop.driftX);
                 iterator.remove();
             }
         }
@@ -234,22 +238,21 @@ public final class ProducerCapability implements PlantCapability {
                     level.rules().getFloat(PvzceIds.RULE_SUN_RATE_MULTIPLIER)));
         }
         if (cooldown > 0) {
-            plant.setState(EntityAnimations.IDLE);
+            plant.setState(EntityAnimations.IDLE, growth != null && growTicks <= 0 ? growth.variant() : "");
             return;
         }
         cooldown = everyTicks;
-        plant.setState(EntityAnimations.PRODUCE);
+        plant.setState(EntityAnimations.PRODUCE, growth != null && growTicks <= 0 ? growth.variant() : "");
         int total = currentAmount();
         int count = Math.min(dropCount, total);
         if (count == 1) {
-            level.spawnProducedResource(resource, total, plant.cellX(), plant.cellY(), plant, dropScale(), 0F);
+            plant.produce(level, resource, total, plant.cellX(), plant.cellY(), dropScale(), 0F);
         } else {
             for (int index = 0; index < count; index++) {
                 int value = total / count + (index < total % count ? 1 : 0);
                 float drift = (index - (count - 1) / 2F) * PvzceConstants.PRODUCER_DROP_SPACING_CELLS;
                 if (index == 0) {
-                    level.spawnProducedResource(resource, value, plant.cellX(), plant.cellY(),
-                            plant, dropScale(), drift);
+                    plant.produce(level, resource, value, plant.cellX(), plant.cellY(), dropScale(), drift);
                 } else {
                     pendingDrops.add(new PendingDrop(index * PvzceConstants.PRODUCER_DROP_GAP_TICKS,
                             value, dropScale(), drift));
@@ -259,7 +262,7 @@ public final class ProducerCapability implements PlantCapability {
         // No fallback sound: "the definition did not name one" means the plant makes no
         // noise, and the chime that used to stand in for it belongs to the pickup. An
         // empty id is what LevelServer already reads as "play nothing".
-        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.position(), plant.surfaceId(), sound.or(() -> plant.def().sounds().produce()).orElse(null));
+        level.emitEffect(PvzceParticles.LANTERN_SHINE.toString(), plant.position(), plant.surfaceId(), sound.or(() -> plant.produceSound()).orElse(null));
     }
 
     /**

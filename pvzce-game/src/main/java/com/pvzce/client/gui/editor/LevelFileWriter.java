@@ -88,19 +88,29 @@ public final class LevelFileWriter {
      *
      * <p>The lines are written <em>into</em> the existing block rather than replacing it:
      * {@code dialogue} is a wrapper, and a field a later version adds beside {@code lines} has
-     * to survive an edit. An empty conversation removes the block, because "no conversation"
-     * and "a conversation with no lines" must not both exist in the data.
+     * to survive an edit. Empty opening lines remove only that field; timed dialogue and
+     * fields this page cannot edit still belong to the author. A block containing only
+     * opening effects and empty dialogue arrays has nothing left to play and is removed.
      */
     public static void dialogue(JsonDraft draft, DialogueEditorModel.Config dialogueConfig) {
         JsonElement linesElement = dialogueConfig.toJson();
         JsonArray lines = linesElement != null && linesElement.isJsonArray()
                 ? linesElement.getAsJsonArray() : new JsonArray();
-        if (lines.isEmpty()) {
-            draft.remove("dialogue");
-            return;
-        }
         JsonObject dialogue = existingObject(draft, "dialogue");
-        dialogue.add("lines", lines);
+        if (lines.isEmpty()) {
+            dialogue.remove("lines");
+            boolean hasOtherContent = dialogue.entrySet().stream().anyMatch(entry -> {
+                if ("enter".equals(entry.getKey()) || "exit".equals(entry.getKey())) return false;
+                return !"timed".equals(entry.getKey()) || !entry.getValue().isJsonArray()
+                        || !entry.getValue().getAsJsonArray().isEmpty();
+            });
+            if (!hasOtherContent) {
+                draft.remove("dialogue");
+                return;
+            }
+        } else {
+            dialogue.add("lines", lines);
+        }
         draft.set("dialogue", dialogue);
     }
 

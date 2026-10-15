@@ -52,6 +52,10 @@ public final class EditorScreen extends Screen {
      * rename of the id. It is the only operation that changes one - the id field itself is
      * read-only, because saves and other levels refer to it.
      */
+    private com.pvzce.common.workshop.Workspace workspace;
+    private com.pvzce.api.registry.RegistryAccess workspaceCatalog;
+    private Path previousAssetOverlay;
+    private boolean workspaceAssetsAttached;
     private Identifier levelId;
     /** Where to write on save; {@code null} until resolved for a brand-new level. */
     private Path sourceFile;
@@ -106,9 +110,23 @@ public final class EditorScreen extends Screen {
         loadExisting();
     }
 
+    public EditorScreen(com.pvzce.client.PvzceClient client, com.pvzce.common.workshop.Workspace workspace,
+                        Identifier id, Path source, JsonObject json) {
+        super(client);
+        this.workspace = workspace;
+        this.workspaceCatalog = com.pvzce.common.workshop.WorkshopContent.catalog(workspace, false);
+        this.levelId = id;
+        this.levelName = json.has("name") ? json.get("name").getAsString() : id.path();
+        this.sourceFile = source;
+        this.sourceJson = json.deepCopy();
+        this.newLevelWidth = 9;
+        this.newLevelHeight = 5;
+        loadExisting();
+    }
+
     /** Reads the level's JSON, then builds the pages over it. */
     private void loadExisting() {
-        LevelSource source = findLevelSource();
+        LevelSource source = workspace == null ? findLevelSource() : new LevelSource(sourceJson, sourceFile);
         if (source != null) {
             sourceJson = source.json();
             sourceFile = source.writableFile();
@@ -187,6 +205,10 @@ public final class EditorScreen extends Screen {
 
     @Override
     protected void init() {
+        if (workspace != null && client.resources() != null) {
+            if (!workspaceAssetsAttached) { previousAssetOverlay = client.resources().workspaceOverlay(); workspaceAssetsAttached = true; }
+            if (!workspace.root().equals(client.resources().workspaceOverlay())) client.previewWorkspaceAssets(workspace.root());
+        }
         pageWidgets.clear();
         int guiW = client.guiWidth();
         int guiH = client.guiHeight();
@@ -256,11 +278,21 @@ public final class EditorScreen extends Screen {
      */
     private void buildActionBar() {
         int w = Math.max(72, Math.min(120, client.guiWidth() / 10));
-        actionButtonSpan = (w + 6) * 3;
+        actionButtonSpan = (w + 6) * (workspace == null ? 3 : 4);
         addWidget(new Button(paletteX, actionY, w, actionH, GuiLang.raw("pvzce.save", "保存"), this::save));
         addWidget(new Button(paletteX + w + 6, actionY, w, actionH, GuiLang.raw("pvzce.test", "测试"), this::test));
         addWidget(new Button(paletteX + (w + 6) * 2, actionY, w, actionH,
                 GuiLang.raw("pvzce.back", "返回"), this::requestClose));
+        if (workspace != null) addWidget(new Button(paletteX + (w + 6) * 3, actionY, w, actionH,
+                GuiLang.raw("gui.pvzce.workshop.advanced_json", "高级 JSON"), () -> {
+                    if (!saveToDisk()) return;
+                    try {
+                        Screen advanced = new com.pvzce.client.gui.workshop.WorkshopJsonScreen(client, workspace,
+                                workspace.root().relativize(sourceFile).toString().replace('\\', '/'));
+                        client.popScreen();
+                        client.openScreen(advanced);
+                    } catch (IOException e) { setStatus(e.getMessage()); }
+                }));
     }
 
     /**
@@ -335,6 +367,17 @@ public final class EditorScreen extends Screen {
 
     public void setEditorLevelId(Identifier id) {
         this.levelId = id;
+    }
+
+    public Path editorPackRoot() { return workspace == null ? client.gameDir().resolve("datapacks/user_levels") : workspace.root(); }
+
+    public com.pvzce.api.registry.RegistryAccess editorCatalog() {
+        return workspaceCatalog == null ? com.pvzce.common.core.BuiltInRegistries.ACCESS : workspaceCatalog;
+    }
+
+    public java.util.Set<Identifier> editorContentIds(com.pvzce.api.registry.ResourceKey<? extends com.pvzce.api.registry.Registry<?>> key) {
+        var access = workspaceCatalog == null ? com.pvzce.common.core.BuiltInRegistries.ACCESS : workspaceCatalog;
+        return access.registries().get(key).keySet();
     }
 
     public Path editorSourceFile() {
@@ -453,7 +496,7 @@ public final class EditorScreen extends Screen {
 
     private void save() {
         if (saveToDisk()) {
-            client.connection().send(new CommandC2S("/reload"));
+            if (workspace == null) client.connection().send(new CommandC2S("/reload"));
             setStatus(GuiLang.raw("pvzce.editor.saved", "已保存：") + levelId);
         }
     }
@@ -476,7 +519,7 @@ public final class EditorScreen extends Screen {
         try {
             Files.createDirectories(levelFile.getParent());
             Files.writeString(levelFile, root.toString());
-            Path pack = client.gameDir().resolve("datapacks/user_levels");
+            Path pack = workspace == null ? client.gameDir().resolve("datapacks/user_levels") : workspace.root();
             Path mcmeta = pack.resolve("pack.mcmeta");
             if (!Files.exists(mcmeta)) {
                 Files.writeString(mcmeta, "{\"pack\":{\"pack_format\":1,\"description\":\"User levels\"}}");
@@ -550,6 +593,7 @@ public final class EditorScreen extends Screen {
      * this moves and the path the server writes are the same path.
      */
     private Path currentWorldDirectory() {
+        if (workspace != null) return null;
         String world = client.currentWorld();
         if (world == null || world.isBlank()) {
             return null;
@@ -558,6 +602,7 @@ public final class EditorScreen extends Screen {
     }
 
     private Path resolveSaveFile() {
+        if (workspace != null) return workspace.contentFile("levels", levelId);
         if (sourceFile != null) {
             return sourceFile;
         }
@@ -582,8 +627,14 @@ public final class EditorScreen extends Screen {
         if (!saveToDisk()) {
             return;
         }
-        client.testEditedLevel(levelId.toString());
-        client.popScreen();
+        if (workspace != null) {
+            try { com.pvzce.common.workshop.WorkshopContent.validate(workspace); }
+            catch (Exception e) { setStatus(e.getMessage()); return; }
+            client.testWorkspace(workspace, levelId.toString());
+        } else {
+            client.testEditedLevel(levelId.toString());
+            client.popScreen();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -637,6 +688,7 @@ public final class EditorScreen extends Screen {
 
     @Override
     protected void onRemoved() {
+        if (workspaceAssetsAttached) { workspaceAssetsAttached = false; client.previewWorkspaceAssets(previousAssetOverlay); }
         canvas.releaseCanvasAnimations(editorContext);
     }
 

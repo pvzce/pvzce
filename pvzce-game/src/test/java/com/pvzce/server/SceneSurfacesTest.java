@@ -68,6 +68,53 @@ class SceneSurfacesTest {
         assertEquals(lower.maxHealth(), lower.health());
         assertTrue(walker.cellX() < 2.5F);
     }
+
+    @Test void impThrowFallsBackToItsParentOnASparseDeckButKeepsNormalThrows() {
+        for (boolean sparse : List.of(true, false)) {
+            var deck = new SceneSurfaceDef(Identifier.parse(BRIDGE), "桥面", SurfaceProfile.flat(1.4F), .2F,
+                    Map.of(PvzceIds.GRASS, sparse ? List.of("4,2") : List.of("4,2", "1,2")));
+            var level = new LevelServer(TestLevels.copy(bridgeDef()).surfaces(List.of(deck)).build(), 21L);
+            var giant = level.spawnZombie(PvzceIds.id("gargantuar"), level.team(PvzceIds.ZOMBIE_TEAM),
+                    4.5F, 2, 1F, BRIDGE);
+            level.flushPending(p -> {});
+            var hammer = new com.pvzce.common.capability.zombie.HammerCapability(
+                    120, true, PvzceIds.id("imp"), 1, 3, Optional.empty());
+            hammer.tick(giant, level);
+            hammer.tick(giant, level);
+            level.flushPending(p -> {});
+            var imp = level.entities().stream().filter(ZombieEntity.class::isInstance)
+                    .map(ZombieEntity.class::cast).filter(z -> z.defId().equals(PvzceIds.id("imp")))
+                    .findFirst().orElseThrow();
+            assertEquals(sparse ? giant.cellX() : 1F, imp.cellX());
+            assertEquals(BRIDGE, imp.surfaceId());
+            assertEquals(1.4F, imp.height(), .001F);
+            assertTrue(level.sceneBoard().exists(BRIDGE, imp.gridX(), imp.gridY()));
+        }
+    }
+
+    @Test void backupDancersSkipUnsupportedSlotsAndIgnoreDancersOnOtherDecks() {
+        var deck = new SceneSurfaceDef(Identifier.parse(BRIDGE), "桥面", SurfaceProfile.flat(1.4F), .2F,
+                Map.of(PvzceIds.GRASS, List.of("4,2", "5,2", "4,3")));
+        var level = new LevelServer(TestLevels.copy(bridgeDef()).surfaces(List.of(deck)).build(), 22L);
+        var leader = level.spawnZombie(PvzceIds.id("dancing_zombie"), level.team(PvzceIds.ZOMBIE_TEAM),
+                4.5F, 2, 1F, BRIDGE);
+        level.spawnZombie(PvzceIds.id("backup_dancer"), level.team(PvzceIds.ZOMBIE_TEAM),
+                5.5F, 2, 1F, SceneBoard.DEFAULT_SURFACE);
+        level.flushPending(p -> {});
+        var summoner = new com.pvzce.common.capability.zombie.SummonDancersCapability(
+                PvzceIds.id("backup_dancer"), 4, 6F, .67F, 1, 1200, Optional.empty());
+        summoner.tick(leader, level);
+        summoner.tick(leader, level);
+        level.flushPending(p -> {});
+        var dancers = level.entities().stream().filter(ZombieEntity.class::isInstance)
+                .map(ZombieEntity.class::cast).filter(z -> z.defId().equals(PvzceIds.id("backup_dancer")))
+                .filter(z -> z.surfaceId().equals(BRIDGE)).toList();
+        assertEquals(Set.of("5,2", "4,3"), dancers.stream()
+                .map(z -> z.gridX() + "," + z.gridY()).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(2, dancers.size());
+        assertTrue(dancers.stream().allMatch(z -> level.sceneBoard().exists(BRIDGE, z.gridX(), z.gridY())
+                && z.height() == 1.4F && z.team() == leader.team()));
+    }
     @Test void explosionAndRowFireRespectDeckAndChosenPath() {
         var level = new LevelServer(bridgeDef(), 3L);
         var below = zombie(level, 4.5F, 2, SceneBoard.DEFAULT_SURFACE);

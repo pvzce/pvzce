@@ -59,6 +59,8 @@ public final class PvzceClientPacketListener implements PacketListener {
                     init.background().orElse(null), init.hiddenSceneElements(),
                     init.payload().shadersDisabled(), init.payload().activeBuffs());
             client.onLevelInit();
+        } else if (packet instanceof com.pvzce.common.network.packet.WorkshopSessionS2C session) {
+            client.onWorkshopSession(session.active(), session.error());
         } else if (packet instanceof LevelListS2C list) {
             client.setLevelList(list.levels());
         } else if (packet instanceof LevelTabsS2C tabs) {

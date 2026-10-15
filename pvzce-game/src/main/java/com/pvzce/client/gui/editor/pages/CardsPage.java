@@ -39,6 +39,7 @@ import java.util.Set;
  */
 public final class CardsPage implements EditorPage {
 
+    private EditorContext editorContext;
     private final CardPoolEditorDialog.Config cardPoolConfig = new CardPoolEditorDialog.Config();
     private int maxSeedSlots = LevelDef.UNSET_MAX_SEED_SLOTS;
 
@@ -103,6 +104,7 @@ public final class CardsPage implements EditorPage {
     /** The loaded file's card block; a level with no {@code slots} starts from the defaults. */
     @Override
     public void readFrom(EditorContext context) {
+        editorContext = context;
         boolean hasSlots = context.draft().has("slots");
         cardPoolConfig.replaceWith(CardPoolEditorDialog.Config.fromJson(context.draft().json()));
         refreshCardPool(!hasSlots);
@@ -249,12 +251,12 @@ public final class CardsPage implements EditorPage {
     }
 
     /** A slot's kind from its resolved card, defaulting to "other". */
-    private static String kindOf(String slotId) {
+    private String kindOf(String slotId) {
         Identifier id = Identifier.tryParse(slotId);
         if (id == null) {
             return "other";
         }
-        return SlotResolver.resolve(id)
+        return SlotResolver.resolve(id, editorContext.screen().editorCatalog())
                 .map(card -> card.kind().json())
                 .orElse("other");
     }
@@ -411,7 +413,7 @@ public final class CardsPage implements EditorPage {
     /** Keeps the editor's card pool and "all slots" list in sync with the registries. */
     private void refreshCardPool(boolean fillDefaults) {
         Set<String> available = new LinkedHashSet<>();
-        BuiltInRegistries.SLOT_TYPES.keySet().stream()
+        java.util.stream.Stream.concat(editorContext.contentIds(com.pvzce.common.core.PvzceRegistries.SLOT_TYPES).stream(), editorContext.contentIds(com.pvzce.common.core.PvzceRegistries.PLANTS).stream())
                 .map(Identifier::toString)
                 .sorted()
                 .forEach(available::add);

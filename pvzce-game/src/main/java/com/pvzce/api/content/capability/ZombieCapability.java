@@ -14,7 +14,7 @@ import com.pvzce.server.entity.ZombieEntity;
  * {@code false} / neutral values when they do not apply, so an unknown capability
  * can never silently disable base movement.
  */
-public interface ZombieCapability {
+public interface ZombieCapability extends EntityCapability {
     /** A carried metal object, independent of whether it protects the body. */
     default com.pvzce.api.util.Identifier magneticItem(ZombieEntity zombie) { return null; }
 
@@ -150,9 +150,5 @@ public interface ZombieCapability {
     default void onReleased(ZombieEntity zombie, LevelAccess level) {
     }
 
-    default void save(CompoundTag tag) {
-    }
 
-    default void load(CompoundTag tag) {
-    }
 }
