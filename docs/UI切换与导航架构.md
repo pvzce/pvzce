@@ -67,6 +67,9 @@ popScreen()                  // 无处可弹时不动，留给"客户端自己�
 currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 ```
 
+`ScreenStack.push` 在压入子页前调用原顶屏的 `Screen.onHidden`；`suspend` 在悬置栈前调用当前屏同一钩子。
+它用于停止试听这类只属于当前页的活动，页面本身保留，返回时不会自动重新播放；移除资源仍由 `onRemoved` 释放。
+
 **关键认知：栈深度不是导航深度。** 它只是"当前压着几屏"：
 
 ```

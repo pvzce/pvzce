@@ -65,6 +65,7 @@ public final class ScreenStack {
 
     /** Installs {@code screen} as the new root, discarding and releasing what was there. */
     public List<Screen> suspend() {
+        if (current() != null) current().onHidden();
         List<Screen> saved = List.copyOf(screens);
         screens.clear();
         return saved;
@@ -85,6 +86,7 @@ public final class ScreenStack {
     /** Puts {@code screen} on top; the screen underneath stays alive. */
     public void push(Screen screen) {
         requireScreen(screen);
+        if (current() != null) current().onHidden();
         screens.push(screen);
     }
 

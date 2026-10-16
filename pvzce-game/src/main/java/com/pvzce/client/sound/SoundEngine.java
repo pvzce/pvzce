@@ -85,6 +85,9 @@ public final class SoundEngine implements AutoCloseable {
      * enough because a board has one weather.
      */
     private int ambientSource;
+    private int previewSource;
+    private float previewVolume = 1F;
+    private final PreviewChannel previews = new PreviewChannel(this::playPreview, this::stopPreview);
     /** The event the ambient player is looping, or {@code null}; what makes a restart a no-op. */
     private String ambientEvent;
     /** The volume the ambient loop was asked for, kept so a volume change can re-apply it. */
@@ -123,6 +126,7 @@ public final class SoundEngine implements AutoCloseable {
                 musicSources[i] = AL10.alGenSources();
             }
             ambientSource = AL10.alGenSources();
+            previewSource = AL10.alGenSources();
             enabled = true;
         } catch (Throwable t) {
             LOGGER.warn("Sound engine unavailable; the game runs silently.", t);
@@ -137,6 +141,7 @@ public final class SoundEngine implements AutoCloseable {
     public void setMasterVolume(float volume) {
         this.masterVolume = MathUtil.clamp01(volume);
         refreshAmbientVolume();
+        refreshPreviewVolume();
     }
 
     public void setMusicVolume(float volume) {
@@ -146,6 +151,7 @@ public final class SoundEngine implements AutoCloseable {
     public void setSfxVolume(float volume) {
         this.sfxVolume = MathUtil.clamp01(volume);
         refreshAmbientVolume();
+        refreshPreviewVolume();
     }
 
     /**
@@ -253,6 +259,37 @@ public final class SoundEngine implements AutoCloseable {
         AL10.alSourcef(source, AL10.AL_PITCH, clampPitch(pitch * variant.pitch() * randomPitchFactor()));
         AL10.alSourcePlay(source);
         playingPaths.put(source, path);
+    }
+
+    /** A screen-owned audition; independent of gameplay effects, loops and music. */
+    public PreviewChannel.Session preview() {
+        return previews.open();
+    }
+
+    private void playPreview(String soundId) {
+        if (!enabled) return;
+        SoundVariant variant = pickVariant(definition(eventPath(soundId)));
+        if (variant == null) return;
+        int buffer = bufferForFile(variant.file());
+        if (buffer == 0) return;
+        AL10.alSourceStop(previewSource);
+        AL10.alSourcei(previewSource, AL10.AL_LOOPING, AL10.AL_FALSE);
+        AL10.alSourcei(previewSource, AL10.AL_BUFFER, buffer);
+        previewVolume = variant.volume();
+        refreshPreviewVolume();
+        AL10.alSourcef(previewSource, AL10.AL_PITCH, clampPitch(variant.pitch()));
+        AL10.alSourcePlay(previewSource);
+    }
+
+    private void refreshPreviewVolume() {
+        if (enabled) AL10.alSourcef(previewSource, AL10.AL_GAIN, masterVolume * sfxVolume * previewVolume);
+    }
+
+    private void stopPreview() {
+        if (!enabled) return;
+        AL10.alSourceStop(previewSource);
+        AL10.alSourcei(previewSource, AL10.AL_LOOPING, AL10.AL_FALSE);
+        AL10.alSourcei(previewSource, AL10.AL_BUFFER, 0);
     }
 
     /**
@@ -733,6 +770,7 @@ public final class SoundEngine implements AutoCloseable {
      * {@code sounds.json} or a file behind an event: the old bytes would keep playing.
      */
     public void invalidate() {
+        previews.stopAll();
         if (enabled) {
             for (int buffer : buffers.values()) {
                 if (buffer != 0) {
@@ -756,6 +794,7 @@ public final class SoundEngine implements AutoCloseable {
             AL10.alDeleteSources(source);
         }
         invalidate();
+        AL10.alDeleteSources(previewSource);
         ALC10.alcDestroyContext(context);
         ALC10.alcCloseDevice(device);
         enabled = false;

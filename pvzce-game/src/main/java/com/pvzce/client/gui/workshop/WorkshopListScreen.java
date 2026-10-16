@@ -47,6 +47,7 @@ public final class WorkshopListScreen extends Screen {
         addWidget(new Button(104,12,80,26,"→",()->{ if((page+1)*count<filtered.size())page++;onResize(); }));
         addWidget(new Button(client.guiWidth()-116,12,100,26,WorkshopUi.text("back","返回"),this::requestClose));
     }
+    protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();}
     public void render() {
         renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);

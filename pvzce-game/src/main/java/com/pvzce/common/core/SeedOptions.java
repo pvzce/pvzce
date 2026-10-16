@@ -50,7 +50,7 @@ public final class SeedOptions {
     }
 
     /**
-     * Every card id the game can put in a bar: all slots, then tools and resources.
+     * Every explicit card, plus plants that have no explicit card for their content.
      *
      * <p>In <em>registration</em> order, which for a plant card is its almanac number: the bag
      * and the chooser are read the way the original's are, where a plant's place in the list
@@ -59,7 +59,16 @@ public final class SeedOptions {
      * the first card in the bag.
      */
     public static List<Identifier> allCards() {
-        List<Identifier> ids = new ArrayList<>(BuiltInRegistries.SLOT_TYPES.keySet());
+        LinkedHashSet<Identifier> candidates = new LinkedHashSet<>(BuiltInRegistries.SLOT_TYPES.keySet());
+        java.util.Set<Identifier> representedPlants = new java.util.HashSet<>();
+        for (Identifier id : BuiltInRegistries.SLOT_TYPES.keySet()) {
+            var slot = BuiltInRegistries.SLOT_TYPES.get(id);
+            if (slot.kind() == com.pvzce.api.content.SlotDef.Kind.PLANT) representedPlants.add(slot.content());
+        }
+        for (Identifier plant : BuiltInRegistries.PLANTS.keySet()) {
+            if (!representedPlants.contains(plant)) candidates.add(plant);
+        }
+        List<Identifier> ids = new ArrayList<>(candidates);
         ids.sort(Comparator.comparingInt(SeedOptions::cardRank).thenComparing(Identifier::toString));
         return List.copyOf(ids);
     }
@@ -93,8 +102,7 @@ public final class SeedOptions {
      * already keep.
      *
      * <p>The level pins matter. A level may name a plant id directly instead of its
-     * slot ({@link SlotResolver} resolves both) and that id is not in
-     * {@link #allCards()}, so a filter-only pool would drop a card the level
+     * slot ({@link SlotResolver} resolves both) and its explicit card may use another id; a filter-only pool would drop a card the level
      * itself insists on.
      */
     public static List<Identifier> cardPool(LevelDef def, java.util.function.Predicate<Identifier> owns) {

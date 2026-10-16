@@ -69,6 +69,10 @@ public abstract class Screen {
     protected void onRemoved() {
     }
 
+    /** The screen stays on the stack but another screen or a suspended flow hides it. */
+    protected void onHidden() {
+    }
+
     /**
      * Where "back" goes from this screen.
      *

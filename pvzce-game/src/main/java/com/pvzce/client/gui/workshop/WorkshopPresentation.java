@@ -24,6 +24,7 @@ final class WorkshopPresentation implements AutoCloseable {
     private final Map<String, Item> cache = new HashMap<>();
     private Path previousOverlay;
     private boolean attached;
+    private com.pvzce.client.sound.PreviewChannel.Session audition;
 
     WorkshopPresentation(PvzceClient client, Workspace workspace) {
         this.client = client;
@@ -166,7 +167,7 @@ final class WorkshopPresentation implements AutoCloseable {
         return new Button(x, y, width, height, item.name(), action) {
             @Override public boolean mouseClicked(double mx,double my,int button){
                 if(button==1&&isMouseOver(mx,my)&&item.id()!=null){
-                    if(Set.of("sounds","sound_events").contains(item.type())){if(client.sound()!=null)client.sound().play(item.id().toString(),1F,1F);return true;}
+                    if(Set.of("sounds","sound_events").contains(item.type())){if(client.sound()!=null){activate();if(audition==null)audition=client.sound().preview();audition.play(item.id().toString());}return true;}
                     if(Set.of("textures","animations").contains(item.type())&&workspace!=null){
                         String path=item.value().startsWith("assets/")?item.value():item.type().equals("textures")?"assets/"+item.id().namespace()+"/"+item.id().path()+".png":WorkshopContent.path(workspace,item.type(),item.id().toString());
                         client.openScreen(new WorkshopPreviewScreen(client,workspace,path));return true;
@@ -185,7 +186,9 @@ final class WorkshopPresentation implements AutoCloseable {
             }
         };
     }
+    void stopAudition(){if(audition!=null)audition.stop();}
     @Override public void close() {
+        if(audition!=null)audition.close();
         previews.release();
         if (attached) { attached = false; if (!Objects.equals(previousOverlay, client.resources().workspaceOverlay())) client.previewWorkspaceAssets(previousOverlay); }
     }

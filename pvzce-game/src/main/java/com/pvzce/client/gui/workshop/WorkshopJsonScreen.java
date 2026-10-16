@@ -307,6 +307,7 @@ public final class WorkshopJsonScreen extends Screen {
     void removeField(JsonObject node,String key){String prefix=inputKey(node,key);node.remove(key);inputErrors.keySet().removeIf(k->k.equals(prefix)||k.startsWith(prefix+"/"));invalidText.keySet().removeIf(k->k.equals(prefix)||k.startsWith(prefix+"/"));onResize();}
     private boolean save(){if(!inputErrors.isEmpty()){notice=inputErrors.values().iterator().next();return false;}try{workspace.write(file,root);notice=WorkshopUi.text("saved","草稿已保存，尚未构建");return true;}catch(Exception e){notice=e.getMessage();return false;}}
     public void requestClose(){if(save())super.requestClose();}
+    protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();}
     public void render(){renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
         client.fonts().body().draw(WorkshopScreen.shorten(file+" / "+String.join("/",location),client.guiWidth()-24),12,client.guiHeight()-28,0.9F,1,1,0.8F,1);

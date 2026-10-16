@@ -190,6 +190,7 @@ public final class WorkshopScreen extends Screen {
             else {var current=workspace.files().stream().filter(p->filter.isEmpty()||p.contains(filter)).toList();if(!current.equals(files)||stamp()!=workspaceStamp)onResize();}
         }catch(Exception e){notice=e.getMessage();}
     }
+    protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();}
     public void render(){
         renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);

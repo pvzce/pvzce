@@ -12,6 +12,7 @@ public final class WorkshopPreviewScreen extends Screen {
     private final Workspace workspace;
     private final String path;
     private ArtTarget target;
+    private com.pvzce.client.sound.PreviewChannel.Session audition;
     private boolean attached;
     private java.nio.file.Path previousOverlay;
     private String error="";
@@ -26,7 +27,7 @@ public final class WorkshopPreviewScreen extends Screen {
                 target.play(file.clipNames().contains("idle")?"idle":file.clipNames().iterator().next());
                 addWidget(new Button(16,60,150,28,WorkshopUi.text("clip","选择动画动作"),()->client.openScreen(new WorkshopListScreen(client,WorkshopUi.text("clip","动画动作"),file.clipNames(),state->{target.stopAnimation();target.play(state);} ))));
                 addWidget(new Button(174,60,90,28,WorkshopUi.text("replay","重播"),()->{var playback=client.animations().playback(target);if(playback!=null)playback.restart();}));
-            }else if(path.endsWith(".ogg"))addWidget(new Button(centerX(180),client.guiHeight()/2,180,32,WorkshopUi.text("listen","试听"),()->client.sound().play(id().toString(),1F,1F)));
+            }else if(path.endsWith(".ogg"))addWidget(new Button(centerX(180),client.guiHeight()/2,180,32,WorkshopUi.text("listen","试听"),()->{if(client.sound()!=null){if(audition==null)audition=client.sound().preview();audition.play(id().toString());}}));
         }catch(Exception e){error=e.getMessage();}
         addWidget(new Button(client.guiWidth()-116,16,100,28,WorkshopUi.text("back","返回"),this::requestClose));
     }
@@ -49,5 +50,6 @@ public final class WorkshopPreviewScreen extends Screen {
         }else if(path.endsWith(".png"))client.drawTexture(id(),client.guiWidth()/2F-64,client.guiHeight()/2F-48,128,128,0,1,1,1,1);
         for(var widget:widgets)widget.render(client);
     }
-    protected void onRemoved(){if(target!=null)target.stopAnimation();if(attached){attached=false;client.previewWorkspaceAssets(previousOverlay);}}
+    protected void onHidden(){if(audition!=null)audition.stop();}
+    protected void onRemoved(){if(audition!=null)audition.close();if(target!=null)target.stopAnimation();if(attached){attached=false;client.previewWorkspaceAssets(previousOverlay);}}
 }
