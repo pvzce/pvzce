@@ -44,6 +44,21 @@ class DialogueStageTest {
     /** The player, as the title screen would have named them. */
     private static final String PLAYER = "莉安";
 
+    @Test
+    void previewResolvesUnpublishedCharactersWithoutChangingTheLiveRegistry() {
+        var access=BuiltInRegistries.ACCESS.copyForReload();
+        var id=Identifier.parse("preview:actor");
+        var json=com.google.gson.JsonParser.parseString("{\"id\":\"preview:actor\",\"name\":\"草稿演员\",\"portrait_dir\":\"pvzce:textures/gui/dialogue/pea_chan\"}");
+        var character=com.pvzce.api.content.DialogueCharacterDef.CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE,json).result().orElseThrow();
+        var registry=(com.pvzce.api.registry.MappedRegistry<com.pvzce.api.content.DialogueCharacterDef>)access.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS);
+        registry.unfreeze();registry.registerDynamic(id,character);registry.freeze();
+        var line=com.pvzce.api.content.DialogueLine.CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE,
+                com.google.gson.JsonParser.parseString("{\"character\":\"preview:actor\",\"portrait\":\"smile\",\"text\":\"草稿\"}")).result().orElseThrow();
+        var script=DialogueScript.of(new LevelDialogue(List.of(line)),"",access);
+        assertEquals("草稿演员",script.speakerName());assertEquals(character,script.portraits().get(0).character);
+        assertNull(BuiltInRegistries.DIALOGUE_CHARACTERS.get(id));
+    }
+
     @BeforeAll
     static void loadContent() throws Exception {
         TestContent.loadBuiltInContentAndTags();

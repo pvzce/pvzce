@@ -15,6 +15,8 @@ public final class WorkshopScreen extends Screen {
     private final Workspace workspace;
     private String notice="";
     private int page;
+    private WorkshopPresentation presentation;
+    private long workspaceStamp;
     private String filter="";
     private List<Workspace> workspaces=List.of();
     private List<String> files=List.of();
@@ -61,18 +63,26 @@ public final class WorkshopScreen extends Screen {
             addWidget(new Button(16+(bw+gap)*2,height-64,bw,26,WorkshopUi.text("import","导入素材"),this::importAsset));
             addWidget(new Button(16+(bw+gap)*3,height-64,bw,26,WorkshopUi.text("filter","筛选"),()->client.openScreen(new WorkshopListScreen(client,
                     WorkshopUi.text("type","内容类型"),WorkshopContent.types(),type->{filter="/"+type+"/";page=0;onResize();}))));
-            try {files=workspace.files().stream().filter(p->filter.isEmpty()||p.contains(filter)).toList();}catch(Exception e){notice=e.getMessage();}
+            try {workspaceStamp=stamp();files=workspace.files().stream().filter(p->filter.isEmpty()||p.contains(filter)).toList();}catch(Exception e){notice=e.getMessage();}
         }
-        int count=Math.max(1,(height-146)/30);
+        if(presentation==null)presentation=new WorkshopPresentation(client,workspace);
+        else presentation.refresh();
+        int columns=workspace==null?1:Math.max(1,(width-32)/170);
+        int rows=Math.max(1,(height-152)/145);
+        int count=workspace==null?Math.max(1,(height-146)/30):columns*rows;
+        int cardWidth=(width-32-(columns-1)*8)/columns;
+        int cardHeight=Math.max(72,Math.min(152,(height-152)/rows-8));
         int total=workspace==null?workspaces.size():files.size();
         page=Math.min(page,Math.max(0,(total-1)/count));
         for(int i=page*count;i<Math.min(total,(page+1)*count);i++) {
             int index=i;
             String label=workspace==null?workspaces.get(i).name()+" · "+workspaces.get(i).namespace():files.get(i);
-            addWidget(new Button(16,height-100-(i-page*count)*30,width-32,26,shorten(label,width-45),()->{
-                if(workspace==null)client.openScreen(new WorkshopScreen(client,workspaces.get(index)));
-                else attempt(()->open(files.get(index)));
-            }));
+            if(workspace==null)addWidget(new Button(16,height-100-(i-page*count)*30,width-32,26,shorten(label,width-45),()->client.openScreen(new WorkshopScreen(client,workspaces.get(index)))));
+            else {
+                int slot=i-page*count;
+                addWidget(presentation.card(presentation.item(label,""),16+(slot%columns)*(cardWidth+8),
+                        height-80-cardHeight-(slot/columns)*(cardHeight+8),cardWidth,cardHeight,()->attempt(()->open(label))));
+            }
         }
         addWidget(new Button(16,32,64,26,"←",()->{page=Math.max(0,page-1);onResize();}));
         addWidget(new Button(86,32,64,26,"→",()->{if((page+1)*count<total)page++;onResize();}));
@@ -111,7 +121,7 @@ public final class WorkshopScreen extends Screen {
                 String keyText=id.contains(":")?id:workspace.namespace()+":"+id;
                 String title=templates.containsKey(keyText)?WorkshopUi.text("override","将覆盖已有内容：")+keyText
                         :!Identifier.parse(keyText).namespace().equals(workspace.namespace())?WorkshopUi.text("foreign_namespace","使用其它命名空间：")+keyText:WorkshopUi.text("template","选择模板");
-                client.openScreen(new WorkshopListScreen(client,title,choices,choice->attempt(()->{
+                client.openScreen(new WorkshopListScreen(client,title,choices,workspace,type,choice->attempt(()->{
                     Identifier key=Identifier.parse(id.contains(":")?id:workspace.namespace()+":"+id);
                     JsonObject json=templates.containsKey(choice)?templates.get(choice).deepCopy():WorkshopContent.blank(type,key);
                     if(templates.containsKey(choice)&&(type.equals("plants")||type.equals("zombies")||type.equals("projectiles")||type.equals("tools"))) {
@@ -169,16 +179,20 @@ public final class WorkshopScreen extends Screen {
         else client.openScreen(new WorkshopPreviewScreen(client,workspace,path));
     }
     static String shorten(String value,int width){return value.length()>Math.max(15,width/8)?value.substring(0,Math.max(12,width/8)-1)+"…":value;}
+    private long stamp()throws java.io.IOException{
+        long value=1;for(String path:workspace.files()){var file=workspace.file(path);value=31*value+java.util.Objects.hash(path,Files.size(file),Files.getLastModifiedTime(file));}return value;
+    }
     private long nextRefresh;
     public void tick(){
         if(System.nanoTime()<nextRefresh)return;nextRefresh=System.nanoTime()+500_000_000L;
         try {
             if(workspace==null){var current=Workspace.list(client.gameDir());if(!current.equals(workspaces))onResize();}
-            else {var current=workspace.files().stream().filter(p->filter.isEmpty()||p.contains(filter)).toList();if(!current.equals(files))onResize();}
+            else {var current=workspace.files().stream().filter(p->filter.isEmpty()||p.contains(filter)).toList();if(!current.equals(files)||stamp()!=workspaceStamp)onResize();}
         }catch(Exception e){notice=e.getMessage();}
     }
+    protected void onRemoved(){if(presentation!=null)presentation.close();}
     public void render(){
-        renderBackground(0.08F,0.12F,0.1F);
+        renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
         client.fonts().body().draw(shorten(workspace==null?WorkshopUi.text("title","创意工坊"):workspace.name()+" · "+workspace.namespace(),client.guiWidth()-30),16,client.guiHeight()-28,1.1F,1,1,0.8F,1);
         client.fonts().body().draw(shorten(notice.isEmpty()?WorkshopUi.text("draft_notice","草稿仅在构建或临时测试时加载"):notice,client.guiWidth()-30),16,10,0.8F,1,0.9F,0.6F,1);
         for(var widget:widgets)widget.render(client);

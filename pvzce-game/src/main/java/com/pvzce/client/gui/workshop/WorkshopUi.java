@@ -30,7 +30,78 @@ final class WorkshopUi {
         java.util.Map.entry("pieces","护甲部件"),java.util.Map.entry("durability","耐久度"),java.util.Map.entry("radius","作用半径"),
         java.util.Map.entry("fuse_ticks","引信（tick）"),java.util.Map.entry("equipment","装备表现"),java.util.Map.entry("size","动画尺寸"),
         java.util.Map.entry("anchor","动画锚点"),java.util.Map.entry("order","显示顺序"),java.util.Map.entry("upgrade","升级前置")
+        ,java.util.Map.entry("cooldown","冷却（tick）"),
+        java.util.Map.entry("name","显示名称"),
+        java.util.Map.entry("description","说明"),
+        java.util.Map.entry("kind","卡片类型"),
+        java.util.Map.entry("content","卡片内容"),
+        java.util.Map.entry("layer","所在层"),
+        java.util.Map.entry("speed","速度"),
+        java.util.Map.entry("default_value","默认数值"),
+        java.util.Map.entry("max_stack","堆叠上限"),
+        java.util.Map.entry("collectible","允许收集"),
+        java.util.Map.entry("collectible_without_card","无需卡片即可收集"),
+        java.util.Map.entry("drop_motion","掉落运动"),
+        java.util.Map.entry("drop_anim","掉落动画"),
+        java.util.Map.entry("pickup_effect","拾取特效"),
+        java.util.Map.entry("tint","颜色"),
+        java.util.Map.entry("art","场景绘制"),
+        java.util.Map.entry("width","宽度（格）"),
+        java.util.Map.entry("height","高度（格）"),
+        java.util.Map.entry("night_texture","夜间贴图"),
+        java.util.Map.entry("underlay","底层场景"),
+        java.util.Map.entry("tiled","平铺纹理"),
+        java.util.Map.entry("solid","阻挡通行"),
+        java.util.Map.entry("portrait_dir","立绘目录"),
+        java.util.Map.entry("portrait_insets","立绘留白"),
+        java.util.Map.entry("box_left","左侧对话框"),
+        java.util.Map.entry("box_right","右侧对话框"),
+        java.util.Map.entry("scale","立绘比例"),
+        java.util.Map.entry("volume","音量"),
+        java.util.Map.entry("pitch","音调"),
+        java.util.Map.entry("stream","流式播放"),
+        java.util.Map.entry("subtitle","字幕"),
+        java.util.Map.entry("variants","变体"),
+        java.util.Map.entry("weight","权重"),
+        java.util.Map.entry("type","类型"),
+        java.util.Map.entry("target","目标"),
+        java.util.Map.entry("mode","模式"),
+        java.util.Map.entry("rows","作用行"),
+        java.util.Map.entry("surface","地表"),
+        java.util.Map.entry("shoot","发射"),
+        java.util.Map.entry("impact","命中"),
+        java.util.Map.entry("death","死亡"),
+        java.util.Map.entry("eat","啃咬"),
+        java.util.Map.entry("produce","生产"),
+        java.util.Map.entry("sleep","睡眠"),
+        java.util.Map.entry("idle","待机"),
+        java.util.Map.entry("walk","行走"),
+        java.util.Map.entry("grow","生长"),
+        java.util.Map.entry("explode","爆炸"),
+        java.util.Map.entry("burn","燃烧"),
+        java.util.Map.entry("damage_type","伤害类型"),
+        java.util.Map.entry("impact_particle","命中特效"),
+        java.util.Map.entry("impact_sound","命中音效"),
+        java.util.Map.entry("knockback","击退"),
+        java.util.Map.entry("duration","持续时间"),
+        java.util.Map.entry("chance","概率"),
+        java.util.Map.entry("range","范围"),
+        java.util.Map.entry("min","最小值"),
+        java.util.Map.entry("max","最大值"),
+        java.util.Map.entry("value","数值"),java.util.Map.entry("plant","植物"),java.util.Map.entry("zombie","僵尸"),java.util.Map.entry("tool","工具")
     );
+    static void backdrop(com.pvzce.client.PvzceClient client) {
+        client.drawSolid(0,0,client.guiWidth(),client.guiHeight(),-.8F,.035F,.065F,.05F,.94F);
+    }
+    static void fit(com.pvzce.client.PvzceClient client, String text, float x, float y, float width,
+                    float scale, float r, float g, float b) {
+        String value = text == null ? "" : text;
+        while (!value.isEmpty() && client.fonts().body().width(value, scale) > width) {
+            value = value.substring(0, value.length()-1);
+        }
+        if (!value.equals(text) && value.length()>1) value=value.substring(0,value.length()-1)+"…";
+        client.fonts().body().draw(value,x,y,scale,r,g,b,1);
+    }
     static void ask(Screen owner, String title, String initial, Consumer<String> accept) {
         int width = Math.min(540, owner.client().guiWidth()-20), height = 180;
         int x = (owner.client().guiWidth()-width)/2, y = (owner.client().guiHeight()-height)/2;

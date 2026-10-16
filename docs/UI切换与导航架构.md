@@ -95,12 +95,13 @@ TitleScreen
  ├ 开始游戏 → LevelSelectScreen → LevelSetupScreen / ChooseSeedsScreen → InGameScreen
  ├ 创意工坊 → WorkshopScreen（工作区列表）→ WorkshopScreen（工作区内容）
  │                                          ├ EditorScreen（关卡）
- │                                          ├ WorkshopJsonScreen（定义、标签、帧动画、翻译）
+ │                                          ├ WorkshopJsonScreen（分组面板、能力卡、动画帧、翻译）
  │                                          └ WorkshopPreviewScreen（素材预览/试听）
  ├ ModsScreen
  ├ SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen
  └ 左下木托盘 → ShopScreen / PackScreen
 
+对话预览：EditorScreen / WorkshopJsonScreen → DialoguePreviewScreen → 返回原编辑屏幕（不保存、不构建）
 工坊测试：悬置原屏幕栈 → WorkshopWaitingScreen → 选卡 / InGameScreen
 退出测试：服务端恢复确认 → 恢复原屏幕栈与编辑位置
 普通关卡：ESC 打开 PauseDialog；领奖进入 AwardScreen；离开回到关卡列表

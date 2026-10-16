@@ -20,6 +20,7 @@ public final class WorkshopPreviewScreen extends Screen {
         try {
             if(!attached){previousOverlay=client.resources().workspaceOverlay();attached=true;client.previewWorkspaceAssets(workspace.root());}
             if(path.contains("/animations/")) {
+                if(target!=null)target.stopAnimation();
                 Identifier id=id();target=new ArtTarget(id);target.attach(client.animations());
                 var file=client.animations().file(id).orElseThrow(()->new IllegalArgumentException("无法读取动画"));
                 target.play(file.clipNames().contains("idle")?"idle":file.clipNames().iterator().next());
@@ -36,7 +37,7 @@ public final class WorkshopPreviewScreen extends Screen {
         return new int[]{(width-side)/2,Math.max(10,Math.min(110,height-side-40)),side,side};
     }
     public void render(){
-        renderBackground(0.08F,0.12F,0.1F);
+        renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
         client.fonts().body().draw(WorkshopScreen.shorten(error.isEmpty()?path:error,client.guiWidth()-32),16,client.guiHeight()-30,0.9F,1,1,0.8F,1);
         if(target!=null){
             var playback=client.animations().playback(target);

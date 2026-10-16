@@ -46,9 +46,10 @@ public final class EntityPreview {
 
     private final PvzceClient client;
     private final com.pvzce.api.registry.RegistryAccess content;
-    private final Map<Identifier, ClientEntity> live = new LinkedHashMap<>(16, 0.75F, true) {
+    private record Key(String kind,Identifier id) {}
+    private final Map<Key, ClientEntity> live = new LinkedHashMap<>(16, 0.75F, true) {
         @Override
-        protected boolean removeEldestEntry(Map.Entry<Identifier, ClientEntity> eldest) {
+        protected boolean removeEldestEntry(Map.Entry<Key, ClientEntity> eldest) {
             if (size() <= MAX_ALIVE) {
                 return false;
             }
@@ -89,13 +90,14 @@ public final class EntityPreview {
         if (!canDraw(contentId) || width <= 0F || height <= 0F) {
             return false;
         }
-        ClientEntity entity = live.get(contentId);
+        Key key=new Key(kind,contentId);
+        ClientEntity entity = live.get(key);
         if (entity == null) {
             entity = new ClientEntity(-1 - live.size(), kind, contentId.toString(),
                     CELLS / 2F, CELLS / 2F, 100, 1, POSE, 0F, "");
             entity.previewCatalog(content);
             entity.attachAnimationManager(client.animations());
-            live.put(contentId, entity);
+            live.put(key, entity);
         }
         entity.update(CELLS / 2F, CELLS / 2F, 100, POSE, 0F);
         entity.playAnimation(POSE);
@@ -135,7 +137,7 @@ public final class EntityPreview {
 
     /** The ids currently held, oldest first; for tests. */
     public java.util.List<Identifier> held() {
-        return java.util.List.copyOf(new java.util.ArrayList<>(live.keySet()));
+        return live.keySet().stream().map(Key::id).toList();
     }
 
     /** The bound this pool enforces, so a test can assert it without restating the number. */

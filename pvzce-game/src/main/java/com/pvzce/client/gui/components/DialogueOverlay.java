@@ -253,12 +253,18 @@ public final class DialogueOverlay extends Dialog {
      * empty on every path.
      */
     public static DialogueOverlay create(PvzceClient client, LevelDialogue dialogue, Runnable onFinish) {
+        return create(client,dialogue,onFinish,com.pvzce.common.core.BuiltInRegistries.ACCESS);
+    }
+
+    /** Editor previews resolve unpublished characters in their own content directory. */
+    public static DialogueOverlay create(PvzceClient client, LevelDialogue dialogue, Runnable onFinish,
+                                         com.pvzce.api.registry.RegistryAccess content) {
         if (dialogue == null || dialogue.isEmpty()) {
             return null;
         }
         String playerName = client == null || client.currentWorld() == null ? "" : client.currentWorld();
         DialogueOverlay overlay = new DialogueOverlay(client,
-                DialogueScript.of(dialogue, playerName), dialogue.enter(), playerName);
+                DialogueScript.of(dialogue, playerName, content), dialogue.enter(), playerName);
         overlay.onFinish = onFinish;
         return overlay;
     }

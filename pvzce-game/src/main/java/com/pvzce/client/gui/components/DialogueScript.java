@@ -96,6 +96,7 @@ final class DialogueScript {
         }
     }
 
+    private final com.pvzce.api.registry.RegistryAccess content;
     private final List<DialogueLine> lines;
     private final String playerName;
     private final Set<Integer> revealed = new HashSet<>();
@@ -113,7 +114,8 @@ final class DialogueScript {
     private boolean exiting;
     private long exitStartNanos;
 
-    private DialogueScript(List<DialogueLine> lines, String playerName, long startNanos, boolean exitSlides) {
+    private DialogueScript(List<DialogueLine> lines, String playerName, long startNanos, boolean exitSlides, com.pvzce.api.registry.RegistryAccess content) {
+        this.content=content;
         this.lines = lines;
         this.playerName = playerName == null ? "" : playerName;
         this.startNanos = startNanos;
@@ -147,9 +149,12 @@ final class DialogueScript {
      * typewriter, the wrapping and the choice buttons all measure the same string.
      */
     static DialogueScript of(LevelDialogue dialogue, String playerName) {
+        return of(dialogue,playerName,BuiltInRegistries.ACCESS);
+    }
+    static DialogueScript of(LevelDialogue dialogue, String playerName, com.pvzce.api.registry.RegistryAccess content) {
         List<DialogueLine> lines = dialogue == null ? List.of() : dialogue.lines();
         boolean exitSlides = dialogue == null || dialogue.exit().slides();
-        return new DialogueScript(List.copyOf(lines), playerName, System.nanoTime(), exitSlides);
+        return new DialogueScript(List.copyOf(lines), playerName, System.nanoTime(), exitSlides, content);
     }
 
     /** The same substitution the overlay's line texts go through, for a name. */
@@ -589,11 +594,11 @@ final class DialogueScript {
         return wanted;
     }
 
-    private static DialogueCharacterDef characterOf(Identifier id) {
+    private DialogueCharacterDef characterOf(Identifier id) {
         if (id == null) {
             return null;
         }
-        DialogueCharacterDef character = BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+        DialogueCharacterDef character = content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).get(id);
         if (character == null) {
             LOGGER.warn("Unknown dialogue character '{}': the line is shown without a portrait", id);
         }

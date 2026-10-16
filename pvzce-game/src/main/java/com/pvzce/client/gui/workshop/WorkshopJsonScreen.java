@@ -17,6 +17,68 @@ public final class WorkshopJsonScreen extends Screen {
     private final List<String> location=new ArrayList<>();
     private int page;
     private String notice="";
+    private final Map<String,String> inputErrors=new HashMap<>();
+    private final Map<String,String> invalidText=new HashMap<>();
+    private boolean advanced;
+    private WorkshopPresentation presentation;
+    private WorkshopEditorView visual;
+    private boolean visualBuilt;
+    String file(){return file;}
+    JsonObject draft(){return root;}
+    void enterClip(String clip){location.add("animations");location.add(clip);if(root.getAsJsonObject("animations").getAsJsonObject(clip).has("frames"))location.add("frames");page=0;onResize();}
+    boolean atRoot(){return location.isEmpty();}
+    String currentField(){return currentKey();}
+    void visualWidget(com.pvzce.client.gui.components.AbstractWidget widget){addWidget(widget);}
+    void enter(String key){location.add(key);page=0;onResize();}
+    void editValue(JsonElement node,String key,JsonElement value){edit(node,key,value);}
+    private List<String> pathOf(JsonElement current,JsonElement wanted,List<String> path){
+        if(current==wanted)return path;
+        if(current.isJsonObject())for(var entry:current.getAsJsonObject().entrySet()){
+            var next=new ArrayList<>(path);next.add(entry.getKey());var found=pathOf(entry.getValue(),wanted,next);if(found!=null)return found;
+        }
+        if(current.isJsonArray())for(int i=0;i<current.getAsJsonArray().size();i++){
+            var next=new ArrayList<>(path);next.add(Integer.toString(i));var found=pathOf(current.getAsJsonArray().get(i),wanted,next);if(found!=null)return found;
+        }
+        return null;
+    }
+    private String inputKey(JsonElement node,String key){return String.join("/",pathOf(root,node,new ArrayList<>()))+"/"+key;}
+    String inputText(JsonElement node,String key,JsonElement value){return invalidText.getOrDefault(inputKey(node,key),value.getAsString());}
+    void setText(JsonElement node,String key,JsonElement original,String text){
+        try {
+            JsonElement value=original.getAsJsonPrimitive().isNumber()?JsonParser.parseString(text):new JsonPrimitive(text);
+            if(original.getAsJsonPrimitive().isNumber() && (!value.isJsonPrimitive()||!value.getAsJsonPrimitive().isNumber()||!Double.isFinite(value.getAsDouble())))throw new IllegalArgumentException("请输入有效数字");
+            put(node,key,value);if(presentation!=null)presentation.draft(file,root);inputErrors.remove(inputKey(node,key));invalidText.remove(inputKey(node,key));notice="";
+        }catch(Exception e){notice=WorkshopUi.label(key)+"：请输入有效数字（尚未应用）";inputErrors.put(inputKey(node,key),notice);invalidText.put(inputKey(node,key),text);}
+    }
+    private String referenceType(String key){
+        if(key.equals("animation")||(!file.contains("/animations/")&&currentKey().equals("animations")))return "animations";
+        if(Set.of("texture","night_texture","icon","box_left","box_right").contains(key)||currentKey().equals("frames"))return "textures";
+        if(currentKey().equals("sounds")||key.equals("sound")||key.equals("voice"))return "sound_events";
+        return switch(key){
+            case "projectile" -> "projectiles"; case "resource" -> "resources";
+            case "base","plant" -> "plants"; case "zombie" -> "zombies";
+            case "underlay" -> "scene_elements"; case "character" -> "dialogue_characters";
+            case "content" -> root.has("kind")?switch(root.get("kind").getAsString()){case "zombie"->"zombies";case "tool"->"tools";case "resource"->"resources";default->"plants";}:"plants";
+            default -> "";
+        };
+    }
+    boolean isReference(String key){return !referenceType(key).isEmpty();}
+    String referenceName(String key,JsonElement value){return value.isJsonPrimitive()?presentation.item(value.getAsString(),referenceType(key)).name():"选择内容";}
+    private void pick(String type,java.util.function.Consumer<String> accept){
+        Set<String> choices=new TreeSet<>();
+        try {
+            if(Set.of("textures","animations").contains(type)) {
+                for(String path:client.resources().listResources("assets").keySet())if(path.contains("/"+type+"/")&&path.endsWith(type.equals("textures")?".png":".json"))choices.add(referenceId(path,type.equals("animations")));
+                for(String path:workspace.files())if(path.contains("/"+type+"/")&&path.endsWith(type.equals("textures")?".png":".json"))choices.add(referenceId(path,type.equals("animations")));
+            } else {
+                choices.addAll(WorkshopContent.templates(client.resources(),type).keySet());
+                for(String path:workspace.files())if(path.startsWith("data/")&&path.contains("/"+type+"/")&&path.endsWith(".json")) {
+                    String[] parts=path.split("/",4); choices.add(parts[1]+":"+parts[3].substring(0,parts[3].length()-5));
+                }
+            }
+            client.openScreen(new WorkshopListScreen(client,"选择"+WorkshopUi.label(type),choices,workspace,type,accept));
+        }catch(Exception e){notice=e.getMessage();}
+    }
     public WorkshopJsonScreen(PvzceClient client,Workspace workspace,String file)throws java.io.IOException {
         super(client);this.workspace=workspace;this.file=file;
         root=JsonParser.parseString(Files.readString(workspace.file(file))).getAsJsonObject();
@@ -25,13 +87,22 @@ public final class WorkshopJsonScreen extends Screen {
     private String currentKey(){return location.isEmpty()?"":location.get(location.size()-1);}
     private void attempt(Runnable action){try{action.run();}catch(Exception e){notice=e.getMessage();}onResize();}
     protected void init(){
+        if(presentation==null){presentation=new WorkshopPresentation(client,workspace);visual=new WorkshopEditorView(this,presentation);}
+        presentation.draft(file,root);
         int width=client.guiWidth(),height=client.guiHeight(),bw=(width-50)/5;
         addWidget(new Button(12,height-62,bw,26,WorkshopUi.text("save","保存草稿"),()->save()));
         addWidget(new Button(18+bw,height-62,bw,26,WorkshopUi.text("add","添加"),()->attempt(this::add)));
-        addWidget(new Button(24+bw*2,height-62,bw,26,"JSON",()->client.openScreen(new WorkshopRawScreen(client,root,changed->{root=changed;location.clear();onResize();}))));
+        addWidget(new Button(24+bw*2,height-62,bw,26,"JSON",()->client.openScreen(new WorkshopRawScreen(client,root,changed->{root=changed;inputErrors.clear();invalidText.clear();location.clear();onResize();}))));
         if(file.contains("/animations/"))addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("preview","预览"),()->{if(save())client.openScreen(new WorkshopPreviewScreen(client,workspace,file));}));
         else addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("validate","校验"),()->attempt(()->{if(save()){WorkshopAssets.validate(workspace);notice=WorkshopUi.text("valid","校验通过");}})));
         addWidget(new Button(36+bw*4,height-62,bw,26,WorkshopUi.text("parent","上一级"),()->{if(!location.isEmpty()){location.remove(location.size()-1);page=0;onResize();}}));
+        JsonElement visualNode=node();
+        visualBuilt=!advanced && visual.build(visualNode,location.isEmpty());
+        addWidget(new Button(148,32,128,26,advanced?"可视化编辑":"高级属性",()->{advanced=!advanced;onResize();}));
+        if(visualBuilt){
+            addWidget(new Button(width-142,32,130,26,WorkshopUi.text("save_back","保存并返回"),()->{if(save())client.popScreen();}));
+            return;
+        }
         JsonElement node=node();List<String> keys=node.isJsonObject()?new ArrayList<>(node.getAsJsonObject().keySet()):new ArrayList<>();
         if(node.isJsonArray())for(int i=0;i<node.getAsJsonArray().size();i++)keys.add(Integer.toString(i));
         int count=Math.max(1,(height-142)/30);page=Math.min(page,Math.max(0,(keys.size()-1)/count));
@@ -63,17 +134,13 @@ public final class WorkshopJsonScreen extends Screen {
                 }catch(Exception e){notice=e.getMessage();}
             }
         }
-        boolean animation=key.equals("animation") || (!file.contains("/animations/") && currentKey().equals("animations"));
-        if(value.isJsonPrimitive() && (animation || key.equals("texture") || key.equals("icon"))) {
-            String type=animation?"animations":"textures";Map<String,String> choices=new TreeMap<>();
-            try {
-                for(String path:client.resources().listResources("assets").keySet())if(path.contains("/"+type+"/")&&path.endsWith(animation?".json":".png"))choices.put(referenceId(path,animation),path);
-                for(String path:workspace.files())if(path.contains("/"+type+"/")&&path.endsWith(animation?".json":".png"))choices.put(referenceId(path,animation),path);
-            }catch(Exception e){notice=e.getMessage();}
-            client.openScreen(new WorkshopListScreen(client,WorkshopUi.text("binding","选择素材绑定"),choices.keySet(),id->{put(node,key,new JsonPrimitive(id));onResize();}));
-            return;
+        if(value.isJsonPrimitive() && isReference(key)) {
+            pick(referenceType(key),id->{put(node,key,new JsonPrimitive(id));onResize();});return;
         }
-        if(value.isJsonObject()||value.isJsonArray()){location.add(key);page=0;onResize();return;}
+        if(key.equals("kind") && file.contains("/slots/")) {
+            client.openScreen(new WorkshopListScreen(client,"卡片类型",List.of("plant","zombie","resource","tool"),kind->{put(node,key,new JsonPrimitive(kind));onResize();}));return;
+        }
+        if(value.isJsonObject()||value.isJsonArray()){var path=pathOf(root,node,new ArrayList<>());location.clear();location.addAll(path);location.add(key);page=0;onResize();return;}
         if(value.isJsonPrimitive()&&value.getAsJsonPrimitive().isBoolean()){put(node,key,new JsonPrimitive(!value.getAsBoolean()));onResize();return;}
         WorkshopUi.ask(this,WorkshopUi.label(key),value.isJsonNull()?"":value.getAsString(),text->attempt(()->{
             JsonElement replacement=value.isJsonPrimitive()&&value.getAsJsonPrimitive().isNumber()?JsonParser.parseString(text):new JsonPrimitive(text);
@@ -81,17 +148,19 @@ public final class WorkshopJsonScreen extends Screen {
             put(node,key,replacement);
         }));
     }
+    void addValue(){add();}
     private void add(){
         JsonElement node=node();
+        if(visualBuilt&&location.isEmpty()&&visual.addToGroup(root))return;
+        if(node.isJsonObject() && currentKey().equals("resources")) {
+            pick("resources",id->{node.getAsJsonObject().addProperty(id,0);onResize();});return;
+        }
         if(node.isJsonArray()) {
             if(currentKey().equals("capabilities")){addCapability(node.getAsJsonArray());return;}
-            if(currentKey().equals("frames")){
-                List<String> textures=new ArrayList<>();
-                try {for(String path:client.resources().listResources("assets").keySet())if(path.contains("/textures/")&&path.endsWith(".png"))textures.add(assetId(path));
-                    for(String path:workspace.files())if(path.contains("/textures/")&&path.endsWith(".png"))textures.add(assetId(path));
-                }catch(Exception e){throw new IllegalArgumentException(e);}
-                client.openScreen(new WorkshopListScreen(client,WorkshopUi.text("frame","添加图片帧（时长单位：秒）"),new TreeSet<>(textures),id->{node.getAsJsonArray().add(id);onResize();}));return;
+            if(currentKey().equals("shots")){
+                pick("projectiles",id->{JsonObject shot=new JsonObject();shot.addProperty("projectile",id);node.getAsJsonArray().add(shot);onResize();});return;
             }
+            if(currentKey().equals("frames")){pick("textures",id->{node.getAsJsonArray().add(id);onResize();});return;}
             JsonArray array=node.getAsJsonArray();
             if(!array.isEmpty()&&(array.get(array.size()-1).isJsonObject()||array.get(array.size()-1).isJsonArray())){
                 array.add(array.get(array.size()-1).deepCopy());onResize();return;
@@ -154,25 +223,95 @@ public final class WorkshopJsonScreen extends Screen {
     }
     private void addCapability(JsonArray destination){
         Map<String,JsonObject> options=new TreeMap<>();
-        try{for(String kind:List.of("plants","zombies"))for(JsonObject template:WorkshopContent.templates(client.resources(),kind).values()){
+        try{for(String kind:List.of(file.contains("/projectiles/")?"projectiles":file.contains("/zombies/")?"zombies":"plants"))for(JsonObject template:WorkshopContent.templates(client.resources(),kind).values()){
             JsonArray caps=template.getAsJsonArray("capabilities");if(caps!=null)for(JsonElement cap:caps)options.putIfAbsent(cap.getAsJsonObject().get("type").getAsString(),cap.getAsJsonObject());
         }}catch(Exception e){throw new IllegalArgumentException(e);}
         boolean plant=file.contains("/plants/");
-        var registry=plant?com.pvzce.common.core.BuiltInRegistries.PLANT_CAPABILITIES:com.pvzce.common.core.BuiltInRegistries.ZOMBIE_CAPABILITIES;
+        var registry=plant?com.pvzce.common.core.BuiltInRegistries.PLANT_CAPABILITIES:file.contains("/projectiles/")?com.pvzce.common.core.BuiltInRegistries.PROJECTILE_CAPABILITIES:com.pvzce.common.core.BuiltInRegistries.ZOMBIE_CAPABILITIES;
         options.keySet().removeIf(id->!registry.containsKey(Identifier.parse(id)));
         for(Identifier id:registry.keySet())if(!options.containsKey(id.toString())){JsonObject cap=new JsonObject();cap.addProperty("type",id.toString());options.put(id.toString(),cap);}
-        client.openScreen(new WorkshopListScreen(client,WorkshopUi.text("capability","添加能力"),options.keySet(),id->{destination.add(options.get(id).deepCopy());onResize();}));
+        client.openScreen(new WorkshopListScreen(client,WorkshopUi.text("capability","添加能力"),options.keySet(),workspace,plant?"plant_capabilities":file.contains("/projectiles/")?"projectile_capabilities":"zombie_capabilities",id->{destination.add(options.get(id).deepCopy());onResize();}));
     }
     private static String referenceId(String path,boolean animation){
         String id=assetId(path);
         return animation?id.replace(":animations/",":"):id;
     }
     static String assetId(String path){String[] parts=path.split("/",3);return parts[1]+":"+parts[2].substring(0,parts[2].lastIndexOf('.'));}
-    private boolean save(){try{workspace.write(file,root);notice=WorkshopUi.text("saved","草稿已保存，尚未构建");return true;}catch(Exception e){notice=e.getMessage();return false;}}
+    void previewCharacter(){
+        presentation.draft(file,root);presentation.activate();
+        var id=presentation.item(file,"").id();
+        var character=presentation.catalog().get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).get(id);
+        if(character==null){notice="角色草稿暂不能解析，请检查参数";return;}
+        String portrait=id.path();
+        try {
+            String prefix="assets/"+character.resolvedPortraitDir().toPath()+"/";
+            portrait=client.resources().listResources(prefix).keySet().stream().filter(p->p.endsWith(".png")).sorted().map(p->p.substring(prefix.length(),p.length()-4)).findFirst().orElse(portrait);
+        }catch(java.io.IOException ignored) { }
+        java.util.List<com.pvzce.api.content.DialogueLine> lines=new ArrayList<>();
+        for(String side:List.of("left","right")){
+            JsonObject line=new JsonObject();line.addProperty("character",id.toString());line.addProperty("portrait",portrait);line.addProperty("side",side);
+            line.addProperty("text",character.displayName()+"的对话框预览：这是"+(side.equals("left")?"左":"右")+"侧站位，点击查看下一侧。");
+            com.pvzce.api.content.DialogueLine.CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE,line).result().ifPresent(lines::add);
+        }
+        client.openScreen(new com.pvzce.client.gui.screens.DialoguePreviewScreen(client,new com.pvzce.api.content.LevelDialogue(lines),presentation.catalog()));
+    }
+    private JsonObject frameClip(JsonArray array){
+        var path=pathOf(root,array,new ArrayList<>());
+        if(path==null||path.isEmpty()||!path.get(path.size()-1).equals("frames"))return null;
+        JsonElement value=root;for(String key:path.subList(0,path.size()-1))value=value.isJsonObject()?value.getAsJsonObject().get(key):value.getAsJsonArray().get(Integer.parseInt(key));
+        return value.isJsonObject()?value.getAsJsonObject():null;
+    }
+    private JsonArray frameDelays(JsonArray frames){
+        JsonObject clip=frameClip(frames);if(clip==null)return null;
+        JsonArray delays=clip.has("delays")?clip.getAsJsonArray("delays"):new JsonArray();
+        double fallback=clip.has("delay")?clip.get("delay").getAsDouble():0.1;
+        JsonArray expanded=new JsonArray();
+        for(int i=0;i<frames.size();i++)expanded.add(delays.isEmpty()?new JsonPrimitive(fallback):delays.get(Math.min(i,delays.size()-1)).deepCopy());
+        return expanded;
+    }
+    private void reindexInputs(JsonArray array,java.util.function.IntUnaryOperator indexMap){
+        String prefix=String.join("/",pathOf(root,array,new ArrayList<>()))+"/";
+        for(var state:List.of(inputErrors,invalidText)){
+            Map<String,String> updated=new HashMap<>();
+            for(var entry:state.entrySet()){
+                if(!entry.getKey().startsWith(prefix)){updated.put(entry.getKey(),entry.getValue());continue;}
+                String suffix=entry.getKey().substring(prefix.length());int slash=suffix.indexOf('/');
+                String first=slash<0?suffix:suffix.substring(0,slash);
+                int previous;try{previous=Integer.parseInt(first);}catch(NumberFormatException e){updated.put(entry.getKey(),entry.getValue());continue;}
+                int next=indexMap.applyAsInt(previous);if(next>=0)updated.put(prefix+next+(slash<0?"":suffix.substring(slash)),entry.getValue());
+            }
+            state.clear();state.putAll(updated);
+        }
+    }
+    void moveEntry(JsonArray array,int index,int delta){
+        int next=index+delta;if(next<0||next>=array.size())return;
+        reindexInputs(array,i->i==index?next:i==next?index:i);
+        JsonArray delays=frameDelays(array);
+        JsonElement previous=array.get(next);array.set(next,array.get(index));array.set(index,previous);
+        if(delays!=null){previous=delays.get(next);delays.set(next,delays.get(index));delays.set(index,previous);frameClip(array).add("delays",delays);}
+        onResize();
+    }
+    void removeEntry(JsonArray array,int index){
+        reindexInputs(array,i->i==index?-1:i>index?i-1:i);
+        JsonObject clip=frameClip(array);JsonArray delays=frameDelays(array);
+        array.remove(index);if(delays!=null){delays.remove(index);clip.add("delays",delays);}onResize();
+    }
+    String frameDelay(JsonArray frames,int index){var delays=frameDelays(frames);return delays==null?"":delays.get(index).getAsString()+" 秒";}
+    void editFrameDelay(JsonArray frames,int index){
+        var delays=frameDelays(frames);if(delays==null)return;
+        WorkshopUi.ask(this,"第 "+(index+1)+" 帧时长（秒）",delays.get(index).getAsString(),text->attempt(()->{
+            double seconds=Double.parseDouble(text);if(!Double.isFinite(seconds)||seconds<=0)throw new IllegalArgumentException("帧时长必须大于零");
+            delays.set(index,new JsonPrimitive(seconds));frameClip(frames).add("delays",delays);
+        }));
+    }
+    void removeField(JsonObject node,String key){String prefix=inputKey(node,key);node.remove(key);inputErrors.keySet().removeIf(k->k.equals(prefix)||k.startsWith(prefix+"/"));invalidText.keySet().removeIf(k->k.equals(prefix)||k.startsWith(prefix+"/"));onResize();}
+    private boolean save(){if(!inputErrors.isEmpty()){notice=inputErrors.values().iterator().next();return false;}try{workspace.write(file,root);notice=WorkshopUi.text("saved","草稿已保存，尚未构建");return true;}catch(Exception e){notice=e.getMessage();return false;}}
     public void requestClose(){if(save())super.requestClose();}
-    public void render(){renderBackground(0.08F,0.12F,0.1F);
+    protected void onRemoved(){if(presentation!=null)presentation.close();}
+    public void render(){renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
         client.fonts().body().draw(WorkshopScreen.shorten(file+" / "+String.join("/",location),client.guiWidth()-24),12,client.guiHeight()-28,0.9F,1,1,0.8F,1);
         client.fonts().body().draw(WorkshopScreen.shorten(notice,client.guiWidth()-24),12,10,0.8F,1,0.85F,0.6F,1);
+        if(visualBuilt)visual.render();
         for(var widget:widgets)widget.render(client);
     }
 }

@@ -23,7 +23,7 @@ final class WorkshopRawScreen extends Screen {
         }));
         addWidget(new Button(client.guiWidth()-112,20,100,28,WorkshopUi.text("cancel","取消"),this::requestClose));
     }
-    public void render(){renderBackground(0.08F,0.12F,0.1F);
+    public void render(){renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
         client.fonts().body().draw(WorkshopScreen.shorten(error.isEmpty()?"JSON":error,client.guiWidth()-24),12,client.guiHeight()-30,0.9F,1,0.9F,0.7F,1);
         for(var widget:widgets)widget.render(client);
     }

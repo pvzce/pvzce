@@ -40,6 +40,8 @@ import java.util.List;
  * keeps its conversation.
  */
 public final class DialoguePage implements EditorPage {
+    private final java.util.Map<Identifier,Identifier> portraitThumbnails=new java.util.HashMap<>();
+    private com.pvzce.api.registry.RegistryAccess content=BuiltInRegistries.ACCESS;
     private final DialogueEditorModel.Config dialogueConfig = new DialogueEditorModel.Config();
     private AbstractSelectionList<DialogueEditorModel.LineModel> dialogueLineList;
     private AbstractSelectionList<Identifier> dialogueCharacterList;
@@ -80,6 +82,7 @@ public final class DialoguePage implements EditorPage {
     /** The {@code dialogue} block is the page's whole state; the widgets are rebuilt from it. */
     @Override
     public void readFrom(EditorContext context) {
+        content=context.screen().editorCatalog();
         dialogueConfig.replaceWith(DialogueEditorModel.Config.fromJson(context.draft().json()));
     }
 
@@ -99,6 +102,7 @@ public final class DialoguePage implements EditorPage {
         // The widgets are new, so the line the detail form was last built for is forgotten
         // with them: keeping it would commit the fresh selection's text into the old line.
         lastDialogueLineShown = null;
+        portraitThumbnails.clear();
         EditorContext.Rect area = context.fullContent();
         int x = area.x();
         int y = area.y();
@@ -132,6 +136,13 @@ public final class DialoguePage implements EditorPage {
                 () -> moveDialogueLine(context, 1)));
         context.own(new Button(x + (bw + 5) * 4, by, Math.max(70, listW - (bw + 5) * 4), rowH,
                 "清空对话", () -> clearDialogue(context)));
+
+        context.own(new Button(x+listW-128,listTop+20,128,rowH,"预览对话",()->{
+            commitDialogueFields(currentDialogueLine());
+            var lines=dialogueConfig.lines.stream().map(DialogueEditorModel.LineModel::toLine).toList();
+            if(!lines.isEmpty())context.client().openScreen(new com.pvzce.client.gui.screens.DialoguePreviewScreen(
+                    context.client(),new com.pvzce.api.content.LevelDialogue(lines),content));
+        }));
 
         // Right column, bottom-up: the line's own fields, then the two pickers above them.
         // Each row is a field plus the room for its label, which is drawn in the gap above
@@ -167,22 +178,37 @@ public final class DialoguePage implements EditorPage {
         int listBlockH = Math.max(70, (y + h - pad - 18) - listsBottom);
         int halfW = Math.max(70, (detailW - gap) / 2);
         dialogueCharacterList = context.own(new AbstractSelectionList<Identifier>(detailX, listsBottom,
-                halfW, listBlockH, MathUtil.clamp(listBlockH / 6, 26, 36), (renderClient, id, rx, ry) -> {
-            var character = BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+                halfW, listBlockH, MathUtil.clamp(listBlockH / 4, 40, 56), (renderClient, id, rx, ry) -> {
+            var character = content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).get(id);
             String label = character == null ? id.toString() : character.displayName();
-            renderClient.fonts().body().draw(label, rx, ry + 4, 0.72F, 1F, 1F, 1F, 1F);
-            renderClient.fonts().body().draw(GuiText.shortId(id), rx, ry - 10, 0.62F, 0.75F, 0.8F, 0.8F, 1F);
+            if(character!=null)thumbnail(renderClient,portraitThumbnails.computeIfAbsent(id,key->{
+                Identifier own=character.portraitTexture(id.path());if(renderClient.hasTexture(own))return own;
+                var available=portraitsFor(context,id.toString());return available.isEmpty()?null:character.portraitTexture(available.get(0));
+            }),rx,ry,32);
+            renderClient.fonts().body().draw(label, rx+36, ry + 4, 0.72F, 1F, 1F, 1F, 1F);
+            renderClient.fonts().body().draw(GuiText.shortId(id), rx+36, ry - 10, 0.62F, 0.75F, 0.8F, 0.8F, 1F);
         }));
         dialogueCharacterList.setEntries(new ArrayList<>(
-                BuiltInRegistries.DIALOGUE_CHARACTERS.keySet().stream().sorted().toList()));
+                content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).keySet().stream().sorted().toList()));
 
         dialoguePortraitList = context.own(new AbstractSelectionList<String>(
                 detailX + halfW + gap, listsBottom, detailW - halfW - gap, listBlockH,
-                MathUtil.clamp(listBlockH / 6, 26, 36), (renderClient, portrait, rx, ry) ->
-                renderClient.fonts().body().draw(portrait, rx, ry + 4, 0.72F, 0.9F, 1F, 0.9F, 1F)));
+                MathUtil.clamp(listBlockH / 4, 40, 56), (renderClient, portrait, rx, ry) -> {
+                    var line=currentDialogueLine();
+                    var character=line==null?null:content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).get(Identifier.tryParse(line.character));
+                    if(character!=null)thumbnail(renderClient,character.portraitTexture(portrait),rx,ry,32);
+                    renderClient.fonts().body().draw(portrait,rx+36,ry+4,.72F,.9F,1F,.9F,1F);
+                }));
         dialoguePortraitList.setEntries(List.of());
 
         refreshDialogueDetail(context);
+    }
+
+    private static void thumbnail(PvzceClient client,Identifier texture,int x,int y,int side){
+        if(texture==null||!client.hasTexture(texture))return;
+        var image=client.textures().getOrLoad(texture);
+        float scale=Math.min(side/(float)image.width(),side/(float)image.height());
+        client.drawTexture(texture,x+(side-image.width()*scale)/2,y-8,image.width()*scale,image.height()*scale,0,1,1,1,1);
     }
 
     @Override
@@ -237,9 +263,9 @@ public final class DialoguePage implements EditorPage {
     }
 
     /** A character id's display name, or the id itself when it is not registered. */
-    private static String dialogueSpeakerName(String characterId) {
+    private String dialogueSpeakerName(String characterId) {
         Identifier id = Identifier.tryParse(characterId);
-        var character = id == null ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+        var character = id == null ? null : content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).get(id);
         return character == null ? characterId : character.displayName();
     }
 
@@ -252,7 +278,7 @@ public final class DialoguePage implements EditorPage {
     private List<String> portraitsFor(EditorContext context, String characterId) {
         Identifier id = Identifier.tryParse(characterId);
         DialogueCharacterDef character =
-                id == null ? null : BuiltInRegistries.DIALOGUE_CHARACTERS.get(id);
+                id == null ? null : content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).get(id);
         if (character == null) {
             return List.of();
         }
@@ -445,7 +471,7 @@ public final class DialoguePage implements EditorPage {
         DialogueEditorModel.LineModel line = new DialogueEditorModel.LineModel();
         // The first registered character is the sensible default: a line with no character
         // has no portrait and no name, which is exactly what the author is about to fix.
-        line.character = BuiltInRegistries.DIALOGUE_CHARACTERS.keySet().stream()
+        line.character = content.get(com.pvzce.common.core.PvzceRegistries.DIALOGUE_CHARACTERS).keySet().stream()
                 .sorted().findFirst().map(Identifier::toString).orElse("");
         List<String> portraits = portraitsFor(context, line.character);
         line.portrait = portraits.isEmpty() ? "" : portraits.get(0);
