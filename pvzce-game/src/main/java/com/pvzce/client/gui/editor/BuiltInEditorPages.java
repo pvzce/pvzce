@@ -34,6 +34,7 @@ public final class BuiltInEditorPages {
     public static List<EditorPage> create(EditorScreen screen, EditorContext context,
                                           CanvasPage.Model canvas) {
         List<EditorPage> pages = new ArrayList<>();
+        pages.add(new com.pvzce.client.gui.editor.pages.OverviewPage());
         pages.add(CanvasPage.terrain(canvas));
         pages.add(CanvasPage.plant(canvas));
         pages.add(CanvasPage.zombie(canvas));
@@ -48,7 +49,6 @@ public final class BuiltInEditorPages {
         pages.add(LookPage.create());
         pages.add(new InfoPage());
         pages.addAll(EditorPages.external());
-        pages.removeIf(page -> !page.visibleFor(context));
         pages.sort(Comparator.comparingInt(EditorPage::order).thenComparing(EditorPage::id));
         return List.copyOf(pages);
     }

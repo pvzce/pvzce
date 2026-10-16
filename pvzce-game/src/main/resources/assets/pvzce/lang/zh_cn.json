@@ -1176,5 +1176,17 @@
   "gui.pvzce.workshop.label.order": "显示顺序",
   "gui.pvzce.workshop.label.upgrade": "升级前置",
   "gui.pvzce.workshop.save_back": "保存并返回",
-  "gui.pvzce.workshop.advanced_json": "高级 JSON"
+  "gui.pvzce.workshop.advanced_json": "高级 JSON",
+  "pvzce.mechanic.fog": "迷雾",
+  "pvzce.mechanic.preparation": "准备阶段",
+  "pvzce.mechanic.rhythm": "节奏谱面",
+  "pvzce.mechanic.random_plants": "随机植物",
+  "pvzce.mechanic.surface_links": "通路连接",
+  "pvzce.mechanic.stages": "关卡阶段",
+  "pvzce.mechanic.outposts": "据点",
+  "pvzce.mechanic.rake": "钉耙",
+  "pvzce.mechanic.vase_field": "花瓶阵",
+  "pvzce.mechanic.scary_potter": "砸罐子",
+  "pvzce.mechanic.plant_garden": "植物花园",
+  "pvzce.mechanic.portal": "传送门"
 }

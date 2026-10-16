@@ -12,7 +12,8 @@ import java.util.*;
 
 /** The main-menu workshop and one workspace's unpublished source browser. */
 public final class WorkshopScreen extends Screen {
-    private final Workspace workspace;
+    private Workspace workspace;
+    private final com.pvzce.client.gui.PackIcons icons;
     private String notice="";
     private int page;
     private WorkshopPresentation presentation;
@@ -21,7 +22,7 @@ public final class WorkshopScreen extends Screen {
     private List<Workspace> workspaces=List.of();
     private List<String> files=List.of();
     public WorkshopScreen(PvzceClient client) { this(client,null); }
-    public WorkshopScreen(PvzceClient client, Workspace workspace) { super(client);this.workspace=workspace; }
+    public WorkshopScreen(PvzceClient client, Workspace workspace) { super(client);this.workspace=workspace;this.icons=new com.pvzce.client.gui.PackIcons(client); }
     public static void validateWorkspace(Workspace workspace) { WorkshopAssets.validate(workspace); }
     public static void editLevel(PvzceClient client,Identifier id,String name,int width,int height) {
         WorkshopScreen home=new WorkshopScreen(client);client.openScreen(home);
@@ -65,11 +66,12 @@ public final class WorkshopScreen extends Screen {
                     WorkshopUi.text("type","内容类型"),WorkshopContent.types(),type->{filter="/"+type+"/";page=0;onResize();}))));
             try {workspaceStamp=stamp();files=workspace.files().stream().filter(p->filter.isEmpty()||p.contains(filter)).toList();}catch(Exception e){notice=e.getMessage();}
         }
+        icons.refresh();
         if(presentation==null)presentation=new WorkshopPresentation(client,workspace);
         else presentation.refresh();
         int columns=workspace==null?1:Math.max(1,(width-32)/170);
         int rows=Math.max(1,(height-152)/145);
-        int count=workspace==null?Math.max(1,(height-146)/30):columns*rows;
+        int count=workspace==null?Math.max(1,(height-146)/52):columns*rows;
         int cardWidth=(width-32-(columns-1)*8)/columns;
         int cardHeight=Math.max(72,Math.min(152,(height-152)/rows-8));
         int total=workspace==null?workspaces.size():files.size();
@@ -77,7 +79,16 @@ public final class WorkshopScreen extends Screen {
         for(int i=page*count;i<Math.min(total,(page+1)*count);i++) {
             int index=i;
             String label=workspace==null?workspaces.get(i).name()+" · "+workspaces.get(i).namespace():files.get(i);
-            if(workspace==null)addWidget(new Button(16,height-100-(i-page*count)*30,width-32,26,shorten(label,width-45),()->client.openScreen(new WorkshopScreen(client,workspaces.get(index)))));
+            if(workspace==null){
+                Workspace item=workspaces.get(index);
+                addWidget(new Button(16,height-124-(i-page*count)*52,width-32,46,label,()->client.openScreen(new WorkshopScreen(client,item))){
+                    public void render(PvzceClient client){
+                        client.drawSolid(x,y,this.width,this.height,0,hovered?.22F:.12F,.24F,.18F,1);
+                        icons.draw(item.root(),x+6,y+5,36);
+                        WorkshopUi.fit(client,item.name()+" · "+item.namespace(),x+52,y+16,this.width-62,.95F,1,1,.8F);
+                    }
+                });
+            }
             else {
                 int slot=i-page*count;
                 addWidget(presentation.card(presentation.item(label,""),16+(slot%columns)*(cardWidth+8),
@@ -88,9 +99,7 @@ public final class WorkshopScreen extends Screen {
         addWidget(new Button(86,32,64,26,"→",()->{if((page+1)*count<total)page++;onResize();}));
         if(workspace!=null) {
             addWidget(new Button(156,32,86,26,WorkshopUi.text("all","全部"),()->{filter="";page=0;onResize();}));
-            addWidget(new Button(248,32,70,26,WorkshopUi.text("rename","改名称"),()->WorkshopUi.ask(this,WorkshopUi.text("name","工作区名称"),workspace.name(),name->attempt(()->{
-                Workspace updated=workspace.rename(name);client.popScreen();client.openScreen(new WorkshopScreen(client,updated));
-            }))));
+            addWidget(new Button(248,32,70,26,"设置",()->client.openScreen(new WorkshopPackScreen(client,workspace,updated->{workspace=updated;onResize();}))));
         }
         addWidget(new Button(width-96,32,80,26,WorkshopUi.text("back","返回"),this::requestClose));
     }
@@ -180,7 +189,7 @@ public final class WorkshopScreen extends Screen {
     }
     static String shorten(String value,int width){return value.length()>Math.max(15,width/8)?value.substring(0,Math.max(12,width/8)-1)+"…":value;}
     private long stamp()throws java.io.IOException{
-        long value=1;for(String path:workspace.files()){var file=workspace.file(path);value=31*value+java.util.Objects.hash(path,Files.size(file),Files.getLastModifiedTime(file));}return value;
+        var icon=workspace.file(com.pvzce.common.resource.PvzcePack.ICON_FILE);long value=Files.isRegularFile(icon)?java.util.Objects.hash(Files.size(icon),Files.getLastModifiedTime(icon)):1;for(String path:workspace.files()){var file=workspace.file(path);value=31*value+java.util.Objects.hash(path,Files.size(file),Files.getLastModifiedTime(file));}return value;
     }
     private long nextRefresh;
     public void tick(){
@@ -191,10 +200,11 @@ public final class WorkshopScreen extends Screen {
         }catch(Exception e){notice=e.getMessage();}
     }
     protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
-    protected void onRemoved(){if(presentation!=null)presentation.close();}
+    protected void onRemoved(){if(presentation!=null)presentation.close();icons.close();}
     public void render(){
         renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
-        client.fonts().body().draw(shorten(workspace==null?WorkshopUi.text("title","创意工坊"):workspace.name()+" · "+workspace.namespace(),client.guiWidth()-30),16,client.guiHeight()-28,1.1F,1,1,0.8F,1);
+        if(workspace!=null)icons.draw(workspace.root(),16,client.guiHeight()-38,28);
+        client.fonts().body().draw(shorten(workspace==null?WorkshopUi.text("title","创意工坊"):workspace.name()+" · "+workspace.namespace(),client.guiWidth()-64),workspace==null?16:52,client.guiHeight()-28,1.1F,1,1,0.8F,1);
         client.fonts().body().draw(shorten(notice.isEmpty()?WorkshopUi.text("draft_notice","草稿仅在构建或临时测试时加载"):notice,client.guiWidth()-30),16,10,0.8F,1,0.9F,0.6F,1);
         for(var widget:widgets)widget.render(client);
     }

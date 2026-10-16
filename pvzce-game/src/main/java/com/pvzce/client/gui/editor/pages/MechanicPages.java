@@ -24,9 +24,8 @@ import java.util.List;
  * belt, whose fields were hand-written JSON until now, gets one for free.
  *
  * <p>Pages edit a mechanic <em>in place</em>, under its own entry in the level's
- * {@code mechanics} array. Adding a mechanic to a level that has none is a level-shape
- * decision - it changes how the level plays - so it belongs where the level's shape is chosen,
- * not in a form field.
+ * {@code mechanics} array. The overview page adds mechanics; this factory supplies the
+ * editing pages for their declared fields.
  */
 public final class MechanicPages {
     /** After the rules page, before the pages that describe cards and waves. */
@@ -47,8 +46,8 @@ public final class MechanicPages {
             if (mechanic == null || mechanic.editorFields().isEmpty()) {
                 continue;
             }
-            String label = GuiLang.raw("pvzce.mechanic." + type.path(), type.path());
-            pages.add(FormPage.builder("mechanic." + type.path())
+            String label = com.pvzce.client.gui.editor.EditorModules.mechanicLabel(type);
+            pages.add(FormPage.builder(com.pvzce.client.gui.editor.EditorModules.mechanicPage(type))
                     .label(label)
                     .order(ORDER)
                     .heading(label)

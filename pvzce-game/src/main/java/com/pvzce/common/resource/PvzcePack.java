@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.util.List;
 
 public interface PvzcePack extends AutoCloseable {
+    String ICON_FILE = "pack.png";
     String name();
 
     InputStream open(String path) throws IOException;

@@ -1176,5 +1176,17 @@
   "gui.pvzce.workshop.label.order": "Order",
   "gui.pvzce.workshop.label.upgrade": "Upgrade",
   "gui.pvzce.workshop.save_back": "Save and back",
-  "gui.pvzce.workshop.advanced_json": "Advanced JSON"
+  "gui.pvzce.workshop.advanced_json": "Advanced JSON",
+  "pvzce.mechanic.fog": "Fog",
+  "pvzce.mechanic.preparation": "Preparation",
+  "pvzce.mechanic.rhythm": "Rhythm chart",
+  "pvzce.mechanic.random_plants": "Random plants",
+  "pvzce.mechanic.surface_links": "Surface links",
+  "pvzce.mechanic.stages": "Level stages",
+  "pvzce.mechanic.outposts": "Outposts",
+  "pvzce.mechanic.rake": "Rake",
+  "pvzce.mechanic.vase_field": "Vase field",
+  "pvzce.mechanic.scary_potter": "Vasebreaker",
+  "pvzce.mechanic.plant_garden": "Plant garden",
+  "pvzce.mechanic.portal": "Portals"
 }

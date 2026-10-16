@@ -97,6 +97,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 TitleScreen
  ├ 开始游戏 → LevelSelectScreen → LevelSetupScreen / ChooseSeedsScreen → InGameScreen
  ├ 创意工坊 → WorkshopScreen（工作区列表）→ WorkshopScreen（工作区内容）
+ │                                          ├ WorkshopPackScreen（名称与图标设置）
  │                                          ├ EditorScreen（关卡）
  │                                          ├ WorkshopJsonScreen（分组面板、能力卡、动画帧、翻译）
  │                                          └ WorkshopPreviewScreen（素材预览/试听）

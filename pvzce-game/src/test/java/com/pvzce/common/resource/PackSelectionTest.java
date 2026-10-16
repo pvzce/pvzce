@@ -30,6 +30,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PackSelectionTest {
 
+    @Test void iconsComeFromTheirOwnRootEvenWhenDisabledAndNamesMatch() throws Exception {
+        for(String folder:List.of("datapacks","resourcepacks")){
+            Path root=gameDir.resolve(folder+"/same");Files.createDirectories(root);
+            Files.writeString(root.resolve(PvzcePack.ICON_FILE),folder);
+        }
+        var selection=PackSelection.load(gameDir);selection.setEnabled("same",false);selection.save();
+        try(var resources=new PvzceResourceManager(classLoader())){
+            resources.init(gameDir);
+            for(var pack:resources.scanAvailable(gameDir))if(pack.name().equals("same")){
+                assertFalse(pack.enabled());
+                assertEquals(pack.path().getParent().getFileName().toString(),resources.packIcon(pack).orElseThrow().readString());
+            }
+        }
+    }
+
     /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
     @TempDir
     Path gameDir;

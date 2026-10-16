@@ -72,6 +72,10 @@ public final class EditorScreen extends Screen {
     private final int newLevelHeight;
 
     private List<EditorPage> pages = List.of();
+    private List<EditorPage> allPages = List.of();
+    private com.pvzce.client.gui.editor.EditorModules modules;
+    private List<EditorPage> navPages=List.of();
+    private int navPage;
     private EditorPage currentPage;
     private final EditorContext editorContext = new EditorContext(this);
     private final List<AbstractWidget> pageWidgets = new ArrayList<>();
@@ -143,11 +147,44 @@ public final class EditorScreen extends Screen {
 
         draft = JsonDraft.of(sourceJson);
         canvas = new CanvasPage.Model(width, height);
-        pages = BuiltInEditorPages.create(this, editorContext, canvas);
-        for (EditorPage page : pages) {
+        modules=new com.pvzce.client.gui.editor.EditorModules(draft.json());
+        allPages = BuiltInEditorPages.create(this, editorContext, canvas);
+        for (EditorPage page : allPages) {
             page.readFrom(editorContext);
         }
+        refreshEditorPages();
         currentPage = pages.isEmpty() ? null : pages.get(0);
+    }
+
+    public com.pvzce.client.gui.editor.EditorModules editorModules(){return modules;}
+    public List<EditorPage> editorAllPages(){return List.copyOf(allPages);}
+    public List<String> editorVisiblePages(){return pages.stream().map(EditorPage::id).toList();}
+    private void refreshEditorPages(){
+        pages=allPages.stream().filter(page->modules.shown(page)&&page.visibleFor(editorContext)).toList();
+    }
+    private void flushEditorPages(){for(EditorPage page:allPages)if(modules.active(page)&&page.visibleFor(editorContext))page.writeTo(editorContext);}
+    public void openEditorModule(String id){
+        modules.show(id);refreshEditorPages();
+        onResize();showPage(id);
+    }
+    public void setEditorModuleShown(String id,boolean shown){
+        flushEditorPages();
+        if(shown)modules.show(id);else modules.hide(id);
+        refreshEditorPages();
+        if(currentPage==null||!pages.contains(currentPage))currentPage=pages.get(0);
+        navPage=0;onResize();
+    }
+    public void addEditorModule(com.pvzce.client.gui.editor.EditorModules.Addition addition){
+        flushEditorPages();modules.add(editorContext,addition);
+        List<EditorPage> updated=new ArrayList<>(allPages);
+        for(EditorPage candidate:com.pvzce.client.gui.editor.pages.MechanicPages.create(editorContext)){
+            if(updated.stream().noneMatch(page->page.id().equals(candidate.id()))){candidate.readFrom(editorContext);updated.add(candidate);}
+        }
+        updated.sort(java.util.Comparator.comparingInt(EditorPage::order).thenComparing(EditorPage::id));allPages=List.copyOf(updated);
+        refreshEditorPages();
+        if(!pages.contains(currentPage))currentPage=pages.get(0);
+        navPage=0;onResize();
+        setStatus("已添加："+addition.label());
     }
 
     /** A level's JSON and, when the editor may write it, the file it lives in. */
@@ -237,21 +274,23 @@ public final class EditorScreen extends Screen {
     }
 
     /**
-     * The tab strip: one button per page, all of them on screen.
-     *
-     * <p>The width is shared out rather than fixed, because the number of tabs is not the
-     * screen's to choose - a level with mechanisms adds a page each. A page that ends up
-     * past the right edge is a page nobody can open.
+     * Enabled pages share a strip, with arrows when the window cannot fit readable tabs.
      */
     private void buildNav() {
-        int gap = 4;
-        int count = Math.max(1, pages.size());
-        int buttonW = Math.max(44, (client.guiWidth() - 16 - gap * (count - 1)) / count);
-        List<Button> buttons = new ArrayList<>();
-        for (int i = 0; i < pages.size(); i++) {
-            EditorPage target = pages.get(i);
-            buttons.add(new Button(10 + i * (buttonW + gap), navY, buttonW, navH, target.label(),
-                    () -> switchPage(target)));
+        int gap=4,count=Math.max(1,pages.size()),available=client.guiWidth()-20;
+        boolean paged=count>Math.max(1,available/70);
+        int capacity=navCapacity();
+        navPage=Math.min(navPage,Math.max(0,(count-1)/capacity));
+        navPages=pages.subList(navPage*capacity,Math.min(count,(navPage+1)*capacity));
+        int start=paged?48:10,buttonW=Math.max(1,(available-(paged?76:0)-gap*(navPages.size()-1))/Math.max(1,navPages.size()));
+        List<Button> buttons=new ArrayList<>();
+        if(paged){
+            addWidget(new Button(10,navY,32,navH,"←",()->{navPage=Math.max(0,navPage-1);onResize();}));
+            addWidget(new Button(client.guiWidth()-42,navY,32,navH,"→",()->{if((navPage+1)*capacity<count)navPage++;onResize();}));
+        }
+        for(int i=0;i<navPages.size();i++){
+            EditorPage target=navPages.get(i);
+            buttons.add(new Button(start+i*(buttonW+gap),navY,buttonW,navH,target.label(),()->switchPage(target)));
         }
         navButtons = buttons;
         for (Button button : buttons) {
@@ -260,9 +299,14 @@ public final class EditorScreen extends Screen {
         refreshNavState();
     }
 
+    private int navCapacity(){
+        int available=client.guiWidth()-20,count=Math.max(1,pages.size());
+        return count>Math.max(1,available/70)?Math.max(1,(available-76)/70):count;
+    }
+
     private void refreshNavState() {
-        for (int i = 0; i < navButtons.size() && i < pages.size(); i++) {
-            navButtons.get(i).setActive(pages.get(i) != currentPage);
+        for (int i = 0; i < navButtons.size() && i < navPages.size(); i++) {
+            navButtons.get(i).setActive(navPages.get(i) != currentPage);
         }
     }
 
@@ -348,6 +392,9 @@ public final class EditorScreen extends Screen {
         for (EditorPage candidate : pages) {
             if (candidate.id().equals(id)) {
                 switchPage(candidate);
+                if(!navPages.contains(candidate)){
+                    navPage=pages.indexOf(candidate)/navCapacity();onResize();
+                }
                 return;
             }
         }
@@ -504,16 +551,14 @@ public final class EditorScreen extends Screen {
     /**
      * Writes the level file.
      *
-     * <p>Every page writes its own block, not only the one on screen: a page that was never
-     * opened still owns fields the file needs. Then the draft - which started as a copy of the
+     * <p>Every enabled, applicable page writes its block, including tabs the user collapsed.
+     * Unused pages do not inject defaults. Then the draft - which started as a copy of the
      * file as loaded - is written out, so anything no page modelled is still there.
      */
     private boolean saveToDisk() {
         Path previousFile = sourceFile;
         Identifier previousId = levelId;
-        for (EditorPage page : pages) {
-            page.writeTo(editorContext);
-        }
+        flushEditorPages();
         JsonObject root = draft.json();
         Path levelFile = resolveSaveFile();
         try {
@@ -697,7 +742,7 @@ public final class EditorScreen extends Screen {
     // ------------------------------------------------------------------
 
     public void showPageForSmoke(String key) {
-        showPage(key);
+        openEditorModule(key);
     }
 
     /** Saves without a click, so a smoke run can verify the write round trip. */

@@ -16,6 +16,7 @@ class WorkspaceTest {
         Workspace workspace=Workspace.create(directory,"草稿","draft");
         assertThrows(IllegalArgumentException.class,()->workspace.file("data/draft/plants/../../../workspace.json"));
         String path="data/draft/plants/flower.json";
+        workspace.writeBytes(PvzcePack.ICON_FILE,new byte[]{1,2,3});
         workspace.write(path,JsonParser.parseString("{\"health\":345}"));
         try(var resources=new PvzceResourceManager(getClass().getClassLoader())){
             resources.init(directory);
@@ -24,11 +25,14 @@ class WorkspaceTest {
             WorkshopContent.validate(workspace);
             assertNull(BuiltInRegistries.PLANTS.get(Identifier.parse("draft:flower")));
             Path output=workspace.build(directory,WorkshopContent::validate);
+            assertArrayEquals(new byte[]{1,2,3},Files.readAllBytes(output.resolve(PvzcePack.ICON_FILE)));
             String previous=Files.readString(output.resolve(path));
             resources.reload();assertEquals(2,resources.scanAvailable(directory).size());
             PackSelection selection=PackSelection.load(directory);selection.setEnabled(workspace.packName(),false);assertTrue(selection.save());
             workspace.write(path,JsonParser.parseString("{\"health\":456}"));
+            Files.delete(workspace.file(PvzcePack.ICON_FILE));
             workspace.build(directory,WorkshopContent::validate);
+            assertFalse(Files.exists(output.resolve(PvzcePack.ICON_FILE)));
             assertFalse(PackSelection.load(directory).isEnabled(workspace.packName()));
             String latest=Files.readString(output.resolve(path));assertNotEquals(previous,latest);
             workspace.write(path,JsonParser.parseString("{\"capabilities\":[{\"type\":\"draft:missing\"}]}"));

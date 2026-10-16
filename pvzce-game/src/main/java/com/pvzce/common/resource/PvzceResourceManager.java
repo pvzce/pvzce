@@ -152,6 +152,16 @@ public final class PvzceResourceManager implements AutoCloseable {
         return result;
     }
 
+    /** Reads the selected pack itself, including when it is disabled or shares another pack's name. */
+    public java.util.Optional<PackResource> packIcon(AvailablePack pack) {
+        PvzcePack source = pack.path() == null ? new ClasspathPack(classLoader) : new DirectoryPack(pack.path(), pack.name());
+        try (InputStream in = source.open(PvzcePack.ICON_FILE)) {
+            return in == null ? java.util.Optional.empty() : java.util.Optional.of(new PackResource(source.name(), PvzcePack.ICON_FILE, in.readAllBytes()));
+        } catch (IOException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
     /**
      * The description a pack declares in its {@code pack.mcmeta}, or {@code fallback}.
      *

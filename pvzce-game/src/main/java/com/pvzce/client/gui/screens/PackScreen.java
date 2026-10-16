@@ -65,6 +65,7 @@ public final class PackScreen extends Screen {
     private static final float FOOTER_Y = 524F;
     private static final float FOOTER_BUTTON_H = 36F;
 
+    private final com.pvzce.client.gui.PackIcons icons;
     private Canvas canvas = new Canvas(1F, 0F, 0F);
     private AbstractSelectionList<PackRow> packList;
     private Button toggleButton;
@@ -82,6 +83,7 @@ public final class PackScreen extends Screen {
     public PackScreen(PvzceClient client) {
         super(client);
         this.selection = PackSelection.load(client.gameDir());
+        this.icons = new com.pvzce.client.gui.PackIcons(client);
     }
 
     @Override
@@ -177,6 +179,7 @@ public final class PackScreen extends Screen {
             showNotice(GuiLang.raw("gui.pvzce.packs.scan_failed", "Could not read the pack directories"));
             return;
         }
+        icons.refresh();
         String keep = selected == null ? null : key(selected);
         List<PackRow> rows = new ArrayList<>();
         AvailablePack.Kind group = null;
@@ -401,15 +404,17 @@ public final class PackScreen extends Screen {
         // forms it is certain to carry (× is already drawn all over the editor).
         client.fonts().body().draw(on ? "√" : "×", x, y + ROW_HEIGHT * 0.3F, 1.1F * unit,
                 on ? 0.45F : 0.85F, on ? 0.9F : 0.35F, on ? 0.45F : 0.35F, 1F);
-        client.fonts().body().draw(pack.name(), x + 24F * unit, y + ROW_HEIGHT * 0.46F,
+        float side=Math.min(38F*unit,ROW_HEIGHT-12F);
+        icons.draw(pack,x+22F*unit,y+(ROW_HEIGHT-side)/2,side);
+        client.fonts().body().draw(fitted(client.fonts().body(),pack.name(),1.05F*unit,packList.width()-82F*unit), x + 68F * unit, y + ROW_HEIGHT * 0.54F,
                 1.05F * unit, tint, tint, tint, 1F);
-        client.fonts().body().draw(kindLabel(pack.kind()), x + 24F * unit, y + ROW_HEIGHT * 0.14F,
+        client.fonts().body().draw(kindLabel(pack.kind()), x + 68F * unit, y + ROW_HEIGHT * 0.14F,
                 0.72F * unit, 0.75F, 0.8F, 0.75F, 1F);
         String count = row.files() + " " + GuiLang.raw("gui.pvzce.packs.files", "个文件");
         client.fonts().body().draw(count,
                 x + packList.width() - 14F * unit
                         - client.fonts().body().width(count, 0.78F * unit),
-                y + ROW_HEIGHT * 0.28F, 0.78F * unit, 0.8F, 0.8F, 0.85F, 1F);
+                y + ROW_HEIGHT * 0.14F, 0.78F * unit, 0.8F, 0.8F, 0.85F, 1F);
     }
 
     /**
@@ -428,19 +433,20 @@ public final class PackScreen extends Screen {
         // Top down from the panel's inner top edge: the name, then the kind line, then the
         // author's description, then the counts above the buttons.
         float y = canvas.y(PANEL_TOP) - canvas.scaled(46F);
-        client.fonts().button().draw(selected.name(), textX, y, 1.5F * unit, 1F, 1F, 1F, 1F);
+        icons.draw(selected,textX,y-18F*unit,56F*unit);
+        client.fonts().button().draw(fitted(client.fonts().button(),selected.name(),1.5F*unit,textW-68F*unit), textX+68F*unit, y, 1.5F * unit, 1F, 1F, 1F, 1F);
 
         y -= client.fonts().body().lineHeight(0.85F * unit) + 10F * unit;
         String kindLine = kindLabel(selected.kind())
                 + (selected.path() == null ? "" : " · " + relativeDirectory(selected))
                 + (selected.enabled() ? "" : " · " + GuiLang.raw("gui.pvzce.packs.state_off", "已停用"));
-        client.fonts().body().draw(kindLine, textX, y, 0.85F * unit, 0.75F, 0.85F, 0.75F, 1F);
+        client.fonts().body().draw(fitted(client.fonts().body(),kindLine,.85F*unit,textW-68F*unit), textX+68F*unit, y, 0.85F * unit, 0.75F, 0.85F, 0.75F, 1F);
 
         // The description is the pack author's text, so it wraps rather than running off the
         // panel; the summary hangs off whatever is left below it.
         float lineHeight = client.fonts().body().lineHeight(0.85F * unit) + 2F * unit;
         float summaryHeadingMin = canvas.y(PANEL_BOTTOM) + canvas.scaled(96F);
-        float afterDescription = drawWrappedText(selected.description(), textX, y - 18F * unit,
+        float afterDescription = drawWrappedText(selected.description(), textX, y - 46F * unit,
                 textW, 0.85F * unit, 0.9F, 0.9F, 0.9F, 1F, summaryHeadingMin + lineHeight);
         float summaryHeading = Math.max(afterDescription - 4F * unit, summaryHeadingMin);
         client.fonts().body().draw(GuiLang.raw("gui.pvzce.packs.summary", "内容摘要"),
@@ -450,6 +456,12 @@ public final class PackScreen extends Screen {
         // switch it on is looking for.
         renderSummary(textX, textW, summaryHeading - 20F * unit,
                 canvas.y(PANEL_BOTTOM) + canvas.scaled(70F), unit);
+    }
+
+    private static String fitted(com.pvzce.client.renderer.font.Fonts.FontRole font,String text,float scale,float width){
+        if(font.width(text,scale)<=width)return text;
+        while(!text.isEmpty()&&font.width(text+"…",scale)>width)text=text.substring(0,text.offsetByCodePoints(text.length(),-1));
+        return text+"…";
     }
 
     /** The per-content-directory counts, two columns wide, top down; whatever fits. */
@@ -476,6 +488,8 @@ public final class PackScreen extends Screen {
                     top - (i / 2) * lineHeight, 0.8F * unit, 0.85F, 0.85F, 0.85F, 1F);
         }
     }
+
+    @Override protected void onRemoved(){icons.close();}
 
     /** The pack's directory as the player would say it: {@code datapacks/user_levels}. */
     private String relativeDirectory(AvailablePack pack) {

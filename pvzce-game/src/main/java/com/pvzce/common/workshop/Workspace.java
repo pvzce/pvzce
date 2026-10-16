@@ -82,11 +82,15 @@ public record Workspace(Path root, String name, String namespace) {
     }
 
     public void write(String relative, com.google.gson.JsonElement json) throws IOException {
+        writeBytes(relative, JSON.toJson(json).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    public void writeBytes(String relative, byte[] bytes) throws IOException {
         Path file = file(relative);
         Files.createDirectories(file.getParent());
         Path temporary = Files.createTempFile(file.getParent(), ".draft-", ".tmp");
         try {
-            Files.writeString(temporary, JSON.toJson(json));
+            Files.write(temporary, bytes);
             Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
         } finally { Files.deleteIfExists(temporary); }
     }
@@ -148,7 +152,7 @@ public record Workspace(Path root, String name, String namespace) {
             for (Path from : paths.toList()) {
                 Path relative = source.relativize(from);
                 String first = relative.getNameCount() == 0 ? "" : relative.getName(0).toString();
-                if (!(first.equals("assets") || first.equals("data") || first.equals("pack.mcmeta"))) continue;
+                if (!(first.equals("assets") || first.equals("data") || first.equals("pack.mcmeta") || first.equals(com.pvzce.common.resource.PvzcePack.ICON_FILE))) continue;
                 if (Files.isSymbolicLink(from)) throw new IOException("Workspace symlinks are not supported: " + relative);
                 Path to = destination.resolve(relative);
                 if (Files.isDirectory(from)) Files.createDirectories(to);

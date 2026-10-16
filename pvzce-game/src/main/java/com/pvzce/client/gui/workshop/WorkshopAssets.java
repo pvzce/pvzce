@@ -15,6 +15,13 @@ final class WorkshopAssets {
             if(path!=null)accept.accept(path);
         }));
     }
+    static void importPackIcon(Workspace workspace,Path source)throws Exception {
+        byte[] bytes=Files.readAllBytes(source);
+        byte[] signature={(byte)137,80,78,71,13,10,26,10};
+        if(bytes.length<signature.length||!java.util.Arrays.equals(signature,java.util.Arrays.copyOf(bytes,signature.length))
+                ||javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes))==null)throw new IllegalArgumentException("图标需要有效的 PNG 图片");
+        workspace.writeBytes(com.pvzce.common.resource.PvzcePack.ICON_FILE,bytes);
+    }
     static void importFile(Workspace workspace,String path,Path source)throws Exception {
         if(!Files.isRegularFile(source))throw new IllegalArgumentException("文件不存在");
         if(Files.exists(workspace.file(path)))throw new IllegalArgumentException("素材已存在，请使用其它路径或先删除旧素材");

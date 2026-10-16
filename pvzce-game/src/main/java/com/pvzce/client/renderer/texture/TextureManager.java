@@ -96,6 +96,12 @@ public final class TextureManager implements AutoCloseable {
         return texture;
     }
 
+    /** Releases a texture owned by a transient GUI without invalidating the game's other art. */
+    public void release(Identifier id) {
+        Texture texture = textures.remove(id);
+        if (texture != null) GL11.glDeleteTextures(texture.glId());
+    }
+
     /** Binds a texture through the facade, keeping its binding cache honest. */
     public void bind(Identifier id) {
         Texture texture = getOrLoad(id);

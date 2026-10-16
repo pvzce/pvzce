@@ -160,7 +160,12 @@ public final class FieldWidgets {
                 EditorContext.Rect control = row.control();
                 int boxWidth = Math.max(64, Math.min(110, control.width() / 4));
                 box = context.own(new EditBox(control.x(), control.y(), boxWidth, control.height(),
-                        this::applyBox));
+                        this::applyBox){
+                    @Override public void render(PvzceClient client){
+                        super.render(client);
+                        if(value().isEmpty()&&!isFocused())client.fonts().body().draw("默认",x()+5,y()+height()*.3F,.7F,.65F,.7F,.65F,1);
+                    }
+                });
                 box.setValueChangedListener(this::applyBox);
                 slider = context.own(new Slider(control.x() + boxWidth + 8, control.y(),
                         Math.max(80, control.width() - boxWidth - 8), control.height(),
@@ -169,30 +174,33 @@ public final class FieldWidgets {
 
             @Override
             public void render(EditorContext context, FormLayout.Row row) {
-                if (box != null && slider != null && !box.isFocused()) {
-                    box.setValue(format(slider.value()), false);
-                }
+                // Callbacks synchronize the controls; drawing must not replace blank defaults
+                // or an in-progress number with the slider's minimum.
             }
 
             @Override
             public void readFrom(EditorContext context, String prefix) {
-                float value = context.draft().getInt(prefix + path, (int) min);
+                var json=context.draft().get(prefix+path).filter(value->value.isJsonPrimitive()&&value.getAsJsonPrimitive().isNumber());
+                float value=json.map(JsonElement::getAsFloat).orElse(knownDefault.orElse(min));
                 if (slider != null) {
-                    slider.configure(min, max, Math.max(min, Math.min(max, value)), v -> {
-                    });
+                    slider.configure(min, max, Math.max(min, Math.min(max, value)), v -> applySlider());
                 }
                 if (box != null) {
-                    box.setValue(format(Math.max(min, Math.min(max, value))), false);
+                    box.setValue(json.isEmpty()&&knownDefault.isEmpty()?"":format(Math.max(min, Math.min(max, value))), false);
                 }
             }
 
             @Override
             public void writeTo(EditorContext context, String prefix) {
-                if (slider == null) {
+                if (box == null) {
                     return;
                 }
-                float value = slider.value();
                 String full = prefix + path;
+                if(box.value().isBlank()){context.draft().remove(full);return;}
+                float value;
+                try{value=Float.parseFloat(box.value());}catch(NumberFormatException e){return;}
+                if(!Float.isFinite(value))return;
+                value=Math.max(min,Math.min(max,value));
                 if (knownDefault.isPresent() && Math.abs(value - knownDefault.get()) < 0.0001F) {
                     context.draft().remove(full);
                 } else if (integer) {
@@ -212,12 +220,13 @@ public final class FieldWidgets {
                 if (box == null || slider == null) {
                     return;
                 }
-                float parsed = GuiText.parseFloat(box.value(), slider.value());
-                slider.setValue(Math.max(min, Math.min(max, parsed)));
+                float parsed;
+                try{parsed=Float.parseFloat(box.value());}catch(NumberFormatException e){return;}
+                if(Float.isFinite(parsed))slider.configure(min,max,Math.max(min,Math.min(max,parsed)),v->applySlider());
             }
 
             private String format(float value) {
-                return integer ? String.valueOf(Math.round(value)) : GuiText.formatFloat(value);
+                return integer ? String.valueOf(Math.round(value)) : Float.toString(value);
             }
         };
     }
@@ -225,17 +234,18 @@ public final class FieldWidgets {
     /**
      * A switch.
      *
-     * <p>Without a known default the key is written only while it is on, so "off" is the
-     * absence of a key. With one - a game rule, whose default may be {@code true} - the key is
-     * written whenever the value differs from that default and removed when it matches:
-     * otherwise a rule that defaults to on could not be turned off at all, because removing
-     * the key would turn it back on.
+     * <p>Without a known default an absent key stays absent until the user chooses a value.
+     * With one - a game rule, whose default may be {@code true} - the key is written whenever
+     * the value differs from that default and removed when it matches. Explicit false must
+     * survive too: removing it from a rule that defaults to on would turn the rule back on.
+     * The default state is labelled separately from an explicit on/off choice.
      */
     public static FormField bool(String path, String label, String onText, String offText,
                                  Optional<Boolean> knownDefault) {
         return new FormField() {
             private Button toggle;
             private boolean on;
+            private boolean supplied;
 
             @Override
             public String label() {
@@ -261,6 +271,7 @@ public final class FieldWidgets {
             @Override
             public void readFrom(EditorContext context, String prefix) {
                 Optional<com.google.gson.JsonElement> json = context.draft().get(prefix + path);
+                supplied=json.isPresent()||knownDefault.isPresent();
                 // An absent key means "whatever the game defaults to", which for a rule that
                 // defaults to on is true - reading it as false would then write an override
                 // the author never chose.
@@ -273,6 +284,7 @@ public final class FieldWidgets {
 
             @Override
             public void writeTo(EditorContext context, String prefix) {
+                if(!supplied)return;
                 String full = prefix + path;
                 if (knownDefault.isPresent() && on == knownDefault.get()) {
                     context.draft().remove(full);
@@ -282,13 +294,14 @@ public final class FieldWidgets {
             }
 
             private void flip() {
+                supplied=true;
                 on = !on;
                 refresh();
             }
 
             private void refresh() {
                 if (toggle != null) {
-                    toggle.setLabel(on ? onText : offText);
+                    toggle.setLabel(supplied?(on ? onText : offText):"默认");
                 }
             }
         };
