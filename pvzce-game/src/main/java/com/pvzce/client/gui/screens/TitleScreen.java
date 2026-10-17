@@ -5,6 +5,7 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.components.Dialog;
 import com.pvzce.client.gui.layout.MenuPageCanvas;
 import com.pvzce.client.gui.layout.MenuPageCanvas.Canvas;
 import com.pvzce.client.gui.mods.ModsScreen;
@@ -24,12 +25,14 @@ public final class TitleScreen extends Screen {
         START("start", 405, 65, 329, 143, true, true),
         WORKSHOP("workshop", 406, 173, 313, 133, true, true),
         MODS("mods", 410, 257, 286, 122, true, true),
-        PACKS("packs", 413, 338, 266, 123, true, true),
+        PACKS("packs", 413, 370, 266, 90, true, true),
         PLAYER("player", 23, 0, 293, 150, false, false),
         SWITCH("switch", 25, 139, 291, 71, false, false),
         SHOP("shop", 324, 481, 130, 89, false, false),
-        SETTINGS("settings", 650, 488, 81, 31, true, false),
-        QUIT("quit", 739, 526, 55, 31, true, false);
+        // right.png probe: left vase face x=490..565/y=440..475, right vase
+        // x=640..695/y=455..490; add the scenery's (71,41) native origin.
+        SETTINGS("settings", 567, 486, 68, 26, true, false),
+        QUIT("quit", 717, 498, 48, 26, true, false);
 
         final Identifier texture;
         final float x, top, width, height;
@@ -134,7 +137,7 @@ public final class TitleScreen extends Screen {
             }
             // The plaques overlap as rectangles. Follow their sloping faces so transparent
             // corners never steal a click from the plaque visibly underneath them.
-            return onStoneFace((float) ((mouseX - x) / width),
+            return onStoneFace(entry, (float) ((mouseX - x) / width),
                     (float) (1D - (mouseY - y) / height));
         }
 
@@ -150,7 +153,10 @@ public final class TitleScreen extends Screen {
         }
     }
 
-    static boolean onStoneFace(float u, float v) {
+    static boolean onStoneFace(Entry entry, float u, float v) {
+        if (entry == Entry.PACKS) {
+            return u >= 0.025F && u <= 0.975F && v >= 0.15F && v <= 0.85F;
+        }
         return u >= 0.025F && u <= 0.975F
                 && v >= 0.09F + 0.34F * u && v <= 0.64F + 0.34F * u;
     }
@@ -174,13 +180,17 @@ public final class TitleScreen extends Screen {
     }
 
     private void enterCurrentPlayer() {
-        String current = client.currentWorld();
-        if (current == null || current.isBlank()
-                || !WorldPaths.worldDir(client.gameDir(), current).toFile().isDirectory()) {
+        if (currentPlayer() == null) {
             openPlayerPicker();
         } else {
             client.openScreen(new LevelSelectScreen(client));
         }
+    }
+
+    private String currentPlayer() {
+        String name = client.currentWorld();
+        return name == null || name.isBlank()
+                || !WorldPaths.worldDir(client.gameDir(), name).toFile().isDirectory() ? null : name;
     }
 
     @Override
@@ -191,11 +201,17 @@ public final class TitleScreen extends Screen {
         // Logo belongs to the left canopy; the house and lawn remain visible beneath it.
         draw(layout.left(), LOGO, 29, 211, 300, 300F * 725F / 2170F);
         for (var widget : widgets) {
-            widget.render(client);
+            if (!(widget instanceof Dialog)) {
+                widget.render(client);
+            }
         }
         renderPlayerName();
         renderBuildLine();
         renderServerMessage();
+        // Names and transient menu messages belong behind modal backdrops too.
+        for (Dialog dialog : dialogs()) {
+            dialog.render(client);
+        }
     }
 
     private void renderScenery(float seconds) {
@@ -236,8 +252,8 @@ public final class TitleScreen extends Screen {
 
     private void renderPlayerName() {
         Button board = entries.get(Entry.PLAYER);
-        String current = client.currentWorld();
-        String name = current == null || current.isBlank() ? "请选择玩家" : current;
+        String current = currentPlayer();
+        String name = current == null ? "请选择玩家" : current;
         float size = layout.left().scaled(1.55F);
         float available = board.width() * 0.8F;
         size *= Math.min(1F, available / Math.max(1F, client.fonts().button().width(name, size)));
@@ -261,6 +277,9 @@ public final class TitleScreen extends Screen {
     }
 
     private void renderServerMessage() {
+        if (!dialogs().isEmpty()) {
+            return;
+        }
         String message = client.recentServerMessage();
         if (message.isEmpty()) {
             return;

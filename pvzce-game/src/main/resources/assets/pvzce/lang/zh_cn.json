@@ -1188,5 +1188,19 @@
   "pvzce.mechanic.vase_field": "花瓶阵",
   "pvzce.mechanic.scary_potter": "砸罐子",
   "pvzce.mechanic.plant_garden": "植物花园",
-  "pvzce.mechanic.portal": "传送门"
+  "pvzce.mechanic.portal": "传送门",
+  "pvzce.player.confirm": "确定",
+  "pvzce.player.new_title": "创建新玩家",
+  "pvzce.player.delete_title": "删除这个玩家？",
+  "pvzce.player.delete_message": "将永久删除该玩家的全部存档：",
+  "pvzce.player.delete_confirm": "删除玩家",
+  "pvzce.player.delete_error": "删除失败，请稍后重试。",
+  "pvzce.player.empty": "还没有玩家，点击“新玩家”创建。",
+  "pvzce.player.create_confirm": "创建",
+  "pvzce.player.empty_name": "请输入玩家名字。",
+  "pvzce.player.invalid_name": "名字只能使用字母、数字、下划线或连字符。",
+  "pvzce.player.duplicate_name": "这个玩家已存在，请换一个名字。",
+  "pvzce.player.create_error": "创建失败，请稍后重试。",
+  "pvzce.player.name": "玩家名字",
+  "pvzce.player.name_hint": "使用字母、数字、下划线或连字符"
 }

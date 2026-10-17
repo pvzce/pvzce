@@ -1188,5 +1188,19 @@
   "pvzce.mechanic.vase_field": "Vase field",
   "pvzce.mechanic.scary_potter": "Vasebreaker",
   "pvzce.mechanic.plant_garden": "Plant garden",
-  "pvzce.mechanic.portal": "Portals"
+  "pvzce.mechanic.portal": "Portals",
+  "pvzce.player.confirm": "OK",
+  "pvzce.player.new_title": "Create a player",
+  "pvzce.player.delete_title": "Delete this player?",
+  "pvzce.player.delete_message": "Permanently delete all saves for: ",
+  "pvzce.player.delete_confirm": "Delete player",
+  "pvzce.player.delete_error": "Could not delete. Please try again.",
+  "pvzce.player.empty": "No players yet. Select New player to create one.",
+  "pvzce.player.create_confirm": "Create",
+  "pvzce.player.empty_name": "Enter a player name.",
+  "pvzce.player.invalid_name": "Use letters A-Z, numbers, underscores or hyphens.",
+  "pvzce.player.duplicate_name": "This player already exists. Choose another name.",
+  "pvzce.player.create_error": "Could not create. Please try again.",
+  "pvzce.player.name": "Player name",
+  "pvzce.player.name_hint": "Use letters A-Z, numbers, underscores or hyphens"
 }

@@ -119,7 +119,9 @@ public class AbstractSelectionList<E> extends AbstractWidget {
     }
 
     private int maxScroll() {
-        return Math.max(0, entries.size() * entryHeight - height);
+        // Rendering draws whole rows. A partial row of spare height must not shorten
+        // the last scroll step, or the final entry can never become a visible row.
+        return Math.max(0, (entries.size() - visibleCount()) * entryHeight);
     }
 
     /** First entry index currently drawn; clamped so the last page stays full. */

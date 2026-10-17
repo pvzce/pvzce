@@ -12,6 +12,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The old corner-overlap regressions now exercise the original selector's shared layout. */
 class TitleScreenTrayTest {
     @Test
+    void captionsFitTheMeasuredVaseFacesAndTheFlatPackPlaqueAcceptsItsUpperFace() {
+        // Pixel probe of right.png, offset by its (71,41) scene origin.
+        for (float[] face : new float[][]{{561, 481, 636, 516}, {711, 496, 766, 531}}) {
+            TitleScreen.Entry entry = face[0] == 561 ? TitleScreen.Entry.SETTINGS : TitleScreen.Entry.QUIT;
+            assertTrue(entry.x >= face[0] && entry.top >= face[1]);
+            assertTrue(entry.x + entry.width <= face[2] && entry.top + entry.height <= face[3]);
+        }
+        assertTrue(TitleScreen.onStoneFace(TitleScreen.Entry.PACKS, 0.5F, 0.2F));
+        assertFalse(TitleScreen.onStoneFace(TitleScreen.Entry.PACKS, 0.5F, 0.05F));
+    }
+
+    @Test
     void entriesFitTheWindowAndKeepTheirShape() {
         for (int[] size : new int[][]{{427, 240}, {960, 540}, {640, 320}, {320, 480}, {1280, 540}}) {
             TitleScreen.Layout layout = TitleScreen.layoutForGui(size[0], size[1]);

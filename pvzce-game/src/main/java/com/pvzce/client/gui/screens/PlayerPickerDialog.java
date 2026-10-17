@@ -4,14 +4,16 @@ import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.components.AbstractSelectionList;
 import com.pvzce.client.gui.components.Button;
-import com.pvzce.common.util.WorldPaths;
 import com.pvzce.client.gui.components.Dialog;
 import com.pvzce.client.gui.components.EditBox;
 import com.pvzce.common.network.packet.CreateWorldC2S;
-
+import com.pvzce.common.network.packet.RequestProfileC2S;
+import com.pvzce.common.util.WorldPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -20,191 +22,271 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-/**
- * The "who is playing?" dialog: a name is a player, and a player is a world.
- *
- * <p>A world directory is one player's save ({@code saves/<name>/}), so the original's "who are
- * you?" screen and this project's world picker were always the same question asked in two
- * places. It is one dialog now, opened from the player name on the title screen.
- *
- * <p><strong>It only switches.</strong> Choosing a name changes who this session is playing as
- * and closes; it does not open the level list - that is what 开始游戏 on the menu is for, and a
- * click here that also navigated would make "change player" and "start playing" one gesture.
- * Creating a player does not switch to it either: making a save file and choosing to play as it
- * are two decisions.
- *
- * <p>A {@link Dialog} rather than a screen: this is a question about the menu, and the screen
- * layer already routes every mouse and key event to the topmost modal first, so "the menu behind
- * it cannot be clicked while this is up" is structural. Its frame is drawn thin
- * ({@link #FRAME_SCALE}) - the stone frame's native border is most of a dialog this size.
- */
+/** Select a saved player; creation and deletion each have their own modal step. */
 public final class PlayerPickerDialog extends Dialog {
-    private static final org.slf4j.Logger LOGGER =
-            org.slf4j.LoggerFactory.getLogger("PVZCE/Client");
-    /**
-     * How much of the stone frame's native border to draw.
-     *
-     * <p>The frame is authored at ~209 texture pixels of border; at a 3x UI scale that is most of
-     * a small dialog, and a list plus a name field plus four buttons do not fit in what is left.
-     * Just over half keeps the carving recognisable and leaves the content its room.
-     */
-    private static final float FRAME_SCALE = 0.55F;
-
+    private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Client");
     private final PvzceClient client;
     private final Consumer<String> onSwitch;
-
     private final List<String> worlds = new ArrayList<>();
-    private final AbstractSelectionList<String> list;
-    private final EditBox nameBox;
-    private final Button unlockToggle;
-    /** Sandbox switch: a player created with it starts with every card unlocked. */
-    private boolean unlockAll;
+    private AbstractSelectionList<String> list;
+    private Button useButton;
+    private Button deleteButton;
+    private int guiWidth;
+    private int guiHeight;
+    private int statusY;
+    private String notice = "";
 
-    private PlayerPickerDialog(PvzceClient client, int x, int y, int width, int height,
-                               Consumer<String> onSwitch) {
-        super(x, y, width, height, "谁要玩游戏？");
+    private PlayerPickerDialog(PvzceClient client, Consumer<String> onSwitch, int guiWidth, int guiHeight) {
+        super(0, 0, 1, 1, "谁要玩游戏？");
         this.client = client;
         this.onSwitch = onSwitch;
-        titleScale(Math.min(1.15F, height / 260F));
-        frameScale(FRAME_SCALE);
-        // A plain title inside the frame: the hanging plate is ~38 units tall and would sit
-        // behind the first row of a dialog this full.
         inlineTitle();
-        closeOnEscape(true);
-
-        int pad = Math.round(frameInset());
-        int fieldWidth = width - pad * 2;
-        // Compact rows and gaps on purpose: every unit saved here is a row of names the list can
-        // show, and the list is the part of this dialog that grows with the player's data.
-        int rowH = Math.max(18, Math.min(26, height / 11));
-        int gap = 4;
-        // Laid out bottom-up from the frame's inside, not from `y`: the border is part of this
-        // widget, and content placed from its outside edge is content drawn on the frame.
-        int bottom = y + Math.round(frameInset() * 1.15F) + 2;
-        int actionY = bottom;
-        int toggleY = actionY + rowH + gap;
-        int boxY = toggleY + rowH + gap;
-        int listBottom = boxY + rowH + gap;
-        // Below the inline title, which is one line of text under the top border.
-        int listTop = y + height - Math.round(frameInset() * 1.2F)
-                - (int) client.fonts().button().lineHeight(titleScale()) - 6;
-        int listHeight = Math.max(rowH * 2, listTop - listBottom);
-
-        list = new AbstractSelectionList<>(x + pad, listBottom, fieldWidth, listHeight,
-                Math.max(20, rowH),
-                (screen, world, rowX, rowY) -> screen.fonts().body().draw(world, rowX, rowY + 4,
-                        1F, 1F, 1F, 0.85F, 1F));
-        addChild(list);
-
-        nameBox = new EditBox(x + pad, boxY, fieldWidth, rowH, this::createWorld);
-        addChild(nameBox);
-
-        int half = (fieldWidth - gap) / 2;
-        unlockToggle = new Button(x + pad, toggleY, half, rowH, unlockLabel(), this::toggleUnlock);
-        addButton(unlockToggle);
-        addButton(new Button(x + pad + half + gap, toggleY, fieldWidth - half - gap, rowH,
-                GuiLang.raw("pvzce.player.create", "新玩家"), this::createWorld));
-        addButton(new Button(x + pad, actionY, half, rowH,
-                GuiLang.raw("pvzce.player.delete", "删除选中"), this::deleteWorld));
-        addButton(new Button(x + pad + half + gap, actionY, fieldWidth - half - gap, rowH,
-                GuiLang.raw("pvzce.player.use", "切换到这个玩家"), this::switchToSelected));
-
-        refreshWorlds();
+        onClose(() -> client.currentScreen().removeDialog(this));
+        onResize(guiWidth, guiHeight);
+        refreshWorlds(client.currentWorld());
     }
 
-    /** Centres the dialog over the menu, sized to the window it has to fit in. */
     public static PlayerPickerDialog create(PvzceClient client, Consumer<String> onSwitch) {
-        int width = Math.min(360, client.guiWidth() - 20);
-        int height = Math.min(250, client.guiHeight() - 20);
-        return new PlayerPickerDialog(client, (client.guiWidth() - width) / 2,
-                (client.guiHeight() - height) / 2, width, height, onSwitch);
+        return create(client, onSwitch, client.guiWidth(), client.guiHeight());
     }
 
-    /** Everyone with a save directory, in listing order, current player highlighted. */
-    private void refreshWorlds() {
+    /** Explicit dimensions also let the actual modal dispatch run in a windowless test. */
+    static PlayerPickerDialog create(PvzceClient client, Consumer<String> onSwitch,
+                                     int guiWidth, int guiHeight) {
+        return new PlayerPickerDialog(client, onSwitch, guiWidth, guiHeight);
+    }
+
+    @Override
+    public void onResize(int guiWidth, int guiHeight) {
+        String selected = list == null ? null : list.selected();
+        this.guiWidth = guiWidth;
+        this.guiHeight = guiHeight;
+        setSize(Math.min(520, guiWidth - 24), Math.min(430, guiHeight - 24));
+        setPosition((guiWidth - width) / 2, (guiHeight - height) / 2);
+        frameScale(Math.min(0.36F, height / 1100F));
+        titleScale(Math.min(1.35F, height / 260F));
+        clearChildren();
+        int pad = Math.round(frameInset()) + 8;
+        int row = Math.max(22, Math.min(36, height / 12));
+        int gap = Math.max(6, Math.min(12, height / 40));
+        int innerWidth = width - pad * 2;
+        int bottom = y + pad;
+        int upperRow = bottom + row + gap;
+        statusY = upperRow + row + gap + 3;
+        int listBottom = statusY + 19;
+        int listTop = y + height - pad - 24;
+        list = new AbstractSelectionList<>(x + pad, listBottom, innerWidth,
+                Math.max(24, listTop - listBottom), Math.max(24, row),
+                (c, world, rowX, rowY) -> c.fonts().body().draw(world, rowX + 5, rowY + 5,
+                        Math.min(1.1F, height / 260F), 1F, 1F, 0.85F, 1F));
+        list.setOnRowClick(ignored -> updateActions());
+        list.setEntries(worlds);
+        selectVisible(selected);
+        addChild(list);
+        int half = (innerWidth - gap) / 2;
+        addButton(new Button(x + pad, upperRow, half, row,
+                GuiLang.raw("pvzce.player.create", "新玩家"), this::openCreation));
+        deleteButton = new Button(x + pad + half + gap, upperRow, innerWidth - half - gap, row,
+                GuiLang.raw("pvzce.player.delete", "删除选中"), this::confirmDeletion);
+        addButton(deleteButton);
+        useButton = new Button(x + pad, bottom, half, row,
+                GuiLang.raw("pvzce.player.confirm", "确定"), this::switchToSelected);
+        addButton(useButton);
+        addButton(new Button(x + pad + half + gap, bottom, innerWidth - half - gap, row,
+                GuiLang.raw("pvzce.dialog.cancel", "取消"), this::close));
+        updateActions();
+    }
+
+    private void refreshWorlds(String selection) {
         worlds.clear();
         Path saves = WorldPaths.savesDir(client.gameDir());
         if (Files.isDirectory(saves)) {
             try (Stream<Path> entries = Files.list(saves)) {
-                entries.filter(Files::isDirectory)
-                        .map(path -> path.getFileName().toString())
-                        .sorted(Comparator.naturalOrder())
-                        .forEach(worlds::add);
+                entries.filter(Files::isDirectory).map(path -> path.getFileName().toString())
+                        .sorted().forEach(worlds::add);
             } catch (IOException e) {
-                LOGGER.warn("Failed to list worlds", e);
+                LOGGER.warn("Failed to list players", e);
             }
         }
         list.setEntries(worlds);
-        int current = worlds.indexOf(client.currentWorld());
-        if (current >= 0) {
-            list.select(current);
-        }
+        selectVisible(selection);
+        updateActions();
     }
 
-    private void toggleUnlock() {
-        unlockAll = !unlockAll;
-        unlockToggle.setLabel(unlockLabel());
-    }
-
-    private String unlockLabel() {
-        return GuiLang.raw("pvzce.unlock_all", "全解锁") + "：" + (unlockAll ? "开" : "关");
-    }
-
-    /**
-     * Makes a player out of the typed name, and highlights it.
-     *
-     * <p>Does not switch to it: creating a save and choosing to play as it are two decisions, and
-     * the button that switches says so.
-     */
-    private void createWorld() {
-        // The same rule the server derives its profile path from: an empty name becomes
-        // "world" on both sides, so the directory the list shows is the one the server writes.
-        String name = WorldPaths.sanitize(nameBox.value());
-        try {
-            Files.createDirectories(WorldPaths.worldDir(client.gameDir(), name));
-        } catch (IOException e) {
-            LOGGER.error("Failed to create world " + name, e);
+    private void selectVisible(String name) {
+        int index = worlds.indexOf(name);
+        list.select(index);
+        if (index < 0) {
             return;
         }
-        // The directory is the client's (the list reads the disk), but the profile inside it is
-        // the server's: it is the one that knows what "unlocked" means, and it writes the file
-        // the level list is filtered by.
-        client.connection().send(new CreateWorldC2S(name, unlockAll));
-        nameBox.setValue("");
-        refreshWorlds();
-        list.select(Math.max(0, worlds.indexOf(name)));
+        int first = list.scrollOffset() / list.entryHeight();
+        int wanted = index < first ? index : Math.max(first, index - list.visibleCount() + 1);
+        list.mouseScrolled(list.x(), list.y(), first - wanted);
     }
 
-    private void deleteWorld() {
+    private void updateActions() {
+        boolean selected = list.selected() != null;
+        useButton.setActive(selected);
+        deleteButton.setActive(selected);
+    }
+
+    private void openCreation() {
+        CreationDialog dialog = new CreationDialog();
+        client.currentScreen().showDialog(dialog);
+        dialog.nameBox.setFocused(true);
+    }
+
+    private void confirmDeletion() {
         String selected = list.selected();
         if (selected == null) {
             return;
         }
-        Path dir = WorldPaths.worldDir(client.gameDir(), selected);
-        try (Stream<Path> walk = Files.walk(dir)) {
+        ConfirmDialog confirmation = ConfirmDialog.create(client,
+                GuiLang.raw("pvzce.player.delete_title", "删除这个玩家？"),
+                GuiLang.raw("pvzce.player.delete_message", "将永久删除该玩家的全部存档：") + selected,
+                GuiLang.raw("pvzce.player.delete_confirm", "删除玩家"),
+                () -> deleteWorld(selected), null, guiWidth, guiHeight);
+        confirmation.frameScale(0.26F);
+        confirmation.closeOnEscape(true);
+        confirmation.onClose(() -> client.currentScreen().removeDialog(confirmation));
+        client.currentScreen().showDialog(confirmation);
+    }
+
+    private void deleteWorld(String selected) {
+        try (Stream<Path> walk = Files.walk(WorldPaths.worldDir(client.gameDir(), selected))) {
             for (Path path : walk.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(path);
             }
+            notice = "";
         } catch (IOException e) {
-            LOGGER.error("Failed to delete world " + selected, e);
-            return;
+            LOGGER.error("Failed to delete player {}", selected, e);
+            notice = GuiLang.raw("pvzce.player.delete_error", "删除失败，请稍后重试。");
         }
-        refreshWorlds();
+        refreshWorlds(null);
     }
 
-    /**
-     * Switches to the highlighted player and closes.
-     *
-     * <p>The one gesture that changes who is playing. A click on a name only highlights it, so a
-     * row click cannot change the session on its way to somewhere else - which is also why this
-     * dialog never opens the level list.
-     */
     private void switchToSelected() {
         String world = list.selected();
-        if (world == null || world.isBlank()) {
+        if (world != null && Files.isDirectory(WorldPaths.worldDir(client.gameDir(), world))) {
+            close();
+            onSwitch.accept(world);
+        }
+    }
+
+    @Override
+    public void render(PvzceClient client) {
+        super.render(client);
+        if (!visible) {
             return;
         }
-        close();
-        onSwitch.accept(world);
+        if (worlds.isEmpty()) {
+            String empty = GuiLang.raw("pvzce.player.empty", "还没有玩家，点击“新玩家”创建。");
+            float scale = Math.min(0.95F, (list.width() - 12F)
+                    / Math.max(1F, client.fonts().body().width(empty, 1F)));
+            client.fonts().body().draw(empty, list.x() + 6, list.y() + list.height() / 2F,
+                    scale, 0.8F, 0.82F, 0.7F, 1F);
+        }
+        client.fonts().body().draw(notice, list.x(), statusY, 0.75F, 1F, 0.65F, 0.4F, 1F);
+    }
+
+    /** Only this modal owns a name field and the initial unlock option. */
+    private final class CreationDialog extends Dialog {
+        private EditBox nameBox;
+        private Button unlockToggle;
+        private boolean unlockAll;
+        private int labelY;
+        private int hintY;
+        private int messageY;
+        private String message = "";
+
+        CreationDialog() {
+            super(0, 0, 1, 1, GuiLang.raw("pvzce.player.new_title", "创建新玩家"));
+            inlineTitle();
+            onClose(() -> client.currentScreen().removeDialog(this));
+            onResize(guiWidth, guiHeight);
+        }
+
+        @Override
+        public void onResize(int guiWidth, int guiHeight) {
+            String value = nameBox == null ? "" : nameBox.value();
+            setSize(Math.min(480, guiWidth - 24), Math.min(300, guiHeight - 24));
+            setPosition((guiWidth - width) / 2, (guiHeight - height) / 2);
+            frameScale(Math.min(0.3F, height / 1000F));
+            titleScale(Math.min(1.25F, height / 230F));
+            clearChildren();
+            int pad = Math.round(frameInset()) + 10;
+            int row = Math.max(23, Math.min(34, height / 9));
+            int gap = Math.max(6, Math.min(10, height / 28));
+            int innerWidth = width - pad * 2;
+            int bottom = y + pad;
+            int top = y + height - pad;
+            labelY = top - 4;
+            nameBox = new EditBox(x + pad, top - row - 20, innerWidth, row, this::createWorld);
+            nameBox.setValue(value);
+            addChild(nameBox);
+            hintY = nameBox.y() - 17;
+            messageY = bottom + row + gap + 2;
+            unlockToggle = new Button(x + pad, bottom + row + gap * 2 + 18, innerWidth, row,
+                    unlockLabel(), () -> {
+                        unlockAll = !unlockAll;
+                        unlockToggle.setLabel(unlockLabel());
+                    });
+            addButton(unlockToggle);
+            int half = (innerWidth - gap) / 2;
+            addButton(new Button(x + pad, bottom, half, row,
+                    GuiLang.raw("pvzce.dialog.cancel", "取消"), this::close));
+            addButton(new Button(x + pad + half + gap, bottom, innerWidth - half - gap, row,
+                    GuiLang.raw("pvzce.player.create_confirm", "创建"), this::createWorld));
+        }
+
+        private String unlockLabel() {
+            return GuiLang.raw("pvzce.unlock_all", "全解锁") + "：" + (unlockAll ? "开" : "关");
+        }
+
+        private void createWorld() {
+            String name = nameBox.value().trim();
+            if (name.isEmpty()) {
+                message = GuiLang.raw("pvzce.player.empty_name", "请输入玩家名字。");
+                return;
+            }
+            if (!name.equals(WorldPaths.sanitize(name))) {
+                message = GuiLang.raw("pvzce.player.invalid_name", "名字只能使用字母、数字、下划线或连字符。");
+                return;
+            }
+            try {
+                Files.createDirectories(WorldPaths.savesDir(client.gameDir()));
+                // Atomic: an existing player must never receive a fresh starter profile.
+                Files.createDirectory(WorldPaths.worldDir(client.gameDir(), name));
+            } catch (FileAlreadyExistsException e) {
+                message = GuiLang.raw("pvzce.player.duplicate_name", "这个玩家已存在，请换一个名字。");
+                return;
+            } catch (IOException e) {
+                LOGGER.error("Failed to create player {}", name, e);
+                message = GuiLang.raw("pvzce.player.create_error", "创建失败，请稍后重试。");
+                return;
+            }
+            client.connection().send(new CreateWorldC2S(name, unlockAll));
+            // Creation answers with the new profile, but the user has not switched yet.
+            // Restore the menu player's snapshot after it, in the same ordered packet queue.
+            client.connection().send(new RequestProfileC2S(client.currentWorld()));
+            close();
+            notice = "";
+            refreshWorlds(name);
+        }
+
+        @Override
+        public void render(PvzceClient client) {
+            super.render(client);
+            if (!visible) {
+                return;
+            }
+            client.fonts().body().draw(GuiLang.raw("pvzce.player.name", "玩家名字"),
+                    nameBox.x(), labelY, 0.85F, 0.94F, 0.94F, 0.82F, 1F);
+            client.fonts().body().draw(GuiLang.raw("pvzce.player.name_hint", "使用字母、数字、下划线或连字符"),
+                    nameBox.x(), hintY, 0.7F, 0.65F, 0.7F, 0.6F, 1F);
+            float scale = Math.min(0.8F, nameBox.width()
+                    / Math.max(1F, client.fonts().body().width(message, 1F)));
+            client.fonts().body().draw(message, nameBox.x(), messageY, scale, 1F, 0.65F, 0.4F, 1F);
+        }
     }
 }

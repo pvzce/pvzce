@@ -18,8 +18,8 @@ LOCAL = ROOT / 'local-assets/assets/pvzce/textures/gui/screen/title/selector'
 # Native menu sizes; 2x textures stay sharp at the reference 1080p window.
 SIZES = {
     'start': (329, 143), 'workshop': (313, 133), 'mods': (286, 122),
-    'packs': (266, 123), 'player': (293, 150), 'switch': (291, 71),
-    'shop': (130, 89), 'settings': (81, 31), 'quit': (55, 31),
+    'packs': (266, 90), 'player': (293, 150), 'switch': (291, 71),
+    'shop': (130, 89), 'settings': (68, 26), 'quit': (48, 26),
 }
 
 

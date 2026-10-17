@@ -30,8 +30,8 @@ public final class PauseDialog extends Dialog {
     /**
      * How much of the stone frame's native border to draw.
      *
-     * <p>Thinner than {@link PlayerPickerDialog}'s 0.55 on purpose: at 240 GUI units of screen height
-     * this dialog is clamped to 216, and the border is taken off both ends - 0.55 leaves four rows
+     * <p>At 240 GUI units of screen height this dialog is clamped to 216, and the border is
+     * taken off both ends - 0.55 leaves four rows
      * of twenty units, which is a row of stamps rather than of buttons. 0.45 keeps the carving and
      * gives the rows a button's height.
      */
