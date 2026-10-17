@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:balloon_zombie",
+  "kind": "zombie",
+  "content": "pvzce:balloon_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 150
+    },
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/balloon_zombie"
+}

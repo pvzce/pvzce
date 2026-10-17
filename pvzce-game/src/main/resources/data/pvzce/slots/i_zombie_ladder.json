@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:i_zombie_ladder",
+  "kind": "zombie",
+  "content": "pvzce:ladder",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 150
+    },
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/ladder"
+}

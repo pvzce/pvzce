@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:miner_zombie",
+  "kind": "zombie",
+  "content": "pvzce:miner_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/miner_zombie"
+}

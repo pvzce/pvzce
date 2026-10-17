@@ -333,8 +333,9 @@ public final class AnimationManager {
         playback.setFlipX(EntityKind.ZOMBIE.equals(entity.kind()) && (entity.charmed() || entity.animation().endsWith("_right")));
         // Dying is not walking: a frozen zombie that is killed plays its death, or the corpse
         // would stand there until the freeze ran out.
-        playback.setPaused(EntityKind.ZOMBIE.equals(entity.kind()) && (entity.frozen() || entity.buttered())
-                && entity.health() > 0);
+        playback.setPaused((EntityKind.ZOMBIE.equals(entity.kind()) && (entity.frozen() || entity.buttered())
+                && entity.health() > 0) || (com.pvzce.client.mechanic.PlantGardenClientMechanic.cardboard(client.level(), entity)
+                && entity.animation().startsWith("idle")));
         float[] anchor = anchor(entity);
         float[] scales = scalesFor(entity);
         // How this entity is lit: a drop wears its resource's own tint - dimmer than its art, so

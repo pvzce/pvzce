@@ -44,6 +44,7 @@ public class PlantEntity extends PvzceEntity {
         return List.copyOf(capabilities);
     }
     private int age;
+    private LevelServer level;
 
     /**
      * Ticks left of the clip this plant plays while it is being consumed; zero when it is not.
@@ -437,6 +438,7 @@ public class PlantEntity extends PvzceEntity {
         // PlantCapability#holdsFire: the note the player plays is what makes those act.
         boolean holdFire = level.plantsHoldFire();
         for (Instance instance : capabilities) {
+            if (level.isBrainPuzzle() && instance.capability instanceof com.pvzce.common.capability.plant.ProducerCapability) continue;
             if (asleep && !instance.capability.ticksWhileAsleep(this)) {
                 continue;
             }
@@ -547,7 +549,11 @@ public class PlantEntity extends PvzceEntity {
     public void damage(int amount) {
         if (isInvulnerable()) return;
         for (Instance entry : capabilities) amount = entry.capability.incomingDamage(this, amount);
-        if (amount > 0) super.damage(amount);
+        if (amount > 0) {
+            int previousHealth = health();
+            super.damage(amount);
+            if (level != null) level.plantDamaged(this, previousHealth);
+        }
     }
 
     @Override
@@ -601,6 +607,7 @@ public class PlantEntity extends PvzceEntity {
 
     /** Called by the level right after the plant is committed to the field. */
     public void onPlaced(LevelServer level) {
+        this.level = level;
         for (Instance instance : capabilities) {
             instance.capability.onPlaced(this, level);
             if (removed) {
@@ -610,6 +617,7 @@ public class PlantEntity extends PvzceEntity {
     }
 
     public void onRestored(LevelServer level) {
+        this.level = level;
         for (Instance instance : capabilities) instance.capability.onRestored(this, level);
     }
 

@@ -1,7 +1,6 @@
 package com.pvzce.server;
 
 import com.pvzce.api.content.LevelDef;
-import com.pvzce.api.content.mechanic.TypedMechanic;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.BuiltInRegistries;
@@ -59,15 +58,6 @@ class IZombieTest {
                 PvzceIds.id("yard/puzzle/i_zombie_" + number));
         assertNotNull(def, "i_zombie_" + number + " must load");
         return def;
-    }
-
-    /** The shipped level, with the mower taken off it so a walk to the house is a walk. */
-    private static LevelServer withoutMowers(LevelDef def) {
-        return new LevelServer(com.pvzce.testutil.TestLevels.copy(def)
-                .mechanics(List.of(new TypedMechanic(PvzceIds.MECHANIC_MOWER,
-                        new com.pvzce.api.content.MowerData(
-                                java.util.Optional.of(List.of()), List.of()))))
-                .build());
     }
 
     private static void tick(LevelServer level, CapturingBridge bridge, int ticks) {
@@ -143,7 +133,8 @@ class IZombieTest {
         assertEquals(1, countZombies(level, ZOMBIE_TEAM), "there is a zombie on the lawn");
         assertEquals(before - 50, level.team(ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN),
                 "and it was paid for out of the budget");
-        assertFalse(level.plantPlayer().slot(slot).ready(), "the card went on cooldown");
+        assertTrue(level.plantPlayer().slot(slot).ready(), "original zombie cards have no recharge");
+        assertTrue(level.placeZombie(bridge, slot, 6, 1), "the same card can immediately be played again");
     }
 
     /** The other side's cards and actions are refused, because the player is not that side. */
@@ -158,29 +149,22 @@ class IZombieTest {
                 "and the refusal says which side the player is on: " + bridge.messages);
     }
 
-    /**
-     * A zombie reaching the house wins <em>for the player</em>.
-     *
-     * <p>The level's own win team is the zombie team, so this is the case where "the plant side
-     * lost" and "the player won" are the same event - and the one the old
-     * {@code winner == plant team} rule would have reported as a defeat.
-     */
     @Test
-    void aZombieReachingTheHouseWinsForThePlayer() {
-        LevelServer level = withoutMowers(puzzle(1));
+    void allFiveBrainsAreRequiredAndDuplicateLanesDoNotScoreAgain() {
+        LevelServer level = new LevelServer(puzzle(1));
         CapturingBridge bridge = new CapturingBridge();
-        ZombieEntity walker = level.spawnZombie(PvzceIds.id("basic_zombie"),
-                level.team(ZOMBIE_TEAM), 0.5F, 2);
-        assertNotNull(walker);
-        level.flushPending(bridge);
-
-        // Far enough to walk from x=0.5 to the house (about 4 seconds) and then hold there for
-        // the sixty ticks the reach-the-house check counts before it believes it.
-        tick(level, bridge, 500);
-
-        assertEquals(com.pvzce.common.network.packet.GameStateS2C.WON, level.gameState(),
-                "the player - who is the zombie side - won");
-        assertEquals(ZOMBIE_TEAM, level.winner(), "and the winner is the zombie team");
+        for (int row = 0; row < 4; row++) {
+            level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), -0.41F, row);
+        }
+        tick(level, bridge, 71);
+        assertEquals("running", level.gameState(), "four brains do not win the puzzle");
+        level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), -0.41F, 0);
+        tick(level, bridge, 71);
+        assertEquals("running", level.gameState(), "an eaten lane cannot replace the fifth brain");
+        level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), -0.41F, 4);
+        tick(level, bridge, 71);
+        assertEquals("won", level.gameState());
+        assertEquals(ZOMBIE_TEAM, level.winner());
     }
 
     /** Out of zombies and out of money is the end of the run, and the player has lost it. */
@@ -216,30 +200,134 @@ class IZombieTest {
         }
     }
 
-    /** Eating the whole garden ends the round, and the endless level lays out the next one. */
+    private static LevelDef endless() {
+        return BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/puzzle/i_zombie_endless"));
+    }
+
     @Test
-    void theEndlessGardenIsReplantedWhenTheLawnIsCleared() {
-        LevelDef def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/puzzle/i_zombie_endless"));
-        assertNotNull(def, "the endless puzzle level must load");
-        LevelServer level = new LevelServer(def);
+    void endlessContinuesPastFiveBoardsAndCarriesSunWithoutAHandout() {
+        LevelServer level = new LevelServer(endless());
         CapturingBridge bridge = new CapturingBridge();
-        level.flushPending(bridge);
-        int first = countPlants(level);
-        assertTrue(first > 0, "round one has a garden: " + first);
-
-        // Eat it: `clearLawn` is what the round turn-over sweeps with, and removing the plants is
-        // the state the mechanic is waiting for.
-        for (PvzceEntity entity : new ArrayList<>(level.entities())) {
-            if (entity instanceof PlantEntity plant) {
-                plant.remove();
-            }
+        for (int round = 0; round < 6; round++) {
+            assertEquals(25, countPlants(level));
+            assertTrue(level.entities().stream().filter(e -> e instanceof PlantEntity)
+                    .allMatch(e -> e.gridX() < 5));
+            // Clear objectives while leaving the plants in place: brains, not garden emptiness,
+            // decide when a board ends. Walkers enter through the actual entity tick path.
+            for (int row = 0; row < 5; row++)
+                level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), -0.41F, row);
+            tick(level, bridge, 71);
+            level.spawnProducedResource(PvzceIds.SUN, 25, 7, 2, level.team(ZOMBIE_TEAM));
+            level.flushPending(bridge);
+            tick(level, bridge, 90);
+            assertTrue(level.entities().stream().anyMatch(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity),
+                    "loose sun survives the board change");
+            assertEquals("running", level.gameState());
+            assertEquals(150, level.team(ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN));
         }
-        tick(level, bridge, 200);
+        var save = level.save().getCompound("BrainGarden");
+        assertEquals(6, save.getInt("Round"));
+        assertEquals(List.of(50, 75, 75, 125, 125, 125, 150, 175, 350),
+                level.plantPlayer().slots().stream().map(Slot::costSun).toList(),
+                "the original puzzle prices are independent of other modes' card prices");
+    }
 
-        assertTrue(countPlants(level) > 0,
-                "the next round's garden is on the lawn: " + countPlants(level));
-        assertEquals(com.pvzce.common.network.packet.GameStateS2C.RUNNING, level.gameState(),
-                "and the run is still going");
+    @Test
+    void theSixPuzzlesUseOriginalMusicBudgetsCardsAndNoMowers() {
+        List<List<String>> cards = List.of(
+                List.of("basic_zombie", "buckethead_zombie", "football_zombie"),
+                List.of("basic_zombie", "door_zombie", "buckethead_zombie"),
+                List.of("basic_zombie", "buckethead_zombie", "miner_zombie"),
+                List.of("basic_zombie", "buckethead_zombie", "i_zombie_ladder"),
+                List.of("basic_zombie", "buckethead_zombie", "bungee_zombie", "balloon_zombie"));
+        for (int number = 1; number <= 6; number++) {
+            int columns = number == 6 ? 5 : 4;
+            LevelDef def = number == 6 ? endless() : puzzle(number);
+            LevelServer level = new LevelServer(def);
+            CapturingBridge bridge = new CapturingBridge();
+            tick(level, bridge, 1);
+            assertEquals(150, def.initialSun());
+            assertTrue(bridge.packets.stream().anyMatch(p -> p instanceof com.pvzce.common.network.packet.MusicEventS2C music
+                    && music.event().equals("pvzce:music/cerebrawl")));
+            if (number <= 5) assertEquals(cards.get(number - 1).stream().map(PvzceIds::id).toList(), def.slots());
+            assertEquals(number == 6 ? 25 : 20, countPlants(level));
+            var rig = level.mechanicStateOrNull(PvzceIds.MECHANIC_MOWER,
+                    com.pvzce.common.level.mechanic.MowerMechanic.Rig.class);
+            assertEquals(0, rig.readyCount());
+            assertTrue(level.entities().stream().filter(e -> e instanceof PlantEntity)
+                    .allMatch(e -> e.gridX() < columns));
+        }
+    }
+
+    @Test
+    void refusedPlacementsDoNotChargeAndBungeesUseTheOppositeSide() {
+        LevelServer level = new LevelServer(puzzle(5));
+        CapturingBridge bridge = new CapturingBridge();
+        int normal = slotOf(level, "basic_zombie"), bungee = slotOf(level, "bungee_zombie");
+        assertFalse(level.placeZombie(bridge, normal, 3, 2));
+        assertFalse(level.placeZombie(bridge, bungee, 4, 2));
+        assertEquals(150, level.team(ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN));
+        assertTrue(level.plantPlayer().slot(normal).ready());
+        assertTrue(level.plantPlayer().slot(bungee).ready());
+        assertTrue(level.placeZombie(bridge, bungee, 3, 2));
+        level.flushPending(bridge);
+        tick(level, bridge, 1);
+        ZombieEntity thief = (ZombieEntity) level.entities().stream().filter(e -> e instanceof ZombieEntity).findFirst().orElseThrow();
+        assertEquals(3, thief.gridX(), "the player chooses the theft column");
+    }
+
+    @Test
+    void sunflowersPayForDamageAndTheirSunCanBeCollectedByTheZombiePlayer() {
+        LevelServer level = new LevelServer(puzzle(1));
+        CapturingBridge bridge = new CapturingBridge();
+        tick(level, bridge, 2000);
+        assertTrue(level.entities().stream().noneMatch(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity),
+                "cardboard sunflowers must not produce free income while the player waits");
+        PlantEntity flower = (PlantEntity) level.entities().stream().filter(e -> e instanceof PlantEntity
+                && e.defId().equals(PvzceIds.id("sunflower"))).findFirst().orElseThrow();
+        flower.damageFrom(100);
+        level.flushPending(bridge);
+        List<com.pvzce.server.entity.ResourceDropEntity> drops = level.entities().stream()
+                .filter(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity)
+                .map(e -> (com.pvzce.server.entity.ResourceDropEntity) e).toList();
+        assertEquals(50, drops.stream().mapToInt(com.pvzce.server.entity.ResourceDropEntity::amount).sum());
+        for (var drop : drops) assertTrue(level.collectResource(bridge, drop.id()));
+        assertEquals(200, level.team(ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN));
+        flower.damageFrom(1000);
+        level.flushPending(bridge);
+        for (var entity : level.entities())
+            if (entity instanceof com.pvzce.server.entity.ResourceDropEntity drop && !drop.isRemoved())
+                assertTrue(level.collectResource(bridge, drop.id()));
+        assertEquals(350, level.team(ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN), "a full flower yields 200 sun");
+    }
+
+    @Test
+    void uncollectedSunPreventsPrematureFailure() {
+        LevelServer level = new LevelServer(com.pvzce.testutil.TestLevels.copy(puzzle(1)).initialSun(0).build());
+        CapturingBridge bridge = new CapturingBridge();
+        PlantEntity flower = (PlantEntity) level.entities().stream().filter(e -> e instanceof PlantEntity
+                && e.defId().equals(PvzceIds.id("sunflower"))).findFirst().orElseThrow();
+        flower.damageFrom(100);
+        level.flushPending(bridge);
+        tick(level, bridge, 1);
+        assertEquals("running", level.gameState(), "the 50 sun on the lawn can still buy a zombie");
+    }
+
+    @Test
+    void savedBrainsAndPartialChewingResumeWithoutDuplicatingTheGarden() {
+        LevelServer level = new LevelServer(endless());
+        CapturingBridge bridge = new CapturingBridge();
+        level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), -0.41F, 0);
+        tick(level, bridge, 71);
+        level.spawnZombie(PvzceIds.id("basic_zombie"), level.team(ZOMBIE_TEAM), -0.41F, 1);
+        tick(level, bridge, 30);
+        LevelServer resumed = new LevelServer(endless());
+        resumed.restore(level.save());
+        assertEquals(25, countPlants(resumed));
+        assertEquals(1, resumed.save().getCompound("BrainGarden").getInt("EatenRows"));
+        tick(resumed, bridge, 40);
+        assertEquals(3, resumed.save().getCompound("BrainGarden").getInt("EatenRows"));
+        assertEquals("running", resumed.gameState());
     }
 
     /** The cards are real content: each resolves, and each is priced. */

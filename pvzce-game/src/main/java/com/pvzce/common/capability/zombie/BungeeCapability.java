@@ -47,6 +47,7 @@ public final class BungeeCapability implements ZombieCapability {
     private int phaseTicks;
     private Stage stage = Stage.ARRIVING;
     private int targetColumn = -1;
+    private boolean playerTarget;
     private int targetPlantId = -1;
     private int attemptsLeft;
     private Identifier cargo;
@@ -66,6 +67,9 @@ public final class BungeeCapability implements ZombieCapability {
         cargoHealthScale = healthScale;
         cargoAttributes = attributes;
     }
+
+    /** A player chooses the theft target; ordinary raids continue to pick one. */
+    public void targetColumn(int column) { targetColumn = column; playerTarget = true; }
 
     private enum Stage {
         ARRIVING, DROPPING, GRABBING, HOLDING, RISING, DONE
@@ -193,7 +197,7 @@ public final class BungeeCapability implements ZombieCapability {
     /** Picks a column with something in it, or leaves if there is nothing worth taking. */
     private boolean arrive(ZombieEntity zombie, LevelAccess level) {
         attemptsLeft = retries;
-        if (cargo == null) targetColumn = pickColumn(zombie, level);
+        if (cargo == null && !playerTarget) targetColumn = pickColumn(zombie, level);
         zombie.setAnimation(EntityAnimations.BUNGEE_HOLD);
         if (targetColumn < 0) {
             // Nothing on the lawn to steal. It leaves rather than hovering forever: a raid that
@@ -280,6 +284,9 @@ public final class BungeeCapability implements ZombieCapability {
         // plant that was dug up or eaten during the grab is simply not there to steal.
         PlantEntity plant = level.plantAt(targetColumn, zombie.gridY(), zombie.surfaceId());
         if (plant != null && plant.id() == targetPlantId) {
+            if (level instanceof com.pvzce.server.level.LevelServer server && server.isBrainPuzzle()) {
+                com.pvzce.common.level.mechanic.IZombieGarden.dropRemainingSun(server, plant);
+            }
             plant.remove();
         }
         stage = Stage.HOLDING;
@@ -301,6 +308,7 @@ public final class BungeeCapability implements ZombieCapability {
     public void save(CompoundTag tag) {
         tag.putInt("phase", phaseTicks);
         tag.putInt("target", targetColumn);
+        tag.putByte("playerTarget", (byte) (playerTarget ? 1 : 0));
         tag.putInt("plant", targetPlantId);
         tag.putInt("stage", stage.ordinal());
         tag.putString("cargo", cargo == null ? "" : cargo.toString());
@@ -312,6 +320,7 @@ public final class BungeeCapability implements ZombieCapability {
     public void load(CompoundTag tag) {
         phaseTicks = Math.max(0, tag.getInt("phase"));
         targetColumn = tag.getInt("target");
+        playerTarget = tag.getInt("playerTarget") != 0;
         targetPlantId = tag.getInt("plant");
         cargo = Identifier.tryParse(tag.getString("cargo"));
         cargoHealthScale = tag.contains("cargo_scale") ? tag.getFloat("cargo_scale") : 1F;

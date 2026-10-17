@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:dancing_zombie",
+  "kind": "zombie",
+  "content": "pvzce:dancing_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 350
+    },
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/dancing_zombie"
+}

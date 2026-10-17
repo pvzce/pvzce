@@ -1202,5 +1202,15 @@
   "pvzce.player.duplicate_name": "这个玩家已存在，请换一个名字。",
   "pvzce.player.create_error": "创建失败，请稍后重试。",
   "pvzce.player.name": "玩家名字",
-  "pvzce.player.name_hint": "使用字母、数字、下划线或连字符"
+  "pvzce.player.name_hint": "使用字母、数字、下划线或连字符",
+  "gui.pvzce.i_zombie.brains": "脑子 %d / %d",
+  "gui.pvzce.i_zombie.round": "已完成 %d 轮",
+  "slot.pvzce.door_zombie": "铁门僵尸",
+  "slot.pvzce.miner_zombie": "矿工僵尸",
+  "slot.pvzce.bungee_zombie": "蹦极僵尸",
+  "slot.pvzce.balloon_zombie": "气球僵尸",
+  "slot.pvzce.imp": "小鬼僵尸",
+  "slot.pvzce.dancing_zombie": "跳舞僵尸",
+  "slot.pvzce.i_zombie_ladder": "梯子僵尸",
+  "slot.pvzce.i_zombie_pole_vaulter": "撑杆僵尸"
 }

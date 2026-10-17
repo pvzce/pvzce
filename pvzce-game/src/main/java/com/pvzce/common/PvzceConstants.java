@@ -153,6 +153,8 @@ public final class PvzceConstants {
     public static final int PEA_SHOOTER_COST = 100;
     public static final int INITIAL_SUN = 150;
     public static final int SUN_VALUE = 25;
+    public static final int I_ZOMBIE_BRAIN_EAT_TICKS = 70;
+    public static final int I_ZOMBIE_SUN_HEALTH_STEP = 40;
     /**
      * What the sky does between two suns, in ticks, when a level does not say.
      *

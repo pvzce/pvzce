@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/puzzle/i_zombie_endless",
   "name": "我是僵尸 · 无尽",
-  "description": "解谜无尽：一轮一片新花园，吃掉一片就换下一片，一次比一次大。每一轮开始时会补一笔阳光，死了的僵尸不会回来。撑过五轮算你赢——但真正的玩法是看你能不能在阳光见底之前撑到那儿。",
+  "description": "指挥僵尸吃掉五行脑子。普通僵尸只能投放在红线右侧，蹦极僵尸投放在线左侧。向日葵受伤掉落阳光，不会自动生产；没有小推车，僵尸卡无冷却。每吃完五个脑子就换一片随机花园，阳光结余保留，不额外补给，也没有最终轮。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -75,76 +75,41 @@
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
     "pvzce:sun_spawn_initial_ticks": 0,
-    "pvzce:zombie_sun_drop_chance": 0.0
+    "pvzce:zombie_sun_drop_chance": 0.0,
+    "pvzce:seed_cooldown_multiplier": 0,
+    "pvzce:graves_spawn_night": false
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
-    "pvzce:basic_zombie",
+    "pvzce:imp",
     "pvzce:conehead_zombie",
-    "pvzce:pole_vaulter_zombie",
+    "pvzce:i_zombie_pole_vaulter",
     "pvzce:buckethead_zombie",
+    "pvzce:bungee_zombie",
+    "pvzce:miner_zombie",
+    "pvzce:i_zombie_ladder",
     "pvzce:football_zombie",
-    "pvzce:gargantuar"
+    "pvzce:dancing_zombie"
   ],
-  "max_seed_slots": 6,
+  "max_seed_slots": 9,
   "seed_screen": false,
-  "initial_sun": 300,
+  "initial_sun": 150,
   "mechanics": [
     {
       "type": "pvzce:plant_garden",
-      "refresh_sun": 250,
-      "initial_delay_ticks": 60,
-      "rounds": [
-        {
-          "plants": [
-            "pvzce:pea_shooter",
-            "pvzce:wall_nut"
-          ],
-          "count": 4,
-          "sun": 250
-        },
-        {
-          "plants": [
-            "pvzce:pea_shooter",
-            "pvzce:wall_nut",
-            "pvzce:repeater"
-          ],
-          "count": 6,
-          "sun": 250
-        },
-        {
-          "plants": [
-            "pvzce:pea_shooter",
-            "pvzce:wall_nut",
-            "pvzce:repeater",
-            "pvzce:torchwood"
-          ],
-          "count": 8,
-          "sun": 300
-        },
-        {
-          "plants": [
-            "pvzce:repeater",
-            "pvzce:tall_nut",
-            "pvzce:torchwood",
-            "pvzce:melon_pult"
-          ],
-          "count": 10,
-          "sun": 300
-        },
-        {
-          "plants": [
-            "pvzce:repeater",
-            "pvzce:tall_nut",
-            "pvzce:torchwood",
-            "pvzce:melon_pult",
-            "pvzce:snow_pea"
-          ],
-          "count": 12,
-          "sun": 350
-        }
-      ]
+      "brains": true,
+      "endless": true,
+      "columns": 5,
+      "initial_delay_ticks": 90
+    },
+    {
+      "type": "pvzce:mower",
+      "rows": []
+    },
+    {
+      "type": "pvzce:rake",
+      "rows": []
     }
   ],
   "waves": [],
@@ -153,7 +118,7 @@
       {
         "at_tick": 0,
         "track": "background",
-        "event": "pvzce:music/rigor_mormist",
+        "event": "pvzce:music/cerebrawl",
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
@@ -168,12 +133,12 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "每一轮的花园都是现摆的：位置、种类每局都不一样",
+      "text": "吃掉五行脑子才能过关；先吃向日葵获取阳光。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "一轮吃完才换下一轮，中途的阳光会留到下一轮",
+      "text": "普通僵尸放在红线右侧；蹦极僵尸放在线左侧。",
       "duration_ticks": 600
     },
     {
@@ -183,9 +148,7 @@
   "unlock_resources": {
     "pvzce:sun": true
   },
-  "buffs": [
-    "pvzce:player_choice"
-  ],
+  "buffs": [],
   "rewards": {
     "first_clear": [
       {

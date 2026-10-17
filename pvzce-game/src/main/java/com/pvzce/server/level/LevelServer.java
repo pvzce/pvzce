@@ -1545,6 +1545,20 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * zombie zone. It is the one gate the player's placement and the opponent's decisions share, so
      * "zombies only on the right four columns" cannot be a rule one of them follows.
      */
+    public boolean canPlaceZombie(com.pvzce.api.content.ZombieDef zombie, int x, int y) {
+        return inBounds(x, y) && LevelMechanics.canPlaceZombie(mechanics, this, zombie, x, y);
+    }
+
+    public void plantDamaged(PlantEntity plant, int previousHealth) {
+        LevelMechanics.onPlantDamaged(mechanics, this, plant, previousHealth);
+    }
+
+    public boolean isBrainPuzzle() {
+        var garden = LevelMechanics.dataOf(def, PvzceIds.MECHANIC_PLANT_GARDEN,
+                com.pvzce.api.content.PlantGardenData.class).orElse(null);
+        return garden != null && garden.brains();
+    }
+
     public boolean canPlaceZombie(int x, int y) {
         return inBounds(x, y) && LevelMechanics.canPlaceZombie(mechanics, this, x, y);
     }
@@ -4572,6 +4586,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     @Override
     public void zombieReachedLeft(ZombieEntity zombie) {
+        if (isBrainPuzzle()) {
+            com.pvzce.common.level.mechanic.IZombieGarden.reachedLeft(this, zombie);
+            return;
+        }
         markEnd(teams.get(PvzceIds.ZOMBIE_TEAM));
     }
 
@@ -4761,7 +4779,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * itself (the packet, the summary, the winner) is the one every other level gets.
      */
     public void declareVictory() {
-        markEnd(teams.get(PvzceIds.PLANT_TEAM));
+        markEnd(teams.get(humanTeamId));
     }
 
     /**
@@ -5008,10 +5026,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      */
     private boolean collectResourceInternal(ServerBridge bridge, int entityId, boolean silent,
                                             boolean auto) {
-        // The human's click: whoever the player is. A player on the zombie side has no collection
-        // to do - their income is the versus mode's own - so this is the plant team or nobody.
-        if (!gameState.equals(GameStateS2C.RUNNING) || !humanTeamId.equals(PvzceIds.PLANT_TEAM)
-                || plantPlayer == null) {
+        // The drop's team owns the income, including I, Zombie's bitten sunflowers.
+        if (!gameState.equals(GameStateS2C.RUNNING) || plantPlayer == null) {
             return false;
         }
         return collectResourceFor(bridge, entityId, silent, auto, plantPlayer.team());
@@ -5057,7 +5073,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 }
                 if (humanCollector && !plantPlayer.hasResourceCard(drop.defId())
                         && !(PvzceIds.SUN.equals(drop.defId())
-                        && com.pvzce.common.level.mechanic.FusionMechanic.data(this) != null)) {
+                        && (isBrainPuzzle() || com.pvzce.common.level.mechanic.FusionMechanic.data(this) != null))) {
                     if (!auto) {
                         bridge.send(new ServerMessageS2C("没有对应资源卡，无法收集。"));
                     }
@@ -5163,6 +5179,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * player owns and cannot pay for is exactly the case this is about.
      */
     private boolean zombieSideIsStuck() {
+        if (com.pvzce.common.level.mechanic.IZombieGarden.changingBoard(this)) return false;
         if (plantPlayer == null) {
             return true;
         }
@@ -5173,6 +5190,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         int sun = plantPlayer.team().resourcesOf(PvzceIds.SUN);
+        if (isBrainPuzzle()) {
+            for (PvzceEntity entity : entities) {
+                if (entity instanceof ResourceDropEntity drop && !drop.isRemoved()
+                        && drop.team() == plantPlayer.team() && drop.defId().equals(PvzceIds.SUN)) sun += drop.amount();
+            }
+        }
         for (Slot slot : plantPlayer.slots()) {
             if (slot.kind() == Slot.Kind.ZOMBIE && slot.costSun() <= sun) {
                 return false;
@@ -5228,7 +5251,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // The refusal is a **language key**, not a sentence: the server has no translations, and a
         // line of Chinese here would be one more string no resource pack can reach. The client
         // resolves a message that names a key it knows (see `PvzceClient.onServerMessage`).
-        if (!LevelMechanics.canPlaceZombie(mechanics, this, x, y)) {
+        if (!canPlaceZombie(BuiltInRegistries.ZOMBIES.get(slot.defId()), x, y)) {
             bridge.send(new ServerMessageS2C("gui.pvzce.versus.zombie_zone"));
             return false;
         }
@@ -5251,6 +5274,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("这个僵尸放不下。"));
             return false;
         }
+        var bungee = spawned.capability(com.pvzce.common.capability.zombie.BungeeCapability.class);
+        if (bungee != null) bungee.targetColumn(x);
         requestEntitySync();
         bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
         bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(),

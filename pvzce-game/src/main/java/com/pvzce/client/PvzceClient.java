@@ -1989,6 +1989,9 @@ public final class PvzceClient {
         float r = liftChannel(lift, worldTintR);
         float g = liftChannel(lift, worldTintG);
         float b = liftChannel(lift, worldTintB);
+        if (com.pvzce.client.mechanic.PlantGardenClientMechanic.cardboard(level(), entity)) {
+            g *= 0.79F; b *= 0.63F;
+        }
         if (entity.chilled()) {
             r *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_R;
             g *= com.pvzce.client.renderer.EntityVisuals.CHILLED_TINT_G;
@@ -2214,7 +2217,7 @@ public final class PvzceClient {
         savePromptOpen = false;
         roundClearOpen = false;
         if (music != null) {
-            music.startLevel("pvzce:music/grasswalk");
+            music.startLevel(null);
         }
         // A storm level's weather starts here rather than with its overlay: this is the one
         // place that means "a level began", while overlays are rebuilt on a resize.

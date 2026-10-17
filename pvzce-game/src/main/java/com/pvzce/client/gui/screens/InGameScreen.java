@@ -1972,7 +1972,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // one that decides (terrain and stacking are not visible here), but a
                 // mini-game's red line is: a level that only accepts the left half must not
                 // look like it accepts a click it is going to refuse.
-                boolean allowed = client.level().inPlacementZone(hoverX, hoverY);
+                SlotInfo hoveredCard = slotInfo(selectedCard);
+                boolean allowed = hoveredCard != null && "zombie".equals(hoveredCard.kind())
+                        ? client.level().canPlaceZombie(Identifier.parse(hoveredCard.defId()), hoverX, hoverY)
+                        : client.level().inPlacementZone(hoverX, hoverY);
                 if (PvzceIds.ECHO_LILY.toString().equals(selectedCardId())
                         || PvzceIds.RESONANCE_MOSS.toString().equals(selectedCardId())) {
                     echoLilyLinks.renderPreview(client, hoverX, hoverY);
@@ -2253,6 +2256,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             defId = heldCardPlantId();
         } else if (selectedCard >= 0) {
             SlotInfo selected = slotInfo(selectedCard);
+            if (selected != null && "zombie".equals(selected.kind())) {
+                renderZombiePlacementPreview(selected);
+                return;
+            }
             if (selected == null
                     || !com.pvzce.api.entity.EntityKind.PLANT.equals(selected.kind())) {
                 return;
@@ -2301,6 +2308,22 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
     }
 
+    private void renderZombiePlacementPreview(SlotInfo card) {
+        PvzceCamera camera = client.camera();
+        double x = client.window().cursorX(), y = client.window().cursorY();
+        if (!camera.inBoard(x, y)) return;
+        int column = camera.cellX(x, y), row = camera.cellY(x, y);
+        if (!client.level().canPlaceZombie(Identifier.parse(card.defId()), column, row)) return;
+        ClientEntity preview = placementPreview(card.defId(), "zombie");
+        if (preview == null) return;
+        preview.setCellX(column + 0.5F); preview.setCellY(row + 0.5F);
+        preview.setSurfaceId(client.level().activeSurface());
+        preview.setHeight(client.level().sceneBoard().elevationAt(preview.surfaceId(), column + 0.5F, row + 0.5F));
+        preview.playAnimation(com.pvzce.api.entity.EntityAnimations.WALK);
+        client.pushEntityAlpha(PLACEMENT_PREVIEW_ALPHA);
+        try { drawEntityArt(preview); } finally { client.popEntityAlpha(); }
+    }
+
     private float terrainHeight(int x, int y) {
         return terrainHeight(x + 0.5F, y);
     }
@@ -2319,10 +2342,14 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * target, so the old one would never be released.
      */
     private ClientEntity placementPreview(String defId) {
+        return placementPreview(defId, com.pvzce.api.entity.EntityKind.PLANT);
+    }
+
+    private ClientEntity placementPreview(String defId, String kind) {
         if (defId == null || defId.isEmpty()) {
             return null;
         }
-        if (placementPreview != null && defId.equals(placementPreview.defIdString())) {
+        if (placementPreview != null && defId.equals(placementPreview.defIdString()) && kind.equals(placementPreview.kind())) {
             return placementPreview;
         }
         releasePlacementPreview();
@@ -2330,9 +2357,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return null;
         }
         ClientEntity preview = new ClientEntity(PLACEMENT_PREVIEW_ID,
-                com.pvzce.api.entity.EntityKind.PLANT, defId, 0F, 0F, 1,
+                kind, defId, 0F, 0F, 1,
                 com.pvzce.api.entity.EntityLayers.GROUND,
-                com.pvzce.api.entity.EntityAnimations.IDLE, 0F, "pvzce:plant_team");
+                com.pvzce.api.entity.EntityAnimations.IDLE, 0F, client.level().controlledTeam());
         preview.attachAnimationManager(client.animations());
         placementPreview = preview;
         return preview;

@@ -976,7 +976,7 @@ public final class JevBrain {
             lastRefusal = "notAZombie";
             return false;
         }
-        if (!level.inBounds(x, y) || !level.canPlaceZombie(x, y)) {
+        if (!level.inBounds(x, y) || !level.canPlaceZombie(BuiltInRegistries.ZOMBIES.get(card.content()), x, y)) {
             lastRefusal = "outsideZone";
             return false;
         }

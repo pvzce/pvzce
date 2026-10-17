@@ -112,11 +112,11 @@ public final class PvzceMusicController {
         tracePreload(event);
     }
 
-    /** Enters a level: menu track stops, background starts on grasswalk. */
+    /** Enters a level; null waits for the authoritative music cue sent after level init. */
     public void startLevel(String defaultMusic) {
         stopCue(TRACK_MENU, 0.3F);
         stopCue(TRACK_STINGER, 0.2F);
-        playCue(TRACK_BACKGROUND, defaultMusic, true, false, 0.85F, 1F, false);
+        if (defaultMusic != null) playCue(TRACK_BACKGROUND, defaultMusic, true, false, 0.85F, 1F, false);
     }
 
     public void leaveLevel() {

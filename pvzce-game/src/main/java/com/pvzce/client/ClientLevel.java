@@ -737,6 +737,14 @@ public final class ClientLevel {
         return type.isInstance(state) ? type.cast(state) : null;
     }
 
+    /** Predicts the server's deployment bounds from the same mechanic definitions. */
+    public boolean canPlaceZombie(Identifier zombie, int x, int y) {
+        if (x < 0 || y < 0 || x >= width || y >= height) return false;
+        var zone = mechanicData(PvzceIds.MECHANIC_ZOMBIE_ZONE, com.pvzce.api.content.PlacementZone.class);
+        var garden = mechanicData(PvzceIds.MECHANIC_PLANT_GARDEN, com.pvzce.api.content.PlantGardenData.class);
+        return (zone == null || zone.contains(x, y)) && (garden == null || garden.canPlaceZombie(zombie, x));
+    }
+
     /** The level's plantable area, or the whole board when it restricts nothing. */
     public com.pvzce.api.content.PlacementZone placementZone() {
         com.pvzce.api.content.PlacementZone zone = mechanicData(

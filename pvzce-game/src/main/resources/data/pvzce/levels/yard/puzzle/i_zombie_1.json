@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/puzzle/i_zombie_1",
   "name": "我是僵尸 1",
-  "description": "解谜：这回僵尸归你指挥。草坪上的植物是电脑摆好的，花阳光把僵尸放下去，吃掉它们——有一只走到房子跟前就算你赢。小推车还在，先拿一只换掉它。",
+  "description": "指挥僵尸吃掉五行脑子。普通僵尸只能投放在红线右侧，蹦极僵尸投放在线左侧。向日葵受伤掉落阳光，不会自动生产；没有小推车，僵尸卡无冷却。吃完全部五个脑子获胜。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -75,47 +75,83 @@
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
     "pvzce:sun_spawn_initial_ticks": 0,
-    "pvzce:zombie_sun_drop_chance": 0.0
+    "pvzce:zombie_sun_drop_chance": 0.0,
+    "pvzce:seed_cooldown_multiplier": 0,
+    "pvzce:graves_spawn_night": false
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
-    "pvzce:basic_zombie"
+    "pvzce:basic_zombie",
+    "pvzce:buckethead_zombie",
+    "pvzce:football_zombie"
   ],
-  "max_seed_slots": 1,
+  "max_seed_slots": 3,
   "seed_screen": false,
   "initial_sun": 150,
-  "mechanics": [],
+  "mechanics": [
+    {
+      "type": "pvzce:plant_garden",
+      "brains": true,
+      "endless": false,
+      "columns": 4,
+      "initial_delay_ticks": 90,
+      "formation": [
+        {
+          "plants": [
+            "pvzce:sunflower"
+          ],
+          "count": 7,
+          "sun": 0,
+          "rows": []
+        },
+        {
+          "plants": [
+            "pvzce:squash"
+          ],
+          "count": 3,
+          "sun": 0,
+          "rows": []
+        },
+        {
+          "plants": [
+            "pvzce:pea_shooter"
+          ],
+          "count": 6,
+          "sun": 0,
+          "rows": []
+        },
+        {
+          "plants": [
+            "pvzce:snow_pea"
+          ],
+          "count": 2,
+          "sun": 0,
+          "rows": []
+        }
+      ]
+    },
+    {
+      "type": "pvzce:mower",
+      "rows": []
+    },
+    {
+      "type": "pvzce:rake",
+      "rows": []
+    }
+  ],
   "initial_entities": [
     {
       "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 1,
-      "y": 0
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 1,
+      "id": "pvzce:sunflower",
+      "x": 3,
       "y": 2
     },
     {
       "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 1,
-      "y": 4
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:wall_nut",
-      "x": 4,
+      "id": "pvzce:sunflower",
+      "x": 3,
       "y": 1
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:wall_nut",
-      "x": 4,
-      "y": 3
     }
   ],
   "waves": [],
@@ -124,7 +160,7 @@
       {
         "at_tick": 0,
         "track": "background",
-        "event": "pvzce:music/rigor_mormist",
+        "event": "pvzce:music/cerebrawl",
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
@@ -139,12 +175,12 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "这一关你指挥僵尸：点一张僵尸卡，再点一行把它放下去",
+      "text": "吃掉五行脑子才能过关；先吃向日葵获取阳光。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "阳光只发这么多：植物不会掉阳光，天上也不下",
+      "text": "普通僵尸放在红线右侧；蹦极僵尸放在线左侧。",
       "duration_ticks": 600
     },
     {
@@ -154,9 +190,7 @@
   "unlock_resources": {
     "pvzce:sun": true
   },
-  "buffs": [
-    "pvzce:player_choice"
-  ],
+  "buffs": [],
   "rewards": {
     "first_clear": [
       {

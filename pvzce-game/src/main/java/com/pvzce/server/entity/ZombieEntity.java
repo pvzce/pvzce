@@ -322,6 +322,7 @@ public class ZombieEntity extends PvzceEntity {
                 return;
             }
         }
+        if (com.pvzce.common.level.mechanic.IZombieGarden.eatBrain(level, this)) return;
         walkOrEat(level);
         if (capabilityAction != null) setAnimation(capabilityAction);
     }

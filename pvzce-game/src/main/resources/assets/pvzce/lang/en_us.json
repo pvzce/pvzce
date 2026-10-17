@@ -1202,5 +1202,15 @@
   "pvzce.player.duplicate_name": "This player already exists. Choose another name.",
   "pvzce.player.create_error": "Could not create. Please try again.",
   "pvzce.player.name": "Player name",
-  "pvzce.player.name_hint": "Use letters A-Z, numbers, underscores or hyphens"
+  "pvzce.player.name_hint": "Use letters A-Z, numbers, underscores or hyphens",
+  "gui.pvzce.i_zombie.brains": "Brains %d / %d",
+  "gui.pvzce.i_zombie.round": "%d rounds completed",
+  "slot.pvzce.door_zombie": "Screen Door Zombie",
+  "slot.pvzce.miner_zombie": "Miner Zombie",
+  "slot.pvzce.bungee_zombie": "Bungee Zombie",
+  "slot.pvzce.balloon_zombie": "Balloon Zombie",
+  "slot.pvzce.imp": "Imp",
+  "slot.pvzce.dancing_zombie": "Dancing Zombie",
+  "slot.pvzce.i_zombie_ladder": "Ladder Zombie",
+  "slot.pvzce.i_zombie_pole_vaulter": "Pole Vaulter Zombie"
 }

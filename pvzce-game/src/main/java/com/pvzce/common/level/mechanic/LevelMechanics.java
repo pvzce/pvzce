@@ -582,6 +582,35 @@ public final class LevelMechanics {
         return true;
     }
 
+    public static boolean canPlaceZombie(List<TypedMechanic> mechanics, LevelServer level,
+            com.pvzce.api.content.ZombieDef zombie, int x, int y) {
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanic<?> mechanic = get(typed.type());
+            if (mechanic != null && !allowsZombieCard(mechanic, typed, level, zombie, x, y)) return false;
+        }
+        return true;
+    }
+
+    public static void onPlantDamaged(List<TypedMechanic> mechanics, LevelServer level,
+            com.pvzce.server.entity.PlantEntity plant, int previousHealth) {
+        for (TypedMechanic typed : mechanics) {
+            LevelMechanic<?> mechanic = get(typed.type());
+            if (mechanic != null) damagedOne(mechanic, typed, level, plant, previousHealth);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <D extends MechanicData> boolean allowsZombieCard(LevelMechanic<D> mechanic,
+            TypedMechanic typed, LevelServer level, com.pvzce.api.content.ZombieDef zombie, int x, int y) {
+        return mechanic.canPlaceZombie(level, (D) typed.value(), zombie, x, y);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <D extends MechanicData> void damagedOne(LevelMechanic<D> mechanic,
+            TypedMechanic typed, LevelServer level, com.pvzce.server.entity.PlantEntity plant, int previousHealth) {
+        mechanic.onPlantDamaged(level, (D) typed.value(), plant, previousHealth);
+    }
+
     /** Tells every effective mechanic that a plant was eaten. */
     public static void onPlantConsumed(List<TypedMechanic> mechanics, LevelServer level,
                                        com.pvzce.server.Team eater,

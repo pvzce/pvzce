@@ -20,19 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-/**
- * I, Zombie's rounds: a lawn of the enemy's plants, and the next one when it is eaten.
- *
- * <p>The turn-over rule is the whole mechanic. A round ends when there is nothing of the garden
- * left <em>and</em> nothing of the player's is still walking - a zombie that is mid-lane when the
- * last plant dies is not a plant, and laying out the next garden under it would let the player
- * start the next puzzle with a head start they did not earn. Then the lawn is swept and replanted,
- * the player is paid the round's sun, and the count is announced.
- *
- * <p>Sweeping is not tidiness: the last zombie of a round is usually standing in the middle of the
- * garden, and a round that planted around it would be a round with fewer plants than it declared -
- * which is the same failure {@code ScaryPotterMechanic} documents for its pots.
- */
+/** Pre-planted gardens: original brain puzzles or authored rounds that end when cleared. */
 public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData> {
     /** Which round is on the lawn, and whether the run has already been won. */
     private static final class State {
@@ -52,6 +40,10 @@ public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData>
 
     @Override
     public void onLevelCreated(LevelServer level, PlantGardenData data) {
+        if (data.brains()) {
+            IZombieGarden.create(level, data);
+            return;
+        }
         State state = new State();
         level.setMechanicState(PvzceIds.MECHANIC_PLANT_GARDEN, state);
         if (!data.rounds().isEmpty()) {
@@ -62,6 +54,10 @@ public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData>
 
     @Override
     public void tick(LevelServer level, PlantGardenData data) {
+        if (data.brains()) {
+            IZombieGarden.tick(level, data);
+            return;
+        }
         State state = state(level);
         if (state.cleared) {
             return;
@@ -178,7 +174,7 @@ public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData>
     public List<String> validate(LevelDef def, PlantGardenData data) {
         List<String> errors = new ArrayList<>(data.validate());
         List<Identifier> plants = new ArrayList<>();
-        for (PlantGardenData.Round round : data.rounds()) {
+        for (PlantGardenData.Round round : java.util.stream.Stream.concat(data.rounds().stream(), data.formation().stream()).toList()) {
             plants.addAll(round.pool());
         }
         for (Identifier plant : plants) {
@@ -193,6 +189,8 @@ public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData>
             errors.add("This level lays out a plant garden but the player is on the plant side;"
                     + " a garden is I, Zombie's board (see LevelDef.humanTeam)");
         }
+        if (data.brains() && (def.width() != 9 || def.height() != 5))
+            errors.add("brain puzzles require a 9 by 5 lawn");
         return errors;
     }
 
@@ -204,7 +202,29 @@ public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData>
     }
 
     @Override
+    public boolean canPlaceZombie(LevelServer level, PlantGardenData data, int x, int y) {
+        return !data.brains() || x >= data.columns();
+    }
+
+    @Override
+    public boolean canPlaceZombie(LevelServer level, PlantGardenData data,
+            com.pvzce.api.content.ZombieDef zombie, int x, int y) {
+        return data.canPlaceZombie(zombie.id(), x);
+    }
+
+    @Override
+    public void onPlantDamaged(LevelServer level, PlantGardenData data, PlantEntity plant, int previousHealth) {
+        if (data.brains()) IZombieGarden.plantDamaged(level, plant, previousHealth);
+    }
+
+    @Override
+    public void sendState(LevelServer level, PlantGardenData data, LevelServer.ServerBridge bridge) {
+        if (data.brains()) IZombieGarden.sendState(level, bridge);
+    }
+
+    @Override
     public void collectSave(LevelServer level, PlantGardenData data, CompoundTag root) {
+        if (data.brains()) { IZombieGarden.save(level, root); return; }
         State state = state(level);
         root.putInt("GardenRound", state.round);
         root.putInt("GardenDelay", state.delay);
@@ -213,6 +233,7 @@ public final class PlantGardenMechanic implements LevelMechanic<PlantGardenData>
 
     @Override
     public void applySave(LevelServer level, PlantGardenData data, CompoundTag root) {
+        if (data.brains()) { IZombieGarden.load(level, root); return; }
         State state = state(level);
         if (!root.contains("GardenRound")) {
             return;

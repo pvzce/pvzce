@@ -34,6 +34,8 @@ PADDING = 8.0
 
 # entity -> (animation clip, sample time seconds)
 ICON_POSES: Dict[str, Tuple[str, float]] = {
+    "imp": ("walk", 0.0), "bungee_zombie": ("bungee_hold", 0.0),
+    "miner_zombie": ("walk", 0.0), "dancing_zombie": ("walk", 0.0),
     "garlic": ("idle", 0.0), "umbrella_leaf": ("idle", 0.0),
     "ladder": ("idle", 0.0), "catapult": ("idle", 0.0),
     "pea_shooter": ("idle", 0.0),
@@ -143,6 +145,7 @@ ANIMATION_DIRS: Dict[str, str] = {
     "gargantuar": "zombie/giant",
     "imp": "zombie/giant",
     "zombie_boss": "zombie/boss",
+    "bungee_zombie": "zombie/special", "dancing_zombie": "zombie/special",
     # World 3's second half and world 4. The group must match the `group` field of the converter
     # config that produced each file, or this renderer looks for an animation that is not there.
     "spikeweed": "plant/special",
@@ -199,6 +202,7 @@ PLANT_ENTITIES = [
     # model, and a zombie's model is a model like any other.
     "basic_zombie", "conehead_zombie", "buckethead_zombie", "football_zombie",
     "pole_vaulter_zombie", "gargantuar",
+    "door_zombie", "miner_zombie", "balloon_zombie", "bungee_zombie", "imp", "dancing_zombie",
 ]
 
 # Tools whose card is drawn from a controller model rather than a flat PNG.

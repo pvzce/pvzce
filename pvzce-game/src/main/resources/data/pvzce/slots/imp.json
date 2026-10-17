@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:imp",
+  "kind": "zombie",
+  "content": "pvzce:imp",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 50
+    },
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/imp"
+}

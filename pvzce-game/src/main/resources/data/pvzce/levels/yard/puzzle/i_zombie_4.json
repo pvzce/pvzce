@@ -1,7 +1,7 @@
 {
   "id": "pvzce:yard/puzzle/i_zombie_4",
   "name": "我是僵尸 4",
-  "description": "解谜：火炬树桩会把穿过去的豌豆点着，伤害翻倍。要么先拆了它，要么绕开它那一行。",
+  "description": "指挥僵尸吃掉五行脑子。普通僵尸只能投放在红线右侧，蹦极僵尸投放在线左侧。向日葵受伤掉落阳光，不会自动生产；没有小推车，僵尸卡无冷却。吃完全部五个脑子获胜。",
   "width": 9,
   "height": 5,
   "scene": {
@@ -75,98 +75,153 @@
     "pvzce:sun_spawn_interval_min": 0,
     "pvzce:sun_spawn_interval_max": 0,
     "pvzce:sun_spawn_initial_ticks": 0,
-    "pvzce:zombie_sun_drop_chance": 0.0
+    "pvzce:zombie_sun_drop_chance": 0.0,
+    "pvzce:seed_cooldown_multiplier": 0,
+    "pvzce:graves_spawn_night": false
   },
   "env_vars": {},
   "wave_interval_end_multiplier": 1.0,
   "slots": [
     "pvzce:basic_zombie",
-    "pvzce:conehead_zombie",
-    "pvzce:pole_vaulter_zombie",
-    "pvzce:buckethead_zombie"
+    "pvzce:buckethead_zombie",
+    "pvzce:i_zombie_ladder"
   ],
-  "max_seed_slots": 4,
+  "max_seed_slots": 3,
   "seed_screen": false,
-  "initial_sun": 225,
-  "mechanics": [],
+  "initial_sun": 150,
+  "mechanics": [
+    {
+      "type": "pvzce:plant_garden",
+      "brains": true,
+      "endless": false,
+      "columns": 4,
+      "initial_delay_ticks": 90,
+      "formation": [
+        {
+          "plants": [
+            "pvzce:pea_shooter"
+          ],
+          "count": 1,
+          "sun": 0,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "plants": [
+            "pvzce:snow_pea"
+          ],
+          "count": 1,
+          "sun": 0,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "plants": [
+            "pvzce:fume_shroom"
+          ],
+          "count": 2,
+          "sun": 0,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "plants": [
+            "pvzce:snow_pea"
+          ],
+          "count": 1,
+          "sun": 0,
+          "rows": [
+            1
+          ]
+        },
+        {
+          "plants": [
+            "pvzce:pea_shooter"
+          ],
+          "count": 1,
+          "sun": 0,
+          "rows": [
+            0
+          ]
+        },
+        {
+          "plants": [
+            "pvzce:pea_shooter"
+          ],
+          "count": 2,
+          "sun": 0,
+          "rows": []
+        },
+        {
+          "plants": [
+            "pvzce:sunflower"
+          ],
+          "count": 4,
+          "sun": 0,
+          "rows": []
+        }
+      ]
+    },
+    {
+      "type": "pvzce:mower",
+      "rows": []
+    },
+    {
+      "type": "pvzce:rake",
+      "rows": []
+    }
+  ],
   "initial_entities": [
     {
       "kind": "plant",
-      "id": "pvzce:torchwood",
-      "x": 4,
-      "y": 0
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:torchwood",
-      "x": 4,
-      "y": 2
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:torchwood",
-      "x": 4,
+      "id": "pvzce:wall_nut",
+      "x": 3,
       "y": 4
     },
     {
       "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 2,
-      "y": 0
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 2,
-      "y": 1
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 2,
-      "y": 2
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 2,
+      "id": "pvzce:wall_nut",
+      "x": 3,
       "y": 3
     },
     {
       "kind": "plant",
-      "id": "pvzce:pea_shooter",
-      "x": 2,
-      "y": 4
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:repeater",
-      "x": 1,
+      "id": "pvzce:wall_nut",
+      "x": 3,
       "y": 2
     },
     {
       "kind": "plant",
       "id": "pvzce:wall_nut",
-      "x": 5,
+      "x": 3,
       "y": 1
     },
     {
       "kind": "plant",
       "id": "pvzce:wall_nut",
-      "x": 5,
-      "y": 3
-    },
-    {
-      "kind": "plant",
-      "id": "pvzce:tall_nut",
-      "x": 5,
+      "x": 3,
       "y": 0
     },
     {
       "kind": "plant",
-      "id": "pvzce:tall_nut",
-      "x": 5,
+      "id": "pvzce:sunflower",
+      "x": 2,
       "y": 4
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:sunflower",
+      "x": 2,
+      "y": 2
+    },
+    {
+      "kind": "plant",
+      "id": "pvzce:sunflower",
+      "x": 2,
+      "y": 0
     }
   ],
   "waves": [],
@@ -175,7 +230,7 @@
       {
         "at_tick": 0,
         "track": "background",
-        "event": "pvzce:music/rigor_mormist",
+        "event": "pvzce:music/cerebrawl",
         "loop": true,
         "volume": 0.85,
         "fade_seconds": 1.0
@@ -190,12 +245,12 @@
   "hints": [
     {
       "trigger": "on_start",
-      "text": "这一关你指挥僵尸：点一张僵尸卡，再点一行把它放下去",
+      "text": "吃掉五行脑子才能过关；先吃向日葵获取阳光。",
       "duration_ticks": 600
     },
     {
       "trigger": "on_start",
-      "text": "铁桶头能扛很久，但它的桶打掉之后就只剩身体了",
+      "text": "普通僵尸放在红线右侧；蹦极僵尸放在线左侧。",
       "duration_ticks": 600
     },
     {
@@ -205,9 +260,7 @@
   "unlock_resources": {
     "pvzce:sun": true
   },
-  "buffs": [
-    "pvzce:player_choice"
-  ],
+  "buffs": [],
   "rewards": {
     "first_clear": [
       {

@@ -174,6 +174,16 @@ public interface LevelMechanic<D extends MechanicData> {
         return true;
     }
 
+    /** Card-specific placement; the ordinary rectangular veto remains the default. */
+    default boolean canPlaceZombie(LevelServer level, D data, com.pvzce.api.content.ZombieDef zombie, int x, int y) {
+        return canPlaceZombie(level, data, x, y);
+    }
+
+    /** A plant lost health, including a lethal hit. */
+    default void onPlantDamaged(LevelServer level, D data, com.pvzce.server.entity.PlantEntity plant,
+                                int previousHealth) {
+    }
+
     /**
      * A plant was just eaten out of existence.
      *

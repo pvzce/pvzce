@@ -1,0 +1,12 @@
+{
+  "id": "pvzce:bungee_zombie",
+  "kind": "zombie",
+  "content": "pvzce:bungee_zombie",
+  "cost": {
+    "resources": {
+      "pvzce:sun": 125
+    },
+    "cooldown": 0
+  },
+  "icon": "pvzce:textures/gui/cards/bungee_zombie"
+}

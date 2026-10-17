@@ -36,6 +36,7 @@ public final class ClientMechanics {
         register(new RandomPlantsClientMechanic());
         register(new ConveyorClientMechanic());
         register(new PlacementZoneClientMechanic());
+        register(new PlantGardenClientMechanic());
         register(new MowerClientMechanic());
         register(new ToolClientMechanic());
         register(new FogClientMechanic());
