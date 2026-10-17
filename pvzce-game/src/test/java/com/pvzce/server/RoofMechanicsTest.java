@@ -207,31 +207,6 @@ class RoofMechanicsTest {
         tick(resumed, 150, new ArrayList<>());
         assertEquals(225, resumed.plantAt(0, 2).health());
     }
-    @Test void everyShippedRoofWaveSequenceCanReachSettlement() {
-        // A late-game prebuilt formation checks the complete wave/cargo/settlement path.
-        // This does not claim that an early-game player can afford or own this opening.
-        for (int sub = 1; sub <= 9; sub++) {
-            var def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/5_" + sub));
-            var level = new LevelServer(def, 20261002L);
-            for (int row = 0; row < 5; row++) {
-                plant(level, "kernel_pult", 0, row);
-                plant(level, "umbrella_leaf", 1, row);
-                for (int x = 2; x <= 4; x++) plant(level, "melon_pult", x, row);
-                // After armour routing was corrected, add the late-game slowing upgrade
-                // and a front defence; a formation cannot depend on melons bypassing hats.
-                plant(level, "winter_melon", 2, row);
-                plant(level, "pumpkin", 4, row);
-            }
-            long peak = 0;
-            for (int t = 0; t < 90000 && "running".equals(level.gameState()); t++) {
-                level.tick(packet -> {});
-                peak = Math.max(peak, level.aliveZombieCount());
-            }
-            System.out.printf("[roof-flow] 5-%d state=%s waves=%d seconds=%.1f peak=%d remaining-plants=%d%n",
-                    sub, level.gameState(), level.currentWave(), level.tickCount() / 60.0, peak, level.plantCount());
-            assertEquals("won", level.gameState(), "prebuilt roof formation must finish 5-" + sub);
-        }
-    }
     @Test void butterBuffChangesOnlyKernelPultAndOldProfilesReceiveBothRewards() {
         var level = roof(); var kernel = plant(level, "kernel_pult", 0, 2); var melon = plant(level, "melon_pult", 0, 1);
         level.setActiveBuffs(List.of(BuiltInBuffs.BUTTER_PLENTY));

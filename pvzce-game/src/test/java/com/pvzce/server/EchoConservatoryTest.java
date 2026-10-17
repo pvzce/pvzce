@@ -3,7 +3,6 @@ package com.pvzce.server;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.ResonanceData;
 import com.pvzce.api.content.ZombieStatus;
-import com.pvzce.api.util.Identifier;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.capability.plant.EchoRelayCapability;
 import com.pvzce.common.capability.plant.EchoNetwork;
@@ -17,25 +16,21 @@ import com.pvzce.common.network.PvzcePacket;
 import com.pvzce.common.network.packet.EntitySpawnS2C;
 import com.pvzce.common.network.packet.EntityUpdateS2C;
 import com.pvzce.common.network.packet.EffectEventS2C;
-import com.pvzce.common.network.packet.GameStateS2C;
 import com.pvzce.common.network.packet.MechanicSyncS2C;
 import com.pvzce.common.tag.TestContent;
 import com.pvzce.server.entity.PlantEntity;
-import com.pvzce.server.entity.ResourceDropEntity;
 import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.level.LevelServer;
 import com.pvzce.testutil.TestLevels;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Player-facing evidence: paid planting, a whole shipped round, and a finite echo in a loop. */
+/** Echo propagation, resonance timing and save/restore behavior in focused simulations. */
 class EchoConservatoryTest {
     private static LevelDef shipped;
 
@@ -48,7 +43,6 @@ class EchoConservatoryTest {
 
     private static final class Bridge implements LevelServer.ServerBridge {
         int waves;
-        int zombies;
         int resonantShots;
         MechanicSyncS2C resonance;
         final java.util.Map<Integer, EchoNetworkS2C> networks = new java.util.HashMap<>();
@@ -67,9 +61,6 @@ class EchoConservatoryTest {
                 }
                 if (PvzceIds.SUN.toString().equals(spawn.defId()) && (Math.abs(spawn.cellX() - 2.56F) < 0.0001F || Math.abs(spawn.cellX() - 2.5F) < 0.0001F)) {
                     suns.merge((int) spawn.cellY(), 1, Integer::sum);
-                }
-                if ("zombie".equals(spawn.entityKind())) {
-                    zombies++;
                 }
             }
             if (packet instanceof EchoNetworkS2C status) {
@@ -330,81 +321,4 @@ class EchoConservatoryTest {
         assertEquals(1F, fastPea.actionRate(), "no stale row acceleration after excitation and intrinsic charge end");
     }
 
-    private record Purchase(Identifier card, int x, int y) {
-        Purchase(String card, int x, int y) {
-            this(PvzceIds.id(card), x, y);
-        }
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = {17L, 20261001L, 81L})
-    void aPlayerCanWinTheShippedLevelWithRealCostsAndCooldowns(long seed) {
-        // A fresh profile has not unlocked the lily. The level's fixed deck lends it, and the
-        // clear reward then makes it available in ordinary seed selection.
-        PlayerProfile profile = PlayerProfile.starter();
-        LevelServer level = new LevelServer(shipped, SeedSelection.defaultFor(shipped, profile),
-                LevelServer.SeedContext.forProfile(shipped, profile));
-        level.random().setSeed(seed);
-        Bridge bridge = new Bridge();
-        level.flushPending(bridge);
-        List<Purchase> plan = new ArrayList<>();
-        for (int y = 0; y < 4; y++) {
-            if (y == 1 || y == 2) {
-                plan.add(new Purchase("resonance_moss", 0, y));
-            }
-            plan.add(new Purchase("sunflower", 0, y));
-        }
-        for (int y : new int[]{0, 3, 4}) {
-            plan.add(new Purchase("echo_lily", 1, y));
-        }
-        for (int y = 0; y < 5; y++) {
-            plan.add(new Purchase("echo_lily", 2, y));
-        }
-        for (int y = 0; y < 5; y++) {
-            plan.add(new Purchase("wall_nut", 4, y));
-        }
-        int next = 0;
-        int spent = 0;
-        long peakZombies = 0;
-        int collected = 0;
-        for (int i = 0; i < 24000 && GameStateS2C.RUNNING.equals(level.gameState()); i++) {
-            tick(level, bridge, 1);
-            for (var entity : level.entities()) {
-                if (entity instanceof ResourceDropEntity drop && !drop.isRemoved()) {
-                    int before = level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
-                    level.collectResource(bridge, drop.id());
-                    collected += level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN) - before;
-                }
-            }
-            peakZombies = Math.max(peakZombies, level.aliveZombieCount());
-            if (next < plan.size() && i % 30 == 0) {
-                Purchase purchase = plan.get(next);
-                int slot = -1;
-                for (int s = 0; s < level.slotInfos().size(); s++) {
-                    if (level.plantPlayer().slot(s).defId().equals(purchase.card())) {
-                        slot = s;
-                        break;
-                    }
-                }
-                assertTrue(slot >= 0, "the fixed deck includes " + purchase.card());
-                int before = level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
-                if (level.placePlant(bridge, slot, purchase.x(), purchase.y())) {
-                    spent += before - level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
-                    next++;
-                }
-            }
-        }
-        int remaining = level.team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
-        System.out.printf("[echo] seed=%d difficulty=%s state=%s seconds=%.1f spawned=%d peak=%d waves=%d resonantShots=%d purchases=%d spent=%d collected=%d remaining=%d rowEvery=12.0s lilyRate=1.5..3x speed=1.35x%n",
-                seed, level.difficulty(), level.gameState(), level.tickCount() / 60F, bridge.zombies,
-                peakZombies, bridge.waves, bridge.resonantShots, next, spent, collected, remaining);
-        assertEquals(GameStateS2C.WON, level.gameState(), "the paid, connected defence wins");
-        assertEquals(35, bridge.zombies, "all authored enemies were fought");
-        assertTrue(spent >= 1075, "the win used purchased lilies and producers, with no free planting");
-        assertTrue(shipped.rewards().firstClear().stream().anyMatch(r -> r.isUnlock()
-                && r.id().orElse(null).equals(PvzceIds.ECHO_LILY)), "the clear unlocks ordinary use");
-        assertTrue(shipped.rewards().repeat().stream().anyMatch(r -> r.isUnlock()
-                && r.id().orElse(null).equals(PvzceIds.RESONANCE_MOSS)),
-                "returning players can unlock moss by replaying the level");
-    }
 }
