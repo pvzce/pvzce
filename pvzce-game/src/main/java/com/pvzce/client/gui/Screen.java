@@ -105,6 +105,17 @@ public abstract class Screen {
         client.navigateBack();
     }
 
+    /** Escape dismisses the modal first, then uses the screen's own close policy. */
+    public final void dispatchEscape() {
+        Dialog modal = modalDialog();
+        if (modal != null) {
+            modal.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE);
+            if (!modal.isVisible()) removeDialog(modal);
+        } else {
+            requestClose();
+        }
+    }
+
     /**
      * Override to give a screen its own full-window background image. Screens
      * that return {@code null} automatically use
@@ -405,11 +416,11 @@ public abstract class Screen {
             return;
         }
         for (AbstractWidget widget : widgets) {
-            if (widget.isMouseOver(guiX, guiY) && widget.mouseClicked(guiX, guiY, button)) {
-                // The widget that takes the click takes the keyboard; anything else
-                // releases it. Without this, focus could only ever be gained.
+            if (widget.isMouseOver(guiX, guiY)) {
+                // Release the old focus before the callback: it may open a dialog
+                // or deliberately focus another input on this screen.
                 focusManager.request(widget instanceof EditBox box ? box : null);
-                return;
+                if (widget.mouseClicked(guiX, guiY, button)) return;
             }
         }
         focusManager.clear();

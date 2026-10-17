@@ -178,6 +178,15 @@ final class WorkshopPresentation implements AutoCloseable {
             @Override public void render(PvzceClient renderClient) {
                 renderClient.drawSolid(x,y,width,height,0, hovered?.24F:.12F,hovered?.36F:.21F,.20F,1);
                 renderClient.drawSolid(x,y+height-3,width,3,0,.48F,.70F,.36F,1);
+                if(height<90){
+                    int image=height-16;
+                    draw(item,x+8,y+8,image,image);
+                    int tx=x+image+16,tw=width-image-24;
+                    WorkshopUi.fit(renderClient,item.name(),tx,y+height-21,tw,.8F,1,1,.85F);
+                    if(height>=64)WorkshopUi.fit(renderClient,item.detail(),tx,y+25,tw,.6F,.73F,.84F,.72F);
+                    WorkshopUi.fit(renderClient,item.id()==null?item.value():item.id().toString(),tx,y+9,tw,.58F,.55F,.66F,.62F);
+                    return;
+                }
                 int image = Math.max(18, height-63);
                 draw(item,x+8,y+57,width-16,image);
                 WorkshopUi.fit(renderClient,item.name(),x+9,y+38,width-18,.9F,1,1,.85F);

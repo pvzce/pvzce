@@ -14,7 +14,10 @@ public final class WorkshopJsonScreen extends Screen {
     private final Workspace workspace;
     private final String file;
     private JsonObject root;
+    private JsonObject savedRoot;
+    private final Map<List<String>,Integer> pages=new HashMap<>();
     private final List<String> location=new ArrayList<>();
+    private final Deque<List<String>> parents=new ArrayDeque<>();
     private int page;
     private String notice="";
     private final Map<String,String> inputErrors=new HashMap<>();
@@ -25,11 +28,22 @@ public final class WorkshopJsonScreen extends Screen {
     private boolean visualBuilt;
     String file(){return file;}
     JsonObject draft(){return root;}
-    void enterClip(String clip){location.add("animations");location.add(clip);if(root.getAsJsonObject("animations").getAsJsonObject(clip).has("frames"))location.add("frames");page=0;onResize();}
+    void enterClip(String clip){
+        var path=new ArrayList<>(List.of("animations",clip));
+        if(root.getAsJsonObject("animations").getAsJsonObject(clip).has("frames"))path.add("frames");
+        navigate(path);
+    }
+    String locationKey(){return String.join("/",location);}
+    private void navigate(List<String> path){parents.push(List.copyOf(location));showLocation(path);}
+    private void showLocation(List<String> path){
+        pages.put(List.copyOf(location),page);location.clear();location.addAll(path);
+        page=pages.getOrDefault(List.copyOf(location),0);onResize();
+    }
+    private void parent(){if(!location.isEmpty())showLocation(parents.isEmpty()?new ArrayList<>(location.subList(0,location.size()-1)):parents.pop());}
     boolean atRoot(){return location.isEmpty();}
     String currentField(){return currentKey();}
     void visualWidget(com.pvzce.client.gui.components.AbstractWidget widget){addWidget(widget);}
-    void enter(String key){location.add(key);page=0;onResize();}
+    void enter(String key){var path=new ArrayList<>(location);path.add(key);navigate(path);}
     void editValue(JsonElement node,String key,JsonElement value){edit(node,key,value);}
     private List<String> pathOf(JsonElement current,JsonElement wanted,List<String> path){
         if(current==wanted)return path;
@@ -81,7 +95,7 @@ public final class WorkshopJsonScreen extends Screen {
     }
     public WorkshopJsonScreen(PvzceClient client,Workspace workspace,String file)throws java.io.IOException {
         super(client);this.workspace=workspace;this.file=file;
-        root=JsonParser.parseString(Files.readString(workspace.file(file))).getAsJsonObject();
+        root=JsonParser.parseString(Files.readString(workspace.file(file))).getAsJsonObject();savedRoot=root.deepCopy();
     }
     private JsonElement node(){JsonElement value=root;for(String key:location)value=value.isJsonArray()?value.getAsJsonArray().get(Integer.parseInt(key)):value.getAsJsonObject().get(key);return value;}
     private String currentKey(){return location.isEmpty()?"":location.get(location.size()-1);}
@@ -92,10 +106,11 @@ public final class WorkshopJsonScreen extends Screen {
         int width=client.guiWidth(),height=client.guiHeight(),bw=(width-50)/5;
         addWidget(new Button(12,height-62,bw,26,WorkshopUi.text("save","保存草稿"),()->save()));
         addWidget(new Button(18+bw,height-62,bw,26,WorkshopUi.text("add","添加"),()->attempt(this::add)));
-        addWidget(new Button(24+bw*2,height-62,bw,26,"JSON",()->client.openScreen(new WorkshopRawScreen(client,root,changed->{root=changed;inputErrors.clear();invalidText.clear();location.clear();onResize();}))));
+        addWidget(new Button(24+bw*2,height-62,bw,26,"JSON",()->client.openScreen(new WorkshopRawScreen(client,root,changed->{root=changed;inputErrors.clear();invalidText.clear();location.clear();parents.clear();pages.clear();page=0;onResize();}))));
         if(file.contains("/animations/"))addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("preview","预览"),()->{if(save())client.openScreen(new WorkshopPreviewScreen(client,workspace,file));}));
         else addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("validate","校验"),()->attempt(()->{if(save()){WorkshopAssets.validate(workspace);notice=WorkshopUi.text("valid","校验通过");}})));
-        addWidget(new Button(36+bw*4,height-62,bw,26,WorkshopUi.text("parent","上一级"),()->{if(!location.isEmpty()){location.remove(location.size()-1);page=0;onResize();}}));
+        var parent=new Button(36+bw*4,height-62,bw,26,WorkshopUi.text("parent","上一级"),this::parent);
+        parent.setActive(!location.isEmpty());addWidget(parent);
         JsonElement visualNode=node();
         visualBuilt=!advanced && visual.build(visualNode,location.isEmpty());
         addWidget(new Button(148,32,128,26,advanced?"可视化编辑":"高级属性",()->{advanced=!advanced;onResize();}));
@@ -110,10 +125,8 @@ public final class WorkshopJsonScreen extends Screen {
             String key=keys.get(i);JsonElement value=get(node,key);int y=height-98-(i-page*count)*30;
             String label=WorkshopUi.label(key)+" : "+(value.isJsonObject()?"{…}":value.isJsonArray()?"["+value.getAsJsonArray().size()+"]":value.toString());
             addWidget(new Button(12,y,width-122,26,WorkshopScreen.shorten(label,width-135),()->edit(node,key,value)));
-            addWidget(new Button(width-104,y,40,26,"×",()->{remove(node,key);onResize();}));
-            if(node.isJsonArray())addWidget(new Button(width-58,y,44,26,"↑",()->{
-                int index=Integer.parseInt(key);if(index>0){JsonArray array=node.getAsJsonArray();JsonElement previous=array.get(index-1);array.set(index-1,array.get(index));array.set(index,previous);}onResize();
-            }));
+            addWidget(new Button(width-104,y,40,26,"×",()->{if(node.isJsonArray())removeEntry(node.getAsJsonArray(),Integer.parseInt(key));else removeField(node.getAsJsonObject(),key);}));
+            if(node.isJsonArray())addWidget(new Button(width-58,y,44,26,"↑",()->moveEntry(node.getAsJsonArray(),Integer.parseInt(key),-1)));
         }
         addWidget(new Button(12,32,60,26,"←",()->{page=Math.max(0,page-1);onResize();}));
         addWidget(new Button(78,32,60,26,"→",()->{if((page+1)*count<keys.size())page++;onResize();}));
@@ -121,7 +134,6 @@ public final class WorkshopJsonScreen extends Screen {
     }
     private static JsonElement get(JsonElement node,String key){return node.isJsonObject()?node.getAsJsonObject().get(key):node.getAsJsonArray().get(Integer.parseInt(key));}
     private static void put(JsonElement node,String key,JsonElement value){if(node.isJsonObject())node.getAsJsonObject().add(key,value);else node.getAsJsonArray().set(Integer.parseInt(key),value);}
-    private static void remove(JsonElement node,String key){if(node.isJsonObject())node.getAsJsonObject().remove(key);else node.getAsJsonArray().remove(Integer.parseInt(key));}
     private void edit(JsonElement node,String key,JsonElement value){
         if(currentKey().equals("animation_clips") && value.isJsonPrimitive()) {
             String selected=root.has("animations") && root.getAsJsonObject("animations").has(key)?root.getAsJsonObject("animations").get(key).getAsString():root.has("animation")?root.get("animation").getAsString():null;
@@ -140,7 +152,7 @@ public final class WorkshopJsonScreen extends Screen {
         if(key.equals("kind") && file.contains("/slots/")) {
             client.openScreen(new WorkshopListScreen(client,"卡片类型",List.of("plant","zombie","resource","tool"),kind->{put(node,key,new JsonPrimitive(kind));onResize();}));return;
         }
-        if(value.isJsonObject()||value.isJsonArray()){var path=pathOf(root,node,new ArrayList<>());location.clear();location.addAll(path);location.add(key);page=0;onResize();return;}
+        if(value.isJsonObject()||value.isJsonArray()){var path=pathOf(root,node,new ArrayList<>());path.add(key);navigate(path);return;}
         if(value.isJsonPrimitive()&&value.getAsJsonPrimitive().isBoolean()){put(node,key,new JsonPrimitive(!value.getAsBoolean()));onResize();return;}
         WorkshopUi.ask(this,WorkshopUi.label(key),value.isJsonNull()?"":value.getAsString(),text->attempt(()->{
             JsonElement replacement=value.isJsonPrimitive()&&value.getAsJsonPrimitive().isNumber()?JsonParser.parseString(text):new JsonPrimitive(text);
@@ -305,12 +317,14 @@ public final class WorkshopJsonScreen extends Screen {
         }));
     }
     void removeField(JsonObject node,String key){String prefix=inputKey(node,key);node.remove(key);inputErrors.keySet().removeIf(k->k.equals(prefix)||k.startsWith(prefix+"/"));invalidText.keySet().removeIf(k->k.equals(prefix)||k.startsWith(prefix+"/"));onResize();}
-    private boolean save(){if(!inputErrors.isEmpty()){notice=inputErrors.values().iterator().next();return false;}try{workspace.write(file,root);notice=WorkshopUi.text("saved","草稿已保存，尚未构建");return true;}catch(Exception e){notice=e.getMessage();return false;}}
-    public void requestClose(){if(save())super.requestClose();}
+    private boolean save(){if(!inputErrors.isEmpty()){notice=inputErrors.values().iterator().next();return false;}try{workspace.write(file,root);savedRoot=root.deepCopy();notice=WorkshopUi.text("saved","草稿已保存，尚未构建");return true;}catch(Exception e){notice=e.getMessage();return false;}}
+    public void requestClose(){if(!location.isEmpty())parent();else if(save())super.requestClose();}
     protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();}
     public void render(){renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
-        client.fonts().body().draw(WorkshopScreen.shorten(file+" / "+String.join("/",location),client.guiWidth()-24),12,client.guiHeight()-28,0.9F,1,1,0.8F,1);
+        String trail=location.stream().map(k->k.matches("[0-9]+")?"#"+(Integer.parseInt(k)+1):WorkshopUi.label(k)).collect(java.util.stream.Collectors.joining(" / "));
+        String state=root.equals(savedRoot)&&inputErrors.isEmpty()?"已保存":"未保存";
+        WorkshopUi.fit(client,file.substring(file.lastIndexOf('/')+1)+" · "+state+" / "+(trail.isEmpty()?"概览":trail),12,client.guiHeight()-28,client.guiWidth()-24,.9F,1,1,.8F);
         client.fonts().body().draw(WorkshopScreen.shorten(notice,client.guiWidth()-24),12,10,0.8F,1,0.85F,0.6F,1);
         if(visualBuilt)visual.render();
         for(var widget:widgets)widget.render(client);

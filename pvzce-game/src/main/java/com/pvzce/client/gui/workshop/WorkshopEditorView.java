@@ -13,6 +13,8 @@ final class WorkshopEditorView {
     private boolean rootPreview;
     private int previewWidth;
     private int page;
+    private String context="";
+    private final Map<String,Integer> pages=new HashMap<>();
     private String clip="";
     private String animationSource="";
     private com.pvzce.client.animation.AnimationPlayback playback;
@@ -23,11 +25,13 @@ final class WorkshopEditorView {
 
     WorkshopEditorView(WorkshopJsonScreen owner, WorkshopPresentation art) { this.owner=owner;this.art=art; }
     private PvzceClient client(){return owner.client();}
-    private void button(int x,int y,int w,int h,String text,Runnable action){owner.visualWidget(new Button(x,y,w,h,text,action));}
+    private Button button(int x,int y,int w,int h,String text,Runnable action){var button=new Button(x,y,w,h,text,action);owner.visualWidget(button);return button;}
     private void label(String text,int x,int y,int w){labels.add(()->WorkshopUi.fit(client(),text,x,y,w,.73F,.85F,.92F,.77F));}
     private void rebuild(){owner.onResize();}
     boolean build(JsonElement node, boolean root) {
-        labels.clear(); rootPreview=false;
+        String nextContext=owner.locationKey()+"|"+group;
+        if(!context.equals(nextContext)){pages.put(context,page);page=pages.getOrDefault(nextContext,0);context=nextContext;}
+        labels.clear();rootPreview=false;
         if(root && owner.file().contains("/lang/"))return false;
         if(root && owner.file().contains("/animations/"))return animation(node.getAsJsonObject());
         int width=client().guiWidth(),height=client().guiHeight();
@@ -41,7 +45,7 @@ final class WorkshopEditorView {
             if(!groups.contains(group))group="基本";
             int tabWidth=(width-24)/groups.size();
             for(int i=0;i<groups.size();i++){
-                String next=groups.get(i);button(12+i*tabWidth,top,tabWidth-4,27,(group.equals(next)?"● ":"")+next,()->{group=next;page=0;rebuild();});
+                String next=groups.get(i);button(12+i*tabWidth,top,tabWidth-4,27,(group.equals(next)?"● ":"")+next,()->{group=next;rebuild();});
             }
             top-=18;
             List<String> keys=new ArrayList<>();
@@ -52,10 +56,10 @@ final class WorkshopEditorView {
             }
             if(group.equals("能力")) {
                 JsonArray caps=node.getAsJsonObject().has("capabilities")?node.getAsJsonObject().getAsJsonArray("capabilities"):new JsonArray();
-                label("按「添加」组合能力；点击卡片配置参数。",20,top-8,width-40);
-                array(caps,top-22);return true;
+                if(height>=330)label("点击上方「添加」组合能力；点击卡片配置参数。",20,top-8,width-40);
+                array(caps,height<330?top+14:top-22);return true;
             }
-            rootPreview=height>=330;previewWidth=Math.max(100,Math.min(240,width/3));
+            rootPreview=height>=330&&width>=600;previewWidth=Math.max(100,Math.min(240,width/3));
             if(owner.file().contains("/dialogue_characters/"))button(22,112,Math.max(80,previewWidth-20),27,"预览左右对话框",owner::previewCharacter);
             fields(node,keys,rootPreview?previewWidth+30:16,72,rootPreview?width-previewWidth-44:width-32,top-10);
             return true;
@@ -92,13 +96,13 @@ final class WorkshopEditorView {
             button(fx+cellWidth-25,y,25,27,"×",()->owner.removeField(node.getAsJsonObject(),key));
         }
         if(keys.isEmpty())label("此分组尚未设置属性，可点上方「添加」选择。",x,top-45,width);
-        paging(keys.size(),count,x,bottom-6,width);
+        paging(keys.size(),count);
     }
-    private void paging(int total,int count,int x,int y,int width){
+    private void paging(int total,int count){
         if(total<=count)return;
-        button(x,y,44,24,"←",()->{page=Math.max(0,page-1);rebuild();});
-        label((page+1)+" / "+Math.max(1,(total+count-1)/count),x+52,y+7,100);
-        button(x+width-44,y,44,24,"→",()->{if((page+1)*count<total)page++;rebuild();});
+        var previous=new Button(12,32,34,26,"←",()->{page--;rebuild();});previous.setActive(page>0);owner.visualWidget(previous);
+        label((page+1)+" / "+Math.max(1,(total+count-1)/count),52,40,48);
+        var next=new Button(104,32,34,26,"→",()->{page++;rebuild();});next.setActive((page+1)*count<total);owner.visualWidget(next);
     }
     private void array(JsonArray array,int top) {
         int width=client().guiWidth();boolean compact=client().guiHeight()<330;boolean frames=owner.currentField().equals("frames");
@@ -128,13 +132,13 @@ final class WorkshopEditorView {
                 });
             }
             int bw=(cw-6)/3;
-            button(x,y,bw,25,"←",()->owner.moveEntry(array,index,-1));
-            button(x+bw+3,y,bw,25,"→",()->owner.moveEntry(array,index,1));
+            button(x,y,bw,25,"前移",()->owner.moveEntry(array,index,-1)).setActive(index>0);
+            button(x+bw+3,y,bw,25,"后移",()->owner.moveEntry(array,index,1)).setActive(index+1<array.size());
             button(x+(bw+3)*2,y,bw,25,"删除",()->owner.removeEntry(array,index));
             if(frames)button(compact?x+cw-96:x,y+30,compact?96:cw,compact?28:22,"#"+(index+1)+" · "+owner.frameDelay(array,index),()->owner.editFrameDelay(array,index));
         }
         if(array.isEmpty())label(frames?"还没有图片帧：点「添加」从贴图库选择。":"列表为空：点「添加」创建条目。",20,top-48,width-40);
-        paging(array.size(),count,16,66,width-32);
+        paging(array.size(),count);
     }
     private boolean animation(JsonObject json) {
         int w=client().guiWidth(),h=client().guiHeight();

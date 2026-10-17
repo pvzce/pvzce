@@ -740,7 +740,7 @@ public final class PvzceClient {
             if (key == GLFW.GLFW_KEY_ESCAPE
                     && !(screen instanceof InGameScreen)
                     && !(screen instanceof EditorScreen)) {
-                navigateBack();
+                screen.dispatchEscape();
                 screen = currentScreen();
                 continue;
             }

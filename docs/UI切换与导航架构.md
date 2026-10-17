@@ -89,7 +89,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 | 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect`（＝`showTitle`）/ `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
 | 嵌套 | `openScreen` | `Title→LevelSelect`（开始游戏）、`Title→Shop/Packs`（钥匙牌 / 数据包墓碑）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、**`LevelSelect→LevelCollectionScreen`（点一个关卡集合）**、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
 | 声明的目的地 | `Navigation.replaceRoot(...)` | `LevelSelectScreen.backTarget()`（无下层时）、`AwardScreen.backTarget()` |
-| 弹回 | `Navigation.POP`（默认） | 所有"返回/完成"按钮、`Screen.requestClose()` 默认实现、`Dialog` 的 ESC |
+| 弹回 | `Navigation.POP`（默认） | 返回屏幕的按钮、`Screen.requestClose()` 默认实现；弹窗的 Esc 只关闭弹窗 |
 
 ### 3.3 导航状态图
 
@@ -289,7 +289,7 @@ setScreenReplacing(选卡)  ← 不是 push：旧关卡不会以冻结实例留�
 
 ## 7. 输入层：谁处理 ESC
 
-ESC **不在 `Screen` 里统一处理**，而是 `PvzceClient.pollInput()` 里的分支：
+`PvzceClient.pollInput()` 将普通屏幕的 Esc 交给共用分发入口，游戏内与关卡编辑器保留各自处理：
 
 ```java
 if (overlay != null) {                 // 覆盖层开着时，键盘整个归它
@@ -297,13 +297,16 @@ if (overlay != null) {                 // 覆盖层开着时，键盘整个归�
 } else if (key == GLFW_KEY_ESCAPE
         && !(screen instanceof InGameScreen)
         && !(screen instanceof EditorScreen)) {
-    navigateBack();                    // 去哪由当前屏的 backTarget() 说了算
+    screen.dispatchEscape();           // 弹窗优先，然后使用当前屏的关闭策略
 }
 ```
 
 `InGameScreen` 与 `EditorScreen` 自己处理 ESC（游戏内要开暂停框、编辑器按页处理）；
-其余界面走 `requestClose()`，默认实现就是 `client.navigateBack()`，
+其余界面经 `Screen.dispatchEscape` 先把按键交给顶层模态弹窗，关闭时移除弹窗并释放焦点；
+没有弹窗再走 `requestClose()`，默认实现就是 `client.navigateBack()`，
 `AwardScreen` / `ChooseSeedsScreen` / `LevelSelectScreen` 各自覆写。
+`WorkshopJsonScreen` 在子配置中返回进入前的位置，恢复原分组与页码；顶层退出保存草稿，
+无效数字保留在编辑器中等待修正。「保存并返回」可从子配置直接退出。
 
 **关卡集合这一层是纯 push**：`LevelSelectScreen` 选中一个集合行后 `openScreen(new
 LevelCollectionScreen(client, id))`，那张屏 `backTarget()` **无条件 `POP`**（它只可能由列表压上来，

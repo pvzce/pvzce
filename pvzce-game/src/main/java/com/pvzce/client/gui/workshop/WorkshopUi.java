@@ -106,11 +106,16 @@ final class WorkshopUi {
         int width = Math.min(540, owner.client().guiWidth()-20), height = 180;
         int x = (owner.client().guiWidth()-width)/2, y = (owner.client().guiHeight()-height)/2;
         Dialog dialog = new Dialog(x,y,width,height,title).frameScale(0.2F).inlineTitle();
-        EditBox box = new EditBox(x+16,y+70,width-32,30,32768,null);
+        EditBox box = new EditBox(x+16,y+70,width-32,30,32768,()-> {
+            EditBox focused=owner.focusManager().focused();
+            owner.removeDialog(dialog);
+            accept.accept(focused.value());
+        });
         box.setValue(initial,false);
         dialog.addChild(box);
         dialog.addChild(new Button(x+16,y+20,(width-40)/2,30,text("ok","确定"),()-> { owner.removeDialog(dialog); accept.accept(box.value()); }));
         dialog.addChild(new Button(x+24+(width-40)/2,y+20,(width-40)/2,30,text("cancel","取消"),()->owner.removeDialog(dialog)));
         owner.showDialog(dialog);
+        box.setFocused(true);
     }
 }
