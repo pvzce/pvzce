@@ -115,12 +115,11 @@ final public class SmokeDriver {
     private final java.util.Set<Long> smokePagesDone = new java.util.HashSet<>();
 
     /**
-     * {@code pvzce.smokeTray=<cell>@<frame>}: click a cell of the title screen's corner tray.
+     * {@code pvzce.smokeTray=<cell>@<frame>}: click a title shortcut (0 shop, 1 packs).
      *
-     * <p>Exists because that tray is the one click target whose coordinates cannot be written down:
-     * it is anchored to the player board's height, which comes from the font, and it scales with the
-     * menu buttons, which come from the GUI height. So the click is aimed by asking the screen where
-     * its cell is - the same method the hit test uses, which is also what makes this a check of the
+     * <p>The legacy property name remains usable after the shortcuts moved onto the original
+     * selector scenery. Ask the screen for the actual buttons rather than copying its anchors
+     * and scaling formula - the same bounds the hit test uses, which also makes this a check of the
      * two agreeing rather than of a number written here.
      */
     private final String smokeTray = System.getProperty("pvzce.smokeTray", "");

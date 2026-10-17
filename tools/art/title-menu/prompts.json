@@ -1,0 +1,51 @@
+{
+  "tool": "built-in image_gen",
+  "use_case": "text-localization",
+  "assets": {
+    "start": {
+      "file": "start.png",
+      "reference": "refer/anim/SelectorScreen_Adventure_button.png",
+      "prompt": "Use case: text-localization. Asset type: transparent desktop game menu sprite. Input image 1 is the edit target. Localize the original Plants vs. Zombies 1 menu sprite to Simplified Chinese. Remove BOTH the small LEVEL plaque text and the large ADVENTURE English text; use small text 社区版 in the small plaque and large 开始游戏 across the stone face. Text (verbatim): \"开始游戏\". Preserve the recognizable original silhouette, irregular tilt, hand-painted outlines, cracks, chips, stone/wood texture, shading, color palette and viewing angle. Replace ONLY English lettering, do not add ornaments or new objects. Lettering should follow the ORIGINAL slant and look like it is part of the original hand-painted art. Chinese characters must be precise, legible, bold and clean at small display sizes. Fit the complete sprite inside the canvas, wide composition with small transparent margins; no cropping. Genuine transparent background, no checkerboard or opaque rectangle. For stone plaques retain dark almost-black inset carved letters. No additional text, watermark, interface or screenshot."
+    },
+    "workshop": {
+      "file": "workshop.png",
+      "reference": "refer/anim/SelectorScreen_Challenges_button.png",
+      "prompt": "Use case: text-localization. Asset type: transparent desktop game menu sprite. Input image 1 is the edit target. Localize the original Plants vs. Zombies 1 menu sprite to Simplified Chinese. Replace all PUZZLE English lettering with large 创意工坊. Text (verbatim): \"创意工坊\". Preserve the recognizable original silhouette, irregular tilt, hand-painted outlines, cracks, chips, stone/wood texture, shading, color palette and viewing angle. Replace ONLY English lettering, do not add ornaments or new objects. Lettering should follow the ORIGINAL slant and look like it is part of the original hand-painted art. Chinese characters must be precise, legible, bold and clean at small display sizes. Fit the complete sprite inside the canvas, wide composition with small transparent margins; no cropping. Genuine transparent background, no checkerboard or opaque rectangle. For stone plaques retain dark almost-black inset carved letters. No additional text, watermark, interface or screenshot."
+    },
+    "mods": {
+      "file": "mods.png",
+      "reference": "refer/anim/SelectorScreen_Vasebreaker_button.png",
+      "prompt": "Use case: text-localization. Asset type: transparent desktop game menu sprite. Input image 1 is the edit target. Localize the original Plants vs. Zombies 1 menu sprite to Simplified Chinese. Replace all SURVIVAL English lettering with large 模组. Text (verbatim): \"模组\". Preserve the recognizable original silhouette, irregular tilt, hand-painted outlines, cracks, chips, stone/wood texture, shading, color palette and viewing angle. Replace ONLY English lettering, do not add ornaments or new objects. Lettering should follow the ORIGINAL slant and look like it is part of the original hand-painted art. Chinese characters must be precise, legible, bold and clean at small display sizes. Fit the complete sprite inside the canvas, wide composition with small transparent margins; no cropping. Genuine transparent background, no checkerboard or opaque rectangle. For stone plaques retain dark almost-black inset carved letters. No additional text, watermark, interface or screenshot."
+    },
+    "packs": {
+      "file": "packs.png",
+      "reference": "refer/anim/SelectorScreen_Survival_button.png",
+      "prompt": "Use case: text-localization. Asset type: transparent desktop game menu sprite. Input image 1 is the edit target. Localize the original Plants vs. Zombies 1 menu sprite to Simplified Chinese. Replace all MINI-GAMES English lettering with large 数据包. Text (verbatim): \"数据包\". Preserve the recognizable original silhouette, irregular tilt, hand-painted outlines, cracks, chips, stone/wood texture, shading, color palette and viewing angle. Replace ONLY English lettering, do not add ornaments or new objects. Lettering should follow the ORIGINAL slant and look like it is part of the original hand-painted art. Chinese characters must be precise, legible, bold and clean at small display sizes. Fit the complete sprite inside the canvas, wide composition with small transparent margins; no cropping. Genuine transparent background, no checkerboard or opaque rectangle. For stone plaques retain dark almost-black inset carved letters. No additional text, watermark, interface or screenshot."
+    },
+    "player": {
+      "file": "player.png",
+      "reference": "refer/anim/SelectorScreen_WoodSign1.png",
+      "prompt": "Use case: text-localization. Asset type: transparent desktop game menu sprite. Input image 1 is the edit target. Localize the original Plants vs. Zombies 1 menu sprite to Simplified Chinese. Replace WELCOME BACK, with 欢迎回来 in the same bright green carved game lettering, top half of sign. Keep the lower half completely blank wood, to display the player's name at runtime. Keep skull, ropes, posts and wood. Text (verbatim): \"欢迎回来\". Preserve the recognizable original silhouette, irregular tilt, hand-painted outlines, cracks, chips, stone/wood texture, shading, color palette and viewing angle. Replace ONLY English lettering, do not add ornaments or new objects. Lettering should follow the ORIGINAL slant and look like it is part of the original hand-painted art. Chinese characters must be precise, legible, bold and clean at small display sizes. Fit the complete sprite inside the canvas, wide composition with small transparent margins; no cropping. Genuine transparent background, no checkerboard or opaque rectangle. For stone plaques retain dark almost-black inset carved letters. No additional text, watermark, interface or screenshot."
+    },
+    "switch": {
+      "file": "switch.png",
+      "reference": "refer/anim/SelectorScreen_WoodSign2.png",
+      "prompt": "Use case: text-localization. Edit target: the supplied original game UI sprite. Replace IF THIS IS NOT YOU, CLICK HERE. with 切换玩家 centered in off-white hand-painted Chinese lettering. Keep the entire long narrow wooden plank, transparent margins and ropes. Text verbatim: \"切换玩家\". Preserve original art silhouette, color, texture, viewing angle and hand drawn Plants vs. Zombies 1 style. Fit complete sprite in canvas with small margins. Large enough output for clear Chinese. Genuine transparent background, no opaque rectangle, no checkerboard, no extra objects or text, no watermark."
+    },
+    "shop": {
+      "file": "shop.png",
+      "reference": "refer/im7/images/SelectorScreen_Store.png",
+      "prompt": "Use case: text-localization. Edit the supplied original Plants vs. Zombies key tag sprite. Replace only the English word SHOP on the beige tag with the exact Chinese text 商店, in black hand-painted lettering. Preserve the metal key, keyring, tag outline, slant, shadows and warm colors exactly. Full sprite visible, genuine transparent background. No extra objects or words. Output a large clear version of the same sprite."
+    },
+    "settings": {
+      "file": "settings.png",
+      "reference": "refer/im7/images/SelectorScreen_Options1.png",
+      "prompt": "Use case: text-localization. Edit target: the supplied original game UI sprite. Replace OPTIONS with 设置. Only isolated irregular muted dark olive green hand painted letters. No panel or background behind the letters. Text verbatim: \"设置\". Preserve original art silhouette, color, texture, viewing angle and hand drawn Plants vs. Zombies 1 style. Fit complete sprite in canvas with small margins. Large enough output for clear Chinese. Genuine transparent background, no opaque rectangle, no checkerboard, no extra objects or text, no watermark."
+    },
+    "quit": {
+      "file": "quit.png",
+      "reference": "refer/im7/images/SelectorScreen_Quit1.png",
+      "prompt": "Use case: text-localization. Edit target: the supplied original game UI sprite. Replace QUIT with 退出. Only isolated irregular muted dark olive green hand painted letters. No panel or background behind the letters. Text verbatim: \"退出\". Preserve original art silhouette, color, texture, viewing angle and hand drawn Plants vs. Zombies 1 style. Fit complete sprite in canvas with small margins. Large enough output for clear Chinese. Genuine transparent background, no opaque rectangle, no checkerboard, no extra objects or text, no watermark."
+    }
+  }
+}

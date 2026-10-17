@@ -131,6 +131,9 @@ RULES: list[tuple[str, str, str]] = [
      "图标（锁），原版形象"),
     (r"^textures/gui/screen/title/title_logo\.png$", DERIV,
      "自绘「植物大战僵尸 社区版」标题，沿用原版字体与配色"),
+    (r"^textures/gui/screen/title/selector/", DERIV,
+     "原版主菜单按钮由内置 image_gen 改为中文，tools/art/title-menu/prompts.json 留存提示词与来源；"
+     "tools/build_title_menu.py 裁透明边并缩放；原版场景提取只写 local-assets"),
     (r"^textures/gui/screen/", DERIV,
      "标题/选卡/关卡背景，含复刻的原版关卡缩略图"),
     (r"^textures/scene/", DERIV,

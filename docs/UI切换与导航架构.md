@@ -87,7 +87,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 | 语义 | 方法 | 调用点 |
 |---|---|---|
 | 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect`（＝`showTitle`）/ `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
-| 嵌套 | `openScreen` | `Title→LevelSelect`（点玩家名 / 开始游戏）、`Title→Shop/Packs`（左下托盘的两个格子）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、**`LevelSelect→LevelCollectionScreen`（点一个关卡集合）**、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
+| 嵌套 | `openScreen` | `Title→LevelSelect`（开始游戏）、`Title→Shop/Packs`（钥匙牌 / 数据包墓碑）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、**`LevelSelect→LevelCollectionScreen`（点一个关卡集合）**、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
 | 声明的目的地 | `Navigation.replaceRoot(...)` | `LevelSelectScreen.backTarget()`（无下层时）、`AwardScreen.backTarget()` |
 | 弹回 | `Navigation.POP`（默认） | 所有"返回/完成"按钮、`Screen.requestClose()` 默认实现、`Dialog` 的 ESC |
 
@@ -101,9 +101,11 @@ TitleScreen
  │                                          ├ EditorScreen（关卡）
  │                                          ├ WorkshopJsonScreen（分组面板、能力卡、动画帧、翻译）
  │                                          └ WorkshopPreviewScreen（素材预览/试听）
- ├ ModsScreen
- ├ SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen
- └ 左下木托盘 → ShopScreen / PackScreen
+ ├ 模组墓碑 → ModsScreen
+ ├ 数据包墓碑 → PackScreen
+ ├ 设置花盆 → SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen
+ ├ 商店钥匙牌 → ShopScreen
+ └ 玩家木牌 / 切换玩家 → PlayerPickerDialog
 
 对话预览：EditorScreen / WorkshopJsonScreen → DialoguePreviewScreen → 返回原编辑屏幕（不保存、不构建）
 工坊测试：悬置原屏幕栈 → WorkshopWaitingScreen → 选卡 / InGameScreen
@@ -361,7 +363,7 @@ pollInput()   -> if (overlay != null) overlay.keyPressed(key); else <屏幕的�
 | 新前置流程（选难度、选阵营） | 仍要改 `enterLevelFromMenu` 的分支 | ⚠️ 待做（阵营已经是关卡数据驱动的：`LevelDef.playable_teams`） |
 | 玩家/世界切换 | 标题页的木牌 → `PlayerPickerDialog`（只切换，不开关卡列表） | ✅ 玩家列表就是世界列表 |
 | 新的"菜单页"（固定构图、缩放到窗口） | `layout/MenuPageCanvas` + `Canvas.panel/widgetAt` | ✅ 现成（商店页与数据包页是它的两个调用者） |
-| 标题页左下角再添一个入口 | `TitleScreen` 的托盘格子（`cellAt` / `cellX` / `cellY` 三个方法一处定义，画与判定共用） | ✅ 现成（格子只有图标，名字走 `HoverTip`） |
+| 标题页再添一个入口 | `TitleScreen` 的入口定义、共用画布映射与贴图按钮 | ✅ 绘制与命中共用控件矩形，墓碑过滤倾斜面的透明角 |
 | 关卡对话里的玩家名 | 台词里写 `${user_name}`，替换在 `DialogueOverlay.create` | ✅ 见 `架构-客户端.md` §6.2.2 |
 | 关卡自带的开场对话 | 关卡 JSON 的 `dialogue` 块，宿主是选卡页或游戏内 | ✅ 数据驱动 |
 | 新的"自供卡组"机制 | `common/level/mechanic` + `ClientMechanics` 路由 | ✅ 注册制 |

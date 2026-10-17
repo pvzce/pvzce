@@ -1,96 +1,57 @@
 package com.pvzce.client.gui.screens;
 
-import com.pvzce.client.PvzceClient;
+import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.layout.MenuPageCanvas.Canvas;
 import com.pvzce.testutil.ClientHarness;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * The title screen's corner tray: two cells that open the shop and the packs page.
- *
- * <p>Worth a test rather than a screenshot because the tray's geometry is the whole difficulty. It
- * is drawn from the same rectangles that are hit-tested, but those rectangles were moved four times
- * while this page was being laid out - a vertical plate, a horizontal one, with labels, without -
- * and every version had to fit between the menu column's left edge and the window's. A click a few
- * units off the cell is silent: nothing happens and the screenshot still looks fine.
- *
- * <p>The page lives on the title screen because that is where the two pages are reached from, so
- * this also pins the entry points themselves: the shop and the packs page were menu rows before,
- * and the tray is now the only way to either of them.
- */
+/** The old corner-overlap regressions now exercise the original selector's shared layout. */
 class TitleScreenTrayTest {
-    private final List<ClientHarness> harnesses = new ArrayList<>();
-
-    @AfterEach
-    void closeHarnesses() {
-        harnesses.forEach(ClientHarness::close);
-    }
-
-    private PvzceClient newClient() throws Exception {
-        ClientHarness harness = ClientHarness.create("pvzce-tray");
-        harnesses.add(harness);
-        return harness.client();
-    }
-
-    /**
-     * The icons are sized against the menu buttons, not by a constant.
-     *
-     * <p>What this pins is the second bug report: at 1080p/2x the tray looked like a doodle next to
-     * a 68-unit-tall menu column, because its icons were a fixed 22 units. Three button heights are
-     * checked rather than one, because the failure mode was a tray that only looked right at the
-     * size it happened to be drawn at - and the tray must also stay narrower than the column it
-     * sits under, which is the constraint that ruled out a fixed wide plate.
-     */
     @Test
-    void theTrayScalesWithTheMenuButtons() {
-        // Two real windows: the default (GUI 427x240) and 1080p at 2x UI (960x540), plus a small
-        // one no window would open but a 4x-UI display can produce.
-        for (int[] size : new int[][]{{427, 240}, {640, 320}, {960, 540}}) {
-            int buttonHeight = TitleScreen.menuButtonHeight(size[1]);
-            TitleScreen.TrayLayout tray = TitleScreen.trayForGui(size[0], buttonHeight);
-            assertTrue(tray.iconBox() >= buttonHeight * 0.4F,
-                    "a " + buttonHeight + "-unit button leaves a " + tray.iconBox()
-                            + "-unit icon: the corner would look empty beside it");
-            assertTrue(tray.iconBox() <= buttonHeight * 1.1F,
-                    "and not bigger than the button it stands beside (" + tray.iconBox() + ")");
-            assertTrue(tray.width() < buttonHeight * 6.5F,
-                    "the tray has to stay narrow enough for the corner: " + tray.width());
+    void entriesFitTheWindowAndKeepTheirShape() {
+        for (int[] size : new int[][]{{427, 240}, {960, 540}, {640, 320}, {320, 480}, {1280, 540}}) {
+            TitleScreen.Layout layout = TitleScreen.layoutForGui(size[0], size[1]);
+            assertEquals(layout.left().scale(), layout.right().scale());
+            for (TitleScreen.Entry entry : TitleScreen.Entry.values()) {
+                Canvas canvas = layout.canvas(entry);
+                float x = canvas.x(entry.x);
+                float y = canvas.y(entry.top + entry.height);
+                float width = canvas.scaled(entry.width);
+                float height = canvas.scaled(entry.height);
+                assertTrue(x >= 0 && y >= 0, entry + " must be on screen");
+                assertTrue(x + width <= size[0] + 0.01F, entry + " exceeds the right edge");
+                assertTrue(y + height <= size[1] + 0.01F, entry + " exceeds the top edge");
+                assertEquals(entry.width / entry.height, width / height, 0.001F,
+                        entry + " must not stretch at a different window aspect ratio");
+            }
+            assertTrue(layout.left().x(TitleScreen.Entry.PLAYER.x + TitleScreen.Entry.PLAYER.width)
+                    < layout.right().x(TitleScreen.Entry.START.x), "player board must clear the menu");
         }
     }
 
-    /**
-     * The tray stays inside the window and clear of the menu column, at every size.
-     *
-     * <p>Two bugs are behind this: a tray that grew under the player board (whose click is tested
-     * first, so its cells opened the player picker), and a board-anchored tray at GUI 960x540 that
-     * came out ending 126 units below the bottom edge - i.e. invisible, which is what the 1080p
-     * screenshot showed.
-     */
     @Test
-    void theTrayFitsTheWindowItIsDrawnIn() {
-        for (int[] size : new int[][]{{427, 240}, {960, 540}, {640, 320}}) {
-            int buttonHeight = TitleScreen.menuButtonHeight(size[1]);
-            TitleScreen.TrayLayout tray =
-                    TitleScreen.trayForGui(size[0], buttonHeight);
-            assertTrue(tray.y() >= 8F, "at GUI " + size[0] + "x" + size[1] + " the tray starts at "
-                    + tray.y() + ", off the bottom");
-            assertTrue(tray.y() + tray.height() <= size[1],
-                    "at GUI " + size[0] + "x" + size[1] + " the tray ends at "
-                            + (tray.y() + tray.height()) + ", past the top edge");
-            // The menu column is centred and 280 wide, or the window minus 24 when it is narrow.
-            int buttonWidth = Math.min(280, size[0] - 24);
-            float menuLeft = (size[0] - buttonWidth) / 2F;
-            assertTrue(tray.x() + tray.width() <= menuLeft + 0.5F,
-                    "at GUI " + size[0] + "x" + size[1] + " the tray reaches "
-                            + (tray.x() + tray.width()) + " into the menu column at " + menuLeft);
+    void overlappingTransparentCornersDoNotStealAnotherPlaquesClick() throws Exception {
+        try (ClientHarness harness = ClientHarness.create("pvzce-selector-bounds")) {
+            TitleScreen menu = new TitleScreen(harness.client());
+            // The first four widgets are the four actual stone buttons, in their paint order.
+            for (int i = 0; i < 4; i++) {
+                Button target = (Button) menu.widgets().get(i);
+                double x = target.x() + target.width() / 2D;
+                double y = target.y() + target.height() / 2D;
+                assertTrue(target.isMouseOver(x, y), target.label() + " must accept its centre");
+                for (int other = 0; other < 4; other++) {
+                    if (other != i) {
+                        assertFalse(menu.widgets().get(other).isMouseOver(x, y),
+                                target.label() + " must not activate another entry");
+                    }
+                }
+                assertFalse(target.isMouseOver(target.x() + target.width() - 1,
+                        target.y() + target.height() - 1), "transparent upper-right corner");
+            }
         }
     }
-
 }

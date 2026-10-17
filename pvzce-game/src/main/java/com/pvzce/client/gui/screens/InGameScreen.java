@@ -3351,7 +3351,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      *
      * <p>Drawn *and* hit-tested from {@link #startWavesRect()} - the same two numbers - because a
      * button whose picture and whose target are computed apart is the failure this HUD has had
-     * before (see the tray's own note in {@code TitleScreen}).
+     * before; the title screen's sprite buttons follow the same rule.
      */
     private void renderPreparation() {
         if (!client.level().preparing()) {
