@@ -1,0 +1,317 @@
+{
+  "model": "high-fidelity-4x",
+  "assets": [
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background1.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "e36809b67d008bda6f4d980e204a282ecd8e9fac2f80c38971a66db450f952cf"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background1unsodded.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "dfcfe82791ed84ecbf045e410febf419ed25128e7d83ee68b4e245f6e065b343"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background2.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "bc9ff0892170b338fe06e3adc0028256f76cd3554b2a5353acdfca58db628b1c"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background3.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "ea2b7192f86bf1c0f28f7173eddbc7e0d11170a89fd61ea5a66a2e219d584c72"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background4.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "8f55c063a227bfd53b63c14c834e94b70a908819553aa26331571f194b692d59"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background5.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "b22b5008668bf3d0bc30c6cba89ed2ec98835c9cf4305b4fa84edc59bcc0fb61"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background6boss.png",
+      "source_size": [
+        1400,
+        600
+      ],
+      "target_size": [
+        3360,
+        1440
+      ],
+      "sha256": "fb58aaae21671e373a8d35aedac946b4a935972d52ed8921e48a8f01dc03ccd3"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/title/title_background.png",
+      "source_size": [
+        800,
+        600
+      ],
+      "target_size": [
+        2560,
+        1920
+      ],
+      "sha256": "599d699cc426b0291cbe5339754d9ffdb19d0832ee3e0270004e4392b9725ead"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/challenge_background.png",
+      "source_size": [
+        800,
+        600
+      ],
+      "target_size": [
+        2560,
+        1920
+      ],
+      "sha256": "e643cef0ecd521b7fa7cc354a8b04ebd48146ffa1270a3516f552d1c1a678115"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/award/award_background.png",
+      "source_size": [
+        800,
+        600
+      ],
+      "target_size": [
+        2560,
+        1920
+      ],
+      "sha256": "e6ee0aec0557535665bab14081996a2e20d0089670b3e071adaf0bb6482a2931"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/index_background.png",
+      "source_size": [
+        800,
+        600
+      ],
+      "target_size": [
+        1920,
+        1440
+      ],
+      "sha256": "4ff5ab844c441aa3253263b427b1ac0b87c0ca6cbceaeae9d7aa0a8416becb6d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/plant_background.png",
+      "source_size": [
+        800,
+        600
+      ],
+      "target_size": [
+        1920,
+        1440
+      ],
+      "sha256": "0ca47cd554a61018762e41fc2ea77ef4dc4933135a4cc063c852e0f1a7f2681a"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/zombie_background.png",
+      "source_size": [
+        800,
+        600
+      ],
+      "target_size": [
+        1920,
+        1440
+      ],
+      "sha256": "e5d1d699001583029042f2c34cf4129b4c0a84f3e7f4e23b0fa6b3954cd34ecb"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/seeds/seed_chooser_background.png",
+      "source_size": [
+        465,
+        513
+      ],
+      "target_size": [
+        1116,
+        1231
+      ],
+      "sha256": "117925d429a82ee1ffdc5af280e1e03c31c0f14715b4bc8773d2e4d3efdc5a07"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/scene/roof_flat.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "7e1eaa6ea4ef527f02aa3066861dd22961aa672b59edf71125732a7425dabb8b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/scene/roof_flat_2.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "1429121fd3d20a0374781c4fa05c728ac2f4e18e516f1ab8ebb02fe45dc41388"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/scene/roof_slope.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "e24f75a0d642706da4dc4432e929b5eaac29d2525900a7876bdfca03e562e816"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/scene/roof_slope_2.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "9fe2a0f330506a4ef87b0045f8472c541b26ce6016a2e75853cac600f49e632e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/center.png",
+      "source_size": [
+        720,
+        350
+      ],
+      "target_size": [
+        2736,
+        1330
+      ],
+      "sha256": "cc97aa35bef8211fda8dd6efc0ba82daf57305aacd92062cf28172bafd2a1403"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/cloud.png",
+      "source_size": [
+        434,
+        144
+      ],
+      "target_size": [
+        1042,
+        346
+      ],
+      "sha256": "36af91b35152313ec4762366a4def7319541280ede23173ac7b416b482a5ecbd"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/left.png",
+      "source_size": [
+        476,
+        680
+      ],
+      "target_size": [
+        1142,
+        1632
+      ],
+      "sha256": "6115a7dd3f085d60d3255b24538727a4719d77afec5f5babbf6183f8c98c177e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/right.png",
+      "source_size": [
+        730,
+        560
+      ],
+      "target_size": [
+        1752,
+        1344
+      ],
+      "sha256": "5438fe9cf115a6e818084f33439fe4e9bf942a86d80c1988c2214dcdf6aa6125"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/leaves.png",
+      "source_size": [
+        240,
+        62
+      ],
+      "target_size": [
+        576,
+        149
+      ],
+      "sha256": "b4adbf028076bc6749acf8909117be099887fbb6b9b1da748ab5fc3467ac1eb1"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/flower1.png",
+      "source_size": [
+        36,
+        47
+      ],
+      "target_size": [
+        86,
+        113
+      ],
+      "sha256": "2714ea03901e42b374a505f720749e6b14afcac85382630969717c93bfd78bb2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/flower2.png",
+      "source_size": [
+        43,
+        43
+      ],
+      "target_size": [
+        103,
+        103
+      ],
+      "sha256": "c0a02a6741001413a186156aa8d360f5ee1f5646608816688df6c0cd7c4ca851"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/screen/title/selector/flower3.png",
+      "source_size": [
+        46,
+        53
+      ],
+      "target_size": [
+        110,
+        127
+      ],
+      "sha256": "801a27b7851e530cdfd91bb1989c5991264f97491eb1b71dee25db52008ab6a7"
+    }
+  ]
+}

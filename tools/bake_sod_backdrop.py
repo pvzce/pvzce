@@ -64,23 +64,30 @@ def ramp(distance: float, length: float) -> float:
 def bake(finished_rows: int) -> np.ndarray:
     sodded = np.asarray(Image.open(LEVEL_ART / "background1.png").convert("RGB")).astype(float)
     unsodded = np.asarray(Image.open(LEVEL_ART / "background1unsodded.png").convert("RGB")).astype(float)
+    if sodded.shape != unsodded.shape or sodded.shape[1] * 600 != sodded.shape[0] * 1400:
+        raise ValueError("Lawn backdrops must share the 1400:600 reference aspect ratio")
+    # Geometry stays in reference pixels; higher-density textures scale the mask too.
+    scale = sodded.shape[0] / 600
+    pixel = lambda value: round(value * scale)
+    vertical_reach = pixel(VERTICAL_REACH)
+    horizontal_reach = pixel(HORIZONTAL_REACH)
 
     first = (5 - finished_rows) // 2
-    row_top = LAWN_Y + first * ROW_HEIGHT
-    row_bottom = row_top + finished_rows * ROW_HEIGHT
-    top, bottom = row_top - VERTICAL_REACH, row_bottom + VERTICAL_REACH
-    left, right = GRASS_X0 - HORIZONTAL_REACH, GRASS_X1 + HORIZONTAL_REACH
+    row_top = pixel(LAWN_Y + first * ROW_HEIGHT)
+    row_bottom = pixel(LAWN_Y + (first + finished_rows) * ROW_HEIGHT)
+    top, bottom = row_top - vertical_reach, row_bottom + vertical_reach
+    left, right = pixel(GRASS_X0) - horizontal_reach, pixel(GRASS_X1) + horizontal_reach
 
     out = unsodded.copy()
     out[top:bottom, left:right] = sodded[top:bottom, left:right]
     # From the cut line (fully transparent) to the row boundary (opaque): inside the rows the
     # copy is untouched, outside it the grass fades into the dirt.
-    for i in range(VERTICAL_REACH):
-        alpha = ramp(i + 1, VERTICAL_REACH + 1)
+    for i in range(vertical_reach):
+        alpha = ramp(i + 1, vertical_reach + 1)
         for y in (top + i, bottom - 1 - i):
             out[y, left:right] = out[y, left:right] * alpha + unsodded[y, left:right] * (1 - alpha)
-    for i in range(HORIZONTAL_REACH):
-        alpha = ramp(HORIZONTAL_REACH - i, HORIZONTAL_REACH)
+    for i in range(horizontal_reach):
+        alpha = ramp(horizontal_reach - i, horizontal_reach)
         for x in (left + i, right - 1 - i):
             out[top:bottom, x] = out[top:bottom, x] * alpha + unsodded[top:bottom, x] * (1 - alpha)
     return np.clip(out, 0, 255).astype(np.uint8)
