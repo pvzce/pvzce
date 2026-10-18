@@ -1,0 +1,5771 @@
+{
+  "model": "high-fidelity-4x",
+  "assets": [
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/blink_1.png",
+      "source_size": [
+        16,
+        11
+      ],
+      "target_size": [
+        48,
+        33
+      ],
+      "sha256": "055d7134a891c27b7e2f670340949dd8dde8a67472ec0d945ddbd1f89de6cfc1"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/blink_2.png",
+      "source_size": [
+        16,
+        11
+      ],
+      "target_size": [
+        48,
+        33
+      ],
+      "sha256": "3fa5eb7efa31cd25b1b06b66f8fd48f323e1ac6a5753acc7595d6553c9380857"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/body.png",
+      "source_size": [
+        53,
+        68
+      ],
+      "target_size": [
+        159,
+        204
+      ],
+      "sha256": "a1352da895446da819c4a5972b3cdba6f52d19e01d5c3085168d9a6874c5f841"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/butter.png",
+      "source_size": [
+        49,
+        50
+      ],
+      "target_size": [
+        147,
+        150
+      ],
+      "sha256": "757392800a53b514c03845d94306fdf3021499bf521e8b0804376b67c8a4cec6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/cabbagepult_basket.png",
+      "source_size": [
+        63,
+        40
+      ],
+      "target_size": [
+        189,
+        120
+      ],
+      "sha256": "d5d966608584a600525e1c35071eb1131da4b4ca1474e3a437a0515c06874e92"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/cabbagepult_basket_overlay.png",
+      "source_size": [
+        63,
+        40
+      ],
+      "target_size": [
+        189,
+        120
+      ],
+      "sha256": "83b02697f6bebb9d2489f2207ee8da2d34447e037c0611461b7ef9ec03c5f3fe"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/cabbagepult_basket_overlay_2.png",
+      "source_size": [
+        63,
+        40
+      ],
+      "target_size": [
+        189,
+        120
+      ],
+      "sha256": "83b02697f6bebb9d2489f2207ee8da2d34447e037c0611461b7ef9ec03c5f3fe"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/eyebrow.png",
+      "source_size": [
+        17,
+        8
+      ],
+      "target_size": [
+        51,
+        24
+      ],
+      "sha256": "8c720d48e6493ce9af7e253497a9ed3757a8f2aec51967052f1acc225a8424ad"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/eyebrow_2.png",
+      "source_size": [
+        17,
+        8
+      ],
+      "target_size": [
+        51,
+        24
+      ],
+      "sha256": "8c720d48e6493ce9af7e253497a9ed3757a8f2aec51967052f1acc225a8424ad"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husk_1.png",
+      "source_size": [
+        37,
+        17
+      ],
+      "target_size": [
+        111,
+        51
+      ],
+      "sha256": "c6191ed2b4716ac4944f51994876c39feb786ec3b6ed3d49a8971032b195bd5b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husk_2.png",
+      "source_size": [
+        29,
+        16
+      ],
+      "target_size": [
+        87,
+        48
+      ],
+      "sha256": "a44f837ff3297a9eb02ae387fc9e8e41958cae9600204de6280f22543fe87caa"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husk_3.png",
+      "source_size": [
+        26,
+        11
+      ],
+      "target_size": [
+        78,
+        33
+      ],
+      "sha256": "f7c1df90e659df5285c521f64911a5cbd13da6662072e9ddb9f045c534ed0e92"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husk_4.png",
+      "source_size": [
+        31,
+        10
+      ],
+      "target_size": [
+        93,
+        30
+      ],
+      "sha256": "b550240fe991e34f1dd59d61a9a6a4c8ee34813b37a294f8bd6fed3e92832b31"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husk_5.png",
+      "source_size": [
+        23,
+        10
+      ],
+      "target_size": [
+        69,
+        30
+      ],
+      "sha256": "98590efe23e8d0e7e305935357a745e482d19949c203a7915846523c187dca42"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husk_6.png",
+      "source_size": [
+        15,
+        9
+      ],
+      "target_size": [
+        45,
+        27
+      ],
+      "sha256": "a508cf649b1da6df551724dc2c9ab6ceaf54da64ebe216c1aebbc250aecc1bec"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husktip_1.png",
+      "source_size": [
+        16,
+        10
+      ],
+      "target_size": [
+        48,
+        30
+      ],
+      "sha256": "287126631b6aa9f5217a7763cd52cb8a6d3643112ea964618357a743c103e610"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husktip_2.png",
+      "source_size": [
+        10,
+        12
+      ],
+      "target_size": [
+        30,
+        36
+      ],
+      "sha256": "35bd94f2be3b036495f343953db99f6564c044a8ac843525c67d85ef65385097"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/husktip_3.png",
+      "source_size": [
+        12,
+        10
+      ],
+      "target_size": [
+        36,
+        30
+      ],
+      "sha256": "44a9277e1a1dd505ca086b803ee1ab2b9e36f781aff55b35aa05fa46df330df9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/kernal.png",
+      "source_size": [
+        21,
+        22
+      ],
+      "target_size": [
+        63,
+        66
+      ],
+      "sha256": "02b3a75725abc57f8e42ef069a3991b6d88535ef2737a5dd824d886fa5e2f087"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/stalk_1.png",
+      "source_size": [
+        15,
+        17
+      ],
+      "target_size": [
+        45,
+        51
+      ],
+      "sha256": "3e7e03badb2928221f3e9a9eb723fd6abdcae25da40ae64ae1d4aa23a319f483"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/stalk_2.png",
+      "source_size": [
+        18,
+        16
+      ],
+      "target_size": [
+        54,
+        48
+      ],
+      "sha256": "498b28d7413883ad9d46608b761d3767bb012f9522786fceabacc980a530038f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/stalk_3.png",
+      "source_size": [
+        17,
+        10
+      ],
+      "target_size": [
+        51,
+        30
+      ],
+      "sha256": "376ce48f8e36e053c4f254faf82631146e3a1643683acfb581280f8c4e9ccb7c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/kernel_pult/stalk_4.png",
+      "source_size": [
+        9,
+        12
+      ],
+      "target_size": [
+        27,
+        36
+      ],
+      "sha256": "08ca88de9447eca117f8bef35839c1c55b38f443f1c3dd17770bd6e13826ab4d"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/anim_sprout.png",
+      "source_size": [
+        18,
+        14
+      ],
+      "target_size": [
+        54,
+        42
+      ],
+      "sha256": "0918ae8d5ab0eda60e497de90a6d923c57b0aa5c0fc4dcec1e7e3c81d6e2c0b2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_backleaf.png",
+      "source_size": [
+        44,
+        22
+      ],
+      "target_size": [
+        132,
+        66
+      ],
+      "sha256": "c58296328c404cfa7c54ee891c0e15ff0d40b731eb911133debb6f9fb28104b6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_backleaf_lefttip.png",
+      "source_size": [
+        15,
+        12
+      ],
+      "target_size": [
+        45,
+        36
+      ],
+      "sha256": "b7b1ea4dd999f376969663f4406601fcd56168037ccb5a772c18c1148746d4ba"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_backleaf_righttip.png",
+      "source_size": [
+        12,
+        10
+      ],
+      "target_size": [
+        36,
+        30
+      ],
+      "sha256": "82a3ee26f74294bc13b00c92ed2b06d70217fa7e699993ab51889056c418fad5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_blink_1.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "80c42fa4b76a1a2022b8dd780b5b87e2bd4d883d7e00618a390d03054dc6f72c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_blink_1_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "80c42fa4b76a1a2022b8dd780b5b87e2bd4d883d7e00618a390d03054dc6f72c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_blink_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "fc1b4c58bfe6e5edb30b847c81e3bd12508238569f7bb6a5470d2bf8e13c282c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_blink_2_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "fc1b4c58bfe6e5edb30b847c81e3bd12508238569f7bb6a5470d2bf8e13c282c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_frontleaf.png",
+      "source_size": [
+        67,
+        40
+      ],
+      "target_size": [
+        201,
+        120
+      ],
+      "sha256": "29c2d624b8a042523ef58b3205cf7b44ba38458b7f8d157498c9be55268ada0f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_frontleaf_lefttip.png",
+      "source_size": [
+        22,
+        29
+      ],
+      "target_size": [
+        66,
+        87
+      ],
+      "sha256": "eaad6ab424a5bff8bf14e06b2e51a1328d7cb555930ad9d81a3a0ae209a044ee"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_frontleaf_righttip.png",
+      "source_size": [
+        15,
+        31
+      ],
+      "target_size": [
+        45,
+        93
+      ],
+      "sha256": "517ac45b5bd50982bb1c835ed01dc59ad937f41a4e5ddcf285ecd5640cad4cb6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_head.png",
+      "source_size": [
+        70,
+        65
+      ],
+      "target_size": [
+        210,
+        195
+      ],
+      "sha256": "1db1b05532a7ab17e2f77bccf9acbbcbfb8e08b128e4952fc8e0cb41561234f7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_mouth.png",
+      "source_size": [
+        35,
+        49
+      ],
+      "target_size": [
+        105,
+        147
+      ],
+      "sha256": "7a082be48362876ea6e1173af02d5a8825d77f874f5007b2b7d3eadd28a4d3a6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_stalk_bottom.png",
+      "source_size": [
+        15,
+        19
+      ],
+      "target_size": [
+        45,
+        57
+      ],
+      "sha256": "c24574be2a65df85970097c250cbffa1504f3d15e7296afe3e2e7f3d3c64724f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/pea_shooter/peashooter_stalk_top.png",
+      "source_size": [
+        26,
+        17
+      ],
+      "target_size": [
+        78,
+        51
+      ],
+      "sha256": "9df3e47b1e4ad4325f3858a871bcdbe7c90b4753d04b689dbc8ce6ae678165fb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/blink_1.png",
+      "source_size": [
+        13,
+        13
+      ],
+      "target_size": [
+        39,
+        39
+      ],
+      "sha256": "9b0c8a007d874d3b05c5895f02303528be8076ce9eb35ccc0d0a991a5429af53"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/blink_1_2.png",
+      "source_size": [
+        13,
+        13
+      ],
+      "target_size": [
+        39,
+        39
+      ],
+      "sha256": "9b0c8a007d874d3b05c5895f02303528be8076ce9eb35ccc0d0a991a5429af53"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/blink_2.png",
+      "source_size": [
+        13,
+        13
+      ],
+      "target_size": [
+        39,
+        39
+      ],
+      "sha256": "c46d45e126929b6efa1a41aadca7cd91a310595edb4a1abf0620a376eb94ff68"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/body.png",
+      "source_size": [
+        49,
+        38
+      ],
+      "target_size": [
+        147,
+        114
+      ],
+      "sha256": "588aceddf470d68d91b37bad7fde08753e166eca03b26cbca467d69ac478acf5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/head.png",
+      "source_size": [
+        81,
+        53
+      ],
+      "target_size": [
+        243,
+        159
+      ],
+      "sha256": "f3edb73b9e1e0c7a4e7e27c9356890ad39d639b123a1da8c96817d00d7268fe3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/stem.png",
+      "source_size": [
+        7,
+        14
+      ],
+      "target_size": [
+        21,
+        42
+      ],
+      "sha256": "7e40167288b6afeba2030c2d0ef16630d6713b3531aeec330df9957003ab01a7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/puff_shroom/tip.png",
+      "source_size": [
+        13,
+        24
+      ],
+      "target_size": [
+        39,
+        72
+      ],
+      "sha256": "9b2aa9c5b4baff22ca80b607fce2b81cd535140af0833afbb20252d97922a232"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/backleaf.png",
+      "source_size": [
+        44,
+        22
+      ],
+      "target_size": [
+        132,
+        66
+      ],
+      "sha256": "c58296328c404cfa7c54ee891c0e15ff0d40b731eb911133debb6f9fb28104b6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/backleaf_lefttip.png",
+      "source_size": [
+        15,
+        12
+      ],
+      "target_size": [
+        45,
+        36
+      ],
+      "sha256": "b7b1ea4dd999f376969663f4406601fcd56168037ccb5a772c18c1148746d4ba"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/backleaf_righttip.png",
+      "source_size": [
+        12,
+        10
+      ],
+      "target_size": [
+        36,
+        30
+      ],
+      "sha256": "82a3ee26f74294bc13b00c92ed2b06d70217fa7e699993ab51889056c418fad5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/blink_1.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "80c42fa4b76a1a2022b8dd780b5b87e2bd4d883d7e00618a390d03054dc6f72c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/blink_1_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "80c42fa4b76a1a2022b8dd780b5b87e2bd4d883d7e00618a390d03054dc6f72c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/blink_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "fc1b4c58bfe6e5edb30b847c81e3bd12508238569f7bb6a5470d2bf8e13c282c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/blink_2_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "fc1b4c58bfe6e5edb30b847c81e3bd12508238569f7bb6a5470d2bf8e13c282c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/eyebrow.png",
+      "source_size": [
+        22,
+        11
+      ],
+      "target_size": [
+        66,
+        33
+      ],
+      "sha256": "0adb126fc42795020cd26e87ed5bfbe2ba53fcf93416fb4fdfe11cd3b34a8c81"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/frontleaf.png",
+      "source_size": [
+        67,
+        40
+      ],
+      "target_size": [
+        201,
+        120
+      ],
+      "sha256": "29c2d624b8a042523ef58b3205cf7b44ba38458b7f8d157498c9be55268ada0f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/frontleaf_lefttip.png",
+      "source_size": [
+        22,
+        29
+      ],
+      "target_size": [
+        66,
+        87
+      ],
+      "sha256": "eaad6ab424a5bff8bf14e06b2e51a1328d7cb555930ad9d81a3a0ae209a044ee"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/frontleaf_righttip.png",
+      "source_size": [
+        15,
+        31
+      ],
+      "target_size": [
+        45,
+        93
+      ],
+      "sha256": "517ac45b5bd50982bb1c835ed01dc59ad937f41a4e5ddcf285ecd5640cad4cb6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/head.png",
+      "source_size": [
+        70,
+        65
+      ],
+      "target_size": [
+        210,
+        195
+      ],
+      "sha256": "1db1b05532a7ab17e2f77bccf9acbbcbfb8e08b128e4952fc8e0cb41561234f7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/headleaf_2_rdfarthest.png",
+      "source_size": [
+        17,
+        24
+      ],
+      "target_size": [
+        51,
+        72
+      ],
+      "sha256": "81c37fe5cafa5a68471168906eea7e4b1ce3af541aa455178ba4295016ab1ee6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/headleaf_3_rdfarthest.png",
+      "source_size": [
+        15,
+        18
+      ],
+      "target_size": [
+        45,
+        54
+      ],
+      "sha256": "52f6912a74b91291d74f29cc7da962bad7187acff6fd90b27e8af966358262a9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/headleaf_farthest.png",
+      "source_size": [
+        18,
+        13
+      ],
+      "target_size": [
+        54,
+        39
+      ],
+      "sha256": "189b10d22e4be21fb63edc6e8ca5bbe7742df98d50acf7aca9e3ac0b05833a01"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/headleaf_nearest.png",
+      "source_size": [
+        17,
+        22
+      ],
+      "target_size": [
+        51,
+        66
+      ],
+      "sha256": "c6a21539283fcc183627c81ca0c6489fca652639d22a31eb5bafa21b5c9b3603"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/headleaf_tip_bottom.png",
+      "source_size": [
+        17,
+        14
+      ],
+      "target_size": [
+        51,
+        42
+      ],
+      "sha256": "9b553ee807fc170d08ac837f0235aa350d653a6230705a784bcceaf6d76dfd13"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/headleaf_tip_top.png",
+      "source_size": [
+        14,
+        12
+      ],
+      "target_size": [
+        42,
+        36
+      ],
+      "sha256": "99c76617a5e8a0519eca98fbd0e4115b6c3fea3cf3eb4add341103afa186a138"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/mouth.png",
+      "source_size": [
+        35,
+        49
+      ],
+      "target_size": [
+        105,
+        147
+      ],
+      "sha256": "7a082be48362876ea6e1173af02d5a8825d77f874f5007b2b7d3eadd28a4d3a6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/stalk_bottom.png",
+      "source_size": [
+        15,
+        19
+      ],
+      "target_size": [
+        45,
+        57
+      ],
+      "sha256": "c24574be2a65df85970097c250cbffa1504f3d15e7296afe3e2e7f3d3c64724f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/repeater/stalk_top.png",
+      "source_size": [
+        26,
+        17
+      ],
+      "target_size": [
+        78,
+        51
+      ],
+      "sha256": "9df3e47b1e4ad4325f3858a871bcdbe7c90b4753d04b689dbc8ce6ae678165fb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/blink_1.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "bcc4c1b4c426b312babe78b2d2411ea8ab38226c173d4e084300f242ad4bebbe"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/blink_1_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "bcc4c1b4c426b312babe78b2d2411ea8ab38226c173d4e084300f242ad4bebbe"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/blink_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "4c84a131c8c0933c2cea1133c596ab8aed9c12e09400d3cd872f4febe5e2a4e9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/blink_2_2.png",
+      "source_size": [
+        28,
+        23
+      ],
+      "target_size": [
+        84,
+        69
+      ],
+      "sha256": "4c84a131c8c0933c2cea1133c596ab8aed9c12e09400d3cd872f4febe5e2a4e9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/crystals_1.png",
+      "source_size": [
+        40,
+        66
+      ],
+      "target_size": [
+        120,
+        198
+      ],
+      "sha256": "37924f0f151fbe286f64d47578dfb6ae446a3a353bbdb3ad1fe720cb7ca03c9f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/crystals_2.png",
+      "source_size": [
+        35,
+        33
+      ],
+      "target_size": [
+        105,
+        99
+      ],
+      "sha256": "2e6817a3f4b205b3e4e26ca403946a4289f5a9b9d3cf9d43124b1d0f97ba23d5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/crystals_3.png",
+      "source_size": [
+        38,
+        41
+      ],
+      "target_size": [
+        114,
+        123
+      ],
+      "sha256": "fe0ea9e87d16809b1e19847733348aad2cfd14accbc723dfab07a1a02f0f46b3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/head.png",
+      "source_size": [
+        70,
+        65
+      ],
+      "target_size": [
+        210,
+        195
+      ],
+      "sha256": "365d349b9ded37e72e58e02ebeabc34e56bea0c04b3abc1ff3048aec33a571f8"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/mouth.png",
+      "source_size": [
+        33,
+        49
+      ],
+      "target_size": [
+        99,
+        147
+      ],
+      "sha256": "94be31c55ae0c430f4599d50c719afd4b0b7e8d0f85e01b1147a6d39b2bcce6e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_backleaf.png",
+      "source_size": [
+        44,
+        22
+      ],
+      "target_size": [
+        132,
+        66
+      ],
+      "sha256": "c58296328c404cfa7c54ee891c0e15ff0d40b731eb911133debb6f9fb28104b6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_backleaf_lefttip.png",
+      "source_size": [
+        15,
+        12
+      ],
+      "target_size": [
+        45,
+        36
+      ],
+      "sha256": "b7b1ea4dd999f376969663f4406601fcd56168037ccb5a772c18c1148746d4ba"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_backleaf_righttip.png",
+      "source_size": [
+        12,
+        10
+      ],
+      "target_size": [
+        36,
+        30
+      ],
+      "sha256": "82a3ee26f74294bc13b00c92ed2b06d70217fa7e699993ab51889056c418fad5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_frontleaf.png",
+      "source_size": [
+        67,
+        40
+      ],
+      "target_size": [
+        201,
+        120
+      ],
+      "sha256": "29c2d624b8a042523ef58b3205cf7b44ba38458b7f8d157498c9be55268ada0f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_frontleaf_lefttip.png",
+      "source_size": [
+        22,
+        29
+      ],
+      "target_size": [
+        66,
+        87
+      ],
+      "sha256": "eaad6ab424a5bff8bf14e06b2e51a1328d7cb555930ad9d81a3a0ae209a044ee"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_frontleaf_righttip.png",
+      "source_size": [
+        15,
+        31
+      ],
+      "target_size": [
+        45,
+        93
+      ],
+      "sha256": "517ac45b5bd50982bb1c835ed01dc59ad937f41a4e5ddcf285ecd5640cad4cb6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_stalk_bottom.png",
+      "source_size": [
+        15,
+        19
+      ],
+      "target_size": [
+        45,
+        57
+      ],
+      "sha256": "c24574be2a65df85970097c250cbffa1504f3d15e7296afe3e2e7f3d3c64724f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/attacker/snow_pea/peashooter_stalk_top.png",
+      "source_size": [
+        26,
+        17
+      ],
+      "target_size": [
+        78,
+        51
+      ],
+      "sha256": "9df3e47b1e4ad4325f3858a871bcdbe7c90b4753d04b689dbc8ce6ae678165fb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/blink_1.png",
+      "source_size": [
+        56,
+        29
+      ],
+      "target_size": [
+        168,
+        87
+      ],
+      "sha256": "19a75af2f1cccadf95e5a318991882c1e9a7cc3ce7ad23ed7f90da4dd36161e7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/blink_1_2.png",
+      "source_size": [
+        56,
+        29
+      ],
+      "target_size": [
+        168,
+        87
+      ],
+      "sha256": "19a75af2f1cccadf95e5a318991882c1e9a7cc3ce7ad23ed7f90da4dd36161e7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/blink_2.png",
+      "source_size": [
+        56,
+        29
+      ],
+      "target_size": [
+        168,
+        87
+      ],
+      "sha256": "fef3eb2957946dbbb9cc0058e5de07fbdf0ed85056d48f5f1091eb98fb41cba7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/blink_2_2.png",
+      "source_size": [
+        56,
+        29
+      ],
+      "target_size": [
+        168,
+        87
+      ],
+      "sha256": "fef3eb2957946dbbb9cc0058e5de07fbdf0ed85056d48f5f1091eb98fb41cba7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/body.png",
+      "source_size": [
+        100,
+        100
+      ],
+      "target_size": [
+        300,
+        300
+      ],
+      "sha256": "1947cf1eea3651e85c03c40878798193382c7ad1475307aad8ab3b36f8d5d846"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/cracked_1.png",
+      "source_size": [
+        100,
+        100
+      ],
+      "target_size": [
+        300,
+        300
+      ],
+      "sha256": "033ef8e27222a2ec59a7d698c72393edf3858624abcfd383815ddd1cad367e26"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/cracked_2.png",
+      "source_size": [
+        100,
+        100
+      ],
+      "target_size": [
+        300,
+        300
+      ],
+      "sha256": "016a0bd936b3bd441ca24222f3489e2a99564037c2707d61469fcc032663442e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/defense/wall_nut/twitch.png",
+      "source_size": [
+        25,
+        12
+      ],
+      "target_size": [
+        75,
+        36
+      ],
+      "sha256": "1e0121b60fe17ffcffa150c15f150fb7eaf70a417b78912d3a5773228c7b7409"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/environment/lily_pad/blink_1.png",
+      "source_size": [
+        34,
+        23
+      ],
+      "target_size": [
+        102,
+        69
+      ],
+      "sha256": "c4cb05dee723dba05ad842d448c57c794cfa0dfdafb6254aabb0ba2ed3fc5fa3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/environment/lily_pad/blink_2.png",
+      "source_size": [
+        34,
+        23
+      ],
+      "target_size": [
+        102,
+        69
+      ],
+      "sha256": "6bd3f75f8096e6fc286b28354cd43290c3a5d3964704a204e3a45ae056bb0040"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/environment/lily_pad/body.png",
+      "source_size": [
+        100,
+        100
+      ],
+      "target_size": [
+        300,
+        300
+      ],
+      "sha256": "1fd976a1b56e949df33a4b703e9d14933bc0897eb972240d5f631dd3852c330c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/blink_1.png",
+      "source_size": [
+        30,
+        16
+      ],
+      "target_size": [
+        90,
+        48
+      ],
+      "sha256": "3ed108bed5b87c36e1d9000958bdc2c3de9006c7281e0885698c6cd90da55025"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/blink_2.png",
+      "source_size": [
+        30,
+        16
+      ],
+      "target_size": [
+        90,
+        48
+      ],
+      "sha256": "0551c83be24fc6da281ff875f673d8cedd7c4c025710c639647d72f9e3e5ea91"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/bottompetals.png",
+      "source_size": [
+        19,
+        15
+      ],
+      "target_size": [
+        57,
+        45
+      ],
+      "sha256": "71bd2701f6e308d183787fd02baecbd0c91ab6a5aed48c9034ed70eda297771d"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/head.png",
+      "source_size": [
+        57,
+        43
+      ],
+      "target_size": [
+        171,
+        129
+      ],
+      "sha256": "42fc855546d1034b8a59f560f07a583c573168763d2c9e01cac9a964526ad523"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_1.png",
+      "source_size": [
+        10,
+        13
+      ],
+      "target_size": [
+        30,
+        39
+      ],
+      "sha256": "1de8c73f79db722038b533f12ef37942a92689b8c3d89d00a2d8ca011503c94a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_2.png",
+      "source_size": [
+        10,
+        13
+      ],
+      "target_size": [
+        30,
+        39
+      ],
+      "sha256": "e0d8bdeda22a3ee7dab8791fa0dd3f69ba3c79af4d328c5e1b3a52c6bb6b82ed"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_3.png",
+      "source_size": [
+        15,
+        14
+      ],
+      "target_size": [
+        45,
+        42
+      ],
+      "sha256": "8ff695fe92cc60ddfef0fd8d2b7774f47e3899656c2163f2a4887c1d2580a024"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_4.png",
+      "source_size": [
+        15,
+        14
+      ],
+      "target_size": [
+        45,
+        42
+      ],
+      "sha256": "f62e25f6a4d38832b57ac14a8050056991996fb77a7908e6650885620cf2e454"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_5.png",
+      "source_size": [
+        14,
+        11
+      ],
+      "target_size": [
+        42,
+        33
+      ],
+      "sha256": "7968628ce5cc6b55cc6438f16f723a766344ea6c6d3f89863893cb1b350fb847"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_6.png",
+      "source_size": [
+        14,
+        14
+      ],
+      "target_size": [
+        42,
+        42
+      ],
+      "sha256": "8255e3889ee23f4521231ddeae1c5bec9e1737412b045c49b764ef535d868d77"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_7.png",
+      "source_size": [
+        12,
+        13
+      ],
+      "target_size": [
+        36,
+        39
+      ],
+      "sha256": "ee0e999c5f50719a3b57639e9cf8b87a856b7557dd1ceea59fdb3d190ff32442"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/leftpetal_8.png",
+      "source_size": [
+        12,
+        14
+      ],
+      "target_size": [
+        36,
+        42
+      ],
+      "sha256": "47a189c924c695d440460bc36973086fc18000ac4d7e4132a70937d77bf08eaa"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_backleaf.png",
+      "source_size": [
+        44,
+        22
+      ],
+      "target_size": [
+        132,
+        66
+      ],
+      "sha256": "c58296328c404cfa7c54ee891c0e15ff0d40b731eb911133debb6f9fb28104b6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_backleaf_lefttip.png",
+      "source_size": [
+        15,
+        12
+      ],
+      "target_size": [
+        45,
+        36
+      ],
+      "sha256": "b7b1ea4dd999f376969663f4406601fcd56168037ccb5a772c18c1148746d4ba"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_backleaf_righttip.png",
+      "source_size": [
+        12,
+        10
+      ],
+      "target_size": [
+        36,
+        30
+      ],
+      "sha256": "82a3ee26f74294bc13b00c92ed2b06d70217fa7e699993ab51889056c418fad5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_frontleaf.png",
+      "source_size": [
+        67,
+        40
+      ],
+      "target_size": [
+        201,
+        120
+      ],
+      "sha256": "29c2d624b8a042523ef58b3205cf7b44ba38458b7f8d157498c9be55268ada0f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_frontleaf_lefttip.png",
+      "source_size": [
+        22,
+        29
+      ],
+      "target_size": [
+        66,
+        87
+      ],
+      "sha256": "eaad6ab424a5bff8bf14e06b2e51a1328d7cb555930ad9d81a3a0ae209a044ee"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_frontleaf_righttip.png",
+      "source_size": [
+        15,
+        31
+      ],
+      "target_size": [
+        45,
+        93
+      ],
+      "sha256": "517ac45b5bd50982bb1c835ed01dc59ad937f41a4e5ddcf285ecd5640cad4cb6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_stalk_bottom.png",
+      "source_size": [
+        15,
+        19
+      ],
+      "target_size": [
+        45,
+        57
+      ],
+      "sha256": "c24574be2a65df85970097c250cbffa1504f3d15e7296afe3e2e7f3d3c64724f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/peashooter_stalk_top.png",
+      "source_size": [
+        26,
+        17
+      ],
+      "target_size": [
+        78,
+        51
+      ],
+      "sha256": "9df3e47b1e4ad4325f3858a871bcdbe7c90b4753d04b689dbc8ce6ae678165fb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_1.png",
+      "source_size": [
+        10,
+        12
+      ],
+      "target_size": [
+        30,
+        36
+      ],
+      "sha256": "f4ebb571c430cb257db88d7877c591b7e748154ab2b491ad181882a42349a5b2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_2.png",
+      "source_size": [
+        11,
+        12
+      ],
+      "target_size": [
+        33,
+        36
+      ],
+      "sha256": "66edf9f7bf4160370836f7dfe3a48d3917cda68057b3bebb27c8378a72c7d5dc"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_3.png",
+      "source_size": [
+        10,
+        10
+      ],
+      "target_size": [
+        30,
+        30
+      ],
+      "sha256": "77ef76457e1537e225ed684491283ccef6a2ad6012c06fc76f23c61b323b6d75"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_4.png",
+      "source_size": [
+        12,
+        11
+      ],
+      "target_size": [
+        36,
+        33
+      ],
+      "sha256": "932ad68fd333990bf1b9706c17999f0acb6d72723120c8e1643b3c70cb4c1d68"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_5.png",
+      "source_size": [
+        12,
+        10
+      ],
+      "target_size": [
+        36,
+        30
+      ],
+      "sha256": "2fce93fc9dd2562f1c2e5295570b5b55d5bfee7ca82816ad337605c8e156b310"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_6.png",
+      "source_size": [
+        11,
+        10
+      ],
+      "target_size": [
+        33,
+        30
+      ],
+      "sha256": "06d10685940a66bd61f2238b4859983a3c6695b3cd25e192c87d35b3a753be6a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_7.png",
+      "source_size": [
+        13,
+        11
+      ],
+      "target_size": [
+        39,
+        33
+      ],
+      "sha256": "7590b2c6e4ff6f262d9ae848cd49a258bff5a48481836a82da287e951e0804d9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_8.png",
+      "source_size": [
+        11,
+        11
+      ],
+      "target_size": [
+        33,
+        33
+      ],
+      "sha256": "dcb4a8bd0e2edac51b211c0ab46de6f8511d2def8699a3f1182b1b2001f3b9fd"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/rightpetal_9.png",
+      "source_size": [
+        11,
+        11
+      ],
+      "target_size": [
+        33,
+        33
+      ],
+      "sha256": "5939b5e1f979fc65a15bb6d0b41dea32de32299cf4fedbfa11dc092263347f76"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/producer/sunflower/toppetals.png",
+      "source_size": [
+        16,
+        10
+      ],
+      "target_size": [
+        48,
+        30
+      ],
+      "sha256": "b3de1c61dea9791c031263dddf9cdaf9387a220646466e28c53ec0494807e84f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leaf1_tip.png",
+      "source_size": [
+        9,
+        17
+      ],
+      "target_size": [
+        27,
+        51
+      ],
+      "sha256": "84a2d882f059c65148e1b1f3b22ec9b5f5c5df1d7203aab619356e32acdc1176"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leaf2_tip.png",
+      "source_size": [
+        5,
+        7
+      ],
+      "target_size": [
+        15,
+        21
+      ],
+      "sha256": "4503629aa84c86273c2f7c9a7f17730bcc053367df76cbb9946b774acbe17362"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leaf_1.png",
+      "source_size": [
+        20,
+        20
+      ],
+      "target_size": [
+        60,
+        60
+      ],
+      "sha256": "d25c1f5cd72367a584563215c2e71fbbe40967a38df2722f8cadeaa3dae1efb3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leaf_2.png",
+      "source_size": [
+        16,
+        19
+      ],
+      "target_size": [
+        48,
+        57
+      ],
+      "sha256": "174032ee2f625653245e70c12298ea223990c16b846a20a6bc4344720af64ee6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leaf_3.png",
+      "source_size": [
+        22,
+        13
+      ],
+      "target_size": [
+        66,
+        39
+      ],
+      "sha256": "1991871d0633ccaa82ccecc486aa414e9f7c992db24c95985ad4f411ddcca81c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/left_1.png",
+      "source_size": [
+        51,
+        45
+      ],
+      "target_size": [
+        153,
+        135
+      ],
+      "sha256": "01b032ace3e10c77778adfc1f1003250ba5f3a6d7077868a7e8c17867fdd6e0c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/left_3.png",
+      "source_size": [
+        58,
+        60
+      ],
+      "target_size": [
+        174,
+        180
+      ],
+      "sha256": "ec65e85fa1de991fe9def7e66196e95f53ba1892291aefbd85c20f42335650e3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/lefteye_11.png",
+      "source_size": [
+        13,
+        10
+      ],
+      "target_size": [
+        39,
+        30
+      ],
+      "sha256": "54e33bba2917d0501b67ceb18738a3213188f4851de60c0ade382e8d913f6b87"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/lefteye_21.png",
+      "source_size": [
+        20,
+        13
+      ],
+      "target_size": [
+        60,
+        39
+      ],
+      "sha256": "b5b12a0f0a89898302ef4398d8a0095b0f41abcd369550bb56863861a7eaab21"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leftmouth_1.png",
+      "source_size": [
+        24,
+        12
+      ],
+      "target_size": [
+        72,
+        36
+      ],
+      "sha256": "ec69bc22a733a657ae5b6cf20190ad9002cf12045c051a32bcec7a8d9c6fec16"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/leftstem.png",
+      "source_size": [
+        15,
+        33
+      ],
+      "target_size": [
+        45,
+        99
+      ],
+      "sha256": "37cdfe35bfc93d422aba7f39efab27be42ee8f9b36ab16ced895a5bb9d3b4224"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/right_1.png",
+      "source_size": [
+        45,
+        41
+      ],
+      "target_size": [
+        135,
+        123
+      ],
+      "sha256": "de9ea70d6cf51da72da3a2f64d2b0b459aec749c38ea18137cb8faa39c0b0f0d"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/right_3.png",
+      "source_size": [
+        58,
+        56
+      ],
+      "target_size": [
+        174,
+        168
+      ],
+      "sha256": "ac43988119231566da785c46d4bef7034bcfa677356295144e94a4ee02ed5016"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/righteye_11.png",
+      "source_size": [
+        11,
+        11
+      ],
+      "target_size": [
+        33,
+        33
+      ],
+      "sha256": "81070dcdffca4718f51f794e31d8e4e61faf2b2650590fccc850eb18e9b0d658"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/righteye_21.png",
+      "source_size": [
+        15,
+        11
+      ],
+      "target_size": [
+        45,
+        33
+      ],
+      "sha256": "30c468539064e354b2dd1b50e5aaeee1fba51bd97a8d2e2af08a79f25f38bd1f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/rightmouth_1.png",
+      "source_size": [
+        9,
+        8
+      ],
+      "target_size": [
+        27,
+        24
+      ],
+      "sha256": "3928e4b6a88999f6e92affc46242762a6c29c2e47f1d382c212682282e1ef766"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/cherry_bomb/rightstem.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "9b8e42e38c8948513df493ad78f65b8334631978d53c759466f40603b37d2dc6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/blink_1.png",
+      "source_size": [
+        44,
+        24
+      ],
+      "target_size": [
+        132,
+        72
+      ],
+      "sha256": "26b4a888b5e6b97073e0ab9719506c255797114c6e059411afa8540f07cef3c7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/blink_2.png",
+      "source_size": [
+        44,
+        24
+      ],
+      "target_size": [
+        132,
+        72
+      ],
+      "sha256": "5864dc2277ed0211f7bed6cbd959154311673e6911321a7efb4bc65f1b12596e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/body.png",
+      "source_size": [
+        101,
+        66
+      ],
+      "target_size": [
+        303,
+        198
+      ],
+      "sha256": "e38deced527935067462334d691052b46174d6a13f465b10d5319139e36713cb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/eyes.png",
+      "source_size": [
+        44,
+        24
+      ],
+      "target_size": [
+        132,
+        72
+      ],
+      "sha256": "debb9c4a2a3185e0326aec553c922be3997ad84d52117740e26d536b31f40869"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/light_1.png",
+      "source_size": [
+        28,
+        28
+      ],
+      "target_size": [
+        84,
+        84
+      ],
+      "sha256": "ae419f0f4353fff79553cc46961d5c8c3320babfa73b6e3e6d476e9cade3d2f0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/light_2.png",
+      "source_size": [
+        46,
+        46
+      ],
+      "target_size": [
+        138,
+        138
+      ],
+      "sha256": "15868d40bbf4f71a6b7daad094f7e3a8a2b70966dbe5acda2fcf8f8989a38552"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/mashed.png",
+      "source_size": [
+        132,
+        93
+      ],
+      "target_size": [
+        264,
+        186
+      ],
+      "sha256": "f9b8cccddb5757febb7aa12eb8b4b3d5107061436fd8bf650cb93631064b5060"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_1.png",
+      "source_size": [
+        10,
+        10
+      ],
+      "target_size": [
+        30,
+        30
+      ],
+      "sha256": "2fb3fd01b79c57a021050983d91dda64f66b5a0fbedcead25a83de512f5eab9b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_1_2.png",
+      "source_size": [
+        10,
+        10
+      ],
+      "target_size": [
+        30,
+        30
+      ],
+      "sha256": "2fb3fd01b79c57a021050983d91dda64f66b5a0fbedcead25a83de512f5eab9b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_2.png",
+      "source_size": [
+        34,
+        19
+      ],
+      "target_size": [
+        102,
+        57
+      ],
+      "sha256": "dda1a0df19ea1e39bec2876d76437bd9be98084852e57675b6a666e4478a319a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_3.png",
+      "source_size": [
+        20,
+        15
+      ],
+      "target_size": [
+        60,
+        45
+      ],
+      "sha256": "e4a06a3091ff00338ef7e526f92e962540c1f13d250a7834eee81fc97b8e83c0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_3_2.png",
+      "source_size": [
+        20,
+        15
+      ],
+      "target_size": [
+        60,
+        45
+      ],
+      "sha256": "e4a06a3091ff00338ef7e526f92e962540c1f13d250a7834eee81fc97b8e83c0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_4.png",
+      "source_size": [
+        35,
+        21
+      ],
+      "target_size": [
+        105,
+        63
+      ],
+      "sha256": "6c344eda6842c195fafc54a485e6b0dd4aeb6f55900ef05b3bdd674978a3532b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_4_2.png",
+      "source_size": [
+        35,
+        21
+      ],
+      "target_size": [
+        105,
+        63
+      ],
+      "sha256": "6c344eda6842c195fafc54a485e6b0dd4aeb6f55900ef05b3bdd674978a3532b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_5.png",
+      "source_size": [
+        22,
+        12
+      ],
+      "target_size": [
+        66,
+        36
+      ],
+      "sha256": "5c2c791ec9076900ae09173b3f07de61c5193a5aaa4a4a6e13c1cd6c48589b81"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_5_2.png",
+      "source_size": [
+        22,
+        12
+      ],
+      "target_size": [
+        66,
+        36
+      ],
+      "sha256": "5c2c791ec9076900ae09173b3f07de61c5193a5aaa4a4a6e13c1cd6c48589b81"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_6.png",
+      "source_size": [
+        19,
+        13
+      ],
+      "target_size": [
+        57,
+        39
+      ],
+      "sha256": "13d11671381018992c47f5e025131e31f336fecb00c480e526c22f4933a048ce"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/rock_6_2.png",
+      "source_size": [
+        19,
+        13
+      ],
+      "target_size": [
+        57,
+        39
+      ],
+      "sha256": "13d11671381018992c47f5e025131e31f336fecb00c480e526c22f4933a048ce"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/plant/special/potato_mine/stem.png",
+      "source_size": [
+        45,
+        17
+      ],
+      "target_size": [
+        135,
+        51
+      ],
+      "sha256": "da9882e156a7e5e2e7cadba4e9b393413c2801c8d486d5498065593b145172f2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/basketball.png",
+      "source_size": [
+        31,
+        31
+      ],
+      "target_size": [
+        93,
+        93
+      ],
+      "sha256": "abc85c55b5bd9667c8d871c74fe1464f423d5896d6153e162cd10eba97f15213"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/cactus_spike.png",
+      "source_size": [
+        30,
+        16
+      ],
+      "target_size": [
+        90,
+        48
+      ],
+      "sha256": "a8c6ed20d49f8b3cdcde570d9eaa4cd0391dc9e6bc863001cbd79726ceebc8ba"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/flame_1.png",
+      "source_size": [
+        58,
+        39
+      ],
+      "target_size": [
+        174,
+        117
+      ],
+      "sha256": "e565e62db0bb2ed9d88ff1639811848e0f49d7032333b2870b65c5ed5be121b7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/flame_2.png",
+      "source_size": [
+        58,
+        39
+      ],
+      "target_size": [
+        174,
+        117
+      ],
+      "sha256": "96392851fef200b666114de240002af818d14e5859ad2a17024655bc2c4a5835"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/flame_3.png",
+      "source_size": [
+        58,
+        39
+      ],
+      "target_size": [
+        174,
+        117
+      ],
+      "sha256": "f6aae3f983810060dc0f422f68613a9794e89f6ddcbd7832f78c1b37be492407"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/part.png",
+      "source_size": [
+        38,
+        38
+      ],
+      "target_size": [
+        114,
+        114
+      ],
+      "sha256": "9a50f22fa85c30d20087e9d0b4e8ec197798a337a638e6ae4f7652762f52fd77"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/spark.png",
+      "source_size": [
+        18,
+        15
+      ],
+      "target_size": [
+        54,
+        45
+      ],
+      "sha256": "3b909db380e659de4e550438be10fbd8edf4d3796f3fe952f83ca8a864161875"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/spark_2.png",
+      "source_size": [
+        18,
+        15
+      ],
+      "target_size": [
+        54,
+        45
+      ],
+      "sha256": "3b909db380e659de4e550438be10fbd8edf4d3796f3fe952f83ca8a864161875"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/fire_pea/spark_3.png",
+      "source_size": [
+        18,
+        15
+      ],
+      "target_size": [
+        54,
+        45
+      ],
+      "sha256": "3b909db380e659de4e550438be10fbd8edf4d3796f3fe952f83ca8a864161875"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/projectile/star.png",
+      "source_size": [
+        38,
+        38
+      ],
+      "target_size": [
+        114,
+        114
+      ],
+      "sha256": "4223eb035cc93cbae97ad0c1959c36570263fd0579b2ed8950b96ce6ed89ca80"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/coin_gold/coin_black_gold.png",
+      "source_size": [
+        43,
+        40
+      ],
+      "target_size": [
+        129,
+        120
+      ],
+      "sha256": "bec28caa7ea4ccf0927f52b86f0aaf1af74904263c5d25e2eefe35aaf6c68ec4"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/coin_gold/coin_shading.png",
+      "source_size": [
+        43,
+        40
+      ],
+      "target_size": [
+        129,
+        120
+      ],
+      "sha256": "ccf1630d8ce374f31ea1e60f29f07e9516e978b908c7ceb56d70d2072b576ac0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/coin_gold/dollar.png",
+      "source_size": [
+        45,
+        45
+      ],
+      "target_size": [
+        135,
+        135
+      ],
+      "sha256": "1f3904cf40446e7fb21ccd1892c9b603c14c2228219a1612ffd3de927d375a56"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/coin_silver/coin_black.png",
+      "source_size": [
+        43,
+        40
+      ],
+      "target_size": [
+        129,
+        120
+      ],
+      "sha256": "e98223ec8a82e938586dad6cb45aa723090e109b8986c17c34d7be17a751047a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/coin_silver/coin_shading.png",
+      "source_size": [
+        43,
+        40
+      ],
+      "target_size": [
+        129,
+        120
+      ],
+      "sha256": "ccf1630d8ce374f31ea1e60f29f07e9516e978b908c7ceb56d70d2072b576ac0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/coin_silver/dollar.png",
+      "source_size": [
+        43,
+        40
+      ],
+      "target_size": [
+        129,
+        120
+      ],
+      "sha256": "cdbc421ec8c67dea5e847e5d0b4dd51e93dcb4e49bdf28668cce04893c930a62"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/diamond/part.png",
+      "source_size": [
+        68,
+        52
+      ],
+      "target_size": [
+        204,
+        156
+      ],
+      "sha256": "b096195425e2722cd072e16e28e97d324c2510ee09474f4d58fc941ecb9bff67"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/sun/1.png",
+      "source_size": [
+        36,
+        36
+      ],
+      "target_size": [
+        108,
+        108
+      ],
+      "sha256": "de0675afacbf97c89ac6e906942275255221bcded47b35dc860f37dd1bedfbf0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/sun/2.png",
+      "source_size": [
+        77,
+        79
+      ],
+      "target_size": [
+        231,
+        237
+      ],
+      "sha256": "2aef2f0edf99943fbcfffdf44060984694413b09dc57763796ac1b1e890d17f9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/resource/sun/3.png",
+      "source_size": [
+        117,
+        116
+      ],
+      "target_size": [
+        351,
+        348
+      ],
+      "sha256": "1738b9ee355f809b589551a2fdb0d55e9b5b3a65b8d08e98595e82df98349272"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/hammer/1.png",
+      "source_size": [
+        49,
+        59
+      ],
+      "target_size": [
+        147,
+        177
+      ],
+      "sha256": "c9141a8e1472dc950a7a6ae9f859ab1266fedad15663af2d0c638c316c8c11f7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/hammer/2.png",
+      "source_size": [
+        52,
+        20
+      ],
+      "target_size": [
+        156,
+        60
+      ],
+      "sha256": "93402607ab0bc5d9dd7f4951be8719b4acd082ea0908b21250c84607fe7233dc"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/hammer/3.png",
+      "source_size": [
+        7,
+        12
+      ],
+      "target_size": [
+        21,
+        36
+      ],
+      "sha256": "44c43c7afa6bad2d0c9d7a76c8385aaa6fc952b59a153d1d8fe5839e063970f2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan1_gold.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "7b890a7b8190e6fd2a3022f0dee9459b12f3939613732b9a480900d5fffd7b2f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan2_gold.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "2f9ad2a49ded8ddc816fe97bf60f90c284c7f395105c050c9965bd9ce67b7a72"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan3_gold.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "4b3a8a00e29bf48dc10dd6a0c9789218c28c4bfd1818f25ee3b148e63a7ce191"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_1.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "3f66459de8c18d0684b217e3f8dc3181444cf73bea3f0f0ee36834273f82cfc2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_2.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "79a86718faef012f7c2b79e4127feb82ed500a37dfa49bc5f12e536da53f0371"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_3.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "fa6d5e241219789449964b1675f22cea66f0eb735da50c058bf3ef226f1a600e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_4.png",
+      "source_size": [
+        72,
+        73
+      ],
+      "target_size": [
+        216,
+        219
+      ],
+      "sha256": "ae39e56ff8d7c9aa294ae71a145dc6b1ee41c349ab62461428e551579edc6d5c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_1.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "a9d32851394b9e7c8af55096cf049ca24d178a8e66916205bd12bd0830dec102"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_2.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "d9c28956504b7551c5e88a38d31ae98943b794c5a1078f61118751b8b7731a7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_3.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "85c24dcc5f37d0dfa288e51b2f1bfa5f73dbfb7b0c006f1421bb2d67aedbf822"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_4.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "55f8b156525b9879f39658c510cf37a04f58cf9b22ee4216c85f43c95950f3e3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_5.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "bfd4d8add37e79a505bfaad18ce2dff60a1d1c88ab89362e19cf5aebe439d800"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_6.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "77eee4510ab7a2006729772c0b49e1023d23ad2b058fa1a9e478dcbf7332c053"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_7.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "b4d9b17ee7a355fa6dcc9367f84cddfb545a8e8971acb2cb865791067886eb34"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/tool/watering_can/zengarden_wateringcan_water_8.png",
+      "source_size": [
+        22,
+        56
+      ],
+      "target_size": [
+        66,
+        168
+      ],
+      "sha256": "3adcccdb64abbfd706e9529ec1a184e09f300d4b0d6aae8cbbecd6defb7eef26"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/body.png",
+      "source_size": [
+        53,
+        63
+      ],
+      "target_size": [
+        159,
+        189
+      ],
+      "sha256": "5ff3377439a0d05b32f08d0885ae89efe1025ed15a294e241df042b860daf062"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/bucket_1.png",
+      "source_size": [
+        62,
+        67
+      ],
+      "target_size": [
+        186,
+        201
+      ],
+      "sha256": "114e0e1fb2b07943ff7508fbbb65e42dfb3f5b2e4a3ec04a7078eb4042258aa2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/bucket_2.png",
+      "source_size": [
+        62,
+        67
+      ],
+      "target_size": [
+        186,
+        201
+      ],
+      "sha256": "70a7ea844d9c169c37cc76dac4806f915fa70e398a08152fc431f6b4e27c5610"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/bucket_3.png",
+      "source_size": [
+        62,
+        67
+      ],
+      "target_size": [
+        186,
+        201
+      ],
+      "sha256": "5d27079581fbdf8365dd343e5cd4866870b25f1545b965562f98d74e93ed6cac"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/hair.png",
+      "source_size": [
+        64,
+        31
+      ],
+      "target_size": [
+        192,
+        93
+      ],
+      "sha256": "4859a84d14204372176ae1b866a2ceb1d60dae330664dcd3276f536399e16302"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/head.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "2d10d22a0ec751a2fe8f7b0e2ecbbe4cb0a8dd729983d717e9d199d0ef243b7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/innerarm_hand.png",
+      "source_size": [
+        20,
+        23
+      ],
+      "target_size": [
+        60,
+        69
+      ],
+      "sha256": "eacfea3d9742212265adcbc836f50a3cc793adfd0e5c94f3bba402eaccc2eb27"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/innerarm_lower.png",
+      "source_size": [
+        19,
+        24
+      ],
+      "target_size": [
+        57,
+        72
+      ],
+      "sha256": "4125e60261c204d30892a33a165459b3ae2c0e1e27864090a2f9d7418238700b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/innerarm_upper.png",
+      "source_size": [
+        15,
+        25
+      ],
+      "target_size": [
+        45,
+        75
+      ],
+      "sha256": "b08aa8e15d78f3cdd27cabd68a196290c014a2d87cc422800f1861832b1cce73"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/innerleg_foot.png",
+      "source_size": [
+        27,
+        17
+      ],
+      "target_size": [
+        81,
+        51
+      ],
+      "sha256": "1b445629651cbaf8d38057549eed992fa1652d8fba842666ea9ec2b842714aa5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/innerleg_lower.png",
+      "source_size": [
+        32,
+        36
+      ],
+      "target_size": [
+        96,
+        108
+      ],
+      "sha256": "3a2d8d78116e42dfc922fe281952496121cbf967afaba6fbf436a57f36309858"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/innerleg_upper.png",
+      "source_size": [
+        15,
+        26
+      ],
+      "target_size": [
+        45,
+        78
+      ],
+      "sha256": "2797b7dcc848053d81538796a8ed8d7f5fc0ec9fc25896c03c25231542df1737"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/jaw.png",
+      "source_size": [
+        32,
+        15
+      ],
+      "target_size": [
+        96,
+        45
+      ],
+      "sha256": "8026b63666b7a8d55a8ce7e814b8a74a4ede41a66757649ee12f6f1d752c7f8a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/neck.png",
+      "source_size": [
+        20,
+        21
+      ],
+      "target_size": [
+        60,
+        63
+      ],
+      "sha256": "c0ba5eedb24968243252c64547a9d58c9fac3fcf0dea58ade2d740e006f843a6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerarm_hand.png",
+      "source_size": [
+        25,
+        27
+      ],
+      "target_size": [
+        75,
+        81
+      ],
+      "sha256": "38d1cc623572801abda48b607f969bb56736a7ae24c8bdddd663ab5365b4fb3f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerarm_hand_2.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "9d177417e5b648f9f429bd4d023a31819227b419b4400656b22928511915c838"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerarm_lower.png",
+      "source_size": [
+        19,
+        28
+      ],
+      "target_size": [
+        57,
+        84
+      ],
+      "sha256": "d1b063175ff60bfcb3b1292803ec8fc84d357bb2183fa7f49c78d915a453d2de"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerarm_upper.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "2e1b7890686be0a0ac695dc9df8c6da3b9130f30faf3fbfc645f389af1202adb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerarm_upper_2.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "115b5cac9a17271779ac7ebf88ce7458d55c24cee225ba1441fda521b62f1863"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerleg_foot.png",
+      "source_size": [
+        42,
+        21
+      ],
+      "target_size": [
+        126,
+        63
+      ],
+      "sha256": "e73ab524eba839a123ffb3fbe8e975c592df983ff48d8841e8f0fb15a871ce91"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerleg_lower.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "a58af1e818525dfc78126aae7d055c972e8807439b18dd577b5134b799c68e48"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/outerleg_upper.png",
+      "source_size": [
+        21,
+        39
+      ],
+      "target_size": [
+        63,
+        117
+      ],
+      "sha256": "16eb118d184db30f21b898d2547043c60cfb1019b9c0993592943665deeaea7b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/tie.png",
+      "source_size": [
+        17,
+        30
+      ],
+      "target_size": [
+        51,
+        90
+      ],
+      "sha256": "7088edcdd3b4d7a34221f1f6a18b684fac2d6bc8f9cb912043ffffb41a22a781"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/buckethead_zombie/tongue.png",
+      "source_size": [
+        10,
+        17
+      ],
+      "target_size": [
+        30,
+        51
+      ],
+      "sha256": "c8ba2373f24597e443b1e02932e40328c70df14620b320158e38e94af06d677e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/body.png",
+      "source_size": [
+        53,
+        63
+      ],
+      "target_size": [
+        159,
+        189
+      ],
+      "sha256": "5ff3377439a0d05b32f08d0885ae89efe1025ed15a294e241df042b860daf062"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/cone_1.png",
+      "source_size": [
+        59,
+        57
+      ],
+      "target_size": [
+        177,
+        171
+      ],
+      "sha256": "7056e4535348f06ee1b507adf0b98c8465117d6d41a55b3265e2856fa19f799e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/cone_2.png",
+      "source_size": [
+        59,
+        57
+      ],
+      "target_size": [
+        177,
+        171
+      ],
+      "sha256": "34bdd357c61f7850ff138b84a79e828b1016c256828c3d79103ffd2149836e66"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/cone_3.png",
+      "source_size": [
+        59,
+        57
+      ],
+      "target_size": [
+        177,
+        171
+      ],
+      "sha256": "c3ddcd5c85ec9d96b60d26835a843e7fd074e41466ff9da323b00e8baf111367"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/hair.png",
+      "source_size": [
+        64,
+        31
+      ],
+      "target_size": [
+        192,
+        93
+      ],
+      "sha256": "4859a84d14204372176ae1b866a2ceb1d60dae330664dcd3276f536399e16302"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/head.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "2d10d22a0ec751a2fe8f7b0e2ecbbe4cb0a8dd729983d717e9d199d0ef243b7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/innerarm_hand.png",
+      "source_size": [
+        20,
+        23
+      ],
+      "target_size": [
+        60,
+        69
+      ],
+      "sha256": "eacfea3d9742212265adcbc836f50a3cc793adfd0e5c94f3bba402eaccc2eb27"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/innerarm_lower.png",
+      "source_size": [
+        19,
+        24
+      ],
+      "target_size": [
+        57,
+        72
+      ],
+      "sha256": "4125e60261c204d30892a33a165459b3ae2c0e1e27864090a2f9d7418238700b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/innerarm_upper.png",
+      "source_size": [
+        15,
+        25
+      ],
+      "target_size": [
+        45,
+        75
+      ],
+      "sha256": "b08aa8e15d78f3cdd27cabd68a196290c014a2d87cc422800f1861832b1cce73"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/innerleg_foot.png",
+      "source_size": [
+        27,
+        17
+      ],
+      "target_size": [
+        81,
+        51
+      ],
+      "sha256": "1b445629651cbaf8d38057549eed992fa1652d8fba842666ea9ec2b842714aa5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/innerleg_lower.png",
+      "source_size": [
+        32,
+        36
+      ],
+      "target_size": [
+        96,
+        108
+      ],
+      "sha256": "3a2d8d78116e42dfc922fe281952496121cbf967afaba6fbf436a57f36309858"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/innerleg_upper.png",
+      "source_size": [
+        15,
+        26
+      ],
+      "target_size": [
+        45,
+        78
+      ],
+      "sha256": "2797b7dcc848053d81538796a8ed8d7f5fc0ec9fc25896c03c25231542df1737"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/jaw.png",
+      "source_size": [
+        32,
+        15
+      ],
+      "target_size": [
+        96,
+        45
+      ],
+      "sha256": "8026b63666b7a8d55a8ce7e814b8a74a4ede41a66757649ee12f6f1d752c7f8a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/neck.png",
+      "source_size": [
+        20,
+        21
+      ],
+      "target_size": [
+        60,
+        63
+      ],
+      "sha256": "c0ba5eedb24968243252c64547a9d58c9fac3fcf0dea58ade2d740e006f843a6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerarm_hand.png",
+      "source_size": [
+        25,
+        27
+      ],
+      "target_size": [
+        75,
+        81
+      ],
+      "sha256": "38d1cc623572801abda48b607f969bb56736a7ae24c8bdddd663ab5365b4fb3f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerarm_hand_2.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "9d177417e5b648f9f429bd4d023a31819227b419b4400656b22928511915c838"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerarm_lower.png",
+      "source_size": [
+        19,
+        28
+      ],
+      "target_size": [
+        57,
+        84
+      ],
+      "sha256": "d1b063175ff60bfcb3b1292803ec8fc84d357bb2183fa7f49c78d915a453d2de"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerarm_upper.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "2e1b7890686be0a0ac695dc9df8c6da3b9130f30faf3fbfc645f389af1202adb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerarm_upper_2.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "115b5cac9a17271779ac7ebf88ce7458d55c24cee225ba1441fda521b62f1863"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerleg_foot.png",
+      "source_size": [
+        42,
+        21
+      ],
+      "target_size": [
+        126,
+        63
+      ],
+      "sha256": "e73ab524eba839a123ffb3fbe8e975c592df983ff48d8841e8f0fb15a871ce91"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerleg_lower.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "a58af1e818525dfc78126aae7d055c972e8807439b18dd577b5134b799c68e48"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/outerleg_upper.png",
+      "source_size": [
+        21,
+        39
+      ],
+      "target_size": [
+        63,
+        117
+      ],
+      "sha256": "16eb118d184db30f21b898d2547043c60cfb1019b9c0993592943665deeaea7b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/tie.png",
+      "source_size": [
+        17,
+        30
+      ],
+      "target_size": [
+        51,
+        90
+      ],
+      "sha256": "7088edcdd3b4d7a34221f1f6a18b684fac2d6bc8f9cb912043ffffb41a22a781"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/conehead_zombie/tongue.png",
+      "source_size": [
+        10,
+        17
+      ],
+      "target_size": [
+        30,
+        51
+      ],
+      "sha256": "c8ba2373f24597e443b1e02932e40328c70df14620b320158e38e94af06d677e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/body.png",
+      "source_size": [
+        66,
+        73
+      ],
+      "target_size": [
+        198,
+        219
+      ],
+      "sha256": "eab3ea48d6b2127a2fdfa7d5be73740ab503937ba259367ec1c15255f3f1db71"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/glasses.png",
+      "source_size": [
+        50,
+        19
+      ],
+      "target_size": [
+        150,
+        57
+      ],
+      "sha256": "6ff119bc55f29c257fc766243b52c5d9af4f932a97d2cdb7f3152b68886c1f14"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/hairpiece.png",
+      "source_size": [
+        52,
+        23
+      ],
+      "target_size": [
+        156,
+        69
+      ],
+      "sha256": "33ba3765399d0064c522b7e017e0e7bebea767f3a9303525461ba7ba82a122be"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/hands.png",
+      "source_size": [
+        86,
+        82
+      ],
+      "target_size": [
+        258,
+        246
+      ],
+      "sha256": "12a79242c83449b8366dff8a9c653f9f9fba9673423a601db9c07b14b30ec4fb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/hands_2.png",
+      "source_size": [
+        86,
+        82
+      ],
+      "target_size": [
+        258,
+        246
+      ],
+      "sha256": "1ffa567b0fae23f9f53943ddab2b87fe8c939e1d18e70884895e4d9900cb3345"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/hands_3.png",
+      "source_size": [
+        86,
+        82
+      ],
+      "target_size": [
+        258,
+        246
+      ],
+      "sha256": "fc6fe26fbea006ef5234c852bbc91eaffeaf18a4cd2b099a03259ca2c5c12af6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/head_look.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "f976d2c11d7cfd32fc8bdd23d46fcee7b8cb1556134d0935678caec640ef6f28"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/leftarm_lower.png",
+      "source_size": [
+        47,
+        35
+      ],
+      "target_size": [
+        141,
+        105
+      ],
+      "sha256": "71c184366fd0fd859a6267181deafa5bfdd5300c827fe222a02126570d08bed9"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/leftarm_upper.png",
+      "source_size": [
+        36,
+        36
+      ],
+      "target_size": [
+        108,
+        108
+      ],
+      "sha256": "d7b8501ca50611558ab264db722139b908bac01e4031c86daa11b500ea63199f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/leftarm_upper_2.png",
+      "source_size": [
+        36,
+        36
+      ],
+      "target_size": [
+        108,
+        108
+      ],
+      "sha256": "c14299f6116e37d49a12f53ccb5967779a558b314c2dd28a705f84915f3f3596"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/leftfoot.png",
+      "source_size": [
+        45,
+        25
+      ],
+      "target_size": [
+        135,
+        75
+      ],
+      "sha256": "1e68983bbb07215d4644c316252eaf69a11de5473f1e4460e2feb2b118cc7c5d"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/leftleg_lower.png",
+      "source_size": [
+        23,
+        35
+      ],
+      "target_size": [
+        69,
+        105
+      ],
+      "sha256": "10d1a96351a38e00724f47fb54c90107f0b6c171dbe7ebf468e5d3dd98d4ec30"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/leftleg_upper.png",
+      "source_size": [
+        8,
+        11
+      ],
+      "target_size": [
+        24,
+        33
+      ],
+      "sha256": "db24d24fae657faad9a4dde901f173764b5d4abd0f6d62ef74425bd2986d6b7a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/lowerbody_1.png",
+      "source_size": [
+        59,
+        34
+      ],
+      "target_size": [
+        177,
+        102
+      ],
+      "sha256": "81ff0de141c477d82929197267b51cb1d72951ebfc30d99ea97fdd69e18e99e1"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/lowerbody_2.png",
+      "source_size": [
+        49,
+        14
+      ],
+      "target_size": [
+        147,
+        42
+      ],
+      "sha256": "4cbab7925b2bc8bdc7860b5ea86f0d0231d6fd7934e3b11f79e35557503051c5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/paper_1.png",
+      "source_size": [
+        86,
+        82
+      ],
+      "target_size": [
+        258,
+        246
+      ],
+      "sha256": "7defb822f337f3c09a1130e5b6341f1c27b6f2b89fa2f4c3a9f95f27c91c4ccc"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/paper_2.png",
+      "source_size": [
+        86,
+        82
+      ],
+      "target_size": [
+        258,
+        246
+      ],
+      "sha256": "e9be7af593083f96a86b20d87387c2dda65dc14e515e095f271e26d9018364dd"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/paper_3.png",
+      "source_size": [
+        86,
+        82
+      ],
+      "target_size": [
+        258,
+        246
+      ],
+      "sha256": "8703c32776d329e327f993ece926ac2e613ce11db951a2fbf3f469fb646bf142"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/rightarm_lower.png",
+      "source_size": [
+        42,
+        32
+      ],
+      "target_size": [
+        126,
+        96
+      ],
+      "sha256": "f6b1f75b96ac11394397caa8887c1525a9b14e95387dba98b3923cc135095b86"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/rightarm_upper.png",
+      "source_size": [
+        33,
+        30
+      ],
+      "target_size": [
+        99,
+        90
+      ],
+      "sha256": "217903fbb222bbd1cd6cd1d4ee7a1f6c00fb4191bc11ed8ee7ef8db3300f948a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/rightfoot.png",
+      "source_size": [
+        37,
+        23
+      ],
+      "target_size": [
+        111,
+        69
+      ],
+      "sha256": "b33e58fae7e32652dd9fd85191c69104f7d555763e70537440286185902547f0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/rightleg_lower.png",
+      "source_size": [
+        26,
+        24
+      ],
+      "target_size": [
+        78,
+        72
+      ],
+      "sha256": "fa8ee4b64aac76f87244d219afcba0baf7c5f4ba5e3a9f291bbcab8ae4ccadf1"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/rightleg_upper.png",
+      "source_size": [
+        14,
+        16
+      ],
+      "target_size": [
+        42,
+        48
+      ],
+      "sha256": "6aa4c83364339dbcf875be232458af272e603b860c568e56cc51771f4d8a3c7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/zombie_hair.png",
+      "source_size": [
+        64,
+        31
+      ],
+      "target_size": [
+        192,
+        93
+      ],
+      "sha256": "4859a84d14204372176ae1b866a2ceb1d60dae330664dcd3276f536399e16302"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/zombie_head.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "2d10d22a0ec751a2fe8f7b0e2ecbbe4cb0a8dd729983d717e9d199d0ef243b7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/zombie_jaw.png",
+      "source_size": [
+        32,
+        15
+      ],
+      "target_size": [
+        96,
+        45
+      ],
+      "sha256": "8026b63666b7a8d55a8ce7e814b8a74a4ede41a66757649ee12f6f1d752c7f8a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/armored/newspaper_zombie/zombie_pupils.png",
+      "source_size": [
+        31,
+        4
+      ],
+      "target_size": [
+        93,
+        12
+      ],
+      "sha256": "02b71288ac6ed07918b1b5c57400adea990b56b0bcfa365c0dd70e6ebf0ad590"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/body.png",
+      "source_size": [
+        53,
+        63
+      ],
+      "target_size": [
+        159,
+        189
+      ],
+      "sha256": "5ff3377439a0d05b32f08d0885ae89efe1025ed15a294e241df042b860daf062"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/hair.png",
+      "source_size": [
+        64,
+        31
+      ],
+      "target_size": [
+        192,
+        93
+      ],
+      "sha256": "4859a84d14204372176ae1b866a2ceb1d60dae330664dcd3276f536399e16302"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/head.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "2d10d22a0ec751a2fe8f7b0e2ecbbe4cb0a8dd729983d717e9d199d0ef243b7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/innerarm_hand.png",
+      "source_size": [
+        20,
+        23
+      ],
+      "target_size": [
+        60,
+        69
+      ],
+      "sha256": "eacfea3d9742212265adcbc836f50a3cc793adfd0e5c94f3bba402eaccc2eb27"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/innerarm_lower.png",
+      "source_size": [
+        19,
+        24
+      ],
+      "target_size": [
+        57,
+        72
+      ],
+      "sha256": "4125e60261c204d30892a33a165459b3ae2c0e1e27864090a2f9d7418238700b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/innerarm_upper.png",
+      "source_size": [
+        15,
+        25
+      ],
+      "target_size": [
+        45,
+        75
+      ],
+      "sha256": "b08aa8e15d78f3cdd27cabd68a196290c014a2d87cc422800f1861832b1cce73"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/innerleg_foot.png",
+      "source_size": [
+        27,
+        17
+      ],
+      "target_size": [
+        81,
+        51
+      ],
+      "sha256": "1b445629651cbaf8d38057549eed992fa1652d8fba842666ea9ec2b842714aa5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/innerleg_lower.png",
+      "source_size": [
+        32,
+        36
+      ],
+      "target_size": [
+        96,
+        108
+      ],
+      "sha256": "3a2d8d78116e42dfc922fe281952496121cbf967afaba6fbf436a57f36309858"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/innerleg_upper.png",
+      "source_size": [
+        15,
+        26
+      ],
+      "target_size": [
+        45,
+        78
+      ],
+      "sha256": "2797b7dcc848053d81538796a8ed8d7f5fc0ec9fc25896c03c25231542df1737"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/jaw.png",
+      "source_size": [
+        32,
+        15
+      ],
+      "target_size": [
+        96,
+        45
+      ],
+      "sha256": "8026b63666b7a8d55a8ce7e814b8a74a4ede41a66757649ee12f6f1d752c7f8a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/neck.png",
+      "source_size": [
+        20,
+        21
+      ],
+      "target_size": [
+        60,
+        63
+      ],
+      "sha256": "c0ba5eedb24968243252c64547a9d58c9fac3fcf0dea58ade2d740e006f843a6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerarm_hand.png",
+      "source_size": [
+        25,
+        27
+      ],
+      "target_size": [
+        75,
+        81
+      ],
+      "sha256": "38d1cc623572801abda48b607f969bb56736a7ae24c8bdddd663ab5365b4fb3f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerarm_hand_2.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "9d177417e5b648f9f429bd4d023a31819227b419b4400656b22928511915c838"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerarm_lower.png",
+      "source_size": [
+        19,
+        28
+      ],
+      "target_size": [
+        57,
+        84
+      ],
+      "sha256": "d1b063175ff60bfcb3b1292803ec8fc84d357bb2183fa7f49c78d915a453d2de"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerarm_upper.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "2e1b7890686be0a0ac695dc9df8c6da3b9130f30faf3fbfc645f389af1202adb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerarm_upper_2.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "115b5cac9a17271779ac7ebf88ce7458d55c24cee225ba1441fda521b62f1863"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerleg_foot.png",
+      "source_size": [
+        42,
+        21
+      ],
+      "target_size": [
+        126,
+        63
+      ],
+      "sha256": "e73ab524eba839a123ffb3fbe8e975c592df983ff48d8841e8f0fb15a871ce91"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerleg_lower.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "a58af1e818525dfc78126aae7d055c972e8807439b18dd577b5134b799c68e48"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/outerleg_upper.png",
+      "source_size": [
+        21,
+        39
+      ],
+      "target_size": [
+        63,
+        117
+      ],
+      "sha256": "16eb118d184db30f21b898d2547043c60cfb1019b9c0993592943665deeaea7b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/tie.png",
+      "source_size": [
+        17,
+        30
+      ],
+      "target_size": [
+        51,
+        90
+      ],
+      "sha256": "7088edcdd3b4d7a34221f1f6a18b684fac2d6bc8f9cb912043ffffb41a22a781"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/basic_zombie/tongue.png",
+      "source_size": [
+        10,
+        17
+      ],
+      "target_size": [
+        30,
+        51
+      ],
+      "sha256": "c8ba2373f24597e443b1e02932e40328c70df14620b320158e38e94af06d677e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/body.png",
+      "source_size": [
+        53,
+        63
+      ],
+      "target_size": [
+        159,
+        189
+      ],
+      "sha256": "5ff3377439a0d05b32f08d0885ae89efe1025ed15a294e241df042b860daf062"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/flaghand.png",
+      "source_size": [
+        19,
+        25
+      ],
+      "target_size": [
+        57,
+        75
+      ],
+      "sha256": "441555f87d51824701c7b99f774e24be09ac39e69593efc939701a892f45e502"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/hair.png",
+      "source_size": [
+        64,
+        31
+      ],
+      "target_size": [
+        192,
+        93
+      ],
+      "sha256": "4859a84d14204372176ae1b866a2ceb1d60dae330664dcd3276f536399e16302"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/head.png",
+      "source_size": [
+        53,
+        48
+      ],
+      "target_size": [
+        159,
+        144
+      ],
+      "sha256": "2d10d22a0ec751a2fe8f7b0e2ecbbe4cb0a8dd729983d717e9d199d0ef243b7f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/innerarm_hand.png",
+      "source_size": [
+        20,
+        23
+      ],
+      "target_size": [
+        60,
+        69
+      ],
+      "sha256": "eacfea3d9742212265adcbc836f50a3cc793adfd0e5c94f3bba402eaccc2eb27"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/innerarm_lower.png",
+      "source_size": [
+        19,
+        24
+      ],
+      "target_size": [
+        57,
+        72
+      ],
+      "sha256": "4125e60261c204d30892a33a165459b3ae2c0e1e27864090a2f9d7418238700b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/innerarm_upper.png",
+      "source_size": [
+        15,
+        25
+      ],
+      "target_size": [
+        45,
+        75
+      ],
+      "sha256": "b08aa8e15d78f3cdd27cabd68a196290c014a2d87cc422800f1861832b1cce73"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/innerleg_foot.png",
+      "source_size": [
+        27,
+        17
+      ],
+      "target_size": [
+        81,
+        51
+      ],
+      "sha256": "1b445629651cbaf8d38057549eed992fa1652d8fba842666ea9ec2b842714aa5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/innerleg_lower.png",
+      "source_size": [
+        32,
+        36
+      ],
+      "target_size": [
+        96,
+        108
+      ],
+      "sha256": "3a2d8d78116e42dfc922fe281952496121cbf967afaba6fbf436a57f36309858"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/innerleg_upper.png",
+      "source_size": [
+        15,
+        26
+      ],
+      "target_size": [
+        45,
+        78
+      ],
+      "sha256": "2797b7dcc848053d81538796a8ed8d7f5fc0ec9fc25896c03c25231542df1737"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/jaw.png",
+      "source_size": [
+        32,
+        15
+      ],
+      "target_size": [
+        96,
+        45
+      ],
+      "sha256": "8026b63666b7a8d55a8ce7e814b8a74a4ede41a66757649ee12f6f1d752c7f8a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/neck.png",
+      "source_size": [
+        20,
+        21
+      ],
+      "target_size": [
+        60,
+        63
+      ],
+      "sha256": "c0ba5eedb24968243252c64547a9d58c9fac3fcf0dea58ade2d740e006f843a6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerarm_hand.png",
+      "source_size": [
+        25,
+        27
+      ],
+      "target_size": [
+        75,
+        81
+      ],
+      "sha256": "38d1cc623572801abda48b607f969bb56736a7ae24c8bdddd663ab5365b4fb3f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerarm_hand_2.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "9d177417e5b648f9f429bd4d023a31819227b419b4400656b22928511915c838"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerarm_lower.png",
+      "source_size": [
+        19,
+        28
+      ],
+      "target_size": [
+        57,
+        84
+      ],
+      "sha256": "d1b063175ff60bfcb3b1292803ec8fc84d357bb2183fa7f49c78d915a453d2de"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerarm_upper.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "2e1b7890686be0a0ac695dc9df8c6da3b9130f30faf3fbfc645f389af1202adb"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerarm_upper_2.png",
+      "source_size": [
+        17,
+        35
+      ],
+      "target_size": [
+        51,
+        105
+      ],
+      "sha256": "115b5cac9a17271779ac7ebf88ce7458d55c24cee225ba1441fda521b62f1863"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerleg_foot.png",
+      "source_size": [
+        42,
+        21
+      ],
+      "target_size": [
+        126,
+        63
+      ],
+      "sha256": "e73ab524eba839a123ffb3fbe8e975c592df983ff48d8841e8f0fb15a871ce91"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerleg_lower.png",
+      "source_size": [
+        24,
+        30
+      ],
+      "target_size": [
+        72,
+        90
+      ],
+      "sha256": "a58af1e818525dfc78126aae7d055c972e8807439b18dd577b5134b799c68e48"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/outerleg_upper.png",
+      "source_size": [
+        21,
+        39
+      ],
+      "target_size": [
+        63,
+        117
+      ],
+      "sha256": "16eb118d184db30f21b898d2547043c60cfb1019b9c0993592943665deeaea7b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/part.png",
+      "source_size": [
+        86,
+        110
+      ],
+      "target_size": [
+        258,
+        330
+      ],
+      "sha256": "02c2cbf4398fe0df28f10f54df6e1397f2842c541f18ac1fa97aaec24dfb9ca7"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/tie.png",
+      "source_size": [
+        17,
+        30
+      ],
+      "target_size": [
+        51,
+        90
+      ],
+      "sha256": "7088edcdd3b4d7a34221f1f6a18b684fac2d6bc8f9cb912043ffffb41a22a781"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/tongue.png",
+      "source_size": [
+        10,
+        17
+      ],
+      "target_size": [
+        30,
+        51
+      ],
+      "sha256": "c8ba2373f24597e443b1e02932e40328c70df14620b320158e38e94af06d677e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/zombie_flag_1.png",
+      "source_size": [
+        62,
+        67
+      ],
+      "target_size": [
+        186,
+        201
+      ],
+      "sha256": "4b8b9dc1aa028fdf92b0cf05c82b54cac27ce7d22b93595485f730ac38f01135"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/entities/zombie/basic/flag_zombie/zombie_flag_3.png",
+      "source_size": [
+        62,
+        67
+      ],
+      "target_size": [
+        186,
+        201
+      ],
+      "sha256": "7bfa5793106b669b65c71d35cae2bc8ec01723808a2eae88b48ccc15ae3efce6"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/balloon_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "4f3235e3ba4ba5f2925c97d3f0dc33e2fd8974915364b89b940493cdaa845c15"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/bungee_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "df832b81d06f1679a523ffdbb1326f07e431ce5052c172a4188347fa9a6d12b0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/catapult.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "cc93ee6f6e9a4e251b344502c29c25f19d0bc3788503f4ad1aa6ce71598563f8"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/dancing_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "709973ac1f7a8e54b851d990aed41b164494e8eab475ba7d2f6d4fee9ba5afca"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/door_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "25442c192c4a36f3073f0231fa004dee0a8c85a5a4f116d9c523ceff3aef16a2"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/fertilizer.png",
+      "source_size": [
+        80,
+        80
+      ],
+      "target_size": [
+        160,
+        160
+      ],
+      "sha256": "62b72174309136c697892cdcec827c384a2de7edaa273448976b80b7fc506f8b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/garlic.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "d58405e1515a8d9ae4b0dba26b48b25dd86dbe6addd67be559aced29d0c92e31"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/gloom_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "1f09dfdc027e84a20e0621fd1a893faca7ff9e7e4b85e2721471bd36d41a6b19"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/imp.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "c520ef2d3583d9a9cce74b05ee9a6b58b437b6feafc1675a4fb09c9d2cce1b19"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/kernel_pult.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "26195c6ebf59ca808bf72d0f2990f9f71a0e2d3466ed7fd7ee8febf7c380a0c5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/ladder.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "aef629e9bf586f5f885a408c3fa2681394f56018000786c6c3a509be11d11c2b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/miner_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "2728465430eff00f06461ff862ceb24eebc8ffb439e751be2d7e4916d65387a5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/puff_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "cc0adbb601243991664e526e207959dfb7f1cd38e8bbda19cc98e9ab778c17c3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/split_pea.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "ff6064594dc6b37ba4a9568c4f9ca15011b7c399aabc890b59787f3d4352d56d"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/umbrella_leaf.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "6574223cac2613de1055c79b730e9445ce3cbc4601810d49952a3f0284d94201"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/cards/vase.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "27b7d47907ef595c5fdf43806bf4319b60f9dc8c46e3878a41f192b5b2ea9c5f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/textures/gui/hud/i_zombie_brain.png",
+      "source_size": [
+        32,
+        31
+      ],
+      "target_size": [
+        96,
+        93
+      ],
+      "sha256": "46d703b8f334e8071e6ef30655dc70725d09777f0f58ba0a168ed95ad437130e"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/butter.png",
+      "source_size": [
+        49,
+        50
+      ],
+      "target_size": [
+        147,
+        150
+      ],
+      "sha256": "757392800a53b514c03845d94306fdf3021499bf521e8b0804376b67c8a4cec6"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/cabbage.png",
+      "source_size": [
+        30,
+        27
+      ],
+      "target_size": [
+        90,
+        81
+      ],
+      "sha256": "ff8c5454affd1ec79844240781f99af9d736a0e955411577f2d2533d9a664eed"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/cattail_spike.png",
+      "source_size": [
+        15,
+        21
+      ],
+      "target_size": [
+        45,
+        63
+      ],
+      "sha256": "45330e605f0cab58cf02842d15f862683d814e27c53dcd6a67aaa0d09391b978"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/cob.png",
+      "source_size": [
+        162,
+        78
+      ],
+      "target_size": [
+        324,
+        156
+      ],
+      "sha256": "08b652854444562397e285a1fd9ec513251f74734aa4537f7b2f508e0fd2d3b7"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/frozen_pea.png",
+      "source_size": [
+        28,
+        28
+      ],
+      "target_size": [
+        84,
+        84
+      ],
+      "sha256": "33f1def7c2c335f832af3c733bec0ce5eca316bd941bcb0732093c88e7a4e0e3"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/fume.png",
+      "source_size": [
+        32,
+        27
+      ],
+      "target_size": [
+        96,
+        81
+      ],
+      "sha256": "468daecce3e60fbdfb3801e5ea75d806a4b527aab40599d4f2d83bd56380378a"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/iceboom_bolt.png",
+      "source_size": [
+        240,
+        162
+      ],
+      "target_size": [
+        480,
+        324
+      ],
+      "sha256": "8ec6a42e4d3c9e336f141f56ed7b80368032f214b976e1e9cc43c1af7d15c603"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/kernel.png",
+      "source_size": [
+        21,
+        22
+      ],
+      "target_size": [
+        63,
+        66
+      ],
+      "sha256": "02b3a75725abc57f8e42ef069a3991b6d88535ef2737a5dd824d886fa5e2f087"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/melon.png",
+      "source_size": [
+        55,
+        48
+      ],
+      "target_size": [
+        165,
+        144
+      ],
+      "sha256": "1a90890a80fd3d82b17293869c5e5677ac2b2d2f4eef7284563f917612a0d4f9"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/pea.png",
+      "source_size": [
+        28,
+        28
+      ],
+      "target_size": [
+        84,
+        84
+      ],
+      "sha256": "c7dc1eedf6cf573458ab35de1694db07fc11dba898a02413c6875c8246f5129e"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/puff.png",
+      "source_size": [
+        54,
+        53
+      ],
+      "target_size": [
+        162,
+        159
+      ],
+      "sha256": "2f04da1589e145210600cff504b1f413b9265bdc1d38b174faaf9313b217575a"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/projectile/winter_melon.png",
+      "source_size": [
+        64,
+        43
+      ],
+      "target_size": [
+        192,
+        129
+      ],
+      "sha256": "8603a6deaa0a4ff29be750d10413fa71a42d820d70a21402135917f426ad6f53"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/resource/energy_bean.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "446e1788ef627ad4346931407e785905b07c8529c9e8c84353dc72a856771988"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/resource/money_bag.png",
+      "source_size": [
+        182,
+        171
+      ],
+      "target_size": [
+        364,
+        342
+      ],
+      "sha256": "871096a1e42da04d5900b76f582514e048d2be8b2f4ef320f478854afc8b8a12"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/resource/redstone.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "f07af71b955ea9c4c7e131514de3d7c22cd968001ab1108acd6004b4e4f009c4"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/tool/glove.png",
+      "source_size": [
+        80,
+        80
+      ],
+      "target_size": [
+        240,
+        240
+      ],
+      "sha256": "8c2edf435ca8d985301a130530d0ecfd38b51de5af004c94e4c1667f8586b1cf"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/entities/tool/shovel.png",
+      "source_size": [
+        116,
+        125
+      ],
+      "target_size": [
+        348,
+        375
+      ],
+      "sha256": "2055d8db7f94ef23664e867305e0b52b4ba14cedf750012b2e8a3ba2a5df178b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/button_close.png",
+      "source_size": [
+        89,
+        26
+      ],
+      "target_size": [
+        267,
+        78
+      ],
+      "sha256": "d6e5f545696feb303a61e5ab78028cd602ed0b7ef300268ef03f663e90ac65b7"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/button_close_highlight.png",
+      "source_size": [
+        89,
+        26
+      ],
+      "target_size": [
+        267,
+        78
+      ],
+      "sha256": "bdd560ed753b2a0858743e692a44914ac9a17506386526a80d6ad426a5078b08"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/button_index.png",
+      "source_size": [
+        164,
+        26
+      ],
+      "target_size": [
+        492,
+        78
+      ],
+      "sha256": "87041fa2ab376d35e8b017bdbf04cd6378f4cba1be07f9e437d2daa4bcec2959"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/button_index_highlight.png",
+      "source_size": [
+        164,
+        26
+      ],
+      "target_size": [
+        492,
+        78
+      ],
+      "sha256": "69d8a3b3583635deb75cbd3ff8b2682e04361cebc7e28361430a04221fa3ffe6"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/plant_card.png",
+      "source_size": [
+        324,
+        484
+      ],
+      "target_size": [
+        778,
+        1162
+      ],
+      "sha256": "c13b9a29b022bc55f248ed4d8ba4d05717400fbe3bd86158edebedd308bf9409"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/zombie_card.png",
+      "source_size": [
+        324,
+        497
+      ],
+      "target_size": [
+        778,
+        1193
+      ],
+      "sha256": "7fa53534b3907cd72b4cb4ba5edbb6a6358b0c648e0f6352ae2c255fe833432f"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/zombie_window_blank.png",
+      "source_size": [
+        76,
+        76
+      ],
+      "target_size": [
+        228,
+        228
+      ],
+      "sha256": "c87800f4949e3ed6fce4785f71fb3af517274aca1f350ff7b3b2ff9d73b95b63"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/zombie_window_fill.png",
+      "source_size": [
+        76,
+        76
+      ],
+      "target_size": [
+        228,
+        228
+      ],
+      "sha256": "18c24ea67a7214865bd790691977c40ace6260fab2b2e5a93bc2f66765b79614"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/almanac/zombie_window_frame.png",
+      "source_size": [
+        76,
+        76
+      ],
+      "target_size": [
+        228,
+        228
+      ],
+      "sha256": "adb09c8a678dc2f633032e627a8e7a635059ec89eeb5bee54aa360c907cef052"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/award/coin_bank.png",
+      "source_size": [
+        128,
+        31
+      ],
+      "target_size": [
+        256,
+        62
+      ],
+      "sha256": "c2b839d2477b7bdb008c4ee8f043d26869dadcd9ef52f5caae1341eaf84b888d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/award/money_bag.png",
+      "source_size": [
+        182,
+        171
+      ],
+      "target_size": [
+        364,
+        342
+      ],
+      "sha256": "871096a1e42da04d5900b76f582514e048d2be8b2f4ef320f478854afc8b8a12"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/button/button_down_left.png",
+      "source_size": [
+        36,
+        46
+      ],
+      "target_size": [
+        108,
+        138
+      ],
+      "sha256": "643a9fce890c42305e0d7e56a74d302505110a2c6f19ec3cd745a0866e62868d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/button/button_down_middle.png",
+      "source_size": [
+        46,
+        46
+      ],
+      "target_size": [
+        138,
+        138
+      ],
+      "sha256": "11e34ff05b5108f05826fac2625d36333efa9bb6eff8e6660454689c0e2ad9dd"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/button/button_down_right.png",
+      "source_size": [
+        35,
+        46
+      ],
+      "target_size": [
+        105,
+        138
+      ],
+      "sha256": "9b4e3955becf642ec56f346b00b53d71e193653f1fd95f6c64f54dd6d0939e3a"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/button/button_left.png",
+      "source_size": [
+        36,
+        46
+      ],
+      "target_size": [
+        108,
+        138
+      ],
+      "sha256": "f527706ffbd8f1709cb5a13316f831dccd56da49586dc4662bd14c265ae97a0c"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/button/button_middle.png",
+      "source_size": [
+        46,
+        46
+      ],
+      "target_size": [
+        138,
+        138
+      ],
+      "sha256": "c9a1876efea74af459bbf870eb698bce72352dabd91a42539bb62481681a9323"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/button/button_right.png",
+      "source_size": [
+        35,
+        46
+      ],
+      "target_size": [
+        105,
+        138
+      ],
+      "sha256": "8b96a15e3c03556c7ea1a279be6ca904533514fc1e6ef7ec12c0886ffc2ef8c5"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/balloon_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "4f3235e3ba4ba5f2925c97d3f0dc33e2fd8974915364b89b940493cdaa845c15"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/basic_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "e32650a880d2f15ccd5e182cd9bde0e6abdd3a0efa8ffeba059bb9fe8f79ba8e"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/blover.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "215f7a382ffeeb1fb986040fd7455e8c6b797c424869f2860e11d9f2151cacb2"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/buckethead_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "d863e220c60ba013b678ac018164c8ae26779d5083ddca5c4e6b467e1cc77515"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/bungee_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "df832b81d06f1679a523ffdbb1326f07e431ce5052c172a4188347fa9a6d12b0"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/cabbage_pult.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "c782dbb5d8dd679a5997e383bf2b7b3042134121f0d016d46adcccfe4819f773"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/cactus.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "60b2de651d66c66f8d7eb473c53ee39ac57193be38b8f524c99264c8e73e2e80"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/cattail.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "be9549a99d36570fa006900a6dd81036524571188e5dccf6887226e58a417c22"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/cherry_bomb.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "8146f44d674efd4cc3ed4e8455091a9816284c2d856eeb23162e064830d56bc2"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/chomper.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "f5b911ac3a5a7ed3c1f9b80fb94eefd924f1536da1986fd9c900d8f7f2ea6b76"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/cob_cannon.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "bcec17d0b88a212cb16f53baf683d7167ce2a9c92287189dc92a4352ce220d63"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/coffee_bean.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "67ae5a15dfc3ef6a8cfe50c0d3ebacd7f8c980e113731e8d7a646bf73ab7ce1d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/conehead_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "b05b7df782ae5e3cd92d3be996d92db37f7d8c1ce9e64913cc1d1a040165c303"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/dancing_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "709973ac1f7a8e54b851d990aed41b164494e8eab475ba7d2f6d4fee9ba5afca"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/doom_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "8e293e9ed0fa1e5d65dc523ef194e5b3b42e700490b6cd19816b26f49240d3a1"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/door_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "25442c192c4a36f3073f0231fa004dee0a8c85a5a4f116d9c523ceff3aef16a2"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/echo_lily.png",
+      "source_size": [
+        512,
+        512
+      ],
+      "target_size": [
+        1024,
+        1024
+      ],
+      "sha256": "b0f759a30d9c954e13c9afa42d93c51c7d2c45e664df171692ec94eafaab05c8"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/explosive_nut.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "e72b41fc9921fdfba35d3d6e19e7c2c43345720c7e785cadb16083b996cb66ce"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/flower_pot.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "8445f42ca4caa24951d2abc783dd0f810e82c3edf9a2695990bd1534532bc4ea"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/football_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "94fdb84afa45917af1462a2013bdacc3ea9e726eb9b5aa2f568af608d126d736"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/fume_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "4fe02fb6bb383594a02ae435014db892899b940d3f4bc984082e09b255a155ea"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/gargantuar.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "dd77287d1b2794fea3c878cf43159c43ecd335c0c7d7d6b2a57fb88424d7e01f"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/gatling_pea.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "93120fef59675725bbacc73728be1780b523d15ba2839486492b36f11f9fb0e4"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/giant_nut.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "3d5190097a00fc60dc208cbc9290a5c124e37ca59f087a924fccbfbe4beb3e1e"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/gloom_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "1f09dfdc027e84a20e0621fd1a893faca7ff9e7e4b85e2721471bd36d41a6b19"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/gold_magnet.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "521b58d94f6c93b593ec609a55fc061ac12217eab7424f64e097ac8ef5582c6d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/grave_buster.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "fc6a66f044937f2f7c1ba22236ce1340f4f11dd9bef0538896cc5f37f0670ef2"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/hammer.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "0ce5d804171336545b4a0ad5ce2df74faa02ae217ce063a265b4e19cd29f38e2"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/hypno_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "70e36151a2a2c00f5e8bff893df6b339cefe88a42b360cd0594066b9011321d6"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/ice_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "12f47f70bce740f32084e5c10ba0c508f02468ea8cfd6d35acea8e811f97939b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/iceboom_shroom.png",
+      "source_size": [
+        512,
+        512
+      ],
+      "target_size": [
+        1024,
+        1024
+      ],
+      "sha256": "8f309b15e3a16899b71fa0730345fb95713d956941ac2835f28af882083229c9"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/imp.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "c520ef2d3583d9a9cce74b05ee9a6b58b437b6feafc1675a4fb09c9d2cce1b19"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/jalapeno.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "f17d7444f5270da7ab1c559c76feeb5f8d507c6d2f62ca1eb869689bf86799d9"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/kernel_pult.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "26195c6ebf59ca808bf72d0f2990f9f71a0e2d3466ed7fd7ee8febf7c380a0c5"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/lily_pad.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "663f33bce777e5157b393dd17c20ae3690a9e2784a297a37cca2468996e25eab"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/magnet_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "a67a60bdb241b83109a609fcc61e5bbcbf432b2ae4987265e06c3c8147f6c002"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/marigold.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "9f518e0abd3f22473bb701087d0723923038e25eb0781d8dd89e2f09ac7d1ccf"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/melon_pult.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "894fd690c1b762368b5720c05ac4214e9c25eb916b29fcb9024bb80ad9909b2c"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/miner_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "2728465430eff00f06461ff862ceb24eebc8ffb439e751be2d7e4916d65387a5"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/pea_shooter.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "820d6b2eb62044f661c4f52077b43e105153b6b60593567fc35228e5967b2640"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/plantern.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "3d71757fa1cd3ec0710828e8fb8d211444faa6be6c1e4f25529e1a4cd26afa81"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/pole_vaulter_zombie.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "9c920c1ec3fa7abda40e770f1e6d33748d160d0dcccaa9ec2b8f588f1d19bb14"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/potato_mine.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "a15c0b76bcef619a71ff99791afe28c67f2d7325bde6613dc43056836a36f12d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/puff_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "cc0adbb601243991664e526e207959dfb7f1cd38e8bbda19cc98e9ab778c17c3"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/pumpkin.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "aa8316f8744897c1769be7dbb8490d513712b1c53b518f0ae3297e58c682712f"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/rake.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        128,
+        128
+      ],
+      "sha256": "79ca9c8c56e7c9093beac77c0191727e060488d8965657a47e250b6543f29f96"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/repeater.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "efc94de0c8ca1c72c8dff699ab1447e2bd2b4c614e65a51dfaf2e331e84acffd"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/resonance_moss.png",
+      "source_size": [
+        512,
+        512
+      ],
+      "target_size": [
+        1024,
+        1024
+      ],
+      "sha256": "dbce3ae5b3fddba2a910323fc049408f0264e8ce45f256a2a244ae540b8dcba0"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/scaredy_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "6016652ff63bd627f9d7bb74ff36409e0902be6588c0ee12e814eaaa9f8ee319"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/sea_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "807c977626a32970b8af92b14dc8c8d121459d1a75c8e817130c596058ec8c4d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/snow_pea.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "c7026269c7392769f3946eec1b17ffa34c0150aac46d26cd26b5bd25272a074b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/spikerock.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "ecd7a491c6dc0d6913e884a544c7a547671dde2b742e42f3b0d57716106849ff"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/spikeweed.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "d6bb589cb06b98d3766932b8d957ff2895f32572a3b8d40463d5a9c10f58b401"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/split_pea.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "e2ae4775d8b1330800478943bc56262aa1219594b1fd0e1d29f95da0969bff61"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/squash.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "66de4a9a3d66146aceb55b354deb7a089d27fa852ae527b6d2b758842f41853b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/starfruit.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "3907c075911ea9a23bdfa435fbed6d1a8f45bedce23bb44f8efa453208598716"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/sun_shroom.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "f70dfcd35f163e92ac1b8275b5c794e4a691a52bc13ebfdec0e43ff4276f3026"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/sunflower.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "b0027206f9c1e7de02110e338bc988ecfa30d04e75ca575e2714511f79cc5070"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/tall_nut.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "45fed2c43f035a352d8368fcab6a942fbd17aebad1f0416c5dff2d99d04b532f"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/tangle_kelp.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "ff56d15b2b6e118a48caebdcbdb8b419d930a1c7b75f5ac5c8d99486a959d30d"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/threepeater.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "ff150ea6dd44817b51001a50b162996e30d094181ea9b11fb2d9b679458a4530"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/torchwood.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "07547c4b41ccfed63bb2795694116cd41a077eb086a78ba1d3610ddc8651a401"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/twin_sunflower.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "6061ba90a66ca46831669b8591d19d0fc70f77b38d13c78219357b8ec57f4694"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/vase.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "27b7d47907ef595c5fdf43806bf4319b60f9dc8c46e3878a41f192b5b2ea9c5f"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/wall_nut.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "3d5190097a00fc60dc208cbc9290a5c124e37ca59f087a924fccbfbe4beb3e1e"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/watering_can.png",
+      "source_size": [
+        80,
+        80
+      ],
+      "target_size": [
+        160,
+        160
+      ],
+      "sha256": "dedba577a39287f18ded716cb3c8dde19e2078ea583fb59d6eef2c7a1b433367"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/cards/winter_melon.png",
+      "source_size": [
+        128,
+        128
+      ],
+      "target_size": [
+        256,
+        256
+      ],
+      "sha256": "dbf66e86801b2bdd218d1f5ea913c74fd5456a117fb95026b421a9342b2c2b58"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_bigbottomleft.png",
+      "source_size": [
+        107,
+        148
+      ],
+      "target_size": [
+        321,
+        444
+      ],
+      "sha256": "41befc5b0c8a23446538e242d4235e1bee8a762925b250ce90af14ebb44f6618"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_bigbottommiddle.png",
+      "source_size": [
+        93,
+        150
+      ],
+      "target_size": [
+        279,
+        450
+      ],
+      "sha256": "311714daf24410be020e75098e6fb85c0c487cbe6a51b460c25d4a70f302f164"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_bigbottomright.png",
+      "source_size": [
+        120,
+        150
+      ],
+      "target_size": [
+        360,
+        450
+      ],
+      "sha256": "dd8b5fa88bc90451a57add8d88f4b508f3e0b2e46a95abb1061f13e3f5307f8a"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_bottomleft.png",
+      "source_size": [
+        107,
+        112
+      ],
+      "target_size": [
+        321,
+        336
+      ],
+      "sha256": "f2015b45a065845ff232d7f375b7e1ba20bb3b60db6a46531af485f854ba002a"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_bottommiddle.png",
+      "source_size": [
+        93,
+        114
+      ],
+      "target_size": [
+        279,
+        342
+      ],
+      "sha256": "4692c646da5d62c502ef6e11452bee90661960c1b8669b90f3b5116d8bd6897b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_bottomright.png",
+      "source_size": [
+        120,
+        114
+      ],
+      "target_size": [
+        360,
+        342
+      ],
+      "sha256": "d9b9161f554e9874a23d4775b951f7346c038fc6d494b83f9d3801fa67a95afc"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_centerleft.png",
+      "source_size": [
+        107,
+        54
+      ],
+      "target_size": [
+        321,
+        162
+      ],
+      "sha256": "1d6ad2264bf8d0a02edc4334925da135d7f27b824261c6b4c105b56c57a7809f"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_centermiddle.png",
+      "source_size": [
+        93,
+        54
+      ],
+      "target_size": [
+        279,
+        162
+      ],
+      "sha256": "1d6a8644e40a5be76033b2fb2eee52f18d722ea95b9a3253942d6d10b5ef8fe2"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_centerright.png",
+      "source_size": [
+        117,
+        54
+      ],
+      "target_size": [
+        351,
+        162
+      ],
+      "sha256": "d3d076140cc0a15dba78abf6c2ff53a934a1ce0b95e4e3c1f71717acb000f562"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_header.png",
+      "source_size": [
+        187,
+        64
+      ],
+      "target_size": [
+        561,
+        192
+      ],
+      "sha256": "89a4406305a92930ef6c10b96cfa0e3f179b0eb99a9936285375ff1fcb5eee69"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_topleft.png",
+      "source_size": [
+        107,
+        97
+      ],
+      "target_size": [
+        321,
+        291
+      ],
+      "sha256": "7d293879c0a665c128ac84842399471b0263dbf98953a6da6e71247a80c4fbd4"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_topmiddle.png",
+      "source_size": [
+        93,
+        97
+      ],
+      "target_size": [
+        279,
+        291
+      ],
+      "sha256": "91473166c6ee151f1cf1d93eae191e37f267dca8eca423416458378b0d204ba5"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/dialog/dialog_topright.png",
+      "source_size": [
+        120,
+        97
+      ],
+      "target_size": [
+        360,
+        291
+      ],
+      "sha256": "83a4f1c879119334e66c221a734f0446d642ff4f38b6868d37ce850b1f5195d7"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/conveyor_belt.png",
+      "source_size": [
+        502,
+        96
+      ],
+      "target_size": [
+        1506,
+        288
+      ],
+      "sha256": "08d577320c7fb484170909860ae7b005bafc8a2f9b351981de1953d0c51a0142"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/down_arrow.png",
+      "source_size": [
+        32,
+        26
+      ],
+      "target_size": [
+        96,
+        78
+      ],
+      "sha256": "e6d315155dfa540acda64afdb444c1b6668f29bb04021393e8845788545bfdb1"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/flag_meter.png",
+      "source_size": [
+        158,
+        54
+      ],
+      "target_size": [
+        474,
+        162
+      ],
+      "sha256": "513f37003a2cdff7ad399620e2e2899a390cead7470b71042d196e9f4d2e6f80"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/flag_meter_parts.png",
+      "source_size": [
+        75,
+        25
+      ],
+      "target_size": [
+        225,
+        75
+      ],
+      "sha256": "391ad575724defff093072938309641a8b31f13ca8065403ae41f953204f05e9"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/seed_packet.png",
+      "source_size": [
+        100,
+        140
+      ],
+      "target_size": [
+        300,
+        420
+      ],
+      "sha256": "48526cdc85406c1c430ee409e71f7d488c87d5c74a8421b91be58849adc3dabe"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/seed_packet_upgrade.png",
+      "source_size": [
+        100,
+        140
+      ],
+      "target_size": [
+        300,
+        420
+      ],
+      "sha256": "e0ee1eacb6f205e29c207d149209551c2b22349c37cc0022e9f1a26d1829cc4b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/shovel_bank.png",
+      "source_size": [
+        70,
+        72
+      ],
+      "target_size": [
+        210,
+        216
+      ],
+      "sha256": "64d70c365cd1ab51edf9bdac6d041d5ba039324804eed430d73ff410ef809770"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/hud/sun_bank.png",
+      "source_size": [
+        78,
+        87
+      ],
+      "target_size": [
+        234,
+        261
+      ],
+      "sha256": "731684e40844ce9855e781f79536571ff3d218d85f33e32c091f4e195abd8730"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/icon/lock.png",
+      "source_size": [
+        80,
+        80
+      ],
+      "target_size": [
+        240,
+        240
+      ],
+      "sha256": "c52d2073f0ea3e43b14af7b2b7fc2c8b3dedfe0a73e102894af81141cc2f310c"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/seeds/seed_chooser_button.png",
+      "source_size": [
+        156,
+        42
+      ],
+      "target_size": [
+        468,
+        126
+      ],
+      "sha256": "f354ba20daef37f4a95ea783a82dda82926760991e343b075c5798e96a49f6e0"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/seeds/seed_chooser_button_disabled.png",
+      "source_size": [
+        156,
+        42
+      ],
+      "target_size": [
+        468,
+        126
+      ],
+      "sha256": "b0186b0b1516c5293c074e49af77bea4d5b1762c0b81b5f6fa98816c337565e7"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/coin_gold.png",
+      "source_size": [
+        45,
+        45
+      ],
+      "target_size": [
+        135,
+        135
+      ],
+      "sha256": "9ebea3ec9d1e468d54ac0a2c68d6bf7cea3cd9e87970e834ec01e07e46a6e398"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/coin_silver.png",
+      "source_size": [
+        43,
+        40
+      ],
+      "target_size": [
+        129,
+        120
+      ],
+      "sha256": "6652b9f0022d9afa0d3a69749797de5c1bd825a644b5b469684420886b44e1c6"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/diamond.png",
+      "source_size": [
+        68,
+        52
+      ],
+      "target_size": [
+        204,
+        156
+      ],
+      "sha256": "abaab3893bd217af8099442da8146845cb3a8c2bc24d07a0ab8e0fda12d9260b"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/energy_bean.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "446e1788ef627ad4346931407e785905b07c8529c9e8c84353dc72a856771988"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/energy_bean_2.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "cc083c0bfcccf4b8a83b7dd9fb3b62ce1f470a27f15b875ed2922868f8568e66"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/money_bag.png",
+      "source_size": [
+        182,
+        171
+      ],
+      "target_size": [
+        546,
+        513
+      ],
+      "sha256": "871096a1e42da04d5900b76f582514e048d2be8b2f4ef320f478854afc8b8a12"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/redstone.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "f07af71b955ea9c4c7e131514de3d7c22cd968001ab1108acd6004b4e4f009c4"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/redstone_2.png",
+      "source_size": [
+        64,
+        64
+      ],
+      "target_size": [
+        192,
+        192
+      ],
+      "sha256": "cad18b837e991ed3852e6bd275e06b1ee4c1617306dbdd21c3b74fbc0875f732"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/sun.png",
+      "source_size": [
+        78,
+        78
+      ],
+      "target_size": [
+        234,
+        234
+      ],
+      "sha256": "1cf157c558f7ddb604f409c07db2204750b7c7488c85f8f22fcac03ca8713792"
+    },
+    {
+      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/resource/sun_2.png",
+      "source_size": [
+        78,
+        78
+      ],
+      "target_size": [
+        234,
+        234
+      ],
+      "sha256": "f89b314f530dce8f97ac5938d4d16ef21b4f555b90c4e3c5a6e67e1419aeea0d"
+    }
+  ],
+  "controllers": [
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/basic/flag_zombie.json",
+      "sha256": "e214a0f7109639190f5c44dfebc4a35718eb2b7306275d7b8294881daea86511"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/basic/basic_zombie.json",
+      "sha256": "5472ed0ea8b641884f21e32144e88065d8b35e0556b07e5ab2d60aad485bbc3a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/armored/conehead_zombie.json",
+      "sha256": "03b08a63be87469901a6f8fb12360f94ab2e77c4d754f4c54510d05439f8b987"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/armored/newspaper_zombie.json",
+      "sha256": "2fb6f0e3e315e4b48cbc238648b72d4103160cba7a95d3be43916fa6f21c5c1a"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/armored/buckethead_zombie.json",
+      "sha256": "7284018917ec1be2e00b55f68bc38042af9ca0dccb333dc9fe74dbe97aa8fdf0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/zombotany/zombotany_pea_zombie.json",
+      "sha256": "4a13d501132f66a5fc3566356602f947138c0bc783484289fc5b2b24ab038ff0"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/zombotany/zombotany_wallnut_zombie.json",
+      "sha256": "bcca071fad01f62fa4477641479e9ef9714550e7bd6d9d67f499ca181fe443a4"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/zombotany/zombotany_jalapeno_zombie.json",
+      "sha256": "02a889d7667a7b9026045a6aa8e9b95470014ba558aaee56a20dfd82dab371e3"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/zombie/zombotany/zombotany_gatling_zombie.json",
+      "sha256": "d2124ded029983e2bcf200250c6acf5b0611e64d56d33c04ff9398498fae2866"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/projectile/fire_pea.json",
+      "sha256": "fb253250bba6fbb983444acba90edec1c3f70f71db2c136fcc4de54ba10dac7c"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/attacker/puff_shroom.json",
+      "sha256": "2d53fa4dfdc7140e2dd46b03278f50bbc451baad4ed2c8fb9ecd856e94e47b16"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/attacker/kernel_pult.json",
+      "sha256": "96450375e04de297dcf7311f7ba68a9dd3fcdfdfb2a9a1711709d451a68e313b"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/attacker/repeater.json",
+      "sha256": "24066a8ea790d1d75ce85f42dd2b5dea9f0fcc5ece91b9a9c5e997d78eb31050"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/attacker/pea_shooter.json",
+      "sha256": "caec5de283178a0badf997a05436e56711e8c1047efbd26536c2542fc7a0b696"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/attacker/snow_pea.json",
+      "sha256": "3f8baab40f85dd9734d9ea4ef145b6b581b8ec491d32cf73d41b427574047d48"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/environment/lily_pad.json",
+      "sha256": "40009155abfca4dbd88db7d69b919f50c32682f12c75d3a056dcd2fdf4081532"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/defense/wall_nut.json",
+      "sha256": "5e728298ee6f7a43974010f076ab32a9ac76f7f19579a3793fa3bf902f4c9bd1"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/defense/bowling_nut.json",
+      "sha256": "10cb25dbf1414c90a037e27666c5db4cb0e5e79829c12ca138fd273a7262d820"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/producer/sunflower.json",
+      "sha256": "4be970b75f2e8f944c1020456a9483cb492209ba7c22e63791f686ba1314d035"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/special/potato_mine.json",
+      "sha256": "5465ea75f1a1cd9c1fcebaed0a52ef50ae33275e1c4a4f5470140ca3cf7679c5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/plant/special/cherry_bomb.json",
+      "sha256": "5d5567d027e990412c344eba99c328cf13681de6b25597a84256136308367a24"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/resource/diamond.json",
+      "sha256": "9262b00f2f3845a4c61fbde7cce8a1c27c38a2569ac6ae028ae30788c4c44ae5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/resource/coin_silver.json",
+      "sha256": "52964735b855b384e003c47b81cb0d3df7feb194cf87b84aba8bf67d7a76147f"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/resource/sun.json",
+      "sha256": "5607903f52dcdf2328df18c78ddac5bc82f1e1bdfece266680e8777de380aa04"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/resource/coin_gold.json",
+      "sha256": "f73bee43667b66f6f52045a8c3046b8a32b762ad6b913b105446fb385da57d3e"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/tool/vase.json",
+      "sha256": "afca7a0e07d7eeec6481cf53ccc0ca37c04ca928cdbd4eeeab7ac19f2ac29124"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/tool/watering_can.json",
+      "sha256": "1d44f6195ce8df1d6a6ff984af053fbc727bb615e23369f364396cdaeb3328c5"
+    },
+    {
+      "path": "local-assets/assets/pvzce/animations/tool/hammer.json",
+      "sha256": "be271f40696187f999aaef3dd6a0ce8dfa3739426d50ff23c5f97c28aea05709"
+    }
+  ]
+}
