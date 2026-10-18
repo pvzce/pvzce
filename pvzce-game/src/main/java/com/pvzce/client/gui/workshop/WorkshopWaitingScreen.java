@@ -6,10 +6,10 @@ import com.pvzce.client.gui.components.Button;
 public final class WorkshopWaitingScreen extends Screen {
     public WorkshopWaitingScreen(PvzceClient client) { super(client); }
     protected void init() {
-        addWidget(new Button(centerX(180), 20, 180, 30, WorkshopUi.text("cancel_test", "返回编辑器"), client::endWorkshopTest));
+        addWidget(new Button(centerX(180), 20, 180, 30, WorkshopUi.text("cancel_test", "返回编辑器"), client::endWorkshopTest).style(Button.Style.SEED_CHOOSER));
     }
     public void render() {
-        renderBackground(0.08F, 0.12F, 0.10F);
+        WorkshopUi.backdrop(client, this);
         client.fonts().body().draw(WorkshopUi.text("loading", "正在加载临时沙盒…"), 20, client.guiHeight()/2F, 1F, 1,1,1,1);
         for (var widget : widgets) widget.render(client);
     }

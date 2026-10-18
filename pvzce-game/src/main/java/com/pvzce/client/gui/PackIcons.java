@@ -35,15 +35,13 @@ public final class PackIcons implements AutoCloseable {
             texture=client.textures().get(icon.id);
             if(texture==null)try{texture=client.textures().uploadAndCache(icon.id,icon.resource);}catch(RuntimeException e){icon.broken=true;}
         }
-        client.drawSolid(x,y,side,side,0,.16F,.25F,.18F,1);
+
         if(texture!=null){
             float scale=Math.min(side/texture.width(),side/texture.height());
             client.drawTexture(icon.id,x+(side-texture.width()*scale)/2,y+(side-texture.height()*scale)/2,
                     texture.width()*scale,texture.height()*scale,0,1,1,1,1);
         }else{
-            float scale=Math.min(1.5F,side/28F);
-            String label="包";
-            client.fonts().body().draw(label,x+(side-client.fonts().body().width(label,scale))/2,y+side*.34F,scale,.8F,.9F,.65F,1);
+            com.pvzce.client.gui.layout.MenuPageCanvas.documentIcon(client,x,y,side,"包");
         }
     }
     public void refresh(){

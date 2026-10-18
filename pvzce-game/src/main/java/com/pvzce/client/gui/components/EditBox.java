@@ -17,6 +17,11 @@ public class EditBox extends AbstractWidget {
     private final int maxLength;
     private String value = "";
     private boolean focused;
+    public enum Style { DEFAULT, PARCHMENT }
+    private Style style = Style.DEFAULT;
+
+    public EditBox style(Style style) { this.style = style; return this; }
+
     private boolean bordered = true;
     private Runnable onValueChanged;
     private FocusManager focusManager;
@@ -41,16 +46,19 @@ public class EditBox extends AbstractWidget {
         if (!visible) {
             return;
         }
-        renderBackground(client, 0.05F, 0.05F, 0.05F, bordered ? 0.85F : 0.35F);
+        boolean paper = style == Style.PARCHMENT;
+        if (paper) renderBackground(client, .94F, .84F, .63F, 1F);
+        else renderBackground(client, 0.05F, 0.05F, 0.05F, bordered ? 0.85F : 0.35F);
         if (bordered) {
-            SpriteRenderer.solid(x, y, width, 2, 0, focused ? 0.9F : 0.4F, focused ? 0.9F : 0.4F,
+            if (paper) SpriteRenderer.solid(x, y, width, 2, 0, .55F, focused ? .32F : .42F, .12F, 1F);
+            else SpriteRenderer.solid(x, y, width, 2, 0, focused ? 0.9F : 0.4F, focused ? 0.9F : 0.4F,
                     focused ? 0.5F : 0.4F, 1F);
         }
         client.fonts().body().draw(value, x + 6, y + (height - client.fonts().body().lineHeight(0.9F)) / 2F, 0.9F,
-                1F, 1F, 1F, 1F);
+                paper ? .25F : 1F, paper ? .15F : 1F, paper ? .06F : 1F, 1F);
         if (focused && (System.nanoTime() / 500_000_000L) % 2 == 0) {
             float cursorX = x + 6 + client.fonts().body().width(value, 0.9F);
-            SpriteRenderer.solid(cursorX, y + 8, 2, height - 16, 0, 1F, 1F, 1F, 0.9F);
+            SpriteRenderer.solid(cursorX, y + 8, 2, height - 16, 0, paper ? .25F : 1F, paper ? .15F : 1F, paper ? .06F : 1F, .9F);
         }
     }
 

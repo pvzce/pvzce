@@ -5,6 +5,7 @@ import com.pvzce.api.registry.RegistryAccess;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
+import com.pvzce.client.gui.layout.MenuPageCanvas;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.components.EntityPreview;
 import com.pvzce.common.core.*;
@@ -158,8 +159,12 @@ final class WorkshopPresentation implements AutoCloseable {
             client.drawTexture(texture, x + (width - tex.width()*scale)/2, y + (height-tex.height()*scale)/2,
                     tex.width()*scale, tex.height()*scale, 0, 1, 1, 1, 1);
         } else {
-            String glyph = switch (item.type()) { case "sounds", "sound_events" -> "♪"; case "animations" -> "▶"; case "levels" -> "▦"; default -> "◆"; };
-            client.fonts().body().draw(glyph, x + width/2-12, y+height/2-8, 1.5F, .55F,.8F,.56F,1);
+            String mark = switch (item.type()) {
+                case "sounds", "sound_events" -> "音"; case "animations" -> "帧";
+                case "levels" -> "关"; case "lang" -> "文"; case "tags" -> "签"; default -> "稿";
+            };
+            float side=Math.min(Math.min(width,height),64);
+            MenuPageCanvas.documentIcon(client,x+(width-side)/2,y+(height-side)/2,side,mark);
         }
     }
 
@@ -176,22 +181,21 @@ final class WorkshopPresentation implements AutoCloseable {
                 return button==0&&super.mouseClicked(mx,my,button);
             }
             @Override public void render(PvzceClient renderClient) {
-                renderClient.drawSolid(x,y,width,height,0, hovered?.24F:.12F,hovered?.36F:.21F,.20F,1);
-                renderClient.drawSolid(x,y+height-3,width,3,0,.48F,.70F,.36F,1);
+                MenuPageCanvas.surface(renderClient,x,y,width,height,hovered);
                 if(height<90){
                     int image=height-16;
                     draw(item,x+8,y+8,image,image);
                     int tx=x+image+16,tw=width-image-24;
                     WorkshopUi.fit(renderClient,item.name(),tx,y+height-21,tw,.8F,1,1,.85F);
-                    if(height>=64)WorkshopUi.fit(renderClient,item.detail(),tx,y+25,tw,.6F,.73F,.84F,.72F);
-                    WorkshopUi.fit(renderClient,item.id()==null?item.value():item.id().toString(),tx,y+9,tw,.58F,.55F,.66F,.62F);
+
+                    WorkshopUi.fit(renderClient,hovered?(item.id()==null?item.value():item.id().toString()):item.detail(),tx,y+9,tw,.65F,.85F,.77F,.61F);
                     return;
                 }
                 int image = Math.max(18, height-63);
                 draw(item,x+8,y+57,width-16,image);
                 WorkshopUi.fit(renderClient,item.name(),x+9,y+38,width-18,.9F,1,1,.85F);
-                WorkshopUi.fit(renderClient,item.detail(),x+9,y+22,width-18,.65F,.73F,.84F,.72F);
-                WorkshopUi.fit(renderClient,item.id()==null?item.value():item.id().toString(),x+9,y+8,width-18,.58F,.55F,.66F,.62F);
+
+                WorkshopUi.fit(renderClient,hovered?(item.id()==null?item.value():item.id().toString()):item.detail(),x+9,y+8,width-18,.65F,.85F,.77F,.61F);
             }
         };
     }

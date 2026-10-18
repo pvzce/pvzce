@@ -19,6 +19,11 @@ import java.util.List;
  * list now - a long label used to overflow the list box.
  */
 public class AbstractSelectionList<E> extends AbstractWidget {
+    public enum Style { DEFAULT, WOOD }
+    private Style style = Style.DEFAULT;
+
+    public void setStyle(Style style) { this.style = style; }
+
     public interface EntryRenderer<E> {
         void render(PvzceClient client, E entry, int x, int y);
     }
@@ -161,7 +166,8 @@ public class AbstractSelectionList<E> extends AbstractWidget {
         if (!visible) {
             return;
         }
-        renderBackground(client, 0.04F, 0.06F, 0.03F, 0.8F);
+        if (style == Style.WOOD) renderBackground(client, .24F, .155F, .075F, 1F);
+        else renderBackground(client, 0.04F, 0.06F, 0.03F, 0.8F);
         client.clipping().push(x, y, width, height);
         try {
             int visibleCount = visibleCount();
@@ -173,7 +179,10 @@ public class AbstractSelectionList<E> extends AbstractWidget {
                 }
                 int entryY = rowBottom(i);
                 if (index == selectedIndex) {
-                    SpriteRenderer.solid(x + 2, entryY, width - 4, entryHeight - 2, 0, 0.4F, 0.55F, 0.25F, 0.8F);
+                    if (style == Style.WOOD) {
+                        SpriteRenderer.solid(x + 2, entryY + 2, width - 4, entryHeight - 4, 0, .49F, .34F, .15F, 1F);
+                        SpriteRenderer.solid(x + 2, entryY + 2, 3, entryHeight - 4, 0, .96F, .76F, .32F, 1F);
+                    } else SpriteRenderer.solid(x + 2, entryY, width - 4, entryHeight - 2, 0, 0.4F, 0.55F, 0.25F, 0.8F);
                 }
                 entryRenderer.render(client, entries.get(index), x + 6, entryY);
             }

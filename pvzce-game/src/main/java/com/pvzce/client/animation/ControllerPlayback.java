@@ -113,6 +113,28 @@ public final class ControllerPlayback extends AnimationPlayback {
         return top;
     }
 
+    /** Visible part bounds in model space, including rotated parts such as helmets. */
+    public float[] bounds(double now) {
+        var poses = blendedPose(now);
+        var transforms = worldTransforms(poses);
+        float left=Float.POSITIVE_INFINITY, right=Float.NEGATIVE_INFINITY;
+        float bottom=Float.POSITIVE_INFINITY, top=Float.NEGATIVE_INFINITY;
+        for (var entry : drawOrder) {
+            var bone=entry.bone();
+            var pose=poses.getOrDefault(bone.name(),bone.restPose());
+            if (!pose.visible() || pose.alpha()<=0.001F) continue;
+            var transform=transforms.get(bone.name());
+            for (var part : entry.parts()) for (int corner=0;corner<4;corner++) {
+                float x=part.offsetX()+part.sizeX()*(corner%2==0?-.5F:.5F);
+                float y=part.offsetY()+part.sizeY()*(corner<2?-.5F:.5F);
+                float px=transform.transformX(x,y), py=transform.transformY(x,y);
+                left=Math.min(left,px);right=Math.max(right,px);
+                bottom=Math.min(bottom,py);top=Math.max(top,py);
+            }
+        }
+        return left==Float.POSITIVE_INFINITY?null:new float[]{left,right,bottom,top};
+    }
+
     @Override
     public void render(PvzceClient client, float anchorX, float anchorY, float baseZ,
                        float xScale, float yScale) {

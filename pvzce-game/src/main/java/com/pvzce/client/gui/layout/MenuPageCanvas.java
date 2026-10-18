@@ -4,33 +4,11 @@ import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.components.Button;
-import com.pvzce.client.gui.components.NinePatch;
 import com.pvzce.client.renderer.font.Fonts;
 
-/**
- * The 800x600 canvas the two "menu pages" are composed on, and the pieces they compose with.
- *
- * <p>{@code ShopScreen} and {@code PackScreen} were the only two pages laid out directly in GUI
- * units, and at the default window that is a 427x240 strip: a three-row list whose 44-unit rows
- * left the wallet line sitting on top of the third row, and a two-column page whose detail text
- * was drawn straight onto the background image. Everything else in the game that has a real
- * composition - the almanac, the seed chooser, the level list - composes on a fixed canvas and
- * scales it to the window, so a page looks the same at every size and its panels are drawn, not
- * implied. This is that canvas, once, for both pages.
- *
- * <h2>Native space</h2>
- *
- * <p>The canvas is {@link #NATIVE_WIDTH}x{@link #NATIVE_HEIGHT} and its y axis grows <b>downward
- * from the top</b> - the arithmetic every measurement off a screenshot is done in. GUI space
- * grows upward from the bottom, so {@link Canvas#y} flips. The fit is a <em>contain</em> fit:
- * a 16:9 window is wider than the canvas, and the alternative (cover) would push the panels off
- * the top and bottom.
- *
- * <p>Widgets are <b>not</b> on this canvas: they stay in GUI units so their labels keep the
- * window's own text size, and a screen that wants a widget inside a native panel maps the panel's
- * rectangle with {@link Canvas#x}/{@link Canvas#y}/{@link Canvas#scaled} and puts it there. That
- * mix is deliberate - it is what keeps {@code AbstractSelectionList} (the only scrolling thing in
- * the game) usable inside a decorated panel.
+/** Shared parchment, inset boards and wooden actions for content menus.
+ * The 800x600 canvas uses top-down native coordinates; widgets receive mapped GUI bounds.
+ * The title screen also uses Canvas for its original 800x600 scene.
  */
 public final class MenuPageCanvas {
     /** The canvas every menu page is composed on; sizes below are measured in these units. */
@@ -49,38 +27,16 @@ public final class MenuPageCanvas {
     private static final float MIN_SCALE = 0.2F;
     private static final float MAX_SCALE = 2.6F;
 
-    /** The page background: the same field the title screen stands on. */
+    /** Quiet parchment shared with the level menu. */
     private static final Identifier BACKGROUND =
-            Identifier.withDefaultNamespace("textures/gui/screen/title/title_background");
+            Identifier.withDefaultNamespace("textures/gui/screen/level/challenge_background");
 
-    /**
-     * The wooden panel every block on these pages is framed with, and its nine-slice bounds.
-     *
-     * <p>{@code seed_chooser_background} is the game's own shallow box: a brown carved frame around
-     * a dark, almost flat interior. The interior is the point - it is a surface text can sit on,
-     * which is what the old pages were missing when they drew dark rectangles over a screenshot.
-     * The bounds are read off the image: the frame is 9 pixels on the sides, and 32 at the top and
-     * bottom including the corner ornaments.
-     */
-    private static final Identifier PANEL =
-            Identifier.withDefaultNamespace("textures/gui/screen/seeds/seed_chooser_background");
-    private static final float PANEL_TEXTURE_WIDTH = 465F;
-    private static final float PANEL_TEXTURE_HEIGHT = 513F;
-    private static final float PANEL_SIDE = 9F;
-    private static final float PANEL_EDGE = 32F;
+    /** Content padding inside the thin board frame, in canvas units. */
+    private static final float PANEL_SIDE = 14F;
+    private static final float PANEL_EDGE = 20F;
 
-    /**
-     * The darker band behind a page's title, at the top of the canvas.
-     *
-     * <p>The wood panel cannot be the whole page: its frame alone costs 64 of a 110-unit band, so
-     * the title sits on a flat bar with a lighter top edge - the same "plate" the rest of the
-     * game's menu text uses, drawn here rather than textured because no asset in the repository is
-     * a shallow title bar. A thin gold line under it is what makes the two read as one frame.
-     */
+    /** Space reserved for the page title and wallet or hint. */
     private static final float HEADER_HEIGHT = 58F;
-    private static final float GOLD_R = 0.85F;
-    private static final float GOLD_G = 0.68F;
-    private static final float GOLD_B = 0.3F;
 
     private MenuPageCanvas() {
     }
@@ -89,15 +45,8 @@ public final class MenuPageCanvas {
     // Background
     // ------------------------------------------------------------------
 
-    /**
-     * Paints a page's field: the game's own background image, cover-fitted, under a flat dim.
-     *
-     * <p>Both pages used to ask for the blurred frame they were opened over, which at any window
-     * size is a screenshot of the title screen at 62% opacity - legible panels on top of a
-     * photograph, which is the thing this replaces. The image plus a dim is calmer, and it is the
-     * same field the title screen itself is on, so arriving here does not change the world.
-     */
-    public static void renderPageBackground(PvzceClient client, Screen screen, float dim) {
+    /** Cover-fit the level menu parchment; it leaves the content as the focal point. */
+    public static void renderPageBackground(PvzceClient client, Screen screen) {
         if (client.hasTexture(BACKGROUND)) {
             var tex = client.textures().getOrLoad(BACKGROUND);
             Screen.CoverFit fit = screen.coverFitFor(tex.width(), tex.height());
@@ -106,7 +55,24 @@ public final class MenuPageCanvas {
         } else {
             client.drawSolid(0, 0, client.guiWidth(), client.guiHeight(), -2F, 0.09F, 0.07F, 0.05F, 1F);
         }
-        client.drawSolid(0, 0, client.guiWidth(), client.guiHeight(), -1F, 0F, 0F, 0F, dim);
+    }
+
+    /** A warm inset board; all sizes are GUI units, including the unobtrusive frame. */
+    public static void surface(PvzceClient client, float x, float y, float width, float height, boolean highlighted) {
+        client.drawSolid(x + 1, y - 2, width, height, 0, .12F, .07F, .025F, .25F);
+        client.drawSolid(x, y, width, height, 0, highlighted ? .84F : .55F, highlighted ? .66F : .37F, .19F, 1);
+        client.drawSolid(x + 2, y + 2, width - 4, height - 4, 0,
+                highlighted ? .34F : .24F, highlighted ? .23F : .155F, .075F, 1);
+    }
+
+    /** A paper label for content without cover art, rather than a missing-texture square. */
+    public static void documentIcon(PvzceClient client, float x, float y, float side, String mark) {
+        float inset = side * .12F;
+        client.drawSolid(x + inset, y, side - inset * 2, side, 0, .48F, .29F, .12F, 1);
+        client.drawSolid(x + inset + 2, y + 2, side - inset * 2 - 4, side - 4, 0, .91F, .77F, .49F, 1);
+        float scale = Math.min(side / 38F, 1.5F);
+        client.fonts().button().drawCentered(mark, x + side / 2, y + side * .43F, scale, .29F, .17F, .065F, 1);
+        client.drawSolid(x + side * .28F, y + side * .21F, side * .44F, Math.max(1, side * .025F), 0, .65F, .46F, .23F, 1);
     }
 
     // ------------------------------------------------------------------
@@ -159,21 +125,10 @@ public final class MenuPageCanvas {
                     scaled(nativeWidth), scaled(nativeHeight), 0F, r, g, b, a);
         }
 
-        /**
-         * The wooden panel: a rectangle in native space, framed with the game's own box.
-         *
-         * <p>The nine-slice is drawn in GUI space at the fitted scale, because the slice bounds are
-         * pixels of the source image and must stay square - scaling the rectangle and then slicing
-         * it would stretch the frame's corners along with the panel.
-         */
+        /** An inset board sharing the level menu palette. */
         public void panel(PvzceClient client, float nativeX, float nativeY,
                           float nativeWidth, float nativeHeight) {
-            NinePatch.drawNineSlice(client, PANEL,
-                    x(nativeX), y(nativeY + nativeHeight),
-                    scaled(nativeWidth), scaled(nativeHeight), 0F,
-                    PANEL_TEXTURE_WIDTH, PANEL_TEXTURE_HEIGHT,
-                    PANEL_SIDE, PANEL_SIDE, PANEL_EDGE, PANEL_EDGE,
-                    1F, 1F, 1F, 1F);
+            surface(client, x(nativeX), y(nativeY + nativeHeight), scaled(nativeWidth), scaled(nativeHeight), false);
         }
 
         /**
@@ -181,8 +136,7 @@ public final class MenuPageCanvas {
          *
          * <p>A list that has to live inside {@link #panel} needs these four numbers rather than the
          * panel's own rectangle, and deriving them here is what keeps the frame's width in one
-         * place: the panel's border is a fixed number of <em>source pixels</em>, so it costs the
-         * same fraction of the canvas at every window size.
+         * place: the content padding is measured on the canvas and scales with the page.
          */
         public float interiorX(float nativeX) {
             return x(nativeX) + scaled(PANEL_SIDE);
@@ -230,14 +184,12 @@ public final class MenuPageCanvas {
             int height = Math.round(scaled(nativeHeight));
             int widgetX = Math.round(x(nativeCenterX) - width / 2F);
             int widgetY = Math.round(y(nativeY));
-            return new Button(widgetX, widgetY, width, height, label, onPress);
+            return new Button(widgetX, widgetY, width, height, label, onPress).style(Button.Style.SEED_CHOOSER);
         }
 
-        /** The page's title band: the flat bar with a gold rule under it. */
+        /** A quiet rule separating the title from the content. */
         public void header(PvzceClient client, float nativeWidth) {
-            solid(client, 0F, 0F, nativeWidth, HEADER_HEIGHT, 0.10F, 0.11F, 0.14F, 0.90F);
-            solid(client, 0F, 0F, nativeWidth, 2F, 0.30F, 0.32F, 0.36F, 0.55F);
-            solid(client, 0F, HEADER_HEIGHT, nativeWidth, 1.5F, GOLD_R, GOLD_G, GOLD_B, 0.75F);
+            solid(client, 24F, HEADER_HEIGHT, nativeWidth - 48F, 1.5F, .49F, .29F, .12F, .45F);
         }
 
         /**
@@ -246,8 +198,8 @@ public final class MenuPageCanvas {
          * <p>"Bottom-right of this panel, 12 in from each edge" is how a control that belongs to a
          * panel is actually placed, and it is the only placement that cannot disagree with the
          * frame: the inset is counted from the same interior edges {@link #interiorX} and
-         * {@link #interiorBottom} report. Building it out of those two keeps the frame's own width
-         * (a fixed number of <em>source</em> pixels) in one place, and saves a caller from dividing
+         * {@link #interiorBottom} report. Building it out of those two keeps the content padding
+         * in one place, and saves a caller from dividing
          * a GUI width back by {@link #scale()} to feed {@link #widgetAt}.
          */
         public Button widgetAtInterior(PvzceClient client, float nativeX, float nativeY,
@@ -257,9 +209,9 @@ public final class MenuPageCanvas {
                                        String label, Runnable onPress) {
             int width = Math.round(scaled(widgetWidth));
             int height = Math.round(scaled(widgetHeight));
-            int widgetX = Math.round(interiorX(nativeX + nativeWidth) - scaled(insetRight) - width);
+            int widgetX = Math.round(interiorRight(nativeX, nativeWidth) - scaled(insetRight) - width);
             int widgetY = Math.round(interiorBottom(nativeY, nativeHeight) + scaled(insetBottom));
-            return new Button(widgetX, widgetY, width, height, label, onPress);
+            return new Button(widgetX, widgetY, width, height, label, onPress).style(Button.Style.SEED_CHOOSER);
         }
     }
 

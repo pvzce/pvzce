@@ -17,24 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * The packs page: what is in this game directory, what each pack holds, and which ones are on.
- *
- * <p>Shaped like {@code ModsScreen} - a list on the left, the selected entry's detail on the right
- * - because the question is the same one ("what is installed, and what is this one?"), and two
- * pages that answer it should not be two different layouts. What it now shares with the shop
- * instead of with the mod list is its <em>surface</em>: both are {@link MenuPageCanvas} pages, so
- * the two list-and-detail columns stand on wooden panels rather than on dark rectangles drawn
- * straight over a screenshot of the title screen. That was the visible defect here - text over a
- * photograph, and a list whose background ended where its last row did.
- *
- * <h2>Switching a pack off is a file plus an order</h2>
- *
- * <p>The button writes {@code config/pvzce-packs.json} and sends a
- * {@link com.pvzce.common.network.packet.ReloadPacksC2S}; the server reloads first and its answer
- * is what makes the client rebuild its own caches (see {@code PvzceClient.requestPackReload}).
- * The page reloads nothing itself and shows the <em>loaded</em> state rather than the state it
- * just wrote: the two agree only once the server has answered.
+/** Installed packs, their translated content summaries and their loaded enable state.
+ * Selection writes to disk and asks the server to reload before rebuilding client caches.
  */
 public final class PackScreen extends Screen {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Packs");
@@ -60,7 +44,7 @@ public final class PackScreen extends Screen {
     private static final float RIGHT_W = MenuPageCanvas.NATIVE_WIDTH - RIGHT_X - 24F;
 
     /** One line per pack: the state tick, the name, its kind and its file count. */
-    private static final int ROW_HEIGHT = 56;
+    private int rowHeight;
 
     private static final float FOOTER_Y = 524F;
     private static final float FOOTER_BUTTON_H = 36F;
@@ -89,19 +73,21 @@ public final class PackScreen extends Screen {
     @Override
     protected void init() {
         canvas = MenuPageCanvas.fit(client);
+        rowHeight = Math.max(1, Math.round(canvas.scaled(64F)));
 
         packList = new AbstractSelectionList<>(
                 Math.round(canvas.interiorX(LEFT_X)),
                 Math.round(canvas.interiorBottom(PANEL_TOP, PANEL_H)),
                 Math.round(canvas.interiorWidth(LEFT_W)),
                 Math.round(canvas.interiorHeight(PANEL_H)),
-                ROW_HEIGHT, this::renderRow);
+                rowHeight, this::renderRow);
+        packList.setStyle(AbstractSelectionList.Style.WOOD);
         addWidget(packList);
 
         // The detail pane's three actions along its bottom, and the page's back button in the
         // footer. All of them are placed by the canvas, so they sit in the same place relative to
         // the panels at every window size - and the row starts inside the frame's own border,
-        // which is 9 source pixels wide, rather than at the panel's outer edge.
+        // with the same scaled padding used by the panel's content.
         //
         // Three rather than two: "where is this pack on disk" is the question a player asks right
         // after "why is it not loading", and the answer was previously a relative directory name
@@ -354,13 +340,13 @@ public final class PackScreen extends Screen {
     public void render() {
         client.beginGuiView();
         canvas = MenuPageCanvas.fit(client);
-        MenuPageCanvas.renderPageBackground(client, this, 0.22F);
+        MenuPageCanvas.renderPageBackground(client, this);
         canvas.header(client, MenuPageCanvas.NATIVE_WIDTH);
         canvas.text(client, client.fonts().button(), GuiLang.raw("gui.pvzce.packs.title", "数据包"),
-                HEADER_TITLE_X, HEADER_BASELINE, HEADER_TITLE_SIZE, 1F, 1F, 1F, 1F);
+                HEADER_TITLE_X, HEADER_BASELINE, HEADER_TITLE_SIZE, .29F, .16F, .065F, 1F);
         canvas.textRight(client, client.fonts().body(),
                 GuiLang.raw("gui.pvzce.packs.hint", "改动在重新加载后生效"),
-                MenuPageCanvas.NATIVE_WIDTH - 28F, HEADER_BASELINE, 0.85F, 0.72F, 0.76F, 0.72F, 1F);
+                MenuPageCanvas.NATIVE_WIDTH - 28F, HEADER_BASELINE, 0.85F, .4F, .27F, .13F, 1F);
 
         canvas.panel(client, LEFT_X, PANEL_TOP, LEFT_W, PANEL_H);
         canvas.panel(client, RIGHT_X, PANEL_TOP, RIGHT_W, PANEL_H);
@@ -393,7 +379,7 @@ public final class PackScreen extends Screen {
     private void renderRow(PvzceClient client, PackRow row, int x, int y) {
         float unit = canvas.scale();
         if (row.isHeading()) {
-            client.fonts().body().draw(row.heading(), x, y + ROW_HEIGHT * 0.3F, 0.95F * unit,
+            client.fonts().body().draw(row.heading(), x, y + rowHeight * 0.3F, 0.95F * unit,
                     0.88F, 0.82F, 0.58F, 1F);
             return;
         }
@@ -402,19 +388,19 @@ public final class PackScreen extends Screen {
         float tint = on ? 1F : 0.55F;
         // √ and × rather than ✓ and ✗: the bundled face is a Chinese one, and these are the two
         // forms it is certain to carry (× is already drawn all over the editor).
-        client.fonts().body().draw(on ? "√" : "×", x, y + ROW_HEIGHT * 0.3F, 1.1F * unit,
+        client.fonts().body().draw(on ? "√" : "×", x, y + rowHeight * 0.3F, 1.1F * unit,
                 on ? 0.45F : 0.85F, on ? 0.9F : 0.35F, on ? 0.45F : 0.35F, 1F);
-        float side=Math.min(38F*unit,ROW_HEIGHT-12F);
-        icons.draw(pack,x+22F*unit,y+(ROW_HEIGHT-side)/2,side);
-        client.fonts().body().draw(fitted(client.fonts().body(),pack.name(),1.05F*unit,packList.width()-82F*unit), x + 68F * unit, y + ROW_HEIGHT * 0.54F,
+        float side=Math.min(38F*unit,rowHeight-12F);
+        icons.draw(pack,x+22F*unit,y+(rowHeight-side)/2,side);
+        client.fonts().body().draw(fitted(client.fonts().body(),pack.name(),1.05F*unit,packList.width()-82F*unit), x + 68F * unit, y + rowHeight * 0.54F,
                 1.05F * unit, tint, tint, tint, 1F);
-        client.fonts().body().draw(kindLabel(pack.kind()), x + 68F * unit, y + ROW_HEIGHT * 0.14F,
+        client.fonts().body().draw(kindLabel(pack.kind()), x + 68F * unit, y + rowHeight * 0.14F,
                 0.72F * unit, 0.75F, 0.8F, 0.75F, 1F);
         String count = row.files() + " " + GuiLang.raw("gui.pvzce.packs.files", "个文件");
         client.fonts().body().draw(count,
                 x + packList.width() - 14F * unit
                         - client.fonts().body().width(count, 0.78F * unit),
-                y + ROW_HEIGHT * 0.14F, 0.78F * unit, 0.8F, 0.8F, 0.85F, 1F);
+                y + rowHeight * 0.14F, 0.78F * unit, 0.8F, 0.8F, 0.85F, 1F);
     }
 
     /**
@@ -482,9 +468,9 @@ public final class PackScreen extends Screen {
             Map.Entry<String, Integer> entry = entries.get(i);
             // The cut is marked on the last row that was drawn rather than with a row of its own:
             // there is by definition no room for another row.
-            String text = entry.getKey() + " " + entry.getValue()
+            String text = GuiLang.raw("gui.pvzce.workshop.label." + entry.getKey(), entry.getKey()) + "  " + entry.getValue()
                     + (i == fits - 1 && fits < entries.size() ? " …" : "");
-            client.fonts().body().draw(text, textX + (i % 2) * columnWidth,
+            client.fonts().body().draw(fitted(client.fonts().body(), text, .8F * unit, columnWidth - 8F * unit), textX + (i % 2) * columnWidth,
                     top - (i / 2) * lineHeight, 0.8F * unit, 0.85F, 0.85F, 0.85F, 1F);
         }
     }

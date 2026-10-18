@@ -1212,5 +1212,9 @@
   "slot.pvzce.imp": "小鬼僵尸",
   "slot.pvzce.dancing_zombie": "跳舞僵尸",
   "slot.pvzce.i_zombie_ladder": "梯子僵尸",
-  "slot.pvzce.i_zombie_pole_vaulter": "撑杆僵尸"
+  "slot.pvzce.i_zombie_pole_vaulter": "撑杆僵尸",
+  "gui.pvzce.workshop.label.font": "字体",
+  "gui.pvzce.shop.category.tool": "庭院工具",
+  "gui.pvzce.shop.category.cards": "卡组扩展",
+  "gui.pvzce.shop.category.buff": "永久增益"
 }

@@ -1212,5 +1212,9 @@
   "slot.pvzce.imp": "Imp",
   "slot.pvzce.dancing_zombie": "Dancing Zombie",
   "slot.pvzce.i_zombie_ladder": "Ladder Zombie",
-  "slot.pvzce.i_zombie_pole_vaulter": "Pole Vaulter Zombie"
+  "slot.pvzce.i_zombie_pole_vaulter": "Pole Vaulter Zombie",
+  "gui.pvzce.workshop.label.font": "Fonts",
+  "gui.pvzce.shop.category.tool": "Garden tools",
+  "gui.pvzce.shop.category.cards": "Deck upgrades",
+  "gui.pvzce.shop.category.buff": "Permanent buffs"
 }

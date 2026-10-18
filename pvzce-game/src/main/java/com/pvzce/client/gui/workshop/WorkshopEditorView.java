@@ -25,7 +25,7 @@ final class WorkshopEditorView {
 
     WorkshopEditorView(WorkshopJsonScreen owner, WorkshopPresentation art) { this.owner=owner;this.art=art; }
     private PvzceClient client(){return owner.client();}
-    private Button button(int x,int y,int w,int h,String text,Runnable action){var button=new Button(x,y,w,h,text,action);owner.visualWidget(button);return button;}
+    private Button button(int x,int y,int w,int h,String text,Runnable action){var button=new Button(x,y,w,h,text,action).style(Button.Style.SEED_CHOOSER);owner.visualWidget(button);return button;}
     private void label(String text,int x,int y,int w){labels.add(()->WorkshopUi.fit(client(),text,x,y,w,.73F,.85F,.92F,.77F));}
     private void rebuild(){owner.onResize();}
     boolean build(JsonElement node, boolean root) {
@@ -45,7 +45,7 @@ final class WorkshopEditorView {
             if(!groups.contains(group))group="基本";
             int tabWidth=(width-24)/groups.size();
             for(int i=0;i<groups.size();i++){
-                String next=groups.get(i);button(12+i*tabWidth,top,tabWidth-4,27,(group.equals(next)?"● ":"")+next,()->{group=next;rebuild();});
+                String next=groups.get(i);owner.visualWidget(WorkshopUi.tab(12+i*tabWidth,top,tabWidth-4,27,next,group.equals(next),()->{group=next;rebuild();}));
             }
             top-=18;
             List<String> keys=new ArrayList<>();
@@ -85,7 +85,7 @@ final class WorkshopEditorView {
                 continue;
             }
             if(value.isJsonPrimitive()&&!value.getAsJsonPrimitive().isBoolean()&&!owner.isReference(key)&&!key.equals("kind")) {
-                EditBox input=new EditBox(fx,y,cellWidth-28,27,32768,null);
+                EditBox input=new EditBox(fx,y,cellWidth-28,27,32768,null).style(EditBox.Style.PARCHMENT);
                 input.setValue(owner.inputText(node,key,value),false);
                 input.setValueChangedListener(()->owner.setText(node,key,value,input.value()));
                 owner.visualWidget(input);
@@ -100,9 +100,9 @@ final class WorkshopEditorView {
     }
     private void paging(int total,int count){
         if(total<=count)return;
-        var previous=new Button(12,32,34,26,"←",()->{page--;rebuild();});previous.setActive(page>0);owner.visualWidget(previous);
+        var previous=new Button(12,32,34,26,"←",()->{page--;rebuild();}).style(Button.Style.SEED_CHOOSER);previous.setActive(page>0);owner.visualWidget(previous);
         label((page+1)+" / "+Math.max(1,(total+count-1)/count),52,40,48);
-        var next=new Button(104,32,34,26,"→",()->{page++;rebuild();});next.setActive((page+1)*count<total);owner.visualWidget(next);
+        var next=new Button(104,32,34,26,"→",()->{page++;rebuild();}).style(Button.Style.SEED_CHOOSER);next.setActive((page+1)*count<total);owner.visualWidget(next);
     }
     private void array(JsonArray array,int top) {
         int width=client().guiWidth();boolean compact=client().guiHeight()<330;boolean frames=owner.currentField().equals("frames");
@@ -115,7 +115,7 @@ final class WorkshopEditorView {
             JsonElement value=array.get(i);
             if(frames&&compact&&value.isJsonPrimitive())owner.visualWidget(new Button(x,y+30,cw-100,32,value.getAsString(),()->owner.editValue(array,Integer.toString(index),value)){
                 public void render(PvzceClient client){
-                    client.drawSolid(this.x,this.y,this.width,this.height,0,.12F,.24F,.18F,1);
+                    com.pvzce.client.gui.layout.MenuPageCanvas.surface(client,this.x,this.y,this.width,this.height,hovered);
                     art.draw(art.item(value.getAsString(),"textures"),this.x+3,this.y+2,28,28);
                     WorkshopUi.fit(client,value.getAsString(),this.x+36,this.y+11,this.width-40,.65F,1,1,.8F);
                 }
@@ -124,7 +124,7 @@ final class WorkshopEditorView {
             else {
                 owner.visualWidget(new Button(x,y+38,cw,ch-38,summary(value),()->owner.editValue(array,Integer.toString(index),value)){
                     public void render(PvzceClient client){
-                        client.drawSolid(this.x,this.y,this.width,this.height,0,hovered?.23F:.11F,.24F,.17F,1);
+                        com.pvzce.client.gui.layout.MenuPageCanvas.surface(client,this.x,this.y,this.width,this.height,hovered);
                         String[] parts=summary(value).split(" · ",2);
                         WorkshopUi.fit(client,"#"+(index+1)+"  "+parts[0],this.x+12,this.y+this.height-23,this.width-24,.95F,1,1,.8F);
                         if(parts.length>1&&this.height>=44)WorkshopUi.fit(client,parts[1],this.x+12,this.y+12,this.width-24,.72F,.7F,.85F,.75F);
@@ -208,7 +208,7 @@ final class WorkshopEditorView {
         animationPreview();
         if(rootPreview){
             int h=client().guiHeight();
-            client().drawSolid(12,72,previewWidth,h-190,0,.08F,.15F,.12F,.95F);
+            com.pvzce.client.gui.layout.MenuPageCanvas.surface(client(),12,72,previewWidth,h-190,false);
             art.draw(art.item(owner.file(),""),22,owner.file().contains("/dialogue_characters/")?148:126,previewWidth-20,Math.max(30,h-288));
             WorkshopUi.fit(client(),art.item(owner.file(),"").name(),22,105,previewWidth-20,1,1,1,.8F);
             WorkshopUi.fit(client(),"保存后可构建；草稿独立预览",22,85,previewWidth-20,.64F,.7F,.85F,.7F);

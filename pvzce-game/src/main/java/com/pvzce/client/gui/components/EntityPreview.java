@@ -47,13 +47,14 @@ public final class EntityPreview {
     private final PvzceClient client;
     private final com.pvzce.api.registry.RegistryAccess content;
     private record Key(String kind,Identifier id) {}
-    private final Map<Key, ClientEntity> live = new LinkedHashMap<>(16, 0.75F, true) {
+    private record Preview(ClientEntity entity, float[] world) {}
+    private final Map<Key, Preview> live = new LinkedHashMap<>(16, 0.75F, true) {
         @Override
-        protected boolean removeEldestEntry(Map.Entry<Key, ClientEntity> eldest) {
+        protected boolean removeEldestEntry(Map.Entry<Key, Preview> eldest) {
             if (size() <= MAX_ALIVE) {
                 return false;
             }
-            release(eldest.getValue());
+            release(eldest.getValue().entity());
             return true;
         }
     };
@@ -79,6 +80,17 @@ public final class EntityPreview {
                 && EntityArt.animationFile(contentId) != null;
     }
 
+    /** The square world region must have the same pixel scale on both axes. */
+    static float[] previewArea(float x, float y, float width, float height) {
+        float side = Math.min(width, height);
+        return new float[]{x + (width - side) / 2F, y + (height - side) / 2F, side, side};
+    }
+
+    static float[] worldArea(float centerX, float centerY, float width, float height) {
+        float side = Math.max(CELLS, Math.max(width, height) * 1.1F);
+        return new float[]{centerX-side/2F, centerX+side/2F, centerY-side/2F, centerY+side/2F};
+    }
+
     /**
      * Draws the rig into a GUI box, or answers {@code false} when there is nothing to draw.
      *
@@ -91,23 +103,31 @@ public final class EntityPreview {
             return false;
         }
         Key key=new Key(kind,contentId);
-        ClientEntity entity = live.get(key);
-        if (entity == null) {
-            entity = new ClientEntity(-1 - live.size(), kind, contentId.toString(),
+        Preview preview = live.get(key);
+        if (preview == null) {
+            ClientEntity entity = new ClientEntity(-1 - live.size(), kind, contentId.toString(),
                     CELLS / 2F, CELLS / 2F, 100, 1, POSE, 0F, "");
             entity.previewCatalog(content);
             entity.attachAnimationManager(client.animations());
-            live.put(key, entity);
+            entity.playAnimation(POSE);
+            preview = new Preview(entity, worldArea(entity));
+            live.put(key, preview);
         }
+        ClientEntity entity = preview.entity();
         entity.update(CELLS / 2F, CELLS / 2F, 100, POSE, 0F);
         entity.playAnimation(POSE);
-        client.clipping().push(x, y, width, height);
+        float[] world = preview.world();
+        float[] area = previewArea(x, y, width, height);
+        client.clipping().push(area[0], area[1], area[2], area[3]);
         try {
-            client.beginOverlayWorldView(x, y, width, height, 0F, CELLS, 0F, CELLS);
+            client.beginOverlayWorldView(area[0], area[1], area[2], area[3], world[0], world[1], world[2], world[3]);
             if (!client.animations().render(entity)) {
                 Identifier sprite = EntityArt.sprite(contentId, kind, content);
                 if (!client.hasTexture(sprite)) return false;
-                client.drawTexture(sprite, CELLS*0.1F, CELLS*0.1F, CELLS*0.8F, CELLS*0.8F, 0, 1, 1, 1, 1);
+                var texture = client.textures().getOrLoad(sprite);
+                float scale = CELLS * 0.8F / Math.max(texture.width(), texture.height());
+                float w = texture.width() * scale, h = texture.height() * scale;
+                client.drawTexture(sprite, (CELLS-w)/2F, (CELLS-h)/2F, w, h, 0, 1, 1, 1, 1);
             }
         } finally {
             client.clipping().pop();
@@ -116,10 +136,26 @@ public final class EntityPreview {
         return true;
     }
 
+    private float[] worldArea(ClientEntity entity) {
+        var playback=client.animations().playback(entity);
+        float[] bounds=null;
+        if(playback instanceof com.pvzce.client.animation.ControllerPlayback controller) {
+            bounds=controller.bounds(client.animations().now());
+        } else if(playback!=null && playback.file() instanceof com.pvzce.client.animation.FlipbookFile flipbook) {
+            float left=-flipbook.sizeX()*flipbook.anchorX(), bottom=-flipbook.sizeY()*flipbook.anchorY();
+            bounds=new float[]{left,left+flipbook.sizeX(),bottom,bottom+flipbook.sizeY()};
+        }
+        if(bounds==null)return new float[]{0F,CELLS,0F,CELLS};
+        float scale=EntityArt.renderScale(entity.defId(),content)*entity.renderScale();
+        float[] anchor=client.animations().anchor(entity);
+        return worldArea(anchor[0]+(bounds[0]+bounds[1])*scale/2F,
+                anchor[1]+(bounds[2]+bounds[3])*scale/2F,(bounds[1]-bounds[0])*scale,(bounds[3]-bounds[2])*scale);
+    }
+
     /** Drops every rig; call this when the screen or page that owns the pool goes away. */
     public void release() {
-        for (ClientEntity entity : live.values()) {
-            release(entity);
+        for (Preview preview : live.values()) {
+            release(preview.entity());
         }
         live.clear();
     }

@@ -57,28 +57,26 @@ public final class WorkshopScreen extends Screen {
     private void attempt(Action action) { try {action.run();}catch(Exception e){notice=e.getMessage();client.openScreen(new WorkshopMessageScreen(client,notice));} onResize(); }
     @FunctionalInterface private interface Action { void run() throws Exception; }
     protected void init() {
-        int width=client.guiWidth(),height=client.guiHeight(),gap=6,bw=(width-32-gap*3)/4;
+        int width=client.guiWidth(),height=client.guiHeight(),gap=8,bw=Math.min(150,(width-48)/3);
         if(workspace==null) {
-            addWidget(new Button(16,height-64,bw,26,WorkshopUi.text("create","创建工作区"),this::create));
-            addWidget(new Button(16+bw+gap,height-64,bw,26,WorkshopUi.text("import_old","导入旧关卡"),this::importLegacy));
+            addWidget(new Button(16,height-74,bw,30,WorkshopUi.text("create","创建工作区"),this::create).style(Button.Style.SEED_CHOOSER));
+            addWidget(new Button(16+bw+gap,height-74,bw,30,WorkshopUi.text("import_old","导入旧关卡"),this::importLegacy).style(Button.Style.SEED_CHOOSER));
             attemptRead();
         } else {
-            addWidget(new Button(16,height-64,bw,26,WorkshopUi.text("new","新建内容"),this::newContent));
-            addWidget(new Button(16+bw+gap,height-64,bw,26,WorkshopUi.text("build","构建数据包"),()->attempt(()->{
+            addWidget(new Button(16,height-74,bw,30,WorkshopUi.text("new","新建内容"),this::newContent).style(Button.Style.SEED_CHOOSER));
+            addWidget(new Button(width-16-bw,height-74,bw,30,WorkshopUi.text("build","构建数据包"),()->attempt(()->{
                 workspace.build(client.gameDir(),WorkshopAssets::validate);client.requestPackReload();notice=WorkshopUi.text("built","构建成功，正在重载");
-            })));
-            addWidget(new Button(16+(bw+gap)*2,height-64,bw,26,WorkshopUi.text("import","导入素材"),this::importAsset));
-            addWidget(new Button(16+(bw+gap)*3,height-64,bw,26,(filter.isEmpty()?"筛选：全部":"筛选："+WorkshopUi.label(filter.substring(1,filter.length()-1))),()->client.openScreen(new WorkshopListScreen(client,
-                    WorkshopUi.text("type","内容类型"),WorkshopContent.types(),type->{filter="/"+type+"/";page=0;onResize();}))));
+            })).style(Button.Style.SEED_CHOOSER));
+            addWidget(new Button(16+bw+gap,height-74,bw,30,WorkshopUi.text("import","导入素材"),this::importAsset).style(Button.Style.SEED_CHOOSER));
             try {workspaceStamp=stamp();files=workspace.files();}catch(Exception e){notice=e.getMessage();}
         }
         icons.refresh();
         if(presentation==null)presentation=new WorkshopPresentation(client,workspace);
         else presentation.refresh();
-        search=new EditBox(62,height-100,width-150,27,256,null);
+        search=new EditBox(62,height-112,width-150,27,256,null).style(EditBox.Style.PARCHMENT);
         search.setValue(query,false);addWidget(search);
         search.setValueChangedListener(()->{query=search.value();page=0;updateResults();});
-        addWidget(new Button(width-80,height-100,64,27,"清空",()->{search.setValue("");search.setFocused(true);}));
+        addWidget(new Button(width-80,height-112,64,27,"清空",()->{search.setValue("");search.setFocused(true);}).style(Button.Style.SEED_CHOOSER));
         updateResults();
     }
     private void result(AbstractWidget widget){results.add(widget);addWidget(widget);}
@@ -89,20 +87,21 @@ public final class WorkshopScreen extends Screen {
         var shownWorkspaces=workspaces.stream().filter(w->(w.name()+" "+w.namespace()).toLowerCase(Locale.ROOT).contains(needle)).toList();
         var shownFiles=files.stream().filter(p->(filter.isEmpty()||p.contains(filter))
                 &&(p+" "+presentation.item(p,"").name()).toLowerCase(Locale.ROOT).contains(needle)).toList();
-        int columns=workspace==null?1:Math.max(1,(width-32)/170);
-        int rows=Math.max(1,(height-184)/145);
-        int count=workspace==null?Math.max(1,(height-180)/52):columns*rows;
+        int columns=workspace==null?1:Math.max(1,(width-32)/200);
+        int rows=Math.max(1,(height-202)/145);
+        int count=workspace==null?Math.max(1,(height-202)/60):columns*rows;
         int cardWidth=(width-32-(columns-1)*8)/columns;
-        int cardHeight=Math.max(52,Math.min(152,(height-184)/rows-8));
+        int cardHeight=Math.max(36,Math.min(152,(height-200)/rows-8));
+        int workspaceRowHeight=Math.min(52,Math.max(36,height-200));
         matches=workspace==null?shownWorkspaces.size():shownFiles.size();
         pages=Math.max(1,(matches+count-1)/count);page=Math.min(page,pages-1);
         for(int i=page*count;i<Math.min(matches,(page+1)*count);i++) {
             int slot=i-page*count;
             if(workspace==null){
                 Workspace item=shownWorkspaces.get(i);
-                result(new Button(16,height-164-slot*52,width-32,46,item.name()+" · "+item.namespace(),()->client.openScreen(new WorkshopScreen(client,item))){
+                result(new Button(16,height-128-workspaceRowHeight-slot*60,width-32,workspaceRowHeight,item.name()+" · "+item.namespace(),()->client.openScreen(new WorkshopScreen(client,item))){
                     public void render(PvzceClient client){
-                        client.drawSolid(x,y,this.width,this.height,0,hovered?.22F:.12F,.24F,.18F,1);
+                        com.pvzce.client.gui.layout.MenuPageCanvas.surface(client,x,y,this.width,this.height,hovered);
                         icons.draw(item.root(),x+6,y+5,36);
                         WorkshopUi.fit(client,item.name()+" · "+item.namespace(),x+52,y+16,this.width-62,.95F,1,1,.8F);
                     }
@@ -110,21 +109,23 @@ public final class WorkshopScreen extends Screen {
             } else {
                 String file=shownFiles.get(i);
                 result(presentation.card(presentation.item(file,""),16+(slot%columns)*(cardWidth+8),
-                        height-116-cardHeight-(slot/columns)*(cardHeight+8),cardWidth,cardHeight,()->attempt(()->open(file))));
+                        height-128-cardHeight-(slot/columns)*(cardHeight+8),cardWidth,cardHeight,()->attempt(()->open(file))));
             }
         }
-        var previous=new Button(16,32,64,26,"上一页",()->changePage(-1));previous.setActive(page>0);result(previous);
-        var next=new Button(86,32,64,26,"下一页",()->changePage(1));next.setActive(page+1<pages);result(next);
+        var previous=new Button(16,32,64,26,"上一页",()->changePage(-1)).style(Button.Style.SEED_CHOOSER);previous.setActive(page>0);result(previous);
+        var next=new Button(86,32,64,26,"下一页",()->changePage(1)).style(Button.Style.SEED_CHOOSER);next.setActive(page+1<pages);result(next);
         if(workspace!=null) {
-            var all=new Button(156,32,86,26,WorkshopUi.text("all","全部"),()->{filter="";query="";search.setValue("",false);page=0;onResize();});
-            all.setActive(!filter.isEmpty()||!query.isEmpty());result(all);
-            result(new Button(248,32,70,26,"设置",()->client.openScreen(new WorkshopPackScreen(client,workspace,updated->{workspace=updated;onResize();}))));
+            result(new Button(156,32,86,26,filter.isEmpty()?"全部类型":WorkshopUi.label(filter.substring(1,filter.length()-1)),()->{
+                var types=new ArrayList<String>();types.add("全部类型");types.addAll(WorkshopContent.types());
+                client.openScreen(new WorkshopListScreen(client,WorkshopUi.text("type","内容类型"),types,type->{filter=type.equals("全部类型")?"":"/"+type+"/";if(filter.isEmpty()){query="";search.setValue("",false);}page=0;onResize();}));
+            }).style(Button.Style.SEED_CHOOSER));
+            result(new Button(248,32,Math.min(70,Math.max(32,width-352)),26,"设置",()->client.openScreen(new WorkshopPackScreen(client,workspace,updated->{workspace=updated;onResize();}))).style(Button.Style.SEED_CHOOSER));
         }
-        result(new Button(width-96,32,80,26,WorkshopUi.text("back","返回"),this::requestClose));
+        result(new Button(width-96,32,80,26,WorkshopUi.text("back","返回"),this::requestClose).style(Button.Style.SEED_CHOOSER));
     }
     private void changePage(int delta){int next=Math.max(0,Math.min(pages-1,page+delta));if(next!=page){page=next;updateResults();}}
     protected ScrollRegion onScrollRegionAt(double x,double y){
-        return pages>1&&x>=16&&x<client.guiWidth()-16&&y>=72&&y<client.guiHeight()-112
+        return pages>1&&x>=16&&x<client.guiWidth()-16&&y>=72&&y<client.guiHeight()-124
                 ?ScrollRegion.dragsContent(ScrollRegion.Axis.VERTICAL,100):null;
     }
     protected void onMouseScrolled(double x,double y,double amount){if(onScrollRegionAt(x,y)!=null&&amount!=0)changePage(amount<0?1:-1);}
@@ -228,13 +229,13 @@ public final class WorkshopScreen extends Screen {
     protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();icons.close();}
     public void render(){
-        renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
+        WorkshopUi.backdrop(client, this);
         if(workspace!=null)icons.draw(workspace.root(),16,client.guiHeight()-38,28);
-        client.fonts().body().draw(shorten(workspace==null?WorkshopUi.text("title","创意工坊"):workspace.name()+" · "+workspace.namespace(),client.guiWidth()-64),workspace==null?16:52,client.guiHeight()-28,1.1F,1,1,0.8F,1);
-        WorkshopUi.fit(client,"搜索",16,client.guiHeight()-92,44,.8F,.8F,.9F,.8F);
-        WorkshopUi.fit(client,(page+1)+" / "+pages+" 页 · "+matches+" 项",16,65,client.guiWidth()-32,.72F,.8F,.9F,.8F);
-        if(matches==0)WorkshopUi.fit(client,query.isEmpty()&&filter.isEmpty()?"从上方创建内容或导入素材开始":"没有匹配内容，可清空搜索或切回全部",20,client.guiHeight()/2,client.guiWidth()-40,.8F,1,1,.8F);
-        client.fonts().body().draw(shorten(notice.isEmpty()?WorkshopUi.text("draft_notice","草稿仅在构建或临时测试时加载"):notice,client.guiWidth()-30),16,10,0.8F,1,0.9F,0.6F,1);
+        client.fonts().body().draw(shorten(workspace==null?WorkshopUi.text("title","创意工坊"):workspace.name()+" · "+workspace.namespace(),client.guiWidth()-220),workspace==null?16:52,client.guiHeight()-28,1.1F,1,1,0.8F,1);
+        WorkshopUi.fit(client,"搜索",16,client.guiHeight()-104,44,.8F,.95F,.85F,.65F);
+        WorkshopUi.fit(client,(page+1)+" / "+pages+" 页 · "+matches+" 项",client.guiWidth()-164,client.guiHeight()-27,148,.72F,.95F,.85F,.65F);
+        if(matches==0)WorkshopUi.fit(client,query.isEmpty()&&filter.isEmpty()?(workspace==null?"创建工作区，开始制作你的植物与关卡":"从上方创建内容或导入素材开始"):"没有匹配内容，可清空搜索或切回全部",20,client.guiHeight()/2,client.guiWidth()-40,.8F,1,1,.8F);
+        client.fonts().body().draw(shorten(notice.isEmpty()?WorkshopUi.text("draft_notice","草稿仅在构建或临时测试时加载"):notice,client.guiWidth()-30),16,10,0.8F,.36F,.23F,.10F,1);
         for(var widget:widgets)widget.render(client);
     }
 }

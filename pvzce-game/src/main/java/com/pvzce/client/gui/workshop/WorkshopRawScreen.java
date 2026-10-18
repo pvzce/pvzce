@@ -20,10 +20,10 @@ final class WorkshopRawScreen extends Screen {
         editor=new SourceBox(12,60,client.guiWidth()-24,Math.max(60,client.guiHeight()-110));editor.setValue(source,false);addWidget(editor);
         addWidget(new Button(12,20,140,28,WorkshopUi.text("apply","应用 JSON"),()->{
             try{JsonObject parsed=JsonParser.parseString(editor.value()).getAsJsonObject();client.popScreen();accept.accept(parsed);}catch(Exception e){error=e.getMessage();}
-        }));
-        addWidget(new Button(client.guiWidth()-112,20,100,28,WorkshopUi.text("cancel","取消"),this::requestClose));
+        }).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(client.guiWidth()-112,20,100,28,WorkshopUi.text("cancel","取消"),this::requestClose).style(Button.Style.SEED_CHOOSER));
     }
-    public void render(){renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
+    public void render(){WorkshopUi.backdrop(client, this);
         client.fonts().body().draw(WorkshopScreen.shorten(error.isEmpty()?"JSON":error,client.guiWidth()-24),12,client.guiHeight()-30,0.9F,1,0.9F,0.7F,1);
         for(var widget:widgets)widget.render(client);
     }

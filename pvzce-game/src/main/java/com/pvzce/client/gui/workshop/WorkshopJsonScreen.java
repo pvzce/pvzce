@@ -104,18 +104,18 @@ public final class WorkshopJsonScreen extends Screen {
         if(presentation==null){presentation=new WorkshopPresentation(client,workspace);visual=new WorkshopEditorView(this,presentation);}
         presentation.draft(file,root);
         int width=client.guiWidth(),height=client.guiHeight(),bw=(width-50)/5;
-        addWidget(new Button(12,height-62,bw,26,WorkshopUi.text("save","保存草稿"),()->save()));
-        addWidget(new Button(18+bw,height-62,bw,26,WorkshopUi.text("add","添加"),()->attempt(this::add)));
-        addWidget(new Button(24+bw*2,height-62,bw,26,"JSON",()->client.openScreen(new WorkshopRawScreen(client,root,changed->{root=changed;inputErrors.clear();invalidText.clear();location.clear();parents.clear();pages.clear();page=0;onResize();}))));
-        if(file.contains("/animations/"))addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("preview","预览"),()->{if(save())client.openScreen(new WorkshopPreviewScreen(client,workspace,file));}));
-        else addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("validate","校验"),()->attempt(()->{if(save()){WorkshopAssets.validate(workspace);notice=WorkshopUi.text("valid","校验通过");}})));
-        var parent=new Button(36+bw*4,height-62,bw,26,WorkshopUi.text("parent","上一级"),this::parent);
+        addWidget(new Button(12,height-62,bw,26,WorkshopUi.text("save","保存草稿"),()->save()).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(18+bw,height-62,bw,26,WorkshopUi.text("add","添加"),()->attempt(this::add)).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(24+bw*2,height-62,bw,26,"JSON",()->client.openScreen(new WorkshopRawScreen(client,root,changed->{root=changed;inputErrors.clear();invalidText.clear();location.clear();parents.clear();pages.clear();page=0;onResize();}))).style(Button.Style.SEED_CHOOSER));
+        if(file.contains("/animations/"))addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("preview","预览"),()->{if(save())client.openScreen(new WorkshopPreviewScreen(client,workspace,file));}).style(Button.Style.SEED_CHOOSER));
+        else addWidget(new Button(30+bw*3,height-62,bw,26,WorkshopUi.text("validate","校验"),()->attempt(()->{if(save()){WorkshopAssets.validate(workspace);notice=WorkshopUi.text("valid","校验通过");}})).style(Button.Style.SEED_CHOOSER));
+        var parent=new Button(36+bw*4,height-62,bw,26,WorkshopUi.text("parent","上一级"),this::parent).style(Button.Style.SEED_CHOOSER);
         parent.setActive(!location.isEmpty());addWidget(parent);
         JsonElement visualNode=node();
         visualBuilt=!advanced && visual.build(visualNode,location.isEmpty());
-        addWidget(new Button(148,32,128,26,advanced?"可视化编辑":"高级属性",()->{advanced=!advanced;onResize();}));
+        addWidget(new Button(148,32,128,26,advanced?"可视化编辑":"高级属性",()->{advanced=!advanced;onResize();}).style(Button.Style.SEED_CHOOSER));
         if(visualBuilt){
-            addWidget(new Button(width-142,32,130,26,WorkshopUi.text("save_back","保存并返回"),()->{if(save())client.popScreen();}));
+            addWidget(new Button(width-142,32,130,26,WorkshopUi.text("save_back","保存并返回"),()->{if(save())client.popScreen();}).style(Button.Style.SEED_CHOOSER));
             return;
         }
         JsonElement node=node();List<String> keys=node.isJsonObject()?new ArrayList<>(node.getAsJsonObject().keySet()):new ArrayList<>();
@@ -124,13 +124,13 @@ public final class WorkshopJsonScreen extends Screen {
         for(int i=page*count;i<Math.min(keys.size(),(page+1)*count);i++){
             String key=keys.get(i);JsonElement value=get(node,key);int y=height-98-(i-page*count)*30;
             String label=WorkshopUi.label(key)+" : "+(value.isJsonObject()?"{…}":value.isJsonArray()?"["+value.getAsJsonArray().size()+"]":value.toString());
-            addWidget(new Button(12,y,width-122,26,WorkshopScreen.shorten(label,width-135),()->edit(node,key,value)));
-            addWidget(new Button(width-104,y,40,26,"×",()->{if(node.isJsonArray())removeEntry(node.getAsJsonArray(),Integer.parseInt(key));else removeField(node.getAsJsonObject(),key);}));
-            if(node.isJsonArray())addWidget(new Button(width-58,y,44,26,"↑",()->moveEntry(node.getAsJsonArray(),Integer.parseInt(key),-1)));
+            addWidget(new Button(12,y,width-122,26,WorkshopScreen.shorten(label,width-135),()->edit(node,key,value)).style(Button.Style.SEED_CHOOSER));
+            addWidget(new Button(width-104,y,40,26,"×",()->{if(node.isJsonArray())removeEntry(node.getAsJsonArray(),Integer.parseInt(key));else removeField(node.getAsJsonObject(),key);}).style(Button.Style.SEED_CHOOSER));
+            if(node.isJsonArray())addWidget(new Button(width-58,y,44,26,"↑",()->moveEntry(node.getAsJsonArray(),Integer.parseInt(key),-1)).style(Button.Style.SEED_CHOOSER));
         }
-        addWidget(new Button(12,32,60,26,"←",()->{page=Math.max(0,page-1);onResize();}));
-        addWidget(new Button(78,32,60,26,"→",()->{if((page+1)*count<keys.size())page++;onResize();}));
-        addWidget(new Button(width-112,32,100,26,WorkshopUi.text("save_back","保存并返回"),()->{if(save())client.popScreen();}));
+        addWidget(new Button(12,32,60,26,"←",()->{page=Math.max(0,page-1);onResize();}).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(78,32,60,26,"→",()->{if((page+1)*count<keys.size())page++;onResize();}).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(width-112,32,100,26,WorkshopUi.text("save_back","保存并返回"),()->{if(save())client.popScreen();}).style(Button.Style.SEED_CHOOSER));
     }
     private static JsonElement get(JsonElement node,String key){return node.isJsonObject()?node.getAsJsonObject().get(key):node.getAsJsonArray().get(Integer.parseInt(key));}
     private static void put(JsonElement node,String key,JsonElement value){if(node.isJsonObject())node.getAsJsonObject().add(key,value);else node.getAsJsonArray().set(Integer.parseInt(key),value);}
@@ -321,7 +321,7 @@ public final class WorkshopJsonScreen extends Screen {
     public void requestClose(){if(!location.isEmpty())parent();else if(save())super.requestClose();}
     protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();}
-    public void render(){renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
+    public void render(){WorkshopUi.backdrop(client, this);
         String trail=location.stream().map(k->k.matches("[0-9]+")?"#"+(Integer.parseInt(k)+1):WorkshopUi.label(k)).collect(java.util.stream.Collectors.joining(" / "));
         String state=root.equals(savedRoot)&&inputErrors.isEmpty()?"已保存":"未保存";
         WorkshopUi.fit(client,file.substring(file.lastIndexOf('/')+1)+" · "+state+" / "+(trail.isEmpty()?"概览":trail),12,client.guiHeight()-28,client.guiWidth()-24,.9F,1,1,.8F);

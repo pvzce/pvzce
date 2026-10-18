@@ -32,12 +32,12 @@ public final class WorkshopListScreen extends Screen {
     protected void init() {
         boolean first=search==null;
         if(presentation==null)presentation=new WorkshopPresentation(client,workspace);
-        search=new EditBox(62,client.guiHeight()-66,client.guiWidth()-150,27,256,this::chooseOnlyResult);
+        search=new EditBox(62,client.guiHeight()-66,client.guiWidth()-150,27,256,this::chooseOnlyResult).style(EditBox.Style.PARCHMENT);
         search.setValue(query,false);addWidget(search);
         search.setValueChangedListener(()->{query=search.value();page=0;updateResults();});
         addWidget(new Button(client.guiWidth()-80,client.guiHeight()-66,64,27,"清空",()->{
             search.setValue("");search.setFocused(true);
-        }));
+        }).style(Button.Style.SEED_CHOOSER));
         updateResults();
         if(first)search.setFocused(true);
     }
@@ -63,9 +63,9 @@ public final class WorkshopListScreen extends Screen {
             result(presentation.card(presentation.item(item,type),16+(slot%columns)*(width+8),
                     client.guiHeight()-80-cardHeight-(slot/columns)*(cardHeight+8),width,cardHeight,()->select(item)));
         }
-        var previous=new Button(16,12,80,26,"上一页",()->changePage(-1));previous.setActive(page>0);result(previous);
-        var next=new Button(104,12,80,26,"下一页",()->changePage(1));next.setActive(page+1<pages);result(next);
-        result(new Button(client.guiWidth()-116,12,100,26,WorkshopUi.text("back","返回"),this::requestClose));
+        var previous=new Button(16,12,80,26,"上一页",()->changePage(-1)).style(Button.Style.SEED_CHOOSER);previous.setActive(page>0);result(previous);
+        var next=new Button(104,12,80,26,"下一页",()->changePage(1)).style(Button.Style.SEED_CHOOSER);next.setActive(page+1<pages);result(next);
+        result(new Button(client.guiWidth()-116,12,100,26,WorkshopUi.text("back","返回"),this::requestClose).style(Button.Style.SEED_CHOOSER));
     }
     private void changePage(int delta){
         int next=Math.max(0,Math.min(pages-1,page+delta));
@@ -82,10 +82,10 @@ public final class WorkshopListScreen extends Screen {
     protected void onHidden(){if(presentation!=null)presentation.stopAudition();}
     protected void onRemoved(){if(presentation!=null)presentation.close();}
     public void render() {
-        renderBackground(0.08F,0.12F,0.1F);WorkshopUi.backdrop(client);
+        WorkshopUi.backdrop(client, this);
         WorkshopUi.fit(client,title,16,client.guiHeight()-28,client.guiWidth()-32,1,1,1,.8F);
-        WorkshopUi.fit(client,"搜索",16,client.guiHeight()-58,44,.8F,.8F,.9F,.8F);
-        WorkshopUi.fit(client,(page+1)+" / "+pages+" 页 · "+matches+" 项",196,20,client.guiWidth()-324,.7F,.8F,.9F,.8F);
+        WorkshopUi.fit(client,"搜索",16,client.guiHeight()-58,44,.8F,.36F,.23F,.10F);
+        WorkshopUi.fit(client,(page+1)+" / "+pages+" 页 · "+matches+" 项",196,20,client.guiWidth()-324,.7F,.36F,.23F,.10F);
         if(matches==0)WorkshopUi.fit(client,entries.isEmpty()?"暂无内容":"没有匹配内容，请修改搜索或清空",20,client.guiHeight()/2,client.guiWidth()-40,.9F,1,1,.8F);
         for(var widget:widgets)widget.render(client);
     }

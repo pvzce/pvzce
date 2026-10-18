@@ -9,11 +9,11 @@ public final class WorkshopMessageScreen extends Screen {
     private int page;
     public WorkshopMessageScreen(PvzceClient client,String message){super(client);this.message=Objects.toString(message,"");}
     protected void init(){
-        addWidget(new Button(16,16,70,28,"←",()->{page=Math.max(0,page-1);}));
-        addWidget(new Button(94,16,70,28,"→",()->{page++;}));
-        addWidget(new Button(client.guiWidth()-116,16,100,28,WorkshopUi.text("back","返回"),this::requestClose));
+        addWidget(new Button(16,16,70,28,"←",()->{page=Math.max(0,page-1);}).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(94,16,70,28,"→",()->{page++;}).style(Button.Style.SEED_CHOOSER));
+        addWidget(new Button(client.guiWidth()-116,16,100,28,WorkshopUi.text("back","返回"),this::requestClose).style(Button.Style.SEED_CHOOSER));
     }
-    public void render(){renderBackground(0.08F,0.12F,0.1F);
+    public void render(){WorkshopUi.backdrop(client, this);
         List<String> lines=new ArrayList<>();StringBuilder current=new StringBuilder();
         for(char c:message.toCharArray()){
             if(c=='\n'||client.fonts().body().width(current.toString()+c,0.9F)>client.guiWidth()-40){lines.add(current.toString());current.setLength(0);if(c=='\n')continue;}current.append(c);

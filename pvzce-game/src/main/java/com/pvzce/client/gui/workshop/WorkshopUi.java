@@ -1,6 +1,7 @@
 package com.pvzce.client.gui.workshop;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.Screen;
+import com.pvzce.client.gui.layout.MenuPageCanvas;
 import com.pvzce.client.gui.components.*;
 import java.util.function.Consumer;
 final class WorkshopUi {
@@ -90,8 +91,20 @@ final class WorkshopUi {
         java.util.Map.entry("max","最大值"),
         java.util.Map.entry("value","数值"),java.util.Map.entry("plant","植物"),java.util.Map.entry("zombie","僵尸"),java.util.Map.entry("tool","工具")
     );
-    static void backdrop(com.pvzce.client.PvzceClient client) {
-        client.drawSolid(0,0,client.guiWidth(),client.guiHeight(),-.8F,.035F,.065F,.05F,.94F);
+    static void backdrop(com.pvzce.client.PvzceClient client, Screen screen) {
+        MenuPageCanvas.renderPageBackground(client, screen);
+        MenuPageCanvas.surface(client,8,client.guiHeight()-38,client.guiWidth()-16,30,false);
+        MenuPageCanvas.surface(client,8,68,client.guiWidth()-16,Math.max(30,client.guiHeight()-146),false);
+    }
+    static Button tab(int x,int y,int width,int height,String label,boolean selected,Runnable action) {
+        return new Button(x,y,width,height,label,action) {
+            public void render(com.pvzce.client.PvzceClient client) {
+                MenuPageCanvas.surface(client,x,y,width,height,selected||hovered);
+                float scale=Math.min(.9F,(width-16)/Math.max(1,client.fonts().body().width(label,1)));
+                client.fonts().body().drawCentered(label,x+width/2F,y+height*.35F,scale,1,.94F,.78F,1);
+                if(selected)client.drawSolid(x+2,y,width-4,3,0,.96F,.76F,.32F,1);
+            }
+        };
     }
     static void fit(com.pvzce.client.PvzceClient client, String text, float x, float y, float width,
                     float scale, float r, float g, float b) {
@@ -110,11 +123,11 @@ final class WorkshopUi {
             EditBox focused=owner.focusManager().focused();
             owner.removeDialog(dialog);
             accept.accept(focused.value());
-        });
+        }).style(EditBox.Style.PARCHMENT);
         box.setValue(initial,false);
         dialog.addChild(box);
-        dialog.addChild(new Button(x+16,y+20,(width-40)/2,30,text("ok","确定"),()-> { owner.removeDialog(dialog); accept.accept(box.value()); }));
-        dialog.addChild(new Button(x+24+(width-40)/2,y+20,(width-40)/2,30,text("cancel","取消"),()->owner.removeDialog(dialog)));
+        dialog.addChild(new Button(x+16,y+20,(width-40)/2,30,text("ok","确定"),()-> { owner.removeDialog(dialog); accept.accept(box.value()); }).style(Button.Style.SEED_CHOOSER));
+        dialog.addChild(new Button(x+24+(width-40)/2,y+20,(width-40)/2,30,text("cancel","取消"),()->owner.removeDialog(dialog)).style(Button.Style.SEED_CHOOSER));
         owner.showDialog(dialog);
         box.setFocused(true);
     }
