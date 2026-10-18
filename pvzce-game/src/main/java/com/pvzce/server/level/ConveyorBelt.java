@@ -50,8 +50,8 @@ public final class ConveyorBelt {
     private boolean changed = true;
 
     public ConveyorBelt(LevelBelt def, Random random) {
-        this.def = def;
-        for (int i = 0; i < def.initialCards(); i++) {
+        this.def = def.withPlayerCapacity(com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS);
+        for (int i = 0; i < this.def.initialCards(); i++) {
             produce(random);
         }
         this.ticksUntilNext = def.intervalTicks();

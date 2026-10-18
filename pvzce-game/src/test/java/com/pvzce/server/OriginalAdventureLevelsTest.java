@@ -79,6 +79,24 @@ class OriginalAdventureLevelsTest {
         TestContent.loadBuiltInContentAndTags();
     }
 
+    @Test
+    void earlyAdventureWavesRotateLanesAndRoofLevelsHaveCleaners() {
+        for (int chapter : List.of(1, 2, 3, 4, 5)) {
+            var def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/" + chapter + "_2"));
+            var rows = new java.util.HashSet<Integer>();
+            def.waves().stream().limit(4).flatMap(w -> w.entries().stream()).forEach(e -> rows.addAll(e.rows()));
+            assertTrue(rows.size() >= 3, def.id() + " must not concentrate its opening in the bottom lane");
+            assertTrue(def.waves().stream().filter(w -> w.type() == WaveDef.WaveType.SMALL)
+                    .allMatch(w -> w.spawnInterval() >= 90), "small waves give arrivals a readable gap");
+        }
+        for (int chapter : List.of(5, 6)) {
+            for (int number = 1; number <= (chapter == 5 ? 10 : 4); number++) {
+                var def = BuiltInRegistries.LEVELS.get(PvzceIds.id("yard/adventure/" + chapter + "_" + number));
+                assertEquals(def.height(), new com.pvzce.server.level.LevelServer(def).readyMowerCount(), def.id().toString());
+            }
+        }
+    }
+
     private static int waveCount(int number) {
         if (number == 35) {
             return 0; // Scary Potter: its zombies come out of the vases, there are no waves

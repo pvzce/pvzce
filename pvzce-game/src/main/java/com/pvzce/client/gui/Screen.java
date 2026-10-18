@@ -658,7 +658,9 @@ public abstract class Screen {
     }
 
     public boolean hasTextInputFocused() {
-        return focusManager.hasTextFocus();
+        Dialog modal = modalDialog();
+        return focusManager.hasTextFocus()
+                && (modal == null || modal.children().contains(focusManager.focused()));
     }
 
     /**

@@ -65,7 +65,8 @@ class ClientMechanicTest {
         assertEquals(List.of(), level.mechanicData(PvzceIds.MECHANIC_RAKE,
                         com.pvzce.api.content.RakeData.class).rowsFor(level.height()),
                 "and it declares its rake off the same way, so a bought rake never bowls for you");
-        assertEquals(6, level.mechanicData(PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class).capacity());
+        assertEquals(6, level.mechanicData(PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class)
+                .withPlayerCapacity(level.maxSeedSlots()).capacity());
         assertTrue(level.placementZone().contains(3, 0));
         assertFalse(level.inPlacementZone(4, 0), "the red line is where the server says it is");
         assertNotNull(level.mechanicData(PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class));

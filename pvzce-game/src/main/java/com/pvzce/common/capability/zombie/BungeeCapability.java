@@ -253,10 +253,11 @@ public final class BungeeCapability implements ZombieCapability {
             return true;
         }
         if (cargo != null) {
+            if (phaseTicks < grabTicks) return true;
             level.spawnZombie(cargo, zombie.team(), targetColumn + 0.5F, zombie.gridY(), cargoHealthScale,
                     zombie.surfaceId(), cargoAttributes);
             cargo = null;
-            stage = Stage.RISING;
+            stage = Stage.HOLDING;
             phaseTicks = 0;
             return true;
         }

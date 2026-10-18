@@ -378,7 +378,7 @@ public final class BeltCardBar implements CardBar {
         if (capacity <= 0) {
             com.pvzce.api.content.LevelBelt belt = client.level().mechanicData(
                     com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR, com.pvzce.api.content.LevelBelt.class);
-            capacity = belt == null ? 1 : belt.capacity();
+            capacity = belt == null ? 1 : belt.withPlayerCapacity(client.level().maxSeedSlots()).capacity();
         }
         capacity = Math.max(1, capacity);
         cardHeight = Math.max(52, Math.min(70, guiH / 7));

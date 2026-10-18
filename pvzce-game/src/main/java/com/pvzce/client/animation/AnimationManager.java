@@ -425,7 +425,9 @@ public final class AnimationManager {
         //   * `board` (the 80x100 cell correction) goes on the horizontal axis alone, because
         //     that is what it corrects. A drop skips it: its art is authored in cells and the
         //     renderer draws cells.
-        return new float[]{board * size, size};
+        boolean crushed = EntityAnimations.DEATH_CRUSHED.equals(entity.animation());
+        return new float[]{board * size * (crushed ? com.pvzce.common.PvzceConstants.CRUSHED_WIDTH_SCALE : 1F),
+                size * (crushed ? com.pvzce.common.PvzceConstants.CRUSHED_HEIGHT_SCALE : 1F)};
     }
 
     /** The definition's {@code render_scale}, or 1 for anything that declares none. */

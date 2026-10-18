@@ -216,6 +216,8 @@ public final class PvzceConstants {
      */
     public static final int DEFAULT_SEED_SLOTS = 8;
     public static final int MAX_SEED_SLOTS = 12;
+    public static final float CRUSHED_WIDTH_SCALE = 1.2F;
+    public static final float CRUSHED_HEIGHT_SCALE = 0.22F;
     /**
      * How many level buffs a fresh backpack may switch on at once, and the ceiling.
      *

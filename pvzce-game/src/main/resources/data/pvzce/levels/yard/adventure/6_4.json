@@ -89,7 +89,28 @@
     },
     {
       "type": "pvzce:mower",
-      "rows": []
+      "kinds": [
+        {
+          "row": 0,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 1,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 2,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 3,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 4,
+          "kind": "pvzce:roof_cleaner"
+        }
+      ]
     },
     {
       "type": "pvzce:weather",

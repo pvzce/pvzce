@@ -18,6 +18,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * slider change/commit semantics, list row hit-testing and the shared text helpers.
  */
 class GuiComponentsRegressionTest {
+    @Test
+    void textEditingReplacesSelectionsAndMovesInsideTheLine() {
+        var box = new EditBox(0, 0, 100, 20, 6, null);
+        box.setFocused(true);
+        box.setValue("abcdef");
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_A, true, false);
+        assertEquals("abcdef", box.selectedText());
+        box.appendText("xy");
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT);
+        box.charTyped('z');
+        assertEquals("xzy", box.value());
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_HOME);
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT, false, true);
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_DELETE);
+        assertEquals("zy", box.value());
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_END);
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE);
+        assertEquals("z", box.value());
+        box.setValue("a😊b");
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT);
+        box.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE);
+        assertEquals("ab", box.value(), "deleting a character keeps surrogate pairs intact");
+    }
+
     /**
      * Exactly one text field may own the keyboard. Focus used to be a one-way latch
      * (set to "the mouse is over me" and never cleared), so clicking a second field

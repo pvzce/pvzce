@@ -20,6 +20,6 @@
   },
   "animation_dir": "plant/attacker",
   "texture": "pvzce:textures/entities/plant/attacker/chomper",
-  "render_scale": 0.85,
+  "render_scale": 1.05,
   "order": 7
 }

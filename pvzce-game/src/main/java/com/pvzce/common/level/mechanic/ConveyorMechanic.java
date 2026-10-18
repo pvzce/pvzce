@@ -56,7 +56,9 @@ public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
             com.pvzce.server.level.cardsource.CardSource.Context context, LevelBelt data) {
         LevelBelt belt = context.level() == null ? RandomPlantsMechanic.belt(context.def(), data)
                 : RandomPlantsMechanic.belt(context.level(), data);
-        return new com.pvzce.server.level.cardsource.BeltCardSource(context, belt);
+        return new com.pvzce.server.level.cardsource.BeltCardSource(context, belt.withPlayerCapacity(
+                context.level() == null ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS
+                        : context.level().seedSlotCount()));
     }
 
     /**
@@ -130,7 +132,7 @@ public final class ConveyorMechanic implements LevelMechanic<LevelBelt> {
         return List.of(
                 FieldSpec.integer("interval_ticks", "pvzce.mechanic.conveyor.field.interval_ticks", 1, 6000),
                 FieldSpec.integer("capacity", "pvzce.mechanic.conveyor.field.capacity",
-                        1, LevelBelt.MAX_CAPACITY),
+                        0, LevelBelt.MAX_CAPACITY),
                 FieldSpec.integer("initial_cards", "pvzce.mechanic.conveyor.field.initial_cards",
                         0, LevelBelt.MAX_CAPACITY),
                 FieldSpec.bool("all_plants", "pvzce.mechanic.conveyor.field.all_plants"),

@@ -20,6 +20,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AnimationResourceLoaderTest {
     @Test
+    void chomperChewingLoopsUntilTheServerChangesState() throws Exception {
+        ControllerFile controller = (ControllerFile) parseClasspath("chomper");
+        assertTrue(controller.clip("chew").orElseThrow().loop());
+    }
+
+    @Test
     void parsesFlipbookWithExplicitType() {
         var json = JsonParser.parseString("""
                 {

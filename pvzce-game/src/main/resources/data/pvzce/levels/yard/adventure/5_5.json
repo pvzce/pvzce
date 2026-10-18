@@ -90,18 +90,17 @@
     },
     {
       "type": "pvzce:conveyor",
-      "interval_ticks": 240,
-      "capacity": 6,
-      "initial_cards": 3,
+      "interval_ticks": 120,
+      "initial_cards": 6,
       "cards": [
         {
           "id": "pvzce:flower_pot",
-          "weight": 50,
-          "max_count": 35
+          "weight": 10,
+          "max_count": 15
         },
         {
           "id": "pvzce:chomper",
-          "weight": 25
+          "weight": 55
         },
         {
           "id": "pvzce:pumpkin",
@@ -109,33 +108,59 @@
         },
         {
           "id": "pvzce:cherry_bomb",
-          "weight": 10
+          "weight": 20
         }
       ]
     },
     {
+      "type": "pvzce:wave_pacing",
+      "health_drain": false,
+      "clear_reward_factor": 1.0
+    },
+    {
       "type": "pvzce:mower",
-      "rows": []
+      "kinds": [
+        {
+          "row": 0,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 1,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 2,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 3,
+          "kind": "pvzce:roof_cleaner"
+        },
+        {
+          "row": 4,
+          "kind": "pvzce:roof_cleaner"
+        }
+      ]
     }
   ],
   "waves": [
     {
       "type": "small",
-      "delay": 600,
+      "delay": 1200,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 2899,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -146,150 +171,150 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 2978,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            0,
-            1
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2609,
-      "entries": [
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            0
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
-          "rows": [
-            1,
-            2
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2741,
-      "entries": [
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            2
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            1
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2733,
-      "entries": [
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
-            1
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 3013,
-      "entries": [
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            0
-          ]
-        },
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 1,
-          "rows": [
-            1
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2525,
-      "entries": [
-        {
-          "id": "pvzce:buckethead_zombie",
-          "count": 1,
-          "rows": [
-            0
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            1
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 3009,
-      "entries": [
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
+            2,
             3
           ]
+        }
+      ],
+      "spawn_interval": 180
+    },
+    {
+      "type": "small",
+      "delay": 3600,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
         },
         {
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            1,
-            2
+            0,
+            1
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
+    },
+    {
+      "type": "small",
+      "delay": 3600,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 180
+    },
+    {
+      "type": "small",
+      "delay": 3600,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            0,
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 180
+    },
+    {
+      "type": "small",
+      "delay": 3600,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 180
+    },
+    {
+      "type": "small",
+      "delay": 3600,
+      "entries": [
+        {
+          "id": "pvzce:buckethead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            0
+          ]
+        }
+      ],
+      "spawn_interval": 180
+    },
+    {
+      "type": "small",
+      "delay": 3600,
+      "entries": [
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        }
+      ],
+      "spawn_interval": 180
     },
     {
       "type": "huge",
-      "delay": 2958,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:bungee_zombie",
@@ -303,7 +328,7 @@
           ]
         }
       ],
-      "spawn_interval": 15,
+      "spawn_interval": 90,
       "warning_ticks": 750
     },
     {
@@ -333,18 +358,18 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 3043,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
           "count": 2,
           "rows": [
-            0,
-            2
+            1,
+            4
           ]
         },
         {
@@ -352,17 +377,17 @@
           "count": 4,
           "rows": [
             0,
-            1,
+            2,
             3,
             4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 2577,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
@@ -388,11 +413,11 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 2679,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:basic_zombie",
@@ -418,11 +443,11 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 3051,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
@@ -449,33 +474,33 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 3057,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:buckethead_zombie",
           "count": 3,
           "rows": [
-            0,
             1,
-            2
+            2,
+            3
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 2699,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:buckethead_zombie",
           "count": 2,
           "rows": [
-            0,
+            3,
             4
           ]
         },
@@ -483,54 +508,54 @@
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            1,
-            2
+            0,
+            1
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            3
+            2
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 3026,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
-          "count": 4,
-          "rows": [
-            0,
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
           "count": 4,
           "rows": [
             1,
             2,
             4
           ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 4,
+          "rows": [
+            0,
+            1,
+            3
+          ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "small",
-      "delay": 2593,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
           "count": 2,
           "rows": [
-            0
+            2
           ]
         },
         {
@@ -538,23 +563,23 @@
           "count": 2,
           "rows": [
             1,
-            4
+            3
           ]
         },
         {
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            2,
-            3
+            0,
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 180
     },
     {
       "type": "final",
-      "delay": 2749,
+      "delay": 3600,
       "entries": [
         {
           "id": "pvzce:bungee_zombie",
@@ -582,7 +607,7 @@
           "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            2
+            0
           ]
         },
         {
@@ -590,7 +615,7 @@
           "count": 4,
           "rows": [
             1,
-            3,
+            2,
             4
           ]
         },
@@ -598,18 +623,18 @@
           "id": "pvzce:buckethead_zombie",
           "count": 1,
           "rows": [
-            4
+            2
           ]
         },
         {
           "id": "pvzce:ladder",
           "count": 1,
           "rows": [
-            0
+            3
           ]
         }
       ],
-      "spawn_interval": 15,
+      "spawn_interval": 90,
       "warning_ticks": 750
     }
   ],

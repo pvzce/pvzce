@@ -131,29 +131,29 @@ COINS = {
 CONVEYORS: Dict[int, dict] = {
     # Five columns of pots are already on the roof. Extra pots let the player expand and
     # replace losses; every other card works on the daytime roof without a wake-up prerequisite.
-    50: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
+    50: {"interval_ticks": 240, "initial_cards": 3,
          "cards": [("pvzce:flower_pot", 15), ("pvzce:cabbage_pult", 20),
                    ("pvzce:kernel_pult", 20), ("pvzce:melon_pult", 20),
                    ("pvzce:umbrella_leaf", 5), ("pvzce:pumpkin", 10),
                    ("pvzce:cherry_bomb", 5), ("pvzce:jalapeno", 5)]},
-    45: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
-         "cards": [("pvzce:flower_pot", 50, 35), ("pvzce:chomper", 25),
-                   ("pvzce:pumpkin", 15), ("pvzce:cherry_bomb", 10)]},
-    5: {"interval_ticks": 150, "capacity": 6, "initial_cards": 2,
+    45: {"interval_ticks": 120, "initial_cards": 6,
+         "cards": [("pvzce:flower_pot", 10, 15), ("pvzce:chomper", 55),
+                   ("pvzce:pumpkin", 15), ("pvzce:cherry_bomb", 20)]},
+    5: {"interval_ticks": 150, "initial_cards": 2,
         "cards": [("pvzce:bowling_nut", 1)]},
-    10: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
+    10: {"interval_ticks": 240, "initial_cards": 3,
          "cards": [("pvzce:pea_shooter", 3), ("pvzce:wall_nut", 3), ("pvzce:snow_pea", 2),
                    ("pvzce:repeater", 2), ("pvzce:chomper", 2), ("pvzce:potato_mine", 2),
                    ("pvzce:cherry_bomb", 1)]},
-    20: {"interval_ticks": 240, "capacity": 6, "initial_cards": 2,
+    20: {"interval_ticks": 240, "initial_cards": 2,
          "cards": [("pvzce:puff_shroom", 10), ("pvzce:fume_shroom", 15),
                    ("pvzce:grave_buster", 20, 13), ("pvzce:hypno_shroom", 10),
                    ("pvzce:scaredy_shroom", 15), ("pvzce:ice_shroom", 15),
                    ("pvzce:doom_shroom", 15)]},
-    25: {"interval_ticks": 180, "capacity": 7, "initial_cards": 3,
+    25: {"interval_ticks": 180, "initial_cards": 3,
          "cards": [("pvzce:pea_shooter", 25), ("pvzce:cherry_bomb", 35),
                    ("pvzce:wall_nut", 15), ("pvzce:lily_pad", 25, 18)]},
-    30: {"interval_ticks": 240, "capacity": 7, "initial_cards": 3,
+    30: {"interval_ticks": 240, "initial_cards": 3,
          "cards": [("pvzce:pea_shooter", 3), ("pvzce:threepeater", 3),
                    ("pvzce:snow_pea", 3), ("pvzce:torchwood", 2), ("pvzce:tall_nut", 2),
                    ("pvzce:spikeweed", 2), ("pvzce:jalapeno", 1),
@@ -163,7 +163,7 @@ CONVEYORS: Dict[int, dict] = {
     # that answers balloons and the split pea that answers diggers). Interval and capacity are
     # the two long belt levels' - a finale's pressure is meant to come from the dark, not from
     # the belt being slower than the player can plant.
-    40: {"interval_ticks": 240, "capacity": 6, "initial_cards": 3,
+    40: {"interval_ticks": 240, "initial_cards": 3,
          "cards": [("pvzce:lily_pad", 25), ("pvzce:starfruit", 25), ("pvzce:cactus", 15),
                    ("pvzce:sea_shroom", 10), ("pvzce:pumpkin", 10), ("pvzce:blover", 5),
                    ("pvzce:split_pea", 5), ("pvzce:magnet_shroom", 5)]},
@@ -501,8 +501,8 @@ def mower(facts: original.LevelFacts) -> Optional[dict]:
     names the default explicitly reads differently from one that does not.
     """
     if facts.kind == "roof":
-        # Board::InitLawnMowers: roof cleaners are a shop purchase. No purchase is implemented yet.
-        return {"type": "pvzce:mower", "rows": []}
+        return {"type": "pvzce:mower", "kinds": [
+            {"row": row, "kind": "pvzce:roof_cleaner"} for row in range(facts.rows)]}
     if not facts.pool:
         return None
     return {
@@ -545,7 +545,6 @@ def conveyor(facts: original.LevelFacts) -> Optional[dict]:
     return {
         "type": "pvzce:conveyor",
         "interval_ticks": table["interval_ticks"],
-        "capacity": table["capacity"],
         "initial_cards": table["initial_cards"],
         "cards": cards,
     }
@@ -614,6 +613,9 @@ def mechanics_for(facts: original.LevelFacts) -> List[dict]:
     machine = conveyor(facts)
     if machine is not None:
         out.append(machine)
+
+    if facts.bungee_blitz:
+        out.append({"type": "pvzce:wave_pacing", "health_drain": False, "clear_reward_factor": 1.0})
 
     machine_rig = mower(facts)
     if machine_rig is not None:
@@ -767,6 +769,11 @@ def waves_for(facts: original.LevelFacts) -> List[dict]:
         # and no death gate.
         if wave.spawn_interval != DEFAULT_SPAWN_INTERVAL:
             body["spawn_interval"] = wave.spawn_interval
+        if not facts.whack_a_zombie:
+            body["spawn_interval"] = max(wave.spawn_interval, 90 if wave.type == "small" else 30)
+        if facts.bungee_blitz:
+            body["delay"] = 1200 if index == 0 else max(delay, 3600)
+            body["spawn_interval"] = 180 if wave.type == "small" else 90
         if wave.warning_ticks is not None:
             body["warning_ticks"] = wave.warning_ticks
         out.append(body)

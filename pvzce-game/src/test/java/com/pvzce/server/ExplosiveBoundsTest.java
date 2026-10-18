@@ -129,8 +129,8 @@ class ExplosiveBoundsTest {
 
         tick(level, 200);
         assertTrue(!victim.isAlive(), "the zombie it landed on is flattened");
-        assertEquals(EntityAnimations.DEATH, victim.animation(),
-                "and it dies an ordinary death: a squash crushes, the ash line is what burns");
+        assertEquals(EntityAnimations.DEATH_CRUSHED, victim.animation(),
+                "a squash leaves a flattened body");
         assertEquals(victim.cellX(), squash.cellX(), 0.35F,
                 "the plant came down on the zombie rather than beside it");
         assertTrue(squash.isRemoved(), "and it spends itself");

@@ -432,6 +432,10 @@ public final class PvzceWindow implements AutoCloseable {
      * empty and when there is no clipboard at all (a headless X session), and neither is a case a
      * paste handler should have to tell apart.
      */
+    public void setClipboard(String text) {
+        GLFW.glfwSetClipboardString(handle, text);
+    }
+
     public String clipboard() {
         try {
             String text = GLFW.glfwGetClipboardString(handle);
@@ -650,9 +654,11 @@ public final class PvzceWindow implements AutoCloseable {
         return new GLFWKeyCallback() {
             @Override
             public void invoke(long window, int key, int scancode, int action, int mods) {
-                // Only real presses are queued; held-key repetition is handled
-                // per-frame by PvzceClient so Backspace speed is controllable.
-                if (action == GLFW.GLFW_PRESS) {
+                // Editing navigation uses native repeats. Backspace is timed by the client.
+                if (action == GLFW.GLFW_PRESS || (action == GLFW.GLFW_REPEAT
+                        && (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT
+                        || key == GLFW.GLFW_KEY_HOME || key == GLFW.GLFW_KEY_END
+                        || key == GLFW.GLFW_KEY_DELETE))) {
                     pressedKeys.add(key);
                 }
             }

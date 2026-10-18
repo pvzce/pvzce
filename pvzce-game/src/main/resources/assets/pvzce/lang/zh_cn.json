@@ -386,7 +386,7 @@
   "pvzce.loading": "载入中…",
   "pvzce.max_players_per_team": "每队最大玩家数",
   "pvzce.mechanic.conveyor": "传送带",
-  "pvzce.mechanic.conveyor.field.capacity": "传送带容量",
+  "pvzce.mechanic.conveyor.field.capacity": "传送带容量（0=背包格数）",
   "pvzce.mechanic.conveyor.field.cards": "卡池（逗号分隔）",
   "pvzce.mechanic.conveyor.field.initial_cards": "开局卡数",
   "pvzce.mechanic.conveyor.field.interval_ticks": "出货间隔（tick）",

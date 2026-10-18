@@ -2879,6 +2879,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 * entity.renderScale();
         float xScale = (drop ? 1F : client.spriteXScale()) * renderScale;
         float yScale = renderScale;
+        if (com.pvzce.api.entity.EntityAnimations.DEATH_CRUSHED.equals(entity.animation())) {
+            xScale *= com.pvzce.common.PvzceConstants.CRUSHED_WIDTH_SCALE;
+            yScale *= com.pvzce.common.PvzceConstants.CRUSHED_HEIGHT_SCALE;
+        }
         EntityVisuals.Visuals visuals = EntityVisuals.of(entity.kind());
         // Drawn at the interpolated position, not the packet's: see ClientEntity.visualCellX.
         // One sample per 20 Hz packet is a staircase at any frame rate above 20.

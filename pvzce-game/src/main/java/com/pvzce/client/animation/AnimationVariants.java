@@ -44,7 +44,7 @@ final class AnimationVariants {
 
     /** Every state that means "this body is falling over", not just the ordinary two. */
     private static final List<String> DEATH_STATES =
-            List.of(EntityAnimations.DEATH, EntityAnimations.DEATH2, EntityAnimations.DEATH_WATER);
+            List.of(EntityAnimations.DEATH, EntityAnimations.DEATH2, EntityAnimations.DEATH_WATER, EntityAnimations.DEATH_CRUSHED);
 
     private AnimationVariants() {
     }

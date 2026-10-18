@@ -479,6 +479,18 @@ class CombatSystemsTest {
     }
 
     @Test
+    void aBuriedPotatoMineCanBeEatenBeforeItArms() {
+        LevelServer level = newLevel();
+        CapturingBridge bridge = bridge();
+        assertTrue(level.placePlant(bridge, 12, 2, 0));
+        PlantEntity mine = level.plantsAt(2, 0).get(0);
+        spawn(level, bridge, "basic_zombie", 2.8F, 0);
+        tick(level, bridge, 400);
+        assertTrue(mine.isRemoved(), "a buried mine must lose health to actual bites");
+        assertTrue(mine.armTicksLeft() > 0, "it was eaten before emergence");
+    }
+
+    @Test
     void potatoMineArmsThenExplodesOnContact() {
         LevelServer level = newLevel();
         CapturingBridge bridge = bridge();

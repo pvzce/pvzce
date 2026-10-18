@@ -731,6 +731,29 @@ public final class PvzceClient {
             if (action != null && handleBoundAction(action)) {
                 continue;
             }
+            var textFocus = overlay != null ? overlay.focusManager() : currentScreen().focusManager();
+            if (overlay != null ? overlay.hasTextInputFocused() : currentScreen().hasTextInputFocused()) {
+                var box = textFocus.focused();
+                boolean control = window.isKeyDown(GLFW.GLFW_KEY_LEFT_CONTROL)
+                        || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_CONTROL)
+                        || window.isKeyDown(GLFW.GLFW_KEY_LEFT_SUPER)
+                        || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_SUPER);
+                boolean shift = window.isKeyDown(GLFW.GLFW_KEY_LEFT_SHIFT)
+                        || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_SHIFT);
+                if (control && key == GLFW.GLFW_KEY_V) {
+                    box.appendText(window.clipboard());
+                    continue;
+                }
+                if (control && (key == GLFW.GLFW_KEY_C || key == GLFW.GLFW_KEY_X)) {
+                    if (!box.selectedText().isEmpty()) {
+                        window.setClipboard(box.selectedText());
+                        if (key == GLFW.GLFW_KEY_X) box.cutSelection();
+                    }
+                    continue;
+                }
+                if (key != GLFW.GLFW_KEY_ENTER && key != GLFW.GLFW_KEY_KP_ENTER
+                        && box.keyPressed(key, control, shift)) continue;
+            }
             // An open overlay owns the rest of the keyboard, console shortcuts included: the
             // console itself must not be able to open a second console, and ESC belongs to it.
             if (overlay != null) {
@@ -743,23 +766,6 @@ public final class PvzceClient {
                 screen.dispatchEscape();
                 screen = currentScreen();
                 continue;
-            }
-            // Ctrl/Cmd+V pastes into whatever field has the keyboard. Handled here rather than in
-            // the field because the clipboard belongs to the window, and it is checked before the
-            // screen's own key handling so a bound action on V cannot swallow it while typing.
-            // An API key is forty random characters: a settings page that could only be typed into
-            // would be a settings page nobody finishes.
-            if (key == GLFW.GLFW_KEY_V && (window.isKeyDown(GLFW.GLFW_KEY_LEFT_CONTROL)
-                    || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_CONTROL)
-                    || window.isKeyDown(GLFW.GLFW_KEY_LEFT_SUPER)
-                    || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_SUPER))) {
-                String pasted = window.clipboard();
-                boolean taken = overlay != null
-                        ? overlay.pasteText(pasted)
-                        : currentScreen().pasteText(pasted);
-                if (taken) {
-                    continue;
-                }
             }
             // A tool hotkey or a chat line needs the level's own screen, so the in-game screen
             // gets first refusal on every bound action it knows how to answer.
@@ -795,11 +801,11 @@ public final class PvzceClient {
                 backspaceNextNanos = now + 500_000_000L;
             }
             if (now >= backspaceNextNanos) {
-                if (overlay != null) {
-                    overlay.keyPressed(GLFW.GLFW_KEY_BACKSPACE);
-                } else {
-                    screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE);
-                }
+                var focus = overlay != null ? overlay.focusManager() : screen.focusManager();
+                focus.focused().keyPressed(GLFW.GLFW_KEY_BACKSPACE,
+                        window.isKeyDown(GLFW.GLFW_KEY_LEFT_CONTROL) || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_CONTROL)
+                                || window.isKeyDown(GLFW.GLFW_KEY_LEFT_SUPER) || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_SUPER),
+                        window.isKeyDown(GLFW.GLFW_KEY_LEFT_SHIFT) || window.isKeyDown(GLFW.GLFW_KEY_RIGHT_SHIFT));
                 backspaceNextNanos = now + 80_000_000L;
             }
         }

@@ -32,7 +32,8 @@ import java.util.Random;
 public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<BeltCard> cards, boolean allPlants)
         implements MechanicData {
     public static final int DEFAULT_INTERVAL_TICKS = 300;
-    public static final int DEFAULT_CAPACITY = 6;
+    /** Zero selects the player's backpack size when the level is created. */
+    public static final int DEFAULT_CAPACITY = 0;
     public static final int DEFAULT_INITIAL_CARDS = 2;
     /** A belt longer than this is a wall of cards, not a belt. */
     public static final int MAX_CAPACITY = 12;
@@ -84,9 +85,13 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
         // the level should still be playable, and LevelValidator reports the authoring
         // mistake separately.
         intervalTicks = Math.max(1, intervalTicks);
-        capacity = Math.max(1, Math.min(MAX_CAPACITY, capacity));
-        initialCards = Math.max(0, Math.min(capacity, initialCards));
+        capacity = Math.max(0, Math.min(MAX_CAPACITY, capacity));
+        initialCards = Math.max(0, Math.min(capacity == 0 ? MAX_CAPACITY : capacity, initialCards));
         cards = List.copyOf(cards);
+    }
+
+    public LevelBelt withPlayerCapacity(int seedSlots) {
+        return capacity != 0 ? this : new LevelBelt(intervalTicks, seedSlots, initialCards, cards, allPlants);
     }
 
     /** True when the belt can actually produce something. */

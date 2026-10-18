@@ -64,6 +64,7 @@ public final class EntityAnimations {
     public static final String LIT = "lit";
     public static final String ANGRY = "angry";
     public static final String DEATH = "death";
+    public static final String DEATH_CRUSHED = "death_crushed";
     /**
      * A death that leaves a charred body: the ash line, a fire hit.
      *

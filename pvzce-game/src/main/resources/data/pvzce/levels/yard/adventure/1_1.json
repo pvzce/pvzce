@@ -61,7 +61,7 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -75,7 +75,7 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -89,7 +89,7 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "final",
@@ -103,7 +103,7 @@
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 30
     }
   ],
   "music": {

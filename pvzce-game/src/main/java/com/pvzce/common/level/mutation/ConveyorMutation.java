@@ -34,15 +34,6 @@ final class ConveyorMutation implements Mutation, CardDealingMutation {
      * arrives unasked on a lawn the player is already busy with.
      */
     private static final int INTERVAL_TICKS = 200;
-    /**
-     * The narrowest tray this belt draws, in cards.
-     *
-     * <p>The shipped belts hold six, and a mutation that reduced the player's plant cards to two
-     * would otherwise draw a two-card tray that reads as a broken HUD. The capacity is the number
-     * of plant cards being replaced whenever that is larger - which is what makes the tray as wide
-     * as the bar it stands in for.
-     */
-    private static final int MIN_CAPACITY = 6;
     /** Cards already riding when it arrives, so the player can do something immediately. */
     private static final int INITIAL_CARDS = 3;
 
@@ -79,7 +70,8 @@ final class ConveyorMutation implements Mutation, CardDealingMutation {
         for (Identifier plantId : plants) {
             cards.add(new LevelBelt.BeltCard(plantId, 1, LevelBelt.BeltCard.UNLIMITED));
         }
-        return new LevelBelt(INTERVAL_TICKS, Math.max(MIN_CAPACITY, plants.size()),
+        return new LevelBelt(INTERVAL_TICKS, context.level() == null ? com.pvzce.common.PvzceConstants.DEFAULT_SEED_SLOTS
+                : context.level().seedSlotCount(),
                 INITIAL_CARDS, cards);
     }
 

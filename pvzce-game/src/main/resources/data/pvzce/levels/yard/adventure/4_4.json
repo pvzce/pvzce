@@ -128,11 +128,11 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -142,11 +142,11 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            1
+            0
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -156,11 +156,11 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            4
+            1
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -170,12 +170,12 @@
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            0,
+            4,
             5
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -185,47 +185,53 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            0
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 2991,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 1,
           "rows": [
-            0,
-            1
+            3
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 3030,
       "entries": [
         {
-          "id": "pvzce:ducky_tube_conehead_zombie",
+          "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            2
+            5
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
+          "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            3
+            0
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -235,83 +241,77 @@
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            4
+            1
           ]
         },
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            5
+            2
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 2697,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
-            0
+            3
           ]
         },
         {
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            1
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "huge",
       "delay": 2769,
       "entries": [
         {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
+          "id": "pvzce:basic_zombie",
+          "count": 4,
           "rows": [
-            2,
-            3
+            0,
+            1,
+            5
           ]
         },
         {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 1,
           "rows": [
-            4,
-            5
+            2
           ]
         },
         {
           "id": "pvzce:flag_zombie",
           "count": 1,
           "rows": [
-            4
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
             1
           ]
         },
         {
-          "id": "pvzce:ducky_tube_conehead_zombie",
-          "count": 1,
+          "id": "pvzce:conehead_zombie",
+          "count": 2,
           "rows": [
-            2
+            4,
+            5
           ]
         }
       ],
-      "spawn_interval": 15,
+      "spawn_interval": 30,
       "warning_ticks": 750
     },
     {
@@ -320,14 +320,20 @@
       "entries": [
         {
           "id": "pvzce:conehead_zombie",
-          "count": 2,
+          "count": 1,
           "rows": [
-            4,
-            5
+            1
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 1,
+          "rows": [
+            2
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -337,126 +343,126 @@
           "id": "pvzce:balloon_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         },
         {
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            1
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 3062,
       "entries": [
         {
-          "id": "pvzce:ducky_tube_conehead_zombie",
+          "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            2
+            5
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
+          "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            3
+            0
           ]
         },
         {
           "id": "pvzce:balloon_zombie",
           "count": 1,
           "rows": [
-            0
+            5
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 2595,
       "entries": [
         {
-          "id": "pvzce:conehead_zombie",
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 2,
           "rows": [
-            0,
-            5
+            2,
+            3
           ]
         },
         {
           "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
-            1
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 2999,
       "entries": [
         {
-          "id": "pvzce:ducky_tube_conehead_zombie",
+          "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            2
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 1,
-          "rows": [
-            3
+            5
           ]
         },
         {
           "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            4,
-            5
+            0,
+            1
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            2
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
       "delay": 2626,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
+          "id": "pvzce:ducky_tube_zombie",
           "count": 1,
           "rows": [
-            0
+            3
           ]
         },
         {
           "id": "pvzce:dolphin_rider_zombie",
           "count": 1,
           "rows": [
-            3
+            2
           ]
         },
         {
-          "id": "pvzce:ducky_tube_zombie",
+          "id": "pvzce:basic_zombie",
           "count": 2,
           "rows": [
-            2,
-            3
+            0,
+            5
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
       "type": "small",
@@ -466,71 +472,6 @@
           "id": "pvzce:conehead_zombie",
           "count": 1,
           "rows": [
-            4
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 2,
-          "rows": [
-            1,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:balloon_zombie",
-          "count": 1,
-          "rows": [
-            4
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2945,
-      "entries": [
-        {
-          "id": "pvzce:ducky_tube_conehead_zombie",
-          "count": 1,
-          "rows": [
-            2
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 1,
-          "rows": [
-            3
-          ]
-        },
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 1,
-          "rows": [
-            4
-          ]
-        },
-        {
-          "id": "pvzce:basic_zombie",
-          "count": 1,
-          "rows": [
-            5
-          ]
-        }
-      ],
-      "spawn_interval": 15
-    },
-    {
-      "type": "small",
-      "delay": 2774,
-      "entries": [
-        {
-          "id": "pvzce:conehead_zombie",
-          "count": 2,
-          "rows": [
-            0,
             1
           ]
         },
@@ -545,53 +486,71 @@
           "id": "pvzce:balloon_zombie",
           "count": 1,
           "rows": [
-            5
+            1
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            4
           ]
         }
       ],
-      "spawn_interval": 15
+      "spawn_interval": 90
     },
     {
-      "type": "final",
-      "delay": 3057,
+      "type": "small",
+      "delay": 2945,
       "entries": [
         {
-          "id": "pvzce:basic_zombie",
-          "count": 6,
-          "rows": [
-            0,
-            1,
-            4,
-            5
-          ]
-        },
-        {
-          "id": "pvzce:ducky_tube_zombie",
-          "count": 3,
-          "rows": [
-            2,
-            3
-          ]
-        },
-        {
-          "id": "pvzce:flag_zombie",
-          "count": 1,
-          "rows": [
-            5
-          ]
-        },
-        {
           "id": "pvzce:conehead_zombie",
+          "count": 2,
+          "rows": [
+            1,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
           "count": 1,
           "rows": [
             0
           ]
         },
         {
-          "id": "pvzce:dolphin_rider_zombie",
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        }
+      ],
+      "spawn_interval": 90
+    },
+    {
+      "type": "small",
+      "delay": 2774,
+      "entries": [
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
           "count": 1,
           "rows": [
             3
+          ]
+        },
+        {
+          "id": "pvzce:conehead_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 1,
+          "rows": [
+            5
           ]
         },
         {
@@ -602,7 +561,60 @@
           ]
         }
       ],
-      "spawn_interval": 15,
+      "spawn_interval": 90
+    },
+    {
+      "type": "final",
+      "delay": 3057,
+      "entries": [
+        {
+          "id": "pvzce:basic_zombie",
+          "count": 7,
+          "rows": [
+            0,
+            1,
+            4,
+            5
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_zombie",
+          "count": 2,
+          "rows": [
+            2,
+            3
+          ]
+        },
+        {
+          "id": "pvzce:flag_zombie",
+          "count": 1,
+          "rows": [
+            4
+          ]
+        },
+        {
+          "id": "pvzce:ducky_tube_conehead_zombie",
+          "count": 1,
+          "rows": [
+            3
+          ]
+        },
+        {
+          "id": "pvzce:dolphin_rider_zombie",
+          "count": 1,
+          "rows": [
+            2
+          ]
+        },
+        {
+          "id": "pvzce:balloon_zombie",
+          "count": 1,
+          "rows": [
+            1
+          ]
+        }
+      ],
+      "spawn_interval": 30,
       "warning_ticks": 750
     }
   ],

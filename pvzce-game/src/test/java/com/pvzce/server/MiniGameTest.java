@@ -82,6 +82,16 @@ class MiniGameTest {
         assertTrue(planted.isRemoved(), "the mine is spent");
     }
 
+    @Test
+    void theDefaultBeltCapacityTracksThePlayersBackpack() {
+        var context = new LevelServer.SeedContext(List.of(), List.of(), 12);
+        var level = new LevelServer(oneFive, List.of(), context);
+        assertEquals(12, belt(level).def().capacity());
+        var explicit = new com.pvzce.api.content.LevelBelt(120, 6, 2,
+                List.of(new com.pvzce.api.content.LevelBelt.BeltCard(BOWLING_NUT, 1, -1)));
+        assertEquals(6, explicit.withPlayerCapacity(12).capacity(), "an authored override still wins");
+    }
+
     /** A level with no waves, so a test drives the simulation instead of the wave clock. */
     private static LevelServer ordinaryLevel() {
         LevelDef demo = BuiltInRegistries.LEVELS.get(Identifier.withDefaultNamespace("yard/adventure/demo_level"));

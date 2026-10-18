@@ -386,7 +386,7 @@
   "pvzce.loading": "Loading...",
   "pvzce.max_players_per_team": "Max Players Per Team",
   "pvzce.mechanic.conveyor": "Conveyor belt",
-  "pvzce.mechanic.conveyor.field.capacity": "Belt capacity",
+  "pvzce.mechanic.conveyor.field.capacity": "Belt capacity (0 = backpack slots)",
   "pvzce.mechanic.conveyor.field.cards": "Card pool (comma separated)",
   "pvzce.mechanic.conveyor.field.initial_cards": "Cards at start",
   "pvzce.mechanic.conveyor.field.interval_ticks": "Delivery interval (ticks)",

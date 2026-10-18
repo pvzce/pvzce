@@ -75,7 +75,7 @@ public abstract class AbstractWidget {
      * True when this widget needs press, drag and release for itself, so a press on it must never
      * be reinterpreted as a swipe.
      *
-     * <p>Only {@link Slider} says yes today. Without the rule, a slider drawn over a scrolling list
+     * <p>Sliders and text selection claim their own drags. Without the rule, a slider drawn over a scrolling list
      * would be dead on a touchscreen: its press would become a scroll candidate, its drags would be
      * eaten as scrolling and its release would never commit the value.
      */

@@ -404,8 +404,8 @@ class MutationManagerTest {
         // those are what it took over, and the tray is as wide as the bar it stands in for.
         int capacity = ((com.pvzce.server.level.cardsource.BeltCardSource) level.cardSource())
                 .belt().def().capacity();
-        assertEquals(Math.max(6, 3), capacity,
-                "one slot per replaced plant card, and never a tray narrower than the original's");
+        assertEquals(Math.min(com.pvzce.api.content.LevelBelt.MAX_CAPACITY, level.seedSlotCount()), capacity,
+                "a mutation belt uses the same backpack capacity as an ordinary belt");
         // And what it did not take over is still on the bar. The reported bug: the bar became
         // nothing but belt cards, so the shovel/glove/watering can the player was holding
         // vanished the moment a belt mutation arrived.

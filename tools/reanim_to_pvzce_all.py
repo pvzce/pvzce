@@ -792,8 +792,7 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             # purple lump that hung behind a chewing chomper's head.
             "chew": {
                 "mask": "anim_chew",
-                "loop": False,
-                "on_end": "idle",
+                "loop": True,
                 "transition": 0.1,
             },
             "bite": {
@@ -2098,6 +2097,14 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         animations={
             "idle": {"mask": "anim_land", "loop": True, "transition": 0.05},
             "drive": {"mask": "anim_suck", "loop": True, "transition": 0.05},
+        },
+    ),
+    EntityConfig(
+        output="roof_cleaner", group="mechanic", reanim="RoofCleaner.reanim",
+        target_box=(1.0, 0.62),
+        animations={
+            "idle": {"range": [0, 0], "loop": True, "transition": 0.05},
+            "drive": {"range": "all", "loop": True, "transition": 0.05},
         },
     ),
     # The rake: the shop item, and the only fixture on the board that is not a machine.

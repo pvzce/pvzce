@@ -216,7 +216,9 @@ public final class AwardScreen extends Screen {
         // look like a stray control on the lawn.
         float fade = openingFade();
         if (client.hasTexture(BACKGROUND)) {
-            client.drawTexture(BACKGROUND, 0, 0, guiW, guiH, -1F, 1F, 1F, 1F, fade);
+            CoverFit backgroundFit = coverFit(ART_WIDTH, ART_HEIGHT);
+            client.drawTexture(BACKGROUND, backgroundFit.mapX(0), backgroundFit.mapY(ART_HEIGHT, ART_HEIGHT),
+                    ART_WIDTH * backgroundFit.scale(), ART_HEIGHT * backgroundFit.scale(), -1F, 1F, 1F, 1F, fade);
         } else {
             client.drawSolid(0F, 0F, guiW, guiH, -1F, 0.42F, 0.24F, 0.10F, fade);
         }

@@ -862,7 +862,8 @@ public class ZombieEntity extends PvzceEntity {
         // blast from the ash line leaves a charred body and a pea does not, and the difference
         // is the hit's own declaration rather than a list of ids here. `dismembers` rides along
         // for the same reason - the mower is not the only thing that could throw a head.
-        damageBody(dmg, level, burns(type), type != null && type.dismembers());
+        damageBody(dmg, level, burns(type), type != null && type.dismembers(),
+                type != null && PvzceIds.DAMAGE_CRUSH.equals(type.id()));
     }
 
     /** The registered damage type for {@code id}, or the projectile fallback. */
@@ -943,6 +944,10 @@ public class ZombieEntity extends PvzceEntity {
      *                   so the death must not throw a second pair
      */
     public void damageBody(int amount, LevelAccess level, boolean burns, boolean dismembered) {
+        damageBody(amount, level, burns, dismembered, false);
+    }
+
+    private void damageBody(int amount, LevelAccess level, boolean burns, boolean dismembered, boolean crushed) {
         if (!isAlive()) {
             return;
         }
@@ -958,7 +963,7 @@ public class ZombieEntity extends PvzceEntity {
         // A hit that burns a body to ash does not also tear an arm off it: the charred model
         // has no arms and no head to begin with, and the original's ash line leaves exactly
         // that drawing behind. This is why the arm and the head below both ask `burns`.
-        if (!burns && !dismembered && def.dropsArm() && armorHealth() <= 0
+        if (!burns && !crushed && !dismembered && def.dropsArm() && armorHealth() <= 0
                 && before * 2L > maxHealth() && health() * 2L <= maxHealth()) {
             level.emitEffect(PvzceParticles.ZOMBIE_ARM.toString(), cellX(), cellY(),
                     def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP));
@@ -979,7 +984,7 @@ public class ZombieEntity extends PvzceEntity {
                     if (override != null) { death = override; break; }
                 }
             }
-            setAnimation(death);
+            setAnimation(crushed ? EntityAnimations.DEATH_CRUSHED : death);
             // The head leaves the body as its own particle. The model keeps it hidden in the
             // death clip - that is how the original is authored - so this is the only thing
             // that puts one on the lawn, and the sprite's own motion is what makes it drop
@@ -991,7 +996,7 @@ public class ZombieEntity extends PvzceEntity {
             // A body that blew itself up leaves no head behind: it is not there at all (see
             // `JackInTheBoxCapability.explode`, which removes it), and a head popping out of a
             // cloud the zombie was standing at the centre of reads as a second, unrelated death.
-            if (!burns && !selfDestructed) {
+            if (!burns && !crushed && !selfDestructed) {
                 Identifier deathSound = def.sounds().death().orElse(PvzceSounds.ZOMBIE_LIMBS_POP);
                 String head = dismembered
                         ? PvzceParticles.MOWERED_ZOMBIE_HEAD.toString()

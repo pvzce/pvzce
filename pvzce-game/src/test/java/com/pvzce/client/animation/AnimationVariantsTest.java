@@ -18,6 +18,7 @@ class AnimationVariantsTest {
         assertEquals("death", AnimationVariants.resolve(file, "death", 0L));
         assertEquals("death", AnimationVariants.resolve(file, "death", 1L));
         assertEquals("death", AnimationVariants.resolve(file, "death", 7L));
+        assertEquals("death", AnimationVariants.resolve(file, "death_crushed", 0L));
     }
 
     @Test

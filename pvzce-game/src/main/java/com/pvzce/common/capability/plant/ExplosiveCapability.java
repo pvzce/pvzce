@@ -40,9 +40,9 @@ import java.util.Optional;
  *   <li><b>The blast is a registered damage type.</b> {@code damage_type} defaults to
  *       {@code pvzce:ash}, whose whole meaning is "armour does not absorb it" - that
  *       is why a cherry bomb kills a Buckethead.</li>
- *   <li><b>The plant cannot be destroyed while it is arming.</b> {@link #invulnerable}
- *       answers true from the moment it is placed until the blast, so zombies bite it
- *       (and a Gargantuar swings at it) for nothing, as in the original. Once the blast
+ *   <li><b>Timed explosives cannot be destroyed while their fuse runs.</b> {@link #invulnerable}
+ *       answers true for a timed fuse; proximity mines remain edible while buried. Zombies bite a timed bomb
+ *       (and a Gargantuar swings at it) for nothing, until it explodes. Once the blast
  *       has happened the plant is gone and answers false again.</li>
  *   <li><b>It stays on the field after detonating</b>, for {@link #DEFAULT_LINGER_TICKS} ticks or
  *       whatever {@code linger_ticks} the content asks for. The blast is instantaneous on the
@@ -324,9 +324,9 @@ public final class ExplosiveCapability implements PlantCapability, com.pvzce.api
     }
 
     /**
-     * Nothing a zombie can do to an unexploded bomb.
+     * A timed bomb is protected during its fuse; a buried proximity mine can be eaten.
      *
-     * <p>True for the whole fuse, and false again once the blast has happened - at which
+     * <p>True for a timed fuse, and false again once the blast has happened - at which
      * point the plant is a drawing on its way out and has no business absorbing hits
      * either. {@code PlantEntity.damageFrom} asks every capability and drops the hit if
      * any of them says yes, which is the ash line's "a zombie can chew on a cherry bomb
@@ -334,7 +334,7 @@ public final class ExplosiveCapability implements PlantCapability, com.pvzce.api
      */
     @Override
     public boolean invulnerable(PlantEntity plant) {
-        return fuse > 0;
+        return trigger != Trigger.PROXIMITY && fuse > 0;
     }
 
     /**

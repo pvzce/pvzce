@@ -2633,6 +2633,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
     }
 
+    public int seedSlotCount() { return seedContext.maxSeedSlots(); }
+
     /**
      * The level's mechanics plus the ones the <em>player</em> brings.
      *

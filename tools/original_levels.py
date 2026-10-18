@@ -568,7 +568,7 @@ def waves_for(level: int) -> List[Wave]:
     waves: List[Wave] = []
     previous_was_flag = False
     # How many zombies have been dealt a lane so far this level; see the lane deal below.
-    cursor = 0
+    cursor = (level - 1) % facts.rows
 
     for index in range(count):
         number = index + 1

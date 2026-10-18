@@ -146,6 +146,22 @@ class BungeeAndZamboniTest {
         assertTrue(bungee.canBeHitByArc(), "lobs can reach the same bottom phase");
     }
 
+    @Test
+    void aDeliveryCourierStaysAtTheBottomLongEnoughForPeasToHit() {
+        LevelServer level = lawn();
+        place(level, "pea_shooter", 0, 2);
+        ZombieEntity courier = level.spawnZombie(Identifier.withDefaultNamespace("bungee_zombie"),
+                level.team(ZOMBIE_TEAM), 8F, 2);
+        var bungee = courier.capability(com.pvzce.common.capability.zombie.BungeeCapability.class);
+        bungee.deliver(Identifier.withDefaultNamespace("basic_zombie"), 4, 1F);
+        level.flushPending(packet -> { });
+        int initialHealth = courier.health();
+        tick(level, 165);
+        assertTrue(courier.health() < initialHealth, "ordinary plant fire must hit the grounded courier");
+        assertTrue(level.zombiesInRow(2).stream().anyMatch(z -> z.defId().path().equals("basic_zombie")),
+                "the delivery still completes");
+    }
+
     /**
      * The zamboni crushes what it drives over and leaves ice behind, and the client is told.
      *
