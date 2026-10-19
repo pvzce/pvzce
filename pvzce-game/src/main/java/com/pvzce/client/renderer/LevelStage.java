@@ -17,6 +17,13 @@ import com.pvzce.api.util.Identifier;
 public final class LevelStage {
     public static final Identifier BACKGROUND_TEXTURE =
             Identifier.withDefaultNamespace("textures/gui/screen/level/background1unsodded");
+    private static final Identifier FINISHED_LAWN_TEXTURE =
+            Identifier.withDefaultNamespace("textures/gui/screen/level/background1");
+
+    /** This backdrop already supplies the grass blades and shadow along the yard's rim. */
+    public static boolean blendsLawnEdges(Identifier background) {
+        return FINISHED_LAWN_TEXTURE.equals(background);
+    }
 
     public static final float IMAGE_WIDTH = 1400F;
     public static final float IMAGE_HEIGHT = 600F;

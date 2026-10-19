@@ -11,6 +11,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Geometry contract for fitting level boards into the original 1400x600 stages. */
 class LevelStageTest {
     @Test
+    void finishedLawnBorderKeepsCustomGridAndOuterCellsClickable() {
+        Identifier backdrop = Identifier.parse("pvzce:textures/gui/screen/level/background1");
+        assertTrue(LevelStage.blendsLawnEdges(backdrop));
+        assertFalse(LevelStage.blendsLawnEdges(LevelStage.BACKGROUND_TEXTURE));
+        assertFalse(LevelStage.blendsLawnEdges(Identifier.parse("pvzce:textures/gui/screen/level/background3")));
+        assertFalse(LevelStage.blendsLawnEdges(Identifier.parse("example:textures/gui/screen/level/background1")));
+        assertFalse(LevelStage.blendsLawnEdges(null));
+
+        var camera = new PvzceCamera(1920, 1080, 11, 6, LevelStage.geometryFor(backdrop), 0F);
+        var original = new PvzceCamera(1920, 1080, 11, 6);
+        assertEquals(original.unitX(), camera.unitX());
+        assertEquals(original.unitY(), camera.unitY());
+        for (float x : new float[]{0.01F, 10.99F}) for (float y : new float[]{0.01F, 5.99F}) {
+            float px = camera.screenX(x), py = 1080 - camera.screenY(y);
+            assertTrue(camera.inBoard(px, py));
+            assertEquals((int) x, camera.cellX(px, py));
+            assertEquals((int) y, camera.cellY(px, py));
+        }
+    }
+
+    @Test
     void permanentWorkshopLeavesEveryLawnCellVisibleAndClickable() {
         var camera = new PvzceCamera(1920, 1080, 9, 5, LevelStage.YARD, 0F, true);
         assertEquals(0.8F, (camera.screenX(1F) - camera.screenX(0F)) /

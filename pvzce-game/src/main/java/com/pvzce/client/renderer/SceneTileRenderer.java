@@ -91,8 +91,15 @@ public final class SceneTileRenderer {
     public static void render(PvzceClient client, int width, int height, SceneSource scene,
                               float xScale, float grassMargin, SceneShiftSource shifts,
                               SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame) {
+        render(client, width, height, scene, xScale, grassMargin, shifts, visibility, liquidFrame, false);
+    }
+
+    /** The finished-lawn backdrop can supply the irregular border beneath visible grass. */
+    public static void render(PvzceClient client, int width, int height, SceneSource scene,
+                              float xScale, float grassMargin, SceneShiftSource shifts,
+                              SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame, boolean blendLawn) {
         float scaleX = Math.max(0.0001F, xScale);
-        float margin = Math.max(0F, grassMargin);
+        float margin = blendLawn ? 0F : Math.max(0F, grassMargin);
         if (margin > 0F) {
             renderGrassMargin(client, width, height, margin);
         }
@@ -119,29 +126,35 @@ public final class SceneTileRenderer {
                 cellsByBlock.computeIfAbsent(blockY * blocksX + blockX, ignored -> new ArrayList<>()).add(cell);
             }
 
-            for (int blockY = 0; blockY < blocksY; blockY++) {
-                for (int blockX = 0; blockX < blocksX; blockX++) {
-                    int visible = blockVisibleCells(width, height, blockX, blockY);
-                    if (visible <= 0) {
-                        continue;
-                    }
-                    List<Cell> cells = cellsByBlock.get(blockY * blocksX + blockX);
-                    boolean fullBlock = (blockX + 1) * TILE_CELLS <= width
-                            && (blockY + 1) * TILE_CELLS <= height;
-                    if (tiled && fullBlock && cells != null && cells.size() == TILE_CELLS * TILE_CELLS) {
-                        // One 6x6 texture over six cells: exactly the same mapping as
-                        // six per-cell crops. The old "uniform" version drew this 7.5
-                        // cells wide and offset by -0.75, so a plain lawn (fast path)
-                        // and a mixed lawn (per-cell path) rendered 0.625 cells apart.
-                        CellQuad quad = blockQuad(blockX, blockY);
-                        client.drawTexture(texture, quad.x(), quad.y(), quad.width(), quad.height(),
-                                0F, 1F, 1F, 1F, 1F);
-                    } else if (cells != null) {
-                        for (Cell cell : cells) {
-                            drawCell(client, sceneId, texture, cell.x(), cell.y(), visibility);
+            boolean blendGrass = blendLawn && com.pvzce.common.PvzceIds.GRASS.toString().equals(sceneId);
+            if (blendGrass) RenderSystem.shader().setLawnBlend(0F, 0F, width, height, 1F, 1F);
+            try {
+                for (int blockY = 0; blockY < blocksY; blockY++) {
+                    for (int blockX = 0; blockX < blocksX; blockX++) {
+                        int visible = blockVisibleCells(width, height, blockX, blockY);
+                        if (visible <= 0) {
+                            continue;
+                        }
+                        List<Cell> cells = cellsByBlock.get(blockY * blocksX + blockX);
+                        boolean fullBlock = (blockX + 1) * TILE_CELLS <= width
+                                && (blockY + 1) * TILE_CELLS <= height;
+                        if (tiled && fullBlock && cells != null && cells.size() == TILE_CELLS * TILE_CELLS) {
+                            // One 6x6 texture over six cells: exactly the same mapping as
+                            // six per-cell crops. The old "uniform" version drew this 7.5
+                            // cells wide and offset by -0.75, so a plain lawn (fast path)
+                            // and a mixed lawn (per-cell path) rendered 0.625 cells apart.
+                            CellQuad quad = blockQuad(blockX, blockY);
+                            client.drawTexture(texture, quad.x(), quad.y(), quad.width(), quad.height(),
+                                    0F, 1F, 1F, 1F, 1F);
+                        } else if (cells != null) {
+                            for (Cell cell : cells) {
+                                drawCell(client, sceneId, texture, cell.x(), cell.y(), visibility);
+                            }
                         }
                     }
                 }
+            } finally {
+                if (blendGrass) RenderSystem.shader().clearLawnBlend();
             }
         }
         drawShiftedCells(client, width, height, scene, shifts);
@@ -244,6 +257,14 @@ public final class SceneTileRenderer {
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight,
                                    SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame) {
+        renderBoard(client, width, height, scene, originX, originY, cellWidth, cellHeight,
+                visibility, liquidFrame, false);
+    }
+
+    /** Preview counterpart of the world grass-to-backdrop join, in GUI pixels. */
+    public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
+                                   float originX, float originY, float cellWidth, float cellHeight,
+                                   SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame, boolean blendLawn) {
         // Water goes under standing objects, including in the seed chooser/editor.
         java.util.Set<String> liquids = new java.util.LinkedHashSet<>();
         for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
@@ -277,17 +298,24 @@ public final class SceneTileRenderer {
                             originX + x * cellWidth, originY + y * cellHeight,
                             cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
                 }
-                if (isTiled(sceneId)) {
-                    // Same cell-filling rule as the in-game board, so the chooser's
-                    // preview and the real lawn cannot disagree.
-                    int tx = Math.floorMod(x, TILE_CELLS);
-                    int ty = Math.floorMod(y, TILE_CELLS);
-                    float step = 1F / TILE_CELLS;
-                    client.drawTextureRegion(texture, tx * step, ty * step, (tx + 1) * step, (ty + 1) * step,
-                            originX + x * cellWidth, originY + y * cellHeight, cellWidth, cellHeight,
-                            0F, 1F, 1F, 1F, 1F);
-                } else {
-                    client.drawTexture(texture, drawX, drawY, drawW, drawH, 0F, 1F, 1F, 1F, 1F);
+                boolean blendGrass = blendLawn && com.pvzce.common.PvzceIds.GRASS.toString().equals(sceneId);
+                if (blendGrass) RenderSystem.shader().setLawnBlend(originX, originY,
+                        width * cellWidth, height * cellHeight, cellWidth, cellHeight);
+                try {
+                    if (isTiled(sceneId)) {
+                        // Same cell-filling rule as the in-game board, so the chooser's
+                        // preview and the real lawn cannot disagree.
+                        int tx = Math.floorMod(x, TILE_CELLS);
+                        int ty = Math.floorMod(y, TILE_CELLS);
+                        float step = 1F / TILE_CELLS;
+                        client.drawTextureRegion(texture, tx * step, ty * step, (tx + 1) * step, (ty + 1) * step,
+                                originX + x * cellWidth, originY + y * cellHeight, cellWidth, cellHeight,
+                                0F, 1F, 1F, 1F, 1F);
+                    } else {
+                        client.drawTexture(texture, drawX, drawY, drawW, drawH, 0F, 1F, 1F, 1F, 1F);
+                    }
+                } finally {
+                    if (blendGrass) RenderSystem.shader().clearLawnBlend();
                 }
             }
         }

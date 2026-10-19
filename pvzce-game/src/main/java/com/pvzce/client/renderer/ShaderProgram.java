@@ -47,6 +47,8 @@ public final class ShaderProgram implements Closeable {
             uniform int uTextEffect;              // 0 = none, 1 = drop shadow, 2 = outline
             uniform vec2 uTextOffset;             // shadow offset / outline thickness, in uv
             uniform vec3 uTextEffectColor;
+            uniform vec4 uLawnBounds;             // board min/max in the current drawing space
+            uniform vec2 uLawnFeather;            // zero = ordinary sprite
             in vec4 vColor;
             in vec2 vUV;
             in vec2 vWorld;
@@ -98,6 +100,13 @@ public final class ShaderProgram implements Closeable {
                     return;
                 }
                 vec4 base = uTextured == 1 ? tex * vColor : vColor;
+                if (uLawnFeather.x > 0.0) {
+                    // Only the grass pass enables this. The finished backdrop under it
+                    // keeps its hand-painted outline; terrain and actors stay opaque.
+                    vec2 edge = min(vWorld - uLawnBounds.xy, uLawnBounds.zw - vWorld);
+                    vec2 coverage = smoothstep(vec2(0.0), uLawnFeather, edge);
+                    base.a *= coverage.x * coverage.y;
+                }
                 vec3 rgb = base.rgb * uTint.rgb + vec3(uTint.a);
                 if (uSunStrength > 0.001 && uSunRadius > 0.001) {
                     float d = distance(vWorld, uSunCenter);
@@ -132,6 +141,8 @@ public final class ShaderProgram implements Closeable {
     private final int textEffectLocation;
     private final int textOffsetLocation;
     private final int textEffectColorLocation;
+    private final int lawnBoundsLocation;
+    private final int lawnFeatherLocation;
 
     public ShaderProgram() {
         int vertex = compile(GL20.GL_VERTEX_SHADER, VERTEX);
@@ -170,6 +181,9 @@ public final class ShaderProgram implements Closeable {
         textEffectLocation = GL20.glGetUniformLocation(id, "uTextEffect");
         textOffsetLocation = GL20.glGetUniformLocation(id, "uTextOffset");
         textEffectColorLocation = GL20.glGetUniformLocation(id, "uTextEffectColor");
+        lawnBoundsLocation = GL20.glGetUniformLocation(id, "uLawnBounds");
+        lawnFeatherLocation = GL20.glGetUniformLocation(id, "uLawnFeather");
+        clearLawnBlend();
         setShadowMode(false);
         setShadowColor(0.02F, 0.03F, 0.08F, 0.34F);
         setTextEffect(false, false, 0F, 0F, 1F, 1F, 1F);
@@ -187,6 +201,17 @@ public final class ShaderProgram implements Closeable {
 
     public void setTextured(boolean textured) {
         GL20.glUniform1i(texturedLocation, textured ? 1 : 0);
+    }
+
+    /** Feather a grass pass onto a finished lawn, in world cells or preview GUI pixels. */
+    public void setLawnBlend(float x, float y, float width, float height, float cellWidth, float cellHeight) {
+        float feather = com.pvzce.common.PvzceConstants.LAWN_EDGE_BLEND_CELLS;
+        GL20.glUniform4f(lawnBoundsLocation, x, y, x + width, y + height);
+        GL20.glUniform2f(lawnFeatherLocation, feather * cellWidth, feather * cellHeight);
+    }
+
+    public void clearLawnBlend() {
+        GL20.glUniform2f(lawnFeatherLocation, 0F, 0F);
     }
 
     /** Enables/disables the projected entity-shadow pass. */

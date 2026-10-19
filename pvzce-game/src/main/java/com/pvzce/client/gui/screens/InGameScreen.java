@@ -1901,15 +1901,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 base.worldLeft(), base.worldBottom(),
                 base.worldWidth(), base.worldHeight(),
                 -1F, 1F, 1F, 1F, 1F);
-        // Grass texture cells are square; draw them at a uniform pixel scale
-        // and scissor the scene pass to the actual board rectangle so the
-        // wider grass quads cannot bleed into the house/road.
+        // The finished backdrop keeps its own irregular grass fringe. Visible grass
+        // joins it inside the board, so no rectangular grass margin may cover that art.
+        boolean blendLawn = LevelStage.blendsLawnEdges(backdropTexture())
+                && !client.level().hidesSceneElement(PvzceIds.GRASS.toString());
         float boardLeft = camera.screenX(0F);
         float boardBottom = camera.screenY(0F);
         float boardRight = camera.screenX(client.level().width());
         float boardTop = camera.screenY(client.level().height());
-        float marginX = GRASS_VISUAL_MARGIN_CELLS * camera.unitX();
-        float marginY = GRASS_VISUAL_MARGIN_CELLS * camera.unitY();
+        float marginX = (blendLawn ? 0F : GRASS_VISUAL_MARGIN_CELLS) * camera.unitX();
+        float marginY = (blendLawn ? 0F : GRASS_VISUAL_MARGIN_CELLS) * camera.unitY();
         // World-space pixels: pushed through the same stack so a nested clip and a
         // stray exception cannot leak GL_SCISSOR_TEST into the next frame.
         client.clipping().pushPixels(
@@ -1943,7 +1944,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     // elements it hides are not painted - see SceneVisibility.
                     client.level().sceneVisibility(),
                     // Where this stage's water surface goes; see LevelStage.POOL.
-                    camera.liquidFrame());
+                    camera.liquidFrame(), blendLawn);
         } finally {
             client.clipping().pop();
         }
