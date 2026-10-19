@@ -207,6 +207,7 @@ public final class TitleScreen extends Screen {
         }
         renderPlayerName();
         renderBuildLine();
+        renderAccountStatus();
         renderServerMessage();
         // Names and transient menu messages belong behind modal backdrops too.
         for (Dialog dialog : dialogs()) {
@@ -260,6 +261,17 @@ public final class TitleScreen extends Screen {
         float textWidth = client.fonts().button().width(name, size);
         client.fonts().button().draw(name, board.x() + (board.width() - textWidth) / 2F,
                 layout.left().y(118), size, 1F, 0.94F, 0.68F, 1F);
+    }
+
+    private void renderAccountStatus() {
+        var account = client.account().view();
+        String text = account.message() + (account.displayName().isEmpty() ? "" : "：" + account.displayName());
+        float scale = Math.min(0.8F, layout.left().scaled(1F));
+        scale = Math.min(scale, (client.guiWidth() - 24F) / Math.max(1F, client.fonts().body().width(text, 1F)));
+        float y = client.fonts().body().lineHeight(scale) + 18;
+        client.drawSolid(8, y - 4, client.fonts().body().width(text, scale) + 8,
+                client.fonts().body().lineHeight(scale) + 6, 0.2F, .02F, .06F, .02F, .75F);
+        client.fonts().body().draw(text, 12, y, scale, .94F, .9F, .72F, 1F);
     }
 
     private void renderBuildLine() {

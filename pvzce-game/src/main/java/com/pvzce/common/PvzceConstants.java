@@ -8,6 +8,12 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final int GAME_LOGIN_TIMEOUT_SECONDS = 8;
+    public static final int GAME_SESSION_MAX_SECONDS = 3600;
+    public static final int GAME_SESSION_CHECK_SECONDS = 60;
+    public static final int GAME_LOGIN_RESPONSE_BYTES = 16 * 1024;
+    public static final int GAME_TOKEN_MAX_LENGTH = 4096;
+    public static final int GAME_DISPLAY_NAME_MAX_LENGTH = 64;
     public static final int RANDOM_PLANT_MAX_ABILITIES = 4;
     public static final int RANDOM_PEASHOOTER_SUN_INTERVAL = 18 * PvzceConstants.TICKS_PER_SECOND;
     public static final int RANDOM_BELT_MIN_ATTACKERS = 3;

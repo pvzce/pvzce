@@ -103,12 +103,14 @@ TitleScreen
  │                                          └ WorkshopPreviewScreen（素材预览/试听）
  ├ 模组墓碑 → ModsScreen
  ├ 数据包墓碑 → PackScreen
- ├ 设置花盆 → SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen
+ ├ 设置花盆 → SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen / AccountScreen
  ├ 商店钥匙牌 → ShopScreen
  └ 玩家木牌 / 切换玩家 → PlayerPickerDialog（名单）
                             ├ 新玩家 → 独立创建弹窗 → 名单高亮新玩家
                             ├ 删除选中 → ConfirmDialog → 确认删除 / 取消
                             └ 确定 → 切换玩家并关闭；取消 → 保持当前玩家
+
+账号页沿屏幕栈返回原设置页，退出账号只切离线，不切换本地玩家或离开关卡；账号网络任务不参与导航等待。
 
 对话预览：EditorScreen / WorkshopJsonScreen → DialoguePreviewScreen → 返回原编辑屏幕（不保存、不构建）
 工坊测试：悬置原屏幕栈 → WorkshopWaitingScreen → 选卡 / InGameScreen

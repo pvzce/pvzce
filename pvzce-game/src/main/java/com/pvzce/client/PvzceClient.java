@@ -78,6 +78,7 @@ import java.util.concurrent.locks.LockSupport;
 public final class PvzceClient {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Client");
 
+    private final com.pvzce.client.account.GameAccount account;
     private final Connection connection;
     private final Path gameDir;
     private final ClassLoader classLoader;
@@ -370,6 +371,12 @@ public final class PvzceClient {
     private int contentReloads;
 
     public PvzceClient(Connection connection, Path gameDir, ClassLoader classLoader) {
+        this(connection, gameDir, classLoader, new com.pvzce.client.account.GameAccount());
+    }
+
+    public PvzceClient(Connection connection, Path gameDir, ClassLoader classLoader,
+                       com.pvzce.client.account.GameAccount account) {
+        this.account = account;
         this.connection = connection;
         this.gameDir = gameDir;
         this.classLoader = classLoader;
@@ -447,6 +454,7 @@ public final class PvzceClient {
         while (!window.shouldClose()) {
             window.pollEvents();
             clientTick++;
+            account.tick();
 
             connection.tick();
 
@@ -500,6 +508,8 @@ public final class PvzceClient {
         }
         window.close();
     }
+
+    public com.pvzce.client.account.GameAccount account() { return account; }
 
     // ---------- content ----------
 

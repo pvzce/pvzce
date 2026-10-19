@@ -36,6 +36,7 @@ public final class PvzceGameProvider implements GameProvider {
 
     private EnvType envType;
     private Arguments arguments;
+    private GameLoginArguments login;
     private Path launchDirectory;
     private final GameTransformer entrypointTransformer = new GameTransformer();
 
@@ -98,7 +99,8 @@ public final class PvzceGameProvider implements GameProvider {
     public boolean locateGame(FabricLauncher launcher, String[] args) {
         envType = launcher.getEnvironmentType();
         arguments = new Arguments();
-        arguments.parse(args);
+        login = GameLoginArguments.consume(args);
+        arguments.parse(login.remaining());
 
         String gameDir = arguments.get("gameDir");
         launchDirectory = Paths.get(expandUserHome(gameDir != null && !gameDir.isBlank() ? gameDir : DEFAULT_GAME_DIR))
@@ -180,14 +182,21 @@ public final class PvzceGameProvider implements GameProvider {
 
     @Override
     public void launch(ClassLoader loader) {
+        char[] code = login.takeCode();
+        String api = login.api();
+        boolean invalid = login.invalid();
+        login.clear();
         try {
             Class<?> gameClass = loader.loadClass(getEntrypoint());
-            MethodHandle invoker = MethodHandles.lookup().findStatic(gameClass, "main", MethodType.methodType(void.class, String[].class));
-            invoker.invokeExact(arguments.toArray());
+            MethodHandle invoker = MethodHandles.lookup().findStatic(gameClass, "launchWithLogin",
+                    MethodType.methodType(void.class, String[].class, String.class, char[].class, boolean.class));
+            invoker.invokeExact(arguments.toArray(), api, code, invalid);
         } catch (NoSuchMethodException | IllegalAccessException | ClassNotFoundException e) {
             throw FormattedException.ofLocalized("exception.pvzce.invokeFailure", e);
         } catch (Throwable t) {
             throw FormattedException.ofLocalized("exception.pvzce.generic", t);
+        } finally {
+            if (code != null) java.util.Arrays.fill(code, '\0');
         }
     }
 
@@ -198,6 +207,14 @@ public final class PvzceGameProvider implements GameProvider {
 
     @Override
     public String[] getLaunchArguments(boolean sanitize) {
-        return arguments.toArray();
+        // Login arguments have already been removed, including malformed and duplicate forms.
+        String[] result = arguments.toArray();
+        if (sanitize) {
+            for (int i = 0; i < result.length; i++) {
+                if (result[i].equals("--accessToken") && i + 1 < result.length) result[++i] = "[redacted]";
+                else if (result[i].startsWith("--accessToken=")) result[i] = "--accessToken=[redacted]";
+            }
+        }
+        return result;
     }
 }

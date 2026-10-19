@@ -23,6 +23,26 @@ public final class PvzceGame {
     }
 
     public static void main(String[] args) {
+        GameLoginArguments login = GameLoginArguments.consume(args);
+        char[] code = login.takeCode();
+        try {
+            launchWithLogin(login.remaining(), login.api(), code, login.invalid());
+        } finally {
+            login.clear();
+            if (code != null) java.util.Arrays.fill(code, '\0');
+        }
+    }
+
+    /** Called across Knot's classloader boundary; credentials never enter Fabric's public args. */
+    public static void launchWithLogin(String[] args, String api, char[] code, boolean invalid) {
+        var account = new com.pvzce.client.account.GameAccount();
+        try (account) {
+            account.start(api, code, invalid);
+            run(args, account);
+        }
+    }
+
+    private static void run(String[] args, com.pvzce.client.account.GameAccount account) {
         for (String arg : args) {
             if (arg.startsWith("--versionType=")) {
                 System.setProperty("pvzce.versionType", arg.substring("--versionType=".length()));
@@ -56,9 +76,10 @@ public final class PvzceGame {
 
         Connection.Pair pair = Connection.createMemoryPair();
         PvzceServer server = new PvzceServer(pair.server(), gameDir, PvzceGame.class.getClassLoader());
-        PvzceClient client = new PvzceClient(pair.client(), gameDir, PvzceGame.class.getClassLoader());
+        PvzceClient client = new PvzceClient(pair.client(), gameDir, PvzceGame.class.getClassLoader(), account);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            account.close();
             server.stop();
             try {
                 Thread.sleep(500);
