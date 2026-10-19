@@ -136,6 +136,9 @@ RULES: list[tuple[str, str, str]] = [
      "tools/build_title_menu.py 裁透明边并缩放；原版场景提取只写 local-assets"),
     (r"^textures/gui/screen/", DERIV,
      "标题/选卡/关卡背景，含复刻的原版关卡缩略图"),
+    (r"^textures/scene/grass\.png$", DERIV,
+     "内置 image_gen 修改原有草坪图集，参考现有完整院子草坪的手绘起伏；"
+     "tools/art/grass-organic/ 留存提示词与来源指纹"),
     (r"^textures/scene/", DERIV,
      "场景贴图；关卡地面复刻原版（水的部分由 `gen_water_*.py` 生成）"),
     (r"^textures/particles/", DERIV,

@@ -1,0 +1,24 @@
+{
+  "tool": "built-in image_gen",
+  "operation": "edit",
+  "asset": "pvzce-game/src/main/resources/assets/pvzce/textures/scene/grass.png",
+  "edit_target_sha256": "3fead0d66400df7786ac1c114f12eaa2d54453b2b9035c16b4ea1adde0e20798",
+  "style_reference": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background1.png",
+  "style_reference_sha256": "ee77b6d95aeb07b19a82ade4cedde6be31a511b2d09dc6555bd9ba393ed249f3",
+  "prompts": [
+    "prompt.txt",
+    "revision-prompt.txt"
+  ],
+  "selected_output_sha256": "f33969b3b33147cb63ea0f7aec59ac807e15c7b8b94be821529603595687398d",
+  "size": [
+    1254,
+    1254
+  ],
+  "atlas_cells": [
+    6,
+    6
+  ],
+  "postprocessing": "none; copied generated PNG without resampling",
+  "classification": "DERIV",
+  "edit_target_git_commit": "8d91357baa7ebc9c698cda498f374da3e9278ccb"
+}
