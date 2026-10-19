@@ -31,6 +31,7 @@ export GRADLE_USER_HOME=$PWD/.gradle-user   # ~/.gradle 只读，不加会在 wr
 - 一个事实只有一个出处：数值进 `PvzceConstants`，内容 id → 美术只有 `EntityArt`（`EntityTextures` 是它上面的兼容转发），
   放置判定只有 `PlantPlacement`……完整清单在 `docs/架构-扩展点与约定.md` §8（改之前先 grep 有没有现成实现）。
 - 不记用例数。"全绿"只有在用例本身确定的时候才是信号；偶发失败要么改成确定性断言、要么删掉。
+- 在你完成代码阅读后，写完方案后，必须给出简短的方案让用户了解，并询问用户是否有改动/有新想法。
 
 ## 执行与代码取舍
 
