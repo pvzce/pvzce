@@ -1158,43 +1158,48 @@ public final class PvzceServer implements Runnable {
             WorldStore.deleteRunningSave(saveDir);
         }
 
-        // The save is read *before* the level exists, because it answers a constructor input: which
-        // side this run is being played from. A level built for the plant side and then re-seated
-        // would keep the plant side's card bar, and "my cards are the other side's" is not a bug
-        // anyone would diagnose from the symptom. A save that cannot be read is treated exactly as
-        // it was before - as no save at all - and the side then comes from the request.
+        // The saved side is a constructor input. A failed read must leave the file and the
+        // current run intact until the player explicitly chooses to restart.
         CompoundTag saveTag = null;
-        boolean loadedSave = false;
         if (loadSave) {
             try {
                 saveTag = worlds.readLevelSave(saveDir);
-                loadedSave = true;
-            } catch (Throwable t) {
-                LOGGER.warn("Failed to read save; treating the level as not started.", t);
-                WorldStore.deleteRunningSave(saveDir);
-                saveTag = null;
-                loadedSave = false;
+            } catch (IOException | RuntimeException e) {
+                reportSaveLoadFailure(def, safeWorld, saveDir, e);
+                return;
             }
         }
-        Identifier humanTeam = loadedSave ? LevelServer.humanTeamFromSave(def, saveTag) : requestedTeam;
+        LevelServer newLevel = null;
+        List<Identifier> buffs;
+        try {
+            Identifier humanTeam = loadSave ? LevelServer.humanTeamFromSave(def, saveTag) : requestedTeam;
 
-        // A level whose card source deals its own cards - a conveyor belt - never takes a
-        // seed selection: the level's own cards would be a second source for the same bar,
-        // and its save holds the cards it was carrying, which the source restores itself.
-        boolean selfDealt = com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
-        List<Identifier> seeds = SeedSelection.plan(def, profile, requestedSeeds, saveDir, loadSave,
-                selfDealt, humanTeam);
-        // Resolved here rather than in the level, because "continue a save" and "the player's
-        // world-wide auto list" are both things a level instance cannot know. The list is then
-        // remembered as the world's new auto list - see below.
-        List<Identifier> buffs = LevelBuffSelection.planForRun(def, profile.buffSlots(),
-                requestedBuffs, profile.autoBuffs(), saveDir, loadSave, profile::ownsBuff);
+            // A level whose card source deals its own cards - a conveyor belt - never takes a
+            // seed selection: the level's own cards would be a second source for the same bar,
+            // and its save holds the cards it was carrying, which the source restores itself.
+            boolean selfDealt = com.pvzce.common.level.mechanic.LevelMechanics.dealsItsOwnCards(def);
+            List<Identifier> seeds = SeedSelection.plan(def, profile, requestedSeeds, saveDir, loadSave,
+                    selfDealt, humanTeam);
+            // Resolved here rather than in the level, because "continue a save" and "the player's
+            // world-wide auto list" are both things a level instance cannot know. The list is then
+            // remembered as the world's new auto list - see below.
+            buffs = LevelBuffSelection.planForRun(def, profile.buffSlots(),
+                    requestedBuffs, profile.autoBuffs(), saveDir, loadSave, profile::ownsBuff);
 
-        LevelServer newLevel = new LevelServer(def, seeds,
-                LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard, humanTeam);
-        // The opponent's credential, for the runs that have one: handed in before the first tick,
-        // so the very first decision of a versus level already knows where Jev is.
-        applyAiSettings(newLevel);
+            newLevel = new LevelServer(def, seeds,
+                    LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard, humanTeam);
+            // The opponent's credential, for the runs that have one: handed in before the first tick,
+            // so the very first decision of a versus level already knows where Jev is.
+            applyAiSettings(newLevel);
+            if (loadSave) {
+                newLevel.restore(saveTag);
+            }
+        } catch (RuntimeException e) {
+            if (newLevel != null) newLevel.shutdown();
+            if (!loadSave) throw e;
+            reportSaveLoadFailure(def, safeWorld, saveDir, e);
+            return;
+        }
         // "The buffs I last went in with." Written from the resolved list, so a buff the level
         // refused never becomes a preference and a buff the level pinned joins it for the levels
         // that leave the choice open. Skipped while a save is being loaded: that run's buffs were
@@ -1210,8 +1215,7 @@ public final class PvzceServer implements Runnable {
         // Entering/restarting a level always starts at the normal 60tps speed.
         tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE);
 
-        if (loadedSave) {
-            newLevel.restore(saveTag);
+        if (loadSave) {
             LOGGER.info("Restored {} plants from {}", saveTag.getInt("PlantCount"), saveDir);
             connection.send(new ServerMessageS2C("已从存档继续 " + def.displayName()));
         }
@@ -1242,7 +1246,9 @@ public final class PvzceServer implements Runnable {
         newLevel.sendFullState(bridge);
         connection.send(new GameSpeedS2C(tickRate.tickRate()));
 
-        if (loadedSave && saveTag != null) {
+        pendingSaveLevel = null;
+        pendingSaveWorld = null;
+        if (loadSave) {
             // The saved world is already being rendered behind the dialog; keep
             // the simulation frozen until the client chooses continue/restart. A load only
             // ever happens for "continue", so the question always still needs asking.
@@ -1250,9 +1256,19 @@ public final class PvzceServer implements Runnable {
             // Remembered so a discard can be checked against the run the prompt was actually
             // about, rather than against whatever the client names.
             pendingSaveLevel = id;
+            pendingSaveWorld = safeWorld;
             connection.send(new LevelSavePromptS2C(id.toString(), safeWorld, def.displayName(),
-                    saveTag.getInt("Tick"), saveTag.getInt("PlantCount"), saveTag.getInt("Sun")));
+                    saveTag.getInt("Tick"), saveTag.getInt("PlantCount"), saveTag.getInt("Sun"), false));
         }
+    }
+
+    /** Report a failed disk read or restore without publishing the partially restored level. */
+    private void reportSaveLoadFailure(LevelDef def, String world, Path saveDir, Exception cause) {
+        LOGGER.warn("Failed to load running save from {}; awaiting the player's restart decision", saveDir, cause);
+        pendingSaveLevel = def.id();
+        pendingSaveWorld = world;
+        connection.send(new LevelSavePromptS2C(def.id().toString(), world, def.displayName(),
+                0, 0, 0, true));
     }
 
     /**
@@ -1306,9 +1322,9 @@ public final class PvzceServer implements Runnable {
     }
 
     public void leaveLevel() {
+        saveGame();
         savePromptPending = false;
         manualPause = false;
-        saveGame();
         // Coins and unlocks outlive the level they were earned in.
         worlds.flushProfile();
         if (level != null) {
@@ -1334,20 +1350,19 @@ public final class PvzceServer implements Runnable {
         if (id == null || discard.worldName() == null || discard.worldName().isBlank()) {
             return;
         }
-        // Two states are legitimate: the player is looking at this level's save prompt right now,
-        // or they have stepped out of the level to answer it (leaving clears the prompt, and the
-        // answer has to survive that). Anything else - a level actually being played, or a level
-        // that is not the one the prompt named - is refused, so a stale or hostile packet cannot
-        // delete a running game's own file.
-        boolean promptOpen = savePromptPending && id.equals(pendingSaveLevel);
-        boolean steppedOut = level == null;
-        if (!promptOpen && !steppedOut) {
+        // A failed load has no live level. Match the prompt's world and level, rather than
+        // using the existence of a running instance as permission to delete a file. The
+        // remembered identity also survives leaving a successfully restored board.
+        boolean promptOpen = id.equals(pendingSaveLevel)
+                && WorldPaths.sanitize(discard.worldName()).equals(pendingSaveWorld);
+        if (!promptOpen) {
             LOGGER.debug("Ignoring a discard for {}; the save prompt is about {}", id, pendingSaveLevel);
             return;
         }
         Path saveDir = LevelKey.levelDir(WorldPaths.worldDir(gameDir, discard.worldName()), id);
         WorldStore.deleteRunningSave(saveDir);
         pendingSaveLevel = null;
+        pendingSaveWorld = null;
         LOGGER.info("Discarded the saved run for {}", id);
     }
 
@@ -1358,9 +1373,12 @@ public final class PvzceServer implements Runnable {
      * prompt names a level, and this is what makes {@link #discardSavedRun} check that name.
      */
     private Identifier pendingSaveLevel;
+    private String pendingSaveWorld;
 
     public void saveGame() {
-        if (worlds.sandbox()) return;
+        // A restored board awaiting an answer has made no progress. Saving it here would
+        // recreate a run the player just discarded before backing out of seed selection.
+        if (worlds.sandbox() || savePromptPending) return;
         LevelServer current = level;
         if (current == null || currentWorld == null) {
             return;
@@ -1478,6 +1496,8 @@ public final class PvzceServer implements Runnable {
                         && currentWorld.equals(WorldPaths.sanitize(request.worldName()))
                         && current.def().id().toString().equals(request.levelId())) {
                     savePromptPending = false;
+                    pendingSaveLevel = null;
+                    pendingSaveWorld = null;
                     return;
                 }
                 createLevel(request.levelId(), request.worldName(), LevelIntent.CONTINUE, null,

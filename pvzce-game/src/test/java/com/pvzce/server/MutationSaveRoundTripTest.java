@@ -238,7 +238,8 @@ class MutationSaveRoundTripTest {
 
             // The level is left (the prompt is about a run on disk) and the answer is 重新开始.
             harness.send(new com.pvzce.common.network.packet.LeaveLevelC2S());
-            harness.server().createLevelForTest(LEVEL.toString(), WORLD, false);
+            harness.send(new com.pvzce.common.network.packet.ContinueLevelC2S(LEVEL.toString(), WORLD));
+            harness.awaitPacket(com.pvzce.common.network.packet.LevelSavePromptS2C.class, 5_000);
             harness.send(new com.pvzce.common.network.packet.DiscardLevelSaveC2S(
                     LEVEL.toString(), WORLD));
             awaitSaveGone(harness, saveFile);

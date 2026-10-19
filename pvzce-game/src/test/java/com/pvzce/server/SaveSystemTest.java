@@ -17,6 +17,8 @@ import com.pvzce.common.network.packet.WaveProgressS2C;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,7 +26,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Per-level save isolation, resume prompt, continue/restart, and finish status. */
@@ -33,6 +37,63 @@ class SaveSystemTest {
     /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
     @TempDir
     Path gameDir;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void failedSaveLoadPreservesFileAndConnectionUntilPlayerRestarts(boolean unreadable) throws Exception {
+        String levelId = "pvzce:yard/adventure/demo_level";
+        String world = "failedsave";
+        Path saveDir = gameDir.resolve("saves/failedsave/levels/70767a6365__yard%2Fadventure%2Fdemo_level");
+        Path saveFile = saveDir.resolve("level.dat");
+        Files.createDirectories(saveDir);
+        if (unreadable) {
+            Files.writeString(saveFile, "broken compressed NBT");
+        } else {
+            CompoundTag oldSave = new CompoundTag();
+            oldSave.putString("GameState", GameStateS2C.RUNNING);
+            // Missing LoadVersion reads as zero, exactly as in the reported old save.
+            NbtIo.writeCompressed(oldSave, saveFile);
+        }
+        byte[] original = Files.readAllBytes(saveFile);
+
+        try (ServerHarness server = ServerHarness.create(gameDir)) {
+            server.clear();
+            server.send(unreadable
+                    ? new com.pvzce.common.network.packet.PlayLevelC2S(levelId, world, false, List.of())
+                    : new ContinueLevelC2S(levelId, world));
+            LevelSavePromptS2C prompt = server.awaitPacket(LevelSavePromptS2C.class, 5_000);
+            assertTrue(prompt.loadFailed());
+            assertEquals(levelId, prompt.levelId());
+            assertEquals(world, prompt.worldName());
+            assertNull(server.server().level(), "a partly restored board must not become the live level");
+            assertFalse(server.packets().stream().anyMatch(LevelInitS2C.class::isInstance));
+            assertArrayEquals(original, Files.readAllBytes(saveFile), "failure must not delete or rewrite the save");
+
+            // Returning to the list still works, and the file remains available for a later decision.
+            Path otherSave = gameDir.resolve("saves/otherworld/levels/70767a6365__yard%2Fadventure%2Fdemo_level/level.dat");
+            Files.createDirectories(otherSave.getParent());
+            Files.write(otherSave, original);
+            server.clear();
+            server.send(new com.pvzce.common.network.packet.DiscardLevelSaveC2S(levelId, "otherworld"));
+            server.send(new RequestLevelListC2S(world));
+            LevelListS2C list = server.awaitPacket(LevelListS2C.class, 5_000);
+            assertTrue(list.levels().stream().filter(info -> info.id().equals(levelId))
+                    .findFirst().orElseThrow().hasRunningSave());
+            assertArrayEquals(original, Files.readAllBytes(saveFile));
+            assertArrayEquals(original, Files.readAllBytes(otherSave), "a failed-load prompt may discard only its own world");
+
+            // The chooser's restart answer first discards the refused run, then submits new cards.
+            server.send(new com.pvzce.common.network.packet.DiscardLevelSaveC2S(levelId, world));
+            server.waitForDeleted(saveDir, 5_000);
+            server.clear();
+            server.send(new com.pvzce.common.network.packet.PlayLevelC2S(levelId, world, true, List.of()));
+            server.awaitPacket(LevelInitS2C.class, 5_000);
+            assertEquals(GameStateS2C.RUNNING, server.server().level().gameState());
+            assertEquals(0, server.server().level().plantCount());
+            assertFalse(server.packets().stream().anyMatch(LevelSavePromptS2C.class::isInstance));
+        }
+    }
+
     @Test
     void eachLevelGetsItsOwnSaveDirectory() throws Exception {
         try (ServerHarness server = ServerHarness.create(gameDir)) {

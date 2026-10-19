@@ -7,15 +7,20 @@ import com.pvzce.common.network.packet.LevelSavePromptS2C;
 
 import java.util.Locale;
 
-/** Modal prompt shown when a level already has a resumable save. */
+/** Modal prompt for a saved run, including one the server could not load. */
 public final class LevelSaveDialog extends Dialog {
     private final LevelSavePromptS2C prompt;
 
     private LevelSaveDialog(PvzceClient client, int x, int y, int width, int height, LevelSavePromptS2C prompt,
                             Runnable onContinue, Runnable onRestart) {
-        super(x, y, width, height, "发现存档");
+        super(x, y, width, height, prompt.loadFailed() ? "存档无法加载" : "发现存档");
         this.prompt = prompt;
         titleScale(Math.min(1.35F, height / 260F));
+        if (prompt.loadFailed()) {
+            // This prompt is over a menu, whose tabs may occupy the hanging title's space.
+            frameScale(0.28F);
+            inlineTitle();
+        }
         closeOnEscape(false);
 
         int buttonWidth = Math.min(260, Math.max(150, width - 80));
@@ -24,7 +29,8 @@ public final class LevelSaveDialog extends Dialog {
         int buttonX = x + (width - buttonWidth) / 2;
         int startY = y + 18;
 
-        addButton(new Button(buttonX, startY, buttonWidth, buttonHeight, "继续游戏", () -> {
+        addButton(new Button(buttonX, startY, buttonWidth, buttonHeight,
+                prompt.loadFailed() ? "返回关卡列表" : "继续游戏", () -> {
             close();
             onContinue.run();
         }).style(Button.Style.SEED_CHOOSER));
@@ -48,17 +54,20 @@ public final class LevelSaveDialog extends Dialog {
         if (!visible) {
             return;
         }
-        int linesY = y + height - 34;
+        int linesY = y + height - (prompt.loadFailed() ? 64 : 34);
         float scale = 0.9F;
+        int textX = x + (prompt.loadFailed() ? 36 : 24);
         String title = "关卡：" + prompt.levelName();
-        client.fonts().button().draw(title, x + 24, linesY, 1F, 1F, 0.95F, 0.75F, 1F);
+        client.fonts().button().draw(title, textX, linesY, 1F, 1F, 0.95F, 0.75F, 1F);
 
         int seconds = Math.max(0, prompt.tickCount()) / com.pvzce.common.PvzceConstants.TICKS_PER_SECOND;
-        String progress = String.format(Locale.ROOT, "已有存档：进行中 · 第 %d tick（约 %d 分 %d 秒）",
-                prompt.tickCount(), seconds / 60, seconds % 60);
-        client.fonts().body().draw(progress, x + 24, linesY - 24, scale, 0.9F, 0.9F, 0.9F, 1F);
+        String progress = prompt.loadFailed() ? "存档可能与当前版本不兼容，或数据已损坏。"
+                : String.format(Locale.ROOT, "已有存档：进行中 · 第 %d tick（约 %d 分 %d 秒）",
+                        prompt.tickCount(), seconds / 60, seconds % 60);
+        client.fonts().body().draw(progress, textX, linesY - 24, scale, 0.9F, 0.9F, 0.9F, 1F);
 
-        String plants = "植物：" + prompt.plantCount() + " 棵    阳光：" + prompt.sun();
-        client.fonts().body().draw(plants, x + 24, linesY - 46, scale, 0.9F, 0.9F, 0.9F, 1F);
+        String plants = prompt.loadFailed() ? "重新开始会清除本局进度；返回则保留存档。"
+                : "植物：" + prompt.plantCount() + " 棵    阳光：" + prompt.sun();
+        client.fonts().body().draw(plants, textX, linesY - 46, scale, 0.9F, 0.9F, 0.9F, 1F);
     }
 }

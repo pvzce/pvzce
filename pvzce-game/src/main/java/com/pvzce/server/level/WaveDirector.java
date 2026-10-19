@@ -1679,7 +1679,7 @@ public final class WaveDirector {
      * Reads back what {@link #save} wrote.
      *
      * @throws IllegalStateException when the block was written by a version whose position this
-     *         one cannot read. The caller drops the save rather than resuming into a run whose
+     *         one cannot read. The caller asks whether to restart rather than resuming into a run whose
      *         wave numbering means something else - an endless level's old save held the index
      *         into a table that no longer exists.
      */

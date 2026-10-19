@@ -2886,11 +2886,9 @@ public final class PvzceClient {
     }
 
     /**
-     * The save prompt's "重新开始" option: keep the loaded save untouched and
-     * paused while the client shows seed selection. Submitting the new cards
-     * sends {@code PlayLevelC2S(restart=true)}, which deletes the old save and
-     * creates the fresh level with the chosen bar. Backing out re-opens the
-     * prompt so the player can still continue.
+     * The save prompt's "重新开始" discards the disk save, then opens seed selection.
+     * A loaded board stays paused behind the chooser. Failed loads have no board;
+     * their chooser goes back to the level list.
      */
     public void openSeedSelectionForRestart(LevelSavePromptS2C prompt) {
         // The answer is about the saved run, not about the next one: the chooser below can be
@@ -2912,6 +2910,13 @@ public final class PvzceClient {
             // The same level that would not show the screen on the way in does not show it on
             // the way back in either: restarting it is not a card choice.
             connection.send(new RestartLevelC2S(prompt.levelId(), prompt.worldName(), List.of()));
+            return;
+        }
+        if (prompt.loadFailed()) {
+            // No restored board exists to return to. Do not carry data from the failed save
+            // into the new run, and backing out goes to the list rather than the old prompt.
+            silenceLevelMusic();
+            setScreenReplacing(createSeedSelection(info, List.of(), null, this::showLevelList));
             return;
         }
         // The chooser opens empty either way: the bar a run happens to be holding is not a
@@ -2981,11 +2986,17 @@ public final class PvzceClient {
         }
     }
 
-    /** Server found a resumable save; show the continue/restart dialog over the loaded world. */
+    /** Failed saves are shown immediately; resumable saves wait for the loaded board. */
     public void showLevelSavePrompt(LevelSavePromptS2C prompt) {
-        if (!(currentScreen() instanceof InGameScreen)) {
+        if (!prompt.loadFailed() && !(currentScreen() instanceof InGameScreen)) {
             deferredSavePrompt = prompt;
             return;
+        }
+        if (prompt.loadFailed()) {
+            deferredSavePrompt = null;
+            directDialogueLevelId = null;
+            savePromptOpen = false;
+            showLevelList();
         }
         if (savePromptOpen) {
             return;
@@ -2993,7 +3004,9 @@ public final class PvzceClient {
         savePromptOpen = true;
         LevelSaveDialog dialog = LevelSaveDialog.create(this, prompt,
                 () -> {
-                    connection.send(new ContinueLevelC2S(prompt.levelId(), prompt.worldName()));
+                    if (!prompt.loadFailed()) {
+                        connection.send(new ContinueLevelC2S(prompt.levelId(), prompt.worldName()));
+                    }
                 },
                 () -> {
                     openSeedSelectionForRestart(prompt);

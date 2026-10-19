@@ -5,6 +5,9 @@ import com.pvzce.client.gui.Screen;
 import com.pvzce.client.gui.screens.ChooseSeedsScreen;
 import com.pvzce.client.gui.screens.InGameScreen;
 import com.pvzce.client.gui.screens.LevelSelectScreen;
+import com.pvzce.client.gui.components.Button;
+import com.pvzce.client.gui.screens.LevelSaveDialog;
+import com.pvzce.common.network.packet.LevelSavePromptS2C;
 import com.pvzce.common.network.PvzcePackets;
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
@@ -55,6 +58,60 @@ class LevelRestartClientTest {
         ClientHarness harness = ClientHarness.create("pvzce-restart-client");
         harnesses.add(harness);
         return harness;
+    }
+
+    @Test
+    void failedSavePromptAppearsWithoutLevelInitAndOffersReturnOrFreshChooser() throws Exception {
+        ClientHarness fixture = newClient();
+        PvzceClient client = fixture.client();
+        // Only dimensions are needed; no native window or GL context is created.
+        var singleton = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        singleton.setAccessible(true);
+        var window = (PvzceWindow) ((sun.misc.Unsafe) singleton.get(null)).allocateInstance(PvzceWindow.class);
+        for (String dimension : List.of("width", "height")) {
+            var field = PvzceWindow.class.getDeclaredField(dimension);
+            field.setAccessible(true);
+            field.setInt(window, dimension.equals("width") ? 1920 : 1080);
+        }
+        var windowField = PvzceClient.class.getDeclaredField("window");
+        windowField.setAccessible(true);
+        windowField.set(client, window);
+        client.config().setGuiScale(2);
+        client.setLevelList(List.of(levelInfo("pvzce:level_1")));
+        client.showLevelList();
+        LevelSavePromptS2C failure = new LevelSavePromptS2C("pvzce:level_1", "world", "第一关",
+                0, 0, 0, true);
+        PvzceClientPacketListener listener = new PvzceClientPacketListener(client, client.level());
+
+        listener.handle(failure);
+        LevelSaveDialog dialog = assertInstanceOf(LevelSaveDialog.class,
+                client.currentScreen().dialogs().getFirst());
+        assertEquals("存档无法加载", dialog.title());
+        assertFalse(dialog.children().stream().filter(Button.class::isInstance).map(Button.class::cast)
+                .anyMatch(button -> button.label().equals("继续游戏")));
+        clickDialogButton(client, dialog, "返回关卡列表");
+        assertInstanceOf(LevelSelectScreen.class, client.currentScreen());
+        assertFalse(fixture.sentPackets().stream().anyMatch(packet -> packet instanceof
+                com.pvzce.common.network.packet.DiscardLevelSaveC2S
+                || packet instanceof com.pvzce.common.network.packet.ContinueLevelC2S));
+
+        listener.handle(failure);
+        dialog = assertInstanceOf(LevelSaveDialog.class, client.currentScreen().dialogs().getFirst());
+        clickDialogButton(client, dialog, "重新开始");
+        assertTrue(fixture.sentPackets().stream().anyMatch(packet -> packet instanceof
+                com.pvzce.common.network.packet.DiscardLevelSaveC2S discard
+                && discard.levelId().equals(failure.levelId()) && discard.worldName().equals(failure.worldName())));
+        assertInstanceOf(ChooseSeedsScreen.class, client.currentScreen());
+        client.currentScreen().requestClose();
+        assertInstanceOf(LevelSelectScreen.class, client.currentScreen());
+        assertTrue(client.currentScreen().dialogs().isEmpty(), "back must not reopen a failed save prompt");
+    }
+
+    private static void clickDialogButton(PvzceClient client, LevelSaveDialog dialog, String label) {
+        Button button = dialog.children().stream().filter(Button.class::isInstance).map(Button.class::cast)
+                .filter(child -> child.label().equals(label)).findFirst().orElseThrow();
+        client.currentScreen().dispatchMouseClicked(button.x() + button.width() / 2.0,
+                button.y() + button.height() / 2.0, 0);
     }
 
     /** A stand-in for any screen the player may have opened (pause menu, seed chooser). */

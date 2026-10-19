@@ -157,7 +157,7 @@ else                              openSeedSelection(info, false); // ④ 其余�
 |---|---|---|---|
 | 1 | 关卡列表「继续游戏/下一步」 | `LevelSelectScreen.openSetup()` | 转发给 `enterLevelFromMenu`（与②③④同一决策） |
 | 2 | 关卡准备「开始游戏」 | `LevelSetupScreen.startGame()` | 转发给 `enterLevelFromMenu`（同一决策，第二份调用） |
-| 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（`onBack` 回到提示框）；取不到关卡信息、或这一关声明了 `seed_screen: false` 时回落到 `RestartLevelC2S`（重开不是一次选卡） |
+| 3 | 存档提示框「重新开始」 | `PvzceClient.openSeedSelectionForRestart` | 打开选卡界面（正常存档返回提示框，加载失败则返回列表）；取不到关卡信息、或这一关声明了 `seed_screen: false` 时回落到 `RestartLevelC2S`（重开不是一次选卡） |
 | 4 | 暂停菜单「重新开始」 | `PvzceClient.restartCurrentLevel()` | `LeaveLevelC2S` → 清状态 → 选卡页（`onBack = showLevelList`；没得选的关卡是仅预览过场，会自己开始） |
 | 5 | 编辑器「测试」 | `PvzceClient.testWorkspace()` | 保存草稿 → 临时会话确认 → 新关卡列表 → 选卡；退出恢复编辑屏幕栈 |
 
@@ -222,9 +222,10 @@ LevelSelectScreen                PvzceClient                 PvzceServer        
 
 1. **`LevelInitS2C` 是"关卡真的开了"的唯一信号**，`onLevelInit` 用 `setScreenReplacing` 重建整个栈。
    选卡界面**不关闭自己** —— 所以暂停框/选卡/关卡准备不可能残留在新关卡下面。
-2. **存档提示框在 `LevelInitS2C` 之后发**，即"先把存档加载并渲染出来，再问要不要它"。
+2. **正常存档提示框在 `LevelInitS2C` 之后发**，即"先把存档加载并渲染出来，再问要不要它"。
    客户端在 `onLevelInit` 里补开提示框（`showLevelSavePrompt` 若当前不是 `InGameScreen` 就先存进
-   `deferredSavePrompt`）。
+   `deferredSavePrompt`）。加载失败时只有带失败标记的提示包，客户端直接在关卡列表弹框，
+   清除延后的提示与开场对话标记，不等待初始化；返回保留存档，确认重开才清除本局进度（服务端边界见 `架构-服务端.md` §4.3）。
 3. **音乐 reset 必须在 `LevelInitS2C` 之前**（`silenceClientLevelMusic()`）：init 才是启动新轨道的那一步；
    同一实例的 resync 不发 reset（它的音乐就是当前状态）。
 
