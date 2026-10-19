@@ -1,0 +1,206 @@
+{
+  "tool": "built-in image_gen",
+  "scope": "关卡背景与地形；摆件保持原样",
+  "jobs": [
+    {
+      "key": "ground",
+      "target": "textures/scene/ground.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Opaque seamless 1536x1536 SIX-BY-SIX soil atlas. Keep exactly 36 nominal patch centers. Replace the ruler-straight dark grid with very subtle crooked soil-color transitions and a few gently wandering shallow seams, so dirt reads as continuous earth, not square paving stones. Warm ochre brown, sparse small pebbles and tiny grass sprigs, calm cell interiors. No raised blocks, deep trenches or heavy outlines. Opposite image edges must repeat naturally. Preserve dirt-only opaque coverage.",
+      "references": [
+        "textures/scene/ground.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "roof_flat",
+      "target": "textures/scene/roof_flat.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Replace this labelled placeholder entirely with a real seamless flat roof terracotta tile texture. Remove ALL ROOF letters and the square UI-looking frame. Use red-orange ceramic tiles with gently bowed and crooked edges, a little wear, sparse fine cracks, warm highlights and soft crevice shade, matching the roof-background reference. Remain a FLAT repeating material with even overhead lighting and no large one-off ridge, object or exterior roof outline. Keep the canvas 192x192, opaque.",
+      "references": [
+        "textures/scene/roof_flat.png",
+        "textures/gui/screen/level/background5.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "roof_slope",
+      "target": "textures/scene/roof_slope.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Replace this labelled placeholder entirely with real seamless sloped roof terracotta tiles. Remove ALL SLP letters and square UI-looking frame. Match red-orange roof tiles from the reference with softly crooked tile seams and subtle directional shading suggesting their incline, without changing the full square footprint or drawing a standalone roof in perspective. No letters or icons. Keep canvas 192x192, opaque, repeatable edges.",
+      "references": [
+        "textures/scene/roof_slope.png",
+        "textures/gui/screen/level/background5.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "roof_flat_2",
+      "target": "textures/scene/roof_flat_2.png",
+      "prompt": "Use case: precise-object-edit. Replace this entire labelled debug placeholder with a complete opaque repeatable red-orange terracotta roof material, matching the supplied roof backdrop. Remove ALL ROOF / SLP letters, white diagonal cross and UI frame, including their semitransparent anti-aliasing remnants. Full square coverage, no transparent holes. Use gently bowed handmade tile seams, sparse fine cracks, restrained ceramic highlights. Flat roof surface with even overhead light. No standalone roof scene, perspective view, props or text. Return one square texture only.",
+      "references": [
+        "textures/scene/roof_flat_2.png",
+        "textures/gui/screen/level/background5.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "roof_slope_2",
+      "target": "textures/scene/roof_slope_2.png",
+      "prompt": "Use case: precise-object-edit. Replace this entire labelled debug placeholder with a complete opaque repeatable red-orange terracotta roof material, matching the supplied roof backdrop. Remove ALL ROOF / SLP letters, white diagonal cross and UI frame, including their semitransparent anti-aliasing remnants. Full square coverage, no transparent holes. Use gently bowed handmade tile seams, sparse fine cracks, restrained ceramic highlights. Subtle shading suggests sloping roof tiles. No standalone roof scene, perspective view, props or text. Return one square texture only.",
+      "references": [
+        "textures/scene/roof_slope_2.png",
+        "textures/gui/screen/level/background5.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "water_surface",
+      "target": "textures/scene/water_surface.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit this opaque square water material. Remove the four visible straight horizontal strip seams and all rectangular panel framing. Make ONE continuously tileable calm turquoise swimming-pool surface: broad softly wandering reflected highlights and delicate irregular ripples, hand-painted cartoon rendering, balanced blue-cyan palette, low to moderate contrast. No shoreline, no foam rim, no cells, no black seams, no horizon or objects. Keep the image square and entirely opaque. It is sampled periodically by a moving water shader; opposite edges must meet.",
+      "references": [
+        "textures/scene/water_surface.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "water_base",
+      "target": "textures/scene/water_base.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Refine this opaque seamless shallow pond-floor material, preserving its muted green-gray underwater palette and diffuse lighting. Make silt patches, rounded pebbles and sparse little underwater plants more naturally irregular with soft hand-painted forms and calm spacing. No surface reflections, foam rim, checkerboard, grid, text, large objects or black outlines. Keep the whole square opaque and seamless in both directions; this is the floor beneath shader water.",
+      "references": [
+        "textures/scene/water_base.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "flood_water",
+      "target": "textures/scene/flood_water.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Refine this opaque shallow flood-water cell material into softly painted pale turquoise water with a few broad irregular light ripples. Remove its mechanically framed square outline while retaining a gentle natural water boundary impression. No objects, text, grid, deep ocean, exaggerated waves or perspective. Keep full square opaque coverage and repeatable edges, calm enough for actors and planting markers to remain readable.",
+      "references": [
+        "textures/scene/flood_water.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "ice",
+      "target": "textures/scene/ice.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Refine this flat opaque ice-overlay cell into soft pale blue cartoon ice. Keep full square coverage and the existing pale palette; draw a few restrained naturally branching hairline cracks and broad very faint cloudy highlights. Avoid a square border, hard cell outlines, thick dark cracks, snow mounds, height, objects, text or perspective. Opposite edges should repeat quietly. Keep the exact canvas framing.",
+      "references": [
+        "textures/scene/ice.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background1",
+      "target": "textures/gui/screen/level/background1.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Daytime front-yard lawn: keep EXACTLY the existing 9 columns and 5 rows, retaining alternating green patch centers. Match the edited grass reference's gentle broad bends, slightly leaning color boundaries and soft grass-tuft joins. Preserve the outer grass silhouette along the house, fence and pavement; change only interior turf brushwork and small transition detail, with calm readable interiors. OUTPUT FORMAT: wide panoramic 7:3 landscape, 3360 by 1440, the ENTIRE original backdrop with the exact source crop and scene framing. Do not make a square texture or zoom in.",
+      "references": [
+        "textures/gui/screen/level/background1.png",
+        "textures/scene/grass.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background1unsodded",
+      "target": "textures/gui/screen/level/background1unsodded.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Bare front-yard dirt: keep the entire playable dirt region bare, with NO lawn and NO checkerboard/grid lines. Refine soil color patches, sparse pebbles and earth-to-pavement transitions in a gentle natural hand-painted finish. Preserve the yard boundary exactly and keep the fence, house, path and road unchanged. OUTPUT FORMAT: wide panoramic 7:3 landscape, 3360 by 1440, the ENTIRE original backdrop with the exact source crop and scene framing. Do not make a square texture or zoom in.",
+      "references": [
+        "textures/gui/screen/level/background1unsodded.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background2",
+      "target": "textures/gui/screen/level/background2.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Night front-yard lawn: retain EXACTLY the existing 9 columns and 5 rows and their alternating dark green patch centers. Give interior grass patch boundaries gentle broad undulation, slight lean and soft grass-tuft transitions matching the edited grass reference, but retain the source's dark cool blue-green night palette, visible lawn readability and baked warm window lighting. Preserve the outer lawn silhouette. IMPORTANT OUTPUT FORMAT: a WIDE PANORAMIC 7:3 landscape image, 3360 pixels wide by 1440 pixels high, identical aspect ratio and scene framing to the source backdrop. Do not return a square texture, close-up, crop, or tile sheet. Return the entire source panorama, with only the requested surface artwork modified.",
+      "references": [
+        "textures/gui/screen/level/background2.png",
+        "textures/scene/grass.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background3",
+      "target": "textures/gui/screen/level/background3.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Daytime backyard pool: refine ONLY the two existing grass strips above and below the pool, with their original 9-column by 2-row pattern in EACH strip. Add gentle broad undulation to color boundaries and natural soft grass tufts, matching the edited grass reference. CRITICAL: keep the central empty white pool-interior rectangle exactly its source color, shape and position: the runtime draws water over that placeholder. Keep the pool rim, grass-strip bounds, fence, patio and all objects unchanged. IMPORTANT OUTPUT FORMAT: a WIDE PANORAMIC 7:3 landscape image, 3360 pixels wide by 1440 pixels high, identical aspect ratio and scene framing to the source backdrop. Do not return a square texture, close-up, crop, or tile sheet. Return the entire source panorama, with only the requested surface artwork modified.",
+      "references": [
+        "textures/gui/screen/level/background3.png",
+        "textures/scene/grass.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background4",
+      "target": "textures/gui/screen/level/background4.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Nighttime backyard pool: refine ONLY the two grass strips above and below the pool, retaining their original 9-column by 2-row pattern in EACH strip and dark cool blue-green night colors. Add gentle broad undulation and soft grass-tuft transitions. CRITICAL: preserve the central flat blue-purple pool-interior placeholder exactly as it is, with identical rectangular bounds, color and position; runtime water covers it. Do not move the pool rim or any background object, and preserve the baked night lighting. OUTPUT FORMAT: wide panoramic 7:3 landscape, 3360 by 1440, the ENTIRE original backdrop with the exact source crop and scene framing. Do not make a square texture or zoom in.",
+      "references": [
+        "textures/gui/screen/level/background4.png",
+        "textures/scene/grass.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background5",
+      "target": "textures/gui/screen/level/background5.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Daytime roof: refine the existing roof's terracotta brushwork, subtle tile-edge waviness, fine cracks and restrained ceramic color variation. Preserve EVERY tile-course intersection and all row/column anchors approximately at their current positions; preserve roof slope break, entire outer roof silhouette, eaves, chimney, satellite dish, sky and plants exactly. Slight natural wobble at seams is sufficient. Do not add more tile rows, ridges, text, props or perspective. IMPORTANT OUTPUT FORMAT: a WIDE PANORAMIC 7:3 landscape image, 3360 pixels wide by 1440 pixels high, identical aspect ratio and scene framing to the source backdrop. Do not return a square texture, close-up, crop, or tile sheet. Return the entire source panorama, with only the requested surface artwork modified.",
+      "references": [
+        "textures/gui/screen/level/background5.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "background6boss",
+      "target": "textures/gui/screen/level/background6boss.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. Edit only the painted terrain surfaces and their fine transition details in this existing backdrop. Preserve every scene object's exact placement, overall silhouette, original camera and crop. Do not move walls, house, fence, pavement, pool rim, chimney, satellite dish or horizon. Maintain current daylight/night lighting. The geometry is used for planting alignment, so do not move the nominal centers of any row or column. Night roof: refine the existing purple/red terracotta tiles with subtle edge waviness, fine weathered cracks and restrained ceramic variation, keeping the cool moonlit palette. Preserve EVERY tile-course intersection and all planting anchors, roof slope break, outer roof silhouette, eaves, chimney, satellite dish, moon and stars exactly. No new rows, ridges, objects, text or perspective changes. OUTPUT FORMAT: wide panoramic 7:3 landscape, 3360 by 1440, the ENTIRE original backdrop with the exact source crop and scene framing. Do not make a square texture or zoom in.",
+      "references": [
+        "textures/gui/screen/level/background6boss.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "almanac_groundday",
+      "target": "textures/gui/screen/level/almanac_groundday.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. This is a 200x200 ground-preview background, not a whole level. Preserve its crop, number of visible pattern divisions and all scene layout. Refine the green lawn patch boundaries into gentle crooked undulation and soft grass-tuft transitions, matching the edited grass reference. Keep bright daytime colors, calm readable grass and the existing crop. No extra objects or labels.",
+      "references": [
+        "textures/gui/screen/level/almanac_groundday.png",
+        "textures/scene/grass.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "almanac_groundnight",
+      "target": "textures/gui/screen/level/almanac_groundnight.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. This is a 200x200 ground-preview background, not a whole level. Preserve its crop, number of visible pattern divisions and all scene layout. Refine the dark lawn patch boundaries into gentle crooked undulation and soft grass tufts, matching the edited grass reference but preserving the dark blue-green night palette and existing crop. No extra objects or labels.",
+      "references": [
+        "textures/gui/screen/level/almanac_groundnight.png",
+        "textures/scene/grass.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "almanac_groundpool",
+      "target": "textures/gui/screen/level/almanac_groundpool.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. This is a 200x200 ground-preview background, not a whole level. Preserve its crop, number of visible pattern divisions and all scene layout. Refine the blue water with softly wandering painted ripples and gentle natural grass-edge transitions. Keep the top and bottom pink pool coping strips EXACTLY in their original positions and widths, preserving the preview's crop and water region. No objects or labels.",
+      "references": [
+        "textures/gui/screen/level/almanac_groundpool.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "almanac_groundnightpool",
+      "target": "textures/gui/screen/level/almanac_groundnightpool.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. This is a 200x200 ground-preview background, not a whole level. Preserve its crop, number of visible pattern divisions and all scene layout. Refine the dark blue pool water's soft ripples and tiny grass transitions while preserving the cool night palette. Keep top and bottom pool coping strips EXACTLY where they are, with the same widths and crop. No objects or labels.",
+      "references": [
+        "textures/gui/screen/level/almanac_groundnightpool.png"
+      ],
+      "transparent": false
+    },
+    {
+      "key": "almanac_groundroof",
+      "target": "textures/gui/screen/level/almanac_groundroof.png",
+      "prompt": "Use case: precise-object-edit. This is a production 2D tower-defense game asset edit. Preserve the source canvas size, exact framing, projection, logical grid anchors and material identity. Match the polished hand-painted cartoon finish of the supplied reference. Add gentle organic irregularity and restrained detail; keep gameplay readability. No text, labels, watermark, UI, characters or extra props. Return only the edited asset, never a comparison sheet. This is a 200x200 ground-preview background, not a whole level. Preserve its crop, number of visible pattern divisions and all scene layout. Refine the terracotta roof preview with gentle natural seam wobble and subtle ceramic variation; preserve the exact number and placement of visible tile divisions, original crop and red-orange daylight palette. No objects, text or perspective change.",
+      "references": [
+        "textures/gui/screen/level/almanac_groundroof.png",
+        "textures/gui/screen/level/background5.png"
+      ],
+      "transparent": false
+    }
+  ]
+}

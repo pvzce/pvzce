@@ -137,7 +137,7 @@ class LiquidDefinitionTest {
     }
 
     /**
-     * The surface art is shipped, and its strip sits where the water actually reads it.
+     * The surface art is shipped, continuous, and covers the band the water actually reads.
      *
      * <p>{@code base_scale} is what puts the original's drawing on the basin, but the phase is
      * not the obvious one: the shader samples the base texture with {@code v} growing the way the
@@ -146,11 +146,10 @@ class LiquidDefinitionTest {
      * nine-cell tile, and the water rows 2..3 read image rows 5/9..7/9. A marker tile (nine flat
      * stripes) is how that was measured rather than derived; this test is the same check in code.
      *
-     * <p>Two claims, because two things can silently go wrong. The band has to be water rather
-     * than an edge or a blank, and its TOP has to be the darker end: the source strip is a
-     * gradient with a dark upper edge, so an asset stored the other way up puts that edge between
-     * the two water rows, where it reads as a line drawn across the middle of the pool - which is
-     * exactly the bug this pins.
+     * <p>The edited material is continuous water rather than repeated directional strips.
+     * Every sampled row must remain water, without a dark strip edge crossing the basin,
+     * and both repeat axes must join without a colour discontinuity. Geometry and UV
+     * orientation are checked independently of the material's painted light pattern.
      */
     @Test
     void theSurfaceArtIsPhasedOntoTheWaterRows() throws Exception {
@@ -171,16 +170,17 @@ class LiquidDefinitionTest {
         // Where the water reads, mirrored: world rows 2..3 = image rows 5/9..7/9.
         int top = Math.round(image.getHeight() * 5F / 9F);
         int bottom = Math.round(image.getHeight() * 7F / 9F);
-        double topMean = luminance(image, top + 2);
-        double middleMean = luminance(image, (top + bottom) / 2);
-        double bottomMean = luminance(image, bottom - 2);
-        assertTrue(topMean > 60 && middleMean > 60 && bottomMean > 60,
-                "the sampled band must be water, not the rip's black edge: top=" + topMean
-                        + " middle=" + middleMean + " bottom=" + bottomMean);
-        assertTrue(topMean < middleMean && bottomMean < middleMean,
-                "the strip's dark edge belongs at the TOP of the band and its shading at the"
-                        + " bottom, or the asset is stored upside down: top=" + topMean
-                        + " middle=" + middleMean + " bottom=" + bottomMean);
+        for (int y = top; y < bottom; y++) {
+            assertTrue(luminance(image, y) > 60, "dark seam in the sampled water band at row " + y);
+        }
+        for (int y = 0; y < image.getHeight(); y++) {
+            assertEquals(image.getRGB(0, y), image.getRGB(image.getWidth() - 1, y),
+                    "the repeating water material must join horizontally at row " + y);
+        }
+        for (int x = 0; x < image.getWidth(); x++) {
+            assertEquals(image.getRGB(x, 0), image.getRGB(x, image.getHeight() - 1),
+                    "the repeating water material must join vertically at column " + x);
+        }
     }
 
     /** Mean luminance of one image row. */

@@ -1,0 +1,658 @@
+{
+  "tool": "built-in image_gen",
+  "baseline_commit": "05eecd8def7e646548a5d60a23ac62a2718d1055",
+  "sources": {
+    "textures/scene/ground.png": {
+      "size": [
+        1536,
+        1536
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "eb27f8ea6ad55da39dc6ea3062bf7593dd818253e4da5265d07db41fae461806"
+    },
+    "textures/scene/roof_flat.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "92f527b17daa5e6426331d40e4f0b48277d712caf352c6534aab6174d089f64b"
+    },
+    "textures/gui/screen/level/background5.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "7164793d48fe6c18428e2828513a632c76e698ca9b5962c19b1c51c8c90d1423"
+    },
+    "textures/scene/roof_slope.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "c32af123e28a04267d7f1e8dc37bedda74867623bab4e8fbf5e07a842729ea22"
+    },
+    "textures/scene/roof_flat_2.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        56,
+        255
+      ],
+      "sha256": "eb9b53cafbfd750138538ed04789f1d41652ee0d5f9f5e25c6e3716acdb53e5a"
+    },
+    "textures/scene/roof_slope_2.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        51,
+        255
+      ],
+      "sha256": "c2ab0d125f9a5210778ed2552dce07bfc352f7fee4c6ec6a518ad7917c143124"
+    },
+    "textures/scene/water_surface.png": {
+      "size": [
+        705,
+        705
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "e411a0dcb6edc4231a5580d53cac7f3607e783061118d33d72ab15e4ee2dd254"
+    },
+    "textures/scene/water_base.png": {
+      "size": [
+        418,
+        418
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "6fc8b7eed67879f42bbb32c9a1c741fbbebeec7aa50f966d79456715c5d6edc1"
+    },
+    "textures/scene/flood_water.png": {
+      "size": [
+        128,
+        128
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "5a72c3e6e5d96dfaae2f14d205f0e1ba7e3827d8aa749078e4df4e1b64d14584"
+    },
+    "textures/scene/ice.png": {
+      "size": [
+        128,
+        128
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "f812f701b4177cc0c48615593ead5a801af1d81b49885d735c84c2ebabb20370"
+    },
+    "textures/gui/screen/level/background1.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "ee77b6d95aeb07b19a82ade4cedde6be31a511b2d09dc6555bd9ba393ed249f3"
+    },
+    "textures/scene/grass.png": {
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "f33969b3b33147cb63ea0f7aec59ac807e15c7b8b94be821529603595687398d"
+    },
+    "textures/gui/screen/level/background1unsodded.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "107dd065bdd89e8ed2ecc86e2fdbf54f4994ad3ca95bd9e5738b241cfdf439fb"
+    },
+    "textures/gui/screen/level/background2.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "e0dba2b5a5e8c887e31b040dd5f7ad57b8ae751e02919bb7a48757b7c36d1fb9"
+    },
+    "textures/gui/screen/level/background3.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "59cdf30e2222614f0de5e52f84351c5e0d257778eae6632f1062dc1846a018c7"
+    },
+    "textures/gui/screen/level/background4.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "efb28c4730afe7840c24236e07c0ab0f6904e30160f1b465194b2475e6d7ecca"
+    },
+    "textures/gui/screen/level/background6boss.png": {
+      "size": [
+        3360,
+        1440
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "d25646bb8cc0c4618043a7f2658806ccd757047a27f1249b34592f52f571a039"
+    },
+    "textures/gui/screen/level/almanac_groundday.png": {
+      "size": [
+        200,
+        200
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "f42d4238ceabfe271cb45fbac478f310b569574825bbaf8dad863ac1b3a6e81e"
+    },
+    "textures/gui/screen/level/almanac_groundnight.png": {
+      "size": [
+        200,
+        200
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "03f83ec0e6704888587981fd056646119cc5595b7fff4a5f47ba6b4f8acd63b3"
+    },
+    "textures/gui/screen/level/almanac_groundpool.png": {
+      "size": [
+        200,
+        200
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "a1c9705544b28c0f5eda3a178cf55b8ef8504a0df3804d8c41aa5062ff40a889"
+    },
+    "textures/gui/screen/level/almanac_groundnightpool.png": {
+      "size": [
+        200,
+        200
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "333cd92e6a2b6096d2889b0e56c301d3b1143a19b2a1dfe5418f9031412d0486"
+    },
+    "textures/gui/screen/level/almanac_groundroof.png": {
+      "size": [
+        200,
+        200
+      ],
+      "mode": "RGB",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "7b722be8a373ef450c8da80e94fe82acfe6d46d8c1e587660b5e4182b2765cc3"
+    }
+  },
+  "selected": {
+    "ground": {
+      "target": "textures/scene/ground.png",
+      "generated_source": "tools/art/terrain-organic/generated/ground.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        1536,
+        1536
+      ],
+      "generator_png_sha256": "0684d50a7cf61ac380f457ba511eb0c3c8ee8e0a7d1f2e2049ea0d536f727d2e",
+      "stored_sha256": "008df01e35cb468d2859a4941c0c2eafc663f3b3cc156903d02d76a55d7705ce",
+      "pixel_sha256": "00923110d9b800b16b3e14d0b646fff47a21c9404e54041b60cc9a70b41f24ad",
+      "installed_sha256": "78d196f01d90af4354f4139519f777e5f8f24db570f2cd7e1f9b2b734535ecdc"
+    },
+    "roof_flat": {
+      "target": "textures/scene/roof_flat.png",
+      "generated_source": "tools/art/terrain-organic/generated/roof_flat.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        192,
+        192
+      ],
+      "generator_png_sha256": "560b4c8b367c1bf511d0b2d4d1a413faf8ea4a66db9c05671ffc81969cd2d2f2",
+      "stored_sha256": "504147e2a3a7bf79bd91bb2ff419be60bc1763307ecdf6bd8bd601fcd28e074f",
+      "pixel_sha256": "5a1b31aa45b27db0e8f555b8d6d84d8baf6c417cb22590810cf11d4fb8a16e4c",
+      "installed_sha256": "855241f4cc0b16da84f5b1eb2703adff541871f30372e99ecdd2237a6c38fdc0"
+    },
+    "roof_slope": {
+      "target": "textures/scene/roof_slope.png",
+      "generated_source": "tools/art/terrain-organic/generated/roof_slope.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        192,
+        192
+      ],
+      "generator_png_sha256": "9aa730a20cf1d0cb2f4d52047f11ebd6c8a268a67b3bb68f9527d0c725720efe",
+      "stored_sha256": "2a2a43b958dea684868e1885b1d2cf90ce13edfc544386a258a2e65dff39a10e",
+      "pixel_sha256": "f9c00f288952d7b39b3dac1e07dab16c1e31f5c6165097b8e54fda90f9b9d82c",
+      "installed_sha256": "77b8986956dd73b7c59b04a779021d7fa71cf12fd7a984fc5a6d1acdcc5492a3"
+    },
+    "roof_flat_2": {
+      "target": "textures/scene/roof_flat_2.png",
+      "generated_source": "tools/art/terrain-organic/generated/roof_flat_2.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        192,
+        192
+      ],
+      "generator_png_sha256": "90b596c5970e38828d10ae0cb31577ada7e4c512fd3c15762aea5458f83833e1",
+      "stored_sha256": "ef96fe19d805ae70aee1ea36d855e0317eb28f103570dbd57c444b3d6b0aff83",
+      "pixel_sha256": "1ee47a860536536ff5df6a332ef01cc7ee6e540c88fb76732a0b88f4c2983f5c",
+      "installed_sha256": "3e58706c11e2c488043daea49aa8a638d5f0563661d3c66f89c2db54b09d792d"
+    },
+    "roof_slope_2": {
+      "target": "textures/scene/roof_slope_2.png",
+      "generated_source": "tools/art/terrain-organic/generated/roof_slope_2.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        192,
+        192
+      ],
+      "generator_png_sha256": "580cea77b2f39d514d27fa8b1e1da75b02e5b53defa775f880a8f977e154df9c",
+      "stored_sha256": "1a731ef66bb98111ff227d78f29423e83018f8f079eb66de8f1189e4ef1b3170",
+      "pixel_sha256": "f2022c10ddc8c88b4f64c77531172ecd5d917640de2d4110bf8dea382f3be76a",
+      "installed_sha256": "f8a9a28ad73370698f3074fb226f8984ff2f5fc8c5a218d27ec28b1b9c92957f"
+    },
+    "water_surface": {
+      "target": "textures/scene/water_surface.png",
+      "generated_source": "tools/art/terrain-organic/generated/water_surface.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        705,
+        705
+      ],
+      "generator_png_sha256": "34945ca101d866b2e361f8cb1613027a37556136b197d957563ef0e5ee974941",
+      "stored_sha256": "eec5f667978b7892709759068f6bb3d27b069dd60d7132edaa1675e6d073e76d",
+      "pixel_sha256": "32327d92676017d2e524681a7852afb0137a4ca4d288575262846cb6b4e1d3f6",
+      "installed_sha256": "d27551d6e307fc0aa78d10b3816ad99b949cb1be908d5eb9e758f1b90fab542b"
+    },
+    "water_base": {
+      "target": "textures/scene/water_base.png",
+      "generated_source": "tools/art/terrain-organic/generated/water_base.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        418,
+        418
+      ],
+      "generator_png_sha256": "ce44a1d6eff70e8844764e68243daf84d34f31ef37d20bfe3991dc742cf2ddd3",
+      "stored_sha256": "31504be8776895e3646db7d18aa633e9d0bfde52cc0d6303744f463f3fa365a0",
+      "pixel_sha256": "ccd80c3e60b2a53d5239d3499299416e75557e808790a95a0a63337c937cb18a",
+      "installed_sha256": "495e1ec47b94883ed9bef0c6753d6d1b6d7e6eeb524c43254e83222f7c4279a2"
+    },
+    "flood_water": {
+      "target": "textures/scene/flood_water.png",
+      "generated_source": "tools/art/terrain-organic/generated/flood_water.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        128,
+        128
+      ],
+      "generator_png_sha256": "7ff3554d5332f7c382ccfc3b1f1450c05fd44c726e577f2ebd01e4e838537953",
+      "stored_sha256": "f4f39ba16db8398b786f4946a6075a30c016b6c85bb22e2ba438b7b24aa42510",
+      "pixel_sha256": "d7c7efe6c98852290aef69b10fbc8ef7448ddff89efc2ca6724460c8dd43c9f5",
+      "installed_sha256": "bfa08482a536451e8f52497f8a36e0b35eb981c5bbc0bc7d7b1a036d2e43293a"
+    },
+    "ice": {
+      "target": "textures/scene/ice.png",
+      "generated_source": "tools/art/terrain-organic/generated/ice.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        128,
+        128
+      ],
+      "generator_png_sha256": "e5da67a2c62da5a2aa5db62f1119a5fa42db5ab3033f20d8430990d2f020f969",
+      "stored_sha256": "15f3f5280087316b550f51d71b52857f0fa94717acee91a7d0f558f05b74d22b",
+      "pixel_sha256": "6c1ee67ced6b954c50123a75820432c8ff0605d07190df56f5839f2eb0e00721",
+      "installed_sha256": "edca81a2e16294f978cb39cb8c6a87170217510b61c285e7c0d0f6f62e8c1458"
+    },
+    "background1": {
+      "target": "textures/gui/screen/level/background1.png",
+      "generated_source": "tools/art/terrain-organic/generated/background1.webp",
+      "source_size": [
+        1915,
+        821
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "072c9dabd286c9a64ed547208f149af4f5fd511714c2cc482ffa92632195b8cd",
+      "stored_sha256": "bb6b7b077dee4c35953e5402a1c4ef4b6895113dac8bfae02e94a23a54c0b93f",
+      "pixel_sha256": "6c977992b5f8cf35cc7e41d24a7c77664ca4078edaccf4e87427c494c0d80f59",
+      "installed_sha256": "dba264af03e378948d75a2c90a8015b8f7db9161c0753bbc3b25fdadaeddec47"
+    },
+    "background1unsodded": {
+      "target": "textures/gui/screen/level/background1unsodded.png",
+      "generated_source": "tools/art/terrain-organic/generated/background1unsodded.webp",
+      "source_size": [
+        1915,
+        821
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "622fd97e21a2a7e14fd1ef43ec732887cb504e890620c658c716e444667555a1",
+      "stored_sha256": "53ac6d3101a93a398ce7fd91bd401d4483b7b9921420d4a9963f8ba33c1dd8d8",
+      "pixel_sha256": "7a3b325063e960e4c438a80f3bbe2c3dbb793e0338e221be344c18b4fdb27700",
+      "installed_sha256": "a8470458f9e9423c1503a9b038ea0962f64875456b0a199055b733c2c70ac8db"
+    },
+    "background2": {
+      "target": "textures/gui/screen/level/background2.png",
+      "generated_source": "tools/art/terrain-organic/generated/background2.webp",
+      "source_size": [
+        1914,
+        822
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "125f60110088f7cad0c080c51d2f267221223e41ffc64d48f65514adea4d86d7",
+      "stored_sha256": "a9906f6107d937b12c948a4249dee2e4e9d883657a2fa228da503081d848ebee",
+      "pixel_sha256": "2e2e4757204ed784c9b68d445d3b7f9448a5f994d1f9778cff852d8ae4fd787c",
+      "installed_sha256": "28c388aa9543afa007495d8246e5a7a2d4691357f87a1b06e1295d835ec2c3c3"
+    },
+    "background3": {
+      "target": "textures/gui/screen/level/background3.png",
+      "generated_source": "tools/art/terrain-organic/generated/background3.webp",
+      "source_size": [
+        1916,
+        821
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "1010caed36f089245f28c3da6fbe15fac8a0396746b461f90756eae092e5af18",
+      "stored_sha256": "d9b837bc6b9c21a721aea8b89a11849e74ecc983ba740013cedeb5270b153e3e",
+      "pixel_sha256": "e39e36f09372b03ca7824ca797be532f6470988cda9f4b8f899b68328a574209",
+      "installed_sha256": "fc2a08bff0081bea44789832e9678804d1474a3067e3c6e10715f667160d89a3"
+    },
+    "background4": {
+      "target": "textures/gui/screen/level/background4.png",
+      "generated_source": "tools/art/terrain-organic/generated/background4.webp",
+      "source_size": [
+        1916,
+        821
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "7b271ff169947142951bf62ad54c3c71dc43f1284967dbdc3ef13c99deb8b3f0",
+      "stored_sha256": "d23a1d7f72c0b3eb844226604d01e03faa4a8621f053eeee7d6412fa6a487b03",
+      "pixel_sha256": "e3c0f60a4390e8ca8a800860f8cb3caa403214b011fbf98cf00ad98c9f693885",
+      "installed_sha256": "90c30f1a5e4e13544e88b8ce73c2e9fa2422fcbb99c89bc0b3f63ba606ca9980"
+    },
+    "background5": {
+      "target": "textures/gui/screen/level/background5.png",
+      "generated_source": "tools/art/terrain-organic/generated/background5.webp",
+      "source_size": [
+        1915,
+        821
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "1f1b8b4373f29f79228b1018286c4b72d526174bb375e54a9ada08ddac7de593",
+      "stored_sha256": "fd57f4e93c0caa4068685fdc31732d500eb091f463a4dd2ef278839d70eeb9c3",
+      "pixel_sha256": "8d9cf8d59819d2e8a0e43668f27980b342d28bfb2196277b3699a4a09eafe760",
+      "installed_sha256": "d4d62d6517d092493ef728fd65f6a9310b0ed5a95ff8e0b6b8f4a33d3ee01f7e"
+    },
+    "background6boss": {
+      "target": "textures/gui/screen/level/background6boss.png",
+      "generated_source": "tools/art/terrain-organic/generated/background6boss.webp",
+      "source_size": [
+        1915,
+        821
+      ],
+      "installed_size": [
+        3360,
+        1440
+      ],
+      "generator_png_sha256": "5ed753c0022697b0e8512f34c27477589d288e5cb690bd6f8c8801f4b2fff1fc",
+      "stored_sha256": "d945228a6f01ff27f741b034b16c1b03000066c83b750a4fdf8eed36bbd77d1b",
+      "pixel_sha256": "1143e34f5fef65d3440c7b43fc93ba8c847e7d41e2a4eb1eb35bcb192c2cda24",
+      "installed_sha256": "9cab3a0a6a66eb0ee7a8c21e1b3ca0b87867b0d852e600088a00550cb57f3056"
+    },
+    "almanac_groundday": {
+      "target": "textures/gui/screen/level/almanac_groundday.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundday.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "7882e50c7682e63fafb4b881a1246a9cbafe9b3d6f00bfacab8726524c029dc8",
+      "stored_sha256": "eeb99e9a4a6a47e96ecc3194176e928b1a5088c4e4235c148597761227e9219e",
+      "pixel_sha256": "cf93b71b2aae3a6d1dee80572d8eeee1876958ca01a4861e0b12fc4cd9874472",
+      "installed_sha256": "be1bea01c91855372b5334236cca82760e9c748c1393de8c2dfffa945a06c771"
+    },
+    "almanac_groundnight": {
+      "target": "textures/gui/screen/level/almanac_groundnight.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundnight.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "16ca8970b41ea79c34eb302a57e16d2797eadcdea426c015e5ddd89cd3da1f10",
+      "stored_sha256": "31bf1573e8119967453c0c7f2f8cd74cb9cc8ce9abb17cf9363c74773e9af5a0",
+      "pixel_sha256": "12f285f460daf30be85ba1590ec6cfa2b72aae84f0b948a2a24f38849de45619",
+      "installed_sha256": "e352a33d27d698ce248ced88d17915f47078767fd75e64361d05111ce1e1c501"
+    },
+    "almanac_groundpool": {
+      "target": "textures/gui/screen/level/almanac_groundpool.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundpool.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "2ebd44e526c93f6a9f91ca23d4c72e74d5096c96b8f4191869f58e03554a076c",
+      "stored_sha256": "28a1a637492865321e56de236e6ae31f3fe2f0e12f4a503b5c20c63d2be46bfc",
+      "pixel_sha256": "b4f53a3406e8dec84ef7bd38dcef2b781745ad5fc5131688f5f08f4507ae0ff2",
+      "installed_sha256": "475ff5160aeccb2a365935c7424ce01279acbb3c55f536de4a134065772c90ad"
+    },
+    "almanac_groundnightpool": {
+      "target": "textures/gui/screen/level/almanac_groundnightpool.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundnightpool.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "1745be9c680e90041d46080467329db0a11d301d26dc78d5453932a5c3a1f9dd",
+      "stored_sha256": "a57b81003990b04c5cbc0c3252d2c2869a01a1e6049125181775e29cbe71a8e7",
+      "pixel_sha256": "82f487ecf224cdd1db8914863f06634ace7cd8da447c46ea0a65160958d9a81e",
+      "installed_sha256": "a4e5fa0b3dd990175c3ae0623ff5e14889ca9ae8acbebcaf8b86f813db682d4d"
+    },
+    "almanac_groundroof": {
+      "target": "textures/gui/screen/level/almanac_groundroof.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundroof.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "188f04c1d2a8d3a20302371d2ecd1d88b62f03f3e4098b1822968836e8f5a58e",
+      "stored_sha256": "750b470b1350ded38de867712afdb1d4c49c994a8aad2b122262e04d896ec277",
+      "pixel_sha256": "08fcd8ce7be3a01b17b8672d1f9ee7f1665df600cfe304be24abd49b5674d263",
+      "installed_sha256": "ad2ceecb09e923fa33221e5a60ac78b504f57771408c460ed339673fcdb96a4d"
+    }
+  },
+  "derived": {
+    "textures/gui/screen/level/background1_1row.png": {
+      "sha256": "019d3990c490de8d380006f35e13d759ae2ada1b35061cf26265c6c22fb6cc04",
+      "size": [
+        3360,
+        1440
+      ]
+    },
+    "textures/gui/screen/level/background1_3row.png": {
+      "sha256": "8af71aad34f2ef2e4086150e0c24daa0055ba4e82c1af4e59b0a94a898298aa9",
+      "size": [
+        3360,
+        1440
+      ]
+    },
+    "textures/scene/water_frames/water_0.png": {
+      "sha256": "00f7e35c4d2eaf3720992e625a7cbad554235c43474e879d983c77bed2a6d01c",
+      "size": [
+        128,
+        160
+      ]
+    },
+    "textures/scene/water_frames/water_1.png": {
+      "sha256": "34a73c5c44ba20d1db8b4d201c07783c8ad07a6d2faa2c59cc4fcb3aeddbccc3",
+      "size": [
+        128,
+        160
+      ]
+    },
+    "textures/scene/water_frames/water_2.png": {
+      "sha256": "eb7cdb58bf29b2277594ed54fd2120e44bae29cd01311ea1f26785ae308f8fb0",
+      "size": [
+        128,
+        160
+      ]
+    },
+    "textures/scene/water_frames/water_3.png": {
+      "sha256": "822ba52713692fcdbf985cfbc77e129b49ad7cbc705aab621f01cdb2a4663286",
+      "size": [
+        128,
+        160
+      ]
+    }
+  },
+  "unchanged": "场景摆件、效果贴花、UI；water_caustics 是 shader 调制控制图，保持原样",
+  "packaging": {
+    "density_model": "high-fidelity-4x",
+    "backdrops": "inward feather, original pixels outside terrain mask",
+    "materials": "original resource dimensions, narrow periodic wrap band"
+  }
+}

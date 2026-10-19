@@ -137,7 +137,7 @@ def frame_image(base_rgb, liquid, width, height, phase):
     foam = parse_hex(liquid.get("foam", {}).get("color", "#E8F6F6"))[:3]
     opacity = liquid.get("opacity", 0.68)
     depth_gamma = 0.55
-    caustics = liquid.get("caustics", 0.6)
+    caustics = liquid.get("caustics", {}).get("strength", 0.6)
     foam_width = liquid.get("foam", {}).get("width", 0.15)
 
     yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
