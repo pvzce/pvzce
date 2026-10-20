@@ -500,6 +500,7 @@ public final class PvzceClient {
         if (sound != null) {
             sound.close();
         }
+        RenderSystem.shadows().close();
         textures.close();
         blurredBackdrop.close();
         if (waylandTouch != null) {

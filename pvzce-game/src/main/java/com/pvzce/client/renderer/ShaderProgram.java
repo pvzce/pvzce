@@ -6,7 +6,7 @@ import java.io.Closeable;
 
 /**
  * A compiled GLSL program (position/color/uv sprite pipeline with time-of-day
- * tint plus optional world-space point lights, e.g. sun drops).
+ * ambient/direct lighting plus depth-tested world-space point lights).
  */
 public final class ShaderProgram implements Closeable {
     public static final int MAX_POINT_LIGHTS = 8;
@@ -33,6 +33,7 @@ public final class ShaderProgram implements Closeable {
 
     public static final String VERTEX = """
             #version 150 core
+            """ + WorldShadows.GLSL + """
             in vec3 aPos;
             in vec4 aColor;
             in vec2 aUV;
@@ -41,7 +42,8 @@ public final class ShaderProgram implements Closeable {
             out vec2 vUV;
             out vec2 vWorld;
             void main() {
-                gl_Position = uProj * vec4(aPos, 1.0);
+                gl_Position = uShadowPass > 0 ? shadowClip(shadowPosition(aPos.xy), uShadowPass - 1)
+                        : uProj * vec4(aPos, 1.0);
                 vColor = aColor;
                 vUV = aUV;
                 vWorld = aPos.xy;
@@ -67,13 +69,18 @@ public final class ShaderProgram implements Closeable {
             uniform int uTextEffect;              // 0 = none, 1 = drop shadow, 2 = outline
             uniform vec2 uTextOffset;             // shadow offset / outline thickness, in uv
             uniform vec3 uTextEffectColor;
-            """ + TERRAIN_BLEND_GLSL + """
+            """ + TERRAIN_BLEND_GLSL + WorldShadows.GLSL + WorldShadows.FILTER_GLSL + """
             in vec4 vColor;
             in vec2 vUV;
             in vec2 vWorld;
             out vec4 fragColor;
             void main() {
                 vec4 tex = texture(uTexture, vUV);
+                if (uShadowPass > 0) {
+                    if (uCasterEmission == 1 || (uTextured == 1 ? tex.a : 1.0) * vColor.a < SHADOW_ALPHA_CUTOFF) discard;
+                    fragColor = vec4(1.0);
+                    return;
+                }
                 if (uShadowMode == 1) {
                     // Shadow pass: keep the sprite silhouette, tint it with the
                     // time-of-day shadow color and fade with vertex alpha.
@@ -120,17 +127,18 @@ public final class ShaderProgram implements Closeable {
                 }
                 vec4 base = uTextured == 1 ? tex * vColor : vColor;
                 base.a *= terrainCoverage(vWorld);
-                vec3 rgb = base.rgb * uTint.rgb + vec3(uTint.a);
-                if (uSunStrength > 0.001 && uSunRadius > 0.001) {
+                vec3 position = shadowPosition(vWorld);
+                vec3 rgb = base.rgb * uTint.rgb * directExposure(position) + vec3(uTint.a);
+                if (uShadows == 0 && uSunStrength > 0.001 && uSunRadius > 0.001) {
                     float d = distance(vWorld, uSunCenter);
-                    float glow = smoothstep(uSunRadius, 0.0, d) * uSunStrength;
-                    rgb += glow * uSunColor;
+                    float glow = (1.0 - smoothstep(0.0, uSunRadius, d)) * uSunStrength;
+                    rgb += base.rgb * glow * uSunColor * lightVisibility(position, 0);
                 }
                 for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
                     if (uLightStrength[i] > 0.001 && uLightRadius[i] > 0.001) {
                         float d = distance(vWorld, uLightCenter[i]);
-                        float glow = smoothstep(uLightRadius[i], 0.0, d) * uLightStrength[i];
-                        rgb += glow * uLightColor[i];
+                        float glow = (1.0 - smoothstep(0.0, uLightRadius[i], d)) * uLightStrength[i];
+                        rgb += base.rgb * glow * uLightColor[i] * lightVisibility(position, i + 1);
                     }
                 }
                 fragColor = vec4(rgb, base.a);
@@ -138,6 +146,8 @@ public final class ShaderProgram implements Closeable {
             """;
 
     private final int id;
+    private final WorldShadows.Uniforms shadows;
+    public WorldShadows.Uniforms shadows() { return shadows; }
     private final int projectionLocation;
     private final int texturedLocation;
     private final int tintLocation;
@@ -176,6 +186,8 @@ public final class ShaderProgram implements Closeable {
         //   而此刻绑着的还是上一个程序（或 0）。没绑自己时它们要么落到 0 号程序上（GL_INVALID_OPERATION，
         //   KHR_debug 会直接点名 "glUniform(program not linked)"），要么**静默改掉上一个程序的 uniform**。
         GL20.glUseProgram(id);
+        shadows = new WorldShadows.Uniforms(id);
+        RenderSystem.shadows().upload(shadows);
         projectionLocation = GL20.glGetUniformLocation(id, "uProj");
         texturedLocation = GL20.glGetUniformLocation(id, "uTextured");
         tintLocation = GL20.glGetUniformLocation(id, "uTint");

@@ -92,7 +92,7 @@ class LiquidShaderSourceTest {
     }
 
     /**
-     * The lookups live in this same Java file, so the check reads the file rather
+     * The lookups live here and in the shared shadow uniforms, so the check reads sources rather
      * than the compiled class (Java sources are not on the classpath).
      */
     private static boolean sourceContainsLookup(String uniformName) {
@@ -105,10 +105,13 @@ class LiquidShaderSourceTest {
         }
         try {
             String source = Files.readString(file, StandardCharsets.UTF_8);
+            String shared = Files.readString(file.getParent().getParent().resolve("WorldShadows.java"), StandardCharsets.UTF_8);
             // An array uniform is queried at its first element - "uRipples[0]" is the
             // documented way to set a whole array - so the index form counts too.
             return source.contains("uniform(\"" + uniformName + "\")")
-                    || source.contains("uniform(\"" + uniformName + "[0]\")");
+                    || source.contains("uniform(\"" + uniformName + "[0]\")")
+                    || shared.contains("glGetUniformLocation(program, \"" + uniformName + "\")")
+                    || shared.contains("glGetUniformLocation(program, \"" + uniformName + "[\"");
         } catch (IOException e) {
             return false;
         }

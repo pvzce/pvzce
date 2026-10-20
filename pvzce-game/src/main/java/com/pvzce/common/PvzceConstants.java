@@ -8,6 +8,16 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final float SHADOW_MAP_MARGIN = 3F;
+    public static final float SHADOW_SUN_DEPTH = 0.65F;
+    public static final float SHADOW_SUN_ELEVATION_FACTOR = 0.55F;
+    public static final int SHADOW_MAP_SIZE = 1024;
+    public static final float SHADOW_HEIGHT_RANGE = 32F;
+    public static final float SHADOW_POINT_HEIGHT = 4F;
+    public static final float SHADOW_NEAR = 0.05F;
+    public static final float SHADOW_ALPHA_CUTOFF = 0.45F;
+    public static final float SHADOW_DEPTH_BIAS = 0.0015F;
+    public static final float SHADOW_DIRECT_SHARE = 0.38F;
     public static final int GAME_LOGIN_TIMEOUT_SECONDS = 8;
     public static final int GAME_SESSION_MAX_SECONDS = 3600;
     public static final int GAME_SESSION_CHECK_SECONDS = 60;

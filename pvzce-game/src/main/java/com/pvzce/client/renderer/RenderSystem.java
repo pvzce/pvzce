@@ -12,6 +12,8 @@ public final class RenderSystem {
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/Render");
     private static ShaderProgram shader;
+    private static final WorldShadows shadows = new WorldShadows();
+    public static WorldShadows shadows() { return shadows; }
     private static Matrix4f projection = Matrix4f.identity();
     private static int boundTexture;
     private static boolean shaderEffectsEnabled = true;
@@ -37,11 +39,13 @@ public final class RenderSystem {
      * is the counterpart, and {@code PvzceClient}'s frame loop resets it as a backstop.
      */
     public static void blendAdditive() {
+        shadows.emission(true);
         GL20.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE);
     }
 
     /** Ordinary source-over alpha blending; the state {@link #init()} starts in. */
     public static void blendNormal() {
+        shadows.emission(false);
         GL20.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
     }
 
@@ -150,13 +154,17 @@ public final class RenderSystem {
     public static void setPointLight(int index, float x, float y, float radius,
                                      float r, float g, float b, float strength) {
         shader.setPointLight(index, x, y, radius, r, g, b, strength);
+        shadows.pointLight(index, x, y, radius, r, g, b, strength);
     }
 
     public static void clearPointLights() {
         shader.clearPointLights();
+        shadows.reset();
     }
 
     public static void setGuiShader() {
+        shader.shadows().disable();
+        shader.shadows().receiver(false, 0F);
         shader.setTimeOfDay(1F, 1F, 1F, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 0F);
         shader.clearPointLights();
         shader.setShadowMode(false);
@@ -171,6 +179,8 @@ public final class RenderSystem {
      * letting a sun that was mapped for the board land somewhere in a four-unit-tall world.
      */
     public static void setOverlayShader() {
+        shader.shadows().disable();
+        shader.shadows().receiver(false, 0F);
         shader.clearPointLights();
         shader.setShadowMode(false);
     }

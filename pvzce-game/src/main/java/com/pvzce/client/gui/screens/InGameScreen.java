@@ -1890,6 +1890,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // The only time this differs is the defeat move, which looks toward the house.
         PvzceCamera camera = base.panned(defeatPan);
         client.beginWorldView(camera);
+        if (client.shadersEnabled()) {
+            RenderSystem.shadows().render(camera, client.worldLightX(), client.worldLightY(),
+                    client.level().width(), client.level().height(), this::renderShadowCasters);
+        }
         // The original PvZ backing image is the stage: house on the left, a
         // 9x5 bare-dirt lawn in the middle, road on the right. The board is
         // projected into the lawn region by PvzceCamera.
@@ -1898,10 +1902,13 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // a camera that turns must slide it across the screen. Drawing it at the panned
         // rectangle - which is what "the viewport, in world coordinates" means - would pin
         // it to the screen and slide the lawn out from under it instead.
+        RenderSystem.shader().shadows().disable();
         client.drawTexture(backdropTexture(),
                 base.worldLeft(), base.worldBottom(),
                 base.worldWidth(), base.worldHeight(),
                 -1F, 1F, 1F, 1F, 1F);
+        RenderSystem.shadows().upload(RenderSystem.shader().shadows());
+        SceneTileRenderer.renderBackdropLighting(client, base, backdropTexture());
         // Known yard scenery supplies the outer fringe or bare soil. Every visible
         // terrain material joins it without a rectangular grass ring.
         boolean blendTerrain = LevelStage.blendsTerrainEdges(backdropTexture())
@@ -2866,7 +2873,38 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * thing - a plant ghost drawn by a second code path would be the second answer to "what
      * does this plant look like" that this renderer spent a refactor removing.
      */
+    /** Billboard height is measured from its board row, including absolute surface elevation. */
+    private float lightingBaseline(ClientEntity entity) {
+        return entity.visualCellY() - EntityVisuals.anchorLift(entity.kind());
+    }
+
+    private void renderShadowCasters() {
+        SceneTileRenderer.renderShadowCasters(client);
+        for (ClientEntity entity : client.level().entities().values()) {
+            if ((!"plant".equals(entity.kind()) && !"zombie".equals(entity.kind()))
+                    || entity.layer() == com.pvzce.api.entity.EntityLayers.UNDERGROUND
+                    || isRising(entity) || com.pvzce.client.mechanic.StormClientMechanic.hides(client.level())) continue;
+            entity.playAnimation(entity.animation());
+            RenderSystem.shader().shadows().receiver(true, lightingBaseline(entity));
+            try {
+                if (isShell(entity)) client.animations().render(entity, -1);
+                drawEntityArt(entity);
+            } finally {
+                RenderSystem.shader().shadows().receiver(false, 0F);
+            }
+        }
+    }
+
     private void drawEntityArt(ClientEntity entity) {
+        RenderSystem.shader().shadows().receiver(true, lightingBaseline(entity));
+        try {
+            drawEntityArtContents(entity);
+        } finally {
+            RenderSystem.shader().shadows().receiver(false, 0F);
+        }
+    }
+
+    private void drawEntityArtContents(ClientEntity entity) {
         if (com.pvzce.api.entity.EntityKind.CARD_DROP.equals(entity.kind())) {
             drawCardDrop(entity);
             return;
@@ -2945,6 +2983,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * length and tint follow the interpolated sun/moon position.
      */
     private void drawShadow(PvzceClient client, ClientEntity entity, Identifier texture) {
+        if (RenderSystem.shadows().active() && client.shadersEnabled()) return;
         // Where the sprite touches the ground: the same feet-to-anchor lift the animation path
         // draws with, so the shadow starts under the feet. A fixed 0.46 - which is what this
         // used to use - put the contact point a hand's width below the art, and on the flat

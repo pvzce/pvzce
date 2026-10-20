@@ -377,9 +377,14 @@ public final class SceneTileRenderer {
                     quad.x(), quad.y(), quad.width(), quad.height(), 0.05F, 1F, 1F, 1F, 1F);
         } else {
             drawUnderlay(client, sceneId, x, y, visibility);
-            // Pre-6x6 elements: a full 1x1 texture still lives at textures/scene/<path>.
-            client.drawTexture(texture, quad.x(), quad.y(), quad.width(), quad.height(),
-                    0.05F, 1F, 1F, 1F, 1F);
+            // Pre-6x6 elements stand above their underlay as alpha-cutout billboards.
+            RenderSystem.shader().shadows().receiver(true, quad.y());
+            try {
+                client.drawTexture(texture, quad.x(), quad.y(), quad.width(), quad.height(),
+                        0.05F, 1F, 1F, 1F, 1F);
+            } finally {
+                RenderSystem.shader().shadows().receiver(false, 0F);
+            }
         }
     }
 
@@ -504,6 +509,51 @@ public final class SceneTileRenderer {
         }
     }
 
+    /** Re-sample painted ground through its actual height instead of lighting the backdrop as a flat plane. */
+    public static void renderBackdropLighting(PvzceClient client, PvzceCamera base, Identifier backdrop) {
+        if (!RenderSystem.shadows().active()) return;
+        var board = client.level().sceneBoard();
+        var texture = client.textures().getOrLoad(backdrop);
+        try {
+            for (var entry : board.snapshot()) {
+                if (!SceneBoard.DEFAULT_SURFACE.equals(entry.surfaceId())
+                        || !client.level().sceneVisibility().hides(entry.baseId())) continue;
+                var profile = board.cell(entry.surfaceId(), entry.x(), entry.y()).profile();
+                float x = entry.x(), y = entry.y(), right = x + 1F;
+                float bl = y + profile.at(x, y), br = y + profile.at(right, y);
+                float tl = y + 1F + profile.at(x, y + 1F), tr = y + 1F + profile.at(right, y + 1F);
+                RenderSystem.shader().shadows().surface(profile);
+                SpriteRenderer.texturedQuad(texture, x, bl, right, br, right, tr, x, tl,
+                        (x - base.worldLeft()) / base.worldWidth(), (bl - base.worldBottom()) / base.worldHeight(),
+                        (right - base.worldLeft()) / base.worldWidth(), (br - base.worldBottom()) / base.worldHeight(),
+                        (right - base.worldLeft()) / base.worldWidth(), (tr - base.worldBottom()) / base.worldHeight(),
+                        (x - base.worldLeft()) / base.worldWidth(), (tl - base.worldBottom()) / base.worldHeight(),
+                        -1F, 1F, 1F, 1F, 1F);
+            }
+        } finally {
+            RenderSystem.shader().shadows().receiver(false, 0F);
+        }
+    }
+
+    /** Only raised geometry and opaque standing overlays can occlude the lights. */
+    public static void renderShadowCasters(PvzceClient client) {
+        var board = client.level().sceneBoard();
+        for (var entry : board.snapshot()) {
+            var cell = board.cell(entry.surfaceId(), entry.x(), entry.y());
+            if (cell.profile().equals(SurfaceProfile.FLAT) && cell.overlay() == null) continue;
+            if (!client.level().sceneVisibility().hides(cell.base().toString())) {
+                SurfaceFace face = frontFace(board, entry.surfaceId(), entry.x(), entry.y());
+                if (face != null) drawFrontFace(client, face, entry.x(), entry.y(), 1F);
+                drawSurfaceCell(client, entry.surfaceId(), cell, cell.base().toString(), entry.x(), entry.y(), 1F, 0F);
+            }
+            if (cell.overlay() != null && !client.level().sceneVisibility().hides(cell.overlay().toString())) {
+                var shift = client.level().sceneShifts().at(entry.x(), entry.y());
+                drawSurfaceCell(client, entry.surfaceId(), cell, cell.overlay().toString(), entry.x(), entry.y(), 1F,
+                        shift == null ? 0F : shift.sink());
+            }
+        }
+    }
+
     public record SurfaceFace(float bottomLeft, float bottomRight, float topLeft, float topRight) {}
 
     /** Visible front edge in projected world Y; neighbouring tops do not acquire artificial seams. */
@@ -528,10 +578,15 @@ public final class SceneTileRenderer {
         float w = sprite.width() / (float) TILE_CELLS, h = sprite.height() / (float) TILE_CELLS;
         float u = Math.floorMod(x, TILE_CELLS) * w, v = Math.floorMod(y, TILE_CELLS) * h;
         float shade = com.pvzce.common.PvzceConstants.TERRAIN_SIDE_TINT;
-        client.drawTextureQuad(texture, x, face.bottomLeft(), x + 1F, face.bottomRight(),
+        RenderSystem.shader().shadows().receiver(true, y);
+        try {
+            client.drawTextureQuad(texture, x, face.bottomLeft(), x + 1F, face.bottomRight(),
                 x + 1F, face.topRight(), x, face.topLeft(),
                 u, v + h, u + w, v + h, u + w, v, u, v,
                 0.04F, shade, shade, shade, alpha);
+        } finally {
+            RenderSystem.shader().shadows().receiver(false, 0F);
+        }
     }
 
     private static void drawSurfaceCell(PvzceClient client, String surface,
@@ -561,9 +616,15 @@ public final class SceneTileRenderer {
         // API instead accepts top-left pixels; preserve the same orientation and top slice
         // when a grave sinks, then let drawTextureQuad perform the upload conversion once.
         float pixelBottom = th - v, pixelTop = th - (v + vh);
-        client.drawTextureQuad(texture, x, bl, right, br, right, tr, x, tl,
+        if (element.overlay() && !isTiled(id)) RenderSystem.shader().shadows().receiver(true, y);
+        else RenderSystem.shader().shadows().surface(cell.profile());
+        try {
+            client.drawTextureQuad(texture, x, bl, right, br, right, tr, x, tl,
                 u, pixelBottom, u + uw, pixelBottom, u + uw, pixelTop, u, pixelTop,
                 0.05F, 1F, 1F, 1F, alpha);
+        } finally {
+            RenderSystem.shader().shadows().receiver(false, 0F);
+        }
     }
 
     /**
