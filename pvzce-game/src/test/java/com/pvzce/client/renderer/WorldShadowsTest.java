@@ -14,6 +14,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** Opt-in native regression for depth comparison, PCF bias and render-state isolation. */
 class WorldShadowsTest {
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path directory;
     private static final int SIZE = 256;
 
     private static float sample(float x, float y) {
@@ -54,6 +56,8 @@ class WorldShadowsTest {
             RenderSystem.setShader();
             RenderSystem.setGuiShader();
             RenderSystem.clearPointLights();
+            var config = com.pvzce.client.config.PvzceClientConfig.load(directory);
+            RenderSystem.shadows().configure(config);
             var camera = new PvzceCamera(SIZE, SIZE, 9, 5);
             Runnable caster = () -> {
                 RenderSystem.shader().shadows().receiver(true, 2);
@@ -78,6 +82,40 @@ class WorldShadowsTest {
             SpriteRenderer.solid(0, 0, 9, 5, 0, 0.25F, 0.25F, 0.25F, 1);
             assertTrue(sample(2.75F, 2.5F) - sample(2.75F, 1.8F) > 0.04F,
                     "A billboard must block the local light behind it");
+            float occluded = sample(2.75F, 1.8F);
+            config.setEffectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.LOCAL_SHADOWS, false);
+            RenderSystem.shadows().configure(config);
+            int[] passes = {0};
+            RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, () -> { passes[0]++; caster.run(); });
+            assertEquals(1, passes[0], "Disabling local shadows must skip their depth passes");
+            drawFloor();
+            SpriteRenderer.solid(0, 0, 9, 5, 0, 0.25F, 0.25F, 0.25F, 1);
+            assertTrue(sample(2.75F, 1.8F) > occluded + 0.05F, "The local light remains enabled without its shadow");
+            config.resetLighting();
+            config.setEffectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.SOFT_SHADOWS, false);
+            RenderSystem.shadows().configure(config);
+            RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, caster);
+            int radiusUniform = org.lwjgl.opengl.GL20.glGetUniformLocation(RenderSystem.shader().id(), "uShadowFilterRadius");
+            assertEquals(0, org.lwjgl.opengl.GL20.glGetUniformi(RenderSystem.shader().id(), radiusUniform),
+                    "Soft shadows off selects a single comparison tap");
+            config.resetLighting();
+            for (int quality = 0; quality <= 2; quality++) {
+                config.setShadowQuality(quality);
+                RenderSystem.shadows().configure(config);
+                RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, caster);
+                org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE2);
+                int allocated = GL11.glGetTexLevelParameteri(org.lwjgl.opengl.GL30.GL_TEXTURE_2D_ARRAY, 0, GL11.GL_TEXTURE_WIDTH);
+                org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
+                assertEquals(512 << quality, allocated, "Quality changes the actual depth texture size");
+            }
+            config.setShadowQuality(com.pvzce.client.config.PvzceClientConfig.ShadowQuality.OFF);
+            RenderSystem.shadows().configure(config);
+            RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, () -> fail("Off must skip all depth passes"));
+            drawFloor();
+            SpriteRenderer.solid(0, 0, 9, 5, 0, 0.25F, 0.25F, 0.25F, 1);
+            assertTrue(sample(2.75F, 1.8F) > occluded + 0.05F, "Turning off shadows must retain point lighting");
+            config.resetLighting();
+            RenderSystem.shadows().configure(config);
 
             RenderSystem.clearPointLights();
             RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, () -> {

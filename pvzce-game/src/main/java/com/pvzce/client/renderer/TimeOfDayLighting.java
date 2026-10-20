@@ -150,6 +150,12 @@ public final class TimeOfDayLighting {
                 lighting.nightBlend());
     }
 
+    /** Neutral material colour while retaining the clock's light direction and intensity. */
+    public static Lighting neutralTint(Lighting lighting) {
+        return new Lighting(1F, 1F, 1F, 0F, lighting.sunX(), lighting.sunY(), lighting.sunRadius(),
+                1F, 1F, 1F, lighting.strength(), 0F);
+    }
+
     /** The lighting with no glow at all: the tint and lift of a level, nothing positional. */
     public static Lighting withoutGlow(Lighting lighting) {
         return new Lighting(lighting.tintR(), lighting.tintG(), lighting.tintB(), lighting.lift(),

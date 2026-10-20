@@ -11,7 +11,9 @@ public final class PvzceConstants {
     public static final float SHADOW_MAP_MARGIN = 3F;
     public static final float SHADOW_SUN_DEPTH = 0.65F;
     public static final float SHADOW_SUN_ELEVATION_FACTOR = 0.55F;
+    public static final int SHADOW_MAP_LOW_SIZE = 512;
     public static final int SHADOW_MAP_SIZE = 1024;
+    public static final int SHADOW_MAP_HIGH_SIZE = 2048;
     public static final float SHADOW_HEIGHT_RANGE = 32F;
     public static final float SHADOW_POINT_HEIGHT = 4F;
     public static final float SHADOW_NEAR = 0.05F;

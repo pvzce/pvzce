@@ -1322,6 +1322,7 @@ public final class PvzceClient {
         RenderSystem.viewport(camera.viewportX(), camera.viewportY(), camera.viewportWidth(), camera.viewportHeight());
         RenderSystem.setProjectionMatrix(camera.projection());
         RenderSystem.setShaderEffectsEnabled(shadersEnabled());
+        RenderSystem.shadows().configure(config);
         if (shadersEnabled()) {
             shaderEffectsActive = true;
             applyTimeOfDayShader();
@@ -1368,6 +1369,7 @@ public final class PvzceClient {
     /** Sun drops and reveal plants light the board with their configured radii. */
     private void applyEntityLights() {
         RenderSystem.clearPointLights();
+        if (!config.effectEnabled(PvzceClientConfig.ShaderEffect.LOCAL_LIGHTS)) return;
         float centerX = level.width() / 2F;
         float centerY = level.height() / 2F;
         List<ClientEntity> sources = level.entities().values().stream()
@@ -1450,6 +1452,7 @@ public final class PvzceClient {
         TimeOfDayLighting.Lighting lighting = TimeOfDayLighting.compute(
                 level.smoothDayTicks(), time.dayLength(), time.nightLength(),
                 level.width(), level.height());
+        if (!config.effectEnabled(PvzceClientConfig.ShaderEffect.DAY_NIGHT)) lighting = TimeOfDayLighting.neutralTint(lighting);
         worldLightX = lighting.sunX();
         worldLightY = lighting.sunY();
         worldTintR = lighting.tintR();
@@ -1501,11 +1504,13 @@ public final class PvzceClient {
     public void applyLevelLighting(String levelId, float x, float y,
                                    float cellWidth, float cellHeight) {
         TimeOfDayLighting.Lighting lighting = levelLighting(levelId, x, y, cellWidth, cellHeight);
-        if (lighting == null) {
+        if (lighting == null || !config.shadersEnabled()
+                || BuiltInRegistries.LEVELS.get(Identifier.parse(levelId)).disableShaders()) {
             RenderSystem.setGuiShader();
             return;
         }
-        applyLighting(lighting);
+        applyLighting(config.effectEnabled(PvzceClientConfig.ShaderEffect.DAY_NIGHT)
+                ? lighting : TimeOfDayLighting.neutralTint(lighting));
     }
 
     /** Pushes one computed lighting into the shader. */

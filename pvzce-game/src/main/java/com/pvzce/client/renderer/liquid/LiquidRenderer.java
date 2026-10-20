@@ -165,7 +165,7 @@ public final class LiquidRenderer {
         shader.setLighting(request.tintR(), request.tintG(), request.tintB(), request.tintLift(),
                 request.night(), request.lightX(), request.lightY(),
                 request.lightR(), request.lightG(), request.lightB(), request.lightStrength());
-        shader.setFeatures(featuresFor(client.config().waterQuality()));
+        shader.setFeatures(featuresFor(client.config()));
         if (ripples != null && ripples.count() > 0) {
             shader.setRipples(ripples.pack(), ripples.count());
         } else {
@@ -299,6 +299,18 @@ public final class LiquidRenderer {
                     & ~(LiquidShader.FEATURE_CAUSTICS | LiquidShader.FEATURE_FRESNEL);
             default -> ALL_FEATURES;
         };
+    }
+
+    /** Independent switches can only remove features allowed by the quality tier. */
+    public static int featuresFor(PvzceClientConfig config) {
+        int features = featuresFor(config.waterQuality());
+        if (!config.effectEnabled(PvzceClientConfig.ShaderEffect.WATER_WAVES)) features &= ~LiquidShader.FEATURE_WAVES;
+        if (!config.effectEnabled(PvzceClientConfig.ShaderEffect.WATER_CAUSTICS))
+            features &= ~(LiquidShader.FEATURE_CAUSTICS | LiquidShader.FEATURE_CAUSTIC_SHEET);
+        if (!config.effectEnabled(PvzceClientConfig.ShaderEffect.WATER_REFLECTIONS))
+            features &= ~(LiquidShader.FEATURE_FRESNEL | LiquidShader.FEATURE_SPECULAR);
+        if (!config.effectEnabled(PvzceClientConfig.ShaderEffect.WATER_RIPPLES)) features &= ~LiquidShader.FEATURE_RIPPLES;
+        return features;
     }
 
     /** True when a texture can be resolved without triggering a load-and-throw. */

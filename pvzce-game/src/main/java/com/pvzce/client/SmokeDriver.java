@@ -546,6 +546,10 @@ final public class SmokeDriver {
             client.setScreenReplacing(new com.pvzce.client.gui.mods.ModsScreen(client));
         } else if ("settings".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.SettingsScreen(client));
+        } else if ("lighting".equals(smokeScreen)) {
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.LightingSettingsScreen(client));
+        } else if ("video".equals(smokeScreen)) {
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.VideoSettingsScreen(client));
         } else if ("ai_settings".equals(smokeScreen)) {
             // Two blocks of credential rows, which is the one page where the layout has to hold a
             // lot of text fields: reached in play through 设置, and shot from here for the same

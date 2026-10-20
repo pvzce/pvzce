@@ -55,6 +55,7 @@ public final class SettingsScreen extends Screen {
     private static final String[] LABELS = {
             GuiLang.raw("pvzce.settings.volume", "音量设置"),
             GuiLang.raw("pvzce.settings.video", "视频设置"),
+            GuiLang.raw("pvzce.lighting.title", "光影设置"),
             "难度", "快捷键",
             GuiLang.raw("pvzce.settings.jev", "AI 对战（Jev）"),
             "启动器账号", GuiLang.raw("pvzce.settings.about", "关于"), "完成"};
@@ -67,6 +68,7 @@ public final class SettingsScreen extends Screen {
     private static final Row[] ACTIONS = {
             screen -> () -> screen.client().openScreen(screen.client().buildSettingsConfig()),
             screen -> () -> screen.client().openScreen(new VideoSettingsScreen(screen.client())),
+            screen -> () -> screen.client().openScreen(new LightingSettingsScreen(screen.client())),
             screen -> () -> screen.client().openScreen(new DifficultyScreen(screen.client())),
             screen -> () -> screen.client().openScreen(new KeybindScreen(screen.client())),
             // The opponent's endpoint and key. Its own page rather than a config row: the ordinary

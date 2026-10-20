@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -90,6 +91,31 @@ class TimeOfDayLightingTest {
                 .nightBlend(), 0.0001F, "1-10 is previewed in its opening daylight");
         assertNull(PvzceClient.levelLighting("pvzce:nope", 0F, 0F, 80F, 100F),
                 "an unknown level leaves the shader alone");
+    }
+
+    @Test
+    void neutralTintPreservesTheLightDirection() {
+        var night = TimeOfDayLighting.compute(0F, 0, 3600, 9, 5);
+        var neutral = TimeOfDayLighting.neutralTint(night);
+        assertEquals(1F, neutral.tintR());
+        assertEquals(1F, neutral.tintG());
+        assertEquals(1F, neutral.tintB());
+        assertEquals(0F, neutral.lift());
+        assertEquals(night.sunX(), neutral.sunX());
+        assertEquals(night.sunY(), neutral.sunY());
+    }
+
+    @Test
+    void customMapsFollowThePlayerShaderSettings() {
+        for (String name : new String[]{"tunnel_corridor", "reef_passage", "terraced_hillside", "island_raiders",
+                "tidal_outpost", "tidal_fortress", "echo_conservatory", "fusion_1", "fusion_2", "fusion_3", "fusion_4",
+                "random_plants_belt_1", "random_plants_belt_2", "random_plants_belt_3", "random_plants_belt_endless",
+                "random_plants_deck_1", "random_plants_deck_2"}) {
+            var id = com.pvzce.api.util.Identifier.withDefaultNamespace("yard/minigame/" + name);
+            assertFalse(com.pvzce.common.core.BuiltInRegistries.LEVELS.get(id).disableShaders(), name);
+        }
+        assertTrue(com.pvzce.common.core.BuiltInRegistries.LEVELS.get(
+                com.pvzce.api.util.Identifier.withDefaultNamespace("yard/adventure/1_1")).disableShaders());
     }
 
     /** A level file that says nothing about time is a Day level, by the registry's defaults. */

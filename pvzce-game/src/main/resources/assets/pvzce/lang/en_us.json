@@ -1216,5 +1216,20 @@
   "gui.pvzce.workshop.label.font": "Fonts",
   "gui.pvzce.shop.category.tool": "Garden tools",
   "gui.pvzce.shop.category.cards": "Deck upgrades",
-  "gui.pvzce.shop.category.buff": "Permanent buffs"
+  "gui.pvzce.shop.category.buff": "Permanent buffs",
+  "pvzce.lighting.title": "Lighting settings",
+  "pvzce.lighting.enabled": "Shader effects",
+  "pvzce.lighting.shadow_quality": "Real-time shadows",
+  "pvzce.lighting.soft_shadows": "Soft shadows",
+  "pvzce.lighting.day_night_lighting": "Day/night tint",
+  "pvzce.lighting.local_lights": "Local lights",
+  "pvzce.lighting.local_shadows": "Local light shadows",
+  "pvzce.lighting.water_quality": "Water quality",
+  "pvzce.lighting.water_waves": "Water waves",
+  "pvzce.lighting.water_caustics": "Water caustics",
+  "pvzce.lighting.water_reflections": "Water reflections / highlights",
+  "pvzce.lighting.water_ripples": "Interactive ripples",
+  "pvzce.lighting.reset": "Reset lighting settings",
+  "pvzce.lighting.saved": "Applied and saved immediately; low water quality limits animation",
+  "pvzce.lighting.level_disabled": "This level disables shaders; your settings apply to other levels"
 }

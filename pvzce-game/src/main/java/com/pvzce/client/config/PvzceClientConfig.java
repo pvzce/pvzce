@@ -107,6 +107,34 @@ public final class PvzceClientConfig {
         }
     }
 
+    /** Independent shader effects; unwritten keys retain the existing enabled behaviour. */
+    public enum ShaderEffect {
+        DAY_NIGHT("day_night_lighting"), LOCAL_LIGHTS("local_lights"), LOCAL_SHADOWS("local_shadows"),
+        SOFT_SHADOWS("soft_shadows"), WATER_WAVES("water_waves"), WATER_CAUSTICS("water_caustics"),
+        WATER_REFLECTIONS("water_reflections"), WATER_RIPPLES("water_ripples");
+
+        private final String key;
+        ShaderEffect(String key) { this.key = key; }
+        public String key() { return key; }
+    }
+
+    public static final class ShadowQuality {
+        public static final int OFF = -1, LOW = 0, MEDIUM = 1, HIGH = 2;
+        private ShadowQuality() {}
+        public static int clamp(int quality) { return Math.max(OFF, Math.min(HIGH, quality)); }
+        public static int resolution(int quality) {
+            return switch (clamp(quality)) {
+                case OFF -> 0;
+                case LOW -> com.pvzce.common.PvzceConstants.SHADOW_MAP_LOW_SIZE;
+                case HIGH -> com.pvzce.common.PvzceConstants.SHADOW_MAP_HIGH_SIZE;
+                default -> com.pvzce.common.PvzceConstants.SHADOW_MAP_SIZE;
+            };
+        }
+    }
+
+    private int shadowQuality = ShadowQuality.MEDIUM;
+    private final java.util.EnumSet<ShaderEffect> disabledEffects = java.util.EnumSet.noneOf(ShaderEffect.class);
+
     private float masterVolume = DEFAULT_MASTER;
     private float musicVolume = DEFAULT_MUSIC;
     private float sfxVolume = DEFAULT_SFX;
@@ -193,6 +221,10 @@ public final class PvzceClientConfig {
                 config.guiScale = Math.max(AUTO_GUI_SCALE,
                         Math.min(MAX_MANUAL_GUI_SCALE, getInt(toml, "gui_scale", AUTO_GUI_SCALE)));
                 config.shadersEnabled = getBoolean(toml, "shaders_enabled", DEFAULT_SHADERS_ENABLED);
+                config.shadowQuality = ShadowQuality.clamp(getInt(toml, "shadow_quality", ShadowQuality.MEDIUM));
+                for (ShaderEffect effect : ShaderEffect.values()) {
+                    config.setEffectEnabled(effect, getBoolean(toml, effect.key(), true));
+                }
                 config.waterQuality = WaterQuality.clamp(
                         getInt(toml, "water_quality", DEFAULT_WATER_QUALITY));
                 config.storyEnabled = getBoolean(toml, "story", DEFAULT_STORY_ENABLED);
@@ -285,6 +317,8 @@ public final class PvzceClientConfig {
                     + "\ngui_scale = " + guiScale
                     + "\nshaders_enabled = " + shadersEnabled
                     + "\nwater_quality = " + waterQuality
+                    + "\nshadow_quality = " + shadowQuality
+                    + shaderEffectLines()
                     + "\nstory = " + storyEnabled
                     + "\nlast_world = \"" + lastWorld + "\""
                     + "\nlanguage = \"" + language + "\""
@@ -421,6 +455,29 @@ public final class PvzceClientConfig {
 
     public void setShadersEnabled(boolean shadersEnabled) {
         this.shadersEnabled = shadersEnabled;
+    }
+
+    public int shadowQuality() { return shadowQuality; }
+    public void setShadowQuality(int quality) { shadowQuality = ShadowQuality.clamp(quality); }
+    public boolean effectEnabled(ShaderEffect effect) { return !disabledEffects.contains(effect); }
+    public void setEffectEnabled(ShaderEffect effect, boolean enabled) {
+        if (enabled) disabledEffects.remove(effect);
+        else disabledEffects.add(effect);
+    }
+
+    public void resetLighting() {
+        shadersEnabled = DEFAULT_SHADERS_ENABLED;
+        waterQuality = DEFAULT_WATER_QUALITY;
+        shadowQuality = ShadowQuality.MEDIUM;
+        disabledEffects.clear();
+    }
+
+    private String shaderEffectLines() {
+        StringBuilder lines = new StringBuilder();
+        for (ShaderEffect effect : ShaderEffect.values()) {
+            lines.append('\n').append(effect.key()).append(" = ").append(effectEnabled(effect));
+        }
+        return lines.toString();
     }
 
     public int waterQuality() {

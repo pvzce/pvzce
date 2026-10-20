@@ -116,6 +116,41 @@ class PvzceClientConfigTest {
         assertEquals(PvzceClientConfig.UNLIMITED_FPS, loaded.maxFps());
     }
 
+    @Test
+    void lightingDefaultsPersistIndependentlyAndResetWithoutTouchingOtherSettings() throws Exception {
+        PvzceClientConfig config = PvzceClientConfig.load(dir);
+        assertEquals(PvzceClientConfig.ShadowQuality.MEDIUM, config.shadowQuality());
+        for (var effect : PvzceClientConfig.ShaderEffect.values()) assertTrue(config.effectEnabled(effect));
+        config.setShadowQuality(PvzceClientConfig.ShadowQuality.LOW);
+        config.setWaterQuality(PvzceClientConfig.WaterQuality.MEDIUM);
+        config.setEffectEnabled(PvzceClientConfig.ShaderEffect.LOCAL_SHADOWS, false);
+        config.setEffectEnabled(PvzceClientConfig.ShaderEffect.WATER_CAUSTICS, false);
+        config.setVsync(false);
+        config.save();
+        PvzceClientConfig loaded = PvzceClientConfig.load(dir);
+        assertEquals(PvzceClientConfig.ShadowQuality.LOW, loaded.shadowQuality());
+        assertEquals(PvzceClientConfig.WaterQuality.MEDIUM, loaded.waterQuality());
+        assertFalse(loaded.effectEnabled(PvzceClientConfig.ShaderEffect.LOCAL_SHADOWS));
+        assertFalse(loaded.effectEnabled(PvzceClientConfig.ShaderEffect.WATER_CAUSTICS));
+        assertTrue(loaded.effectEnabled(PvzceClientConfig.ShaderEffect.LOCAL_LIGHTS));
+        loaded.resetLighting();
+        loaded.save();
+        loaded = PvzceClientConfig.load(dir);
+        assertFalse(loaded.vsync(), "Reset only changes lighting settings");
+        assertEquals(PvzceClientConfig.ShadowQuality.MEDIUM, loaded.shadowQuality());
+        for (var effect : PvzceClientConfig.ShaderEffect.values()) assertTrue(loaded.effectEnabled(effect));
+    }
+
+    @Test
+    void shadowQualityIsClampedAtTheConfigBoundary() throws Exception {
+        java.nio.file.Files.createDirectories(dir.resolve("config"));
+        java.nio.file.Files.writeString(dir.resolve("config/pvzce-client.toml"), "shadow_quality = 999\n");
+        assertEquals(PvzceClientConfig.ShadowQuality.HIGH, PvzceClientConfig.load(dir).shadowQuality());
+        var config = PvzceClientConfig.load(dir);
+        config.setShadowQuality(-999);
+        assertEquals(PvzceClientConfig.ShadowQuality.OFF, config.shadowQuality());
+    }
+
     /**
      * Who is playing survives a restart, which is the only reason the key exists.
      *

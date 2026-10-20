@@ -16,6 +16,8 @@ public final class WorldShadows implements AutoCloseable {
     public static final String GLSL = """
             uniform sampler2DArrayShadow uShadowMaps;
             uniform int uShadows;
+            uniform int uLocalShadows;
+            uniform int uShadowFilterRadius;
             uniform int uShadowPass;
             uniform int uCasterEmission;
             uniform int uReceiverEntity;
@@ -53,7 +55,7 @@ public final class WorldShadows implements AutoCloseable {
 
     public static final String FILTER_GLSL = """
             float lightVisibility(vec3 p, int index) {
-                if (uShadows == 0) return 1.0;
+                if (uShadows == 0 || (index > 0 && uLocalShadows == 0)) return 1.0;
                 vec4 clip = shadowClip(p, index);
                 if (clip.w <= SHADOW_NEAR) return 1.0;
                 vec3 projected = clip.xyz / clip.w * 0.5 + 0.5;
@@ -72,17 +74,16 @@ public final class WorldShadows implements AutoCloseable {
                 vec2 texel = 1.0 / vec2(textureSize(uShadowMaps, 0).xy);
                 // Hardware comparison also filters the four neighbours inside each tap.
                 bias += dot(abs(gradient), texel);
-                for (int y = -1; y <= 1; y++) {
-                    for (int x = -1; x <= 1; x++) {
+                for (int y = -uShadowFilterRadius; y <= uShadowFilterRadius; y++) {
+                    for (int x = -uShadowFilterRadius; x <= uShadowFilterRadius; x++) {
                         vec2 offset = vec2(x, y) * texel;
                         visible += texture(uShadowMaps, vec4(projected.xy + offset,
                                 float(index), projected.z + dot(gradient, offset) - bias));
                     }
                 }
-                return visible / 9.0;
+                return visible / pow(float(uShadowFilterRadius * 2 + 1), 2.0);
             }
             vec3 pointContribution(vec3 p, vec3 albedo) {
-                if (uShadows == 0) return vec3(0.0);
                 vec3 result = vec3(0.0);
                 for (int i = 0; i < 8; i++) {
                     float radius = uShadowPointRadius[i];
@@ -102,12 +103,14 @@ public final class WorldShadows implements AutoCloseable {
                     PvzceConstants.SHADOW_DIRECT_SHARE);
 
     public static final class Uniforms {
-        private final int enabled, pass, emission, entity, ground, profile, limits, bounds, sampler;
+        private final int enabled, local, filter, pass, emission, entity, ground, profile, limits, bounds, sampler;
         private final int[] lights = new int[LIGHTS];
         private final int[] colors = new int[LIGHTS - 1], radii = new int[LIGHTS - 1];
 
         public Uniforms(int program) {
             enabled = GL20.glGetUniformLocation(program, "uShadows");
+            local = GL20.glGetUniformLocation(program, "uLocalShadows");
+            filter = GL20.glGetUniformLocation(program, "uShadowFilterRadius");
             pass = GL20.glGetUniformLocation(program, "uShadowPass");
             emission = GL20.glGetUniformLocation(program, "uCasterEmission");
             entity = GL20.glGetUniformLocation(program, "uReceiverEntity");
@@ -141,7 +144,18 @@ public final class WorldShadows implements AutoCloseable {
     private final float[][] colors = new float[LIGHTS - 1][4];
     private final float[] radii = new float[LIGHTS - 1];
     private final boolean[] present = new boolean[LIGHTS];
-    private int framebuffer, texture;
+    private int framebuffer, texture, allocatedSize;
+    private int mapSize = PvzceConstants.SHADOW_MAP_SIZE;
+    private int filterRadius = 1;
+    private boolean localShadows = true;
+
+    public void configure(com.pvzce.client.config.PvzceClientConfig config) {
+        int quality = config.shadowQuality();
+        mapSize = com.pvzce.client.config.PvzceClientConfig.ShadowQuality.resolution(quality);
+        filterRadius = !config.effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.SOFT_SHADOWS)
+                ? 0 : quality == com.pvzce.client.config.PvzceClientConfig.ShadowQuality.HIGH ? 2 : 1;
+        localShadows = config.effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.LOCAL_SHADOWS);
+    }
     private boolean active, casting;
     private float left, bottom, width, height;
 
@@ -162,6 +176,11 @@ public final class WorldShadows implements AutoCloseable {
 
     public void render(PvzceCamera camera, float sunX, float sunY, int columns, int rows,
                        Runnable casters) {
+        if (mapSize == 0) {
+            active = false;
+            RenderSystem.shader().shadows().disable();
+            return;
+        }
         create();
         left = camera.worldLeft() - PvzceConstants.SHADOW_MAP_MARGIN;
         bottom = camera.worldBottom() - PvzceConstants.SHADOW_MAP_MARGIN;
@@ -188,11 +207,11 @@ public final class WorldShadows implements AutoCloseable {
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthMask(true);
             GL11.glDepthFunc(GL11.GL_LESS);
-            GL11.glViewport(0, 0, PvzceConstants.SHADOW_MAP_SIZE, PvzceConstants.SHADOW_MAP_SIZE);
+            GL11.glViewport(0, 0, mapSize, mapSize);
             upload(uniforms);
             GL20.glUniform1i(uniforms.emission, 0);
             for (int i = 0; i < LIGHTS; i++) {
-                if (!present[i]) continue;
+                if (!present[i] || i > 0 && !localShadows) continue;
                 GL30.glFramebufferTextureLayer(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, texture, 0, i);
                 GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
                 GL20.glUniform1i(uniforms.pass, i + 1);
@@ -225,6 +244,8 @@ public final class WorldShadows implements AutoCloseable {
     /** Caller has bound its own program. Unit 2 leaves the water's caustics on unit 1. */
     public void upload(Uniforms uniforms) {
         GL20.glUniform1i(uniforms.enabled, active ? 1 : 0);
+        GL20.glUniform1i(uniforms.local, localShadows ? 1 : 0);
+        GL20.glUniform1i(uniforms.filter, filterRadius);
         GL20.glUniform1i(uniforms.sampler, 2);
         GL20.glUniform4f(uniforms.bounds, left, bottom, width, height);
         for (int i = 0; i < LIGHTS; i++) {
@@ -239,13 +260,15 @@ public final class WorldShadows implements AutoCloseable {
     }
 
     private void create() {
-        if (framebuffer != 0) return;
+        if (framebuffer != 0 && allocatedSize == mapSize) return;
+        close();
+        allocatedSize = mapSize;
         framebuffer = GL30.glGenFramebuffers();
         texture = GL11.glGenTextures();
         GL13.glActiveTexture(GL13.GL_TEXTURE2);
         GL11.glBindTexture(GL30.GL_TEXTURE_2D_ARRAY, texture);
         GL12.glTexImage3D(GL30.GL_TEXTURE_2D_ARRAY, 0, GL14.GL_DEPTH_COMPONENT24,
-                PvzceConstants.SHADOW_MAP_SIZE, PvzceConstants.SHADOW_MAP_SIZE, LIGHTS,
+                mapSize, mapSize, LIGHTS,
                 0, GL11.GL_DEPTH_COMPONENT, GL11.GL_FLOAT, (java.nio.ByteBuffer) null);
         GL11.glTexParameteri(GL30.GL_TEXTURE_2D_ARRAY, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
         GL11.glTexParameteri(GL30.GL_TEXTURE_2D_ARRAY, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);

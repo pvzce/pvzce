@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * MC VideoSettings-shaped screen: framerate limit, vsync, fullscreen, resolution presets, GUI size,
- * language, shader toggle and water quality.
+ * language and the dedicated lighting settings page.
  *
  * <p><b>Every label here is a language key</b>, and the two rows that pair up are the interface's
  * own settings (size and language). The language row is the reason this page stopped hardcoding its
@@ -40,7 +40,7 @@ public final class VideoSettingsScreen extends Screen {
         int guiH = client.guiHeight();
         int titleReserve = Math.max(30, Math.min(44, guiH / 6));
         // Legacy ~36px rows enlarged by 40%; auto-compresses for 4x UI.
-        // Six rows: fps, vsync+fullscreen, resolution, gui-scale+shaders, water quality, done.
+        // Six rows: fps, vsync+fullscreen, resolution, gui-scale+language, lighting, done.
         int rowHeight = GuiLayout.fitHeight(guiH, 52, 6, titleReserve, 8);
         int gap = GuiLayout.gapFor(rowHeight);
         int fullWidth = client.guiWidth() - margin * 2;
@@ -98,17 +98,9 @@ public final class VideoSettingsScreen extends Screen {
         }));
         y -= rowHeight + gap;
 
-        addWidget(new Button(x, y, halfWidth, rowHeight,
-                toggleLabel("pvzce.video.shaders", "着色器", client.config().shadersEnabled()),
-                () -> {
-                    client.setShadersEnabled(!client.config().shadersEnabled());
-                    refreshLabels();
-                }));
-        addWidget(new Button(x + halfWidth + gap, y, halfWidth, rowHeight, waterQualityLabel(),
-                () -> {
-                    client.setWaterQuality(nextWaterQuality());
-                    refreshLabels();
-                }));
+        addWidget(new Button(x, y, fullWidth, rowHeight,
+                GuiLang.raw("pvzce.lighting.title", "光影设置"),
+                () -> client.openScreen(new LightingSettingsScreen(client))));
         y -= rowHeight + gap;
 
         addWidget(new Button(x, Math.max(4, y), fullWidth, rowHeight,
@@ -186,18 +178,6 @@ public final class VideoSettingsScreen extends Screen {
         }
         int index = locales.indexOf(language());
         return locales.get((index + 1) % locales.size());
-    }
-
-    private String waterQualityLabel() {
-        return GuiLang.raw("pvzce.video.water", "水面质量") + "："
-                + GuiLang.raw("pvzce.water." + client.config().waterQuality(),
-                        PvzceClientConfig.WaterQuality.name(client.config().waterQuality()));
-    }
-
-    /** Cycles low -> medium -> high -> low; the tiers control shader terms only. */
-    private int nextWaterQuality() {
-        int count = PvzceClientConfig.WaterQuality.COUNT;
-        return (client.config().waterQuality() + 1) % count;
     }
 
     private int nextGuiScale() {

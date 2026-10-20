@@ -431,7 +431,7 @@
   "hidden_scene_elements": [
     "pvzce:grass"
   ],
-  "disable_shaders": true,
+  "disable_shaders": false,
   "seed_screen": false,
   "initial_entities": [
     {

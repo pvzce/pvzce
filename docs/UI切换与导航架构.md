@@ -87,7 +87,7 @@ currentScreen() / screenDepth()   // peek / 导航深度（覆盖层不计入）
 | 语义 | 方法 | 调用点 |
 |---|---|---|
 | 根/跳转 | `setScreenReplacing` | `showTitle` / `showWorldSelect`（＝`showTitle`）/ `showLevelList` / `onLevelInit` / `restartCurrentLevel` / `finishLevelAndShowList`，以及 `run()` 里的冒烟入口 |
-| 嵌套 | `openScreen` | `Title→LevelSelect`（开始游戏）、`Title→Shop/Packs`（钥匙牌 / 数据包墓碑）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、**`LevelSelect→LevelCollectionScreen`（点一个关卡集合）**、`Settings→Config/Video`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
+| 嵌套 | `openScreen` | `Title→LevelSelect`（开始游戏）、`Title→Shop/Packs`（钥匙牌 / 数据包墓碑）、`LevelSelect→LevelSetup`、`LevelSelect→Almanac`、**`LevelSelect→LevelCollectionScreen`（点一个关卡集合）**、`Settings→Config/Video/LightingSettingsScreen`、`InGame→Award`、`openEditor`、`ChooseSeedsScreen` |
 | 声明的目的地 | `Navigation.replaceRoot(...)` | `LevelSelectScreen.backTarget()`（无下层时）、`AwardScreen.backTarget()` |
 | 弹回 | `Navigation.POP`（默认） | 返回屏幕的按钮、`Screen.requestClose()` 默认实现；弹窗的 Esc 只关闭弹窗 |
 
@@ -103,12 +103,14 @@ TitleScreen
  │                                          └ WorkshopPreviewScreen（素材预览/试听）
  ├ 模组墓碑 → ModsScreen
  ├ 数据包墓碑 → PackScreen
- ├ 设置花盆 → SettingsScreen → ConfigScreen / VideoSettings / KeybindScreen / AiSettingsScreen / AccountScreen
+ ├ 设置花盆 → SettingsScreen → ConfigScreen / VideoSettings / LightingSettingsScreen / KeybindScreen / AiSettingsScreen / AccountScreen
  ├ 商店钥匙牌 → ShopScreen
  └ 玩家木牌 / 切换玩家 → PlayerPickerDialog（名单）
                             ├ 新玩家 → 独立创建弹窗 → 名单高亮新玩家
                             ├ 删除选中 → ConfirmDialog → 确认删除 / 取消
                             └ 确定 → 切换玩家并关闭；取消 → 保持当前玩家
+
+光影页也可从视频页打开，完成或 Esc 弹回原入口；修改即时保存，不更换流程根。
 
 账号页沿屏幕栈返回原设置页，退出账号只切离线，不切换本地玩家或离开关卡；账号网络任务不参与导航等待。
 

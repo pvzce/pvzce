@@ -163,7 +163,7 @@ public final class RenderSystem {
     }
 
     public static void setGuiShader() {
-        shader.shadows().disable();
+        shadows.reset();
         shader.shadows().receiver(false, 0F);
         shader.setTimeOfDay(1F, 1F, 1F, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 0F);
         shader.clearPointLights();
@@ -179,7 +179,7 @@ public final class RenderSystem {
      * letting a sun that was mapped for the board land somewhere in a four-unit-tall world.
      */
     public static void setOverlayShader() {
-        shader.shadows().disable();
+        shadows.reset();
         shader.shadows().receiver(false, 0F);
         shader.clearPointLights();
         shader.setShadowMode(false);

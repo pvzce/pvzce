@@ -1216,5 +1216,20 @@
   "gui.pvzce.workshop.label.font": "字体",
   "gui.pvzce.shop.category.tool": "庭院工具",
   "gui.pvzce.shop.category.cards": "卡组扩展",
-  "gui.pvzce.shop.category.buff": "永久增益"
+  "gui.pvzce.shop.category.buff": "永久增益",
+  "pvzce.lighting.title": "光影设置",
+  "pvzce.lighting.enabled": "光影总开关",
+  "pvzce.lighting.shadow_quality": "实时阴影",
+  "pvzce.lighting.soft_shadows": "阴影柔化",
+  "pvzce.lighting.day_night_lighting": "昼夜色调",
+  "pvzce.lighting.local_lights": "局部光源",
+  "pvzce.lighting.local_shadows": "局部光源阴影",
+  "pvzce.lighting.water_quality": "水面质量",
+  "pvzce.lighting.water_waves": "水面波动",
+  "pvzce.lighting.water_caustics": "水下焦散",
+  "pvzce.lighting.water_reflections": "水面反射与高光",
+  "pvzce.lighting.water_ripples": "交互涟漪",
+  "pvzce.lighting.reset": "恢复光影默认值",
+  "pvzce.lighting.saved": "即时生效 · 自动保存；低水面质量会限制动态效果",
+  "pvzce.lighting.level_disabled": "当前关卡禁用光影，设置会用于其它关卡"
 }
