@@ -12,6 +12,10 @@ public final class RenderSystem {
     private static final org.slf4j.Logger LOGGER =
             org.slf4j.LoggerFactory.getLogger("PVZCE/Render");
     private static ShaderProgram shader;
+    private static final WorldLighting lighting = new WorldLighting();
+    private static final WorldPostProcess post = new WorldPostProcess();
+    public static WorldLighting lighting() { return lighting; }
+    public static WorldPostProcess post() { return post; }
     private static final WorldShadows shadows = new WorldShadows();
     public static WorldShadows shadows() { return shadows; }
     private static Matrix4f projection = Matrix4f.identity();
@@ -40,12 +44,14 @@ public final class RenderSystem {
      */
     public static void blendAdditive() {
         shadows.emission(true);
+        shader.lighting().additive(true);
         GL20.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE);
     }
 
     /** Ordinary source-over alpha blending; the state {@link #init()} starts in. */
     public static void blendNormal() {
         shadows.emission(false);
+        shader.lighting().additive(false);
         GL20.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
     }
 
@@ -163,6 +169,7 @@ public final class RenderSystem {
     }
 
     public static void setGuiShader() {
+        lighting.end();
         shadows.reset();
         shader.shadows().receiver(false, 0F);
         shader.setTimeOfDay(1F, 1F, 1F, 0F, 0F, 0F, 0F, 1F, 1F, 1F, 0F);
@@ -179,6 +186,7 @@ public final class RenderSystem {
      * letting a sun that was mapped for the board land somewhere in a four-unit-tall world.
      */
     public static void setOverlayShader() {
+        lighting.end();
         shadows.reset();
         shader.shadows().receiver(false, 0F);
         shader.clearPointLights();

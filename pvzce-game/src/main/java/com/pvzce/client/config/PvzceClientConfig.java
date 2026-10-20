@@ -109,6 +109,7 @@ public final class PvzceClientConfig {
 
     /** Independent shader effects; unwritten keys retain the existing enabled behaviour. */
     public enum ShaderEffect {
+        MATERIAL_LIGHTING("material_lighting"), BLOOM("bloom"),
         DAY_NIGHT("day_night_lighting"), LOCAL_LIGHTS("local_lights"), LOCAL_SHADOWS("local_shadows"),
         SOFT_SHADOWS("soft_shadows"), WATER_WAVES("water_waves"), WATER_CAUSTICS("water_caustics"),
         WATER_REFLECTIONS("water_reflections"), WATER_RIPPLES("water_ripples");

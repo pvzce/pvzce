@@ -500,6 +500,7 @@ public final class PvzceClient {
         if (sound != null) {
             sound.close();
         }
+        RenderSystem.post().close();
         RenderSystem.shadows().close();
         textures.close();
         blurredBackdrop.close();
@@ -1378,39 +1379,18 @@ public final class PvzceClient {
                         distanceSq(a.cellX(), a.cellY() + a.height(), centerX, centerY),
                         distanceSq(b.cellX(), b.cellY() + b.height(), centerX, centerY)))
                 .toList();
-        float nightBlend = level.nightBlendAt(level.smoothDayTicks());
         int lightCount = Math.min(ShaderProgram.MAX_POINT_LIGHTS, sources.size());
         for (int i = 0; i < lightCount; i++) {
-            ClientEntity sun = sources.get(i);
-            // Sun drops stay warm by day and crossfade to pale moonlit glows at night.
-            float r = MathUtil.lerp(1F, 0.72F, nightBlend);
-            float g = MathUtil.lerp(0.85F, 0.82F, nightBlend);
-            float b = MathUtil.lerp(0.35F, 1F, nightBlend);
-            // Brighter at night than by day, which is the opposite of how this started and
-            // the point of the number: the lawn at noon is already fully lit, so a sun lying
-            // on it only washed a square of grass towards white - the glare the player read
-            // as "the sun is too bright" - while at night the same glow is the one warm
-            // thing on the board. Presentation only; nothing about collection changes.
-            float strength = MathUtil.lerp(SUN_LIGHT_DAY, SUN_LIGHT_NIGHT, nightBlend);
-            var lamp = revealLight(sun);
-            RenderSystem.setPointLight(i, sun.cellX(), sun.cellY() + sun.height(),
-                    lightRadius(sun), r, g, b, lamp == null ? strength : strength * lamp.strength());
+            ClientEntity entity = sources.get(i);
+            var glow = com.pvzce.common.core.EntityArt.emission(entity.defId(), entity.kind());
+            float x = entity.visualCellX();
+            float baseline = entity.visualCellY() - com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
+            float height = entity.visualHeight() + glow.height();
+            RenderSystem.setPointLight(i, x, baseline + height, glow.radius(),
+                    glow.red(), glow.green(), glow.blue(), glow.strength());
+            RenderSystem.shadows().pointHeight(i, baseline, height);
         }
     }
-
-    /**
-     * How strongly a sun drop lights the grass around it, by day and by night.
-     *
-     * <p>Both are guesses that were tuned against a screenshot, which is why they live
-     * together with their own names: the day value is "bright enough to notice you dropped
-     * something, dim enough not to bleach the cell it landed on", and the night value is
-     * "still reads as a light source after the scene tint has taken most of the colour out
-     * of the lawn".
-     */
-    private static final float SUN_LIGHT_DAY = 0.16F;
-    private static final float SUN_LIGHT_NIGHT = 0.30F;
-    /** How far a sun drop's glow reaches, in cells. */
-    private static final float SUN_LIGHT_RADIUS = 2.2F;
 
     private static float distanceSq(float x1, float y1, float x2, float y2) {
         float dx = x1 - x2;
@@ -1418,28 +1398,10 @@ public final class PvzceClient {
         return dx * dx + dy * dy;
     }
 
-    /**
-     * True for sun drops and living plants with a reveal capability.
-     *
-     * <p>Asked by <em>content id</em>, not by entity kind. A kind is a category - every drop
-     * shares one - so the previous {@code kind().equals("sun")} test matched every coin and
-     * diamond too, and each one lit the lawn like a small sun. Package-private so a test can
-     * hold that distinction down without a GL context.
-     */
+    /** Light selection uses the same content presentation as sprite emission; coins stay unlit. */
     static boolean lightsTheBoard(ClientEntity entity) {
         return entity != null && entity.health() > 0
-                && (PvzceIds.SUN.toString().equals(entity.defIdString()) || revealLight(entity) != null);
-    }
-
-    static com.pvzce.common.capability.plant.RevealCapability revealLight(ClientEntity entity) {
-        if (entity == null || !com.pvzce.api.entity.EntityKind.PLANT.equals(entity.kind())) return null;
-        var def = com.pvzce.common.core.BuiltInRegistries.PLANTS.get(entity.defId());
-        return def == null ? null : def.capability(com.pvzce.common.capability.plant.RevealCapability.class).orElse(null);
-    }
-
-    static float lightRadius(ClientEntity entity) {
-        var lamp = revealLight(entity);
-        return lamp == null ? SUN_LIGHT_RADIUS : lamp.radius();
+                && com.pvzce.common.core.EntityArt.emission(entity.defId(), entity.kind()) != null;
     }
 
     /**
@@ -2005,7 +1967,7 @@ public final class PvzceClient {
      * question - "how is this one thing lit" - which is why they share a place.
      */
     public void pushEntityLook(com.pvzce.client.ClientEntity entity) {
-        float lift = com.pvzce.client.renderer.EntityVisuals.liftsAtNight(entity.kind())
+        float lift = !RenderSystem.lighting().active() && com.pvzce.client.renderer.EntityVisuals.liftsAtNight(entity.kind())
                 ? com.pvzce.client.renderer.EntityVisuals.NIGHT_LIFT
                 : 0F;
         float r = liftChannel(lift, worldTintR);

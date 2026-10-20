@@ -1217,6 +1217,8 @@
   "gui.pvzce.shop.category.tool": "Garden tools",
   "gui.pvzce.shop.category.cards": "Deck upgrades",
   "gui.pvzce.shop.category.buff": "Permanent buffs",
+  "pvzce.lighting.material_lighting": "Surface relief & contact shadows",
+  "pvzce.lighting.bloom": "Bloom",
   "pvzce.lighting.title": "Lighting settings",
   "pvzce.lighting.enabled": "Shader effects",
   "pvzce.lighting.shadow_quality": "Real-time shadows",

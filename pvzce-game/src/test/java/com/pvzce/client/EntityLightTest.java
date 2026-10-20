@@ -32,9 +32,12 @@ class EntityLightTest {
                 EntityLayers.PLANT, EntityAnimations.IDLE, 0F, "");
         assertTrue(PvzceClient.lightsTheBoard(plantern));
         assertTrue(PvzceClient.lightsTheBoard(torchwood));
-        assertTrue(PvzceClient.lightRadius(torchwood) < PvzceClient.lightRadius(plantern));
-        assertTrue(PvzceClient.revealLight(plantern).halo());
-        assertFalse(PvzceClient.revealLight(torchwood).halo());
+        assertTrue(com.pvzce.common.core.EntityArt.emission(torchwood.defId(), torchwood.kind()).radius()
+                < com.pvzce.common.core.EntityArt.emission(plantern.defId(), plantern.kind()).radius());
+        assertTrue(com.pvzce.common.core.BuiltInRegistries.PLANTS.get(plantern.defId())
+                .capability(com.pvzce.common.capability.plant.RevealCapability.class).orElseThrow().halo());
+        assertFalse(com.pvzce.common.core.BuiltInRegistries.PLANTS.get(torchwood.defId())
+                .capability(com.pvzce.common.capability.plant.RevealCapability.class).orElseThrow().halo());
     }
 
     private static ClientEntity drop(Identifier content, float x, float y) {

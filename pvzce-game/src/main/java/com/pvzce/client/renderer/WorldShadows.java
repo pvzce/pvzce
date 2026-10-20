@@ -174,14 +174,13 @@ public final class WorldShadows implements AutoCloseable {
         present[index + 1] = true;
     }
 
+    public void pointHeight(int index, float groundY, float height) {
+        lights[index + 1][1] = groundY;
+        lights[index + 1][2] = height;
+    }
+
     public void render(PvzceCamera camera, float sunX, float sunY, int columns, int rows,
                        Runnable casters) {
-        if (mapSize == 0) {
-            active = false;
-            RenderSystem.shader().shadows().disable();
-            return;
-        }
-        create();
         left = camera.worldLeft() - PvzceConstants.SHADOW_MAP_MARGIN;
         bottom = camera.worldBottom() - PvzceConstants.SHADOW_MAP_MARGIN;
         width = camera.worldWidth() + PvzceConstants.SHADOW_MAP_MARGIN * 2F;
@@ -189,6 +188,12 @@ public final class WorldShadows implements AutoCloseable {
         lights[0] = new float[]{(sunX / columns - 0.5F) * 2F, PvzceConstants.SHADOW_SUN_DEPTH,
                 1F + sunY / rows * PvzceConstants.SHADOW_SUN_ELEVATION_FACTOR, 0F};
         present[0] = true;
+        if (mapSize == 0) {
+            active = false;
+            upload(RenderSystem.shader().shadows());
+            return;
+        }
+        create();
         int previousFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
         boolean scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
         boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);

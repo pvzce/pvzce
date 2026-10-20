@@ -21,7 +21,7 @@ public final class LightingSettingsScreen extends Screen {
         int width = Math.min(820, client.guiWidth() - 32);
         int x = centerX(width);
         int reserve = Math.max(50, Math.min(76, client.guiHeight() / 5));
-        int row = GuiLayout.fitHeight(client.guiHeight(), 52, 7, reserve, 8);
+        int row = GuiLayout.fitHeight(client.guiHeight(), 52, 8, reserve, 8);
         int gap = GuiLayout.gapFor(row), half = (width - gap) / 2;
         int y = client.guiHeight() - reserve - row;
         titleScale = Math.min(1.8F, Math.max(1F, client.guiHeight() / 240F));
@@ -50,6 +50,9 @@ public final class LightingSettingsScreen extends Screen {
             config.setWaterQuality((config.waterQuality() + 1) % PvzceClientConfig.WaterQuality.COUNT);
             changed();
         }));
+        y -= row + gap;
+        effect(x, y, half, row, ShaderEffect.MATERIAL_LIGHTING, "材质起伏与接触阴影");
+        effect(x + half + gap, y, half, row, ShaderEffect.BLOOM, "发光泛光");
         y -= row + gap;
         effect(x, y, half, row, ShaderEffect.WATER_WAVES, "水面波动");
         effect(x + half + gap, y, half, row, ShaderEffect.WATER_CAUSTICS, "水下焦散");

@@ -69,7 +69,7 @@ public final class ShaderProgram implements Closeable {
             uniform int uTextEffect;              // 0 = none, 1 = drop shadow, 2 = outline
             uniform vec2 uTextOffset;             // shadow offset / outline thickness, in uv
             uniform vec3 uTextEffectColor;
-            """ + TERRAIN_BLEND_GLSL + WorldShadows.GLSL + WorldShadows.FILTER_GLSL + """
+            """ + TERRAIN_BLEND_GLSL + WorldShadows.GLSL + WorldShadows.FILTER_GLSL + WorldLighting.GLSL + """
             in vec4 vColor;
             in vec2 vUV;
             in vec2 vWorld;
@@ -128,6 +128,15 @@ public final class ShaderProgram implements Closeable {
                 vec4 base = uTextured == 1 ? tex * vColor : vColor;
                 base.a *= terrainCoverage(vWorld);
                 vec3 position = shadowPosition(vWorld);
+                if (uMaterialLighting == 1) {
+                    vec3 albedo = pow(max(base.rgb, vec3(0.0)), vec3(2.2));
+                    vec3 lit = materialLighting(albedo, position, materialNormal(position, vUV), materialRoughness());
+                    float luminous = smoothstep(0.35, 0.9, max(base.r, max(base.g, base.b)));
+                    lit += albedo * uEntityEmission * luminous;
+                    if (uAdditiveLight == 1) lit = albedo * 4.0;
+                    fragColor = vec4(lit, base.a);
+                    return;
+                }
                 vec3 rgb = base.rgb * uTint.rgb * directExposure(position) + vec3(uTint.a);
                 if (uShadows == 0 && uSunStrength > 0.001 && uSunRadius > 0.001) {
                     float d = distance(vWorld, uSunCenter);
@@ -146,6 +155,8 @@ public final class ShaderProgram implements Closeable {
             """;
 
     private final int id;
+    private final WorldLighting.Uniforms lighting;
+    public WorldLighting.Uniforms lighting() { return lighting; }
     private final WorldShadows.Uniforms shadows;
     public WorldShadows.Uniforms shadows() { return shadows; }
     private final int projectionLocation;
@@ -186,6 +197,7 @@ public final class ShaderProgram implements Closeable {
         //   而此刻绑着的还是上一个程序（或 0）。没绑自己时它们要么落到 0 号程序上（GL_INVALID_OPERATION，
         //   KHR_debug 会直接点名 "glUniform(program not linked)"），要么**静默改掉上一个程序的 uniform**。
         GL20.glUseProgram(id);
+        lighting = new WorldLighting.Uniforms(id);
         shadows = new WorldShadows.Uniforms(id);
         RenderSystem.shadows().upload(shadows);
         projectionLocation = GL20.glGetUniformLocation(id, "uProj");

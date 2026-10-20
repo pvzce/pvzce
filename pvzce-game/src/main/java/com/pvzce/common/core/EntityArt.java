@@ -11,6 +11,8 @@ import com.pvzce.api.content.ZombieDef;
 import com.pvzce.api.entity.EntityKind;
 import com.pvzce.api.util.Identifier;
 
+import static com.pvzce.common.PvzceConstants.*;
+
 /**
  * The single answer to "which art does this content id use?".
  *
@@ -30,6 +32,33 @@ import com.pvzce.api.util.Identifier;
  * registry lookup; the client renderer and the server-side card resolver both call it.
  */
 public final class EntityArt {
+    /** Presentation of a luminous content item; shared by light selection and sprite emission. */
+    public record Emission(float radius, float height, float red, float green, float blue,
+                           float strength, float selfGlow) {}
+
+    public static Emission emission(Identifier id, String kind) {
+        if (EntityKind.RESOURCE.equals(kind) && com.pvzce.common.PvzceIds.SUN.equals(id))
+            return light(LIGHT_SUN_RADIUS, LIGHT_SUN_HEIGHT, LIGHT_SUN_COLOR, LIGHT_SUN_STRENGTH, LIGHT_SUN_EMISSION);
+        if (EntityKind.PROJECTILE.equals(kind) && com.pvzce.common.PvzceIds.FIRE_PEA.equals(id))
+            return light(LIGHT_FIRE_PEA_RADIUS, LIGHT_FIRE_PEA_HEIGHT, LIGHT_FIRE_PEA_COLOR,
+                    LIGHT_FIRE_PEA_STRENGTH, LIGHT_FIRE_PEA_EMISSION);
+        if (!EntityKind.PLANT.equals(kind)) return null;
+        var plant = BuiltInRegistries.PLANTS.get(id);
+        if (plant == null) return null;
+        var lamp = plant.capability(com.pvzce.common.capability.plant.RevealCapability.class).orElse(null);
+        // Torchwood also has reveal: fire presentation takes precedence over the generic lamp.
+        if (plant.capability(com.pvzce.common.capability.plant.TorchwoodCapability.class).isPresent())
+            return light(lamp == null ? LIGHT_FIRE_RADIUS : lamp.radius(), LIGHT_FIRE_HEIGHT, LIGHT_FIRE_COLOR,
+                    LIGHT_FIRE_STRENGTH * (lamp == null ? 1F : lamp.strength()), LIGHT_FIRE_EMISSION);
+        return lamp == null ? null : light(lamp.radius(), LIGHT_LAMP_HEIGHT, LIGHT_LAMP_COLOR,
+                lamp.strength() * LIGHT_LAMP_STRENGTH, LIGHT_LAMP_EMISSION);
+    }
+
+    private static Emission light(float radius, float height, int rgb, float strength, float selfGlow) {
+        return new Emission(radius, height, (rgb >> 16 & 255) / 255F, (rgb >> 8 & 255) / 255F,
+                (rgb & 255) / 255F, strength, selfGlow);
+    }
+
     /** {@code assets/<ns>/textures/entities/} - the flat sprite family. */
     public static final String ENTITY_PREFIX = "textures/entities/";
     /** {@code assets/<ns>/textures/resource/} - resource card and bank icons. */

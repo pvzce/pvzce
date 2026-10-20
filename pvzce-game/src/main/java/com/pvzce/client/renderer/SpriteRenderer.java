@@ -13,6 +13,7 @@ public final class SpriteRenderer {
     public static void textured(Sprite sprite, float x, float y, float width, float height, float z,
                                 float r, float g, float b, float a) {
         RenderSystem.setShadowMode(false);
+        RenderSystem.shader().lighting().uv(sprite.u0(), sprite.v0(), sprite.u1(), sprite.v1());
         RenderSystem.bindTexture(sprite.texture().glId());
         RenderSystem.setTextured(true);
         BufferBuilder builder = Tesselator.INSTANCE.begin();
@@ -35,6 +36,7 @@ public final class SpriteRenderer {
                                       float x, float y, float width, float height, float z,
                                       float r, float g, float b, float a) {
         RenderSystem.setShadowMode(false);
+        RenderSystem.shader().lighting().uv(u0, v0, u1, v1);
         RenderSystem.bindTexture(texture.glId());
         RenderSystem.setTextured(true);
         BufferBuilder builder = Tesselator.INSTANCE.begin();
@@ -73,6 +75,7 @@ public final class SpriteRenderer {
             return;
         }
 
+        RenderSystem.shader().lighting().uv(sprite.u0(), sprite.v0(), sprite.u1(), sprite.v1());
         RenderSystem.bindTexture(sprite.texture().glId());
         RenderSystem.setTextured(true);
         RenderSystem.setShadowColor(r, g, b, a);
@@ -119,6 +122,7 @@ public final class SpriteRenderer {
                                     float u2, float v2, float u3, float v3,
                                     float z, float r, float g, float b, float a) {
         RenderSystem.setShadowMode(false);
+        RenderSystem.shader().lighting().uv(u0, v0, u2, v2);
         RenderSystem.bindTexture(texture.glId());
         RenderSystem.setTextured(true);
         BufferBuilder builder = Tesselator.INSTANCE.begin();
@@ -149,6 +153,7 @@ public final class SpriteRenderer {
                                     float z, float r, float g, float b,
                                     float a0, float a1, float a2, float a3) {
         RenderSystem.setShadowMode(false);
+        RenderSystem.shader().lighting().uv(u0, v0, u2, v2);
         RenderSystem.bindTexture(texture.glId());
         RenderSystem.setTextured(true);
         BufferBuilder builder = Tesselator.INSTANCE.begin();

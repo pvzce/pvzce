@@ -1607,7 +1607,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     public void render() {
-        renderWorld();
+        try { renderWorld(); } finally { RenderSystem.post().finish(); }
         client.beginGuiView();
         // Under the HUD and over the board: the wash belongs to the level, and the panel and the
         // banner are messages about it.
@@ -1893,6 +1893,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         if (client.shadersEnabled()) {
             RenderSystem.shadows().render(camera, client.worldLightX(), client.worldLightY(),
                     client.level().width(), client.level().height(), this::renderShadowCasters);
+        }
+        if (client.shadersEnabled()) {
+            RenderSystem.post().begin(client.window().width(), client.window().height(),
+                    client.config().effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.BLOOM));
+            RenderSystem.lighting().begin(client);
         }
         // The original PvZ backing image is the stage: house on the left, a
         // 9x5 bare-dirt lawn in the middle, road on the right. The board is
@@ -2897,9 +2902,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     private void drawEntityArt(ClientEntity entity) {
         RenderSystem.shader().shadows().receiver(true, lightingBaseline(entity));
+        var emission = com.pvzce.common.core.EntityArt.emission(entity.defId(), entity.kind());
+        RenderSystem.shader().lighting().emission(emission == null ? 0F : emission.selfGlow());
         try {
             drawEntityArtContents(entity);
         } finally {
+            RenderSystem.shader().lighting().emission(0F);
             RenderSystem.shader().shadows().receiver(false, 0F);
         }
     }

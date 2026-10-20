@@ -14,6 +14,9 @@ public final class PlanternHalo {
     private PlanternHalo() {}
 
     public static void render(PvzceClient client, ClientEntity plant) {
+        // HDR worlds obtain the halo from the luminous core and bloom; twenty legacy
+        // shine layers would add an opaque-looking ring on top of the actual light field.
+        if (RenderSystem.lighting().active()) return;
         var texture = client.textures().getOrLoad(TEXTURE);
         float x = plant.visualCellX();
         float y = plant.visualCellY() + plant.visualHeight() + .05F;

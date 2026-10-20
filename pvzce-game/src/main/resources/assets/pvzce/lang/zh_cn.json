@@ -1217,6 +1217,8 @@
   "gui.pvzce.shop.category.tool": "庭院工具",
   "gui.pvzce.shop.category.cards": "卡组扩展",
   "gui.pvzce.shop.category.buff": "永久增益",
+  "pvzce.lighting.material_lighting": "材质起伏与接触阴影",
+  "pvzce.lighting.bloom": "发光泛光",
   "pvzce.lighting.title": "光影设置",
   "pvzce.lighting.enabled": "光影总开关",
   "pvzce.lighting.shadow_quality": "实时阴影",

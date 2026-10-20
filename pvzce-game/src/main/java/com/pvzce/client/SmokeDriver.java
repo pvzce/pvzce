@@ -111,6 +111,9 @@ final public class SmokeDriver {
      * <p>Runs in {@link #beforeFrame()}, so the page named for a frame is the page that frame's
      * buffer shows.
      */
+    /** In-place lighting A/B schedule; changes only the isolated smoke session, without saving. */
+    private final String smokeLighting = System.getProperty("pvzce.smokeLighting", "");
+    private final java.util.Set<Long> smokeLightingDone = new java.util.HashSet<>();
     private final String smokePages = System.getProperty("pvzce.smokePages", "");
     private final java.util.Set<Long> smokePagesDone = new java.util.HashSet<>();
 
@@ -797,6 +800,17 @@ final public class SmokeDriver {
                 }
             } catch (NumberFormatException e) {
                 System.err.println("[SMOKE] invalid command frame: " + item);
+            }
+        }
+        for (String item : smokeLighting.split(",")) {
+            String[] parts = item.trim().split(":", 2);
+            if (parts.length != 2) continue;
+            long frame = Long.parseLong(parts[0]);
+            if (!parts[1].equals("on") && !parts[1].equals("off"))
+                throw new IllegalArgumentException("smokeLighting expects frame:on/off: " + item);
+            if (clientTick == frame && smokeLightingDone.add(frame)) {
+                client.config().setShadersEnabled(parts[1].equals("on"));
+                System.out.println("[SMOKE] lighting frame " + frame + " -> " + parts[1]);
             }
         }
         applySmokeHold(clientTick);

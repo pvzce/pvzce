@@ -377,6 +377,7 @@ public final class SceneTileRenderer {
                     quad.x(), quad.y(), quad.width(), quad.height(), 0.05F, 1F, 1F, 1F, 1F);
         } else {
             drawUnderlay(client, sceneId, x, y, visibility);
+            material(sceneId);
             // Pre-6x6 elements stand above their underlay as alpha-cutout billboards.
             RenderSystem.shader().shadows().receiver(true, quad.y());
             try {
@@ -511,7 +512,7 @@ public final class SceneTileRenderer {
 
     /** Re-sample painted ground through its actual height instead of lighting the backdrop as a flat plane. */
     public static void renderBackdropLighting(PvzceClient client, PvzceCamera base, Identifier backdrop) {
-        if (!RenderSystem.shadows().active()) return;
+        if (!RenderSystem.shadows().active() && !RenderSystem.lighting().active()) return;
         var board = client.level().sceneBoard();
         var texture = client.textures().getOrLoad(backdrop);
         try {
@@ -522,6 +523,7 @@ public final class SceneTileRenderer {
                 float x = entry.x(), y = entry.y(), right = x + 1F;
                 float bl = y + profile.at(x, y), br = y + profile.at(right, y);
                 float tl = y + 1F + profile.at(x, y + 1F), tr = y + 1F + profile.at(right, y + 1F);
+                material(entry.baseId().toString());
                 RenderSystem.shader().shadows().surface(profile);
                 SpriteRenderer.texturedQuad(texture, x, bl, right, br, right, tr, x, tl,
                         (x - base.worldLeft()) / base.worldWidth(), (bl - base.worldBottom()) / base.worldHeight(),
@@ -634,7 +636,13 @@ public final class SceneTileRenderer {
      * clock that tints the lawn decides which crater art belongs on it. A board rendered
      * outside a running level (the editor's canvas) has no night in it and gets the day art.
      */
+    private static void material(String id) {
+        var element = com.pvzce.common.core.BuiltInRegistries.SCENE_ELEMENTS.get(Identifier.parse(id));
+        if (RenderSystem.shader() != null) RenderSystem.shader().lighting().material(element == null ? "" : element.surfaceClass());
+    }
+
     private static Identifier textureFor(PvzceClient client, String sceneId) {
+        material(sceneId);
         return EntityTextures.forScene(sceneId,
                 client != null && client.level().isNightAt(client.level().smoothDayTicks()));
     }

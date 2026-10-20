@@ -8,9 +8,31 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    public static final float LIGHT_DAY_AMBIENT = 0.26F;
+    public static final float LIGHT_DAY_DIRECT = 1.65F;
+    public static final float LIGHT_NIGHT_AMBIENT = 0.24F;
+    public static final float LIGHT_NIGHT_DIRECT = 0.32F;
+    public static final float LIGHT_LOCAL_DAY_GAIN = 0.8F;
+    public static final float LIGHT_LOCAL_NIGHT_GAIN = 3.5F;
+    public static final float LIGHT_CONTACT_STRENGTH = 0.46F;
+    public static final int LIGHT_MAX_CONTACTS = 64;
+    public static final float LIGHT_BLOOM_THRESHOLD = 1.1F;
+    public static final float LIGHT_BLOOM_STRENGTH = 0.20F;
+    public static final float LIGHT_EXPOSURE = 1F;
+    public static final float LIGHT_SUN_RADIUS = 2.2F;
+    public static final float LIGHT_FIRE_RADIUS = 2.6F;
+    public static final float LIGHT_FIRE_PEA_RADIUS = 1.6F;
+    public static final float LIGHT_SUN_HEIGHT = 0.4F, LIGHT_SUN_STRENGTH = 1F, LIGHT_SUN_EMISSION = 2.5F;
+    public static final int LIGHT_SUN_COLOR = 0xFFC73D;
+    public static final float LIGHT_FIRE_HEIGHT = 0.8F, LIGHT_FIRE_STRENGTH = 1.6F, LIGHT_FIRE_EMISSION = 0.8F;
+    public static final int LIGHT_FIRE_COLOR = 0xFF6114;
+    public static final float LIGHT_FIRE_PEA_HEIGHT = 0.15F, LIGHT_FIRE_PEA_STRENGTH = 1.2F, LIGHT_FIRE_PEA_EMISSION = 3F;
+    public static final int LIGHT_FIRE_PEA_COLOR = 0xFF590F;
+    public static final float LIGHT_LAMP_HEIGHT = 0.65F, LIGHT_LAMP_STRENGTH = 2F, LIGHT_LAMP_EMISSION = 3F;
+    public static final int LIGHT_LAMP_COLOR = 0xFFC74D;
     public static final float SHADOW_MAP_MARGIN = 3F;
-    public static final float SHADOW_SUN_DEPTH = 0.65F;
-    public static final float SHADOW_SUN_ELEVATION_FACTOR = 0.55F;
+    public static final float SHADOW_SUN_DEPTH = 1.25F;
+    public static final float SHADOW_SUN_ELEVATION_FACTOR = 0.35F;
     public static final int SHADOW_MAP_LOW_SIZE = 512;
     public static final int SHADOW_MAP_SIZE = 1024;
     public static final int SHADOW_MAP_HIGH_SIZE = 2048;

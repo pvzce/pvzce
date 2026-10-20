@@ -138,7 +138,8 @@ public final class LiquidShader implements Closeable {
             #version 150 core
             """ + com.pvzce.client.renderer.ShaderProgram.TERRAIN_BLEND_GLSL
                     + com.pvzce.client.renderer.WorldShadows.GLSL
-                    + com.pvzce.client.renderer.WorldShadows.FILTER_GLSL + """
+                    + com.pvzce.client.renderer.WorldShadows.FILTER_GLSL
+                    + com.pvzce.client.renderer.WorldLighting.GLSL + """
             const int MAX_RIPPLES = 16;
             uniform sampler2D uTexture;
             uniform int uHasTexture;
@@ -543,14 +544,20 @@ public final class LiquidShader implements Closeable {
                 /* The same tint maths the sprite shader applies, so water does not
                    drift away from the rest of the board at dusk. */
                 vec3 albedo = col;
+                if (uMaterialLighting == 1) {
+                    vec3 waterNormal = normalize(vec3(rippleNormal * 0.25 + waveTilt * vec2(0.15, 0.15), 1.0));
+                    col = materialLighting(pow(max(col, vec3(0.0)), vec3(2.2)), vec3(vWorld, 0.0), waterNormal, 0.18);
+                } else {
                 col = col * uTint * directExposure(vec3(vWorld, 0.0)) + vec3(uTintLift);
                 col += pointContribution(vec3(vWorld, 0.0), albedo);
                 col = mix(col, col * vec3(0.72, 0.80, 1.06), clamp(uNight, 0.0, 1.0) * 0.45);
+                }
                 fragColor = vec4(col, alpha * terrainCoverage(vWorld));
             }
             """);
 
     private final int id;
+    private final com.pvzce.client.renderer.WorldLighting.Uniforms lighting;
     private final com.pvzce.client.renderer.WorldShadows.Uniforms shadows;
     private final int lawnBoundsLocation;
     private final int lawnFeatherLocation;
@@ -608,6 +615,7 @@ public final class LiquidShader implements Closeable {
         GL20.glDeleteShader(vertex);
         GL20.glDeleteShader(fragment);
 
+        lighting = new com.pvzce.client.renderer.WorldLighting.Uniforms(id);
         shadows = new com.pvzce.client.renderer.WorldShadows.Uniforms(id);
         projectionLocation = uniform("uProj");
         lawnBoundsLocation = uniform("uLawnBounds");
@@ -733,6 +741,7 @@ public final class LiquidShader implements Closeable {
                             float lightX, float lightY, float lightR, float lightG, float lightB,
                             float lightStrength) {
         com.pvzce.client.renderer.RenderSystem.shadows().upload(shadows);
+        com.pvzce.client.renderer.RenderSystem.lighting().upload(lighting);
         GL20.glUniform3f(tintLocation, tintR, tintG, tintB);
         GL20.glUniform1f(tintLiftLocation, tintLift);
         GL20.glUniform1f(nightLocation, night);
