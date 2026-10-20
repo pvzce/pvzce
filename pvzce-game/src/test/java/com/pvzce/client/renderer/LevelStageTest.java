@@ -11,13 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Geometry contract for fitting level boards into the original 1400x600 stages. */
 class LevelStageTest {
     @Test
-    void finishedLawnBorderKeepsCustomGridAndOuterCellsClickable() {
+    void yardBordersKeepCustomGridAndOuterCellsClickable() {
         Identifier backdrop = Identifier.parse("pvzce:textures/gui/screen/level/background1");
-        assertTrue(LevelStage.blendsLawnEdges(backdrop));
-        assertFalse(LevelStage.blendsLawnEdges(LevelStage.BACKGROUND_TEXTURE));
-        assertFalse(LevelStage.blendsLawnEdges(Identifier.parse("pvzce:textures/gui/screen/level/background3")));
-        assertFalse(LevelStage.blendsLawnEdges(Identifier.parse("example:textures/gui/screen/level/background1")));
-        assertFalse(LevelStage.blendsLawnEdges(null));
+        assertTrue(LevelStage.blendsTerrainEdges(backdrop));
+        assertTrue(LevelStage.blendsTerrainEdges(LevelStage.BACKGROUND_TEXTURE));
+        assertFalse(LevelStage.blendsTerrainEdges(Identifier.parse("pvzce:textures/gui/screen/level/background3")));
+        assertFalse(LevelStage.blendsTerrainEdges(Identifier.parse("example:textures/gui/screen/level/background1")));
+        assertTrue(LevelStage.blendsTerrainEdges(null), "the chooser draws the bare-soil backdrop when none is declared");
 
         var camera = new PvzceCamera(1920, 1080, 11, 6, LevelStage.geometryFor(backdrop), 0F);
         var original = new PvzceCamera(1920, 1080, 11, 6);

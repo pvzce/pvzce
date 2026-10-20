@@ -76,8 +76,9 @@ public final class PvzceConstants {
     public static final float COMBAT_BODY_HEIGHT = 0.9F;
     public static final float POOL_SURFACE_ORIGIN_Y = 0.2235294F;
     public static final float POOL_SURFACE_CELL_HEIGHT = 0.8117647F;
-    /** Narrow grass-to-grass join; the backdrop supplies the lawn's outer silhouette. */
+    /** Terrain joins the backdrop inside this many cells; simulation geometry is unchanged. */
     public static final float LAWN_EDGE_BLEND_CELLS = 0.35F;
+    public static final float TERRAIN_SIDE_TINT = 0.65F;
     public static final int UMBRELLA_BLOCK_TICKS = 45;
     public static final int LADDER_PLACE_TICKS = 100;
     /**

@@ -20,9 +20,9 @@ public final class LevelStage {
     private static final Identifier FINISHED_LAWN_TEXTURE =
             Identifier.withDefaultNamespace("textures/gui/screen/level/background1");
 
-    /** This backdrop already supplies the grass blades and shadow along the yard's rim. */
-    public static boolean blendsLawnEdges(Identifier background) {
-        return FINISHED_LAWN_TEXTURE.equals(background);
+    /** Known yard backdrops supply either the lawn fringe or bare soil at the terrain's rim. */
+    public static boolean blendsTerrainEdges(Identifier background) {
+        return background == null || FINISHED_LAWN_TEXTURE.equals(background) || BACKGROUND_TEXTURE.equals(background);
     }
 
     public static final float IMAGE_WIDTH = 1400F;

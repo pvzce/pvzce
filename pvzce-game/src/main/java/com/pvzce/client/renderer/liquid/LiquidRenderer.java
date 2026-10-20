@@ -130,6 +130,7 @@ public final class LiquidRenderer {
     private static void drawLiquid(PvzceClient client, Request request, List<LiquidCell> cells,
                                    LiquidRipples ripples, LiquidBatch.Elevation elevation) {
         shader.setProjection(request.projection());
+        shader.setTerrainBlend(com.pvzce.client.renderer.RenderSystem.shader().terrainBlend());
         Identifier texture = request.liquid().resolvedBaseTexture();
         boolean hasTexture = safeHasTexture(client, texture);
         if (hasTexture) {

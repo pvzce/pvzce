@@ -94,41 +94,39 @@ public final class SceneTileRenderer {
         render(client, width, height, scene, xScale, grassMargin, shifts, visibility, liquidFrame, false);
     }
 
-    /** The finished-lawn backdrop can supply the irregular border beneath visible grass. */
+    /** Known yard backdrops supply the fringe beneath every visible terrain material. */
     public static void render(PvzceClient client, int width, int height, SceneSource scene,
                               float xScale, float grassMargin, SceneShiftSource shifts,
-                              SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame, boolean blendLawn) {
-        float scaleX = Math.max(0.0001F, xScale);
-        float margin = blendLawn ? 0F : Math.max(0F, grassMargin);
+                              SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame, boolean blendTerrain) {
+        float margin = blendTerrain ? 0F : Math.max(0F, grassMargin);
         if (margin > 0F) {
             renderGrassMargin(client, width, height, margin);
         }
-        Map<String, List<Cell>> layers = collectLayers(width, height, scene, shifts, visibility);
+        if (blendTerrain) RenderSystem.shader().setLawnBlend(0F, 0F, width, height, 1F, 1F);
+        try {
+            Map<String, List<Cell>> layers = collectLayers(width, height, scene, shifts, visibility);
 
-        int blocksX = MathUtil.ceilDiv(Math.max(1, width), TILE_CELLS);
-        int blocksY = MathUtil.ceilDiv(Math.max(1, height), TILE_CELLS);
+            int blocksX = MathUtil.ceilDiv(Math.max(1, width), TILE_CELLS);
+            int blocksY = MathUtil.ceilDiv(Math.max(1, height), TILE_CELLS);
 
-        for (Map.Entry<String, List<Cell>> layer : layers.entrySet()) {
-            String sceneId = layer.getKey();
-            // A liquid layer is not drawn tile by tile at all: it is one batched
-            // pass that needs the whole body at once, so it is pulled out here and
-            // drawn in the layer's own position. See renderLiquidLayer.
-            if (renderLiquidLayer(client, sceneId, scene, width, height, liquidFrame)) {
-                continue;
-            }
-            boolean tiled = isTiled(sceneId);
-            Identifier texture = textureFor(client, sceneId);
+            for (Map.Entry<String, List<Cell>> layer : layers.entrySet()) {
+                String sceneId = layer.getKey();
+                // A liquid layer is not drawn tile by tile at all: it is one batched
+                // pass that needs the whole body at once, so it is pulled out here and
+                // drawn in the layer's own position. See renderLiquidLayer.
+                if (renderLiquidLayer(client, sceneId, scene, width, height, liquidFrame)) {
+                    continue;
+                }
+                boolean tiled = isTiled(sceneId);
+                Identifier texture = textureFor(client, sceneId);
 
-            Map<Integer, List<Cell>> cellsByBlock = new LinkedHashMap<>();
-            for (Cell cell : layer.getValue()) {
-                int blockX = Math.floorDiv(cell.x(), TILE_CELLS);
-                int blockY = Math.floorDiv(cell.y(), TILE_CELLS);
-                cellsByBlock.computeIfAbsent(blockY * blocksX + blockX, ignored -> new ArrayList<>()).add(cell);
-            }
+                Map<Integer, List<Cell>> cellsByBlock = new LinkedHashMap<>();
+                for (Cell cell : layer.getValue()) {
+                    int blockX = Math.floorDiv(cell.x(), TILE_CELLS);
+                    int blockY = Math.floorDiv(cell.y(), TILE_CELLS);
+                    cellsByBlock.computeIfAbsent(blockY * blocksX + blockX, ignored -> new ArrayList<>()).add(cell);
+                }
 
-            boolean blendGrass = blendLawn && com.pvzce.common.PvzceIds.GRASS.toString().equals(sceneId);
-            if (blendGrass) RenderSystem.shader().setLawnBlend(0F, 0F, width, height, 1F, 1F);
-            try {
                 for (int blockY = 0; blockY < blocksY; blockY++) {
                     for (int blockX = 0; blockX < blocksX; blockX++) {
                         int visible = blockVisibleCells(width, height, blockX, blockY);
@@ -153,11 +151,11 @@ public final class SceneTileRenderer {
                         }
                     }
                 }
-            } finally {
-                if (blendGrass) RenderSystem.shader().clearLawnBlend();
             }
+            drawShiftedCells(client, width, height, scene, shifts);
+        } finally {
+            if (blendTerrain) RenderSystem.shader().clearLawnBlend();
         }
-        drawShiftedCells(client, width, height, scene, shifts);
     }
 
     /**
@@ -261,47 +259,46 @@ public final class SceneTileRenderer {
                 visibility, liquidFrame, false);
     }
 
-    /** Preview counterpart of the world grass-to-backdrop join, in GUI pixels. */
+    /** Preview counterpart of the world terrain-to-backdrop join, in GUI pixels. */
     public static void renderBoard(PvzceClient client, int width, int height, SceneSource scene,
                                    float originX, float originY, float cellWidth, float cellHeight,
-                                   SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame, boolean blendLawn) {
-        // Water goes under standing objects, including in the seed chooser/editor.
-        java.util.Set<String> liquids = new java.util.LinkedHashSet<>();
-        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
-            String id = LiquidTextures.liquidSceneId(scene.sceneAt(x, y));
-            if (id != null && !visibility.hides(id)) liquids.add(id);
-        }
-        for (String id : liquids) LiquidTextures.renderGuiBoard(client,
-                LiquidTextures.liquidFor(id).orElseThrow(), id, width, height, scene,
-                originX, originY, cellWidth, cellHeight, RenderSystem.currentProjection(), liquidFrame);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                String sceneId = scene.sceneAt(x, y);
-                if (sceneId == null || visibility.hides(sceneId)) {
-                    continue;
-                }
-                if (isLiquid(sceneId)) {
-                    continue;
-                }
-                Identifier texture = textureFor(client, sceneId);
-                // The same size and underlay rules as the in-game board: a crater is a decal
-                // here too, and a preview that squashed one into its cell would be showing a
-                // board the player never gets.
-                float[] art = EntityTextures.sceneSize(sceneId);
-                float drawW = art[0] * cellWidth;
-                float drawH = art[1] * cellHeight;
-                float drawX = originX + (x + 0.5F) * cellWidth - drawW / 2F;
-                float drawY = originY + (y + 0.5F) * cellHeight - drawH / 2F;
-                Identifier underlay = EntityTextures.sceneUnderlay(sceneId);
-                if (underlay != null && !isLiquid(underlay.toString()) && !visibility.hides(underlay.toString())) {
-                    client.drawTexture(textureFor(client, underlay.toString()),
-                            originX + x * cellWidth, originY + y * cellHeight,
-                            cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
-                }
-                boolean blendGrass = blendLawn && com.pvzce.common.PvzceIds.GRASS.toString().equals(sceneId);
-                if (blendGrass) RenderSystem.shader().setLawnBlend(originX, originY,
-                        width * cellWidth, height * cellHeight, cellWidth, cellHeight);
-                try {
+                                   SceneVisibility visibility, LevelStage.LiquidFrame liquidFrame, boolean blendTerrain) {
+        if (blendTerrain) RenderSystem.shader().setLawnBlend(originX, originY,
+                width * cellWidth, height * cellHeight, cellWidth, cellHeight);
+        try {
+            // Water goes under standing objects, including in the seed chooser/editor.
+            java.util.Set<String> liquids = new java.util.LinkedHashSet<>();
+            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
+                String id = LiquidTextures.liquidSceneId(scene.sceneAt(x, y));
+                if (id != null && !visibility.hides(id)) liquids.add(id);
+            }
+            for (String id : liquids) LiquidTextures.renderGuiBoard(client,
+                    LiquidTextures.liquidFor(id).orElseThrow(), id, width, height, scene,
+                    originX, originY, cellWidth, cellHeight, RenderSystem.currentProjection(), liquidFrame);
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    String sceneId = scene.sceneAt(x, y);
+                    if (sceneId == null || visibility.hides(sceneId)) {
+                        continue;
+                    }
+                    if (isLiquid(sceneId)) {
+                        continue;
+                    }
+                    Identifier texture = textureFor(client, sceneId);
+                    // The same size and underlay rules as the in-game board: a crater is a decal
+                    // here too, and a preview that squashed one into its cell would be showing a
+                    // board the player never gets.
+                    float[] art = EntityTextures.sceneSize(sceneId);
+                    float drawW = art[0] * cellWidth;
+                    float drawH = art[1] * cellHeight;
+                    float drawX = originX + (x + 0.5F) * cellWidth - drawW / 2F;
+                    float drawY = originY + (y + 0.5F) * cellHeight - drawH / 2F;
+                    Identifier underlay = EntityTextures.sceneUnderlay(sceneId);
+                    if (underlay != null && !isLiquid(underlay.toString()) && !visibility.hides(underlay.toString())) {
+                        client.drawTexture(textureFor(client, underlay.toString()),
+                                originX + x * cellWidth, originY + y * cellHeight,
+                                cellWidth, cellHeight, 0F, 1F, 1F, 1F, 1F);
+                    }
                     if (isTiled(sceneId)) {
                         // Same cell-filling rule as the in-game board, so the chooser's
                         // preview and the real lawn cannot disagree.
@@ -314,10 +311,10 @@ public final class SceneTileRenderer {
                     } else {
                         client.drawTexture(texture, drawX, drawY, drawW, drawH, 0F, 1F, 1F, 1F, 1F);
                     }
-                } finally {
-                    if (blendGrass) RenderSystem.shader().clearLawnBlend();
                 }
             }
+        } finally {
+            if (blendTerrain) RenderSystem.shader().clearLawnBlend();
         }
     }
 
@@ -494,11 +491,47 @@ public final class SceneTileRenderer {
             String id = cell.element().toString();
             var element = board.get(surface, entry.x(), entry.y());
             if (element == null || element.isLiquid() || client.level().sceneVisibility().hides(id)) continue;
+            // A profile moves the top, but its exposed front still needs material.
+            // Sparse decks use their own thickness, leaving the space beneath open.
+            if (!client.level().sceneVisibility().hides(cell.base().toString())) {
+                SurfaceFace face = frontFace(board, surface, entry.x(), entry.y());
+                if (face != null) drawFrontFace(client, face, entry.x(), entry.y(), alpha);
+            }
             if (cell.overlay() != null && !client.level().sceneVisibility().hides(cell.base().toString()))
                 drawSurfaceCell(client, surface, cell, cell.base().toString(), entry.x(), entry.y(), alpha, 0F);
             var shift = ground ? client.level().sceneShifts().at(entry.x(), entry.y()) : null;
             drawSurfaceCell(client, surface, cell, id, entry.x(), entry.y(), alpha, shift == null ? 0F : shift.sink());
         }
+    }
+
+    public record SurfaceFace(float bottomLeft, float bottomRight, float topLeft, float topRight) {}
+
+    /** Visible front edge in projected world Y; neighbouring tops do not acquire artificial seams. */
+    public static SurfaceFace frontFace(SceneBoard board, String surface, int x, int y) {
+        var cell = board.cell(surface, x, y);
+        var south = board.cell(surface, x, y - 1);
+        float left = y + cell.profile().at(x, y), right = y + cell.profile().at(x + 1F, y);
+        boolean ground = SceneBoard.DEFAULT_SURFACE.equals(surface);
+        float bottomLeft = south != null ? y + south.profile().at(x, y)
+                : ground ? y : left - cell.thickness();
+        float bottomRight = south != null ? y + south.profile().at(x + 1F, y)
+                : ground ? y : right - cell.thickness();
+        bottomLeft = Math.min(left, bottomLeft);
+        bottomRight = Math.min(right, bottomRight);
+        return left > bottomLeft || right > bottomRight
+                ? new SurfaceFace(bottomLeft, bottomRight, left, right) : null;
+    }
+
+    private static void drawFrontFace(PvzceClient client, SurfaceFace face, int x, int y, float alpha) {
+        Identifier texture = textureFor(client, com.pvzce.common.PvzceIds.GROUND.toString());
+        var sprite = client.textures().getOrLoad(texture);
+        float w = sprite.width() / (float) TILE_CELLS, h = sprite.height() / (float) TILE_CELLS;
+        float u = Math.floorMod(x, TILE_CELLS) * w, v = Math.floorMod(y, TILE_CELLS) * h;
+        float shade = com.pvzce.common.PvzceConstants.TERRAIN_SIDE_TINT;
+        client.drawTextureQuad(texture, x, face.bottomLeft(), x + 1F, face.bottomRight(),
+                x + 1F, face.topRight(), x, face.topLeft(),
+                u, v + h, u + w, v + h, u + w, v, u, v,
+                0.04F, shade, shade, shade, alpha);
     }
 
     private static void drawSurfaceCell(PvzceClient client, String surface,

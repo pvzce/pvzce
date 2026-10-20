@@ -1472,7 +1472,7 @@ public final class ChooseSeedsScreen extends Screen {
             // leaving the backdrop's own empty basin showing.
             SceneTileRenderer.renderBoard(client, levelWidth, levelHeight, this::sceneAt,
                     boardX, board.y(), board.cellWidth(), board.cellHeight(), sceneVisibility,
-                    LevelStage.geometryFor(background).liquid(), LevelStage.blendsLawnEdges(background)
+                    LevelStage.geometryFor(background).liquid(), LevelStage.blendsTerrainEdges(background)
                             && !sceneVisibility.hides(com.pvzce.common.PvzceIds.GRASS.toString()));
         } finally {
             client.clipping().pop();

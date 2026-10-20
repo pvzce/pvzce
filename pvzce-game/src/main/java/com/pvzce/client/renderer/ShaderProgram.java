@@ -11,6 +11,26 @@ import java.io.Closeable;
 public final class ShaderProgram implements Closeable {
     public static final int MAX_POINT_LIGHTS = 8;
 
+    /** Shared by terrain sprites, animated water and baked water frames. */
+    public static final String TERRAIN_BLEND_GLSL = """
+            uniform vec4 uLawnBounds;
+            uniform vec2 uLawnFeather;
+            float terrainCoverage(vec2 position) {
+                if (uLawnFeather.x <= 0.0) return 1.0;
+                vec2 edge = min(position - uLawnBounds.xy, uLawnBounds.zw - position);
+                vec2 coverage = smoothstep(vec2(0.0), uLawnFeather, edge);
+                return coverage.x * coverage.y;
+            }
+            """;
+
+    public record TerrainBlend(float left, float bottom, float right, float top,
+                               float featherX, float featherY) {
+        public static final TerrainBlend NONE = new TerrainBlend(0F, 0F, 0F, 0F, 0F, 0F);
+    }
+
+    private TerrainBlend terrainBlend = TerrainBlend.NONE;
+    public TerrainBlend terrainBlend() { return terrainBlend; }
+
     public static final String VERTEX = """
             #version 150 core
             in vec3 aPos;
@@ -47,8 +67,7 @@ public final class ShaderProgram implements Closeable {
             uniform int uTextEffect;              // 0 = none, 1 = drop shadow, 2 = outline
             uniform vec2 uTextOffset;             // shadow offset / outline thickness, in uv
             uniform vec3 uTextEffectColor;
-            uniform vec4 uLawnBounds;             // board min/max in the current drawing space
-            uniform vec2 uLawnFeather;            // zero = ordinary sprite
+            """ + TERRAIN_BLEND_GLSL + """
             in vec4 vColor;
             in vec2 vUV;
             in vec2 vWorld;
@@ -100,13 +119,7 @@ public final class ShaderProgram implements Closeable {
                     return;
                 }
                 vec4 base = uTextured == 1 ? tex * vColor : vColor;
-                if (uLawnFeather.x > 0.0) {
-                    // Only the grass pass enables this. The finished backdrop under it
-                    // keeps its hand-painted outline; terrain and actors stay opaque.
-                    vec2 edge = min(vWorld - uLawnBounds.xy, uLawnBounds.zw - vWorld);
-                    vec2 coverage = smoothstep(vec2(0.0), uLawnFeather, edge);
-                    base.a *= coverage.x * coverage.y;
-                }
+                base.a *= terrainCoverage(vWorld);
                 vec3 rgb = base.rgb * uTint.rgb + vec3(uTint.a);
                 if (uSunStrength > 0.001 && uSunRadius > 0.001) {
                     float d = distance(vWorld, uSunCenter);
@@ -203,14 +216,16 @@ public final class ShaderProgram implements Closeable {
         GL20.glUniform1i(texturedLocation, textured ? 1 : 0);
     }
 
-    /** Feather a grass pass onto a finished lawn, in world cells or preview GUI pixels. */
+    /** Feather terrain onto its backdrop, in world cells or preview GUI pixels. */
     public void setLawnBlend(float x, float y, float width, float height, float cellWidth, float cellHeight) {
         float feather = com.pvzce.common.PvzceConstants.LAWN_EDGE_BLEND_CELLS;
+        terrainBlend = new TerrainBlend(x, y, x + width, y + height, feather * cellWidth, feather * cellHeight);
         GL20.glUniform4f(lawnBoundsLocation, x, y, x + width, y + height);
         GL20.glUniform2f(lawnFeatherLocation, feather * cellWidth, feather * cellHeight);
     }
 
     public void clearLawnBlend() {
+        terrainBlend = TerrainBlend.NONE;
         GL20.glUniform2f(lawnFeatherLocation, 0F, 0F);
     }
 

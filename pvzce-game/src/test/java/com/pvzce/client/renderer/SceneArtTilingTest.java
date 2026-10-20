@@ -8,6 +8,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,5 +50,28 @@ class SceneArtTilingTest {
         assertTrue(EntityTextures.sceneTiled("pvzce:ground"), "as is the bare ground");
         assertFalse(EntityTextures.sceneTiled("pvzce:crater"), "nothing else is");
         assertFalse(EntityTextures.sceneTiled("pvzce:not_a_real_element"), "and nothing unknown is");
+    }
+
+    @Test
+    void raisedYardFrontClosesToSoilWithoutSeamsBetweenRows() {
+        var board = com.pvzce.common.level.SceneBoard.forLevel(BuiltInRegistries.LEVELS.get(
+                Identifier.withDefaultNamespace("yard/minigame/terraced_hillside")));
+        String ground = com.pvzce.common.level.SceneBoard.DEFAULT_SURFACE;
+        var terrace = SceneTileRenderer.frontFace(board, ground, 8, 0);
+        assertEquals(0F, terrace.bottomLeft());
+        assertEquals(0.8F, terrace.topLeft());
+        var ramp = SceneTileRenderer.frontFace(board, ground, 3, 0);
+        assertEquals(0F, ramp.topLeft(), 0.0001F);
+        assertEquals(0.4F, ramp.topRight(), 0.0001F);
+        assertNull(SceneTileRenderer.frontFace(board, ground, 8, 1));
+    }
+
+    @Test
+    void sparseBridgeFrontUsesThicknessAndLeavesTheUnderpassOpen() {
+        var board = com.pvzce.common.level.SceneBoard.forLevel(BuiltInRegistries.LEVELS.get(
+                Identifier.withDefaultNamespace("yard/minigame/tidal_outpost")));
+        var face = SceneTileRenderer.frontFace(board, "pvzce:tidal_outpost_bridge", 8, 2);
+        assertEquals(3.4F, face.topLeft(), 0.0001F);
+        assertEquals(3.25F, face.bottomLeft(), 0.0001F);
     }
 }

@@ -15,6 +15,7 @@ import com.pvzce.client.gui.components.DialogueOverlay;
 import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
 import com.pvzce.client.input.ScrollRegion;
+import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.client.renderer.ClientPlacement;
 import com.pvzce.client.renderer.EntityVisuals;
 import com.pvzce.client.renderer.LevelStage;
@@ -1901,16 +1902,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 base.worldLeft(), base.worldBottom(),
                 base.worldWidth(), base.worldHeight(),
                 -1F, 1F, 1F, 1F, 1F);
-        // The finished backdrop keeps its own irregular grass fringe. Visible grass
-        // joins it inside the board, so no rectangular grass margin may cover that art.
-        boolean blendLawn = LevelStage.blendsLawnEdges(backdropTexture())
+        // Known yard scenery supplies the outer fringe or bare soil. Every visible
+        // terrain material joins it without a rectangular grass ring.
+        boolean blendTerrain = LevelStage.blendsTerrainEdges(backdropTexture())
                 && !client.level().hidesSceneElement(PvzceIds.GRASS.toString());
         float boardLeft = camera.screenX(0F);
         float boardBottom = camera.screenY(0F);
         float boardRight = camera.screenX(client.level().width());
         float boardTop = camera.screenY(client.level().height());
-        float marginX = (blendLawn ? 0F : GRASS_VISUAL_MARGIN_CELLS) * camera.unitX();
-        float marginY = (blendLawn ? 0F : GRASS_VISUAL_MARGIN_CELLS) * camera.unitY();
+        float marginX = (blendTerrain ? 0F : GRASS_VISUAL_MARGIN_CELLS) * camera.unitX();
+        float marginY = (blendTerrain ? 0F : GRASS_VISUAL_MARGIN_CELLS) * camera.unitY();
         // World-space pixels: pushed through the same stack so a nested clip and a
         // stray exception cannot leak GL_SCISSOR_TEST into the next frame.
         client.clipping().pushPixels(
@@ -1944,7 +1945,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     // elements it hides are not painted - see SceneVisibility.
                     client.level().sceneVisibility(),
                     // Where this stage's water surface goes; see LevelStage.POOL.
-                    camera.liquidFrame(), blendLawn);
+                    camera.liquidFrame(), blendTerrain);
         } finally {
             client.clipping().pop();
         }
@@ -2022,7 +2023,23 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         renderEntities.sort(Comparator.comparingLong(entry -> renderOrder(entry.entity(), entry.shellBack())));
         for (String surface : client.level().sceneBoard().surfacesBottomFirst()) {
-            SceneTileRenderer.renderSurface(client, surface);
+            // Raised tiles share the yard's scenery boundary. Only terrain is clipped:
+            // occupants and effects can still extend above the rear fence as usual.
+            if (blendTerrain) {
+                client.clipping().pushPixels((int) Math.floor(Math.min(boardLeft, boardRight)),
+                        (int) Math.floor(Math.min(boardBottom, boardTop)),
+                        Math.max(1, (int) Math.ceil(Math.abs(boardRight - boardLeft))),
+                        Math.max(1, (int) Math.ceil(Math.abs(boardTop - boardBottom))));
+                RenderSystem.shader().setLawnBlend(0F, 0F, client.level().width(), client.level().height(), 1F, 1F);
+            }
+            try {
+                SceneTileRenderer.renderSurface(client, surface);
+            } finally {
+                if (blendTerrain) {
+                    RenderSystem.shader().clearLawnBlend();
+                    client.clipping().pop();
+                }
+            }
             renderRisingZombies(camera, surface);
             echoLilyLinks.renderWorld(client, surface);
             for (DrawEntry entry : renderEntities) {

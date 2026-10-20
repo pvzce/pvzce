@@ -136,6 +136,7 @@ public final class LiquidShader implements Closeable {
     
     public static final String FRAGMENT = glsl("""
             #version 150 core
+            """ + com.pvzce.client.renderer.ShaderProgram.TERRAIN_BLEND_GLSL + """
             const int MAX_RIPPLES = 16;
             uniform sampler2D uTexture;
             uniform int uHasTexture;
@@ -541,11 +542,13 @@ public final class LiquidShader implements Closeable {
                    drift away from the rest of the board at dusk. */
                 col = col * uTint + vec3(uTintLift);
                 col = mix(col, col * vec3(0.72, 0.80, 1.06), clamp(uNight, 0.0, 1.0) * 0.45);
-                fragColor = vec4(col, alpha);
+                fragColor = vec4(col, alpha * terrainCoverage(vWorld));
             }
             """);
 
     private final int id;
+    private final int lawnBoundsLocation;
+    private final int lawnFeatherLocation;
     private final int projectionLocation;
     private final int textureLocation;
     private final int hasTextureLocation;
@@ -601,6 +604,8 @@ public final class LiquidShader implements Closeable {
         GL20.glDeleteShader(fragment);
 
         projectionLocation = uniform("uProj");
+        lawnBoundsLocation = uniform("uLawnBounds");
+        lawnFeatherLocation = uniform("uLawnFeather");
         textureLocation = uniform("uTexture");
         hasTextureLocation = uniform("uHasTexture");
         causticTextureLocation = uniform("uCausticTexture");
@@ -647,6 +652,11 @@ public final class LiquidShader implements Closeable {
 
     public void setProjection(com.pvzce.client.renderer.Matrix4f matrix) {
         GL20.glUniformMatrix4fv(projectionLocation, false, matrix.toBuffer());
+    }
+
+    public void setTerrainBlend(com.pvzce.client.renderer.ShaderProgram.TerrainBlend blend) {
+        GL20.glUniform4f(lawnBoundsLocation, blend.left(), blend.bottom(), blend.right(), blend.top());
+        GL20.glUniform2f(lawnFeatherLocation, blend.featherX(), blend.featherY());
     }
 
     public void setTexture(int textureId, boolean hasTexture) {
