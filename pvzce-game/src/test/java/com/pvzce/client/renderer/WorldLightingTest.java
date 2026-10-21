@@ -54,7 +54,117 @@ class WorldLightingTest {
     }
     private static float luminance(float[] rgb) { return rgb[0]*0.2126F + rgb[1]*0.7152F + rgb[2]*0.0722F; }
 
-    @Test void defaultsPreserveDayColorsAndKeepMoonlitEntitiesReadable() {
+    private float[] materialImage(PvzceClientConfig config, com.pvzce.client.renderer.texture.Texture texture,
+                                  int material, boolean entity, boolean relief, float specular, float direct,
+                                  int pointColor, int orientation, String capture) throws Exception {
+        var camera = new PvzceCamera(SIZE, SIZE, 9, 5);
+        RenderSystem.setShader();
+        RenderSystem.setGuiShader();
+        RenderSystem.shadows().reset();
+        RenderSystem.shadows().configure(config);
+        if (pointColor != 0) {
+            RenderSystem.shadows().pointLight(0, 0.5F, 0.25F, 3F,
+                    ((pointColor >> 16)&255)/255F, ((pointColor >> 8)&255)/255F, (pointColor&255)/255F, 1F);
+            RenderSystem.shadows().pointHeight(0, 0.25F, 2F);
+        }
+        RenderSystem.shadows().render(camera, 4.5F, 10.5F, 9, 5, () -> {});
+        RenderSystem.viewport(0, 0, SIZE, SIZE);
+        RenderSystem.setProjectionMatrix(Matrix4f.ortho(0, 1, 0, 1, -10, 10));
+        RenderSystem.post().begin(SIZE, SIZE, config, camera, 0);
+        flag("uMaterialLighting", 1);
+        flag("uMaterialTexture", 0);
+        flag("uRelief", relief ? 1 : 0);
+        flag("uMaterial", material);
+        flag("uContactCount", 0);
+        uniform("uSceneNight", 0);
+        RenderSystem.shader().lighting().celestial(TimeOfDayLighting.celestial(4.5F, 10.5F, 9, 5, 0), true);
+        uniform("uCelestialStrength", direct);
+        uniform("uSpecularStrength", specular);
+        RenderSystem.shader().shadows().receiver(entity, 0);
+        if (texture == null) {
+            RenderSystem.shader().lighting().uv(0, 0, 1, 1);
+            SpriteRenderer.solid(0, 0, 1, 1, 0, 0.5F, 0.5F, 0.5F, 1);
+        } else if (orientation == 1) {
+            SpriteRenderer.texturedQuad(texture, 1, 0, 1, 1, 0, 1, 0, 0,
+                    0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1);
+        } else if (orientation == 2) {
+            SpriteRenderer.texturedRegion(texture, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1);
+        } else {
+            SpriteRenderer.texturedRegion(texture, 0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1);
+        }
+        RenderSystem.post().finish();
+        assertEquals(GL11.GL_NO_ERROR, GL11.glGetError());
+        String folder = System.getProperty("pvzce.materialCapture");
+        if (folder != null && capture != null) {
+            java.nio.file.Files.createDirectories(Path.of(folder));
+            assertTrue(com.pvzce.client.FramebufferCapture.writePng(Path.of(folder).resolve(capture+".png").toString(), SIZE, SIZE));
+        }
+        ByteBuffer pixels = ByteBuffer.allocateDirect(SIZE*SIZE*4);
+        GL11.glReadPixels(0, 0, SIZE, SIZE, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        float[] result = new float[SIZE*SIZE*3];
+        for (int i=0; i<SIZE*SIZE; i++) for (int channel=0; channel<3; channel++)
+            result[i*3+channel] = (pixels.get(i*4+channel)&255)/255F;
+        return result;
+    }
+
+    private static float difference(float[] a, float[] b) {
+        float sum = 0;
+        for (int i=0; i<a.length; i++) sum += Math.abs(a[i]-b[i]);
+        return sum/a.length;
+    }
+
+    private void normalAndReflectionRegressions(PvzceClientConfig config) throws Exception {
+        config.setEffectEnabled(PvzceClientConfig.ShaderEffect.BLOOM, false);
+        float[] grassFlat = materialImage(config, null, 1, false, false, 1, 0.78F, 0, 0, "grass-flat");
+        float[] grassRelief = materialImage(config, null, 1, false, true, 1, 0.78F, 0, 0, "grass-normals");
+        float[] grassDiffuse = materialImage(config, null, 1, false, false, 0, 0.78F, 0, 0, null);
+        float[] stoneGloss = materialImage(config, null, 3, false, false, 1, 0.78F, 0, 0, "stone-reflection");
+        float[] stoneDiffuse = materialImage(config, null, 3, false, false, 0, 0.78F, 0, 0, null);
+        assertTrue(difference(grassFlat, grassRelief) > 0.01F, "Ground normals must visibly change lighting");
+        assertTrue(difference(stoneGloss, stoneDiffuse) > difference(grassFlat, grassDiffuse)*1.5F,
+                "Stone reflects more sharply than rough grass");
+        int gl = GL11.glGenTextures();
+        RenderSystem.bindTexture(gl);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+        ByteBuffer data = ByteBuffer.allocateDirect(SIZE*SIZE*4);
+        for (int y=0; y<SIZE; y++) for (int x=0; x<SIZE; x++) {
+            float dx=(x+0.5F)/SIZE*2-1, dy=(y+0.5F)/SIZE*2-1;
+            data.put((byte)128).put((byte)128).put((byte)128).put((byte)(dx*dx+dy*dy < 0.72F ? 255 : 0));
+        }
+        data.flip();
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, SIZE, SIZE, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, data);
+        var texture = new com.pvzce.client.renderer.texture.Texture(
+                com.pvzce.api.util.Identifier.withDefaultNamespace("normal-test"), gl, SIZE, SIZE);
+        try {
+            float[] sheet = materialImage(config, texture, 0, true, false, 1, 0.78F, 0, 0, "entity-old-normal");
+            float[] rounded = materialImage(config, texture, 0, true, true, 1, 0.78F, 0, 0, "entity-normals");
+            float[] turned = materialImage(config, texture, 0, true, true, 1, 0.78F, 0, 1, "entity-rotated");
+            float[] mirrored = materialImage(config, texture, 0, true, true, 1, 0.78F, 0, 2, null);
+            assertTrue(difference(rounded, mirrored) < 0.003F, "Mirroring a symmetric silhouette must preserve its world-space normals");
+            assertTrue(difference(sheet, rounded) > 0.015F, "The entity silhouette must affect its surface normal");
+            assertTrue(difference(rounded, turned) > 0.005F, "Normals must follow the animated part's axes");
+            float[] environment = materialImage(config, texture, 0, true, true, 1, 0, 0, 0, "entity-environment");
+            float[] matte = materialImage(config, texture, 0, true, true, 0, 0, 0, 0, "entity-matte");
+            assertTrue(difference(environment, matte) > 0.005F, "Entities reflect the environment even without direct light");
+            float[] warm = materialImage(config, texture, 0, true, true, 1, 0, 0xFF550F, 0, "entity-fire");
+            float[] cool = materialImage(config, texture, 0, true, true, 1, 0, 0x2977FF, 0, "entity-blue-light");
+            float[] warmMatte = materialImage(config, texture, 0, true, true, 0, 0, 0xFF550F, 0, null);
+            float[] coolMatte = materialImage(config, texture, 0, true, true, 0, 0, 0x2977FF, 0, null);
+            int center=(SIZE/2*SIZE+SIZE/2)*3;
+            assertTrue(warm[center]-cool[center] > 0.02F && cool[center+2]-warm[center+2] > 0.02F,
+                    "Reflected point light must retain its source color");
+            assertTrue(warm[center]-warmMatte[center] > 0.01F && cool[center+2]-coolMatte[center+2] > 0.01F,
+                    "Point lights must contribute specular reflection in addition to diffuse light");
+            System.out.printf("normal difference: ground=%.4f entity=%.4f; environment=%.4f; gloss: grass=%.4f stone=%.4f%n",
+                    difference(grassFlat, grassRelief), difference(sheet, rounded), difference(environment, matte),
+                    difference(grassFlat, grassDiffuse), difference(stoneGloss, stoneDiffuse));
+        } finally { GL11.glDeleteTextures(gl); }
+    }
+
+    @Test void defaultsPreserveDayColorsAndKeepMoonlitEntitiesReadable() throws Exception {
         assumeTrue(Boolean.getBoolean("pvzce.testGraphics"));
         assertTrue(GLFW.glfwInit());
         GLFW.glfwDefaultWindowHints();
@@ -101,6 +211,7 @@ class WorldLightingTest {
                             "Moonlit sheets respond to azimuth");
                 }
             }
+            normalAndReflectionRegressions(config);
         } finally {
             com.pvzce.client.renderer.vertex.Tesselator.INSTANCE.close();
             RenderSystem.post().close();

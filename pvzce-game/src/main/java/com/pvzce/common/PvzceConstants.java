@@ -24,6 +24,11 @@ public final class PvzceConstants {
     public static final float LIGHT_LOCAL_DAY_GAIN = 0.8F;
     public static final float LIGHT_LOCAL_NIGHT_GAIN = 3.5F;
     public static final float LIGHT_CONTACT_STRENGTH = 0.46F;
+    public static final float LIGHT_ENTITY_ROUGHNESS = 0.52F;
+    public static final float LIGHT_GRASS_ROUGHNESS = 0.90F, LIGHT_SOIL_ROUGHNESS = 0.80F, LIGHT_STONE_ROUGHNESS = 0.58F;
+    public static final float LIGHT_ENVIRONMENT_REFLECTION = 0.85F;
+    public static final float LIGHT_GROUND_BOUNCE = 0.22F;
+    public static final int LIGHT_GROUND_REFLECTANCE = 0x718453;
     public static final int LIGHT_MAX_CONTACTS = 64;
     public static final float LIGHT_BLOOM_THRESHOLD = 1.1F;
     public static final float LIGHT_BLOOM_STRENGTH = 0.20F;

@@ -125,7 +125,7 @@ public final class PvzceClientConfig {
         SHADOW_SOFTNESS("shadow_softness", "阴影柔化范围", 0.5F, 4F, com.pvzce.common.PvzceConstants.LIGHT_SHADOW_SOFTNESS),
         BLOOM_STRENGTH("bloom_strength", "Bloom 强度", 0F, 1F, com.pvzce.common.PvzceConstants.LIGHT_BLOOM_STRENGTH),
         BLOOM_THRESHOLD("bloom_threshold", "Bloom 阈值", 0.3F, 3F, com.pvzce.common.PvzceConstants.LIGHT_BLOOM_THRESHOLD),
-        SPECULAR("specular", "材质高光", 0F, 3F, 1F),
+        SPECULAR("specular", "高光与环境反射", 0F, 3F, 1F),
         SHAFT_STRENGTH("shaft_strength", "日光散射", 0F, 0.6F, com.pvzce.common.PvzceConstants.LIGHT_SHAFT_STRENGTH),
         EXPOSURE("exposure", "曝光补偿 EV", -3F, 3F, 0F),
         BRIGHTNESS("brightness", "亮度", -0.3F, 0.3F, 0F),

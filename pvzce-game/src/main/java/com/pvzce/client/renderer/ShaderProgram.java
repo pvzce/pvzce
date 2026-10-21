@@ -130,7 +130,7 @@ public final class ShaderProgram implements Closeable {
                 vec3 position = shadowPosition(vWorld);
                 if (uMaterialLighting == 1) {
                     vec3 albedo = pow(max(base.rgb, vec3(0.0)), vec3(2.2));
-                    vec3 lit = materialLighting(albedo, position, materialNormal(position, vUV), materialRoughness());
+                    vec3 lit = materialLighting(albedo, position, materialNormal(position, vUV, vWorld), materialRoughness(), uSpecularStrength);
                     float luminous = smoothstep(0.35, 0.9, max(base.r, max(base.g, base.b)));
                     lit += albedo * uEntityEmission * luminous;
                     if (uAdditiveLight == 1) lit = albedo * 4.0;

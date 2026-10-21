@@ -93,7 +93,7 @@ public final class LightingSettingsScreen extends Screen {
             changed();
         }));
         y -= row + gap;
-        effect(x, y, half, row, ShaderEffect.MATERIAL_LIGHTING, "材质起伏与接触阴影");
+        effect(x, y, half, row, ShaderEffect.MATERIAL_LIGHTING, "材质法线与接触阴影");
         effect(x + half + gap, y, half, row, ShaderEffect.BLOOM, "发光泛光");
         y -= row + gap;
         effect(x, y, half, row, ShaderEffect.WATER_WAVES, "水面波动");

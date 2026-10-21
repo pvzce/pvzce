@@ -546,7 +546,8 @@ public final class LiquidShader implements Closeable {
                 vec3 albedo = col;
                 if (uMaterialLighting == 1) {
                     vec3 waterNormal = normalize(vec3(rippleNormal * 0.25 + waveTilt * vec2(0.15, 0.15), 1.0));
-                    col = materialLighting(pow(max(col, vec3(0.0)), vec3(2.2)), vec3(vWorld, 0.0), waterNormal, 0.18);
+                    float reflectionStrength = (uFeatures & 12) != 0 ? uSpecularStrength : 0.0;
+                    col = materialLighting(pow(max(col, vec3(0.0)), vec3(2.2)), vec3(vWorld, 0.0), waterNormal, 0.18, reflectionStrength);
                 } else {
                 col = col * uTint * directExposure(vec3(vWorld, 0.0)) + vec3(uTintLift);
                 col += pointContribution(vec3(vWorld, 0.0), albedo);

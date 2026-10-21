@@ -6,10 +6,11 @@ import com.pvzce.client.config.PvzceClientConfig;
 import com.pvzce.common.PvzceConstants;
 import org.lwjgl.opengl.GL20;
 
-/** Linear material lighting, independent geometric micro-height and near-ground contact occlusion. */
+/** Normal-driven diffuse, microfacet and hemispherical environment lighting for 2.5D surfaces. */
 public final class WorldLighting {
     public static final String GLSL = """
             uniform int uMaterialLighting;
+            uniform sampler2D uMaterialTexture; // the sprite color texture on unit 0; only its alpha shapes normals
             uniform float uSpecularStrength;
             uniform int uRelief;
             uniform int uMaterial;
@@ -34,23 +35,51 @@ public final class WorldLighting {
                 return vec3(mix(mix(a, b, s.x), mix(c, d, s.x), s.y),
                     mix(b - a, d - c, s.y) * ds.x, mix(c - a, d - b, s.x) * ds.y);
             }
-            vec3 materialNormal(vec3 p, vec2 uv) {
+            float silhouette(vec2 uv) {
+                vec2 low = min(uMaterialUv.xy, uMaterialUv.zw), high = max(uMaterialUv.xy, uMaterialUv.zw);
+                vec2 inset = 0.5 / vec2(textureSize(uMaterialTexture, 0));
+                low += inset;
+                high -= inset;
+                vec2 blur = (high - low) * 0.035;
+                float alpha = texture(uMaterialTexture, clamp(uv, low, high)).a * 0.4;
+                alpha += texture(uMaterialTexture, clamp(uv + vec2(blur.x, 0), low, high)).a * 0.15;
+                alpha += texture(uMaterialTexture, clamp(uv - vec2(blur.x, 0), low, high)).a * 0.15;
+                alpha += texture(uMaterialTexture, clamp(uv + vec2(0, blur.y), low, high)).a * 0.15;
+                alpha += texture(uMaterialTexture, clamp(uv - vec2(0, blur.y), low, high)).a * 0.15;
+                return alpha;
+            }
+            vec3 materialNormal(vec3 p, vec2 uv, vec2 projected) {
                 if (uReceiverEntity == 1) {
-                    // Each animated part is an approximate curved sheet, not a grayscale bump map.
-                    vec2 q = ((uv - uMaterialUv.xy) / (uMaterialUv.zw - uMaterialUv.xy + vec2(1e-7))) * 2.0 - 1.0;
-                    return normalize(vec3(q.x * 0.65, -0.25, 0.9 + q.y * 0.2));
+                    vec2 span = uMaterialUv.zw - uMaterialUv.xy;
+                    vec2 partUv = (uv - uMaterialUv.xy) / span;
+                    vec2 q = partUv * 2.0 - 1.0;
+                    if (uRelief == 0) return normalize(vec3(q.x * 0.65, -0.25, 0.9 + q.y * 0.2));
+                    // Alpha contours round the actual silhouette; painted bright/dark ink is never height.
+                    vec2 stepUv = span * 0.06;
+                    vec2 edge = vec2(silhouette(uv + vec2(stepUv.x, 0)) - silhouette(uv - vec2(stepUv.x, 0)),
+                                     silhouette(uv + vec2(0, stepUv.y)) - silhouette(uv - vec2(0, stepUv.y)));
+                    vec2 curve = q * vec2(0.80, 0.55) - edge * 0.35;
+                    float front = 0.14 + 0.30 * sqrt(max(0.12, 1.0 - dot(q, q) * 0.45));
+                    // Derive the part's axes from its projected geometry: rotation and mirrored UVs follow animation.
+                    vec2 ux = dFdx(partUv), uy = dFdy(partUv), px = dFdx(projected), py = dFdy(projected);
+                    float determinant = ux.x * uy.y - ux.y * uy.x;
+                    vec2 tx = normalize((px * uy.y - py * ux.y) / determinant);
+                    vec2 ty = normalize((py * ux.x - px * uy.x) / determinant);
+                    return normalize(vec3(tx.x * curve.x + ty.x * curve.y, -front,
+                                          1.0 + tx.y * curve.x + ty.y * curve.y));
                 }
                 vec2 slope = uReceiverEntity == 2 && p.z > uReceiverLimits.x && p.z < uReceiverLimits.y ? uReceiverProfile.yz : vec2(0.0);
                 if (uRelief == 1 && uMaterial > 0) {
                     vec3 clump = materialNoise(p.xy * 3.8);
                     vec3 grain = materialNoise(p.xy * vec2(31.0, 17.0));
-                    float roughness = uMaterial == 1 ? 0.36 : uMaterial == 2 ? 0.24 : 0.17;
-                    slope += clump.yz * roughness + grain.yz * roughness * 0.48;
+                    float relief = uMaterial == 1 ? 0.42 : uMaterial == 2 ? 0.30 : 0.21;
+                    float resolved = 1.0 - smoothstep(0.25, 0.75, max(fwidth(p.x * 31.0), fwidth(p.y * 17.0)));
+                    slope += clump.yz * relief + grain.yz * relief * 0.48 * resolved;
                 }
                 return normalize(vec3(-slope, 1.0));
             }
             float materialRoughness() {
-                return uReceiverEntity == 1 ? 0.67 : uMaterial == 1 ? 0.93 : uMaterial == 2 ? 0.84 : 0.58;
+                return uReceiverEntity == 1 ? %s : uMaterial == 1 ? %s : uMaterial == 2 ? %s : uMaterial == 0 ? 0.98 : %s;
             }
             float contactVisibility(vec3 p) {
                 if (uReceiverEntity == 1 || uRelief == 0) return 1.0;
@@ -66,7 +95,22 @@ public final class WorldLighting {
             vec3 illuminationColor(int rgb) {
                 return vec3((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255) / 255.0;
             }
-            vec3 materialLighting(vec3 albedo, vec3 p, vec3 normal, float roughness) {
+            // GGX distribution, Smith masking and Schlick Fresnel, evaluated as reflected radiance.
+            float surfaceReflection(vec3 n, vec3 v, vec3 l, float roughness) {
+                float nl = max(dot(n, l), 0.0), nv = max(dot(n, v), 0.001);
+                if (nl <= 0.0) return 0.0;
+                vec3 h = normalize(v + l);
+                float nh = max(dot(n, h), 0.0), vh = max(dot(v, h), 0.0);
+                float a2 = pow(roughness, 4.0);
+                float denominator = nh * nh * (a2 - 1.0) + 1.0;
+                float distribution = a2 / (3.14159265 * denominator * denominator);
+                float maskingV = 2.0 * nv / (nv + sqrt(a2 + (1.0 - a2) * nv * nv));
+                float maskingL = 2.0 * nl / (nl + sqrt(a2 + (1.0 - a2) * nl * nl));
+                float fresnel = 0.04 + 0.96 * pow(1.0 - vh, 5.0);
+                // Our diffuse convention absorbs 1/pi, so use the same incident-light units here.
+                return distribution * maskingV * maskingL * fresnel * 3.14159265 / (4.0 * nv);
+            }
+            vec3 materialLighting(vec3 albedo, vec3 p, vec3 normal, float roughness, float reflectionStrength) {
                 vec3 sun = normalize(uShadowLights[0].xyz);
                 float visibility = lightVisibility(p, 0);
                 vec3 daySky = mix(illuminationColor(%d), illuminationColor(%d), mix(1.0, uCelestialElevation, uCelestialTint));
@@ -74,13 +118,24 @@ public final class WorldLighting {
                 vec3 sunlight = mix(illuminationColor(%d), uCelestialColor, uCelestialTint);
                 float ambient = mix(%s, %s, uSceneNight);
                 float direct = uCelestialStrength;
-                float ndl = max(0.0, dot(normal, sun));
-                vec3 result = albedo * (sky * ambient + sunlight * direct * ndl * visibility);
-                result *= contactVisibility(p);
                 vec3 view = normalize(vec3(0.0, -0.85, 1.0));
-                vec3 halfway = normalize(view + sun);
-                result += sunlight * pow(max(dot(normal, halfway), 0.0), mix(72.0, 10.0, roughness))
-                    * uSpecularStrength * (1.0 - roughness) * 0.18 * direct * visibility;
+                // Suppress subpixel sparkle when fine normal variations are smaller than a pixel.
+                float variance = max(dot(dFdx(normal), dFdx(normal)), dot(dFdy(normal), dFdy(normal)));
+                roughness = clamp(sqrt(roughness * roughness + min(0.15, variance)), 0.18, 0.98);
+                float ndl = max(0.0, dot(normal, sun));
+                vec3 ground = illuminationColor(%d) * sunlight * (ambient + direct * 0.55);
+                vec3 bounced = ground * %s * (1.0 - normal.z * 0.6);
+                vec3 result = albedo * (sky * ambient + sunlight * direct * ndl * visibility + bounced);
+                result *= contactVisibility(p);
+                result += sunlight * direct * visibility * surfaceReflection(normal, view, sun, roughness) * reflectionStrength;
+                // An analytic sky/ground environment, not a screen-space copy of the current frame.
+                vec3 reflected = reflect(-view, normal);
+                float horizon = smoothstep(-0.25, 0.65, reflected.z);
+                vec3 environment = mix(ground, sky * (ambient + direct * 0.35), horizon);
+                float nv = max(dot(normal, view), 0.0);
+                float environmentFresnel = 0.04 + (max(0.04, 1.0 - roughness) - 0.04) * pow(1.0 - nv, 5.0);
+                result += environment * environmentFresnel * (1.0 - roughness * 0.55)
+                    * %s * reflectionStrength * contactVisibility(p);
                 for (int i = 0; i < 8; i++) {
                     float radius = uShadowPointRadius[i];
                     if (radius <= 0.0) continue;
@@ -95,22 +150,26 @@ public final class WorldLighting {
                     vec3 radiance = uShadowPointColor[i].rgb * uShadowPointColor[i].a
                         * mix(%s, %s, uSceneNight) * falloff * visible;
                     result += albedo * radiance * diffuse;
-                    result += radiance * pow(max(dot(normal, normalize(direction + view)), 0.0),
-                            mix(64.0, 10.0, roughness)) * uSpecularStrength * (1.0 - roughness) * 0.15;
+                    result += radiance * surfaceReflection(normal, view, direction, roughness) * reflectionStrength;
                 }
                 return result;
             }
             """.formatted(PvzceConstants.LIGHT_MAX_CONTACTS, PvzceConstants.LIGHT_MAX_CONTACTS,
+                    PvzceConstants.LIGHT_ENTITY_ROUGHNESS, PvzceConstants.LIGHT_GRASS_ROUGHNESS,
+                    PvzceConstants.LIGHT_SOIL_ROUGHNESS, PvzceConstants.LIGHT_STONE_ROUGHNESS,
                     PvzceConstants.LIGHT_CONTACT_STRENGTH,
                     PvzceConstants.LIGHT_HORIZON_SKY_COLOR, PvzceConstants.LIGHT_DAY_SKY_COLOR,
                     PvzceConstants.LIGHT_NIGHT_SKY_COLOR,
                     PvzceConstants.LIGHT_DAY_DIRECT_COLOR,
                     PvzceConstants.LIGHT_DAY_AMBIENT, PvzceConstants.LIGHT_NIGHT_AMBIENT,
+                    PvzceConstants.LIGHT_GROUND_REFLECTANCE, PvzceConstants.LIGHT_GROUND_BOUNCE,
+                    PvzceConstants.LIGHT_ENVIRONMENT_REFLECTION,
                     PvzceConstants.LIGHT_LOCAL_DAY_GAIN, PvzceConstants.LIGHT_LOCAL_NIGHT_GAIN);
 
     public static final class Uniforms {
-        private final int enabled, specular, relief, material, uv, night, celestialColor, celestialStrength, celestialElevation, celestialTint, emission, additive, count, contacts, weights;
+        private final int texture, enabled, specular, relief, material, uv, night, celestialColor, celestialStrength, celestialElevation, celestialTint, emission, additive, count, contacts, weights;
         public Uniforms(int id) {
+            texture = GL20.glGetUniformLocation(id, "uMaterialTexture");
             enabled = GL20.glGetUniformLocation(id, "uMaterialLighting");
             specular = GL20.glGetUniformLocation(id, "uSpecularStrength");
             relief = GL20.glGetUniformLocation(id, "uRelief");
@@ -177,6 +236,7 @@ public final class WorldLighting {
         upload(RenderSystem.shader().lighting());
     }
     public void upload(Uniforms uniforms) {
+        GL20.glUniform1i(uniforms.texture, 0);
         GL20.glUniform1i(uniforms.enabled, active ? 1 : 0);
         GL20.glUniform1f(uniforms.specular, specular);
         GL20.glUniform1i(uniforms.relief, relief ? 1 : 0);
