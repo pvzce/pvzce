@@ -24,6 +24,21 @@ class LightingSettingsScreenTest {
 
     @Test
     void controlsFitAndChangesSaveWithoutLosingTheParentScreen() throws Exception {
+        boolean graphics = Boolean.getBoolean("pvzce.testGraphics");
+        long nativeWindow = 0;
+        if (graphics) {
+            assertTrue(org.lwjgl.glfw.GLFW.glfwInit());
+            org.lwjgl.glfw.GLFW.glfwDefaultWindowHints();
+            org.lwjgl.glfw.GLFW.glfwWindowHint(org.lwjgl.glfw.GLFW.GLFW_VISIBLE, org.lwjgl.glfw.GLFW.GLFW_FALSE);
+            org.lwjgl.glfw.GLFW.glfwWindowHint(org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3);
+            org.lwjgl.glfw.GLFW.glfwWindowHint(org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR, 2);
+            org.lwjgl.glfw.GLFW.glfwWindowHint(org.lwjgl.glfw.GLFW.GLFW_OPENGL_PROFILE, org.lwjgl.glfw.GLFW.GLFW_OPENGL_CORE_PROFILE);
+            nativeWindow = org.lwjgl.glfw.GLFW.glfwCreateWindow(1920, 1080, "Lighting controls", 0, 0);
+            assertNotEquals(0, nativeWindow);
+            org.lwjgl.glfw.GLFW.glfwMakeContextCurrent(nativeWindow);
+            org.lwjgl.opengl.GL.createCapabilities();
+            com.pvzce.client.renderer.RenderSystem.init();
+        }
         try (var harness = ClientHarness.create("lighting-settings")) {
             var client = harness.client();
             client.config().setGuiScale(2);
@@ -38,6 +53,11 @@ class LightingSettingsScreenTest {
             var resourcesField = client.getClass().getDeclaredField("resources");
             resourcesField.setAccessible(true);
             resourcesField.set(client, resources);
+            if (graphics) {
+                var textures = client.getClass().getDeclaredField("textures");
+                textures.setAccessible(true);
+                textures.set(client, new com.pvzce.client.renderer.texture.TextureManager(resources));
+            }
             com.pvzce.client.gui.GuiLang.reload(resources, "zh_cn");
             var fontsField = client.getClass().getDeclaredField("fonts");
             fontsField.setAccessible(true);
@@ -56,6 +76,7 @@ class LightingSettingsScreenTest {
                 screens.setAccessible(true);
                 ((com.pvzce.client.gui.ScreenStack) screens.get(client)).push(screen);
                 screen.initIfNeeded();
+                if (graphics) renderAndCapture(screen, size, "base");
                 List<Button> buttons = screen.widgets().stream().filter(Button.class::isInstance).map(Button.class::cast).toList();
                 for (var b : buttons) {
                     assertTrue(b.x() >= 0 && b.y() >= 0 && b.x() + b.width() <= client.guiWidth()
@@ -75,9 +96,54 @@ class LightingSettingsScreenTest {
                 click(screen, "水下焦散");
                 assertFalse(PvzceClientConfig.load(client.gameDir()).effectEnabled(ShaderEffect.WATER_CAUSTICS));
                 click(screen, "恢复光影默认值");
+                for (String tab : List.of("光效细节", "明暗曝光", "色彩 HSL")) {
+                    click(screen, tab);
+                    screen.initIfNeeded();
+                    if (graphics) renderAndCapture(screen, size, tab);
+                    for (var widget : screen.widgets()) {
+                        assertTrue(widget.y() >= 36 && widget.x() >= 0
+                                && widget.x() + widget.width() <= client.guiWidth()
+                                && widget.y() + widget.height() <= client.guiHeight(), tab);
+                    }
+                    var slider = screen.widgets().stream()
+                            .filter(com.pvzce.client.gui.components.Slider.class::isInstance)
+                            .map(com.pvzce.client.gui.components.Slider.class::cast).findFirst().orElseThrow();
+                    slider.mouseClicked(slider.x() + slider.width() / 2D, slider.y() + 1, 0);
+                    slider.mouseDragged(slider.x() + slider.width() + 10, slider.y() + 1, 0);
+                    slider.mouseReleased(slider.x() + slider.width(), slider.y() + 1, 0);
+                    var parameter = switch (tab) {
+                        case "光效细节" -> PvzceClientConfig.LightingParameter.SHADOW_SOFTNESS;
+                        case "明暗曝光" -> PvzceClientConfig.LightingParameter.EXPOSURE;
+                        default -> PvzceClientConfig.LightingParameter.VIBRANCE;
+                    };
+                    assertEquals(parameter.max(), PvzceClientConfig.load(client.gameDir()).lighting(parameter));
+                    click(screen, "恢复光影默认值");
+                }
                 click(screen, "完成");
                 assertSame(parent, client.currentScreen());
             }
+            client.fonts().close();
+            if (graphics) client.textures().close();
+        } finally {
+            if (graphics) {
+                com.pvzce.client.renderer.vertex.Tesselator.INSTANCE.close();
+                com.pvzce.client.renderer.RenderSystem.shader().close();
+                org.lwjgl.glfw.GLFW.glfwDestroyWindow(nativeWindow);
+                org.lwjgl.glfw.GLFW.glfwTerminate();
+            }
+        }
+    }
+
+    private static void renderAndCapture(LightingSettingsScreen screen, int[] size, String page) throws Exception {
+        com.pvzce.client.renderer.RenderSystem.viewport(0, 0, size[0], size[1]);
+        screen.render();
+        assertEquals(org.lwjgl.opengl.GL11.GL_NO_ERROR, org.lwjgl.opengl.GL11.glGetError());
+        String output = System.getProperty("pvzce.lightingUiCapture");
+        if (output != null && size[0] == 1920) {
+            var folder = java.nio.file.Path.of(output);
+            java.nio.file.Files.createDirectories(folder);
+            assertTrue(com.pvzce.client.FramebufferCapture.writePng(
+                    folder.resolve("ui-" + page + ".png").toString(), size[0], size[1]));
         }
     }
 }

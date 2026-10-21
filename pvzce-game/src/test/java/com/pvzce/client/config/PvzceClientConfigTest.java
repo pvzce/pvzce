@@ -13,6 +13,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** M5: TOML volume config round-trip. */
 class PvzceClientConfigTest {
 
+    @Test
+    void lightingParametersRoundTripClampAndReset() throws Exception {
+        var config = PvzceClientConfig.load(dir);
+        for (var parameter : PvzceClientConfig.LightingParameter.values()) {
+            assertEquals(parameter.defaultValue(), config.lighting(parameter));
+            config.setLighting(parameter, parameter.max() + 10F);
+            assertEquals(parameter.max(), config.lighting(parameter));
+        }
+        config.setEffectEnabled(PvzceClientConfig.ShaderEffect.MSAA, false);
+        config.save();
+        var loaded = PvzceClientConfig.load(dir);
+        assertFalse(loaded.effectEnabled(PvzceClientConfig.ShaderEffect.MSAA));
+        for (var parameter : PvzceClientConfig.LightingParameter.values()) {
+            assertEquals(parameter.max(), loaded.lighting(parameter));
+            loaded.setLighting(parameter, Float.NaN);
+            assertEquals(parameter.defaultValue(), loaded.lighting(parameter));
+        }
+        loaded.resetLighting();
+        assertTrue(loaded.effectEnabled(PvzceClientConfig.ShaderEffect.MSAA));
+        for (var parameter : PvzceClientConfig.LightingParameter.values())
+            assertEquals(parameter.defaultValue(), loaded.lighting(parameter));
+    }
+
     /** A fresh directory per test; JUnit deletes it, and prints it when a test fails. */
     @TempDir
     Path dir;

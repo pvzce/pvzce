@@ -110,6 +110,7 @@ public final class PvzceClientConfig {
     /** Independent shader effects; unwritten keys retain the existing enabled behaviour. */
     public enum ShaderEffect {
         MATERIAL_LIGHTING("material_lighting"), BLOOM("bloom"),
+        MSAA("msaa_4x"), SUN_SHAFTS("sun_shafts"), ACES("aces"),
         DAY_NIGHT("day_night_lighting"), LOCAL_LIGHTS("local_lights"), LOCAL_SHADOWS("local_shadows"),
         SOFT_SHADOWS("soft_shadows"), WATER_WAVES("water_waves"), WATER_CAUSTICS("water_caustics"),
         WATER_REFLECTIONS("water_reflections"), WATER_RIPPLES("water_ripples");
@@ -117,6 +118,48 @@ public final class PvzceClientConfig {
         private final String key;
         ShaderEffect(String key) { this.key = key; }
         public String key() { return key; }
+    }
+
+    /** Post-processing controls, also the single source for the settings page ranges. */
+    public enum LightingParameter {
+        SHADOW_SOFTNESS("shadow_softness", "阴影柔化范围", 0.5F, 4F, com.pvzce.common.PvzceConstants.LIGHT_SHADOW_SOFTNESS),
+        BLOOM_STRENGTH("bloom_strength", "Bloom 强度", 0F, 1F, com.pvzce.common.PvzceConstants.LIGHT_BLOOM_STRENGTH),
+        BLOOM_THRESHOLD("bloom_threshold", "Bloom 阈值", 0.3F, 3F, com.pvzce.common.PvzceConstants.LIGHT_BLOOM_THRESHOLD),
+        SPECULAR("specular", "材质高光", 0F, 3F, 1F),
+        SHAFT_STRENGTH("shaft_strength", "日光散射", 0F, 0.6F, com.pvzce.common.PvzceConstants.LIGHT_SHAFT_STRENGTH),
+        EXPOSURE("exposure", "曝光补偿 EV", -3F, 3F, 0F),
+        BRIGHTNESS("brightness", "亮度", -0.3F, 0.3F, 0F),
+        GAMMA("gamma", "伽马", 1F, 3F, 2.2F),
+        CONTRAST("contrast", "对比度", 0.5F, 1.8F, 1F),
+        HIGHLIGHTS("highlights", "高光亮度", -1F, 1F, 0F),
+        SHADOWS("shadows", "阴影亮度", -1F, 1F, 0F),
+        VIBRANCE("vibrance", "自然饱和度", -1F, 1F, 0F),
+        SATURATION("saturation", "饱和度", 0F, 2F, 1F),
+        HUE("hue", "HSL 色相（度）", -180F, 180F, 0F),
+        HSL_SATURATION("hsl_saturation", "HSL 饱和度", -1F, 1F, 0F),
+        LIGHTNESS("lightness", "HSL 明度", -0.5F, 0.5F, 0F);
+
+        private final String key, label;
+        private final float min, max, defaultValue;
+        LightingParameter(String key, String label, float min, float max, float defaultValue) {
+            this.key = key; this.label = label; this.min = min; this.max = max; this.defaultValue = defaultValue;
+        }
+        public String key() { return "lighting_" + key; }
+        public String label() { return label; }
+        public float min() { return min; }
+        public float max() { return max; }
+        public float defaultValue() { return defaultValue; }
+    }
+
+    private final float[] lightingValues = new float[LightingParameter.values().length];
+    public PvzceClientConfig() { resetLightingValues(); }
+    private void resetLightingValues() {
+        for (var parameter : LightingParameter.values()) lightingValues[parameter.ordinal()] = parameter.defaultValue();
+    }
+    public float lighting(LightingParameter parameter) { return lightingValues[parameter.ordinal()]; }
+    public void setLighting(LightingParameter parameter, float value) {
+        lightingValues[parameter.ordinal()] = Float.isFinite(value)
+                ? Math.max(parameter.min(), Math.min(parameter.max(), value)) : parameter.defaultValue();
     }
 
     public static final class ShadowQuality {
@@ -225,6 +268,9 @@ public final class PvzceClientConfig {
                 config.shadowQuality = ShadowQuality.clamp(getInt(toml, "shadow_quality", ShadowQuality.MEDIUM));
                 for (ShaderEffect effect : ShaderEffect.values()) {
                     config.setEffectEnabled(effect, getBoolean(toml, effect.key(), true));
+                }
+                for (var parameter : LightingParameter.values()) {
+                    config.setLighting(parameter, getFloat(toml, parameter.key(), parameter.defaultValue()));
                 }
                 config.waterQuality = WaterQuality.clamp(
                         getInt(toml, "water_quality", DEFAULT_WATER_QUALITY));
@@ -471,12 +517,16 @@ public final class PvzceClientConfig {
         waterQuality = DEFAULT_WATER_QUALITY;
         shadowQuality = ShadowQuality.MEDIUM;
         disabledEffects.clear();
+        resetLightingValues();
     }
 
     private String shaderEffectLines() {
         StringBuilder lines = new StringBuilder();
         for (ShaderEffect effect : ShaderEffect.values()) {
             lines.append('\n').append(effect.key()).append(" = ").append(effectEnabled(effect));
+        }
+        for (var parameter : LightingParameter.values()) {
+            lines.append('\n').append(parameter.key()).append(" = ").append(lighting(parameter));
         }
         return lines.toString();
     }

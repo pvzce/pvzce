@@ -18,6 +18,7 @@ public final class WorldShadows implements AutoCloseable {
             uniform int uShadows;
             uniform int uLocalShadows;
             uniform int uShadowFilterRadius;
+            uniform float uShadowSoftness;
             uniform int uShadowPass;
             uniform int uCasterEmission;
             uniform int uReceiverEntity;
@@ -73,15 +74,18 @@ public final class WorldShadows implements AutoCloseable {
                 float visible = 0.0;
                 vec2 texel = 1.0 / vec2(textureSize(uShadowMaps, 0).xy);
                 // Hardware comparison also filters the four neighbours inside each tap.
-                bias += dot(abs(gradient), texel);
+                bias += dot(abs(gradient), texel) * max(1.0, uShadowSoftness);
+                float totalWeight = 0.0;
                 for (int y = -uShadowFilterRadius; y <= uShadowFilterRadius; y++) {
                     for (int x = -uShadowFilterRadius; x <= uShadowFilterRadius; x++) {
-                        vec2 offset = vec2(x, y) * texel;
-                        visible += texture(uShadowMaps, vec4(projected.xy + offset,
+                        vec2 offset = vec2(x, y) * texel * uShadowSoftness;
+                        float weight = exp(-float(x*x + y*y) / max(1.0, float(uShadowFilterRadius*uShadowFilterRadius)));
+                        totalWeight += weight;
+                        visible += weight * texture(uShadowMaps, vec4(projected.xy + offset,
                                 float(index), projected.z + dot(gradient, offset) - bias));
                     }
                 }
-                return visible / pow(float(uShadowFilterRadius * 2 + 1), 2.0);
+                return visible / totalWeight;
             }
             vec3 pointContribution(vec3 p, vec3 albedo) {
                 vec3 result = vec3(0.0);
@@ -103,7 +107,7 @@ public final class WorldShadows implements AutoCloseable {
                     PvzceConstants.SHADOW_DIRECT_SHARE);
 
     public static final class Uniforms {
-        private final int enabled, local, filter, pass, emission, entity, ground, profile, limits, bounds, sampler;
+        private final int enabled, local, filter, softness, pass, emission, entity, ground, profile, limits, bounds, sampler;
         private final int[] lights = new int[LIGHTS];
         private final int[] colors = new int[LIGHTS - 1], radii = new int[LIGHTS - 1];
 
@@ -111,6 +115,7 @@ public final class WorldShadows implements AutoCloseable {
             enabled = GL20.glGetUniformLocation(program, "uShadows");
             local = GL20.glGetUniformLocation(program, "uLocalShadows");
             filter = GL20.glGetUniformLocation(program, "uShadowFilterRadius");
+            softness = GL20.glGetUniformLocation(program, "uShadowSoftness");
             pass = GL20.glGetUniformLocation(program, "uShadowPass");
             emission = GL20.glGetUniformLocation(program, "uCasterEmission");
             entity = GL20.glGetUniformLocation(program, "uReceiverEntity");
@@ -146,14 +151,16 @@ public final class WorldShadows implements AutoCloseable {
     private final boolean[] present = new boolean[LIGHTS];
     private int framebuffer, texture, allocatedSize;
     private int mapSize = PvzceConstants.SHADOW_MAP_SIZE;
-    private int filterRadius = 1;
+    private int filterRadius = 2;
+    private float softness = PvzceConstants.LIGHT_SHADOW_SOFTNESS;
     private boolean localShadows = true;
 
     public void configure(com.pvzce.client.config.PvzceClientConfig config) {
         int quality = config.shadowQuality();
         mapSize = com.pvzce.client.config.PvzceClientConfig.ShadowQuality.resolution(quality);
         filterRadius = !config.effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.SOFT_SHADOWS)
-                ? 0 : quality == com.pvzce.client.config.PvzceClientConfig.ShadowQuality.HIGH ? 2 : 1;
+                ? 0 : quality == com.pvzce.client.config.PvzceClientConfig.ShadowQuality.HIGH ? 3 : 2;
+        softness = config.lighting(com.pvzce.client.config.PvzceClientConfig.LightingParameter.SHADOW_SOFTNESS);
         localShadows = config.effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.LOCAL_SHADOWS);
     }
     private boolean active, casting;
@@ -251,6 +258,7 @@ public final class WorldShadows implements AutoCloseable {
         GL20.glUniform1i(uniforms.enabled, active ? 1 : 0);
         GL20.glUniform1i(uniforms.local, localShadows ? 1 : 0);
         GL20.glUniform1i(uniforms.filter, filterRadius);
+        GL20.glUniform1f(uniforms.softness, softness);
         GL20.glUniform1i(uniforms.sampler, 2);
         GL20.glUniform4f(uniforms.bounds, left, bottom, width, height);
         for (int i = 0; i < LIGHTS; i++) {

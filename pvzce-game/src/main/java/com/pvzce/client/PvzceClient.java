@@ -156,6 +156,33 @@ public final class PvzceClient {
     private String pendingTestLevelId;
     private long backspaceNextNanos;
     private boolean backspaceHeld;
+    private boolean lightingPreview;
+    private Screen lightingPreviewOwner;
+
+    public boolean lightingPreview() {
+        return lightingPreview && lightingPreviewOwner == currentScreen() && previewAvailable();
+    }
+
+    public boolean previewAvailable() {
+        return level.initialized() && screens.find(InGameScreen.class) != null;
+    }
+
+    private com.pvzce.client.gui.components.Button lightingPreviewButton() {
+        return new com.pvzce.client.gui.components.Button(Math.max(4, guiWidth() - 120), 8, 112, 24,
+                com.pvzce.client.gui.GuiLang.raw(lightingPreview() ? "pvzce.lighting.preview_exit" : "pvzce.lighting.preview",
+                        lightingPreview() ? "返回界面" : "光影预览"), () -> {
+                    lightingPreview = !lightingPreview();
+                    lightingPreviewOwner = currentScreen();
+                });
+    }
+
+    private boolean previewClick(double x, double y, int button) {
+        if (!previewAvailable()) return false;
+        boolean wasPreview = lightingPreview();
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && lightingPreviewButton().mouseClicked(x, y, button)) return true;
+        return wasPreview;
+    }
+
     private boolean leftMouseWasDown;
     /**
      * What a finger did: a tap is a click, a swipe over a scroll region is a scroll.
@@ -735,6 +762,12 @@ public final class PvzceClient {
         }
         Integer key;
         while ((key = window.pollKey()) != null) {
+            if (lightingPreview()) {
+                if (key == GLFW.GLFW_KEY_ESCAPE) lightingPreview = false;
+                else if (config.keyBindings().actionFor(key) == com.pvzce.client.input.KeyBindings.Action.SCREENSHOT)
+                    screenshotPending = true;
+                continue;
+            }
             // The bound actions first, and before the overlay: fullscreen and the diagnostic panels
             // are about the *window*, not about whatever is on it, so they work over the console
             // exactly as they worked when they were literals here.
@@ -789,6 +822,7 @@ public final class PvzceClient {
         }
         Integer codepoint;
         while ((codepoint = window.pollTypedChar()) != null) {
+            if (lightingPreview()) continue;
             char ch = (char) codepoint.intValue();
             if (suppressNextChar != 0 && Character.toLowerCase(ch) == suppressNextChar) {
                 suppressNextChar = 0;
@@ -803,8 +837,8 @@ public final class PvzceClient {
         }
         screen = currentScreen();
         boolean backspaceDown = window.isKeyDown(GLFW.GLFW_KEY_BACKSPACE);
-        boolean textFocused = overlay != null
-                ? overlay.hasTextInputFocused() : screen.hasTextInputFocused();
+        boolean textFocused = !lightingPreview() && (overlay != null
+                ? overlay.hasTextInputFocused() : screen.hasTextInputFocused());
         if (backspaceDown && textFocused) {
             long now = System.nanoTime();
             if (!backspaceHeld) {
@@ -852,6 +886,7 @@ public final class PvzceClient {
         while ((scroll = window.pollScroll()) != null) {
             dispatchMouseScrolled(scroll);
         }
+        if (lightingPreview()) return;
         if (overlay != null) {
             overlay.mouseMoved(guiMouseX(window.cursorX()), guiMouseY(window.cursorY()));
         } else {
@@ -882,6 +917,7 @@ public final class PvzceClient {
     private void dispatchMouseClicked(int button) {
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
+        if (previewClick(guiX, guiY, button)) return;
         if (titleBar.mousePressed(guiX, guiMouseYTopDown())) {
             return;
         }
@@ -893,6 +929,7 @@ public final class PvzceClient {
     }
 
     private void dispatchMouseDragged() {
+        if (lightingPreview()) return;
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
         // A drag that began on the bar is the bar's; nothing below it moves with the pointer.
@@ -908,6 +945,7 @@ public final class PvzceClient {
     }
 
     private void dispatchMouseReleased() {
+        if (lightingPreview()) return;
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
         if (titleBar.mouseReleased(guiMouseX(window.cursorX()), guiMouseYTopDown())) {
@@ -922,6 +960,7 @@ public final class PvzceClient {
     }
 
     private void dispatchMouseScrolled(double amount) {
+        if (lightingPreview()) return;
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
         if (overlay != null) {
@@ -940,6 +979,7 @@ public final class PvzceClient {
      * takes raw ones), so this is the one place that knows both.
      */
     private void dispatchGuiScrolled(double guiX, double guiY, double amount) {
+        if (lightingPreview()) return;
         if (overlay != null) {
             overlay.mouseScrolled(guiX, guiY, amount);
         } else {
@@ -984,6 +1024,7 @@ public final class PvzceClient {
      * click cannot come to different conclusions about which layer a point belongs to.
      */
     private ScrollRegion gestureRegionAt(double guiX, double guiY) {
+        if (lightingPreview() || previewAvailable() && lightingPreviewButton().isMouseOver(guiX, guiY)) return null;
         // The title bar is not a scroll region, and saying so here is what keeps a press on it
         // from being held back as a possible swipe: chrome reacts on press, like a real title bar.
         if (titleBar.contains(guiMouseX(window.cursorX()), guiMouseYTopDown())) {
@@ -1080,6 +1121,7 @@ public final class PvzceClient {
 
     /** A click in logical GUI coordinates, to whichever layer owns the mouse. */
     void deliverGuiClick(double guiX, double guiY, int button) {
+        if (previewClick(guiX, guiY, button)) return;
         if (overlay != null) {
             overlay.mouseClicked(guiX, guiY, button);
         } else {
@@ -1190,12 +1232,14 @@ public final class PvzceClient {
         RenderSystem.clear(0.53F, 0.75F, 0.98F, 1F);
         RenderSystem.setShader();
         updateFps();
-        currentScreen().render();
-        if (overlay != null) {
+        if (!lightingPreview()) lightingPreview = false;
+        if (lightingPreview()) screens.find(InGameScreen.class).renderLightingPreview();
+        else currentScreen().render();
+        if (!lightingPreview() && overlay != null) {
             overlay.initIfNeeded();
             overlay.render();
         }
-        if (debugOverlayEnabled) {
+        if (!lightingPreview() && debugOverlayEnabled) {
             beginGuiView();
             DebugOverlay.render(this);
         }
@@ -1203,8 +1247,11 @@ public final class PvzceClient {
         // leaves whatever view it needed active: a title bar has to sit over the game no matter
         // which screen drew underneath it.
         beginGuiView();
-        titleBar.render();
-        renderPointerProbe();
+        if (!lightingPreview()) {
+            titleBar.render();
+            renderPointerProbe();
+        }
+        if (previewAvailable()) lightingPreviewButton().render(this);
         // One-shot atlas dump: the glyph atlas is uploaded from memory rather than
         // decoded from a PNG, so when text renders wrong there is otherwise no file to
         // look at. `-Dpvzce.dumpFontAtlas=<dir>` writes it after the first drawn frame.
@@ -2048,11 +2095,13 @@ public final class PvzceClient {
      * cannot outlive them.
      */
     public void setScreenReplacing(Screen screen) {
+        lightingPreview = false;
         screens.replace(screen);
     }
 
     /** Nests a screen on top of the current one; the screen below stays alive. */
     public void openScreen(Screen screen) {
+        lightingPreview = false;
         if (screen == null || screen.blurredBackdrop()) {
             // Captured here, not at draw time: the back buffer still holds the frame the player is
             // looking at right now, and the incoming screen is about to paint over it.
@@ -2075,6 +2124,7 @@ public final class PvzceClient {
      * is alone on the stack cannot be popped into a client with nothing to render.
      */
     public void navigateBack() {
+        lightingPreview = false;
         screens.back();
     }
 

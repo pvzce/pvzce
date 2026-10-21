@@ -18,7 +18,11 @@ public final class PvzceConstants {
     public static final int LIGHT_MAX_CONTACTS = 64;
     public static final float LIGHT_BLOOM_THRESHOLD = 1.1F;
     public static final float LIGHT_BLOOM_STRENGTH = 0.20F;
-    public static final float LIGHT_EXPOSURE = 1F;
+    public static final int LIGHT_MSAA_SAMPLES = 4;
+    public static final float LIGHT_SHADOW_SOFTNESS = 1.8F;
+    public static final float LIGHT_SHAFT_STRENGTH = 0.16F;
+    public static final float LIGHT_SHAFT_HEIGHT = 2.5F;
+    public static final int LIGHT_SHAFT_STEPS = 16;
     public static final float LIGHT_SUN_RADIUS = 2.2F;
     public static final float LIGHT_FIRE_RADIUS = 2.6F;
     public static final float LIGHT_FIRE_PEA_RADIUS = 1.6F;

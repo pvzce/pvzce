@@ -10,6 +10,7 @@ import org.lwjgl.opengl.GL20;
 public final class WorldLighting {
     public static final String GLSL = """
             uniform int uMaterialLighting;
+            uniform float uSpecularStrength;
             uniform int uRelief;
             uniform int uMaterial;
             uniform vec4 uMaterialUv;
@@ -71,7 +72,7 @@ public final class WorldLighting {
                 vec3 view = normalize(vec3(0.0, -0.85, 1.0));
                 vec3 halfway = normalize(view + sun);
                 result += sunlight * pow(max(dot(normal, halfway), 0.0), mix(72.0, 10.0, roughness))
-                    * (1.0 - roughness) * 0.18 * direct * visibility;
+                    * uSpecularStrength * (1.0 - roughness) * 0.18 * direct * visibility;
                 for (int i = 0; i < 8; i++) {
                     float radius = uShadowPointRadius[i];
                     if (radius <= 0.0) continue;
@@ -87,7 +88,7 @@ public final class WorldLighting {
                         * mix(%s, %s, uSceneNight) * falloff * visible;
                     result += albedo * radiance * diffuse;
                     result += radiance * pow(max(dot(normal, normalize(direction + view)), 0.0),
-                            mix(64.0, 10.0, roughness)) * (1.0 - roughness) * 0.15;
+                            mix(64.0, 10.0, roughness)) * uSpecularStrength * (1.0 - roughness) * 0.15;
                 }
                 return result;
             }
@@ -98,9 +99,10 @@ public final class WorldLighting {
                     PvzceConstants.LIGHT_LOCAL_DAY_GAIN, PvzceConstants.LIGHT_LOCAL_NIGHT_GAIN);
 
     public static final class Uniforms {
-        private final int enabled, relief, material, uv, night, emission, additive, count, contacts, weights;
+        private final int enabled, specular, relief, material, uv, night, emission, additive, count, contacts, weights;
         public Uniforms(int id) {
             enabled = GL20.glGetUniformLocation(id, "uMaterialLighting");
+            specular = GL20.glGetUniformLocation(id, "uSpecularStrength");
             relief = GL20.glGetUniformLocation(id, "uRelief");
             material = GL20.glGetUniformLocation(id, "uMaterial");
             uv = GL20.glGetUniformLocation(id, "uMaterialUv");
@@ -122,7 +124,7 @@ public final class WorldLighting {
     }
 
     private boolean active, relief;
-    private float night;
+    private float night, specular = 1F;
     private int count;
     private final float[] contacts = new float[PvzceConstants.LIGHT_MAX_CONTACTS * 4];
     private final float[] weights = new float[PvzceConstants.LIGHT_MAX_CONTACTS];
@@ -132,6 +134,7 @@ public final class WorldLighting {
         active = true;
         relief = client.config().effectEnabled(PvzceClientConfig.ShaderEffect.MATERIAL_LIGHTING);
         night = client.worldNightBlend();
+        specular = client.config().lighting(PvzceClientConfig.LightingParameter.SPECULAR);
         count = 0;
         for (ClientEntity entity : client.level().entities().values()) {
             if (count == weights.length) break;
@@ -151,6 +154,7 @@ public final class WorldLighting {
     }
     public void upload(Uniforms uniforms) {
         GL20.glUniform1i(uniforms.enabled, active ? 1 : 0);
+        GL20.glUniform1f(uniforms.specular, specular);
         GL20.glUniform1i(uniforms.relief, relief ? 1 : 0);
         GL20.glUniform1f(uniforms.night, night);
         GL20.glUniform1i(uniforms.count, count);

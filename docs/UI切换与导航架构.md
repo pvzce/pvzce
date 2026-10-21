@@ -53,6 +53,11 @@ render();                        // currentScreen().render()，然后 overlay.re
 覆盖层与它下面的屏**互不干扰**：屏照常 `tick()`、照常 `render()`，覆盖层只是画在它上面并且
 独占输入。这在结构上成立，不再需要"如果是 ConsoleScreen 就特殊照顾"的分支。
 
+关卡右下角的光影预览由 `PvzceClient` 负责，属于显示模式，不压栈或改变暂停状态。
+`ScreenStack.find` 查找仍存活的 `InGameScreen`，预览时调用其 `renderLightingPreview` 只画世界；
+当前屏、对话与覆盖层保持原状态，显示和输入暂停，右下角按钮与截图键可用，Esc 退出预览。
+换屏和离关取消预览；退出后恢复原页面的模糊背景及界面。
+
 ---
 
 ## 3. 屏幕栈

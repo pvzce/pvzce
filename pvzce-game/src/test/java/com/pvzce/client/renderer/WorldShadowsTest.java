@@ -145,6 +145,7 @@ class WorldShadowsTest {
             assertEquals(1F, sample(3.5F, 1.84F), 0.01F, "World shadows must not leak into GUI");
             assertEquals(GL11.GL_NO_ERROR, GL11.glGetError());
         } finally {
+            com.pvzce.client.renderer.vertex.Tesselator.INSTANCE.close();
             RenderSystem.shadows().close();
             RenderSystem.shader().close();
             GLFW.glfwDestroyWindow(window);

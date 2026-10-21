@@ -1607,7 +1607,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     @Override
     public void render() {
-        try { renderWorld(); } finally { RenderSystem.post().finish(); }
+        renderLightingPreview();
         client.beginGuiView();
         // Under the HUD and over the board: the wash belongs to the level, and the panel and the
         // banner are messages about it.
@@ -1882,6 +1882,10 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
     }
 
+    public void renderLightingPreview() {
+        try { renderWorld(); } finally { RenderSystem.post().finish(); }
+    }
+
     private void renderWorld() {
         // What is out of place on the board right now, before anything reads it: the scene
         // renderer asks per cell, and half the answer is a clock.
@@ -1896,7 +1900,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         }
         if (client.shadersEnabled()) {
             RenderSystem.post().begin(client.window().width(), client.window().height(),
-                    client.config().effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.BLOOM));
+                    client.config(), camera, client.worldNightBlend());
             RenderSystem.lighting().begin(client);
         }
         // The original PvZ backing image is the stage: house on the left, a
@@ -1972,11 +1976,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // behind the grass - and the part that is out has to be in front of it, like every
         // other zombie.
 
-        renderContainerHover(camera);
+        if (!client.lightingPreview()) {
+            renderContainerHover(camera);
+            renderAimReticle();
+        }
 
-        renderAimReticle();
-
-        if (selectedCard >= 0) {
+        if (!client.lightingPreview() && selectedCard >= 0) {
             int hoverX = camera.cellX(client.window().cursorX(), client.window().cursorY());
             int hoverY = camera.cellY(client.window().cursorX(), client.window().cursorY());
             if (camera.inBoard(client.window().cursorX(), client.window().cursorY())
@@ -2097,13 +2102,15 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         for (com.pvzce.client.mechanic.ClientMechanic.WorldOverlay overlay : worldOverlays()) {
             overlay.renderOver(client, camera);
         }
-        renderPlacementPreview();
-        renderCarriedPlant();
+        if (!client.lightingPreview()) {
+            renderPlacementPreview();
+            renderCarriedPlant();
+        }
         // Last of the board's own layers, so a summoned mallet is drawn over the burst it just
         // caused. It used to be drawn under the particles, and the pot's own POW is a
         // three-quarter-second cloud - the swing is a third of a second, so the gesture the
         // player asked for was entirely hidden behind the hit it made.
-        renderMalletSwings();
+        if (!client.lightingPreview()) renderMalletSwings();
     }
 
     /**
@@ -2656,7 +2663,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * has to follow the entity, and a bar is geometry rather than art.
      */
     private void drawHealthBar(ClientEntity entity) {
-        if (!client.healthBarsEnabled() || entity.health() >= entity.maxHealth()) {
+        if (client.lightingPreview() || !client.healthBarsEnabled() || entity.health() >= entity.maxHealth()) {
             return;
         }
         boolean zombie = com.pvzce.api.entity.EntityKind.ZOMBIE.equals(entity.kind());

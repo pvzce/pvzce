@@ -54,6 +54,11 @@ public final class ScreenStack {
         return screens.peek();
     }
 
+    public <T extends Screen> T find(Class<T> type) {
+        for (Screen screen : screens) if (type.isInstance(screen)) return type.cast(screen);
+        return null;
+    }
+
     /** How many full-window screens are on the stack. Overlays are not counted. */
     public int depth() {
         return screens.size();
