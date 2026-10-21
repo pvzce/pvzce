@@ -157,6 +157,7 @@ public final class PvzceClient {
     private long backspaceNextNanos;
     private boolean backspaceHeld;
     private boolean lightingPreview;
+    private boolean gameUiHidden;
     private Screen lightingPreviewOwner;
 
     public boolean lightingPreview() {
@@ -164,7 +165,20 @@ public final class PvzceClient {
     }
 
     public boolean previewAvailable() {
-        return level.initialized() && screens.find(InGameScreen.class) != null;
+        return level.initialized() && currentScreen() instanceof com.pvzce.client.gui.screens.LightingSettingsScreen
+                && screens.find(InGameScreen.class) != null;
+    }
+
+    public boolean gameUiHidden() {
+        return gameUiHidden && level.initialized() && currentScreen() instanceof InGameScreen;
+    }
+
+    public boolean sceneOnly() { return lightingPreview() || gameUiHidden(); }
+
+    public boolean toggleGameUi() {
+        if (!level.initialized() || !(currentScreen() instanceof InGameScreen) || overlay != null) return false;
+        gameUiHidden = !gameUiHidden;
+        return true;
     }
 
     private com.pvzce.client.gui.components.Button lightingPreviewButton() {
@@ -177,7 +191,7 @@ public final class PvzceClient {
     }
 
     private boolean previewClick(double x, double y, int button) {
-        if (!previewAvailable()) return false;
+        if (!previewAvailable()) return gameUiHidden();
         boolean wasPreview = lightingPreview();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && lightingPreviewButton().mouseClicked(x, y, button)) return true;
         return wasPreview;
@@ -723,6 +737,7 @@ public final class PvzceClient {
                 screenshotPending = true;
                 return true;
             }
+            case HIDE_UI -> { return toggleGameUi(); }
             case HEALTH_BARS -> {
                 healthBarsEnabled = !healthBarsEnabled;
                 healthBarsChangedAtNanos = System.nanoTime();
@@ -762,8 +777,10 @@ public final class PvzceClient {
         }
         Integer key;
         while ((key = window.pollKey()) != null) {
-            if (lightingPreview()) {
-                if (key == GLFW.GLFW_KEY_ESCAPE) lightingPreview = false;
+            if (sceneOnly()) {
+                if (key == GLFW.GLFW_KEY_ESCAPE) { lightingPreview = false; gameUiHidden = false; }
+                else if (gameUiHidden() && config.keyBindings().actionFor(key) == com.pvzce.client.input.KeyBindings.Action.HIDE_UI)
+                    gameUiHidden = false;
                 else if (config.keyBindings().actionFor(key) == com.pvzce.client.input.KeyBindings.Action.SCREENSHOT)
                     screenshotPending = true;
                 continue;
@@ -822,7 +839,7 @@ public final class PvzceClient {
         }
         Integer codepoint;
         while ((codepoint = window.pollTypedChar()) != null) {
-            if (lightingPreview()) continue;
+            if (sceneOnly()) continue;
             char ch = (char) codepoint.intValue();
             if (suppressNextChar != 0 && Character.toLowerCase(ch) == suppressNextChar) {
                 suppressNextChar = 0;
@@ -837,7 +854,7 @@ public final class PvzceClient {
         }
         screen = currentScreen();
         boolean backspaceDown = window.isKeyDown(GLFW.GLFW_KEY_BACKSPACE);
-        boolean textFocused = !lightingPreview() && (overlay != null
+        boolean textFocused = !sceneOnly() && (overlay != null
                 ? overlay.hasTextInputFocused() : screen.hasTextInputFocused());
         if (backspaceDown && textFocused) {
             long now = System.nanoTime();
@@ -886,7 +903,7 @@ public final class PvzceClient {
         while ((scroll = window.pollScroll()) != null) {
             dispatchMouseScrolled(scroll);
         }
-        if (lightingPreview()) return;
+        if (sceneOnly()) return;
         if (overlay != null) {
             overlay.mouseMoved(guiMouseX(window.cursorX()), guiMouseY(window.cursorY()));
         } else {
@@ -929,7 +946,7 @@ public final class PvzceClient {
     }
 
     private void dispatchMouseDragged() {
-        if (lightingPreview()) return;
+        if (sceneOnly()) return;
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
         // A drag that began on the bar is the bar's; nothing below it moves with the pointer.
@@ -945,7 +962,7 @@ public final class PvzceClient {
     }
 
     private void dispatchMouseReleased() {
-        if (lightingPreview()) return;
+        if (sceneOnly()) return;
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
         if (titleBar.mouseReleased(guiMouseX(window.cursorX()), guiMouseYTopDown())) {
@@ -960,7 +977,7 @@ public final class PvzceClient {
     }
 
     private void dispatchMouseScrolled(double amount) {
-        if (lightingPreview()) return;
+        if (sceneOnly()) return;
         double guiX = guiMouseX(window.cursorX());
         double guiY = guiMouseY(window.cursorY());
         if (overlay != null) {
@@ -979,7 +996,7 @@ public final class PvzceClient {
      * takes raw ones), so this is the one place that knows both.
      */
     private void dispatchGuiScrolled(double guiX, double guiY, double amount) {
-        if (lightingPreview()) return;
+        if (sceneOnly()) return;
         if (overlay != null) {
             overlay.mouseScrolled(guiX, guiY, amount);
         } else {
@@ -1024,7 +1041,7 @@ public final class PvzceClient {
      * click cannot come to different conclusions about which layer a point belongs to.
      */
     private ScrollRegion gestureRegionAt(double guiX, double guiY) {
-        if (lightingPreview() || previewAvailable() && lightingPreviewButton().isMouseOver(guiX, guiY)) return null;
+        if (sceneOnly() || previewAvailable() && lightingPreviewButton().isMouseOver(guiX, guiY)) return null;
         // The title bar is not a scroll region, and saying so here is what keeps a press on it
         // from being held back as a possible swipe: chrome reacts on press, like a real title bar.
         if (titleBar.contains(guiMouseX(window.cursorX()), guiMouseYTopDown())) {
@@ -1233,13 +1250,13 @@ public final class PvzceClient {
         RenderSystem.setShader();
         updateFps();
         if (!lightingPreview()) lightingPreview = false;
-        if (lightingPreview()) screens.find(InGameScreen.class).renderLightingPreview();
+        if (sceneOnly()) screens.find(InGameScreen.class).renderLightingPreview();
         else currentScreen().render();
-        if (!lightingPreview() && overlay != null) {
+        if (!sceneOnly() && overlay != null) {
             overlay.initIfNeeded();
             overlay.render();
         }
-        if (!lightingPreview() && debugOverlayEnabled) {
+        if (!sceneOnly() && debugOverlayEnabled) {
             beginGuiView();
             DebugOverlay.render(this);
         }
@@ -1247,7 +1264,7 @@ public final class PvzceClient {
         // leaves whatever view it needed active: a title bar has to sit over the game no matter
         // which screen drew underneath it.
         beginGuiView();
-        if (!lightingPreview()) {
+        if (!sceneOnly()) {
             titleBar.render();
             renderPointerProbe();
         }
@@ -2095,12 +2112,14 @@ public final class PvzceClient {
      * cannot outlive them.
      */
     public void setScreenReplacing(Screen screen) {
+        gameUiHidden = false;
         lightingPreview = false;
         screens.replace(screen);
     }
 
     /** Nests a screen on top of the current one; the screen below stays alive. */
     public void openScreen(Screen screen) {
+        gameUiHidden = false;
         lightingPreview = false;
         if (screen == null || screen.blurredBackdrop()) {
             // Captured here, not at draw time: the back buffer still holds the frame the player is
@@ -2124,6 +2143,7 @@ public final class PvzceClient {
      * is alone on the stack cannot be popped into a client with nothing to render.
      */
     public void navigateBack() {
+        gameUiHidden = false;
         lightingPreview = false;
         screens.back();
     }

@@ -15,6 +15,10 @@ public final class WorldLighting {
             uniform int uMaterial;
             uniform vec4 uMaterialUv;
             uniform float uSceneNight;
+            uniform vec3 uCelestialColor;
+            uniform float uCelestialStrength;
+            uniform float uCelestialElevation;
+            uniform float uCelestialTint;
             uniform float uEntityEmission;
             uniform int uAdditiveLight;
             uniform int uContactCount;
@@ -34,7 +38,7 @@ public final class WorldLighting {
                 if (uReceiverEntity == 1) {
                     // Each animated part is an approximate curved sheet, not a grayscale bump map.
                     vec2 q = ((uv - uMaterialUv.xy) / (uMaterialUv.zw - uMaterialUv.xy + vec2(1e-7))) * 2.0 - 1.0;
-                    return normalize(vec3(q.x * 0.65, -0.55, 0.65 + q.y * 0.25));
+                    return normalize(vec3(q.x * 0.65, -0.25, 0.9 + q.y * 0.2));
                 }
                 vec2 slope = uReceiverEntity == 2 && p.z > uReceiverLimits.x && p.z < uReceiverLimits.y ? uReceiverProfile.yz : vec2(0.0);
                 if (uRelief == 1 && uMaterial > 0) {
@@ -59,13 +63,17 @@ public final class WorldLighting {
                 }
                 return 1.0 - occlusion * %s;
             }
+            vec3 illuminationColor(int rgb) {
+                return vec3((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255) / 255.0;
+            }
             vec3 materialLighting(vec3 albedo, vec3 p, vec3 normal, float roughness) {
                 vec3 sun = normalize(uShadowLights[0].xyz);
                 float visibility = lightVisibility(p, 0);
-                vec3 sky = mix(vec3(0.78, 0.88, 1.0), vec3(0.44, 0.58, 1.0), uSceneNight);
-                vec3 sunlight = mix(vec3(1.0, 0.89, 0.69), vec3(0.52, 0.67, 1.0), uSceneNight);
+                vec3 daySky = mix(illuminationColor(%d), illuminationColor(%d), mix(1.0, uCelestialElevation, uCelestialTint));
+                vec3 sky = mix(daySky, illuminationColor(%d), uSceneNight);
+                vec3 sunlight = mix(illuminationColor(%d), uCelestialColor, uCelestialTint);
                 float ambient = mix(%s, %s, uSceneNight);
-                float direct = mix(%s, %s, uSceneNight);
+                float direct = uCelestialStrength;
                 float ndl = max(0.0, dot(normal, sun));
                 vec3 result = albedo * (sky * ambient + sunlight * direct * ndl * visibility);
                 result *= contactVisibility(p);
@@ -94,12 +102,14 @@ public final class WorldLighting {
             }
             """.formatted(PvzceConstants.LIGHT_MAX_CONTACTS, PvzceConstants.LIGHT_MAX_CONTACTS,
                     PvzceConstants.LIGHT_CONTACT_STRENGTH,
+                    PvzceConstants.LIGHT_HORIZON_SKY_COLOR, PvzceConstants.LIGHT_DAY_SKY_COLOR,
+                    PvzceConstants.LIGHT_NIGHT_SKY_COLOR,
+                    PvzceConstants.LIGHT_DAY_DIRECT_COLOR,
                     PvzceConstants.LIGHT_DAY_AMBIENT, PvzceConstants.LIGHT_NIGHT_AMBIENT,
-                    PvzceConstants.LIGHT_DAY_DIRECT, PvzceConstants.LIGHT_NIGHT_DIRECT,
                     PvzceConstants.LIGHT_LOCAL_DAY_GAIN, PvzceConstants.LIGHT_LOCAL_NIGHT_GAIN);
 
     public static final class Uniforms {
-        private final int enabled, specular, relief, material, uv, night, emission, additive, count, contacts, weights;
+        private final int enabled, specular, relief, material, uv, night, celestialColor, celestialStrength, celestialElevation, celestialTint, emission, additive, count, contacts, weights;
         public Uniforms(int id) {
             enabled = GL20.glGetUniformLocation(id, "uMaterialLighting");
             specular = GL20.glGetUniformLocation(id, "uSpecularStrength");
@@ -107,11 +117,21 @@ public final class WorldLighting {
             material = GL20.glGetUniformLocation(id, "uMaterial");
             uv = GL20.glGetUniformLocation(id, "uMaterialUv");
             night = GL20.glGetUniformLocation(id, "uSceneNight");
+            celestialColor = GL20.glGetUniformLocation(id, "uCelestialColor");
+            celestialStrength = GL20.glGetUniformLocation(id, "uCelestialStrength");
+            celestialElevation = GL20.glGetUniformLocation(id, "uCelestialElevation");
+            celestialTint = GL20.glGetUniformLocation(id, "uCelestialTint");
             emission = GL20.glGetUniformLocation(id, "uEntityEmission");
             additive = GL20.glGetUniformLocation(id, "uAdditiveLight");
             count = GL20.glGetUniformLocation(id, "uContactCount");
             contacts = GL20.glGetUniformLocation(id, "uContacts[0]");
             weights = GL20.glGetUniformLocation(id, "uContactWeight[0]");
+        }
+        public void celestial(TimeOfDayLighting.CelestialLight light, boolean tinted) {
+            GL20.glUniform3f(celestialColor, light.red(), light.green(), light.blue());
+            GL20.glUniform1f(celestialStrength, light.strength());
+            GL20.glUniform1f(celestialElevation, light.elevation());
+            GL20.glUniform1f(celestialTint, tinted ? 1F : 0F);
         }
         public void uv(float u0, float v0, float u1, float v1) { GL20.glUniform4f(uv, u0, v0, u1, v1); }
         public void material(String surface) {
@@ -123,8 +143,9 @@ public final class WorldLighting {
         public void additive(boolean value) { GL20.glUniform1i(additive, value ? 1 : 0); }
     }
 
-    private boolean active, relief;
+    private boolean active, relief, tinted;
     private float night, specular = 1F;
+    private TimeOfDayLighting.CelestialLight celestial;
     private int count;
     private final float[] contacts = new float[PvzceConstants.LIGHT_MAX_CONTACTS * 4];
     private final float[] weights = new float[PvzceConstants.LIGHT_MAX_CONTACTS];
@@ -133,7 +154,10 @@ public final class WorldLighting {
     public void begin(PvzceClient client) {
         active = true;
         relief = client.config().effectEnabled(PvzceClientConfig.ShaderEffect.MATERIAL_LIGHTING);
+        tinted = client.config().effectEnabled(PvzceClientConfig.ShaderEffect.DAY_NIGHT);
         night = client.worldNightBlend();
+        celestial = TimeOfDayLighting.celestial(client.worldLightX(), client.worldLightY(),
+                client.level().width(), client.level().height(), night);
         specular = client.config().lighting(PvzceClientConfig.LightingParameter.SPECULAR);
         count = 0;
         for (ClientEntity entity : client.level().entities().values()) {
@@ -157,6 +181,7 @@ public final class WorldLighting {
         GL20.glUniform1f(uniforms.specular, specular);
         GL20.glUniform1i(uniforms.relief, relief ? 1 : 0);
         GL20.glUniform1f(uniforms.night, night);
+        if (active) uniforms.celestial(celestial, tinted);
         GL20.glUniform1i(uniforms.count, count);
         if (count > 0) {
             GL20.glUniform4fv(uniforms.contacts, contacts);

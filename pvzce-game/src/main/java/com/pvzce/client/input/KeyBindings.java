@@ -38,6 +38,8 @@ public final class KeyBindings {
         DEBUG_OVERLAY("debug", GLFW.GLFW_KEY_F3),
         /** Save a PNG of the current frame. */
         SCREENSHOT("screenshot", GLFW.GLFW_KEY_F2),
+        /** Show the level without interface elements. */
+        HIDE_UI("hide_ui", GLFW.GLFW_KEY_F1),
         /** Health bars over everything that is not at full health. */
         HEALTH_BARS("health", GLFW.GLFW_KEY_F10),
         /** The chat line. */

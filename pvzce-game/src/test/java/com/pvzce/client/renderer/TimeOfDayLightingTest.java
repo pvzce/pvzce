@@ -26,6 +26,22 @@ class TimeOfDayLightingTest {
         TestContent.loadBuiltInContentAndTags();
     }
 
+    @Test void celestialSourcesHaveDistinctColorsAndRespondToElevation() {
+        var dawn = TimeOfDayLighting.celestial(0.45F, 2.5F, 9, 5, 0);
+        var noon = TimeOfDayLighting.celestial(4.5F, 10.5F, 9, 5, 0);
+        var moon = TimeOfDayLighting.celestial(4.5F, 10.5F, 9, 5, 1);
+        assertTrue(dawn.red()-dawn.blue() > noon.red()-noon.blue());
+        assertTrue(noon.strength() > dawn.strength());
+        assertTrue(moon.blue() > moon.red());
+        assertTrue(moon.strength() < noon.strength());
+        assertTrue(dawn.y()/dawn.z() > noon.y()/noon.z()*3, "Low sun casts substantially longer shadows");
+        var dusk = TimeOfDayLighting.celestial(4.5F, 10.5F, 9, 5, 0.5F);
+        assertEquals((noon.blue()+moon.blue())/2, dusk.blue(), 0.0001F);
+        var rise = TimeOfDayLighting.compute(3800, 3600, 3600, 9, 5);
+        var midnight = TimeOfDayLighting.compute(5400, 3600, 3600, 9, 5);
+        assertTrue(midnight.sunY() > rise.sunY(), "The moon also changes elevation during a night cycle");
+    }
+
     /** A level with no day is night immediately - not after a dusk nobody will ever see. */
     @Test
     void aFixedNightLevelIsLitAsNight() {

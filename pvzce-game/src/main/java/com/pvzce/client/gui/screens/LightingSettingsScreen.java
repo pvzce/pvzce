@@ -64,7 +64,7 @@ public final class LightingSettingsScreen extends Screen {
                 y -= row + gap;
             }
             if (page == 2) {
-                effect(x, y, width, row, ShaderEffect.ACES, "ACES 色调映射");
+                effect(x, y, width, row, ShaderEffect.ACES, "ACES 高光压缩");
                 y -= row + gap;
             }
             footer(x, y, half, row, gap);

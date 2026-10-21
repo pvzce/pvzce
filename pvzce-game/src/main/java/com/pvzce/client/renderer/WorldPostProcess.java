@@ -37,6 +37,7 @@ public final class WorldPostProcess implements AutoCloseable {
             uniform vec4 stage; // normalized screen rectangle
             uniform vec4 worldRect;
             uniform float shaftStrength;
+            uniform vec3 shaftColor;
             uniform float day;
             vec3 rgbToHsl(vec3 c) {
                 float hi = max(c.r, max(c.g, c.b)), lo = min(c.r, min(c.g, c.b));
@@ -49,21 +50,33 @@ public final class WorldPostProcess implements AutoCloseable {
                 vec3 rgb = clamp(abs(mod(v.x * 6.0 + vec3(0,4,2), 6.0)-3.0)-1.0, 0.0, 1.0);
                 return v.z + (rgb-0.5) * (1.0-abs(2.0*v.z-1.0)) * v.y;
             }
+            vec3 acesFit(vec3 c) {
+                return clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
+            }
+            vec3 displayTone(vec3 c) {
+                // Painted assets already carry their midtone contrast. Compress only the HDR shoulder.
+                const float pivot = %s;
+                vec3 anchor = acesFit(vec3(pivot));
+                vec3 shoulder = pivot + (acesFit(c) - anchor) * (1.0 - pivot) / (1.0 - anchor);
+                return mix(c, shoulder, greaterThan(c, vec3(pivot)));
+            }
             float scatter(vec2 screenUv) {
                 vec2 q = (screenUv-stage.xy)/stage.zw;
                 if (any(lessThan(q, vec2(0))) || any(greaterThan(q, vec2(1))) || uShadows == 0) return 0.0;
                 vec2 ground = worldRect.xy + q * worldRect.zw;
-                float sum = 0.0;
+                float sum = 0.0, leastVisible = 1.0;
                 // Along the side-view ray: projected Y = world Y + height.
                 for (int i=0; i<%d; i++) {
                     float z = (float(i)+0.5)/float(%d) * %s;
                     vec4 clip = shadowClip(vec3(ground.x, ground.y-z, z), 0);
                     vec3 p = clip.xyz/clip.w * 0.5+0.5;
                     float visible = texture(uShadowMaps, vec4(p.xy, 0.0, p.z-0.0001));
+                    leastVisible = min(leastVisible, visible);
                     float density = 0.7 + 0.3*sin(ground.x*2.1+ground.y*1.7+z*2.4);
                     sum += visible * exp(-z*0.65) * density;
                 }
-                return sum / float(%d) * day;
+                // A fully open ray has no shaft boundary: avoid a constant veil over the whole scene.
+                return sum / float(%d) * %s * day * (1.0 - leastVisible);
             }
             in vec2 uv;
             out vec4 color;
@@ -88,10 +101,10 @@ public final class WorldPostProcess implements AutoCloseable {
                     c = vec3(scatter(uv));
                 } else {
                     if (bloom > 0.0) c += texture(glow, uv).rgb * bloom;
-                    if (shaftStrength > 0.0) c += texture(shafts, uv).rgb * shaftStrength * vec3(1.0, 0.87, 0.63);
+                    if (shaftStrength > 0.0) c += texture(shafts, uv).rgb * shaftStrength * shaftColor;
                     c = max(c * exp2(tone.x), vec3(0.0));
                     if (aces == 1)
-                        c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
+                        c = displayTone(c);
                     c = pow(clamp(c, 0.0, 1.0), vec3(1.0 / tone.z));
                     float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
                     c += grading.w * 0.25 * pow(1.0-luma, 2.0)
@@ -107,8 +120,10 @@ public final class WorldPostProcess implements AutoCloseable {
                 }
                 color = vec4(c, 1.0);
             }
-            """.formatted(PvzceConstants.LIGHT_SHAFT_STEPS, PvzceConstants.LIGHT_SHAFT_STEPS,
-                    PvzceConstants.LIGHT_SHAFT_HEIGHT, PvzceConstants.LIGHT_SHAFT_STEPS);
+            """.formatted(PvzceConstants.LIGHT_TONEMAP_SHOULDER,
+                    PvzceConstants.LIGHT_SHAFT_STEPS, PvzceConstants.LIGHT_SHAFT_STEPS,
+                    PvzceConstants.LIGHT_SHAFT_HEIGHT, PvzceConstants.LIGHT_SHAFT_STEPS,
+                    PvzceConstants.LIGHT_SHAFT_DENSITY);
     private final int[] textures = new int[4], targets = new int[4];
     private int width, height, program, vao, previousTarget, previousReadTarget;
     private int multisampleTarget, multisampleColor, samples = 1;
@@ -118,7 +133,7 @@ public final class WorldPostProcess implements AutoCloseable {
     private PvzceCamera camera;
     private float daylight;
     private int modeLocation, directionLocation, bloomLocation;
-    private int thresholdLocation, shaftLocation, dayLocation, stageLocation, worldLocation;
+    private int thresholdLocation, shaftLocation, shaftColorLocation, dayLocation, stageLocation, worldLocation;
     private int toneLocation, gradingLocation, hslLocation, acesLocation;
     private int[] viewport;
     private boolean active, bloom;
@@ -163,7 +178,13 @@ public final class WorldPostProcess implements AutoCloseable {
         GL20.glUseProgram(program);
         GL20.glUniform1f(thresholdLocation, config.lighting(BLOOM_THRESHOLD));
         boolean scattering = config.effectEnabled(SUN_SHAFTS) && daylight > 0F && RenderSystem.shadows().active();
-        GL20.glUniform1f(shaftLocation, scattering ? config.lighting(SHAFT_STRENGTH) : 0F);
+        float shaftGain = 0F;
+        if (scattering) {
+            var sun = RenderSystem.shadows().sunlight();
+            shaftGain = config.lighting(SHAFT_STRENGTH) * sun.strength() / PvzceConstants.LIGHT_DAY_DIRECT;
+            GL20.glUniform3f(shaftColorLocation, sun.red(), sun.green(), sun.blue());
+        }
+        GL20.glUniform1f(shaftLocation, shaftGain);
         GL20.glUniform1f(dayLocation, daylight);
         GL20.glUniform4f(stageLocation, camera.viewportX()/(float)width,
                 camera.viewportY()/(float)height, camera.viewportWidth()/(float)width, camera.viewportHeight()/(float)height);
@@ -241,6 +262,7 @@ public final class WorldPostProcess implements AutoCloseable {
             bloomLocation = GL20.glGetUniformLocation(program, "bloom");
             thresholdLocation = GL20.glGetUniformLocation(program, "threshold");
             shaftLocation = GL20.glGetUniformLocation(program, "shaftStrength");
+            shaftColorLocation = GL20.glGetUniformLocation(program, "shaftColor");
             dayLocation = GL20.glGetUniformLocation(program, "day");
             stageLocation = GL20.glGetUniformLocation(program, "stage");
             worldLocation = GL20.glGetUniformLocation(program, "worldRect");

@@ -164,6 +164,8 @@ public final class WorldShadows implements AutoCloseable {
         localShadows = config.effectEnabled(com.pvzce.client.config.PvzceClientConfig.ShaderEffect.LOCAL_SHADOWS);
     }
     private boolean active, casting;
+    private TimeOfDayLighting.CelestialLight sunlight;
+    public TimeOfDayLighting.CelestialLight sunlight() { return sunlight; }
     private float left, bottom, width, height;
 
     public boolean active() { return active; }
@@ -192,8 +194,8 @@ public final class WorldShadows implements AutoCloseable {
         bottom = camera.worldBottom() - PvzceConstants.SHADOW_MAP_MARGIN;
         width = camera.worldWidth() + PvzceConstants.SHADOW_MAP_MARGIN * 2F;
         height = camera.worldHeight() + PvzceConstants.SHADOW_MAP_MARGIN * 2F;
-        lights[0] = new float[]{(sunX / columns - 0.5F) * 2F, PvzceConstants.SHADOW_SUN_DEPTH,
-                1F + sunY / rows * PvzceConstants.SHADOW_SUN_ELEVATION_FACTOR, 0F};
+        sunlight = TimeOfDayLighting.celestial(sunX, sunY, columns, rows, 0F);
+        lights[0] = new float[]{sunlight.x(), sunlight.y(), sunlight.z(), 0F};
         present[0] = true;
         if (mapSize == 0) {
             active = false;

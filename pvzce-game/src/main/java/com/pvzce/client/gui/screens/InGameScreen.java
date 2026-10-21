@@ -1976,12 +1976,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // behind the grass - and the part that is out has to be in front of it, like every
         // other zombie.
 
-        if (!client.lightingPreview()) {
+        if (!client.sceneOnly()) {
             renderContainerHover(camera);
             renderAimReticle();
         }
 
-        if (!client.lightingPreview() && selectedCard >= 0) {
+        if (!client.sceneOnly() && selectedCard >= 0) {
             int hoverX = camera.cellX(client.window().cursorX(), client.window().cursorY());
             int hoverY = camera.cellY(client.window().cursorX(), client.window().cursorY());
             if (camera.inBoard(client.window().cursorX(), client.window().cursorY())
@@ -2102,7 +2102,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         for (com.pvzce.client.mechanic.ClientMechanic.WorldOverlay overlay : worldOverlays()) {
             overlay.renderOver(client, camera);
         }
-        if (!client.lightingPreview()) {
+        if (!client.sceneOnly()) {
             renderPlacementPreview();
             renderCarriedPlant();
         }
@@ -2110,7 +2110,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // caused. It used to be drawn under the particles, and the pot's own POW is a
         // three-quarter-second cloud - the swing is a third of a second, so the gesture the
         // player asked for was entirely hidden behind the hit it made.
-        if (!client.lightingPreview()) renderMalletSwings();
+        if (!client.sceneOnly()) renderMalletSwings();
     }
 
     /**
@@ -2663,7 +2663,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      * has to follow the entity, and a bar is geometry rather than art.
      */
     private void drawHealthBar(ClientEntity entity) {
-        if (client.lightingPreview() || !client.healthBarsEnabled() || entity.health() >= entity.maxHealth()) {
+        if (client.sceneOnly() || !client.healthBarsEnabled() || entity.health() >= entity.maxHealth()) {
             return;
         }
         boolean zombie = com.pvzce.api.entity.EntityKind.ZOMBIE.equals(entity.kind());

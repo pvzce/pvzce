@@ -18,7 +18,7 @@ class WorldPostProcessTest {
     @TempDir Path directory;
     private static final int SIZE = 256;
     private PvzceClientConfig config;
-    private boolean overhead;
+    private float overheadHeight;
     private final PvzceCamera camera = new PvzceCamera(SIZE, SIZE, 9, 5);
 
     private float[] pixel(int x, int y) {
@@ -32,9 +32,9 @@ class WorldPostProcessTest {
         RenderSystem.setGuiShader();
         RenderSystem.shadows().configure(config);
         RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, () -> {
-            if (overhead) {
-                RenderSystem.shader().shadows().surface(com.pvzce.api.content.SurfaceProfile.flat(3));
-                SpriteRenderer.solid(camera.worldLeft()-10, camera.worldBottom()-10+3,
+            if (overheadHeight > 0) {
+                RenderSystem.shader().shadows().surface(com.pvzce.api.content.SurfaceProfile.flat(overheadHeight));
+                SpriteRenderer.solid(camera.worldLeft()-10, camera.worldBottom()-10+overheadHeight,
                         camera.worldWidth()+20, camera.worldHeight()+20, 0, 1, 1, 1, 1);
             }
         });
@@ -74,7 +74,15 @@ class WorldPostProcessTest {
             RenderSystem.shadows().render(camera, 4.5F, 15, 9, 5, () -> {});
             config.setEffectEnabled(SUN_SHAFTS, false);
             float neutral = frame(0.18F, 0.18F, 0.18F, false, 0)[0];
-            assertTrue(neutral > 0.5F && neutral < 0.6F, "HDR color passes through ACES and gamma");
+            assertEquals((float)Math.pow(0.18, 1.0/2.2), neutral, 0.005F,
+                    "Tone mapping must preserve the painted midtone instead of whitening it");
+            config.setEffectEnabled(BLOOM, false);
+            float low = frame(0.01F, 0.01F, 0.01F, false, 0)[0];
+            assertEquals((float)Math.pow(0.01, 1.0/2.2), low, 0.005F, "Tone mapping must retain dark detail");
+            float white = frame(1, 1, 1, false, 0)[0];
+            float hdr = frame(4, 4, 4, false, 0)[0];
+            assertTrue(white > neutral && hdr > white && hdr < 0.995F, "The HDR shoulder must be monotonic and retain bright detail");
+            config.setEffectEnabled(BLOOM, true);
             config.setLighting(EXPOSURE, 1);
             assertTrue(frame(0.18F, 0.18F, 0.18F, false, 0)[0] > neutral + 0.1F);
             config.setLighting(EXPOSURE, 0);
@@ -99,11 +107,17 @@ class WorldPostProcessTest {
             config.setEffectEnabled(SUN_SHAFTS, true);
             float day = frame(0.1F, 0.1F, 0.1F, false, 0)[0];
             float night = frame(0.1F, 0.1F, 0.1F, false, 1)[0];
-            assertTrue(day > night + 0.01F, "Sun scattering is restricted to daytime");
-            overhead = true;
+            assertEquals(night, day, 0.005F, "An unoccluded scene must not acquire a blanket of haze");
+            overheadHeight = 1.25F;
+            float shaft = frame(0.1F, 0.1F, 0.1F, false, 0)[0];
+            assertTrue(shaft > night + 0.005F, "Partially occluded daylight forms a shaft");
+            assertTrue(shaft < night + 0.025F, "Default scattering must not wash out shadow contrast");
+            assertEquals(night, frame(0.1F, 0.1F, 0.1F, false, 1)[0], 0.005F,
+                    "Moonlight must not enable the daylight shafts");
+            overheadHeight = 3F;
             float blocked = frame(0.1F, 0.1F, 0.1F, false, 0)[0];
-            assertTrue(day > blocked + 0.01F, "Light-space occluders must also block the scattering ray");
-            overhead = false;
+            assertEquals(night, blocked, 0.005F, "Fully blocked rays must not scatter sunlight");
+            overheadHeight = 0;
             GL11.glEnable(GL11.GL_SCISSOR_TEST);
             GL11.glScissor(0, 0, SIZE, SIZE);
             GL11.glDisable(GL13.GL_MULTISAMPLE);

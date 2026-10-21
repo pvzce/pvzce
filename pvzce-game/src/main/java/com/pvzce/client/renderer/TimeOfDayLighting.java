@@ -1,6 +1,7 @@
 package com.pvzce.client.renderer;
 
 import com.pvzce.common.util.MathUtil;
+import com.pvzce.common.PvzceConstants;
 /**
  * The board's day/night lighting as pure numbers, for any caller that has to draw a board.
  *
@@ -26,6 +27,33 @@ public final class TimeOfDayLighting {
                            float sunX, float sunY, float sunRadius,
                            float sunR, float sunG, float sunB, float strength,
                            float nightBlend) {
+    }
+
+    /** Active celestial direction and radiance; solar and lunar presets crossfade at dusk/dawn. */
+    public record CelestialLight(float x, float y, float z, float red, float green, float blue,
+                                 float strength, float elevation) {}
+
+    public static CelestialLight celestial(float lightX, float lightY, int columns, int rows, float night) {
+        float elevation = MathUtil.clamp01((lightY / Math.max(1, rows) - 0.5F) / 1.6F);
+        float angle = MathUtil.lerp(PvzceConstants.LIGHT_HORIZON_ANGLE, PvzceConstants.LIGHT_HIGH_ANGLE, elevation);
+        float x = (lightX / Math.max(1, columns) - 0.5F) * 2F;
+        float y = PvzceConstants.SHADOW_SUN_DEPTH;
+        float z = (float)Math.tan(Math.toRadians(angle)) * (float)Math.sqrt(x*x + y*y);
+        int sunrise = PvzceConstants.LIGHT_HORIZON_SUN_COLOR, noon = PvzceConstants.LIGHT_DAY_DIRECT_COLOR;
+        int moon = PvzceConstants.LIGHT_NIGHT_DIRECT_COLOR;
+        float r = channel(sunrise, noon, moon, 16, elevation, night);
+        float g = channel(sunrise, noon, moon, 8, elevation, night);
+        float b = channel(sunrise, noon, moon, 0, elevation, night);
+        float sunlight = PvzceConstants.LIGHT_DAY_DIRECT
+                * MathUtil.lerp(PvzceConstants.LIGHT_LOW_SUN_STRENGTH, 1F, elevation);
+        float moonlight = PvzceConstants.LIGHT_NIGHT_DIRECT
+                * MathUtil.lerp(PvzceConstants.LIGHT_LOW_MOON_STRENGTH, 1F, elevation);
+        return new CelestialLight(x, y, z, r, g, b, MathUtil.lerp(sunlight, moonlight, night), elevation);
+    }
+
+    private static float channel(int sunrise, int noon, int moon, int shift, float elevation, float night) {
+        float solar = MathUtil.lerp((sunrise >> shift) & 255, (noon >> shift) & 255, elevation) / 255F;
+        return MathUtil.lerp(solar, ((moon >> shift) & 255) / 255F, night);
     }
 
     private TimeOfDayLighting() {
@@ -116,6 +144,12 @@ public final class TimeOfDayLighting {
         float nightSunG = 0.80F;
         float nightSunB = 1.0F;
         float nightRadius = Math.max(w, h) * 1.05F;
+        if (dayLength > 0 && nightLength > 0) {
+            long position = Math.floorMod((long)Math.floor(dayTicks), (long)dayLength + nightLength);
+            float progress = MathUtil.clamp01((position - dayLength) / (float)nightLength);
+            nightSunX = w * (0.05F + 0.9F * progress);
+            nightSunY = h * (0.5F + 1.6F * (float)Math.sin(Math.PI * progress));
+        }
 
         return new Lighting(
                 MathUtil.lerp(dayTintR, nightTintR, nightBlend),

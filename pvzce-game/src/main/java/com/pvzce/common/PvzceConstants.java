@@ -8,10 +8,19 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
-    public static final float LIGHT_DAY_AMBIENT = 0.26F;
-    public static final float LIGHT_DAY_DIRECT = 1.65F;
-    public static final float LIGHT_NIGHT_AMBIENT = 0.24F;
-    public static final float LIGHT_NIGHT_DIRECT = 0.32F;
+    public static final float LIGHT_DAY_AMBIENT = 0.30F;
+    public static final float LIGHT_DAY_DIRECT = 0.78F;
+    public static final float LIGHT_NIGHT_AMBIENT = 0.38F;
+    public static final float LIGHT_NIGHT_DIRECT = 0.50F;
+    public static final float LIGHT_HORIZON_ANGLE = 12F, LIGHT_HIGH_ANGLE = 60F;
+    public static final float LIGHT_LOW_SUN_STRENGTH = 0.45F, LIGHT_LOW_MOON_STRENGTH = 0.55F;
+    public static final int LIGHT_HORIZON_SUN_COLOR = 0xFFE0B8;
+    public static final int LIGHT_HORIZON_SKY_COLOR = 0xFFE6D1;
+    public static final int LIGHT_DAY_SKY_COLOR = 0xF5FAFF;
+    public static final int LIGHT_NIGHT_SKY_COLOR = 0xB8CCF5;
+    public static final int LIGHT_DAY_DIRECT_COLOR = 0xFFFAF0;
+    public static final int LIGHT_NIGHT_DIRECT_COLOR = 0xC7E0FF;
+    public static final float LIGHT_TONEMAP_SHOULDER = 0.6F;
     public static final float LIGHT_LOCAL_DAY_GAIN = 0.8F;
     public static final float LIGHT_LOCAL_NIGHT_GAIN = 3.5F;
     public static final float LIGHT_CONTACT_STRENGTH = 0.46F;
@@ -21,6 +30,7 @@ public final class PvzceConstants {
     public static final int LIGHT_MSAA_SAMPLES = 4;
     public static final float LIGHT_SHADOW_SOFTNESS = 1.8F;
     public static final float LIGHT_SHAFT_STRENGTH = 0.16F;
+    public static final float LIGHT_SHAFT_DENSITY = 0.25F;
     public static final float LIGHT_SHAFT_HEIGHT = 2.5F;
     public static final int LIGHT_SHAFT_STEPS = 16;
     public static final float LIGHT_SUN_RADIUS = 2.2F;
@@ -36,7 +46,6 @@ public final class PvzceConstants {
     public static final int LIGHT_LAMP_COLOR = 0xFFC74D;
     public static final float SHADOW_MAP_MARGIN = 3F;
     public static final float SHADOW_SUN_DEPTH = 1.25F;
-    public static final float SHADOW_SUN_ELEVATION_FACTOR = 0.35F;
     public static final int SHADOW_MAP_LOW_SIZE = 512;
     public static final int SHADOW_MAP_SIZE = 1024;
     public static final int SHADOW_MAP_HIGH_SIZE = 2048;
