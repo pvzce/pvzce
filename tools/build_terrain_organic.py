@@ -4,7 +4,7 @@
 Requires Pillow, numpy, and the repository's existing Upscayl Flatpak backend.
 Run from any directory: python3 tools/build_terrain_organic.py
 Generated source pixels live in tools/art/terrain-organic/generated/ as lossless WebP.
-Only density recovery, edge wrapping and protected-region assembly happen here;
+Only density recovery and edge wrapping happen here;
 the material artwork itself comes from the recorded image_gen edits.
 """
 
@@ -15,7 +15,7 @@ from pathlib import Path
 import subprocess
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / "tools/art/terrain-organic"
@@ -44,7 +44,7 @@ def recover_density(meta):
     paths = {}
     missing = []
     for key, entry in meta["selected"].items():
-        if not (key.startswith("background") or key == "ground"):
+        if key != "ground":
             continue
         source = ROOT / entry["generated_source"]
         if fingerprint(source) != entry["stored_sha256"]:
@@ -65,36 +65,6 @@ def recover_density(meta):
                 "-s", "4", "-g", "0", "-t", "256", "-j", "1:1:1", "-f", "png",
             ], check=True, stdout=log, stderr=subprocess.STDOUT)
     return paths
-
-
-def terrain_mask(key, size):
-    """Reference-image coordinates; no generated pixels may alter protected scenery."""
-    w, h = size
-    sx, sy = w / 1400, h / 600
-    mask = Image.new("L", size)
-    draw = ImageDraw.Draw(mask)
-
-    def rectangle(bounds):
-        x0, y0, x1, y1 = bounds
-        draw.rectangle((round(x0 * sx), round(y0 * sy), round(x1 * sx), round(y1 * sy)), fill=255)
-
-    if key in ("background1", "background2", "background1unsodded"):
-        rectangle((258, 86, 974, 574))
-    elif key in ("background3", "background4"):
-        # Keep the entire coping and liquid placeholder untouched, not just its corners.
-        rectangle((258, 88, 972, 250))
-        rectangle((258, 454, 972, 584))
-    elif key in ("background5", "background6boss"):
-        # Inset from the roof silhouette; chimney, dish, flowers and eaves stay original.
-        vertices = [(232, 221), (360, 140), (520, 105), (690, 92), (1000, 120),
-                    (1350, 218), (1350, 536), (1000, 510), (690, 508), (230, 580)]
-        draw.polygon([(round(x * sx), round(y * sy)) for x, y in vertices], fill=255)
-    else:
-        raise ValueError(f"Unknown backdrop: {key}")
-    # An inward-only feather: unlike an ordinary blur, this cannot touch the pool rim.
-    hard = np.asarray(mask, dtype=np.int16)
-    blur = np.asarray(mask.filter(ImageFilter.GaussianBlur(8 * sx)), dtype=np.int16)
-    return Image.fromarray(np.minimum(hard, np.clip(2 * blur - 255, 0, 255)).astype(np.uint8))
 
 
 def repeat_edges(image):
@@ -128,12 +98,7 @@ def main():
         baseline = original(meta, entry["target"])
         with Image.open(enhanced.get(key, source)) as image:
             colour = image.convert("RGB").resize(baseline.size, Image.Resampling.LANCZOS)
-        if key.startswith("background"):
-            mask = terrain_mask(key, baseline.size)
-            result = Image.composite(colour, baseline.convert("RGB"), mask)
-            unchanged = np.asarray(mask) == 0
-            assert np.array_equal(np.asarray(result)[unchanged], np.asarray(baseline.convert("RGB"))[unchanged])
-        elif entry["target"].startswith("textures/scene/"):
+        if entry["target"].startswith("textures/scene/"):
             result = repeat_edges(colour)
             if baseline.mode == "RGBA":
                 # These are full-cell materials. The old roof variants' partial alpha
@@ -146,17 +111,13 @@ def main():
         entry["installed_sha256"] = fingerprint(target)
         entry["installed_size"] = list(result.size)
         print("packaged", entry["target"], result.size, flush=True)
-    subprocess.run(["python3", str(ROOT / "tools/bake_sod_backdrop.py")], cwd=ROOT, check=True)
     subprocess.run(["python3", str(ROOT / "tools/gen_water_frames.py")], cwd=ROOT, check=True)
-    derived = ["textures/gui/screen/level/background1_1row.png",
-               "textures/gui/screen/level/background1_3row.png"]
-    derived += [f"textures/scene/water_frames/water_{n}.png" for n in range(4)]
+    derived = [f"textures/scene/water_frames/water_{n}.png" for n in range(4)]
     for relative in derived:
         path = ASSETS / relative
         with Image.open(path) as image:
             meta["derived"][relative] = {"sha256": fingerprint(path), "size": list(image.size)}
     meta["packaging"] = {"density_model": MODEL,
-                         "backdrops": "inward feather, original pixels outside terrain mask",
                          "materials": "original resource dimensions, narrow periodic wrap band"}
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
 

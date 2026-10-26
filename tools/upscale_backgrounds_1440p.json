@@ -2,7 +2,7 @@
   "model": "high-fidelity-4x",
   "assets": [
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background1.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background1.png",
       "source_size": [
         1400,
         600
@@ -14,7 +14,7 @@
       "sha256": "e36809b67d008bda6f4d980e204a282ecd8e9fac2f80c38971a66db450f952cf"
     },
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background1unsodded.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background1unsodded.png",
       "source_size": [
         1400,
         600
@@ -26,7 +26,7 @@
       "sha256": "dfcfe82791ed84ecbf045e410febf419ed25128e7d83ee68b4e245f6e065b343"
     },
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background2.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background2.png",
       "source_size": [
         1400,
         600
@@ -38,7 +38,7 @@
       "sha256": "bc9ff0892170b338fe06e3adc0028256f76cd3554b2a5353acdfca58db628b1c"
     },
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background3.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background3.png",
       "source_size": [
         1400,
         600
@@ -50,7 +50,7 @@
       "sha256": "ea2b7192f86bf1c0f28f7173eddbc7e0d11170a89fd61ea5a66a2e219d584c72"
     },
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background4.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background4.png",
       "source_size": [
         1400,
         600
@@ -62,7 +62,7 @@
       "sha256": "8f55c063a227bfd53b63c14c834e94b70a908819553aa26331571f194b692d59"
     },
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background5.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background5.png",
       "source_size": [
         1400,
         600
@@ -74,7 +74,7 @@
       "sha256": "b22b5008668bf3d0bc30c6cba89ed2ec98835c9cf4305b4fa84edc59bcc0fb61"
     },
     {
-      "path": "pvzce-game/src/main/resources/assets/pvzce/textures/gui/screen/level/background6boss.png",
+      "path": "local-assets/assets/pvzce/textures/gui/screen/level/background6boss.png",
       "source_size": [
         1400,
         600

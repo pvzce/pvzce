@@ -52,9 +52,11 @@ LABEL = {
 #: 分类规则，**顺序敏感**——第一条命中的生效，所以特例要写在通例前面。
 #: 每条 = (正则, 分类, 依据)。正则匹配的是相对 `assets/pvzce/` 的路径。
 RULES: list[tuple[str, str, str]] = [
-    (r"^(textures/gui/screen/level/(background(1(unsodded|_1row|_3row)?|2|3|4|5|6boss)|almanac_ground(day|night|pool|nightpool|roof))\.png|textures/scene/(ground|roof_(flat|slope)(_2)?|water_(base|surface)|flood_water|ice)\.png|textures/scene/water_frames/water_[0-3]\.png)$", DERIV,
-     "内置 image_gen 修改既有背景与地形；tools/art/terrain-organic/ 留存源图、提示词与来源指纹；"
-     "tools/build_terrain_organic.py 保持原尺寸与背景保护区域，派生草坪和水面帧由现有生成器重建"),
+    (r"^textures/gui/screen/level/background(1(unsodded|_1row|_3row)?|2|3|4|5|6boss)\.png$", PvZ,
+     "原版关卡背景的高清图与开场草坪合成，版权归 PopCap/EA；仅放 local-assets，由 tools/restore_original_backdrops.py 恢复"),
+    (r"^(textures/gui/screen/level/almanac_ground(day|night|pool|nightpool|roof)\.png|textures/scene/(ground|roof_(flat|slope)(_2)?|water_(base|surface)|flood_water|ice)\.png|textures/scene/water_frames/water_[0-3]\.png)$", DERIV,
+     "内置 image_gen 修改既有地形；tools/art/terrain-organic/ 留存源图、提示词与来源指纹；"
+     "tools/build_terrain_organic.py 保持原尺寸并闭合材料周期边缘，水面帧由现有生成器重建"),
     (r"^sounds/original/roof_after_dark(_drums)?\.ogg$", ORIGINAL,
      "黑夜屋顶 6-1~6-4 的主题曲与鼓点层，由项目所有者提供为原创曲目（源 refer/ms2/，"
      "tools/build_roof_after_dark.sh 原样复制）；鼓点是同一演奏的另一条分轨，与主曲等长"),

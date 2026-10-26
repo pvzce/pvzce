@@ -36,8 +36,7 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-LEVEL_ART = (ROOT / "pvzce-game" / "src" / "main" / "resources" / "assets" / "pvzce"
-             / "textures" / "gui" / "screen" / "level")
+LEVEL_ART = ROOT / "local-assets/assets/pvzce/textures/gui/screen/level"
 
 # The 1400x600 backdrop's lawn: five 100px rows starting at y=80.
 LAWN_Y, ROW_HEIGHT = 80, 100

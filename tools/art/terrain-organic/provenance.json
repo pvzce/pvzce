@@ -412,6 +412,123 @@
       "pixel_sha256": "6c1ee67ced6b954c50123a75820432c8ff0605d07190df56f5839f2eb0e00721",
       "installed_sha256": "edca81a2e16294f978cb39cb8c6a87170217510b61c285e7c0d0f6f62e8c1458"
     },
+    "almanac_groundday": {
+      "target": "textures/gui/screen/level/almanac_groundday.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundday.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "7882e50c7682e63fafb4b881a1246a9cbafe9b3d6f00bfacab8726524c029dc8",
+      "stored_sha256": "eeb99e9a4a6a47e96ecc3194176e928b1a5088c4e4235c148597761227e9219e",
+      "pixel_sha256": "cf93b71b2aae3a6d1dee80572d8eeee1876958ca01a4861e0b12fc4cd9874472",
+      "installed_sha256": "be1bea01c91855372b5334236cca82760e9c748c1393de8c2dfffa945a06c771"
+    },
+    "almanac_groundnight": {
+      "target": "textures/gui/screen/level/almanac_groundnight.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundnight.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "16ca8970b41ea79c34eb302a57e16d2797eadcdea426c015e5ddd89cd3da1f10",
+      "stored_sha256": "31bf1573e8119967453c0c7f2f8cd74cb9cc8ce9abb17cf9363c74773e9af5a0",
+      "pixel_sha256": "12f285f460daf30be85ba1590ec6cfa2b72aae84f0b948a2a24f38849de45619",
+      "installed_sha256": "e352a33d27d698ce248ced88d17915f47078767fd75e64361d05111ce1e1c501"
+    },
+    "almanac_groundpool": {
+      "target": "textures/gui/screen/level/almanac_groundpool.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundpool.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "2ebd44e526c93f6a9f91ca23d4c72e74d5096c96b8f4191869f58e03554a076c",
+      "stored_sha256": "28a1a637492865321e56de236e6ae31f3fe2f0e12f4a503b5c20c63d2be46bfc",
+      "pixel_sha256": "b4f53a3406e8dec84ef7bd38dcef2b781745ad5fc5131688f5f08f4507ae0ff2",
+      "installed_sha256": "475ff5160aeccb2a365935c7424ce01279acbb3c55f536de4a134065772c90ad"
+    },
+    "almanac_groundnightpool": {
+      "target": "textures/gui/screen/level/almanac_groundnightpool.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundnightpool.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "1745be9c680e90041d46080467329db0a11d301d26dc78d5453932a5c3a1f9dd",
+      "stored_sha256": "a57b81003990b04c5cbc0c3252d2c2869a01a1e6049125181775e29cbe71a8e7",
+      "pixel_sha256": "82f487ecf224cdd1db8914863f06634ace7cd8da447c46ea0a65160958d9a81e",
+      "installed_sha256": "a4e5fa0b3dd990175c3ae0623ff5e14889ca9ae8acbebcaf8b86f813db682d4d"
+    },
+    "almanac_groundroof": {
+      "target": "textures/gui/screen/level/almanac_groundroof.png",
+      "generated_source": "tools/art/terrain-organic/generated/almanac_groundroof.webp",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "installed_size": [
+        200,
+        200
+      ],
+      "generator_png_sha256": "188f04c1d2a8d3a20302371d2ecd1d88b62f03f3e4098b1822968836e8f5a58e",
+      "stored_sha256": "750b470b1350ded38de867712afdb1d4c49c994a8aad2b122262e04d896ec277",
+      "pixel_sha256": "08fcd8ce7be3a01b17b8672d1f9ee7f1665df600cfe304be24abd49b5674d263",
+      "installed_sha256": "ad2ceecb09e923fa33221e5a60ac78b504f57771408c460ed339673fcdb96a4d"
+    }
+  },
+  "derived": {
+    "textures/scene/water_frames/water_0.png": {
+      "sha256": "00f7e35c4d2eaf3720992e625a7cbad554235c43474e879d983c77bed2a6d01c",
+      "size": [
+        128,
+        160
+      ]
+    },
+    "textures/scene/water_frames/water_1.png": {
+      "sha256": "34a73c5c44ba20d1db8b4d201c07783c8ad07a6d2faa2c59cc4fcb3aeddbccc3",
+      "size": [
+        128,
+        160
+      ]
+    },
+    "textures/scene/water_frames/water_2.png": {
+      "sha256": "eb7cdb58bf29b2277594ed54fd2120e44bae29cd01311ea1f26785ae308f8fb0",
+      "size": [
+        128,
+        160
+      ]
+    },
+    "textures/scene/water_frames/water_3.png": {
+      "sha256": "822ba52713692fcdbf985cfbc77e129b49ad7cbc705aab621f01cdb2a4663286",
+      "size": [
+        128,
+        160
+      ]
+    }
+  },
+  "unchanged": "场景摆件、效果贴花、UI；water_caustics 是 shader 调制控制图，保持原样",
+  "packaging": {
+    "density_model": "high-fidelity-4x",
+    "materials": "original resource dimensions, narrow periodic wrap band"
+  },
+  "retired_backdrops": {
     "background1": {
       "target": "textures/gui/screen/level/background1.png",
       "generated_source": "tools/art/terrain-organic/generated/background1.webp",
@@ -523,136 +640,6 @@
       "stored_sha256": "d945228a6f01ff27f741b034b16c1b03000066c83b750a4fdf8eed36bbd77d1b",
       "pixel_sha256": "1143e34f5fef65d3440c7b43fc93ba8c847e7d41e2a4eb1eb35bcb192c2cda24",
       "installed_sha256": "9cab3a0a6a66eb0ee7a8c21e1b3ca0b87867b0d852e600088a00550cb57f3056"
-    },
-    "almanac_groundday": {
-      "target": "textures/gui/screen/level/almanac_groundday.png",
-      "generated_source": "tools/art/terrain-organic/generated/almanac_groundday.webp",
-      "source_size": [
-        1254,
-        1254
-      ],
-      "installed_size": [
-        200,
-        200
-      ],
-      "generator_png_sha256": "7882e50c7682e63fafb4b881a1246a9cbafe9b3d6f00bfacab8726524c029dc8",
-      "stored_sha256": "eeb99e9a4a6a47e96ecc3194176e928b1a5088c4e4235c148597761227e9219e",
-      "pixel_sha256": "cf93b71b2aae3a6d1dee80572d8eeee1876958ca01a4861e0b12fc4cd9874472",
-      "installed_sha256": "be1bea01c91855372b5334236cca82760e9c748c1393de8c2dfffa945a06c771"
-    },
-    "almanac_groundnight": {
-      "target": "textures/gui/screen/level/almanac_groundnight.png",
-      "generated_source": "tools/art/terrain-organic/generated/almanac_groundnight.webp",
-      "source_size": [
-        1254,
-        1254
-      ],
-      "installed_size": [
-        200,
-        200
-      ],
-      "generator_png_sha256": "16ca8970b41ea79c34eb302a57e16d2797eadcdea426c015e5ddd89cd3da1f10",
-      "stored_sha256": "31bf1573e8119967453c0c7f2f8cd74cb9cc8ce9abb17cf9363c74773e9af5a0",
-      "pixel_sha256": "12f285f460daf30be85ba1590ec6cfa2b72aae84f0b948a2a24f38849de45619",
-      "installed_sha256": "e352a33d27d698ce248ced88d17915f47078767fd75e64361d05111ce1e1c501"
-    },
-    "almanac_groundpool": {
-      "target": "textures/gui/screen/level/almanac_groundpool.png",
-      "generated_source": "tools/art/terrain-organic/generated/almanac_groundpool.webp",
-      "source_size": [
-        1254,
-        1254
-      ],
-      "installed_size": [
-        200,
-        200
-      ],
-      "generator_png_sha256": "2ebd44e526c93f6a9f91ca23d4c72e74d5096c96b8f4191869f58e03554a076c",
-      "stored_sha256": "28a1a637492865321e56de236e6ae31f3fe2f0e12f4a503b5c20c63d2be46bfc",
-      "pixel_sha256": "b4f53a3406e8dec84ef7bd38dcef2b781745ad5fc5131688f5f08f4507ae0ff2",
-      "installed_sha256": "475ff5160aeccb2a365935c7424ce01279acbb3c55f536de4a134065772c90ad"
-    },
-    "almanac_groundnightpool": {
-      "target": "textures/gui/screen/level/almanac_groundnightpool.png",
-      "generated_source": "tools/art/terrain-organic/generated/almanac_groundnightpool.webp",
-      "source_size": [
-        1254,
-        1254
-      ],
-      "installed_size": [
-        200,
-        200
-      ],
-      "generator_png_sha256": "1745be9c680e90041d46080467329db0a11d301d26dc78d5453932a5c3a1f9dd",
-      "stored_sha256": "a57b81003990b04c5cbc0c3252d2c2869a01a1e6049125181775e29cbe71a8e7",
-      "pixel_sha256": "82f487ecf224cdd1db8914863f06634ace7cd8da447c46ea0a65160958d9a81e",
-      "installed_sha256": "a4e5fa0b3dd990175c3ae0623ff5e14889ca9ae8acbebcaf8b86f813db682d4d"
-    },
-    "almanac_groundroof": {
-      "target": "textures/gui/screen/level/almanac_groundroof.png",
-      "generated_source": "tools/art/terrain-organic/generated/almanac_groundroof.webp",
-      "source_size": [
-        1254,
-        1254
-      ],
-      "installed_size": [
-        200,
-        200
-      ],
-      "generator_png_sha256": "188f04c1d2a8d3a20302371d2ecd1d88b62f03f3e4098b1822968836e8f5a58e",
-      "stored_sha256": "750b470b1350ded38de867712afdb1d4c49c994a8aad2b122262e04d896ec277",
-      "pixel_sha256": "08fcd8ce7be3a01b17b8672d1f9ee7f1665df600cfe304be24abd49b5674d263",
-      "installed_sha256": "ad2ceecb09e923fa33221e5a60ac78b504f57771408c460ed339673fcdb96a4d"
     }
-  },
-  "derived": {
-    "textures/gui/screen/level/background1_1row.png": {
-      "sha256": "019d3990c490de8d380006f35e13d759ae2ada1b35061cf26265c6c22fb6cc04",
-      "size": [
-        3360,
-        1440
-      ]
-    },
-    "textures/gui/screen/level/background1_3row.png": {
-      "sha256": "8af71aad34f2ef2e4086150e0c24daa0055ba4e82c1af4e59b0a94a898298aa9",
-      "size": [
-        3360,
-        1440
-      ]
-    },
-    "textures/scene/water_frames/water_0.png": {
-      "sha256": "00f7e35c4d2eaf3720992e625a7cbad554235c43474e879d983c77bed2a6d01c",
-      "size": [
-        128,
-        160
-      ]
-    },
-    "textures/scene/water_frames/water_1.png": {
-      "sha256": "34a73c5c44ba20d1db8b4d201c07783c8ad07a6d2faa2c59cc4fcb3aeddbccc3",
-      "size": [
-        128,
-        160
-      ]
-    },
-    "textures/scene/water_frames/water_2.png": {
-      "sha256": "eb7cdb58bf29b2277594ed54fd2120e44bae29cd01311ea1f26785ae308f8fb0",
-      "size": [
-        128,
-        160
-      ]
-    },
-    "textures/scene/water_frames/water_3.png": {
-      "sha256": "822ba52713692fcdbf985cfbc77e129b49ad7cbc705aab621f01cdb2a4663286",
-      "size": [
-        128,
-        160
-      ]
-    }
-  },
-  "unchanged": "场景摆件、效果贴花、UI；water_caustics 是 shader 调制控制图，保持原样",
-  "packaging": {
-    "density_model": "high-fidelity-4x",
-    "backdrops": "inward feather, original pixels outside terrain mask",
-    "materials": "original resource dimensions, narrow periodic wrap band"
   }
 }
