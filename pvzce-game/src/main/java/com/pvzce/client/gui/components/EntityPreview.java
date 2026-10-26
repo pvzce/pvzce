@@ -46,12 +46,13 @@ public final class EntityPreview {
 
     private final PvzceClient client;
     private final com.pvzce.api.registry.RegistryAccess content;
+    private final int capacity;
     private record Key(String kind,Identifier id) {}
     private record Preview(ClientEntity entity, float[] world) {}
     private final Map<Key, Preview> live = new LinkedHashMap<>(16, 0.75F, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<Key, Preview> eldest) {
-            if (size() <= MAX_ALIVE) {
+            if (size() <= capacity) {
                 return false;
             }
             release(eldest.getValue().entity());
@@ -64,8 +65,18 @@ public final class EntityPreview {
     }
 
     public EntityPreview(PvzceClient client, com.pvzce.api.registry.RegistryAccess content) {
+        this(client, content, MAX_ALIVE);
+    }
+
+    /** A fixed catalogue can keep its visible page alive without evicting it every frame. */
+    public EntityPreview(PvzceClient client, int capacity) {
+        this(client, com.pvzce.common.core.BuiltInRegistries.ACCESS, capacity);
+    }
+
+    private EntityPreview(PvzceClient client, com.pvzce.api.registry.RegistryAccess content, int capacity) {
         this.client = client;
         this.content = content;
+        this.capacity = capacity;
     }
 
     /**

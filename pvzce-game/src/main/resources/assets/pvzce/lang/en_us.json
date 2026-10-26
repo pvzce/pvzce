@@ -28,6 +28,7 @@
   "gui.pvzce.almanac.stat.toughness": "Toughness",
   "gui.pvzce.almanac.stat.value": "Value",
   "gui.pvzce.almanac.view_plants": "View Plants",
+  "gui.pvzce.almanac.view_resources": "View Resources",
   "gui.pvzce.almanac.view_zombies": "View Zombies",
   "gui.pvzce.jev.title": "AI Match (Jev)",
   "gui.pvzce.jev.preset.label": "Provider",
